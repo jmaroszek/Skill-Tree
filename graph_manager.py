@@ -1,7 +1,8 @@
 import sqlite3
 import database
+import networkx as nx
 from models import Node
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Set
 
 class GraphManager:
     def __init__(self):
@@ -332,3 +333,52 @@ class GraphManager:
             dfs([target_name])
             
         return chains
+
+    # --- Community Detection ---
+
+    def _build_nx_graph(self) -> nx.Graph:
+        """Builds an undirected NetworkX graph from all nodes and edges in the DB."""
+        G = nx.Graph()
+        nodes = self.get_all_nodes()
+        edges = self.get_edges()
+        for n in nodes:
+            G.add_node(n.name)
+        for e in edges:
+            G.add_edge(e['source'], e['target'])
+        return G
+
+    def detect_communities(self, method: str = "components") -> List[Set[str]]:
+        """
+        Detects communities/islands in the graph.
+        
+        Args:
+            method: 'components' for Connected Components (finds fully disconnected islands),
+                     'louvain' for Louvain Modularity (finds loosely connected sub-clusters).
+        
+        Returns:
+            List of sets, each set containing node names in one community,
+            sorted by size (largest first).
+        """
+        G = self._build_nx_graph()
+        
+        if len(G.nodes) == 0:
+            return []
+        
+        if method == "louvain":
+            # Louvain works best on connected graphs with sufficient edges
+            # For disconnected graphs, we apply Louvain to each connected component
+            communities = []
+            for component in nx.connected_components(G):
+                subgraph = G.subgraph(component)
+                if len(subgraph.nodes) <= 2 or len(subgraph.edges) == 0:
+                    # Too small for meaningful modularity — treat as one community
+                    communities.append(set(subgraph.nodes))
+                else:
+                    sub_communities = nx.community.louvain_communities(subgraph, seed=42)
+                    communities.extend(sub_communities)
+            communities = sorted(communities, key=len, reverse=True)
+        else:
+            # Default: Connected Components
+            communities = sorted(nx.connected_components(G), key=len, reverse=True)
+        
+        return communities

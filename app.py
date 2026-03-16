@@ -4,7 +4,6 @@ import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from models import Node
-import pandas as pd
 
 # Initialize App & Manager
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -79,12 +78,17 @@ stylesheet = [
     }
 ]
 
-def generate_elements(filters=None, active_node_id=None):
+def generate_elements(filters=None, active_node_id=None, community_names=None):
     if filters is None:
         filters = {}
         
     nodes = manager.get_all_nodes()
     filtered_nodes = manager.filter_nodes(nodes, filters)
+    
+    # Apply community filter if a specific community is selected
+    if community_names is not None:
+        filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
+    
     valid_names = {n.name for n in filtered_nodes}
     edges = manager.get_edges()
     
@@ -201,10 +205,21 @@ graph_view = html.Div([
             dbc.Col([
                 dbc.Label("Search Task"),
                 dbc.Input(id="search-node", type="text", placeholder="Search by name..."),
-            ], width=3),
+            ], width=2),
             dbc.Col([
                 dbc.Label("Filter Context"),
                 dbc.Select(id="filter-context", options=[{"label": "All", "value": "All"}, {"label": "None", "value": "None"}, {"label": "Mind", "value": "Mind"}, {"label": "Body", "value": "Body"}, {"label": "Social", "value": "Social"}], value="All"),
+            ], width=2),
+            dbc.Col([
+                dbc.Label("Community Method"),
+                dbc.Select(id="community-method", options=[
+                    {"label": "Islands (Connected)", "value": "components"},
+                    {"label": "Clusters (Louvain)", "value": "louvain"}
+                ], value="components"),
+            ], width=2),
+            dbc.Col([
+                dbc.Label("Community"),
+                dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
             ], width=2),
             dbc.Col([
                 dbc.Checklist(
@@ -214,9 +229,6 @@ graph_view = html.Div([
                     switch=True,
                 )
             ], width=2, className="d-flex align-items-center mt-4"),
-             dbc.Col([
-                  html.Div(id="hover-tooltip", className="bg-white border rounded p-2", style={"minHeight": "80px"})
-             ], width=5)
         ], className="mb-3")
     ]),
     
@@ -248,6 +260,20 @@ suggestions_view = html.Div([
 ], className="mt-4 p-3 bg-light border rounded")
 
 app.layout = dbc.Container([
+    # Floating mouse tooltip
+    html.Div(
+        id="hover-tooltip",
+        className="bg-white border rounded shadow p-2",
+        style={
+            "position": "fixed",
+            "zIndex": 9999,
+            "display": "none",
+            "pointerEvents": "none",  # Don't block mouse events
+            "maxWidth": "280px",
+            "fontSize": "0.85rem",
+            "lineHeight": "1.5"
+        }
+    ),
     dbc.Row([
         dbc.Col(sidebar, width=3),
         dbc.Col([
@@ -263,13 +289,14 @@ app.layout = dbc.Container([
 
 # --- Callbacks ---
 
+
 @app.callback(
     Output('hover-tooltip', 'children'),
     Input('cytoscape-graph', 'mouseoverNodeData')
 )
 def display_hover_data(data):
     if not data:
-        return "Hover over a node to see details."
+        return ""
         
     desc_ui = []
     if data.get('description'):
@@ -349,12 +376,15 @@ def populate_editor(data, add_clicks, clear_clicks, search_val, elements):
     [Output('cytoscape-graph', 'elements'), Output('save-output', 'children'), 
      Output('suggestions-table', 'children'), Output('traversal-chains', 'children'),
      Output('synergies-list', 'children'),
-     Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals')],
+     Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
+     Output('filter-community', 'options')],
     [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'), 
      Input('filter-context', 'value'), Input('filter-done', 'value'),
      Input('suggestion-algo', 'value'),
      Input('search-node', 'value'),
-     Input('cytoscape-graph', 'tapNodeData')],
+     Input('cytoscape-graph', 'tapNodeData'),
+     Input('filter-community', 'value'),
+     Input('community-method', 'value')],
     [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
      State('node-context', 'value'), State('node-status', 'value'),
      State('node-value', 'value'), State('node-interest', 'value'),
@@ -363,6 +393,7 @@ def populate_editor(data, add_clicks, clear_clicks, search_val, elements):
      State('cytoscape-graph', 'elements')]
 )
 def update_graph(save_clicks, delete_clicks, f_context, f_done, algo_val, search_val, tapped_node,
+                 f_community, community_method,
                  name, n_type, desc, context, status, val, interest, time, effort,
                  e_needs, e_supports, e_helps, e_res, current_elements):
     ctx = dash.callback_context
@@ -455,8 +486,26 @@ def update_graph(save_clicks, delete_clicks, f_context, f_done, algo_val, search
         except Exception as e:
             msg = str(e)
 
+    # Detect communities for the dropdown
+    community_method = community_method or "components"
+    communities = manager.detect_communities(method=community_method)
+    community_options = [{"label": "All", "value": "All"}]
+    for i, comm in enumerate(communities):
+        label = f"Community {i+1} ({len(comm)} nodes)"
+        community_options.append({"label": label, "value": str(i)})
+    
+    # Apply community filter
+    community_names = None
+    if f_community and f_community != "All":
+        try:
+            idx = int(f_community)
+            if 0 <= idx < len(communities):
+                community_names = communities[idx]
+        except (ValueError, IndexError):
+            pass
+    
     # Re-generate visuals
-    elements = generate_elements(filters, active_node_id)
+    elements = generate_elements(filters, active_node_id, community_names=community_names)
     suggs = get_suggestions(filters)
     
     # Format suggestions table
@@ -507,7 +556,7 @@ def update_graph(save_clicks, delete_clicks, f_context, f_done, algo_val, search
          else:
              synergies_ui = html.P("None", className="text-dark")
 
-    return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0
+    return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options
 
 @app.callback(
     Output('save-output', 'children', allow_duplicate=True),
