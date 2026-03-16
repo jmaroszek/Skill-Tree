@@ -40,8 +40,8 @@ stylesheet = [
         'style': {
             'curve-style': 'bezier',
             'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#888',
-            'line-color': '#888',
+            'target-arrow-color': '#666',
+            'line-color': '#666',
             'width': 2
         }
     },
@@ -73,46 +73,46 @@ sidebar = html.Div(
 
         dbc.Form([
             html.H5("Attributes"),
-            dbc.Label("Name"),
-            dbc.Input(id="node-name", type="text", placeholder="Node Name"),
+            dbc.Label("Name", className="mt-2"),
+            dbc.Input(id="node-name", type="text"),
 
-            dbc.Label("Type"),
+            dbc.Label("Type", className="mt-2"),
             dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES]),
 
-            dbc.Label("Description"),
+            dbc.Label("Description", className="mt-2"),
             dbc.Input(id="node-desc", type="text"),
 
-            dbc.Label("Context"),
+            dbc.Label("Context", className="mt-2"),
             dbc.Select(id="node-context", options=[{"label": c, "value": c} for c in CONTEXTS]),
 
-            dbc.Label("Status"),
+            dbc.Label("Status", className="mt-2"),
             dbc.Select(id="node-status", options=[{"label": s, "value": s} for s in ["Open", "Blocked", "Done"]]),
 
             # Numeric inputs
-            dbc.Label("Value (1-10)"),
+            dbc.Label("Value", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-value"),
 
-            dbc.Label("Interest (1-10)"),
+            dbc.Label("Interest", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
 
-            dbc.Label("Time Estimate (Hours)"),
+            dbc.Label("Time Estimate (Hours)", className="mt-2"),
             dbc.Input(id="node-time", type="number", min=0.1, value=1.0),
 
-            dbc.Label("Effort"),
+            dbc.Label("Effort", className="mt-2"),
             dbc.Select(id="node-effort", options=EFFORT_OPTIONS),
 
             html.Hr(),
             html.H5("Relationships"),
-            dbc.Label("Needs"),
+            dbc.Label("Needs", className="mt-2"),
             dcc.Dropdown(id="edge-needs", multi=True, placeholder="Select Prerequisite Nodes..."),
 
-            dbc.Label("Supports"),
+            dbc.Label("Supports", className="mt-2"),
             dcc.Dropdown(id="edge-supports", multi=True, placeholder="Select Dependent Nodes..."),
 
-            dbc.Label("Helps"),
+            dbc.Label("Helps", className="mt-2"),
             dcc.Dropdown(id="edge-helps", multi=True, placeholder="Select Synergistic Nodes..."),
 
-            dbc.Label("Resources"),
+            dbc.Label("Resources", className="mt-2"),
             dcc.Dropdown(id="edge-resources", multi=True, placeholder="Select Resources..."),
 
             html.Br(),
@@ -152,8 +152,8 @@ def create_graph_view(initial_elements):
                 dbc.Col([
                     dbc.Label("Community Method"),
                     dbc.Select(id="community-method", options=[
-                        {"label": "Islands (Connected)", "value": "components"},
-                        {"label": "Clusters (Louvain)", "value": "louvain"}
+                        {"label": "Islands", "value": "components"},
+                        {"label": "Clusters", "value": "louvain"}
                     ], value="components"),
                 ], width=2),
                 dbc.Col([
@@ -195,12 +195,42 @@ synergies_view = html.Div([
 
 suggestions_view = html.Div([
     dbc.Row([
-        dbc.Col(html.H4("Suggestions"), width=8),
-        dbc.Col(dbc.Select(
-            id="suggestion-algo",
-            options=[{"label": "Priority Score", "value": "priority"}],
-            value="priority", size="sm"
-        ), width=4)
+        dbc.Col(html.H4("Suggestions"), width=7),
+        dbc.Col(html.Div([
+            dbc.Button(
+                "ℹ", id="btn-algo-info", color="link", size="sm",
+                className="flex-shrink-0",
+                style={"fontSize": "1.1rem", "padding": "2px 6px"}
+            ),
+            dbc.Select(
+                id="suggestion-algo",
+                options=[{"label": "Priority Score", "value": "priority"}],
+                value="priority", size="sm",
+                className="flex-grow-1"
+            ),
+            dbc.Popover(
+                dbc.PopoverBody(
+                    dcc.Markdown(
+                        r"""
+$$\text{Priority} = \frac{\text{Value} \times \text{Interest}}{\text{Time} \times \text{Effort}} + W_n \cdot N + W_h \cdot H$$
+
+| Variable | Meaning |
+|---|---|
+| **N** | Blocked nodes this task unlocks |
+| **H** | Active synergistic (Helps) connections |
+| **Wn** | Unlock weight (2.0) |
+| **Wh** | Synergy weight (1.0) |
+                        """,
+                        mathjax=True,
+                        style={"fontSize": "0.85rem"}
+                    )
+                ),
+                target="btn-algo-info",
+                trigger="click",
+                placement="left",
+                style={"minWidth": "420px"}
+            )
+        ], className="d-flex align-items-center gap-1"), width=5)
     ], className="mb-2"),
     html.Div(id="suggestions-table")
 ], className="mt-4 p-3 bg-light border rounded")
