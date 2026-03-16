@@ -1,0 +1,16 @@
+name: skill-tree
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pandas
+  - dash
+  - dash-cytoscape
+  - dash-bootstrap-components
+  - networkx
+  - sqlite
+  - pytest
+  - pip
+  - pip:
+    - ruamel.yaml
