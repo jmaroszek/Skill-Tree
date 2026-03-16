@@ -6,7 +6,7 @@ dependencies:
   - python=3.10
   - pandas
   - dash
-  - dash-cytoscape
+  - dash_cytoscape
   - dash-bootstrap-components
   - networkx
   - sqlite

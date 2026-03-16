@@ -2,16 +2,17 @@ import sqlite3
 import database
 import networkx as nx
 from models import Node
-from typing import List, Dict, Tuple, Set
+from constants import DEFAULT_WN, DEFAULT_WH
+from typing import List, Dict, Set
+
 
 class GraphManager:
     def __init__(self):
-        # We ensure DB exists on initialization
         database.init_db()
-        self.db_path = database.get_db_path()
 
-    def get_connection(self):
-        return sqlite3.connect(self.db_path)
+    def get_connection(self) -> sqlite3.Connection:
+        """Returns a new database connection with foreign keys enabled."""
+        return database.get_connection()
 
     # --- Node Operations ---
 
@@ -20,7 +21,6 @@ class GraphManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
-                # Exclude priority_score from insert
                 data = node.to_dict()
                 data.pop('priority_score', None)
                 cursor.execute('''
@@ -45,16 +45,12 @@ class GraphManager:
                 WHERE name=:name
             ''', data)
             conn.commit()
-            
-            # If status changes, trigger state updates
-            # (In a real scenario, compare old status vs new status before triggering)
             self._update_dependent_nodes_state(node.name)
 
     def delete_node(self, node_name: str):
         """Deletes a node by name."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # Foreign keys PRAGMA needs to be on for cascading, but we can explicitly delete edges
             cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (node_name, node_name))
             cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
             conn.commit()
@@ -62,7 +58,6 @@ class GraphManager:
     def get_node(self, name: str) -> Node:
         """Retrieves a specific node by name."""
         with self.get_connection() as conn:
-            # Important: Set row factory to access dict by column name
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM Nodes WHERE name=?", (name,))
@@ -86,18 +81,16 @@ class GraphManager:
         if edge_type == 'Needs':
             if self._will_create_cycle(source, target):
                 raise ValueError(f"Adding edge {source} -> {target} creates a cycle.")
-                
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
                 conn.commit()
-                # Adding a rule might block the target 
                 if edge_type == 'Needs':
                     self._update_node_state(target)
             except sqlite3.IntegrityError:
-                # Edge exists
-                pass
+                pass  # Edge already exists
 
     def remove_edge(self, source: str, target: str, edge_type: str):
         """Removes a specific edge."""
@@ -106,158 +99,190 @@ class GraphManager:
             cursor.execute("DELETE FROM Edges WHERE source=? AND target=? AND type=?", (source, target, edge_type))
             conn.commit()
             if edge_type == 'Needs':
-               # Target might become unlocked
-               self._update_node_state(target)
+                self._update_node_state(target)
 
     def get_edges(self) -> List[Dict[str, str]]:
-        """Retrieves all edges"""
+        """Retrieves all edges."""
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM Edges")
             return [dict(row) for row in cursor.fetchall()]
 
+    def sync_edges(self, node_name: str, needs: list, supports: list, helps: list, resources: list):
+        """
+        Replaces all edges for a node in a single transaction.
+        
+        Args:
+            node_name:  The node whose edges are being synced.
+            needs:      List of prerequisite node names (source -> node_name via Needs).
+            supports:   List of dependent node names (node_name -> target via Needs).
+            helps:      List of synergistic node names (bidirectional Helps).
+            resources:  List of resource node names (source -> node_name via Resource).
+        """
+        needs = needs or []
+        supports = supports or []
+        helps = helps or []
+        resources = resources or []
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Clear existing edges for this node
+            cursor.execute("DELETE FROM Edges WHERE target=? AND type='Needs'", (node_name,))
+            cursor.execute("DELETE FROM Edges WHERE source=? AND type='Needs'", (node_name,))
+            cursor.execute("DELETE FROM Edges WHERE (target=? OR source=?) AND type='Helps'", (node_name, node_name))
+            cursor.execute("DELETE FROM Edges WHERE target=? AND type='Resource'", (node_name,))
+
+            # Re-add Needs: prerequisite -> node_name
+            for src in needs:
+                try:
+                    if self._will_create_cycle(src, node_name):
+                        continue
+                    cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, 'Needs')", (src, node_name))
+                except sqlite3.IntegrityError:
+                    pass
+
+            # Re-add Supports: node_name -> dependent (also a Needs edge)
+            for trgt in supports:
+                try:
+                    if self._will_create_cycle(node_name, trgt):
+                        continue
+                    cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, 'Needs')", (node_name, trgt))
+                except sqlite3.IntegrityError:
+                    pass
+
+            # Re-add Helps
+            for linked in helps:
+                try:
+                    cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, 'Helps')", (node_name, linked))
+                except sqlite3.IntegrityError:
+                    pass
+
+            # Re-add Resources
+            for r_src in resources:
+                try:
+                    cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, 'Resource')", (r_src, node_name))
+                except sqlite3.IntegrityError:
+                    pass
+
+            conn.commit()
+
+        # Update blocked/open state after edge mutations
+        self._update_node_state(node_name)
+
     # --- Integrity and State ---
 
     def _will_create_cycle(self, source: str, target: str) -> bool:
-        """Checks if adding Needs edge from source -> target creates a DAG cycle."""
-        # Simple DFS/BFS through 'Needs' edges from 'target' to see if we can reach 'source'
-        # If target reaches source, adding source->target creates a loop
+        """Checks if adding a Needs edge from source -> target creates a DAG cycle."""
         if source == target:
-            return True # self loops disallowed 
-            
+            return True
+
         visited = set()
         queue = [target]
-        
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             while queue:
                 curr = queue.pop()
                 if curr == source:
-                    return True # Loop detected
+                    return True
                 visited.add(curr)
-                # Find nodes this `curr` node "Needs"
                 cursor.execute("SELECT target FROM Edges WHERE source=? AND type='Needs'", (curr,))
-                children = [row[0] for row in cursor.fetchall()]
-                for child in children:
-                    if child not in visited:
-                        queue.append(child)
-                        
+                for row in cursor.fetchall():
+                    if row[0] not in visited:
+                        queue.append(row[0])
+
         return False
 
     def _update_node_state(self, node_name: str):
-        """Calculates specific node state based on dependencies."""
+        """Calculates and updates a specific node's blocked/open state based on its dependencies."""
         node = self.get_node(node_name)
         if not node or node.status == "Done":
-            return # Don't retroactively reopen "Done" items automatically right here
+            return
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # Does this node depend on anything that is NOT done?
-            # i.e., "prerequisite -> Needs -> node_name". 
-            # In our data model, Prereq -> Needs -> Target
-            # Therefore we look where `target=node_name`
             cursor.execute("""
                 SELECT source FROM Edges 
                 WHERE target=? AND type='Needs'
             """, (node_name,))
             prereqs = [row[0] for row in cursor.fetchall()]
-            
+
             is_blocked = False
             for prereq_name in prereqs:
                 p_node = self.get_node(prereq_name)
-                # If prereq is missing entirely, treat as blocking (integrity error state)
                 if not p_node or p_node.status != "Done":
-                     is_blocked = True
-                     break
-                     
+                    is_blocked = True
+                    break
+
             new_status = "Blocked" if is_blocked else "Open"
-            
-            # If the node's previous status was something else like "In Progress"
-            # and it is suddenly blocked, downgrade it. Otherwise keep In Progress if it's still open
+
+            # Preserve "In Progress" if the node is not being blocked
             if node.status == "In Progress" and new_status == "Open":
                 new_status = "In Progress"
 
             if node.status != new_status:
-                 cursor.execute("UPDATE Nodes SET status=? WHERE name=?", (new_status, node_name))
-                 conn.commit()
-                 # If we changed to Blocked or Open, dependents might change 
-                 self._update_dependent_nodes_state(node_name)
-
+                cursor.execute("UPDATE Nodes SET status=? WHERE name=?", (new_status, node_name))
+                conn.commit()
+                self._update_dependent_nodes_state(node_name)
 
     def _update_dependent_nodes_state(self, node_name: str):
-        """Recursively update dependent nodes (nodes this node points TO with 'Needs')"""
+        """Recursively update dependent nodes (nodes that Need this node)."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # Find nodes that depend on 'node_name'.
-            # node_name -> Needs -> Target
             cursor.execute("SELECT target FROM Edges WHERE source=? AND type='Needs'", (node_name,))
             dependents = [row[0] for row in cursor.fetchall()]
-            
+
         for dept in dependents:
             self._update_node_state(dept)
 
     # --- Logic ---
 
-    def calculate_priority_scores(self, active_nodes: List[Node], Wn: float = 2.0, Wh: float = 1.0) -> List[Node]:
+    def calculate_priority_scores(self, active_nodes: List[Node],
+                                  Wn: float = DEFAULT_WN, Wh: float = DEFAULT_WH) -> List[Node]:
         """
         Calculates priority score for given active nodes.
         Formula: (Value*Interest)/(Time*Effort) + (Wn*N) + (Wh*H)
-        N = # of blocked nodes directly unlocked (nodes that need this node)
-        H = # of synergistic Helps connections
         """
-        # We need a quick way to find N and H
         scored_nodes = []
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
+            # Pre-fetch all node statuses to avoid per-node queries
+            cursor.execute("SELECT name, status FROM Nodes")
+            status_lookup = {row[0]: row[1] for row in cursor.fetchall()}
+
             for node in active_nodes:
                 if node.status in ["Done", "Blocked"]:
-                    # Do not score blocked or done
                     node.priority_score = -1.0
                     scored_nodes.append(node)
                     continue
 
-                # N = count(target where source=node.name and type=Needs AND target.status=Blocked)
-                # Note: directly unlocked means unlocking immediately. For simplicity we check
-                # how many specific nodes have a 'Needs' coming from here that are Blocked.
+                # N = count of blocked nodes that directly need this node
                 cursor.execute("""
                     SELECT COUNT(target) FROM Edges
                     JOIN Nodes ON Edges.target = Nodes.name
                     WHERE source=? AND Edges.type='Needs' AND Nodes.status='Blocked'
                 """, (node.name,))
                 N = cursor.fetchone()[0]
-                
-                # H = count(Helps edges where source=node or target=node)
-                # Ensure they are connected to active nodes.
-                # 'Helps' is undirected in intent, but we store it as one or two directed edges. 
-                # According to spec: Node A <-> Node C
+
+                # H = count of active Helps connections (using pre-fetched statuses)
                 cursor.execute("""
                     SELECT target FROM Edges WHERE source=? AND type='Helps'
                     UNION
                     SELECT source FROM Edges WHERE target=? AND type='Helps'
                 """, (node.name, node.name))
-                helped_names = [row[0] for row in cursor.fetchall()]
-                
-                # Only count 'Helps' if the connected node is active (Open/In Progress)
-                H = 0
-                for h_name in helped_names:
-                    cursor.execute("SELECT status FROM Nodes WHERE name=?", (h_name,))
-                    res = cursor.fetchone()
-                    if res and res[0] in ['Open', 'In Progress']:
-                        H += 1
+                H = sum(1 for row in cursor.fetchall()
+                        if status_lookup.get(row[0]) in ('Open', 'In Progress'))
 
-                # Prevent div by 0 just in case
-                time_val = max(0.1, node.time)
-                effort_val = max(1, node.effort) # Already mapped to int in model
-                
-                base_score = (node.value * node.interest) / (time_val * effort_val)
+                base_score = (node.value * node.interest) / (node.time * node.effort)
                 score = base_score + (Wn * N) + (Wh * H)
-                
-                # Assign to the instance
+
                 node.priority_score = round(score, 2)
                 scored_nodes.append(node)
-                
+
         return sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1), reverse=True)
 
     def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
@@ -271,26 +296,24 @@ class GraphManager:
             """, (node_name,))
             return [row[0] for row in cursor.fetchall()]
 
-
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
-         """Applies dictionary of filters to node list { "context": "Mind", "min_value": 5 }"""
-         result = nodes 
-         
-         if 'context' in filters:
-             result = [n for n in result if n.context == filters['context']]
-             
-         if 'min_value' in filters:
-             result = [n for n in result if n.value >= int(filters['min_value'])]
-             
-         if 'hide_done' in filters and filters['hide_done']:
-             result = [n for n in result if n.status != 'Done']
-             
-         if 'search' in filters and filters['search']:
-             search_val = filters['search'].lower()
-             result = [n for n in result if search_val in n.name.lower()]
-             
-         # Extensible for more properties
-         return result
+        """Applies dictionary of filters to node list."""
+        result = nodes
+
+        if 'context' in filters:
+            result = [n for n in result if n.context == filters['context']]
+
+        if 'min_value' in filters:
+            result = [n for n in result if n.value >= int(filters['min_value'])]
+
+        if 'hide_done' in filters and filters['hide_done']:
+            result = [n for n in result if n.status != 'Done']
+
+        if 'search' in filters and filters['search']:
+            search_val = filters['search'].lower()
+            result = [n for n in result if search_val in n.name.lower()]
+
+        return result
 
     def get_prerequisite_chains(self, target_name: str) -> List[List[str]]:
         """
@@ -303,35 +326,34 @@ class GraphManager:
             return []
 
         chains = []
-        
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
+            # Pre-fetch all node statuses
+            cursor.execute("SELECT name, status FROM Nodes")
+            status_lookup = {row[0]: row[1] for row in cursor.fetchall()}
+
             def dfs(current_path):
                 curr_node = current_path[-1]
-                # Find what this node "Needs"
                 cursor.execute("SELECT source FROM Edges WHERE target=? AND type='Needs'", (curr_node,))
                 prereqs = [row[0] for row in cursor.fetchall()]
-                
+
                 if not prereqs:
-                    # End of chain, evaluate condition
-                    has_incomplete = False
-                    for p in current_path:
-                        n = self.get_node(p)
-                        if n and n.status != 'Done':
-                             has_incomplete = True
-                             break
+                    has_incomplete = any(
+                        status_lookup.get(p, 'Open') != 'Done'
+                        for p in current_path
+                    )
                     if has_incomplete:
-                        # Append the reverse because it makes more intuitive sense Source -> Target
                         chains.append(list(reversed(current_path)))
                     return
-                
+
                 for prereq in prereqs:
-                    if prereq not in current_path: # Prevent loops just in case
+                    if prereq not in current_path:
                         dfs(current_path + [prereq])
 
             dfs([target_name])
-            
+
         return chains
 
     # --- Community Detection ---
@@ -360,25 +382,21 @@ class GraphManager:
             sorted by size (largest first).
         """
         G = self._build_nx_graph()
-        
+
         if len(G.nodes) == 0:
             return []
-        
+
         if method == "louvain":
-            # Louvain works best on connected graphs with sufficient edges
-            # For disconnected graphs, we apply Louvain to each connected component
             communities = []
             for component in nx.connected_components(G):
                 subgraph = G.subgraph(component)
                 if len(subgraph.nodes) <= 2 or len(subgraph.edges) == 0:
-                    # Too small for meaningful modularity — treat as one community
                     communities.append(set(subgraph.nodes))
                 else:
                     sub_communities = nx.community.louvain_communities(subgraph, seed=42)
                     communities.extend(sub_communities)
             communities = sorted(communities, key=len, reverse=True)
         else:
-            # Default: Connected Components
             communities = sorted(nx.connected_components(G), key=len, reverse=True)
-        
+
         return communities
