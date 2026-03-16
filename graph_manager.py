@@ -259,6 +259,17 @@ class GraphManager:
                 
         return sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1), reverse=True)
 
+    def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
+        """Returns the names of nodes that 'Need' this node and are currently 'Blocked'."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT target FROM Edges
+                JOIN Nodes ON Edges.target = Nodes.name
+                WHERE source=? AND Edges.type='Needs' AND Nodes.status='Blocked'
+            """, (node_name,))
+            return [row[0] for row in cursor.fetchall()]
+
 
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
          """Applies dictionary of filters to node list { "context": "Mind", "min_value": 5 }"""
