@@ -36,5 +36,5 @@ NODE_SHAPES = {
 
 # --- Algorithm Defaults ---
 
-DEFAULT_WN = 2.0  # Weight for blocked-node unlocks
+DEFAULT_WN = 3.0  # Weight for blocked-node unlocks
 DEFAULT_WH = 1.0  # Weight for synergistic Helps connections

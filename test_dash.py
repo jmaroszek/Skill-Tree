@@ -1,5 +1,5 @@
 import dash
-from app import update_graph, generate_elements
+from app import update_graph
 import traceback
 from unittest.mock import patch
 
