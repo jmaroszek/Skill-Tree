@@ -264,7 +264,7 @@ class GraphManager:
          """Applies dictionary of filters to node list { "context": "Mind", "min_value": 5 }"""
          result = nodes 
          
-         if 'context' in filters and filters['context']:
+         if 'context' in filters:
              result = [n for n in result if n.context == filters['context']]
              
          if 'min_value' in filters:
@@ -272,6 +272,10 @@ class GraphManager:
              
          if 'hide_done' in filters and filters['hide_done']:
              result = [n for n in result if n.status != 'Done']
+             
+         if 'search' in filters and filters['search']:
+             search_val = filters['search'].lower()
+             result = [n for n in result if search_val in n.name.lower()]
              
          # Extensible for more properties
          return result

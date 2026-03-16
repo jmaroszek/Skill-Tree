@@ -16,7 +16,7 @@ NODE_COLORS = {
     'Blocked': '#dc3545',     # Red
     'Open': '#0d6efd',        # Blue
     'In Progress': '#ffc107', # Yellow
-    'Done': '#198754'         # Green
+    'Done': '#6c757d'         # Gray
 }
 
 NODE_SHAPES = {
@@ -57,7 +57,9 @@ stylesheet = [
         'selector': '[type = "Helps"]',
         'style': {
             'source-arrow-shape': 'triangle',
-            'source-arrow-color': '#888',
+            'source-arrow-color': '#0d6efd',
+            'target-arrow-color': '#0d6efd',
+            'line-color': '#0d6efd',
             'line-style': 'solid'
         }
     },
@@ -120,8 +122,9 @@ def get_suggestions(filters=None):
 sidebar = html.Div(
     [
         html.H2("Node Editor", className="display-6"),
+        dbc.Button("+ Add New Node", id="btn-add", color="success", className="w-100 mb-3", size="lg"),
         html.Hr(),
-        html.P("Select a node on the graph to edit or Add new:", className="lead"),
+        html.P("Select a node to edit, or fill the form to create.", className="text-muted"),
         
         dbc.Form([
             dbc.Label("Name"),
@@ -134,7 +137,7 @@ sidebar = html.Div(
             dbc.Input(id="node-desc", type="text"),
             
             dbc.Label("Context"),
-            dbc.Select(id="node-context", options=[{"label": i, "value": i} for i in ["Mind", "Body", "Social", "Action"]]),
+            dbc.Select(id="node-context", options=[{"label": i, "value": i} for i in ["None", "Mind", "Body", "Social", "Action"]]),
             
             dbc.Label("Status"),
             dbc.Select(id="node-status", options=[{"label": i, "value": i} for i in ["Open", "In Progress", "Blocked", "Done"]]),
@@ -154,19 +157,23 @@ sidebar = html.Div(
 
             html.Hr(),
             html.H5("Relationships"),
-            dbc.Label("Needs (Prerequisites)"),
+            dbc.Label("Needs"),
             dcc.Dropdown(id="edge-needs", multi=True, placeholder="Select Prerequisite Nodes..."),
             
-            dbc.Label("Helps (Synergy)"),
+            dbc.Label("Helps"),
             dcc.Dropdown(id="edge-helps", multi=True, placeholder="Select Synergistic Nodes..."),
             
-            dbc.Label("Resources Supported By"),
+            dbc.Label("Resources"),
             dcc.Dropdown(id="edge-resources", multi=True, placeholder="Select Existing Resources..."),
 
             html.Br(),
-            dbc.Button("Save Node & Edges", id="btn-save", color="primary", className="me-1"),
-            dbc.Button("Delete Node", id="btn-delete", color="danger"),
-            html.Div(id="save-output", className="text-danger mt-2")
+            html.Div([
+                dbc.Button("Clear", id="btn-clear", color="secondary", className="me-2"),
+                dbc.Button("Delete", id="btn-delete", color="danger", className="me-2"),
+                dbc.Button("Save", id="btn-save", color="primary")
+            ], className="d-flex justify-content-end"),
+            html.Div(id="save-output", className="text-success mt-2 text-end"),
+            dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True)
         ])
     ],
     className="bg-light p-3",
@@ -177,9 +184,13 @@ graph_view = html.Div([
     html.Div([
         dbc.Row([
             dbc.Col([
-                dbc.Label("Filter Context"),
-                dbc.Select(id="filter-context", options=[{"label": "All", "value": "All"}, {"label": "Mind", "value": "Mind"}, {"label": "Body", "value": "Body"}, {"label": "Social", "value": "Social"}]),
+                dbc.Label("Search Task"),
+                dbc.Input(id="search-node", type="text", placeholder="Search by name..."),
             ], width=3),
+            dbc.Col([
+                dbc.Label("Filter Context"),
+                dbc.Select(id="filter-context", options=[{"label": "All", "value": "All"}, {"label": "None", "value": "None"}, {"label": "Mind", "value": "Mind"}, {"label": "Body", "value": "Body"}, {"label": "Social", "value": "Social"}], value="All"),
+            ], width=2),
             dbc.Col([
                 dbc.Checklist(
                     options=[{"label": "Hide 'Done' nodes", "value": "hide_done"}],
@@ -187,10 +198,10 @@ graph_view = html.Div([
                     id="filter-done",
                     switch=True,
                 )
-            ], width=3, className="d-flex align-items-center mt-4"),
+            ], width=2, className="d-flex align-items-center mt-4"),
              dbc.Col([
                   html.Div(id="hover-tooltip", className="bg-white border rounded p-2", style={"minHeight": "80px"})
-             ], width=6)
+             ], width=5)
         ], className="mb-3")
     ]),
     
@@ -204,7 +215,7 @@ graph_view = html.Div([
 ])
 
 traversal_view = html.Div([
-    html.H4("Dependency Traversal"),
+    html.H4("Dependencies"),
     html.Div(id="traversal-chains")
 ], className="mt-4 p-3 bg-light border rounded")
 
@@ -250,17 +261,39 @@ def display_hover_data(data):
      Output('edge-needs', 'value'), Output('edge-helps', 'value'), Output('edge-resources', 'value'),
      Output('edge-needs', 'options'), Output('edge-helps', 'options'), Output('edge-resources', 'options')],
     [Input('cytoscape-graph', 'tapNodeData'),
+     Input('btn-add', 'n_clicks'),
+     Input('btn-clear', 'n_clicks'),
+     Input('search-node', 'value'),
      Input('cytoscape-graph', 'elements')] # Trigger options update on element changes
 )
-def populate_editor(data, elements):
+def populate_editor(data, add_clicks, clear_clicks, search_val, elements):
+    ctx = dash.callback_context
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+
     all_nodes = manager.get_all_nodes()
     # Provide node names for the dropdowns
     options = [{'label': n.name, 'value': n.name} for n in all_nodes]
 
-    if not data:
-        return [dash.no_update] * 9 + [[], [], [], options, options, options]
+    if trigger_id in ['btn-add', 'btn-clear']:
+        return ["", "Goal", "", "None", "Open", 5, 5, 1.0, 2, [], [], [], options, options, options]
+
+    name = None
+    if trigger_id == 'search-node' and search_val:
+        search_val_lower = search_val.lower()
+        matched = [n for n in all_nodes if search_val_lower in n.name.lower()]
+        if matched:
+            node = matched[0]
+            name = node.name
+            data = node.to_dict()
+            data['id'] = name
+        else:
+            return [dash.no_update] * 12 + [options, options, options]
+    elif data:
+        name = data.get('id')
+
+    if not name or not data:
+        return [dash.no_update] * 12 + [options, options, options]
         
-    name = data.get('id')
     edges = manager.get_edges()
     
     needs_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == 'Needs']
@@ -282,7 +315,8 @@ def populate_editor(data, elements):
 
 @app.callback(
     [Output('cytoscape-graph', 'elements'), Output('save-output', 'children'), 
-     Output('suggestions-table', 'children'), Output('traversal-chains', 'children')],
+     Output('suggestions-table', 'children'), Output('traversal-chains', 'children'),
+     Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals')],
     [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'), 
      Input('filter-context', 'value'), Input('filter-done', 'value'),
      Input('cytoscape-graph', 'tapNodeData')],
@@ -303,7 +337,7 @@ def update_graph(save_clicks, delete_clicks, f_context, f_done, tapped_node,
     # Process Filter Logic
     filters = {}
     if f_context and f_context != "All":
-        filters['context'] = f_context
+        filters['context'] = f_context if f_context != "None" else None
     if f_done and "hide_done" in f_done:
         filters['hide_done'] = True
         
@@ -315,7 +349,7 @@ def update_graph(save_clicks, delete_clicks, f_context, f_done, tapped_node,
             effort = int(effort) if effort is not None else 2
         except ValueError:
             msg = "Error: Please check your numerical inputs."
-            return elements, msg, sugg_ui, html.Div()
+            return current_elements, msg, dash.no_update, dash.no_update, False, 0
             
         node = Node(name=name, type=n_type, description=desc or "", value=val, time=time, 
                     interest=interest, effort=effort, status=status or "Open", context=context)
@@ -356,6 +390,9 @@ def update_graph(save_clicks, delete_clicks, f_context, f_done, tapped_node,
                  conn.commit()
             for r_src in e_res:
                  manager.add_edge(r_src, name, "Resource")
+                 
+            # Ensure final node adheres to block/open logic inherently after edge mutations
+            manager._update_node_state(name)
 
         except Exception as e:
             msg = str(e)
@@ -373,26 +410,52 @@ def update_graph(save_clicks, delete_clicks, f_context, f_done, tapped_node,
     
     # Format suggestions table
     if suggs:
-        table_header = [html.Thead(html.Tr([html.Th("Task Name"), html.Th("Priority Score"), html.Th("Context"), html.Th("Type")]))]
-        row_data = [html.Tr([html.Td(s.name), html.Td(html.Strong(f"{getattr(s, 'priority_score', 0):.2f}")), html.Td(s.context), html.Td(s.type)]) for s in suggs]
+        table_header = [html.Thead(html.Tr([html.Th("Task"), html.Th("Context"), html.Th("Type"), html.Th("Priority Score")]))]
+        row_data = [html.Tr([html.Td(s.name), html.Td(str(s.context)), html.Td(s.type), html.Td(html.Strong(f"{getattr(s, 'priority_score', 0):.2f}"))]) for s in suggs]
         table_body = [html.Tbody(row_data)]
         sugg_ui = dbc.Table(table_header + table_body, bordered=True, hover=True, size="sm")
+    else:
+        sugg_ui = html.P("No suggestions found based on current filters and graph state.", className="text-muted")
     # Format traversal UI
-    traversal_ui = html.Div(className="text-muted", children="Select a goal node to see prerequisites.")
-    if tapped_node and tapped_node.get('type') == 'Goal':
-         chains = manager.get_prerequisite_chains(tapped_node.get('id'))
+    traversal_ui = html.Div(className="text-muted", children="Select a node to see dependencies.")
+    if tapped_node:
+         node_id = tapped_node.get('id')
+         chains = manager.get_prerequisite_chains(node_id)
+         
+         # Gather synergies
+         edges = manager.get_edges()
+         synergies = [e['target'] for e in edges if e['source'] == node_id and e['type'] == 'Helps']
+         synergies += [e['source'] for e in edges if e['target'] == node_id and e['type'] == 'Helps']
+         synergies = list(set(synergies))
+
+         dep_children = []
          if not chains:
-             traversal_ui = html.P("No incomplete dependencies.", className="text-success")
+             dep_children.append(html.P("No incomplete prerequisites.", className="text-success"))
          else:
              chain_items = []
              for c in chains:
                  chain_items.append(html.Li(" → ".join(c)))
-             traversal_ui = html.Ul(chain_items)
-             
-    elif tapped_node:
-        traversal_ui = html.Div(className="text-muted", children=f"Traversal view applies to 'Goal' nodes. Currently selected: {tapped_node.get('type')}")
+             dep_children.append(html.H6("Prerequisite Chains:", className="mt-2"))
+             dep_children.append(html.Ul(chain_items))
 
-    return elements, msg, sugg_ui, traversal_ui
+         if synergies:
+             dep_children.append(html.H6("Synergies (Helps):", className="mt-3"))
+             dep_children.append(html.Ul([html.Li(s) for s in synergies]))
+
+         traversal_ui = html.Div(dep_children)
+
+    return elements, msg, sugg_ui, traversal_ui, False if msg else True, 0
+
+@app.callback(
+    Output('save-output', 'children', allow_duplicate=True),
+    Output('clear-interval', 'disabled', allow_duplicate=True),
+    Input('clear-interval', 'n_intervals'),
+    prevent_initial_call=True
+)
+def clear_message(n):
+    if n > 0:
+        return "", True
+    return dash.no_update, dash.no_update
 
 if __name__ == '__main__':
     app.run(debug=True)
