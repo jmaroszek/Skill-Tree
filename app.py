@@ -10,14 +10,9 @@ import dash_bootstrap_components as dbc
 from layout import build_app_layout
 from callbacks import generate_elements, register_callbacks
 
-# Initialize App
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "Skill Tree"
-
-# Set Layout
 app.layout = build_app_layout(initial_elements=generate_elements())
-
-# Register Callbacks
 register_callbacks(app)
 
 if __name__ == '__main__':

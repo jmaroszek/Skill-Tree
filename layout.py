@@ -6,7 +6,10 @@ Contains all UI component definitions and the Cytoscape stylesheet.
 from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
-from constants import NODE_TYPES, NODE_STATUSES, CONTEXTS, EFFORT_OPTIONS
+from constants import NODE_TYPES, NODE_STATUSES, CONTEXTS, EFFORT_OPTIONS, DEFAULT_WN, DEFAULT_WH
+from graph_manager import GraphManager
+
+_manager = GraphManager()
 
 
 # --- Cytoscape Stylesheet ---
@@ -171,13 +174,21 @@ def create_graph_view(initial_elements):
             ], className="mb-3")
         ]),
 
-        cyto.Cytoscape(
-            id='cytoscape-graph',
-            layout={'name': 'cose'},
-            style={'width': '100%', 'height': '600px', 'backgroundColor': '#f8f9fa'},
-            elements=initial_elements,
-            stylesheet=stylesheet
-        )
+        html.Div([
+            cyto.Cytoscape(
+                id='cytoscape-graph',
+                layout={'name': 'cose'},
+                style={'width': '100%', 'height': '600px', 'backgroundColor': '#f8f9fa'},
+                elements=initial_elements,
+                stylesheet=stylesheet,
+                userZoomingEnabled=False
+            ),
+            html.Button(
+                "⛶", id="btn-fullscreen",
+                className="btn btn-dark btn-sm btn-fullscreen-toggle",
+                title="Toggle fullscreen"
+            ),
+        ], id="canvas-container", className="canvas-container"),
     ])
 
 
@@ -194,13 +205,19 @@ synergies_view = html.Div([
 ], className="mt-4 p-3 bg-light border rounded")
 
 suggestions_view = html.Div([
+    dcc.Store(id='hyperparams-store', data=_manager.get_hyperparams()),
     dbc.Row([
         dbc.Col(html.H4("Suggestions"), width=7),
         dbc.Col(html.Div([
             dbc.Button(
                 "ℹ", id="btn-algo-info", color="link", size="sm",
                 className="flex-shrink-0",
-                style={"fontSize": "1.1rem", "padding": "2px 6px"}
+                style={"fontSize": "1.1rem", "padding": "2px 6px", "textDecoration": "none"}
+            ),
+            dbc.Button(
+                "⚙", id="btn-algo-settings", color="link", size="sm",
+                className="flex-shrink-0",
+                style={"fontSize": "1.1rem", "padding": "2px 6px", "textDecoration": "none"}
             ),
             dbc.Select(
                 id="suggestion-algo",
@@ -218,8 +235,8 @@ $$\text{Priority} = \frac{\text{Value} \times \text{Interest}}{\text{Time} \time
 |---|---|
 | **N** | Blocked nodes this task unlocks |
 | **H** | Active synergistic (Helps) connections |
-| **Wn** | Unlock weight (2.0) |
-| **Wh** | Synergy weight (1.0) |
+| **W_n** | Unlock weight  |
+| **W_h** | Synergy weight  |
                         """,
                         mathjax=True,
                         style={"fontSize": "0.85rem"}
@@ -232,7 +249,31 @@ $$\text{Priority} = \frac{\text{Value} \times \text{Interest}}{\text{Time} \time
             )
         ], className="d-flex align-items-center gap-1"), width=5)
     ], className="mb-2"),
-    html.Div(id="suggestions-table")
+    html.Div(id="suggestions-table"),
+
+    # Hyperparameters Modal
+    dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Algorithm Hyperparameters")),
+        dbc.ModalBody([
+            dbc.Label("Wn — Unlock Weight", className="fw-bold"),
+            html.P("How much to prioritize tasks that unblock other tasks.",
+                   className="text-muted small mb-1"),
+            dbc.Input(id="input-wn", type="number", value=DEFAULT_WN, step=0.5, min=0,
+                      className="mb-2"),
+            html.Div(id="input-wn-feedback", className="text-danger small mb-3"),
+
+            dbc.Label("Wh — Synergy Weight", className="fw-bold"),
+            html.P("How much to prioritize tasks with active synergistic connections.",
+                   className="text-muted small mb-1"),
+            dbc.Input(id="input-wh", type="number", value=DEFAULT_WH, step=0.5, min=0,
+                      className="mb-2"),
+            html.Div(id="input-wh-feedback", className="text-danger small mb-3"),
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-hp-cancel", color="secondary", className="me-2"),
+            dbc.Button("Apply", id="btn-hp-apply", color="primary"),
+        ])
+    ], id="modal-hyperparams", is_open=False, centered=True)
 ], className="mt-4 p-3 bg-light border rounded")
 
 
