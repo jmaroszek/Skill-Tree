@@ -1,28 +1,23 @@
 """
 Centralized constants for the Skill Tree application.
-Single source of truth for all enumerations, styling maps, and default values.
 """
 
 # --- Node Enumerations ---
 
 NODE_TYPES = ["Goal", "Topic", "Skill", "Habit", "Resource"]
-
-NODE_STATUSES = ["Open", "Blocked", "In Progress", "Done"]
-
+NODE_STATUSES = ["Open", "Blocked", "Done"]
 CONTEXTS = ["None", "Mind", "Body", "Social", "Action"]
 
 EFFORT_OPTIONS = [
     {"label": "Easy", "value": 1},
-    {"label": "Medium", "value": 2},
-    {"label": "Hard", "value": 3},
+    {"label": "Medium", "value": 3},
+    {"label": "Hard", "value": 5},
 ]
 
 # --- Styling Maps ---
-
 NODE_COLORS = {
     'Blocked': '#dc3545',      # Red
     'Open': '#0d6efd',         # Blue
-    'In Progress': '#ffc107',  # Yellow
     'Done': '#198754',         # Green
 }
 
@@ -35,6 +30,7 @@ NODE_SHAPES = {
 }
 
 # --- Algorithm Defaults ---
-
-DEFAULT_WN = 3.0  # Weight for blocked-node unlocks
-DEFAULT_WH = 1.0  # Weight for synergistic Helps connections
+# These are fallback values for the algorithm if there is nothing written to the database
+# Change the hyperparameters through the UI. The values below are not used if the database has values.
+DEFAULT_WN = 5  # Weight for blocked-node unlocks
+DEFAULT_WH = 3  # Weight for synergistic Helps connections

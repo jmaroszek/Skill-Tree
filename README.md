@@ -10,7 +10,7 @@ A graph-based task manager and priority engine built with [Dash](https://dash.pl
 
 ### Interactive Graph Canvas
 - **Visual node graph** — drag, zoom, and click nodes rendered with a force-directed (COSE) layout.
-- **Color-coded statuses** — nodes are colored by status: 🔵 Open, 🟡 In Progress, 🔴 Blocked, 🟢 Done.
+- **Color-coded statuses** — nodes are colored by status: 🔵 Open, 🔴 Blocked, 🟢 Done.
 - **Shape-coded types** — each node type has a distinct shape (⭐ Goal, ◯ Topic, △ Skill, ◇ Habit, ⬠ Resource).
 - **Hover tooltips** — floating tooltips display node details on mouseover.
 
@@ -142,6 +142,3 @@ Tests use a temporary database so your production data is never touched.
 
 ---
 
-## 📝 License
-
-This project is for personal use.

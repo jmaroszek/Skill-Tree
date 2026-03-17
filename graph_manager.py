@@ -74,6 +74,37 @@ class GraphManager:
             cursor.execute("SELECT * FROM Nodes")
             return [Node(**dict(row)) for row in cursor.fetchall()]
 
+    # --- Settings Operations ---
+
+    def get_setting(self, key: str, default: str = None) -> str:
+        """Retrieves a setting value by key, or returns the default."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM Settings WHERE key=?", (key,))
+            row = cursor.fetchone()
+            return row[0] if row else default
+
+    def set_setting(self, key: str, value: str):
+        """Inserts or updates a setting."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)",
+                (key, str(value))
+            )
+            conn.commit()
+
+    def get_hyperparams(self) -> dict:
+        """Returns the persisted Wn/Wh hyperparameters (or defaults)."""
+        wn = float(self.get_setting('Wn', str(DEFAULT_WN)))
+        wh = float(self.get_setting('Wh', str(DEFAULT_WH)))
+        return {'Wn': wn, 'Wh': wh}
+
+    def save_hyperparams(self, wn: float, wh: float):
+        """Persists Wn/Wh hyperparameters to the database."""
+        self.set_setting('Wn', str(wn))
+        self.set_setting('Wh', str(wh))
+
     # --- Edge Operations ---
 
     def add_edge(self, source: str, target: str, edge_type: str):

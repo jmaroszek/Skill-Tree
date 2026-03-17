@@ -8,7 +8,7 @@ from dash import html, Input, Output, State
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from models import Node
-from constants import NODE_COLORS, NODE_SHAPES
+from constants import NODE_COLORS, NODE_SHAPES, DEFAULT_WN, DEFAULT_WH
 
 manager = GraphManager()
 
@@ -58,13 +58,13 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
     return elements
 
 
-def get_suggestions(filters=None):
-    """Returns top 5 prioritized nodes based on filters."""
+def get_suggestions(filters=None, Wn=DEFAULT_WN, Wh=DEFAULT_WH):
+    """Returns top 5 prioritized nodes based on filters, using given hyperparameters."""
     if filters is None:
         filters = {}
     nodes = manager.get_all_nodes()
     filtered_nodes = manager.filter_nodes(nodes, filters)
-    scored = manager.calculate_priority_scores(filtered_nodes)
+    scored = manager.calculate_priority_scores(filtered_nodes, Wn=Wn, Wh=Wh)
     valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
     return valid[:5]
 
@@ -80,9 +80,20 @@ def _build_filters(f_context, f_done):
 
 
 def _format_suggestions_table(suggs):
-    """Formats the suggestion list into a Dash table component."""
+    """Formats the suggestion list into a Dash table component with scores normalized to 0-100."""
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
+
+    # Normalize scores to 0-100 range using min-max normalization
+    raw_scores = [getattr(s, 'priority_score', 0) for s in suggs]
+    min_score = min(raw_scores)
+    max_score = max(raw_scores)
+    score_range = max_score - min_score
+
+    def normalize(score):
+        if score_range == 0:
+            return 100.0 if len(suggs) == 1 else 50.0
+        return round(((score - min_score) / score_range) * 100, 1)
 
     table_header = [html.Thead(html.Tr([
         html.Th("Task"), html.Th("Context"), html.Th("Type"),
@@ -92,7 +103,7 @@ def _format_suggestions_table(suggs):
         html.Td(s.name),
         html.Td(str(s.context)),
         html.Td(s.type),
-        html.Td(f"{getattr(s, 'priority_score', 0):.2f}"),
+        html.Td(f"{normalize(getattr(s, 'priority_score', 0)):.1f}"),
         html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None")
     ]) for s in suggs]
     table_body = [html.Tbody(row_data)]
@@ -233,7 +244,8 @@ def register_callbacks(app):
          Input('search-node', 'value'),
          Input('cytoscape-graph', 'tapNodeData'),
          Input('filter-community', 'value'),
-         Input('community-method', 'value')],
+         Input('community-method', 'value'),
+         Input('hyperparams-store', 'data')],
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-status', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'),
@@ -242,7 +254,7 @@ def register_callbacks(app):
          State('cytoscape-graph', 'elements')]
     )
     def update_graph(save_clicks, delete_clicks, f_context, f_done, algo_val, search_val, tapped_node,
-                     f_community, community_method,
+                     f_community, community_method, hp_data,
                      name, n_type, desc, context, status, val, interest, time, effort,
                      e_needs, e_supports, e_helps, e_res, current_elements):
         ctx = dash.callback_context
@@ -316,7 +328,12 @@ def register_callbacks(app):
 
         # --- Regenerate Visuals ---
         elements = generate_elements(filters, active_node_id, community_names=community_names)
-        sugg_ui = _format_suggestions_table(get_suggestions(filters))
+
+        # Read hyperparameters from store
+        hp = hp_data or {}
+        wn = hp.get('Wn', DEFAULT_WN)
+        wh = hp.get('Wh', DEFAULT_WH)
+        sugg_ui = _format_suggestions_table(get_suggestions(filters, Wn=wn, Wh=wh))
         traversal_ui, synergies_ui = _format_traversal_ui(tapped_node, active_node_id)
 
         return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options
@@ -331,3 +348,68 @@ def register_callbacks(app):
         if n > 0:
             return "", True
         return dash.no_update, dash.no_update
+
+    # --- Hyperparameters Modal Callbacks ---
+
+    @app.callback(
+        Output('modal-hyperparams', 'is_open'),
+        Output('input-wn', 'value'),
+        Output('input-wh', 'value'),
+        Output('input-wn-feedback', 'children'),
+        Output('input-wh-feedback', 'children'),
+        Output('hyperparams-store', 'data'),
+        Input('btn-algo-settings', 'n_clicks'),
+        Input('btn-hp-cancel', 'n_clicks'),
+        Input('btn-hp-apply', 'n_clicks'),
+        State('input-wn', 'value'),
+        State('input-wh', 'value'),
+        State('hyperparams-store', 'data'),
+        prevent_initial_call=True
+    )
+    def handle_hyperparams_modal(open_clicks, cancel_clicks, apply_clicks,
+                                  wn_val, wh_val, current_hp):
+        ctx = dash.callback_context
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+        hp = current_hp or {'Wn': DEFAULT_WN, 'Wh': DEFAULT_WH}
+
+        if trigger_id == 'btn-algo-settings':
+            # Open modal, populate with persisted values from DB
+            hp = manager.get_hyperparams()
+            return True, hp['Wn'], hp['Wh'], "", "", hp
+
+        if trigger_id == 'btn-hp-cancel':
+            # Close without saving
+            return False, hp['Wn'], hp['Wh'], "", "", dash.no_update
+
+        if trigger_id == 'btn-hp-apply':
+            # Validate inputs
+            wn_err, wh_err = "", ""
+            valid = True
+
+            try:
+                wn_parsed = float(wn_val)
+                if wn_parsed < 0:
+                    wn_err = "Value must be ≥ 0."
+                    valid = False
+            except (TypeError, ValueError):
+                wn_err = "Please enter a valid number."
+                valid = False
+
+            try:
+                wh_parsed = float(wh_val)
+                if wh_parsed < 0:
+                    wh_err = "Value must be ≥ 0."
+                    valid = False
+            except (TypeError, ValueError):
+                wh_err = "Please enter a valid number."
+                valid = False
+
+            if not valid:
+                return True, dash.no_update, dash.no_update, wn_err, wh_err, dash.no_update
+
+            # Save to database and close
+            manager.save_hyperparams(wn_parsed, wh_parsed)
+            new_hp = {'Wn': wn_parsed, 'Wh': wh_parsed}
+            return False, wn_parsed, wh_parsed, "", "", new_hp
+
+        return dash.no_update, dash.no_update, dash.no_update, "", "", dash.no_update
