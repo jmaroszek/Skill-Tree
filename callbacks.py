@@ -160,16 +160,19 @@ def register_callbacks(app):
         if not data:
             return ""
 
-        desc_ui = []
-        if data.get('description'):
-            desc_ui = [html.Br(), html.Span(data.get('description'), style={'display': 'inline-block', 'whiteSpace': 'normal'})]
-
-        return [
-            html.Strong(data['label']), " - ", data.get('type', ''), html.Br(),
-            f"Status: {data.get('status', '')} | Context: {data.get('context', '')}", html.Br(),
-            f"Value: {data.get('value', '')} | Effort: {data.get('effort', '')} | Time: {data.get('time', '')}h",
-            *desc_ui
+        lines = [
+            html.Div([html.Strong("Type: "), data.get('type', '')]),
+            html.Div([html.Strong("Status: "), data.get('status', '')]),
+            html.Div([html.Strong("Context: "), data.get('context', '')]),
+            html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
+            html.Div([html.Strong("Effort: "), str(data.get('effort', ''))]),
+            html.Div([html.Strong("Time: "), f"{data.get('time', '')}h"]),
         ]
+
+        if data.get('description'):
+            lines.append(html.Div([html.Strong("Description: "), html.Span(data.get('description'), style={'whiteSpace': 'normal'})]))
+
+        return lines
 
     @app.callback(
         [Output('node-name', 'value'), Output('node-type', 'value'), Output('node-desc', 'value'),
