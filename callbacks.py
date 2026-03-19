@@ -175,6 +175,9 @@ def register_callbacks(app):
             return ""
 
         lines = [
+            html.Div(html.Strong(data.get('label', data.get('id', ''))),
+                     style={"fontSize": "0.95rem", "marginBottom": "4px",
+                            "borderBottom": "1px solid #495057", "paddingBottom": "4px"}),
             html.Div([html.Strong("Type: "), data.get('type', '')]),
             html.Div([html.Strong("Status: "), data.get('status', '')]),
             html.Div([html.Strong("Context: "), data.get('context', '')]),
@@ -459,3 +462,44 @@ def register_callbacks(app):
             return False, wn_parsed, wh_parsed, "", "", new_hp
 
         return dash.no_update, dash.no_update, dash.no_update, "", "", dash.no_update
+
+    # --- Editor Offcanvas Toggle ---
+
+    @app.callback(
+        Output('offcanvas-editor', 'is_open'),
+        [Input('btn-edit-node', 'n_clicks'),
+         Input('btn-add', 'n_clicks'),
+         Input('search-node', 'value'),
+         Input('btn-save', 'n_clicks'),
+         Input('btn-clear', 'n_clicks'),
+         Input('btn-delete', 'n_clicks')],
+        [State('offcanvas-editor', 'is_open')],
+        prevent_initial_call=True
+    )
+    def toggle_editor_offcanvas(edit_clicks, add_clicks, search_val, save_clicks,
+                                 clear_clicks, delete_clicks, is_open):
+        ctx = dash.callback_context
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+
+        # Open the editor
+        if trigger_id in ('btn-edit-node', 'btn-add'):
+            return True
+        if trigger_id == 'search-node' and search_val:
+            return True
+
+        # Close the editor
+        if trigger_id in ('btn-save', 'btn-clear', 'btn-delete'):
+            return False
+
+        return is_open
+
+    # --- Filters Offcanvas Toggle ---
+
+    @app.callback(
+        Output('offcanvas-filters', 'is_open'),
+        Input('btn-filters-toggle', 'n_clicks'),
+        State('offcanvas-filters', 'is_open'),
+        prevent_initial_call=True
+    )
+    def toggle_filters_offcanvas(n_clicks, is_open):
+        return not is_open

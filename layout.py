@@ -25,7 +25,7 @@ stylesheet = [
             'shape': 'data(shape)',
             'color': '#fff',
             'text-outline-width': 2,
-            'text-outline-color': '#555',
+            'text-outline-color': '#1a1d21',
             'width': 60,
             'height': 60,
         }
@@ -67,13 +67,10 @@ stylesheet = [
 ]
 
 
-# --- Sidebar (Node Editor) ---
+# --- Sidebar (Node Editor — inside Offcanvas) ---
 
-sidebar = html.Div(
+sidebar_content = html.Div(
     [
-        html.H2("Node Editor", className="display-6"),
-        dbc.Button("New Node", id="btn-add", color="success", className="w-100 mb-3", size="lg"),
-
         dbc.Form([
             html.H5("Attributes"),
             dbc.Label("Name", className="mt-2"),
@@ -128,42 +125,52 @@ sidebar = html.Div(
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True)
         ])
     ],
-    className="bg-light p-3",
-    style={"height": "100vh", "overflowY": "scroll"}
+    className="p-2"
+)
+
+editor_offcanvas = dbc.Offcanvas(
+    sidebar_content,
+    id="offcanvas-editor",
+    title="Node Editor",
+    is_open=False,
+    placement="start",
+    backdrop=False,
+    close_button=True,
+    style={"width": "380px"},
+    className="offcanvas-editor-partial"
 )
 
 
-# --- Graph View (Canvas only, filters moved below) ---
+# --- Graph View (Canvas only) ---
 
 def create_graph_view(initial_elements):
-    """Creates the graph view component with initial elements (no filters)."""
+    """Creates the graph view component with initial elements."""
     return html.Div([
         html.Div([
             cyto.Cytoscape(
                 id='cytoscape-graph',
                 layout={'name': 'cose'},
-                style={'width': '100%', 'height': '600px', 'backgroundColor': '#f8f9fa'},
+                style={'width': '100%', 'height': 'calc(100vh - 310px)',
+                       'backgroundColor': '#1a1d21', 'borderRadius': '8px'},
                 elements=initial_elements,
                 stylesheet=stylesheet,
                 userZoomingEnabled=False
             ),
             html.Button(
                 "⛶", id="btn-fullscreen",
-                className="btn btn-dark btn-sm btn-fullscreen-toggle",
+                className="btn btn-outline-light btn-sm btn-fullscreen-toggle",
                 title="Toggle fullscreen"
             ),
         ], id="canvas-container", className="canvas-container"),
     ])
 
 
-# --- Filters Section (tall skinny column to the right of the canvas) ---
+# --- Filters Section (inside right-side Offcanvas) ---
 
 all_nodes = _manager.get_all_nodes()
 _initial_search_options = [{"label": n.name, "value": n.name} for n in all_nodes]
 
-filters_section = html.Div([
-    html.H5("Filters", className="mb-3"),
-
+filters_content = html.Div([
     dbc.Label("Search Task", className="mt-1"),
     dcc.Dropdown(
         id="search-node",
@@ -223,27 +230,36 @@ filters_section = html.Div([
         ],
         value="All"
     ),
-], className="p-3 bg-light border rounded", style={"height": "100%", "overflowY": "auto"})
+], className="p-2")
+
+filters_offcanvas = dbc.Offcanvas(
+    filters_content,
+    id="offcanvas-filters",
+    title="Filters",
+    is_open=False,
+    placement="end",
+    backdrop=False,
+    close_button=True,
+    style={"width": "320px"},
+    className="offcanvas-editor-partial"
+)
 
 
-# --- Info Panels ---
+# --- Info Panels (inside tabs) ---
 
 traversal_view = html.Div([
-    html.H4("Dependencies"),
     html.Div(id="traversal-chains")
-], className="mt-4 p-3 bg-light border rounded")
+], className="p-3")
 
 synergies_view = html.Div([
-    html.H4("Synergies"),
     html.Div(id="synergies-list")
-], className="mt-4 p-3 bg-light border rounded")
+], className="p-3")
 
 suggestions_view = html.Div([
     dcc.Store(id='hyperparams-store', data=_manager.get_hyperparams()),
     dcc.Store(id='suggestion-count-store', data=5),
     dbc.Row([
         dbc.Col(html.Div([
-            html.H4("Suggestions", className="d-inline me-3 mb-0"),
             dbc.ButtonGroup([
                 dbc.Button("−", id="btn-sugg-minus", color="outline-secondary", size="sm",
                            style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
@@ -254,13 +270,13 @@ suggestions_view = html.Div([
                 dbc.Button("+", id="btn-sugg-plus", color="outline-secondary", size="sm",
                            style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
             ], className="align-middle"),
-        ], className="d-flex align-items-center"), width=7),
+        ], className="d-flex align-items-center"), width="auto"),
         dbc.Col(html.Div([
             dbc.Button(
                 "⚙", id="btn-algo-settings", color="link", size="sm",
                 className="flex-shrink-0",
                 style={"fontSize": "1.1rem", "padding": "2px 2px", "textDecoration": "none"}
-            ), 
+            ),
             dbc.Button(
                 "ℹ", id="btn-algo-info", color="link", size="sm",
                 className="flex-shrink-0",
@@ -270,7 +286,7 @@ suggestions_view = html.Div([
                 id="suggestion-algo",
                 options=[{"label": "Priority Score", "value": "priority"}],
                 value="priority", size="sm",
-                className="flex-grow-1"
+                style={"maxWidth": "180px"}
             ),
             dbc.Popover(
                 dbc.PopoverBody(
@@ -294,7 +310,7 @@ $$\text{Priority} = \frac{\text{Value} \times \text{Interest}}{\text{Time} \time
                 placement="left",
                 style={"minWidth": "420px"}
             )
-        ], className="d-flex align-items-center gap-1"), width=5)
+        ], className="d-flex align-items-center gap-1 justify-content-end"), width="auto", className="ms-auto")
     ], className="mb-2"),
     html.Div(id="suggestions-table", style={"maxHeight": "750px", "overflowY": "auto"}),
 
@@ -321,14 +337,26 @@ $$\text{Priority} = \frac{\text{Value} \times \text{Interest}}{\text{Time} \time
             dbc.Button("Apply", id="btn-hp-apply", color="primary"),
         ])
     ], id="modal-hyperparams", is_open=False, centered=True)
-], className="mt-4 p-3 bg-light border rounded")
+], className="p-3")
+
+
+# --- Bottom Tabs ---
+
+bottom_tabs = dbc.Tabs([
+    dbc.Tab(suggestions_view, label="Suggestions", tab_id="tab-suggestions",
+            active_tab_style={"fontWeight": "bold"}),
+    dbc.Tab(traversal_view, label="Dependencies", tab_id="tab-dependencies",
+            active_tab_style={"fontWeight": "bold"}),
+    dbc.Tab(synergies_view, label="Synergies", tab_id="tab-synergies",
+            active_tab_style={"fontWeight": "bold"}),
+], id="bottom-tabs", active_tab="tab-suggestions", className="mt-2")
 
 
 # --- Floating Tooltip ---
 
 hover_tooltip = html.Div(
     id="hover-tooltip",
-    className="bg-white border rounded shadow p-2",
+    className="border rounded shadow p-2",
     style={
         "position": "fixed",
         "zIndex": 9999,
@@ -336,30 +364,71 @@ hover_tooltip = html.Div(
         "pointerEvents": "none",
         "maxWidth": "280px",
         "fontSize": "0.85rem",
-        "lineHeight": "1.5"
+        "lineHeight": "1.5",
+        "backgroundColor": "#2b3035",
+        "color": "#dee2e6",
+        "borderColor": "#495057"
     }
 )
 
 
 def build_app_layout(initial_elements):
     """Assembles the full application layout."""
+    # Hidden button — clicked programmatically by JS on double-click / context menu edit
+    edit_trigger = html.Button(id="btn-edit-node", style={"display": "none"})
+
+    # Right-click context menu (positioned by JS)
+    context_menu = html.Div(
+        id="node-context-menu",
+        children=[
+            html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
+        ],
+        style={
+            "display": "none",
+            "position": "fixed",
+            "zIndex": 10000,
+            "backgroundColor": "#2b3035",
+            "border": "1px solid #495057",
+            "borderRadius": "6px",
+            "padding": "4px 0",
+            "minWidth": "140px",
+            "boxShadow": "0 4px 16px rgba(0,0,0,0.4)",
+        }
+    )
+
     return dbc.Container([
         hover_tooltip,
+        editor_offcanvas,
+        filters_offcanvas,
+        edit_trigger,
+        context_menu,
+
+        # Top toolbar
         dbc.Row([
-            dbc.Col(sidebar, width=3),
-            dbc.Col([
-                dbc.Row([
-                    # Canvas + below-panels on the left
-                    dbc.Col([
-                        create_graph_view(initial_elements),
-                        dbc.Row([
-                            dbc.Col(suggestions_view, width=6),
-                            dbc.Col([traversal_view, synergies_view], width=6)
-                        ])
-                    ], width=9),
-                    # Filters column on the right
-                    dbc.Col(filters_section, width=3),
-                ])
-            ], width=9)
-        ])
-    ], fluid=True)
+            dbc.Col(
+                dbc.Button("+ New Node", id="btn-add", color="success", size="sm",
+                           className="me-2"),
+                width="auto"
+            ),
+            dbc.Col(
+                dbc.Button("⚙ Filters", id="btn-filters-toggle", color="outline-light",
+                           size="sm"),
+                width="auto"
+            ),
+            dbc.Col(
+                html.H4("Skill Tree", className="text-center mb-0",
+                         style={"color": "#dee2e6", "fontWeight": "300", "letterSpacing": "2px"}),
+                className="d-flex align-items-center justify-content-center"
+            ),
+        ], className="py-2 px-3 mb-2 align-items-center",
+           style={"borderBottom": "1px solid #495057"}),
+
+        # Canvas (full width)
+        create_graph_view(initial_elements),
+
+        # Bottom tabbed panel
+        bottom_tabs,
+
+    ], fluid=True, className="px-3 py-2",
+       style={"minHeight": "100vh"})
+

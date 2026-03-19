@@ -28,7 +28,7 @@
     width: 100vw !important;
     height: 100vh !important;
     z-index: 10000;
-    background-color: #f8f9fa;
+    background-color: #1a1d21;
     padding: 0;
     margin: 0;
 }
@@ -44,4 +44,81 @@
     font-size: 1.4rem;
     padding: 8px 14px;
     z-index: 10001;
+}
+
+/* --- Dark Theme Canvas Enhancements --- */
+
+.canvas-container #cytoscape-graph {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    border: 1px solid #2c3034;
+    transition: box-shadow 0.3s ease;
+}
+
+.canvas-container:hover #cytoscape-graph {
+    box-shadow: 0 6px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* --- Tab Styling --- */
+
+.nav-tabs .nav-link {
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+/* --- Offcanvas Transitions --- */
+
+.offcanvas {
+    transition: transform 0.25s ease-in-out !important;
+}
+
+/* Editor offcanvas: only covers the canvas area, not the bottom tabs */
+.offcanvas-editor-partial {
+    bottom: auto !important;
+    height: calc(100vh - 260px) !important;
+    border-bottom-right-radius: 8px;
+    border-bottom: 1px solid #495057;
+    overflow-y: auto;
+}
+
+/* --- Slider dark-mode fixes (Dash Radix UI sliders) --- */
+
+/* Value input box next to slider */
+.dash-range-slider-input,
+.dash-input-container input[type="number"] {
+    color: #f8f9fa !important;
+    background-color: #2b3035 !important;
+    border: 1px solid #495057 !important;
+}
+
+/* Mark labels (1–10 numbers below slider) */
+.dash-slider-root [data-radix-collection-item],
+.dash-slider-root [role="slider"],
+.dash-slider-root span:not([class]) {
+    color: #dee2e6 !important;
+}
+
+/* Catch-all: any text inside the slider wrapper */
+.dash-slider-wrapper span,
+.dash-slider-wrapper div {
+    color: #dee2e6 !important;
+}
+
+/* Slider container text */
+.dash-slider-container {
+    color: #dee2e6 !important;
+}
+
+/* --- Right-click Context Menu --- */
+
+.ctx-menu-item {
+    padding: 6px 16px;
+    color: #dee2e6;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.15s ease;
+    user-select: none;
+}
+
+.ctx-menu-item:hover {
+    background-color: #495057;
+    color: #fff;
 }
