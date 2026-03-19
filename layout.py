@@ -129,13 +129,24 @@ sidebar_content = html.Div(
             dbc.Label("Resources", className="mt-2"),
             dcc.Dropdown(id="edge-resources", multi=True, placeholder="Select Resources..."),
 
-            html.Br(),
+            html.Hr(),
+            dbc.Label("Obsidian", className="mt-0"),
+            html.Div([
+                dbc.Input(id="node-obsidian-path", type="text",
+                          placeholder="Link to Obsidian file",
+                          className="me-1", style={"flex": "1"}),
+                dbc.Button("📁", id="btn-obsidian-browse", color="secondary",
+                           size="sm", title="Browse vault", className="me-1"),
+                dbc.Button("🔗", id="btn-obsidian-open", color="outline-info",
+                           size="sm", title="Open in Obsidian"),
+            ], className="d-flex"),
+            html.Hr(),
             html.Div([
                 html.Div(id="save-output", className="text-success fw-bold flex-grow-1 align-self-center pe-2"),
                 dbc.Button("Clear", id="btn-clear", color="secondary", className="me-2"),
                 dbc.Button("Delete", id="btn-delete", color="danger", className="me-2"),
                 dbc.Button("Save", id="btn-save", color="primary")
-            ], className="d-flex justify-content-end mt-2"),
+            ], className="d-flex justify-content-end mt-4"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True)
         ])
     ],
@@ -385,6 +396,7 @@ def build_app_layout(initial_elements):
         id="node-context-menu",
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
+            html.Div("Open in Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
         ],
         style={
             "display": "none",
@@ -405,6 +417,8 @@ def build_app_layout(initial_elements):
         filters_offcanvas,
         edit_trigger,
         context_menu,
+        # Hidden store for right-clicked node's obsidian path (written by JS)
+        dcc.Store(id='ctx-obsidian-path-store', data=None),
 
         # Top toolbar
         dbc.Row([

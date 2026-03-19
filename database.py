@@ -33,9 +33,15 @@ def init_db():
             competence TEXT,
             context TEXT,
             subcontext TEXT,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            obsidian_path TEXT
         )
     ''')
+
+    # Migration: add obsidian_path if upgrading an existing database
+    existing_cols = {row[1] for row in cursor.execute('PRAGMA table_info(Nodes)').fetchall()}
+    if 'obsidian_path' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN obsidian_path TEXT')
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Edges (

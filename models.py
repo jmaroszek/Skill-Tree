@@ -18,6 +18,7 @@ class Node:
     competence: Optional[str] = None    # [Reciter, Processor, Thinker, Creator, Master, Innovator]
     context: Optional[str] = None       # [None, Mind, Body, Social, Action]
     subcontext: Optional[str] = None
+    obsidian_path: Optional[str] = None     # Relative path inside Obsidian vault
     priority_score: Optional[float] = None  # Computed at runtime, never stored in DB
 
     def __post_init__(self):

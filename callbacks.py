@@ -197,7 +197,8 @@ def register_callbacks(app):
          Output('node-value', 'value'), Output('node-interest', 'value'),
          Output('node-time', 'value'), Output('node-effort', 'value'),
          Output('edge-needs', 'value'), Output('edge-supports', 'value'), Output('edge-helps', 'value'), Output('edge-resources', 'value'),
-         Output('edge-needs', 'options'), Output('edge-supports', 'options'), Output('edge-helps', 'options'), Output('edge-resources', 'options')],
+         Output('edge-needs', 'options'), Output('edge-supports', 'options'), Output('edge-helps', 'options'), Output('edge-resources', 'options'),
+         Output('node-obsidian-path', 'value')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
@@ -212,7 +213,7 @@ def register_callbacks(app):
         options = [{'label': n.name, 'value': n.name} for n in all_nodes]
 
         if trigger_id in ['btn-add', 'btn-clear']:
-            return ["", "Goal", "", "None", "Open", 5, 5, 1.0, 2, [], [], [], [], options, options, options, options]
+            return ["", "Goal", "", "None", "Open", 5, 5, 1.0, 2, [], [], [], [], options, options, options, options, ""]
 
         name = None
         if trigger_id == 'search-node' and search_val:
@@ -223,13 +224,12 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 13 + [options, options, options, options]
+                return [dash.no_update] * 13 + [options, options, options, options, dash.no_update]
         elif data:
             name = data.get('id')
 
         if not name or not data:
-            return [dash.no_update] * 13 + [options, options, options, options]
-
+            return [dash.no_update] * 13 + [options, options, options, options, dash.no_update]
         edges = manager.get_edges()
 
         needs_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == 'Needs']
@@ -248,7 +248,8 @@ def register_callbacks(app):
             data.get('value', 5), data.get('interest', 5),
             data.get('time', 1), data.get('effort', 2),
             needs_vals, supports_vals, helps_vals, res_vals,
-            filtered_options, filtered_options, filtered_options, filtered_options
+            filtered_options, filtered_options, filtered_options, filtered_options,
+            data.get('obsidian_path') or ''
         ]
 
     @app.callback(
@@ -276,13 +277,14 @@ def register_callbacks(app):
          State('node-value', 'value'), State('node-interest', 'value'),
          State('node-time', 'value'), State('node-effort', 'value'),
          State('edge-needs', 'value'), State('edge-supports', 'value'), State('edge-helps', 'value'), State('edge-resources', 'value'),
+         State('node-obsidian-path', 'value'),
          State('cytoscape-graph', 'elements')]
     )
     def update_graph(save_clicks, delete_clicks, f_context, f_done, algo_val, search_val, tapped_node,
                      f_community, community_method, hp_data,
                      f_value, f_interest, f_time, f_effort, sugg_count,
                      name, n_type, desc, context, status, val, interest, time, effort,
-                     e_needs, e_supports, e_helps, e_res, current_elements):
+                     e_needs, e_supports, e_helps, e_res, obsidian_path, current_elements):
         ctx = dash.callback_context
         trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
         msg = ""
@@ -304,7 +306,8 @@ def register_callbacks(app):
                 node = Node(
                     name=name, type=n_type, description=desc or "",
                     value=val, time=time, interest=interest, effort=effort,
-                    status=status or "Open", context=context
+                    status=status or "Open", context=context,
+                    obsidian_path=(obsidian_path or '').strip() or None
                 )
             except (ValueError, TypeError):
                 msg = "Error: Please check your inputs."
