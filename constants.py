@@ -6,12 +6,13 @@ Centralized constants for the Skill Tree application.
 
 NODE_TYPES = ["Goal", "Topic", "Skill", "Habit", "Resource"]
 NODE_STATUSES = ["Open", "Blocked", "Done"]
-CONTEXTS = ["None", "Mind", "Body", "Social", "Action"]
+CONTEXTS = ["None", "Mind", "Body", "Social"]
 
+# I think that these might be being ignored by the main script. I saw hardcoded values that did not use these. 
 EFFORT_OPTIONS = [
     {"label": "Easy", "value": 1},
-    {"label": "Medium", "value": 3},
-    {"label": "Hard", "value": 5},
+    {"label": "Medium", "value": 2},
+    {"label": "Hard", "value": 3},
 ]
 
 # --- Styling Maps ---
