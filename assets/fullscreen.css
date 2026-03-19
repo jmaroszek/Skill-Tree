@@ -70,13 +70,19 @@
     transition: transform 0.25s ease-in-out !important;
 }
 
-/* Editor offcanvas: only covers the canvas area, not the bottom tabs */
+/* Editor/Filters offcanvas: only covers the canvas area, not the bottom tabs */
 .offcanvas-editor-partial {
     bottom: auto !important;
     height: calc(100vh - 260px) !important;
     border-bottom-right-radius: 8px;
     border-bottom: 1px solid #495057;
     overflow-y: auto;
+}
+
+/* Tighten the offcanvas header to reduce gap between title and content */
+.offcanvas-editor-partial .offcanvas-header {
+    padding-top: 0.6rem !important;
+    padding-bottom: 0.4rem !important;
 }
 
 /* --- Slider dark-mode fixes (Dash Radix UI sliders) --- */
