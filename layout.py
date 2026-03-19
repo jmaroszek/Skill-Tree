@@ -133,47 +133,11 @@ sidebar = html.Div(
 )
 
 
-# --- Graph View (Canvas + Filters) ---
+# --- Graph View (Canvas only, filters moved below) ---
 
 def create_graph_view(initial_elements):
-    """Creates the graph view component with initial elements."""
+    """Creates the graph view component with initial elements (no filters)."""
     return html.Div([
-        html.Div([
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Search Task"),
-                    dbc.Input(id="search-node", type="text", placeholder="Search by name..."),
-                ], width=2),
-                dbc.Col([
-                    dbc.Label("Filter Context"),
-                    dbc.Select(
-                        id="filter-context",
-                        options=[{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in CONTEXTS],
-                        value="All"
-                    ),
-                ], width=2),
-                dbc.Col([
-                    dbc.Label("Community Method"),
-                    dbc.Select(id="community-method", options=[
-                        {"label": "Islands", "value": "components"},
-                        {"label": "Clusters", "value": "louvain"}
-                    ], value="components"),
-                ], width=2),
-                dbc.Col([
-                    dbc.Label("Community"),
-                    dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
-                ], width=2),
-                dbc.Col([
-                    dbc.Checklist(
-                        options=[{"label": "Hide 'Done' nodes", "value": "hide_done"}],
-                        value=[],
-                        id="filter-done",
-                        switch=True,
-                    )
-                ], width=2, className="d-flex align-items-center mt-4"),
-            ], className="mb-3")
-        ]),
-
         html.Div([
             cyto.Cytoscape(
                 id='cytoscape-graph',
@@ -192,6 +156,85 @@ def create_graph_view(initial_elements):
     ])
 
 
+# --- Filters Section (placed above Dependencies & Synergies) ---
+
+all_nodes = _manager.get_all_nodes()
+_initial_search_options = [{"label": n.name, "value": n.name} for n in all_nodes]
+
+filters_section = html.Div([
+    html.H4("Filters"),
+    dbc.Row([
+        dbc.Col([
+            dbc.Label("Search Task"),
+            dcc.Dropdown(
+                id="search-node",
+                options=_initial_search_options,
+                value=None,
+                searchable=True,
+                clearable=True,
+                placeholder="Search by name..."
+            ),
+        ], width=3),
+        dbc.Col([
+            dbc.Label("Filter Context"),
+            dbc.Select(
+                id="filter-context",
+                options=[{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in CONTEXTS],
+                value="All"
+            ),
+        ], width=2),
+        dbc.Col([
+            dbc.Label("Method"),
+            dbc.Select(id="community-method", options=[
+                {"label": "Islands", "value": "components"},
+                {"label": "Clusters", "value": "louvain"}
+            ], value="components"),
+        ], width=2),
+        dbc.Col([
+            dbc.Label("Community"),
+            dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
+        ], width=2),
+        dbc.Col([
+            dbc.Checklist(
+                options=[{"label": "Hide 'Done' nodes", "value": "hide_done"}],
+                value=[],
+                id="filter-done",
+                switch=True,
+            )
+        ], width=3, className="d-flex align-items-center mt-4"),
+    ], className="mb-2"),
+    dbc.Row([
+        dbc.Col([
+            dbc.Label("Min Value"),
+            dcc.Slider(min=1, max=10, step=1, value=1, id="filter-value",
+                       marks={i: str(i) for i in range(1, 11)}),
+        ], width=3),
+        dbc.Col([
+            dbc.Label("Min Interest"),
+            dcc.Slider(min=1, max=10, step=1, value=1, id="filter-interest",
+                       marks={i: str(i) for i in range(1, 11)}),
+        ], width=3),
+        dbc.Col([
+            dbc.Label("Max Time (Hours)"),
+            dbc.Input(id="filter-time", type="number", min=0.1, placeholder="No limit"),
+        ], width=3),
+        dbc.Col([
+            dbc.Label("Effort"),
+            dbc.Select(
+                id="filter-effort",
+                options=[
+                    {"label": "All", "value": "All"},
+                    {"label": "Easy", "value": "1"},
+                    {"label": "Medium", "value": "2"},
+                    {"label": "Hard", "value": "3"},
+                ],
+                value="All"
+            ),
+        ], width=3),
+    ], className="mb-2"),
+], className="mt-4 p-3 bg-light border rounded")
+
+
 # --- Info Panels ---
 
 traversal_view = html.Div([
@@ -206,18 +249,31 @@ synergies_view = html.Div([
 
 suggestions_view = html.Div([
     dcc.Store(id='hyperparams-store', data=_manager.get_hyperparams()),
+    dcc.Store(id='suggestion-count-store', data=5),
     dbc.Row([
-        dbc.Col(html.H4("Suggestions"), width=7),
         dbc.Col(html.Div([
-            dbc.Button(
-                "ℹ", id="btn-algo-info", color="link", size="sm",
-                className="flex-shrink-0",
-                style={"fontSize": "1.1rem", "padding": "2px 6px", "textDecoration": "none"}
-            ),
+            html.H4("Suggestions", className="d-inline me-3 mb-0"),
+            dbc.ButtonGroup([
+                dbc.Button("−", id="btn-sugg-minus", color="outline-secondary", size="sm",
+                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
+                html.Span(id="suggestion-count-display", children="5",
+                           className="align-self-center mx-2",
+                           style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
+                                  "textAlign": "center"}),
+                dbc.Button("+", id="btn-sugg-plus", color="outline-secondary", size="sm",
+                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
+            ], className="align-middle"),
+        ], className="d-flex align-items-center"), width=7),
+        dbc.Col(html.Div([
             dbc.Button(
                 "⚙", id="btn-algo-settings", color="link", size="sm",
                 className="flex-shrink-0",
-                style={"fontSize": "1.1rem", "padding": "2px 6px", "textDecoration": "none"}
+                style={"fontSize": "1.1rem", "padding": "2px 2px", "textDecoration": "none"}
+            ), 
+            dbc.Button(
+                "ℹ", id="btn-algo-info", color="link", size="sm",
+                className="flex-shrink-0",
+                style={"fontSize": "1.1rem", "padding": "2px 0px", "textDecoration": "none"}
             ),
             dbc.Select(
                 id="suggestion-algo",
@@ -249,20 +305,20 @@ $$\text{Priority} = \frac{\text{Value} \times \text{Interest}}{\text{Time} \time
             )
         ], className="d-flex align-items-center gap-1"), width=5)
     ], className="mb-2"),
-    html.Div(id="suggestions-table"),
+    html.Div(id="suggestions-table", style={"maxHeight": "750px", "overflowY": "auto"}),
 
     # Hyperparameters Modal
     dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Algorithm Hyperparameters")),
         dbc.ModalBody([
-            dbc.Label("Wn — Unlock Weight", className="fw-bold"),
+            dbc.Label("Unlock Weight", className="fw-bold"),
             html.P("How much to prioritize tasks that unblock other tasks.",
                    className="text-muted small mb-1"),
             dbc.Input(id="input-wn", type="number", value=DEFAULT_WN, step=0.5, min=0,
                       className="mb-2"),
             html.Div(id="input-wn-feedback", className="text-danger small mb-3"),
 
-            dbc.Label("Wh — Synergy Weight", className="fw-bold"),
+            dbc.Label("Synergy Weight", className="fw-bold"),
             html.P("How much to prioritize tasks with active synergistic connections.",
                    className="text-muted small mb-1"),
             dbc.Input(id="input-wh", type="number", value=DEFAULT_WH, step=0.5, min=0,
@@ -304,7 +360,7 @@ def build_app_layout(initial_elements):
                 create_graph_view(initial_elements),
                 dbc.Row([
                     dbc.Col(suggestions_view, width=6),
-                    dbc.Col([traversal_view, synergies_view], width=6)
+                    dbc.Col([filters_section, traversal_view, synergies_view], width=6)
                 ])
             ], width=9)
         ])
