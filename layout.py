@@ -156,83 +156,74 @@ def create_graph_view(initial_elements):
     ])
 
 
-# --- Filters Section (placed above Dependencies & Synergies) ---
+# --- Filters Section (tall skinny column to the right of the canvas) ---
 
 all_nodes = _manager.get_all_nodes()
 _initial_search_options = [{"label": n.name, "value": n.name} for n in all_nodes]
 
 filters_section = html.Div([
-    html.H4("Filters"),
-    dbc.Row([
-        dbc.Col([
-            dbc.Label("Search Task"),
-            dcc.Dropdown(
-                id="search-node",
-                options=_initial_search_options,
-                value=None,
-                searchable=True,
-                clearable=True,
-                placeholder="Search by name..."
-            ),
-        ], width=3),
-        dbc.Col([
-            dbc.Label("Filter Context"),
-            dbc.Select(
-                id="filter-context",
-                options=[{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in CONTEXTS],
-                value="All"
-            ),
-        ], width=2),
-        dbc.Col([
-            dbc.Label("Method"),
-            dbc.Select(id="community-method", options=[
-                {"label": "Islands", "value": "components"},
-                {"label": "Clusters", "value": "louvain"}
-            ], value="components"),
-        ], width=2),
-        dbc.Col([
-            dbc.Label("Community"),
-            dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
-        ], width=2),
-        dbc.Col([
-            dbc.Checklist(
-                options=[{"label": "Hide 'Done' nodes", "value": "hide_done"}],
-                value=[],
-                id="filter-done",
-                switch=True,
-            )
-        ], width=3, className="d-flex align-items-center mt-4"),
-    ], className="mb-2"),
-    dbc.Row([
-        dbc.Col([
-            dbc.Label("Min Value"),
-            dcc.Slider(min=1, max=10, step=1, value=1, id="filter-value",
-                       marks={i: str(i) for i in range(1, 11)}),
-        ], width=3),
-        dbc.Col([
-            dbc.Label("Min Interest"),
-            dcc.Slider(min=1, max=10, step=1, value=1, id="filter-interest",
-                       marks={i: str(i) for i in range(1, 11)}),
-        ], width=3),
-        dbc.Col([
-            dbc.Label("Max Time (Hours)"),
-            dbc.Input(id="filter-time", type="number", min=0.1, placeholder="No limit"),
-        ], width=3),
-        dbc.Col([
-            dbc.Label("Effort"),
-            dbc.Select(
-                id="filter-effort",
-                options=[
-                    {"label": "All", "value": "All"},
-                    {"label": "Easy", "value": "1"},
-                    {"label": "Medium", "value": "2"},
-                    {"label": "Hard", "value": "3"},
-                ],
-                value="All"
-            ),
-        ], width=3),
-    ], className="mb-2"),
-], className="mt-4 p-3 bg-light border rounded")
+    html.H5("Filters", className="mb-3"),
+
+    dbc.Label("Search Task", className="mt-1"),
+    dcc.Dropdown(
+        id="search-node",
+        options=_initial_search_options,
+        value=None,
+        searchable=True,
+        clearable=True,
+        placeholder="Search..."
+    ),
+
+    dbc.Label("Context", className="mt-3"),
+    dbc.Select(
+        id="filter-context",
+        options=[{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in CONTEXTS],
+        value="All"
+    ),
+
+    dbc.Label("Method", className="mt-3"),
+    dbc.Select(id="community-method", options=[
+        {"label": "Islands", "value": "components"},
+        {"label": "Clusters", "value": "louvain"}
+    ], value="components"),
+
+    dbc.Label("Community", className="mt-3"),
+    dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
+
+    html.Div([
+        dbc.Checklist(
+            options=[{"label": "Hide 'Done'", "value": "hide_done"}],
+            value=[],
+            id="filter-done",
+            switch=True,
+        )
+    ], className="mt-3"),
+
+    html.Hr(),
+
+    dbc.Label("Min Value"),
+    dcc.Slider(min=1, max=10, step=1, value=1, id="filter-value",
+               marks={i: str(i) for i in range(1, 11)}),
+
+    dbc.Label("Min Interest", className="mt-2"),
+    dcc.Slider(min=1, max=10, step=1, value=1, id="filter-interest",
+               marks={i: str(i) for i in range(1, 11)}),
+
+    dbc.Label("Max Time (Hrs)", className="mt-2"),
+    dbc.Input(id="filter-time", type="number", min=0.1, placeholder="No limit"),
+
+    dbc.Label("Effort", className="mt-3"),
+    dbc.Select(
+        id="filter-effort",
+        options=[
+            {"label": "All", "value": "All"},
+            {"label": "Easy", "value": "1"},
+            {"label": "Medium", "value": "2"},
+            {"label": "Hard", "value": "3"},
+        ],
+        value="All"
+    ),
+], className="p-3 bg-light border rounded", style={"height": "100%", "overflowY": "auto"})
 
 
 # --- Info Panels ---
@@ -357,10 +348,17 @@ def build_app_layout(initial_elements):
         dbc.Row([
             dbc.Col(sidebar, width=3),
             dbc.Col([
-                create_graph_view(initial_elements),
                 dbc.Row([
-                    dbc.Col(suggestions_view, width=6),
-                    dbc.Col([filters_section, traversal_view, synergies_view], width=6)
+                    # Canvas + below-panels on the left
+                    dbc.Col([
+                        create_graph_view(initial_elements),
+                        dbc.Row([
+                            dbc.Col(suggestions_view, width=6),
+                            dbc.Col([traversal_view, synergies_view], width=6)
+                        ])
+                    ], width=9),
+                    # Filters column on the right
+                    dbc.Col(filters_section, width=3),
                 ])
             ], width=9)
         ])
