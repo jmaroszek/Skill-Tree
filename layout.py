@@ -69,10 +69,22 @@ stylesheet = [
 
 # --- Sidebar (Node Editor — inside Offcanvas) ---
 
+all_nodes = _manager.get_all_nodes()
+_initial_search_options = [{"label": n.name, "value": n.name} for n in all_nodes]
+
 sidebar_content = html.Div(
     [
         dbc.Form([
-            html.H5("Attributes"),
+            html.H5("Search", className="mt-0 mb-1"),
+            dcc.Dropdown(
+                id="search-node",
+                options=_initial_search_options,
+                value=None,
+                searchable=True,
+                clearable=True,
+                placeholder="Search for an existing node..."
+            ),
+            html.H5("Attributes", className="mt-3 mb-1"),
             dbc.Label("Name", className="mt-2"),
             dbc.Input(id="node-name", type="text"),
 
@@ -87,6 +99,8 @@ sidebar_content = html.Div(
 
             dbc.Label("Status", className="mt-2"),
             dbc.Select(id="node-status", options=[{"label": s, "value": s} for s in ["Open", "Blocked", "Done"]]),
+
+            html.Hr(className="my-2"),
 
             # Numeric inputs
             dbc.Label("Value", className="mt-2"),
@@ -125,13 +139,13 @@ sidebar_content = html.Div(
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True)
         ])
     ],
-    className="p-2"
+    className="px-2 pb-2 pt-0"
 )
 
 editor_offcanvas = dbc.Offcanvas(
     sidebar_content,
     id="offcanvas-editor",
-    title="Node Editor",
+    title=html.Span("Node Editor", style={"fontSize": "1.4rem", "fontWeight": "600"}),
     is_open=False,
     placement="start",
     backdrop=False,
@@ -167,28 +181,17 @@ def create_graph_view(initial_elements):
 
 # --- Filters Section (inside right-side Offcanvas) ---
 
-all_nodes = _manager.get_all_nodes()
-_initial_search_options = [{"label": n.name, "value": n.name} for n in all_nodes]
-
 filters_content = html.Div([
-    dbc.Label("Search Task", className="mt-1"),
-    dcc.Dropdown(
-        id="search-node",
-        options=_initial_search_options,
-        value=None,
-        searchable=True,
-        clearable=True,
-        placeholder="Search..."
-    ),
-
-    dbc.Label("Context", className="mt-3"),
+    dbc.Label("Context", className="mt-0"),
     dbc.Select(
         id="filter-context",
         options=[{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in CONTEXTS],
         value="All"
     ),
 
-    dbc.Label("Method", className="mt-3"),
+    html.Hr(className="my-3"),
+
+    dbc.Label("Community Detection Method", className="mt-0"),
     dbc.Select(id="community-method", options=[
         {"label": "Islands", "value": "components"},
         {"label": "Clusters", "value": "louvain"}
@@ -197,18 +200,9 @@ filters_content = html.Div([
     dbc.Label("Community", className="mt-3"),
     dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
 
-    html.Div([
-        dbc.Checklist(
-            options=[{"label": "Hide 'Done'", "value": "hide_done"}],
-            value=[],
-            id="filter-done",
-            switch=True,
-        )
-    ], className="mt-3"),
+    html.Hr(className="my-3"),
 
-    html.Hr(),
-
-    dbc.Label("Min Value"),
+    dbc.Label("Min Value", className="mt-0"),
     dcc.Slider(min=1, max=10, step=1, value=1, id="filter-value",
                marks={i: str(i) for i in range(1, 11)}),
 
@@ -230,12 +224,21 @@ filters_content = html.Div([
         ],
         value="All"
     ),
-], className="p-2")
+
+    html.Hr(className="my-3"),
+
+    dbc.Checklist(
+        options=[{"label": "Hide 'Done'", "value": "hide_done"}],
+        value=[],
+        id="filter-done",
+        switch=True,
+    ),
+], className="px-2 pb-2 pt-0")
 
 filters_offcanvas = dbc.Offcanvas(
     filters_content,
     id="offcanvas-filters",
-    title="Filters",
+    title=html.Span("Filters", style={"fontSize": "1.4rem", "fontWeight": "600"}),
     is_open=False,
     placement="end",
     backdrop=False,

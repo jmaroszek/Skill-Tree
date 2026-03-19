@@ -13,4 +13,4 @@ register_callbacks(app)
 
 if __name__ == '__main__':
     threading.Timer(1.5, webbrowser.open, args=["http://127.0.0.1:8050"]).start()
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=True, use_reloader=True)
