@@ -1,11 +1,7 @@
-"""
-Skill Tree — Entry Point
-
-A Dash application for managing and prioritizing tasks, goals, and projects
-using a graph-based data structure.
-"""
-
 import dash
+import webbrowser
+import threading
+import os
 import dash_bootstrap_components as dbc
 from layout import build_app_layout
 from callbacks import generate_elements, register_callbacks
@@ -16,4 +12,7 @@ app.layout = build_app_layout(initial_elements=generate_elements())
 register_callbacks(app)
 
 if __name__ == '__main__':
+    # Only open browser in the reloader child process to avoid duplicate tabs
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        threading.Timer(1.5, webbrowser.open, args=["http://127.0.0.1:8050"]).start()
     app.run(debug=True)

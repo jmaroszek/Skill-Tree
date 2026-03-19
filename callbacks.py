@@ -58,24 +58,38 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
     return elements
 
 
-def get_suggestions(filters=None, Wn=DEFAULT_WN, Wh=DEFAULT_WH):
-    """Returns top 5 prioritized nodes based on filters, using given hyperparameters."""
+def get_suggestions(filters=None, Wn=DEFAULT_WN, Wh=DEFAULT_WH, count=5):
+    """Returns top N prioritized nodes based on filters, using given hyperparameters."""
     if filters is None:
         filters = {}
     nodes = manager.get_all_nodes()
     filtered_nodes = manager.filter_nodes(nodes, filters)
     scored = manager.calculate_priority_scores(filtered_nodes, Wn=Wn, Wh=Wh)
     valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
-    return valid[:5]
+    return valid[:count]
 
 
-def _build_filters(f_context, f_done):
+def _build_filters(f_context, f_done, f_value=1, f_interest=1, f_time=None, f_effort="All"):
     """Builds a filter dictionary from UI state."""
     filters = {}
     if f_context and f_context != "All":
         filters['context'] = f_context if f_context != "None" else None
     if f_done and "hide_done" in f_done:
         filters['hide_done'] = True
+    if f_value and f_value > 1:
+        filters['min_value'] = f_value
+    if f_interest and f_interest > 1:
+        filters['min_interest'] = f_interest
+    if f_time is not None and f_time != "" and f_time != 0:
+        try:
+            filters['max_time'] = float(f_time)
+        except (ValueError, TypeError):
+            pass
+    if f_effort and f_effort != "All":
+        try:
+            filters['effort'] = int(f_effort)
+        except (ValueError, TypeError):
+            pass
     return filters
 
 
@@ -199,10 +213,9 @@ def register_callbacks(app):
 
         name = None
         if trigger_id == 'search-node' and search_val:
-            search_val_lower = search_val.lower()
-            matched = [n for n in all_nodes if search_val_lower in n.name.lower()]
-            if matched:
-                node = matched[0]
+            # search_val is now the exact node name from the dropdown
+            node = manager.get_node(search_val)
+            if node:
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
@@ -240,7 +253,8 @@ def register_callbacks(app):
          Output('suggestions-table', 'children'), Output('traversal-chains', 'children'),
          Output('synergies-list', 'children'),
          Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
-         Output('filter-community', 'options')],
+         Output('filter-community', 'options'),
+         Output('search-node', 'options')],
         [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-done', 'value'),
          Input('suggestion-algo', 'value'),
@@ -248,7 +262,12 @@ def register_callbacks(app):
          Input('cytoscape-graph', 'tapNodeData'),
          Input('filter-community', 'value'),
          Input('community-method', 'value'),
-         Input('hyperparams-store', 'data')],
+         Input('hyperparams-store', 'data'),
+         Input('filter-value', 'value'),
+         Input('filter-interest', 'value'),
+         Input('filter-time', 'value'),
+         Input('filter-effort', 'value'),
+         Input('suggestion-count-store', 'data')],
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-status', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'),
@@ -258,22 +277,19 @@ def register_callbacks(app):
     )
     def update_graph(save_clicks, delete_clicks, f_context, f_done, algo_val, search_val, tapped_node,
                      f_community, community_method, hp_data,
+                     f_value, f_interest, f_time, f_effort, sugg_count,
                      name, n_type, desc, context, status, val, interest, time, effort,
                      e_needs, e_supports, e_helps, e_res, current_elements):
         ctx = dash.callback_context
         trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
         msg = ""
 
-        filters = _build_filters(f_context, f_done)
+        filters = _build_filters(f_context, f_done, f_value, f_interest, f_time, f_effort)
 
         # Determine active node for selection highlight
         active_node_id = None
         if trigger_id == 'search-node' and search_val:
-            all_nodes = manager.get_all_nodes()
-            search_val_lower = search_val.lower()
-            matched = [n for n in all_nodes if search_val_lower in n.name.lower()]
-            if matched:
-                active_node_id = matched[0].name
+            active_node_id = search_val
         elif trigger_id == 'cytoscape-graph' and tapped_node:
             active_node_id = tapped_node.get('id')
         else:
@@ -289,7 +305,7 @@ def register_callbacks(app):
                 )
             except (ValueError, TypeError):
                 msg = "Error: Please check your inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update
 
             try:
                 if manager.get_node(name):
@@ -336,10 +352,15 @@ def register_callbacks(app):
         hp = hp_data or {}
         wn = hp.get('Wn', DEFAULT_WN)
         wh = hp.get('Wh', DEFAULT_WH)
-        sugg_ui = _format_suggestions_table(get_suggestions(filters, Wn=wn, Wh=wh))
+        count = sugg_count if sugg_count else 5
+        sugg_ui = _format_suggestions_table(get_suggestions(filters, Wn=wn, Wh=wh, count=count))
         traversal_ui, synergies_ui = _format_traversal_ui(tapped_node, active_node_id)
 
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options
+        # Refresh search dropdown options
+        all_nodes = manager.get_all_nodes()
+        search_options = [{'label': n.name, 'value': n.name} for n in all_nodes]
+
+        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -351,6 +372,28 @@ def register_callbacks(app):
         if n > 0:
             return "", True
         return dash.no_update, dash.no_update
+
+    # --- Suggestion Count +/- Callbacks ---
+
+    @app.callback(
+        Output('suggestion-count-store', 'data'),
+        Output('suggestion-count-display', 'children'),
+        Input('btn-sugg-plus', 'n_clicks'),
+        Input('btn-sugg-minus', 'n_clicks'),
+        State('suggestion-count-store', 'data'),
+        prevent_initial_call=True
+    )
+    def update_suggestion_count(plus_clicks, minus_clicks, current_count):
+        ctx = dash.callback_context
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+        count = current_count or 5
+
+        if trigger_id == 'btn-sugg-plus':
+            count = min(10, count + 1)
+        elif trigger_id == 'btn-sugg-minus':
+            count = max(1, count - 1)
+
+        return count, str(count)
 
     # --- Hyperparameters Modal Callbacks ---
 

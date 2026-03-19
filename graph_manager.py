@@ -337,6 +337,15 @@ class GraphManager:
         if 'min_value' in filters:
             result = [n for n in result if n.value >= int(filters['min_value'])]
 
+        if 'min_interest' in filters:
+            result = [n for n in result if n.interest >= int(filters['min_interest'])]
+
+        if 'max_time' in filters:
+            result = [n for n in result if n.time <= float(filters['max_time'])]
+
+        if 'effort' in filters:
+            result = [n for n in result if n.effort == int(filters['effort'])]
+
         if 'hide_done' in filters and filters['hide_done']:
             result = [n for n in result if n.status != 'Done']
 
