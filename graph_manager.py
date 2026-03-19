@@ -24,8 +24,8 @@ class GraphManager:
                 data = node.to_dict()
                 data.pop('priority_score', None)
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time, interest, effort, competence, context, subcontext, status)
-                    VALUES (:name, :type, :description, :value, :time, :interest, :effort, :competence, :context, :subcontext, :status)
+                    INSERT INTO Nodes (name, type, description, value, time, interest, effort, competence, context, subcontext, status, obsidian_path)
+                    VALUES (:name, :type, :description, :value, :time, :interest, :effort, :competence, :context, :subcontext, :status, :obsidian_path)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -41,7 +41,8 @@ class GraphManager:
                 UPDATE Nodes
                 SET type=:type, description=:description, value=:value, time=:time, 
                     interest=:interest, effort=:effort, competence=:competence, 
-                    context=:context, subcontext=:subcontext, status=:status
+                    context=:context, subcontext=:subcontext, status=:status,
+                    obsidian_path=:obsidian_path
                 WHERE name=:name
             ''', data)
             conn.commit()
