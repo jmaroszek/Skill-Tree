@@ -1,4 +1,5 @@
 import sqlite3
+import os
 from pathlib import Path
 
 DB_FILENAME = "skilltree.db"
@@ -6,7 +7,11 @@ DB_FILENAME = "skilltree.db"
 
 def get_db_path() -> str:
     """Returns the absolute path to the SQLite database file."""
-    return str(Path(__file__).parent / DB_FILENAME)
+    from config import ENVIRONMENT
+    db_name = DB_FILENAME
+    if ENVIRONMENT == "sandbox":
+        db_name = "sandbox_" + DB_FILENAME
+    return str(Path(__file__).parent / db_name)
 
 
 def get_connection() -> sqlite3.Connection:
@@ -27,21 +32,38 @@ def init_db():
             type TEXT NOT NULL,
             description TEXT NOT NULL,
             value INTEGER NOT NULL,
-            time INTEGER NOT NULL,
+            time_o REAL NOT NULL,
+            time_m REAL NOT NULL,
+            time_p REAL NOT NULL,
             interest INTEGER NOT NULL,
-            effort INTEGER NOT NULL,
+            difficulty INTEGER NOT NULL,
             competence TEXT,
             context TEXT,
             subcontext TEXT,
             status TEXT NOT NULL,
-            obsidian_path TEXT
+            obsidian_path TEXT,
+            google_drive_path TEXT
         )
     ''')
 
-    # Migration: add obsidian_path if upgrading an existing database
+    # Migration
     existing_cols = {row[1] for row in cursor.execute('PRAGMA table_info(Nodes)').fetchall()}
+    
+    if 'time' in existing_cols:
+        cursor.execute('ALTER TABLE Nodes RENAME COLUMN time TO time_m')
+        cursor.execute('ALTER TABLE Nodes RENAME COLUMN effort TO difficulty')
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN time_o REAL DEFAULT 1.0')
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN time_p REAL DEFAULT 1.0')
+        cursor.execute('UPDATE Nodes SET time_o = time_m, time_p = time_m')
+        
     if 'obsidian_path' not in existing_cols:
         cursor.execute('ALTER TABLE Nodes ADD COLUMN obsidian_path TEXT')
+        
+    if 'google_drive_path' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN google_drive_path TEXT')
+        
+    if 'subcontext' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN subcontext TEXT')
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Edges (
@@ -53,6 +75,9 @@ def init_db():
             FOREIGN KEY (target) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
+    
+    # Edge migration for Needs -> Needs_Hard
+    cursor.execute("UPDATE Edges SET type='Needs_Hard' WHERE type='Needs'")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Settings (

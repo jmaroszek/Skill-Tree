@@ -1,0 +1,23 @@
+/* Custom styles for Skill Tree */
+
+/* Remove spinner arrows from number inputs */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+    -webkit-appearance: none; 
+    margin: 0; 
+}
+input[type=number] {
+    -moz-appearance: textfield; /* Firefox */
+}
+
+/* Hide scrollbar for the bottom panels area while keeping it scrollable */
+#bottom-panel-container,
+#suggestions-table {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;  /* Firefox */
+}
+
+#bottom-panel-container::-webkit-scrollbar,
+#suggestions-table::-webkit-scrollbar { 
+    display: none;  /* Safari and Chrome */
+}
