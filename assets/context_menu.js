@@ -91,8 +91,11 @@
         
         function switchTab(tabId) {
             hideMenu();
-            var tabBtn = document.querySelector(`button#${tabId}`);
-            if (tabBtn) tabBtn.click();
+            if (tabId === 'tab-dependencies') {
+                _clickDashBtn('btn-show-deps');
+            } else if (tabId === 'tab-synergies') {
+                _clickDashBtn('btn-show-syns');
+            }
         }
 
         function bindCyEvents() {

@@ -16,7 +16,6 @@ NODE_TYPES = ConfigManager.get_node_types()
 CONTEXTS = ConfigManager.get_contexts()
 
 # --- Cytoscape Stylesheet ---
-
 stylesheet = [
     {
         'selector': 'node',
@@ -97,7 +96,7 @@ sidebar_content = html.Div(
             html.Span("×", id="btn-close-editor", className="fs-3 text-white float-end", style={"cursor": "pointer"})
         ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
         dbc.Form([
-            html.H5("Search", className="mt-0 mb-1"),
+            html.H5("Search", className="mt-2 mb-1"),
             html.Div(dcc.Dropdown(
                 id="search-node",
                 options=_initial_search_options,
@@ -147,9 +146,9 @@ sidebar_content = html.Div(
             html.Hr(),
             html.H5("Time Estimates in Hours"),
             dbc.Row([
-                dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0, step=0.1)]),
-                dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0, step=0.1)]),
-                dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0, step=0.1)]),
+                dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
+                dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
+                dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
             ]),
             
             html.Hr(),
@@ -173,7 +172,7 @@ sidebar_content = html.Div(
             html.Div(dcc.Dropdown(id="edge-resources", multi=True, placeholder="Select Resource Nodes..."), className="text-dark"),
 
             html.Hr(),
-            html.H5("External Links"),
+            html.H5("External Resources"),
             dbc.Label("Obsidian", className="mt-0"),
             html.Div([
                 dbc.Input(id="node-obsidian-path", type="text", placeholder="Link to Obsidian file", className="me-1", style={"flex": "1"}),
@@ -185,6 +184,12 @@ sidebar_content = html.Div(
             html.Div([
                 dbc.Input(id="node-google-drive-path", type="text", placeholder="Link to Drive file", className="me-1", style={"flex": "1"}),
                 dbc.Button("🔗", id="btn-drive-open", color="outline-info", size="sm", title="Open in Drive"),
+            ], className="d-flex"),
+
+            dbc.Label("Website", className="mt-2"),
+            html.Div([
+                dbc.Input(id="node-website-path", type="text", placeholder="Link to Website", className="me-1", style={"flex": "1"}),
+                dbc.Button("🔗", id="btn-website-open", color="outline-info", size="sm", title="Open Website"),
             ], className="d-flex"),
             
             html.Hr(),
@@ -237,7 +242,7 @@ filters_content = html.Div([
     dbc.Label("Context", className="mt-0"),
     dbc.Select(
         id="filter-context",
-        options=[{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in CONTEXTS],
+        options=["All"] + CONTEXTS, 
         value="All"
     ),
 
@@ -318,7 +323,24 @@ settings_modal = dbc.Modal([
     dbc.ModalHeader(dbc.ModalTitle("Settings")),
     dbc.ModalBody([
         dbc.Tabs([
-            dbc.Tab(label="Hyperparameters", children=[
+            dbc.Tab(label="Nodes", children=[
+                html.Div([
+                    dbc.Label("Node Types", className="fw-bold mt-2"),
+                    dbc.Textarea(id="setting-node-types", rows=4, placeholder="Enter node types separated by commas or new lines..."),
+                    html.P("These dynamically populate your node type drop-downs. Defined order is preserved.", className="text-muted small"),
+                    
+                    html.Hr(),
+                    dbc.Label("Contexts", className="fw-bold mt-2"),
+                    dbc.Textarea(id="setting-contexts", rows=4, placeholder="Enter contexts separated by commas or new lines..."),
+                    html.P("These dynamically populate your context drop-downs. Defined order is preserved.", className="text-muted small"),
+                    
+                    html.Hr(),
+                    dbc.Label("Subcontexts", className="fw-bold mt-2"),
+                    dbc.Textarea(id="setting-subcontexts", rows=4, placeholder="Enter subcontexts in the format Context: Subcontext1, Subcontext2..."),
+                    html.P("These dynamically populate your subcontext drop-downs per context. Defined order is preserved.", className="text-muted small"),
+                ], className="p-2")
+            ]),
+            dbc.Tab(label="Algorithms", children=[
                 html.Div([
                     dbc.Label("Algorithm Profile", className="fw-bold mt-2"),
                     dbc.Select(id="setting-hp-profile", options=[
@@ -329,22 +351,22 @@ settings_modal = dbc.Modal([
                     ], value="Default"),
                     
                     dbc.Row([
-                        dbc.Col([dbc.Label("w_v (Value)"), dbc.Input(id="hp-wv", type="number", step=0.1)]),
-                        dbc.Col([dbc.Label("w_i (Interest)"), dbc.Input(id="hp-wi", type="number", step=0.1)]),
+                        dbc.Col([dbc.Label("Value Weight"), dbc.Input(id="hp-wv", type="number", step=0.1), html.Small("Multiplier for 'Value' attribute.", className="text-muted")]),
+                        dbc.Col([dbc.Label("Interest Weight"), dbc.Input(id="hp-wi", type="number", step=0.1), html.Small("Multiplier for 'Interest' attribute.", className="text-muted")]),
                     ], className="mt-2"),
                     dbc.Row([
-                        dbc.Col([dbc.Label("d_H (Hard Prereq Factor)"), dbc.Input(id="hp-dh", type="number", step=0.01)]),
-                        dbc.Col([dbc.Label("d_S (Soft Prereq Factor)"), dbc.Input(id="hp-ds", type="number", step=0.01)]),
-                        dbc.Col([dbc.Label("d_Syn (Synergy Factor)"), dbc.Input(id="hp-dsyn", type="number", step=0.01)]),
+                        dbc.Col([dbc.Label("Hard Prereq Factor"), dbc.Input(id="hp-dh", type="number", step=0.01), html.Small("Penalty for unmet hard prerequisites.", className="text-muted")]),
+                        dbc.Col([dbc.Label("Soft Prereq Factor"), dbc.Input(id="hp-ds", type="number", step=0.01), html.Small("Penalty for unmet soft prerequisites.", className="text-muted")]),
+                        dbc.Col([dbc.Label("Synergy Factor"), dbc.Input(id="hp-dsyn", type="number", step=0.01), html.Small("Bonus for having synergistic neighbors.", className="text-muted")]),
                     ], className="mt-2"),
                     dbc.Row([
-                        dbc.Col([dbc.Label("w_e (Difficulty Penalty)"), dbc.Input(id="hp-we", type="number", step=0.1)]),
-                        dbc.Col([dbc.Label("w_t (Time Penalty)"), dbc.Input(id="hp-wt", type="number", step=0.1)]),
-                        dbc.Col([dbc.Label("beta (Sublinear Dampener)"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
+                        dbc.Col([dbc.Label("Difficulty Penalty"), dbc.Input(id="hp-we", type="number", step=0.1), html.Small("Penalty based on difficulty score.", className="text-muted")]),
+                        dbc.Col([dbc.Label("Time Penalty"), dbc.Input(id="hp-wt", type="number", step=0.1), html.Small("Penalty based on time estimates.", className="text-muted")]),
+                        dbc.Col([dbc.Label("Sublinear Dampener"), dbc.Input(id="hp-beta", type="number", step=0.05), html.Small("Modulates the scaling of penalties.", className="text-muted")]),
                     ], className="mt-2"),
                 ], className="p-2")
             ]),
-            dbc.Tab(label="Visuals & Paths", children=[
+            dbc.Tab(label="Paths", children=[
                 html.Div([
                     dbc.Label("Obsidian Vault Root Path", className="fw-bold mt-2"),
                     dbc.Input(id="setting-obsidian-path", type="text"),
@@ -352,18 +374,6 @@ settings_modal = dbc.Modal([
                     
                     html.Hr(),
                     html.P("Node types and custom visuals implementation in future phase.", className="text-muted")
-                ], className="p-2")
-            ]),
-            dbc.Tab(label="Nodes", children=[
-                html.Div([
-                    dbc.Label("Contexts (Categorical)", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-contexts", rows=4, placeholder="Enter contexts separated by commas or new lines..."),
-                    html.P("These dynamically populate your context drop-downs. Defined order is preserved.", className="text-muted small"),
-                    
-                    html.Hr(),
-                    dbc.Label("Subcontexts (Categorical)", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-subcontexts", rows=4, placeholder="Enter subcontexts separated by commas or new lines..."),
-                    html.P("These dynamically populate your subcontext drop-downs. Defined order is preserved.", className="text-muted small"),
                 ], className="p-2")
             ])
         ])
@@ -411,6 +421,8 @@ def build_app_layout(initial_elements, env="production"):
     
     edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
+    btn_show_deps = html.Button(id="btn-show-deps", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
+    btn_show_syns = html.Button(id="btn-show-syns", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
 
     context_menu = html.Div(
         id="node-context-menu",
@@ -441,6 +453,8 @@ def build_app_layout(initial_elements, env="production"):
         hover_tooltip,
         edit_trigger,
         toggle_trigger,
+        btn_show_deps,
+        btn_show_syns,
         context_menu,
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
