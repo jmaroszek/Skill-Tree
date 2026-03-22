@@ -1,11 +1,11 @@
 import json
 from database import get_connection
 
-ENVIRONMENT = "production" # Options: sandbox, production
+ENVIRONMENT = "sandbox" # Options: sandbox, production
 
 DEFAULT_NODE_TYPES = ["Topic", "Goal", "Skill", "Habit", "Resource"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
-DEFAULT_SUBCONTEXTS = []
+DEFAULT_SUBCONTEXTS = {}
 
 DEFAULT_NODE_COLORS = {
     'Blocked': '#dc3545',
@@ -81,10 +81,18 @@ class ConfigManager:
     @classmethod
     def get_subcontexts(cls):
         val = cls._get_db_value("SUBCONTEXTS")
-        return json.loads(val) if val else DEFAULT_SUBCONTEXTS
+        if not val:
+            return DEFAULT_SUBCONTEXTS
+        try:
+            data = json.loads(val)
+            if isinstance(data, list):
+                return {}
+            return data
+        except:
+            return {}
 
     @classmethod
-    def set_subcontexts(cls, subcontexts: list):
+    def set_subcontexts(cls, subcontexts: dict):
         cls._set_db_value("SUBCONTEXTS", json.dumps(subcontexts))
 
     @classmethod

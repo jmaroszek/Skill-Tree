@@ -279,8 +279,8 @@ def register_callbacks(app):
          Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
          Output('filter-community', 'options'), Output('search-node', 'options'),
          Output('sidebar-editor-container', 'style'), Output('sidebar-filters-container', 'style'),
-         Output('filter-context', 'options'), Output('filter-subcontext', 'options'),
-         Output('node-context', 'options'), Output('node-subcontext', 'options')],
+         Output('filter-context', 'options'), Output('node-context', 'options'),
+         Output('node-type', 'options')],
         
         [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -414,28 +414,14 @@ def register_callbacks(app):
         
         # Populate dynamic contexts datalists from DB + Config preserving defined order
         base_ctx = ConfigManager.get_contexts()
-        base_sub = ConfigManager.get_subcontexts()
         
-        # Add any missing active contexts at the end
-        active_contexts = set(n.context for n in all_nodes if n.context)
-        active_subs = set(n.subcontext for n in all_nodes if getattr(n, 'subcontext', None))
-        
-        ordered_ctx = list(base_ctx)
-        for c in sorted(active_contexts):
-            if c not in ordered_ctx:
-                ordered_ctx.append(c)
-                
-        ordered_sub = list(base_sub)
-        for s in sorted(active_subs):
-            if s not in ordered_sub:
-                ordered_sub.append(s)
-
-        ctx_list = [{"label": c, "value": c} for c in ordered_ctx]
-        sub_list = [{"label": s, "value": s} for s in ordered_sub]
+        ctx_list = [{"label": c, "value": c} for c in base_ctx]
         f_ctx_list = [{"label": "All", "value": "All"}] + ctx_list
-        f_sub_list = [{"label": "All", "value": "All"}] + sub_list
 
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, f_sub_list, ctx_list, sub_list
+        base_types = ConfigManager.get_node_types()
+        type_list = [{"label": t, "value": t} for t in base_types]
+
+        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -446,6 +432,25 @@ def register_callbacks(app):
     def clear_message(n):
         if n > 0: return "", True
         return dash.no_update, dash.no_update
+
+    @app.callback(
+        Output('node-subcontext', 'options'),
+        Input('node-context', 'value')
+    )
+    def update_node_subcontexts(ctx):
+        if not ctx or ctx == "None": return []
+        subs = ConfigManager.get_subcontexts().get(ctx, [])
+        return [{"label": s, "value": s} for s in subs]
+
+    @app.callback(
+        Output('filter-subcontext', 'options'),
+        Input('filter-context', 'value')
+    )
+    def update_filter_subcontexts(ctx):
+        base = [{"label": "All", "value": "All"}]
+        if not ctx or ctx == "All": return base
+        subs = ConfigManager.get_subcontexts().get(ctx, [])
+        return base + [{"label": s, "value": s} for s in subs]
 
     # --- Suggestion Count +/- Callbacks ---
     @app.callback(
@@ -470,6 +475,7 @@ def register_callbacks(app):
         [Output('hp-wv', 'value'), Output('hp-wi', 'value'),
          Output('hp-dh', 'value'), Output('hp-ds', 'value'), Output('hp-dsyn', 'value'),
          Output('hp-we', 'value'), Output('hp-wt', 'value'), Output('hp-beta', 'value'),
+         Output('setting-node-types', 'value'),
          Output('setting-contexts', 'value'),
          Output('setting-subcontexts', 'value'),
          Output('setting-hp-profile', 'value'),
@@ -481,13 +487,14 @@ def register_callbacks(app):
         [State('hp-wv', 'value'), State('hp-wi', 'value'),
          State('hp-dh', 'value'), State('hp-ds', 'value'), State('hp-dsyn', 'value'),
          State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
+         State('setting-node-types', 'value'),
          State('setting-contexts', 'value'),
          State('setting-subcontexts', 'value'),
          State('setting-obsidian-path', 'value')],
         prevent_initial_call=True
     )
     def manage_settings_modal(open_cm, cancel_cm, save_cm, profile_val,
-                              wv, wi, dh, ds, dsyn, we, wt, beta, contexts_val, subcontexts_val, obs_path):
+                              wv, wi, dh, ds, dsyn, we, wt, beta, n_types_val, contexts_val, subcontexts_val, obs_path):
         ctx = dash.callback_context
         trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
 
@@ -495,16 +502,22 @@ def register_callbacks(app):
             # Load stored config
             hp = ConfigManager.get_hyperparams()
             obs = ConfigManager.get_obsidian_vault(r"C:\Users\jonah\Documents\Obsidian")
+            ntypes = ",\n".join(ConfigManager.get_node_types())
             ctxts = ",\n".join(ConfigManager.get_contexts())
-            subctxts = ",\n".join(ConfigManager.get_subcontexts())
-            return True, hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'), hp.get('w_e'), hp.get('w_t'), hp.get('beta'), ctxts, subctxts, "Custom", obs
+            s_dict = ConfigManager.get_subcontexts()
+            subctxts_lines = []
+            for k, v in s_dict.items():
+                if v:
+                    subctxts_lines.append(f"{k}: {', '.join(v)}")
+            subctxts = "\n".join(subctxts_lines)
+            return True, hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'), hp.get('w_e'), hp.get('w_t'), hp.get('beta'), ntypes, ctxts, subctxts, "Custom", obs
             
         if trigger_id == 'setting-hp-profile':
             from config import PROFILES
             if profile_val in PROFILES:
                 p = PROFILES[profile_val]
-                return True, p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'], p['w_e'], p['w_t'], p['beta'], dash.no_update, dash.no_update, profile_val, dash.no_update
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return True, p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'], p['w_e'], p['w_t'], p['beta'], dash.no_update, dash.no_update, dash.no_update, profile_val, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             
         if trigger_id == 'btn-settings-save':
             try:
@@ -518,21 +531,31 @@ def register_callbacks(app):
                 
                 # Context parsing
                 import re
+                if n_types_val is not None:
+                    n_list = [c.strip() for c in re.split(r'[,|\n]', n_types_val) if c.strip()]
+                    ConfigManager.set_node_types(n_list)
                 if contexts_val is not None:
                     c_list = [c.strip() for c in re.split(r'[,|\n]', contexts_val) if c.strip()]
                     ConfigManager.set_contexts(c_list)
                     
                 if subcontexts_val is not None:
-                    s_list = [s.strip() for s in re.split(r'[,|\n]', subcontexts_val) if s.strip()]
-                    ConfigManager.set_subcontexts(s_list)
+                    s_dict = {}
+                    for line in subcontexts_val.split('\n'):
+                        if ':' in line:
+                            parts = line.split(':', 1)
+                            ctx_name = parts[0].strip()
+                            subs = [s.strip() for s in re.split(r'[,|\n]', parts[1]) if s.strip()]
+                            if ctx_name and subs:
+                                s_dict[ctx_name] = subs
+                    ConfigManager.set_subcontexts(s_dict)
                 
             except Exception: pass
-            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         if trigger_id == 'btn-settings-cancel':
-            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     # --- Subcontext Collapse Toggle ---
     @app.callback(
@@ -625,3 +648,59 @@ if abs_path:
             return dash.no_update
         except Exception as e:
             return f"Error opening Obsidian: {str(e)}"
+
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        [Input('btn-drive-open', 'n_clicks'),
+         Input('btn-website-open', 'n_clicks')],
+        [State('node-google-drive-path', 'value'),
+         State('node-website-path', 'value')],
+        prevent_initial_call=True
+    )
+    def handle_external_links(drive_clicks, web_clicks, drive_path, web_path):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return dash.no_update
+            
+        # Figure out which button triggered the callback
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        # Grab the correct URL based on the button clicked
+        url = None
+        if trigger_id == 'btn-drive-open' and drive_path:
+            url = drive_path.strip()
+        elif trigger_id == 'btn-website-open' and web_path:
+            url = web_path.strip()
+            
+        if not url:
+            return "No URL set for this specific link."
+            
+        # Ensure it has a protocol so it doesn't route internally
+        if not url.startswith('http://') and not url.startswith('https://'):
+            url = 'https://' + url
+            
+        import webbrowser
+        try:
+            webbrowser.open_new_tab(url)
+            return dash.no_update
+        except Exception as e:
+            return f"Error opening URL: {str(e)}"
+
+    @app.callback(
+        Output("bottom-tabs", "active_tab"),
+        Input("btn-show-deps", "n_clicks"),
+        Input("btn-show-syns", "n_clicks"),
+        prevent_initial_call=True
+    )
+    def switch_bottom_tab(deps_clicks, syns_clicks):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return dash.no_update
+            
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        if trigger_id == 'btn-show-deps':
+            return "tab-dependencies"
+        if trigger_id == 'btn-show-syns':
+            return "tab-synergies"
+            
+        return dash.no_update

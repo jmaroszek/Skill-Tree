@@ -320,10 +320,10 @@ class GraphManager:
 
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         result = nodes
-
+        
         if 'context' in filters:
             result = [n for n in result if n.context == filters['context']]
-            
+
         if 'subcontext' in filters:
             result = [n for n in result if n.subcontext == filters['subcontext']]
 

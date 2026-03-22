@@ -78,14 +78,12 @@ def init_db():
     
     # Edge migration for Needs -> Needs_Hard
     cursor.execute("UPDATE Edges SET type='Needs_Hard' WHERE type='Needs'")
-
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         )
     ''')
-
     conn.commit()
     conn.close()
 
