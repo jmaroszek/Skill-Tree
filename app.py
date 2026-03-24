@@ -48,4 +48,4 @@ def open_obsidian_route():
 if __name__ == '__main__':
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         threading.Timer(0.5, webbrowser.open, args=["http://127.0.0.1:8050"]).start()
-    app.run(debug=True)
+    app.run(debug=True, dev_tools_ui=False)

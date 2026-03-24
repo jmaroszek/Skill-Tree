@@ -81,13 +81,15 @@ def get_suggestions(filters=None, count=5):
     return valid[:count]
 
 
-def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_time=None, f_difficulty="All"):
+def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_time=None, f_difficulty="All", f_node_types=None):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
     if f_context and f_context != "All":
         filters['context'] = f_context if f_context != "None" else None
     if f_subcontext and f_subcontext != "All" and f_subcontext.strip():
         filters['subcontext'] = f_subcontext.strip()
+    if f_node_types:
+        filters['node_types'] = f_node_types
     if f_done and "hide_done" in f_done:
         filters['hide_done'] = True
     if f_value and f_value > 1:
@@ -123,7 +125,7 @@ def _format_suggestions_table(suggs):
     ]))]
     row_data = [html.Tr([
         html.Td(s.name),
-        html.Td(f"{normalize(getattr(s, 'priority_score', 0)):.1f}"),
+        html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
         html.Td(s.type),
         html.Td(str(s.context)),
         html.Td(str(s.subcontext) if s.subcontext else "None"),
@@ -167,19 +169,32 @@ def _format_traversal_ui(tapped_node, active_node_id):
 
 
 def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
-                  status_done, context, subctx, obs_path, drive_path,
-                  e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res):
+                  status_done, context, subctx, obs_path, drive_path, website_path,
+                  e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
+                  habit_status_val=None, habit_freq=None, sess_lower=None, sess_expected=None, sess_upper=None, progress_val=None):
     """Create or update a node and sync its edges. Returns a status message."""
     # target_status: what the user selected in the form (Done or Open).
     # graph_manager may override to "Blocked" after sync_edges if hard prerequisites aren't met.
     target_status = "Done" if (status_done and "Done" in status_done) else "Open"
+
+    # Auto-set progress to 100% when resource is marked Done
+    if n_type == 'Resource' and target_status == 'Done':
+        progress_val = 100
+
     node = Node(
         name=name, type=n_type, description=desc or "",
-        value=val, time_o=time_o, time_m=time_m, time_p=time_p,
+        value=val, time_o=time_o or 0, time_m=time_m or 0, time_p=time_p or 0,
         interest=interest, difficulty=diff,
         status=target_status, context=context, subcontext=(subctx or '').strip() or None,
         obsidian_path=(obs_path or '').strip() or None,
-        google_drive_path=(drive_path or '').strip() or None
+        google_drive_path=(drive_path or '').strip() or None,
+        website=(website_path or '').strip() or None,
+        frequency=habit_freq if n_type == 'Habit' else None,
+        session_lower=sess_lower if n_type == 'Habit' else None,
+        session_expected=sess_expected if n_type == 'Habit' else None,
+        session_upper=sess_upper if n_type == 'Habit' else None,
+        habit_status=habit_status_val if n_type == 'Habit' else None,
+        progress=int(progress_val) if n_type == 'Resource' and progress_val is not None else None,
     )
     if manager.get_node(name):
         manager.update_node(node)
@@ -242,16 +257,32 @@ def register_callbacks(app):
         std_str = f" ±{std_dev}" if std_dev > 0 else ""
         time_str = f"{final_time}h{std_str}"
 
+        node_type = data.get('type', '')
         lines = [
             html.Div(html.Strong(data.get('label', data.get('id', ''))),
                      style={"fontSize": "0.95rem", "marginBottom": "4px", "borderBottom": "1px solid #495057", "paddingBottom": "4px"}),
-            html.Div([html.Strong("Type: "), data.get('type', '')]),
-            html.Div([html.Strong("Status: "), data.get('status', '')]),
+            html.Div([html.Strong("Type: "), node_type]),
+        ]
+
+        if node_type == 'Habit':
+            lines.append(html.Div([html.Strong("Habit Status: "), data.get('habit_status', 'Active')]))
+            freq = data.get('frequency')
+            if freq:
+                lines.append(html.Div([html.Strong("Frequency: "), freq]))
+        else:
+            lines.append(html.Div([html.Strong("Status: "), data.get('status', '')]))
+
+        lines.extend([
             html.Div([html.Strong("Context: "), data.get('context', '')]),
             html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
             html.Div([html.Strong("Difficulty: "), str(data.get('difficulty', ''))]),
-            html.Div([html.Strong("Time: "), time_str]),
-        ]
+        ])
+
+        if node_type != 'Habit':
+            lines.append(html.Div([html.Strong("Time: "), time_str]))
+
+        if node_type == 'Resource' and data.get('progress') is not None:
+            lines.append(html.Div([html.Strong("Progress: "), f"{data.get('progress', 0)}%"]))
 
         if data.get('description'):
             lines.append(html.Div([html.Strong("Desc: "), html.Span(data.get('description'), style={'whiteSpace': 'normal'})]))
@@ -271,7 +302,12 @@ def register_callbacks(app):
          Output('edge-needs-hard', 'options'), Output('edge-needs-soft', 'options'),
          Output('edge-supports-hard', 'options'), Output('edge-supports-soft', 'options'),
          Output('edge-helps', 'options'), Output('edge-resources', 'options'),
-         Output('node-obsidian-path', 'value'), Output('node-google-drive-path', 'value')],
+         Output('node-obsidian-path', 'value'), Output('node-google-drive-path', 'value'),
+         Output('node-website-path', 'value'),
+         # Type-specific outputs
+         Output('habit-status', 'value'), Output('habit-frequency', 'value'),
+         Output('session-lower', 'value'), Output('session-expected', 'value'), Output('session-upper', 'value'),
+         Output('node-progress', 'value')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
@@ -286,10 +322,12 @@ def register_callbacks(app):
         options = _node_options(all_nodes)
 
         def_out = [
-            "", "Topic", "", "None", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
+            "", "Learn", "", "None", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
             [], [], [], [], [], [],
             options, options, options, options, options, options,
-            "", ""
+            "", "", "",
+            # Type-specific defaults
+            "Active", "Daily", None, None, None, 0
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
@@ -303,13 +341,13 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*2
+                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*9
         elif data:
             name = data.get('id')
 
         if not name or not data:
-            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*2
-            
+            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*9
+
         edges = manager.get_edges()
 
         # In/Out Edges mapping
@@ -340,8 +378,32 @@ def register_callbacks(app):
             needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals,
             helps_vals, res_vals,
             filtered_options, filtered_options, filtered_options, filtered_options, filtered_options, filtered_options,
-            data.get('obsidian_path', ''), data.get('google_drive_path', '')
+            data.get('obsidian_path', ''), data.get('google_drive_path', ''),
+            data.get('website', ''),
+            # Type-specific fields
+            data.get('habit_status') or 'Active',
+            data.get('frequency') or 'Daily',
+            data.get('session_lower'), data.get('session_expected'), data.get('session_upper'),
+            data.get('progress') or 0,
         ]
+
+    # --- Type-adaptive field visibility ---
+    @app.callback(
+        [Output('section-done-time', 'style'),
+         Output('section-time-estimates', 'style'),
+         Output('section-habit', 'style'),
+         Output('section-resource', 'style')],
+        Input('node-type', 'value')
+    )
+    def toggle_type_fields(node_type):
+        show = {}
+        hide = {'display': 'none'}
+        if node_type == 'Habit':
+            return hide, hide, show, hide
+        elif node_type == 'Resource':
+            return show, show, hide, show
+        else:  # Learn, Goal
+            return show, show, hide, hide
 
     # --- Core State: Save, Delete, Render ---
     @app.callback(
@@ -352,8 +414,9 @@ def register_callbacks(app):
          Output('filter-community', 'options'), Output('search-node', 'options'),
          Output('sidebar-editor-container', 'style'), Output('sidebar-filters-container', 'style'),
          Output('filter-context', 'options'), Output('node-context', 'options'),
-         Output('node-type', 'options')],
-        
+         Output('node-type', 'options'),
+         Output('filter-node-type', 'options')],
+
         [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
          Input('search-node', 'value'),
@@ -367,8 +430,9 @@ def register_callbacks(app):
          Input('btn-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('modal-settings', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
-         Input('group-delete-input', 'value')],
-        
+         Input('group-delete-input', 'value'),
+         Input('filter-node-type', 'value')],
+
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'), State('node-difficulty', 'value'),
@@ -377,6 +441,10 @@ def register_callbacks(app):
          State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
          State('edge-helps', 'value'), State('edge-resources', 'value'),
          State('node-obsidian-path', 'value'), State('node-google-drive-path', 'value'),
+         State('node-website-path', 'value'),
+         State('habit-status', 'value'), State('habit-frequency', 'value'),
+         State('session-lower', 'value'), State('session-expected', 'value'), State('session-upper', 'value'),
+         State('node-progress', 'value'),
          State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style')]
     )
@@ -384,11 +452,13 @@ def register_callbacks(app):
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
                      btn_edit, btn_add, btn_close_ed, btn_filters, btn_close_fil, settings_open, btn_toggle_done,
-                     group_delete_data,
+                     group_delete_data, f_node_types,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
-                     obs_path, drive_path, current_elements, ed_style, fil_style):
+                     obs_path, drive_path, website_path,
+                     habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val,
+                     current_elements, ed_style, fil_style):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -399,7 +469,7 @@ def register_callbacks(app):
         trigger_id = _get_trigger_id()
         msg = ""
 
-        filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty)
+        filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types)
 
         # Editor Sidebar State (380px matches sidebar_content width in layout.py)
         next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
@@ -425,11 +495,13 @@ def register_callbacks(app):
             try:
                 msg = _handle_save(name, n_type, desc, val, time_o, time_m, time_p,
                                    interest, diff, status_done, context, subctx,
-                                   obs_path, drive_path, e_needs_h, e_needs_s,
-                                   e_supp_h, e_supp_s, e_helps, e_res)
+                                   obs_path, drive_path, website_path,
+                                   e_needs_h, e_needs_s,
+                                   e_supp_h, e_supp_s, e_helps, e_res,
+                                   habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             except Exception as e:
                 msg = str(e)
 
@@ -484,7 +556,9 @@ def register_callbacks(app):
         base_types = ConfigManager.get_node_types()
         type_list = [{"label": t, "value": t} for t in base_types]
 
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list
+        f_type_list = [{"label": t, "value": t} for t in base_types]
+
+        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
