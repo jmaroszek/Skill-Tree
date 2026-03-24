@@ -166,10 +166,10 @@ sidebar_content = html.Div(
             ], className="text-dark"),
 
             dbc.Label("Helps", className="mt-2"),
-            html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Select Synergistic Nodes..."), className="text-dark"),
+            html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergistic Nodes..."), className="text-dark"),
 
             dbc.Label("Resources", className="mt-2"),
-            html.Div(dcc.Dropdown(id="edge-resources", multi=True, placeholder="Select Resource Nodes..."), className="text-dark"),
+            html.Div(dcc.Dropdown(id="edge-resources", multi=True, placeholder="Resource Nodes..."), className="text-dark"),
 
             html.Hr(),
             html.H5("External Resources"),
@@ -292,6 +292,7 @@ filters_content = html.Div([
 
 
 _section_title_style = {"fontSize": "1.3rem", "fontWeight": "600"}
+_formula_hint_style = {"fontSize": "0.8rem", "fontFamily": "monospace", "color": "#6c757d", "marginBottom": "0.25rem"}
 
 # --- Info Panels ---
 
@@ -350,8 +351,9 @@ settings_modal = dbc.Modal([
                     html.P("One context per line. Comma-separated subcontexts after the colon.", className="text-muted small"),
                 ], className="p-2")
             ]),
-            dbc.Tab(label="Algorithms", children=[
+            dbc.Tab(label="Algorithm", children=[
                 html.Div([
+                    # --- Profile selector ---
                     dbc.Label("Algorithm Profile", className="fw-bold mt-2"),
                     dbc.Select(id="setting-hp-profile", options=[
                         {"label": "Default", "value": "Default"},
@@ -360,20 +362,67 @@ settings_modal = dbc.Modal([
                         {"label": "Custom", "value": "Custom"}
                     ], value="Default"),
                     
+
+                    # --- Intrinsic Value section ---
+                    html.Hr(className="my-2"),
+                    html.Div("Intrinsic Value", className="fw-bold", style={"fontSize": "0.95rem"}),
+                    html.Div("IV = w_v \u00b7 V + w_i \u00b7 I", style=_formula_hint_style),
                     dbc.Row([
-                        dbc.Col([dbc.Label("Value Weight"), dbc.Input(id="hp-wv", type="number", step=0.1), html.Small("Multiplier for 'Value' attribute.", className="text-muted")]),
-                        dbc.Col([dbc.Label("Interest Weight"), dbc.Input(id="hp-wi", type="number", step=0.1), html.Small("Multiplier for 'Interest' attribute.", className="text-muted")]),
-                    ], className="mt-2"),
+                        dbc.Col([
+                            dbc.Label("Value Weight"),
+                            dbc.Input(id="hp-wv", type="number", step=0.1),
+                            html.Small("Scales base value", className="text-muted"),
+                        ]),
+                        dbc.Col([
+                            dbc.Label("Interest Weight"),
+                            dbc.Input(id="hp-wi", type="number", step=0.1),
+                            html.Small("Scales base interest", className="text-muted"),
+                        ]),
+                    ], className="mt-1"),
+
+                    # --- Value Propagation section ---
+                    html.Hr(className="my-2"),
+                    html.Div("Value Propagation", className="fw-bold", style={"fontSize": "0.95rem"}),
+                    html.Div("Value retention factors through node edges (0-1). Higher = more value retained.", style=_formula_hint_style),
                     dbc.Row([
-                        dbc.Col([dbc.Label("Hard Prereq Factor"), dbc.Input(id="hp-dh", type="number", step=0.01), html.Small("Penalty for unmet hard prerequisites.", className="text-muted")]),
-                        dbc.Col([dbc.Label("Soft Prereq Factor"), dbc.Input(id="hp-ds", type="number", step=0.01), html.Small("Penalty for unmet soft prerequisites.", className="text-muted")]),
-                        dbc.Col([dbc.Label("Synergy Factor"), dbc.Input(id="hp-dsyn", type="number", step=0.01), html.Small("Bonus for having synergistic neighbors.", className="text-muted")]),
-                    ], className="mt-2"),
+                        dbc.Col([
+                            dbc.Label("Hard Need"),
+                            dbc.Input(id="hp-dh", type="number", step=0.01),
+                            html.Small("Value through hard need edges", className="text-muted"),
+                        ]),
+                        dbc.Col([
+                            dbc.Label("Soft Need"),
+                            dbc.Input(id="hp-ds", type="number", step=0.01),
+                            html.Small("Value through soft need edges", className="text-muted"),
+                        ]),
+                        dbc.Col([
+                            dbc.Label("Synergy"),
+                            dbc.Input(id="hp-dsyn", type="number", step=0.01),
+                            html.Small("Value through Helps edges", className="text-muted"),
+                        ]),
+                    ], className="mt-1"),
+
+                    # --- Perceived Cost section ---
+                    html.Hr(className="my-2"),
+                    html.Div("Perceived Cost", className="fw-bold", style={"fontSize": "0.95rem"}),
+                    html.Div("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2", style=_formula_hint_style),
                     dbc.Row([
-                        dbc.Col([dbc.Label("Difficulty Penalty"), dbc.Input(id="hp-we", type="number", step=0.1), html.Small("Penalty based on difficulty score.", className="text-muted")]),
-                        dbc.Col([dbc.Label("Time Penalty"), dbc.Input(id="hp-wt", type="number", step=0.1), html.Small("Penalty based on time estimates.", className="text-muted")]),
-                        dbc.Col([dbc.Label("Sublinear Dampener"), dbc.Input(id="hp-beta", type="number", step=0.05), html.Small("Modulates the scaling of penalties.", className="text-muted")]),
-                    ], className="mt-2"),
+                        dbc.Col([
+                            dbc.Label("Difficulty Weight"),
+                            dbc.Input(id="hp-we", type="number", step=0.1),
+                            html.Small("Scales difficulty score", className="text-muted"),
+                        ]),
+                        dbc.Col([
+                            dbc.Label("Time Weight"),
+                            dbc.Input(id="hp-wt", type="number", step=0.1),
+                            html.Small("Linearly scales time estimates", className="text-muted"),
+                        ]),
+                        dbc.Col([
+                            dbc.Label("Time Dampener"),
+                            dbc.Input(id="hp-beta", type="number", step=0.05),
+                            html.Small("Exponentially scales time estimates. < 1 means sub-linear: a 10h task isn\u2019t 10\u00d7 worse than a  1h task.", className="text-muted"),
+                        ]),
+                    ], className="mt-1"),
                 ], className="p-2")
             ]),
             dbc.Tab(label="Paths", children=[
@@ -382,8 +431,6 @@ settings_modal = dbc.Modal([
                     dbc.Input(id="setting-obsidian-path", type="text"),
         
                     
-                    html.Hr(),
-                    html.P("Node types and custom visuals implementation in future phase.", className="text-muted")
                 ], className="p-2")
             ])
         ])
