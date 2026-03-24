@@ -2,6 +2,13 @@ from dataclasses import dataclass, asdict
 from typing import Optional
 import math
 
+# Edge type constants used across the codebase
+EDGE_NEEDS_HARD = 'Needs_Hard'
+EDGE_NEEDS_SOFT = 'Needs_Soft'
+EDGE_HELPS = 'Helps'
+EDGE_RESOURCE = 'Resource'
+
+
 @dataclass
 class Node:
     """
@@ -38,7 +45,15 @@ class Node:
 
     @property
     def time(self) -> float:
-        """Calculates blended PERT time estimation."""
+        """Calculates blended PERT time estimation.
+
+        Uses a weighted blend of arithmetic and logarithmic (geometric) means:
+        - Low uncertainty (P/O <= 2): pure arithmetic PERT mean
+        - High uncertainty (P/O >= 10): pure geometric PERT mean
+        - Medium: smooth log-interpolation between the two
+
+        Includes fallbacks when only partial estimates are provided.
+        """
         o, m, p = self.time_o, self.time_m, self.time_p
         
         # Fallback 1: Only M is provided

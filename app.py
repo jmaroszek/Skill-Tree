@@ -1,3 +1,4 @@
+import logging
 import dash
 import webbrowser
 import threading
@@ -8,7 +9,9 @@ from callbacks import generate_elements, register_callbacks
 from config import ENVIRONMENT
 import ctypes
 
-# Fix blury file explorer
+logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s: %(message)s')
+
+# Fix blurry file explorer on high-DPI Windows displays.
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 except Exception:
@@ -31,7 +34,7 @@ def open_obsidian_route():
     if not path:
         return jsonify({"ok": False, "error": "No path provided"})
         
-    vault = ConfigManager.get_obsidian_vault(r"C:\Users\jonah\Documents\Obsidian")
+    vault = ConfigManager.get_obsidian_vault()
     abs_path = os.path.join(vault, path.strip())
     encoded = urllib.parse.quote(abs_path, safe='')
     uri = f'obsidian://open?path={encoded}'

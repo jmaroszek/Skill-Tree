@@ -2,6 +2,7 @@
 Callback definitions for the Skill Tree Dash application.
 """
 
+import logging
 import math
 import dash
 import os
@@ -11,11 +12,25 @@ from dash import html, Input, Output, State
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
-from models import Node
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
+
+logger = logging.getLogger(__name__)
 
 manager = GraphManager()
 
+
+def _get_trigger_id():
+    """Return the component ID that triggered the current callback, or '' if none."""
+    ctx = dash.callback_context
+    return ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+
+
+def _node_options(nodes, exclude=None):
+    """Build dropdown options from a list of nodes, optionally excluding one by name."""
+    return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]
+
 def generate_elements(filters=None, active_node_id=None, community_names=None):
+    """Convert nodes and edges from the database into Cytoscape-compatible element dicts."""
     if filters is None: filters = {}
     nodes = manager.get_all_nodes()
     filtered_nodes = manager.filter_nodes(nodes, filters)
@@ -30,16 +45,16 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
     shapes = ConfigManager.get_node_shapes()
 
     elements = []
-    for n in filtered_nodes:
+    for node in filtered_nodes:
         node_data = {
             'data': {
-                'id': n.name,
-                'label': n.name,
-                'color': colors.get(n.status, '#888'),
-                'shape': shapes.get(n.type, 'rectangle'),
-                **n.to_dict()
+                'id': node.name,
+                'label': node.name,
+                'color': colors.get(node.status, '#888'),
+                'shape': shapes.get(node.type, 'rectangle'),
+                **node.to_dict()
             },
-            'selected': n.name == active_node_id if active_node_id else False
+            'selected': node.name == active_node_id if active_node_id else False
         }
         elements.append(node_data)
 
@@ -67,6 +82,7 @@ def get_suggestions(filters=None, count=5):
 
 
 def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_time=None, f_difficulty="All"):
+    """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
     if f_context and f_context != "All":
         filters['context'] = f_context if f_context != "None" else None
@@ -88,6 +104,7 @@ def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_t
 
 
 def _format_suggestions_table(suggs):
+    """Render the top-scored nodes as an HTML table with normalized priority scores (0-100)."""
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
 
@@ -120,6 +137,7 @@ def _format_suggestions_table(suggs):
 
 
 def _format_traversal_ui(tapped_node, active_node_id):
+    """Build the dependency chains and synergies display for the selected node."""
     traversal_ui = html.Div(className="text-muted", children="Select a node to see dependencies.")
     synergies_ui = html.Div(className="text-muted", children="Select a node to see synergies.")
 
@@ -129,8 +147,8 @@ def _format_traversal_ui(tapped_node, active_node_id):
     chains = manager.get_prerequisite_chains(node_id)
 
     edges = manager.get_edges()
-    synergies = [e['target'] for e in edges if e['source'] == node_id and e['type'] == 'Helps']
-    synergies += [e['source'] for e in edges if e['target'] == node_id and e['type'] == 'Helps']
+    synergies = [e['target'] for e in edges if e['source'] == node_id and e['type'] == EDGE_HELPS]
+    synergies += [e['source'] for e in edges if e['target'] == node_id and e['type'] == EDGE_HELPS]
     synergies = list(set(synergies))
 
     if not chains:
@@ -148,7 +166,60 @@ def _format_traversal_ui(tapped_node, active_node_id):
     return traversal_ui, synergies_ui
 
 
+def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
+                  status_done, context, subctx, obs_path, drive_path,
+                  e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res):
+    """Create or update a node and sync its edges. Returns a status message."""
+    # target_status: what the user selected in the form (Done or Open).
+    # graph_manager may override to "Blocked" after sync_edges if hard prerequisites aren't met.
+    target_status = "Done" if (status_done and "Done" in status_done) else "Open"
+    node = Node(
+        name=name, type=n_type, description=desc or "",
+        value=val, time_o=time_o, time_m=time_m, time_p=time_p,
+        interest=interest, difficulty=diff,
+        status=target_status, context=context, subcontext=(subctx or '').strip() or None,
+        obsidian_path=(obs_path or '').strip() or None,
+        google_drive_path=(drive_path or '').strip() or None
+    )
+    if manager.get_node(name):
+        manager.update_node(node)
+        msg = f"Updated node '{name}'"
+    else:
+        manager.add_node(node)
+        msg = f"Added node '{name}'"
+    manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res)
+    return msg
+
+
+def _handle_delete(name):
+    """Delete a single node by name. Returns a status message."""
+    manager.delete_node(name)
+    return f"Deleted node '{name}'"
+
+
+def _handle_toggle_done(tapped_node):
+    """Toggle a node's status between Done and Open. Returns a status message."""
+    node = manager.get_node(tapped_node.get('id'))
+    if node:
+        node.status = "Open" if node.status == "Done" else "Done"
+        manager.update_node(node)
+        return f"Toggled status of '{node.name}' to {node.status}"
+    return ""
+
+
+def _handle_group_delete(group_delete_data):
+    """Delete multiple nodes from a JSON-encoded list. Returns a status message."""
+    import json
+    # JS sends "["name1","name2"]|timestamp" — strip the timestamp suffix
+    raw = group_delete_data.split('|')[0] if isinstance(group_delete_data, str) else ''
+    names = json.loads(raw) if raw else []
+    for node_name in names:
+        manager.delete_node(node_name)
+    return f"Deleted {len(names)} node(s)" if names else ""
+
+
 def register_callbacks(app):
+    """Register all Dash callbacks for the application."""
 
     # --- Tooltip Formatting ---
     @app.callback(
@@ -208,11 +279,11 @@ def register_callbacks(app):
          Input('cytoscape-graph', 'elements')]
     )
     def populate_editor(data, add_clicks, clear_clicks, search_val, elements):
-        ctx = dash.callback_context
-        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+        """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
+        trigger_id = _get_trigger_id()
 
         all_nodes = manager.get_all_nodes()
-        options = [{'label': n.name, 'value': n.name} for n in all_nodes]
+        options = _node_options(all_nodes)
 
         def_out = [
             "", "Topic", "", "None", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
@@ -242,18 +313,20 @@ def register_callbacks(app):
         edges = manager.get_edges()
 
         # In/Out Edges mapping
-        needs_hard_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == 'Needs_Hard']
-        needs_soft_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == 'Needs_Soft']
-        supp_hard_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == 'Needs_Hard']
-        supp_soft_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == 'Needs_Soft']
-        
-        helps_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == 'Helps']
-        helps_vals += [e['source'] for e in edges if e['target'] == name and e['type'] == 'Helps']
+        needs_hard_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_NEEDS_HARD]
+        needs_soft_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_NEEDS_SOFT]
+        supp_hard_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_NEEDS_HARD]
+        supp_soft_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_NEEDS_SOFT]
+
+        helps_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_HELPS]
+        helps_vals += [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_HELPS]
         helps_vals = list(set(helps_vals))
-        res_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == 'Resource']
+        res_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_RESOURCE]
 
-        filtered_options = [{'label': n.name, 'value': n.name} for n in all_nodes if n.name != name]
+        filtered_options = _node_options(all_nodes, exclude=name)
 
+        # actual_status: the authoritative status from the DB (may be Blocked/Open/Done),
+        # as opposed to the Cytoscape data dict which may be stale after state cascades.
         db_node = manager.get_node(name)
         actual_status = db_node.status if db_node else data.get('status', 'Open')
         done_val = ["Done"] if actual_status == "Done" else []
@@ -307,29 +380,35 @@ def register_callbacks(app):
          State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style')]
     )
-    def core_engine(save_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val, tapped_node,
+    def core_engine(save_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
+                     tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
                      btn_edit, btn_add, btn_close_ed, btn_filters, btn_close_fil, settings_open, btn_toggle_done,
                      group_delete_data,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
-                     time_o, time_m, time_p, 
+                     time_o, time_m, time_p,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
                      obs_path, drive_path, current_elements, ed_style, fil_style):
+        """Central state callback handling node CRUD, filtering, and UI updates.
+
+        This is intentionally a single large callback because Dash requires each Output
+        to belong to exactly one callback. Since save/delete/filter operations all need
+        to refresh the graph elements and sidebar state, they must share one callback.
+        """
                      
-        ctx = dash.callback_context
-        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+        trigger_id = _get_trigger_id()
         msg = ""
 
         filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty)
 
-        # Editor Sidebar State
+        # Editor Sidebar State (380px matches sidebar_content width in layout.py)
         next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
         if trigger_id in ('btn-edit-node', 'btn-add') or (trigger_id == 'search-node' and search_val):
             next_ed_style['marginLeft'] = "0px"
         elif trigger_id in ('btn-save', 'btn-clear', 'btn-delete', 'btn-close-editor'):
             next_ed_style['marginLeft'] = "-380px"
 
-        # Filters Sidebar State
+        # Filters Sidebar State (320px matches filters_content width in layout.py)
         next_fil_style = fil_style or {"width": "320px", "minWidth": "320px", "marginRight": "-320px", "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "margin-right 0.3s ease", "backgroundColor": "#212529"}
         if trigger_id == 'btn-filters-toggle':
             next_fil_style['marginRight'] = "0px" if next_fil_style.get('marginRight', '-320px') == "-320px" else "-320px"
@@ -341,65 +420,34 @@ def register_callbacks(app):
         elif trigger_id == 'cytoscape-graph' and tapped_node: active_node_id = tapped_node.get('id')
         else: active_node_id = name
 
-        # --- Save (also auto-saves when editor is closed) ---
+        # --- Action Routing ---
         if trigger_id in ('btn-save', 'btn-close-editor') and name and n_type:
-            target_status = "Done" if (status_done and "Done" in status_done) else "Open"
-            
-            # graph_manager will correctly recalculate "Blocked" if necessary on sync_edges
             try:
-                node = Node(
-                    name=name, type=n_type, description=desc or "",
-                    value=val, time_o=time_o, time_m=time_m, time_p=time_p,
-                    interest=interest, difficulty=diff,
-                    status=target_status, context=context, subcontext=(subctx or '').strip() or None,
-                    obsidian_path=(obs_path or '').strip() or None,
-                    google_drive_path=(drive_path or '').strip() or None
-                )
+                msg = _handle_save(name, n_type, desc, val, time_o, time_m, time_p,
+                                   interest, diff, status_done, context, subctx,
+                                   obs_path, drive_path, e_needs_h, e_needs_s,
+                                   e_supp_h, e_supp_s, e_helps, e_res)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
                 return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update
-
-            try:
-                if manager.get_node(name):
-                    manager.update_node(node)
-                    msg = f"Updated node '{name}'"
-                else:
-                    manager.add_node(node)
-                    msg = f"Added node '{name}'"
-                manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res)
             except Exception as e:
                 msg = str(e)
 
-        # --- Delete ---
         elif trigger_id == 'btn-delete' and name:
             try:
-                manager.delete_node(name)
-                msg = f"Deleted node '{name}'"
-            except Exception as e:
-                msg = str(e)
-                
-        # --- Toggle Done ---
-        elif trigger_id == 'btn-toggle-done-node' and tapped_node:
-            try:
-                t_node = manager.get_node(tapped_node.get('id'))
-                if t_node:
-                    t_node.status = "Open" if t_node.status == "Done" else "Done"
-                    manager.update_node(t_node)
-                    msg = f"Toggled status of '{t_node.name}' to {t_node.status}"
+                msg = _handle_delete(name)
             except Exception as e:
                 msg = str(e)
 
-        # --- Group Delete ---
+        elif trigger_id == 'btn-toggle-done-node' and tapped_node:
+            try:
+                msg = _handle_toggle_done(tapped_node)
+            except Exception as e:
+                msg = str(e)
+
         elif trigger_id == 'group-delete-input' and group_delete_data:
             try:
-                import json
-                # JS sends "["name1","name2"]|timestamp" — strip the timestamp suffix
-                raw = group_delete_data.split('|')[0] if isinstance(group_delete_data, str) else ''
-                names = json.loads(raw) if raw else []
-                for node_name in names:
-                    manager.delete_node(node_name)
-                if names:
-                    msg = f"Deleted {len(names)} node(s)"
+                msg = _handle_group_delete(group_delete_data)
             except Exception as e:
                 msg = str(e)
 
@@ -425,7 +473,7 @@ def register_callbacks(app):
         traversal_ui, synergies_ui = _format_traversal_ui(tapped_node, active_node_id)
 
         all_nodes = manager.get_all_nodes()
-        search_options = [{'label': n.name, 'value': n.name} for n in all_nodes]
+        search_options = _node_options(all_nodes)
         
         # Populate dynamic contexts datalists from DB + Config preserving defined order
         base_ctx = ConfigManager.get_contexts()
@@ -477,8 +525,7 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def update_suggestion_count(plus, minus, current_count):
-        ctx = dash.callback_context
-        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+        trigger_id = _get_trigger_id()
         count = current_count or 5
         if trigger_id == 'btn-sugg-plus': count = min(15, count + 1)
         elif trigger_id == 'btn-sugg-minus': count = max(1, count - 1)
@@ -510,13 +557,12 @@ def register_callbacks(app):
     )
     def manage_settings_modal(open_cm, cancel_cm, save_cm, profile_val,
                               wv, wi, dh, ds, dsyn, we, wt, beta, n_types_val, contexts_val, subcontexts_val, obs_path):
-        ctx = dash.callback_context
-        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
+        trigger_id = _get_trigger_id()
 
         if trigger_id == 'btn-settings-toggle':
             # Load stored config
             hp = ConfigManager.get_hyperparams()
-            obs = ConfigManager.get_obsidian_vault(r"C:\Users\jonah\Documents\Obsidian")
+            obs = ConfigManager.get_obsidian_vault()
             ntypes = ", ".join(ConfigManager.get_node_types())
             ctxts = ", ".join(ConfigManager.get_contexts())
             s_dict = ConfigManager.get_subcontexts()
@@ -570,7 +616,8 @@ def register_callbacks(app):
                                     s_dict[ctx_name] = subs
                     ConfigManager.set_subcontexts(s_dict)
                 
-            except Exception: pass
+            except Exception:
+                logger.exception("Failed to save settings")
             return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         if trigger_id == 'btn-settings-cancel':
@@ -597,7 +644,7 @@ def register_callbacks(app):
     def handle_obsidian_browse(n_clicks):
         if not n_clicks:
             return dash.no_update
-        vault = ConfigManager.get_obsidian_vault(r"C:\Users\jonah\Documents\Obsidian")
+        vault = ConfigManager.get_obsidian_vault()
         try:
             import tempfile
             import sys
@@ -645,7 +692,7 @@ def register_callbacks(app):
                 
             return rel
         except Exception as e:
-            print(f"Error browsing obsidian: {e}")
+            logger.error(f"Error browsing obsidian: {e}")
             return dash.no_update
 
     @app.callback(
@@ -660,7 +707,7 @@ def register_callbacks(app):
         if not rel_path or not rel_path.strip():
             return "No Obsidian file path set for this node."
         
-        vault = ConfigManager.get_obsidian_vault(r"C:\Users\jonah\Documents\Obsidian")
+        vault = ConfigManager.get_obsidian_vault()
         abs_path = os.path.join(vault, rel_path.strip())
         encoded = urllib.parse.quote(abs_path, safe='')
         uri = f'obsidian://open?path={encoded}'
@@ -679,12 +726,9 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def handle_external_links(drive_clicks, web_clicks, drive_path, web_path):
-        ctx = dash.callback_context
-        if not ctx.triggered:
+        trigger_id = _get_trigger_id()
+        if not trigger_id:
             return dash.no_update
-            
-        # Figure out which button triggered the callback
-        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
         
         # Grab the correct URL based on the button clicked
         url = None

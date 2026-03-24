@@ -7,11 +7,9 @@ from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from config import ConfigManager
-from graph_manager import GraphManager
 
-_manager = GraphManager()
-
-# Default configurations read from DB
+# Read initial config values (lightweight DB reads, no GraphManager needed).
+# These are only used for the initial render; core_engine refreshes them dynamically.
 NODE_TYPES = ConfigManager.get_node_types()
 CONTEXTS = ConfigManager.get_contexts()
 
@@ -86,9 +84,6 @@ stylesheet = [
 
 # --- Sidebar (Node Editor) ---
 
-all_nodes = _manager.get_all_nodes()
-_initial_search_options = [{"label": n.name, "value": n.name} for n in all_nodes]
-
 sidebar_content = html.Div(
     [
         html.Div([
@@ -99,7 +94,7 @@ sidebar_content = html.Div(
             html.H5("Search", className="mt-2 mb-1"),
             html.Div(dcc.Dropdown(
                 id="search-node",
-                options=_initial_search_options,
+                options=[],  # Populated dynamically by core_engine callback
                 value=None,
                 searchable=True,
                 clearable=True,
@@ -210,6 +205,7 @@ sidebar_content = html.Div(
 # --- Graph View (Canvas only) ---
 
 def create_graph_view(initial_elements):
+    """Create the Cytoscape graph canvas with fullscreen toggle button."""
     return html.Div([
         html.Div([
             cyto.Cytoscape(

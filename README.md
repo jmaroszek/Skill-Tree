@@ -1,4 +1,4 @@
-# 🌳 Skill Tree
+# Skill Tree
 
 A graph-based task manager and priority engine built with [Dash](https://dash.plotly.com/) and [Cytoscape.js](https://js.cytoscape.org/). Model your goals, skills, habits, and resources as an interactive node graph — then let the priority algorithm tell you what to work on next.
 
@@ -6,18 +6,21 @@ A graph-based task manager and priority engine built with [Dash](https://dash.pl
 
 ---
 
-## ✨ Features
+## Features
 
 ### Interactive Graph Canvas
 - **Visual node graph** — drag, zoom, and click nodes rendered with a force-directed (COSE) layout.
-- **Color-coded statuses** — nodes are colored by status: 🔵 Open, 🔴 Blocked, 🟢 Done.
-- **Shape-coded types** — each node type has a distinct shape (⭐ Goal, ◯ Topic, △ Skill, ◇ Habit, ⬠ Resource).
+- **Color-coded statuses** — nodes are colored by status: Open (blue), Blocked (red), Done (green).
+- **Shape-coded types** — each node type has a distinct shape (Goal, Topic, Skill, Habit, Resource).
 - **Hover tooltips** — floating tooltips display node details on mouseover.
+- **Right-click context menu** — toggle Done, open in Obsidian, or delete nodes via context menu.
+- **Resizable sidebar** — drag the edge of the sidebar to adjust the canvas/sidebar split.
 
 ### Node Editor Sidebar
 - Create, edit, and delete nodes with a full attribute form.
 - Set **Value**, **Interest**, **Difficulty**, and **Time** (Optimistic, Most Likely, Pessimistic) to feed the priority algorithm.
-- Assign a **Context** (Mind, Body, Social, Action) for filtering.
+- Assign a **Context** (e.g., Mind, Body, Social, Action) and optional **Subcontext** for hierarchical filtering.
+- Link nodes to **Obsidian** vault files and **Google Drive** documents with one-click open buttons.
 
 ### Relationship System
 | Relation           | Meaning                                                              | Edge Style   | Algorithm Role                                      |
@@ -33,6 +36,14 @@ A graph-based task manager and priority engine built with [Dash](https://dash.pl
 - Adding a **Needs (Hard)** edge automatically marks the dependent node as **Blocked** if the prerequisite isn't Done. Soft prerequisites do **not** block.
 - Completing a prerequisite cascades state updates to all downstream dependents.
 - Cycle detection prevents circular dependencies in the Needs DAG.
+
+### Global Settings Modal
+- Configure **node types**, **contexts**, and **subcontexts** without touching code.
+- Tune all scoring **hyperparameters** individually, or switch between preset scoring profiles.
+- Set the **Obsidian vault root path** for file browsing integration.
+
+### Sandbox Mode
+- Run the app with `--sandbox` to get a separate, isolated database for experimentation without affecting your production data.
 
 ### Priority Scoring Algorithm
 
@@ -168,36 +179,43 @@ Three pre-configured profiles tune the hyperparameters for different prioritizat
 - Filter the canvas to focus on a single community.
 
 ### Filtering & Search
-- Filter by **Context** and toggle **Hide Done** nodes.
+- Filter by **Context**, **Subcontext**, and toggle **Hide Done** nodes.
+- Filter by minimum **Value**, minimum **Interest**, maximum **Time**, and maximum **Difficulty**.
 - **Search** bar finds and selects nodes by name.
 - **Dependency chains** panel shows prerequisite paths for a selected node.
 - **Synergies** panel lists all Helps connections for a selected node.
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 Skill Tree/
 ├── app.py              # Entry point — initializes and runs the Dash server
 ├── layout.py           # UI component definitions and Cytoscape stylesheet
 ├── callbacks.py        # All Dash callbacks and helper functions
-├── graph_manager.py    # Core graph logic: CRUD, edges, scoring, communities
-├── models.py           # Node dataclass with validation
-├── database.py         # SQLite initialization and connection management
+├── graph_manager.py    # Core graph logic: CRUD, edges, state management, communities
+├── scoring.py          # Priority scoring algorithm (ROI-based with network value)
+├── models.py           # Node dataclass with validation and edge type constants
+├── database.py         # SQLite initialization, migrations, and connection management
 ├── config.py           # Configuration manager, hyperparameters, profiles, UI defaults
 ├── assets/
-│   └── tooltip.js      # Client-side JS for hover tooltip positioning
-├── Tests/
-│   ├── test_backend.py # Pytest suite for GraphManager, Node model, DB
-│   └── test_dash.py    # Basic Dash callback smoke test
+│   ├── custom.css      # Main application styles
+│   ├── theme.css       # Color theme and fullscreen overrides
+│   ├── tooltip.js      # Client-side JS for hover tooltip positioning
+│   ├── context_menu.js # Right-click context menu behavior
+│   ├── fullscreen.js   # Fullscreen toggle functionality
+│   └── resize_handle.js # Draggable sidebar resize handle
+├── tests/
+│   ├── test_backend.py  # Pytest suite: models, PERT, CRUD, edges, state, scoring, config
+│   └── test_callbacks.py # Pytest suite: callback helpers (filters, save, delete, toggle)
 ├── environment.yml     # Conda environment specification
 └── skilltree.db        # SQLite database (git-ignored, auto-created)
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - [Conda](https://docs.conda.io/en/latest/) (Miniconda or Anaconda)
@@ -222,17 +240,23 @@ python app.py
 
 Open your browser to **http://127.0.0.1:8050** — the database is auto-created on first run.
 
+To launch in sandbox mode (isolated database for experimentation):
+
+```bash
+python app.py --sandbox
+```
+
 ### Running Tests
 
 ```bash
-pytest Tests/ -v
+pytest tests/ -v
 ```
 
 Tests use a temporary database so your production data is never touched.
 
 ---
 
-## 📦 Dependencies
+## Dependencies
 
 | Package                    | Purpose                                  |
 |----------------------------|------------------------------------------|
@@ -240,20 +264,18 @@ Tests use a temporary database so your production data is never touched.
 | `dash-cytoscape`           | Interactive graph visualization          |
 | `dash-bootstrap-components`| Bootstrap-styled UI components           |
 | `networkx`                 | Graph algorithms (community detection)   |
-| `pandas`                   | Data manipulation                        |
 | `sqlite3` (stdlib)         | Lightweight persistent storage           |
 | `pytest`                   | Test framework                           |
-| `ruamel.yaml`              | YAML processing                          |
 
 ---
 
-## 🎯 Usage Guide
+## Usage Guide
 
 1. **Create a node** — click "New Node", fill in the attributes, and hit "Save".
 2. **Connect nodes** — select a node, then use the Needs/Supports/Helps/Resources dropdowns to define relationships.
 3. **Check priorities** — the Suggestions table automatically ranks your open tasks.
 4. **Explore dependencies** — click any node to see its prerequisite chains and synergies.
 5. **Find communities** — use the Community Method dropdown to detect clusters, then filter to a specific community.
+6. **Tune scoring** — open the Settings modal to adjust hyperparameters or switch scoring profiles.
 
 ---
-

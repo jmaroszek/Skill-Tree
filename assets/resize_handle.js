@@ -17,7 +17,8 @@
             return;
         }
 
-        // Set initial panel height so canvas defaults to ~1245px
+        // Target canvas height tuned for 1080p displays; the bottom panel
+        // gets whatever vertical space remains after toolbar + handle.
         var TARGET_CANVAS_HEIGHT = 724;
         var siblings = Array.from(handle.parentElement.children);
         var otherHeight = siblings

@@ -1,9 +1,16 @@
-from models import Node
-from typing import List, Dict, Tuple
+"""
+Priority scoring algorithm based on Return on Investment (ROI).
 
+Each node's priority is: P = eligibility * (TotalValue / PerceivedCost)
+- TotalValue: intrinsic value + cascaded value from dependent nodes
+- PerceivedCost: sub-linear combination of difficulty and time
+- Eligibility: 1 if all hard prerequisites are Done, 0 otherwise
+
+See README.md for full mathematical specification and hyperparameter profiles.
 """
-This module is responsible for calculating the priority scores of nodes.
-"""
+
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from typing import List, Dict, Tuple
 
 
 def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dict, dict]:
@@ -18,12 +25,12 @@ def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dic
         if src not in node_names or trg not in node_names:
             continue
 
-        if etype == 'Needs_Hard':
+        if etype == EDGE_NEEDS_HARD:
             H_out[src].append(trg)
             Hard_in[trg].append(src)
-        elif etype == 'Needs_Soft':
+        elif etype == EDGE_NEEDS_SOFT:
             S_out[src].append(trg)
-        elif etype == 'Helps':
+        elif etype == EDGE_HELPS:
             Syn[src].add(trg)
             Syn[trg].add(src)
 
