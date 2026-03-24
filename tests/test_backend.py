@@ -797,3 +797,97 @@ class TestConfigManager:
     def test_obsidian_vault_set_and_get(self):
         ConfigManager.set_obsidian_vault("/custom/path")
         assert ConfigManager.get_obsidian_vault() == "/custom/path"
+
+    def test_sync_shapes_to_types_adds_new(self):
+        ConfigManager.set_node_shapes({"Learn": "ellipse", "Goal": "star"})
+        ConfigManager.sync_shapes_to_types(["Learn", "Goal", "Quest"])
+        shapes = ConfigManager.get_node_shapes()
+        assert shapes["Quest"] == "rectangle"
+        assert shapes["Learn"] == "ellipse"
+
+    def test_sync_shapes_to_types_removes_old(self):
+        ConfigManager.set_node_shapes({"Learn": "ellipse", "Goal": "star", "Removed": "diamond"})
+        ConfigManager.sync_shapes_to_types(["Learn", "Goal"])
+        shapes = ConfigManager.get_node_shapes()
+        assert "Removed" not in shapes
+        assert shapes["Learn"] == "ellipse"
+
+
+# ============================================================================
+# Node Migration
+# ============================================================================
+
+class TestNodeMigration:
+    def test_find_orphaned_nodes_no_removals(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind"))
+        result = mgr.find_orphaned_nodes('context', ["Mind", "Body"], ["Mind", "Body"])
+        assert result == {}
+
+    def test_find_orphaned_nodes_with_removal(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind"))
+        mgr.add_node(_make_node("B", context="Body"))
+        result = mgr.find_orphaned_nodes('context', ["Mind", "Body"], ["Body"])
+        assert "Mind" in result
+        assert len(result["Mind"]) == 1
+        assert result["Mind"][0].name == "A"
+        assert "Body" not in result
+
+    def test_find_orphaned_nodes_no_affected(self, mgr):
+        mgr.add_node(_make_node("A", context="Body"))
+        result = mgr.find_orphaned_nodes('context', ["Mind", "Body"], ["Body"])
+        assert result == {}
+
+    def test_find_orphaned_nodes_type(self, mgr):
+        mgr.add_node(_make_node("A", type="Learn"))
+        mgr.add_node(_make_node("B", type="Goal"))
+        result = mgr.find_orphaned_nodes('type', ["Learn", "Goal"], ["Goal"])
+        assert "Learn" in result
+        assert result["Learn"][0].name == "A"
+
+    def test_apply_migration_context(self, mgr):
+        mgr.add_node(_make_node("A", context="OldCtx"))
+        mgr.add_node(_make_node("B", context="OldCtx"))
+        mgr.apply_migration('context', {"OldCtx": "NewCtx"})
+        assert mgr.get_node("A").context == "NewCtx"
+        assert mgr.get_node("B").context == "NewCtx"
+
+    def test_apply_migration_clear(self, mgr):
+        mgr.add_node(_make_node("A", context="OldCtx"))
+        mgr.apply_migration('context', {"OldCtx": "__clear__"})
+        assert mgr.get_node("A").context is None
+
+    def test_apply_migration_type_clears_habit_fields(self, mgr):
+        mgr.add_node(_make_node("A", type="Habit", frequency="Daily",
+                                session_lower=10, session_expected=20,
+                                session_upper=30, habit_status="Active"))
+        mgr.apply_migration('type', {"Habit": "Learn"})
+        node = mgr.get_node("A")
+        assert node.type == "Learn"
+        assert node.frequency is None
+        assert node.session_lower is None
+        assert node.habit_status is None
+
+    def test_apply_migration_type_clears_resource_fields(self, mgr):
+        mgr.add_node(_make_node("A", type="Resource", progress=50))
+        mgr.apply_migration('type', {"Resource": "Goal"})
+        node = mgr.get_node("A")
+        assert node.type == "Goal"
+        assert node.progress is None
+
+    def test_apply_migration_context_clears_invalid_subcontexts(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind", subcontext="Rational"))
+        new_subs = {"Body": ["Stress", "Sleep"]}
+        mgr.apply_migration('context', {"Mind": "Body"}, new_subcontexts=new_subs)
+        node = mgr.get_node("A")
+        assert node.context == "Body"
+        assert node.subcontext is None  # "Rational" not valid under "Body"
+
+    def test_apply_migration_subcontext(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind", subcontext="OldSub"))
+        mgr.apply_migration('subcontext', {"OldSub": "NewSub"})
+        assert mgr.get_node("A").subcontext == "NewSub"
+
+    def test_apply_migration_empty_remap(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind"))
+        mgr.apply_migration('context', {})
+        assert mgr.get_node("A").context == "Mind"  # unchanged

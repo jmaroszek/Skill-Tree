@@ -429,6 +429,7 @@ def register_callbacks(app):
          Input('btn-close-editor', 'n_clicks'),
          Input('btn-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('modal-settings', 'is_open'),
+         Input('modal-migration', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
          Input('group-delete-input', 'value'),
          Input('filter-node-type', 'value')],
@@ -451,7 +452,7 @@ def register_callbacks(app):
     def core_engine(save_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_close_ed, btn_filters, btn_close_fil, settings_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_close_ed, btn_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p,
@@ -615,7 +616,8 @@ def register_callbacks(app):
          Output('setting-contexts', 'value'),
          Output('setting-subcontexts', 'value'),
          Output('setting-hp-profile', 'value'),
-         Output('setting-obsidian-path', 'value')],
+         Output('setting-obsidian-path', 'value'),
+         Output('pending-settings-store', 'data')],
         [Input('btn-settings-toggle', 'n_clicks'),
          Input('btn-settings-cancel', 'n_clicks'),
          Input('btn-settings-save', 'n_clicks'),
@@ -632,6 +634,8 @@ def register_callbacks(app):
     def manage_settings_modal(open_cm, cancel_cm, save_cm, profile_val,
                               wv, wi, dh, ds, dsyn, we, wt, beta, n_types_val, contexts_val, subcontexts_val, obs_path):
         trigger_id = _get_trigger_id()
+        NO_UPDATE_14 = (dash.no_update,) * 14
+        NO_PENDING = dash.no_update
 
         if trigger_id == 'btn-settings-toggle':
             # Load stored config
@@ -645,15 +649,15 @@ def register_callbacks(app):
                 if v:
                     subctxts_lines.append(f"{k}: {', '.join(v)}")
             subctxts = "\n".join(subctxts_lines)
-            return True, hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'), hp.get('w_e'), hp.get('w_t'), hp.get('beta'), ntypes, ctxts, subctxts, "Custom", obs
-            
+            return True, hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'), hp.get('w_e'), hp.get('w_t'), hp.get('beta'), ntypes, ctxts, subctxts, "Custom", obs, NO_PENDING
+
         if trigger_id == 'setting-hp-profile':
             from config import PROFILES
             if profile_val in PROFILES:
                 p = PROFILES[profile_val]
-                return True, p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'], p['w_e'], p['w_t'], p['beta'], dash.no_update, dash.no_update, dash.no_update, profile_val, dash.no_update
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-            
+                return True, p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'], p['w_e'], p['w_t'], p['beta'], dash.no_update, dash.no_update, dash.no_update, profile_val, dash.no_update, NO_PENDING
+            return (*NO_UPDATE_14, NO_PENDING)
+
         if trigger_id == 'btn-settings-save':
             try:
                 new_hp = {
@@ -661,21 +665,12 @@ def register_callbacks(app):
                     'd_H': float(dh), 'd_S': float(ds), 'd_Syn': float(dsyn),
                     'w_e': float(we), 'w_t': float(wt), 'beta': float(beta)
                 }
-                ConfigManager.set_hyperparams(new_hp)
-                ConfigManager.set_obsidian_vault(obs_path)
-                
-                # Parse comma-separated lists
-                if n_types_val is not None:
-                    n_list = [c.strip() for c in n_types_val.split(',') if c.strip()]
-                    ConfigManager.set_node_types(n_list)
-                if contexts_val is not None:
-                    c_list = [c.strip() for c in contexts_val.split(',') if c.strip()]
-                    ConfigManager.set_contexts(c_list)
 
-                # Parse subcontexts: one context per line, comma-separated subs
-                # Format: "Mind: Rational, Sensory\nBody: Stress, Sleep"
+                # Parse new values
+                new_types = [c.strip() for c in (n_types_val or '').split(',') if c.strip()]
+                new_contexts = [c.strip() for c in (contexts_val or '').split(',') if c.strip()]
+                new_subcontexts = {}
                 if subcontexts_val is not None:
-                    s_dict = {}
                     for line in subcontexts_val.split('\n'):
                         line = line.strip()
                         if ':' in line:
@@ -683,21 +678,135 @@ def register_callbacks(app):
                             ctx_name = ctx_name.strip()
                             subs = [s.strip() for s in subs_str.split(',') if s.strip()]
                             if ctx_name and subs:
-                                # Merge if same context appears on multiple lines
-                                if ctx_name in s_dict:
-                                    s_dict[ctx_name].extend(subs)
+                                if ctx_name in new_subcontexts:
+                                    new_subcontexts[ctx_name].extend(subs)
                                 else:
-                                    s_dict[ctx_name] = subs
-                    ConfigManager.set_subcontexts(s_dict)
-                
+                                    new_subcontexts[ctx_name] = subs
+
+                # Load old values
+                old_types = ConfigManager.get_node_types()
+                old_contexts = ConfigManager.get_contexts()
+                old_subcontexts = ConfigManager.get_subcontexts()
+
+                # Flatten old/new subcontexts for comparison
+                old_sub_flat = [s for subs in old_subcontexts.values() for s in subs]
+                new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
+
+                # Detect orphans
+                orphans = {}
+                type_orphans = manager.find_orphaned_nodes('type', old_types, new_types)
+                if type_orphans:
+                    orphans['type'] = {k: [n.name for n in v] for k, v in type_orphans.items()}
+                ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
+                if ctx_orphans:
+                    orphans['context'] = {k: [n.name for n in v] for k, v in ctx_orphans.items()}
+                sub_orphans = manager.find_orphaned_nodes('subcontext', old_sub_flat, new_sub_flat)
+                if sub_orphans:
+                    orphans['subcontext'] = {k: [n.name for n in v] for k, v in sub_orphans.items()}
+
+                if orphans:
+                    # Defer save — store pending data and open migration modal
+                    pending = {
+                        'hp': new_hp,
+                        'obs_path': obs_path,
+                        'types': new_types,
+                        'contexts': new_contexts,
+                        'subcontexts': new_subcontexts,
+                        'orphans': orphans,
+                        'new_values': {
+                            'type': new_types,
+                            'context': new_contexts,
+                            'subcontext': new_sub_flat,
+                        }
+                    }
+                    return False, *(dash.no_update,) * 13, pending
+
+                # No orphans — save immediately
+                ConfigManager.set_hyperparams(new_hp)
+                ConfigManager.set_obsidian_vault(obs_path)
+                if new_types:
+                    ConfigManager.set_node_types(new_types)
+                    ConfigManager.sync_shapes_to_types(new_types)
+                if new_contexts:
+                    ConfigManager.set_contexts(new_contexts)
+                ConfigManager.set_subcontexts(new_subcontexts)
+
             except Exception:
                 logger.exception("Failed to save settings")
-            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return False, *(dash.no_update,) * 13, NO_PENDING
 
         if trigger_id == 'btn-settings-cancel':
-            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-            
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return False, *(dash.no_update,) * 13, NO_PENDING
+
+        return (*NO_UPDATE_14, NO_PENDING)
+
+    # --- Migration Modal ---
+    @app.callback(
+        Output('modal-migration', 'is_open'),
+        Output('migration-modal-body', 'children'),
+        Output('migration-mapping-store', 'data'),
+        Input('pending-settings-store', 'data'),
+        Input('btn-migration-apply', 'n_clicks'),
+        Input('btn-migration-skip', 'n_clicks'),
+        State({"type": "migration-dropdown", "index": dash.ALL}, "value"),
+        State('migration-mapping-store', 'data'),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True
+    )
+    def handle_migration(pending_data, apply_clicks, skip_clicks,
+                         dropdown_values, mapping_data, pending_state):
+        from layout import build_migration_content
+
+        trigger_id = _get_trigger_id()
+
+        if trigger_id == 'pending-settings-store' and pending_data:
+            orphans = pending_data.get('orphans', {})
+            new_values = pending_data.get('new_values', {})
+
+            # Create lightweight objects with .name for the UI builder
+            orphans_for_ui = {}
+            for field, val_map in orphans.items():
+                orphans_for_ui[field] = {}
+                for old_val, node_names in val_map.items():
+                    orphans_for_ui[field][old_val] = [type('N', (), {'name': n})() for n in node_names]
+
+            children, mapping = build_migration_content(orphans_for_ui, new_values)
+            return True, children, mapping
+
+        if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
+            # Save the pending settings
+            try:
+                ConfigManager.set_hyperparams(pending_state['hp'])
+                ConfigManager.set_obsidian_vault(pending_state['obs_path'])
+                new_types = pending_state.get('types', [])
+                if new_types:
+                    ConfigManager.set_node_types(new_types)
+                    ConfigManager.sync_shapes_to_types(new_types)
+                new_contexts = pending_state.get('contexts', [])
+                if new_contexts:
+                    ConfigManager.set_contexts(new_contexts)
+                ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
+            except Exception:
+                logger.exception("Failed to save pending settings")
+
+            # Apply migrations if user clicked Apply
+            if trigger_id == 'btn-migration-apply' and mapping_data and dropdown_values:
+                new_subcontexts = pending_state.get('subcontexts', {})
+                remaps = {}  # field -> {old_val: new_val}
+                for i, entry in enumerate(mapping_data):
+                    if i < len(dropdown_values) and dropdown_values[i]:
+                        field = entry['field']
+                        old_val = entry['old_value']
+                        if field not in remaps:
+                            remaps[field] = {}
+                        remaps[field][old_val] = dropdown_values[i]
+
+                for field, remap in remaps.items():
+                    manager.apply_migration(field, remap, new_subcontexts=new_subcontexts)
+
+            return False, [], None
+
+        return dash.no_update, dash.no_update, dash.no_update
 
     # --- Subcontext Collapse Toggle ---
     @app.callback(
