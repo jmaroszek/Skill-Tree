@@ -118,17 +118,56 @@ sidebar_content = html.Div(
             dbc.Textarea(id="node-desc"),
             
             html.Div(id="auto-status-display", className="d-none"),
-            dbc.Checklist(
-                options=[{"label": "Done", "value": "Done"}],
-                value=[],
-                id="node-status-done",
-                switch=True,
-                className="mt-3",
-            ),
+
+            # --- Section: Done toggle + Time Estimates (Learn, Goal, Resource) ---
+            html.Div(id="section-done-time", children=[
+                dbc.Checklist(
+                    options=[{"label": "Done", "value": "Done"}],
+                    value=[],
+                    id="node-status-done",
+                    switch=True,
+                    className="mt-3",
+                ),
+            ]),
+
+            # --- Section: Resource-specific (progress slider) ---
+            html.Div(id="section-resource", style={"display": "none"}, children=[
+                dbc.Label("Progress", className="mt-2"),
+                dcc.Slider(min=0, max=100, step=1, value=0, id="node-progress",
+                           marks={0: "0%", 25: "25%", 50: "50%", 75: "75%", 100: "100%"}),
+            ]),
+
+            # --- Section: Habit-specific (status, frequency, session duration) ---
+            html.Div(id="section-habit", style={"display": "none"}, children=[
+                dbc.Label("Status", className="mt-3"),
+                dbc.Select(id="habit-status", options=[
+                    {"label": "Active", "value": "Active"},
+                    {"label": "Paused", "value": "Paused"},
+                    {"label": "Retired", "value": "Retired"},
+                ], value="Active"),
+
+                html.Hr(className="my-2"),
+                html.H5("Habit Schedule", className="mt-2 mb-1"),
+                dbc.Label("Frequency", className="mt-2"),
+                dbc.Select(id="habit-frequency", options=[
+                    {"label": "Daily", "value": "Daily"},
+                    {"label": "Weekly", "value": "Weekly"},
+                    {"label": "Monthly", "value": "Monthly"},
+                    {"label": "Yearly", "value": "Yearly"},
+                ], value="Daily"),
+
+                dbc.Label("Session Duration in Minutes", className="mt-3"),
+                dbc.Row([
+                    dbc.Col([dbc.Label("Lower Bound", className="small text-muted mb-0"), dbc.Input(id="session-lower", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="session-expected", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Upper Bound", className="small text-muted mb-0"), dbc.Input(id="session-upper", type="number", min=0)]),
+                ]),
+            ]),
 
             html.Hr(className="my-2"),
 
-            # Numeric inputs
+            # Numeric inputs (shared by all types)
+            html.H5("Ratings", className="mt-2 mb-1"),
             dbc.Label("Value", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-value"),
 
@@ -138,16 +177,19 @@ sidebar_content = html.Div(
             dbc.Label("Difficulty", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
 
-            html.Hr(),
-            html.H5("Time Estimates in Hours"),
-            dbc.Row([
-                dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
-                dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
-                dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
+            # --- Section: Time Estimates (Learn, Goal, Resource — hidden for Habit) ---
+            html.Div(id="section-time-estimates", children=[
+                html.Hr(),
+                html.H5("Time Estimates in Hours", className="mt-2 mb-1"),
+                dbc.Row([
+                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
+                ]),
             ]),
             
             html.Hr(),
-            html.H5("Relationships"),
+            html.H5("Relationships", className="mt-2 mb-1"),
             dbc.Label("Needs", className="mt-2"),
             html.Div([
                 dcc.Dropdown(id="edge-needs-hard", multi=True, placeholder="Hard Prerequisites..."),
@@ -167,7 +209,7 @@ sidebar_content = html.Div(
             html.Div(dcc.Dropdown(id="edge-resources", multi=True, placeholder="Resource Nodes..."), className="text-dark"),
 
             html.Hr(),
-            html.H5("External Resources"),
+            html.H5("External Resources", className="mt-2 mb-1"),
             dbc.Label("Obsidian", className="mt-0"),
             html.Div([
                 dbc.Input(id="node-obsidian-path", type="text", placeholder="Link to Obsidian file", className="me-1", style={"flex": "1"}),
@@ -238,10 +280,20 @@ filters_content = html.Div([
         html.Span("×", id="btn-close-filters", className="fs-3 text-white float-end", style={"cursor": "pointer"})
     ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
 
-    dbc.Label("Context", className="mt-0"),
+    html.H5("General", className="mt-2 mb-1"),
+    dbc.Label("Node Type", className="mt-2"),
+    html.Div(dcc.Dropdown(
+        id="filter-node-type",
+        options=[{"label": t, "value": t} for t in NODE_TYPES],
+        multi=True,
+        placeholder="All Types",
+        value=None
+    ), className="text-dark"),
+
+    dbc.Label("Context", className="mt-2"),
     dbc.Select(
         id="filter-context",
-        options=["All"] + CONTEXTS, 
+        options=["All"] + CONTEXTS,
         value="All"
     ),
 
@@ -250,7 +302,8 @@ filters_content = html.Div([
 
     html.Hr(className="my-3"),
 
-    dbc.Label("Community Detection Method", className="mt-0"),
+    html.H5("Communities", className="mt-2 mb-1"),
+    dbc.Label("Detection Method", className="mt-2"),
     dbc.Select(id="community-method", options=[
         {"label": "Islands", "value": "components"},
         {"label": "Clusters", "value": "louvain"}
@@ -261,7 +314,8 @@ filters_content = html.Div([
 
     html.Hr(className="my-3"),
 
-    dbc.Label("Min Value", className="mt-0"),
+    html.H5("Ratings", className="mt-2 mb-1"),
+    dbc.Label("Min Value", className="mt-2"),
     dcc.Slider(min=1, max=10, step=1, value=1, id="filter-value",
                marks={i: str(i) for i in range(1, 11)}),
 

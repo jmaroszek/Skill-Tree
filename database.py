@@ -1,4 +1,5 @@
 import sqlite3
+import json
 import os
 from pathlib import Path
 
@@ -42,7 +43,14 @@ def init_db():
             subcontext TEXT,
             status TEXT NOT NULL,
             obsidian_path TEXT,
-            google_drive_path TEXT
+            google_drive_path TEXT,
+            frequency TEXT,
+            session_lower REAL,
+            session_expected REAL,
+            session_upper REAL,
+            habit_status TEXT DEFAULT 'Active',
+            progress INTEGER DEFAULT 0,
+            website TEXT
         )
     ''')
 
@@ -64,6 +72,59 @@ def init_db():
         
     if 'subcontext' not in existing_cols:
         cursor.execute('ALTER TABLE Nodes ADD COLUMN subcontext TEXT')
+
+    if 'frequency' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN frequency TEXT')
+    if 'session_lower' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN session_lower REAL')
+    if 'session_expected' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN session_expected REAL')
+    if 'session_upper' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN session_upper REAL')
+    if 'habit_status' not in existing_cols:
+        cursor.execute("ALTER TABLE Nodes ADD COLUMN habit_status TEXT DEFAULT 'Active'")
+    if 'progress' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN progress INTEGER DEFAULT 0')
+    if 'website' not in existing_cols:
+        cursor.execute('ALTER TABLE Nodes ADD COLUMN website TEXT')
+
+    # Migrate Topic/Skill types to Learn
+    cursor.execute("UPDATE Nodes SET type='Learn' WHERE type IN ('Topic', 'Skill')")
+
+    # Migrate stored NODE_TYPES setting: replace Topic/Skill with Learn
+    cursor.execute("SELECT value FROM Settings WHERE key='NODE_TYPES'")
+    row = cursor.fetchone()
+    if row:
+        try:
+            types = json.loads(row[0])
+            old_types = set(types)
+            if 'Topic' in old_types or 'Skill' in old_types:
+                new_types = []
+                learn_added = False
+                for t in types:
+                    if t in ('Topic', 'Skill'):
+                        if not learn_added:
+                            new_types.append('Learn')
+                            learn_added = True
+                    else:
+                        new_types.append(t)
+                cursor.execute("UPDATE Settings SET value=? WHERE key='NODE_TYPES'", (json.dumps(new_types),))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Migrate stored NODE_SHAPES setting: replace Topic/Skill keys with Learn
+    cursor.execute("SELECT value FROM Settings WHERE key='NODE_SHAPES'")
+    row = cursor.fetchone()
+    if row:
+        try:
+            shapes = json.loads(row[0])
+            if 'Topic' in shapes or 'Skill' in shapes:
+                shapes['Learn'] = shapes.pop('Topic', shapes.pop('Skill', 'ellipse'))
+                shapes.pop('Topic', None)
+                shapes.pop('Skill', None)
+                cursor.execute("UPDATE Settings SET value=? WHERE key='NODE_SHAPES'", (json.dumps(shapes),))
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Edges (

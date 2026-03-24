@@ -5,7 +5,7 @@ ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
 DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
 
-DEFAULT_NODE_TYPES = ["Topic", "Goal", "Skill", "Habit", "Resource"]
+DEFAULT_NODE_TYPES = ["Learn", "Goal", "Habit", "Resource"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
 DEFAULT_SUBCONTEXTS = {}
 
@@ -16,9 +16,8 @@ DEFAULT_NODE_COLORS = {
 }
 
 DEFAULT_NODE_SHAPES = {
+    'Learn': 'ellipse',
     'Goal': 'star',
-    'Topic': 'ellipse',
-    'Skill': 'triangle',
     'Habit': 'diamond',
     'Resource': 'pentagon',
 }

@@ -137,3 +137,13 @@
     background-color: #495057;
     color: #fff;
 }
+
+/* --- Type-adaptive editor section transitions --- */
+
+#section-done-time,
+#section-time-estimates,
+#section-habit,
+#section-resource {
+    transition: opacity 0.25s ease, max-height 0.3s ease;
+    overflow: hidden;
+}

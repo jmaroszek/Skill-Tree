@@ -26,8 +26,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, frequency, session_lower, session_expected, session_upper, habit_status, progress, website)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :frequency, :session_lower, :session_expected, :session_upper, :habit_status, :progress, :website)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -43,9 +43,11 @@ class GraphManager:
             cursor.execute('''
                 UPDATE Nodes
                 SET type=:type, description=:description, value=:value, time_o=:time_o, time_m=:time_m, time_p=:time_p,
-                    interest=:interest, difficulty=:difficulty, competence=:competence, 
+                    interest=:interest, difficulty=:difficulty, competence=:competence,
                     context=:context, subcontext=:subcontext, status=:status,
-                    obsidian_path=:obsidian_path, google_drive_path=:google_drive_path
+                    obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
+                    frequency=:frequency, session_lower=:session_lower, session_expected=:session_expected,
+                    session_upper=:session_upper, habit_status=:habit_status, progress=:progress, website=:website
                 WHERE name=:name
             ''', data)
             conn.commit()
@@ -173,9 +175,25 @@ class GraphManager:
 
         return False
 
+    @staticmethod
+    def _is_prereq_satisfied(p_node) -> bool:
+        """Check if a prerequisite node is satisfied.
+
+        Habit nodes are satisfied only when Active.
+        All other nodes are satisfied when Done.
+        """
+        if not p_node:
+            return False
+        if p_node.type == 'Habit':
+            return p_node.habit_status == 'Active'
+        return p_node.status == 'Done'
+
     def _update_node_state(self, node_name: str):
         node = self.get_node(node_name)
         if not node or node.status == "Done":
+            return
+        # Habit nodes use habit_status, not the auto-calculated status
+        if node.type == 'Habit':
             return
 
         with self.get_connection() as conn:
@@ -186,7 +204,7 @@ class GraphManager:
             is_blocked = False
             for prereq_name in prereqs:
                 p_node = self.get_node(prereq_name)
-                if not p_node or p_node.status != "Done":
+                if not self._is_prereq_satisfied(p_node):
                     is_blocked = True
                     break
 
@@ -247,6 +265,9 @@ class GraphManager:
 
         if 'max_difficulty' in filters:
             result = [n for n in result if n.difficulty <= int(filters['max_difficulty'])]
+
+        if 'node_types' in filters:
+            result = [n for n in result if n.type in filters['node_types']]
 
         if 'hide_done' in filters and filters['hide_done']:
             result = [n for n in result if n.status != 'Done']
