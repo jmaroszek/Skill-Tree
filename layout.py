@@ -491,6 +491,75 @@ settings_modal = dbc.Modal([
     ])
 ], id="modal-settings", size="lg", is_open=False, centered=True)
 
+
+# --- Migration Modal ---
+
+def build_migration_content(orphans_by_field, new_values_by_field):
+    """Build dynamic migration modal body from orphan data.
+
+    Args:
+        orphans_by_field: {'context': {'OldCtx': [Node, ...]}, 'type': {...}, 'subcontext': {...}}
+        new_values_by_field: {'context': [...], 'type': [...], 'subcontext': [...]}
+
+    Returns:
+        Tuple of (children list for modal body, mapping list for interpreting dropdown indices)
+    """
+    children = []
+    mapping = []  # List of (field, old_value) tuples, indexed to match dropdowns
+    idx = 0
+
+    for field in ('type', 'context', 'subcontext'):
+        orphans = orphans_by_field.get(field, {})
+        if not orphans:
+            continue
+
+        new_vals = new_values_by_field.get(field, [])
+        field_label = field.replace('_', ' ').title()
+        children.append(html.H5(f"{field_label} Changes", className="mt-3 mb-2"))
+
+        for old_val, nodes in orphans.items():
+            node_names = [n.name for n in nodes]
+            display_names = ", ".join(node_names[:8])
+            if len(node_names) > 8:
+                display_names += f" (+{len(node_names) - 8} more)"
+
+            options = [{"label": v, "value": v} for v in new_vals]
+            if field != 'type':
+                options.append({"label": "Clear (set to none)", "value": "__clear__"})
+
+            children.append(dbc.Card([
+                dbc.CardBody([
+                    html.Div([
+                        html.Strong(f'"{old_val}"'),
+                        html.Span(f" — {len(node_names)} node{'s' if len(node_names) != 1 else ''} affected",
+                                  className="text-muted ms-1"),
+                    ]),
+                    html.Small(display_names, className="text-muted d-block mb-2"),
+                    dbc.Select(
+                        id={"type": "migration-dropdown", "index": idx},
+                        options=options,
+                        value=new_vals[0] if new_vals else None,
+                        placeholder=f"Reassign to..."
+                    ),
+                ])
+            ], className="mb-2"))
+
+            mapping.append({"field": field, "old_value": old_val})
+            idx += 1
+
+    return children, mapping
+
+
+migration_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Migration Required")),
+    dbc.ModalBody(id="migration-modal-body"),
+    dbc.ModalFooter([
+        dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
+        dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
+    ])
+], id="modal-migration", size="lg", is_open=False, centered=True, backdrop="static")
+
+
 # --- Bottom Panel (Suggestions + Relationships side-by-side) ---
 
 bottom_panel = dbc.Row([
@@ -556,6 +625,9 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
         settings_modal,
+        migration_modal,
+        dcc.Store(id='pending-settings-store', data=None),
+        dcc.Store(id='migration-mapping-store', data=None),
 
         html.Div([
             # --- LEFT SIDEBAR (EDITOR) ---

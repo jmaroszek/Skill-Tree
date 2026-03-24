@@ -88,6 +88,13 @@ def init_db():
     if 'website' not in existing_cols:
         cursor.execute('ALTER TABLE Nodes ADD COLUMN website TEXT')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    ''')
+
     # Migrate Topic/Skill types to Learn
     cursor.execute("UPDATE Nodes SET type='Learn' WHERE type IN ('Topic', 'Skill')")
 
@@ -136,15 +143,9 @@ def init_db():
             FOREIGN KEY (target) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
-    
+
     # Edge migration for Needs -> Needs_Hard
     cursor.execute("UPDATE Edges SET type='Needs_Hard' WHERE type='Needs'")
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-    ''')
     conn.commit()
     conn.close()
 

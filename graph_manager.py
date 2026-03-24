@@ -323,6 +323,78 @@ class GraphManager:
                 G.add_edge(e['source'], e['target'])
         return G
 
+    # --- Migration ---
+
+    def find_orphaned_nodes(self, field: str, old_values: list, new_values: list) -> Dict[str, List[Node]]:
+        """Find nodes that reference removed values for a given field.
+
+        Returns a dict mapping each removed value to the list of nodes that still reference it.
+        Only includes entries where at least one node is affected.
+        """
+        removed = set(old_values) - set(new_values)
+        if not removed:
+            return {}
+
+        all_nodes = self.get_all_nodes()
+        orphans = {}
+        for val in removed:
+            affected = [n for n in all_nodes if getattr(n, field, None) == val]
+            if affected:
+                orphans[val] = affected
+        return orphans
+
+    def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Dict = None):
+        """Remap node attribute values in bulk.
+
+        Args:
+            field: 'context', 'subcontext', or 'type'
+            remap: maps old_value -> new_value (or None to clear)
+            new_subcontexts: when field is 'context', used to check if subcontexts are still valid
+        """
+        if not remap:
+            return
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            for old_val, new_val in remap.items():
+                if new_val == '__clear__':
+                    new_val = None
+
+                if field == 'type' and new_val is not None:
+                    # Clear type-specific fields when changing away from Habit or Resource
+                    cursor.execute("SELECT name, type FROM Nodes WHERE type=?", (old_val,))
+                    rows = cursor.fetchall()
+                    for name, old_type in rows:
+                        if old_type == 'Habit' and new_val != 'Habit':
+                            cursor.execute("""
+                                UPDATE Nodes SET frequency=NULL, session_lower=NULL,
+                                session_expected=NULL, session_upper=NULL, habit_status=NULL
+                                WHERE name=?
+                            """, (name,))
+                        if old_type == 'Resource' and new_val != 'Resource':
+                            cursor.execute("UPDATE Nodes SET progress=NULL WHERE name=?", (name,))
+
+                # Apply the remap
+                cursor.execute(f"UPDATE Nodes SET [{field}]=? WHERE [{field}]=?", (new_val, old_val))
+
+                # When context changes, clear subcontexts that don't exist under the new context
+                if field == 'context' and new_val is not None and new_subcontexts is not None:
+                    valid_subs = set(new_subcontexts.get(new_val, []))
+                    if valid_subs:
+                        # Clear subcontext if it's not valid under the new context
+                        cursor.execute(
+                            "SELECT name, subcontext FROM Nodes WHERE context=? AND subcontext IS NOT NULL",
+                            (new_val,)
+                        )
+                        for name, sub in cursor.fetchall():
+                            if sub not in valid_subs:
+                                cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE name=?", (name,))
+                    else:
+                        # New context has no subcontexts — clear them all
+                        cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE context=?", (new_val,))
+
+            conn.commit()
+
     def detect_communities(self, method: str = "components", filters: Dict = None) -> List[Set[str]]:
         if filters:
             all_nodes = self.get_all_nodes()

@@ -131,3 +131,15 @@ class ConfigManager:
     @classmethod
     def set_obsidian_vault(cls, path: str):
         cls._set_db_value("OBSIDIAN_VAULT", path)
+
+    @classmethod
+    def sync_shapes_to_types(cls, new_types: list):
+        """Prune shapes for removed types and add defaults for new types."""
+        shapes = cls.get_node_shapes()
+        # Remove shapes for types that no longer exist
+        shapes = {k: v for k, v in shapes.items() if k in new_types}
+        # Add default shape for new types
+        for t in new_types:
+            if t not in shapes:
+                shapes[t] = 'rectangle'
+        cls.set_node_shapes(shapes)
