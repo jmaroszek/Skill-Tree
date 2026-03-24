@@ -100,14 +100,19 @@ def _format_suggestions_table(suggs):
         return round((score / max_score) * 100, 1)
 
     table_header = [html.Thead(html.Tr([
-        html.Th("Task"), html.Th("Priority"), html.Th("Context"), html.Th("Type"),
+        html.Th("Task"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
+        html.Th("Subcontext"), html.Th("Value"), html.Th("Difficulty"), html.Th("Time"),
         html.Th("Unlocks")
     ]))]
     row_data = [html.Tr([
         html.Td(s.name),
         html.Td(f"{normalize(getattr(s, 'priority_score', 0)):.1f}"),
-        html.Td(str(s.context)),
         html.Td(s.type),
+        html.Td(str(s.context)),
+        html.Td(str(s.subcontext) if s.subcontext else "None"),
+        html.Td(str(s.value)),
+        html.Td(str(s.difficulty)),
+        html.Td(f"{round(s.time)}h"),
         html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None")
     ]) for s in suggs]
     return dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,

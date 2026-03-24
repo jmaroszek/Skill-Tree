@@ -17,6 +17,15 @@
             return;
         }
 
+        // Set initial panel height so canvas defaults to ~1245px
+        var TARGET_CANVAS_HEIGHT = 724;
+        var siblings = Array.from(handle.parentElement.children);
+        var otherHeight = siblings
+            .filter(function (el) { return el !== panel && !el.classList.contains('flex-grow-1'); })
+            .reduce(function (sum, el) { return sum + el.offsetHeight; }, 0);
+        var initialPanelH = handle.parentElement.offsetHeight - otherHeight - TARGET_CANVAS_HEIGHT;
+        panel.style.height = Math.max(MIN_PANEL_HEIGHT, initialPanelH) + 'px';
+
         var dragging = false;
         var startY = 0;
         var startHeight = 0;
