@@ -46,6 +46,15 @@
     z-index: 10001;
 }
 
+/* Ensure tooltip and context menu render above fullscreen overlay */
+#hover-tooltip {
+    z-index: 10002 !important;
+}
+
+#node-context-menu {
+    z-index: 10002 !important;
+}
+
 /* --- Dark Theme Canvas Enhancements --- */
 
 .canvas-container #cytoscape-graph {

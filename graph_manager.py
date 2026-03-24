@@ -3,6 +3,7 @@ import database
 import networkx as nx
 from models import Node
 from config import ConfigManager
+from scoring import score_nodes
 from typing import List, Dict, Set
 
 
@@ -210,103 +211,11 @@ class GraphManager:
     # --- Logic ---
 
     def calculate_priority_scores(self, active_nodes: List[Node]) -> List[Node]:
-        hp = ConfigManager.get_hyperparams()
-        wv = hp.get('w_v', 1.0)
-        wi = hp.get('w_i', 1.0)
-        dH = hp.get('d_H', 0.6)
-        dS = hp.get('d_S', 0.25)
-        dSyn = hp.get('d_Syn', 0.35)
-        we = hp.get('w_e', 2.5)
-        wt = hp.get('w_t', 1.0)
-        beta = hp.get('beta', 0.85)
-
-        scored_nodes = []
-        all_nodes_dict = {n.name: n for n in self.get_all_nodes()}
-        edges = self.get_edges()
-
-        # Build adjacency lists
-        H_out = {}
-        S_out = {}
-        Syn = {}
-        Hard_in = {}
-
-        for n in all_nodes_dict.keys():
-            H_out[n] = []
-            S_out[n] = []
-            Syn[n] = set()
-            Hard_in[n] = []
-
-        for e in edges:
-            src, trg, etype = e['source'], e['target'], e['type']
-            if trg not in all_nodes_dict or src not in all_nodes_dict: continue
-            
-            if etype == 'Needs_Hard':
-                H_out[src].append(trg)
-                Hard_in[trg].append(src)
-            elif etype == 'Needs_Soft':
-                S_out[src].append(trg)
-            elif etype == 'Helps':
-                Syn[src].add(trg)
-                Syn[trg].add(src)
-
-        def calculate_TV_n(node_name: str, visited: set) -> float:
-            if node_name in visited:
-                return 0.0
-            node = all_nodes_dict.get(node_name)
-            if not node: return 0.0
-
-            # Intrinsic Value
-            iv = (wv * node.value) + (wi * node.interest)
-
-            # Prevent infinite loops
-            new_visited = visited.union({node_name})
-
-            nv_sum = 0.0
-
-            # Network values
-            for x in H_out.get(node_name, []):
-                if x not in visited:
-                    nv_sum += dH * calculate_TV_n(x, new_visited)
-
-            for y in S_out.get(node_name, []):
-                if y not in visited:
-                    nv_sum += dS * calculate_TV_n(y, new_visited)
-
-            for z in Syn.get(node_name, set()):
-                if z not in visited:
-                    nv_sum += dSyn * calculate_TV_n(z, new_visited)
-
-            return iv + nv_sum
-
-        for node in active_nodes:
-            if node.status in ["Done", "Blocked"]:
-                node.priority_score = -1.0
-                scored_nodes.append(node)
-                continue
-
-            # Eligibility filter delta_n
-            delta_n = 1
-            for req in Hard_in.get(node.name, []):
-                req_node = all_nodes_dict.get(req)
-                if not req_node or req_node.status != "Done":
-                    delta_n = 0
-                    break
-
-            if delta_n == 0:
-                node.priority_score = -1.0
-                scored_nodes.append(node)
-                continue
-
-            # Perceived Cost
-            Cn = 1.0 + (we * node.difficulty) + (wt * (node.time ** beta))
-
-            # Recursively calculate Total Value
-            tv_n = calculate_TV_n(node.name, set())
-
-            node.priority_score = round(tv_n / Cn, 2)
-            scored_nodes.append(node)
-
-        return sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1.0), reverse=True)
+        """Delegates scoring to the scoring module."""
+        return score_nodes(
+            active_nodes, self.get_all_nodes(),
+            self.get_edges(), ConfigManager.get_hyperparams()
+        )
 
     def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
         with self.get_connection() as conn:
@@ -381,18 +290,27 @@ class GraphManager:
 
         return chains
 
-    def _build_nx_graph(self) -> nx.Graph:
+    def _build_nx_graph(self, allowed_names: Set[str] = None) -> nx.Graph:
         G = nx.Graph()
         nodes = self.get_all_nodes()
         edges = self.get_edges()
         for n in nodes:
-            G.add_node(n.name)
+            if allowed_names is None or n.name in allowed_names:
+                G.add_node(n.name)
         for e in edges:
-            G.add_edge(e['source'], e['target'])
+            if e['source'] in G.nodes and e['target'] in G.nodes:
+                G.add_edge(e['source'], e['target'])
         return G
 
-    def detect_communities(self, method: str = "components") -> List[Set[str]]:
-        G = self._build_nx_graph()
+    def detect_communities(self, method: str = "components", filters: Dict = None) -> List[Set[str]]:
+        if filters:
+            all_nodes = self.get_all_nodes()
+            filtered_nodes = self.filter_nodes(all_nodes, filters)
+            allowed_names = {n.name for n in filtered_nodes}
+        else:
+            allowed_names = None
+
+        G = self._build_nx_graph(allowed_names=allowed_names)
         if len(G.nodes) == 0:
             return []
 

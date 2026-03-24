@@ -215,11 +215,14 @@ def create_graph_view(initial_elements):
             cyto.Cytoscape(
                 id='cytoscape-graph',
                 layout={'name': 'cose', 'fit': True},
-                style={'width': '100%', 'height': 'calc(100vh - 310px)',
+                style={'width': '100%', 'height': '100%',
                        'backgroundColor': '#1a1d21', 'borderRadius': '8px'},
                 elements=initial_elements,
                 stylesheet=stylesheet,
-                userZoomingEnabled=False
+                userZoomingEnabled=False,
+                boxSelectionEnabled=True,
+                userPanningEnabled=False,
+                autoungrabify=False
             ),
             html.Button(
                 "⛶", id="btn-fullscreen",
@@ -288,34 +291,41 @@ filters_content = html.Div([
 ], className="px-3 pb-2 pt-0", style={"width": "320px", "minWidth": "320px"})
 
 
-# --- Info Panels (inside tabs) ---
+_section_title_style = {"fontSize": "1.3rem", "fontWeight": "600"}
 
-traversal_view = html.Div([
-    html.Div(id="traversal-chains")
-], className="p-3")
+# --- Info Panels ---
 
-synergies_view = html.Div([
-    html.Div(id="synergies-list")
-], className="p-3")
+relationships_view = html.Div([
+    html.H6("Relationships", className="text-muted mb-2", style=_section_title_style),
+    html.Div([
+        html.Div([
+            html.H6("Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+            html.Div(id="traversal-chains")
+        ], style={"marginRight": "2rem"}),
+        html.Div([
+            html.H6("Synergies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+            html.Div(id="synergies-list")
+        ]),
+    ], style={"display": "flex", "alignItems": "flex-start"})
+])
 
 suggestions_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=5),
-    dbc.Row([
-        dbc.Col(html.Div([
-            dbc.ButtonGroup([
-                dbc.Button("−", id="btn-sugg-minus", color="outline-secondary", size="sm",
-                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
-                html.Span(id="suggestion-count-display", children="5",
-                           className="align-self-center mx-2",
-                           style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
-                                  "textAlign": "center"}),
-                dbc.Button("+", id="btn-sugg-plus", color="outline-secondary", size="sm",
-                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
-            ], className="align-middle"),
-        ], className="d-flex align-items-center"), width="auto"),
-    ], className="mb-2"),
+    html.Div([
+        html.H6("Suggestions", className="text-muted mb-0", style=_section_title_style),
+        dbc.ButtonGroup([
+            dbc.Button("−", id="btn-sugg-minus", color="outline-secondary", size="sm",
+                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
+            html.Span(id="suggestion-count-display", children="5",
+                       className="align-self-center mx-2",
+                       style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
+                              "textAlign": "center"}),
+            dbc.Button("+", id="btn-sugg-plus", color="outline-secondary", size="sm",
+                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
+        ], className="align-middle"),
+    ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     html.Div(id="suggestions-table", style={"maxHeight": "750px", "overflowY": "auto"}),
-], className="p-3")
+])
 
 
 # --- Global Settings Modal ---
@@ -326,18 +336,18 @@ settings_modal = dbc.Modal([
             dbc.Tab(label="Nodes", children=[
                 html.Div([
                     dbc.Label("Node Types", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-node-types", rows=4, placeholder="Enter node types separated by commas or new lines..."),
-                    html.P("These dynamically populate your node type drop-downs. Defined order is preserved.", className="text-muted small"),
+                    dbc.Textarea(id="setting-node-types", rows=2, placeholder="e.g. Topic, Goal, Skill, Habit, Resource"),
+                    html.P("Comma-separated list. Order is preserved in drop-downs.", className="text-muted small"),
                     
                     html.Hr(),
                     dbc.Label("Contexts", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-contexts", rows=4, placeholder="Enter contexts separated by commas or new lines..."),
-                    html.P("These dynamically populate your context drop-downs. Defined order is preserved.", className="text-muted small"),
+                    dbc.Textarea(id="setting-contexts", rows=2, placeholder="e.g. Mind, Body, Social"),
+                    html.P("Comma-separated list. Order is preserved in drop-downs.", className="text-muted small"),
                     
                     html.Hr(),
                     dbc.Label("Subcontexts", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-subcontexts", rows=4, placeholder="Enter subcontexts in the format Context: Subcontext1, Subcontext2..."),
-                    html.P("These dynamically populate your subcontext drop-downs per context. Defined order is preserved.", className="text-muted small"),
+                    dbc.Textarea(id="setting-subcontexts", rows=4, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep"),
+                    html.P("One context per line. Comma-separated subcontexts after the colon.", className="text-muted small"),
                 ], className="p-2")
             ]),
             dbc.Tab(label="Algorithms", children=[
@@ -384,16 +394,12 @@ settings_modal = dbc.Modal([
     ])
 ], id="modal-settings", size="lg", is_open=False, centered=True)
 
-# --- Bottom Tabs ---
+# --- Bottom Panel (Suggestions + Relationships side-by-side) ---
 
-bottom_tabs = dbc.Tabs([
-    dbc.Tab(suggestions_view, label="Suggestions", tab_id="tab-suggestions",
-            active_tab_style={"fontWeight": "bold"}),
-    dbc.Tab(traversal_view, label="Dependencies", tab_id="tab-dependencies",
-            active_tab_style={"fontWeight": "bold"}),
-    dbc.Tab(synergies_view, label="Synergies", tab_id="tab-synergies",
-            active_tab_style={"fontWeight": "bold"}),
-], id="bottom-tabs", active_tab="tab-suggestions", className="mt-2")
+bottom_panel = dbc.Row([
+    dbc.Col(suggestions_view, width="auto", className="p-3 pe-5"),
+    dbc.Col(relationships_view, className="p-3"),
+], className="g-0")
 
 
 # --- Floating Tooltip ---
@@ -421,17 +427,12 @@ def build_app_layout(initial_elements, env="production"):
     
     edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
-    btn_show_deps = html.Button(id="btn-show-deps", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
-    btn_show_syns = html.Button(id="btn-show-syns", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
 
     context_menu = html.Div(
         id="node-context-menu",
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
             html.Div("Toggle Done", id="ctx-menu-toggle-done", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("Show Dependencies", id="ctx-menu-deps", className="ctx-menu-item"),
-            html.Div("Show Synergies", id="ctx-menu-syns", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Open in Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Open in Drive", id="ctx-menu-drive", className="ctx-menu-item"),
@@ -453,11 +454,10 @@ def build_app_layout(initial_elements, env="production"):
         hover_tooltip,
         edit_trigger,
         toggle_trigger,
-        btn_show_deps,
-        btn_show_syns,
         context_menu,
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
+        dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
         settings_modal,
 
         html.Div([
@@ -466,11 +466,13 @@ def build_app_layout(initial_elements, env="production"):
                 id="sidebar-editor-container",
                 children=[sidebar_content],
                 style={
-                    "width": "0px",
+                    "width": "380px",
+                    "minWidth": "380px",
+                    "marginLeft": "-380px",
                     "overflowX": "hidden",
                     "overflowY": "auto",
                     "borderRight": "1px solid #495057",
-                    "transition": "width 0.3s ease-in-out",
+                    "transition": "margin-left 0.3s ease",
                     "backgroundColor": "#212529"
                 }
             ),
@@ -508,10 +510,13 @@ def build_app_layout(initial_elements, env="production"):
                     ], className="py-2 px-3 mb-2 align-items-center m-0", style={"borderBottom": "1px solid #495057", "width": "100%"}),
 
                     # Canvas Container
-                    html.Div([create_graph_view(initial_elements)], className="flex-grow-1 px-3 mt-2", style={"position": "relative"}),
+                    html.Div([create_graph_view(initial_elements)], className="flex-grow-1 px-3 mt-2", style={"position": "relative", "minHeight": "200px"}),
 
-                    # Bottom tabbed panel
-                    html.Div([bottom_tabs], id="bottom-panel-container", className="px-3 pb-2", style={"height": "35vh", "minHeight": "250px", "overflowY": "auto"})
+                    # Resize Handle
+                    html.Div(id="resize-handle"),
+
+                    # Bottom panel
+                    html.Div([bottom_panel], id="bottom-panel-container", className="px-3 pb-2", style={"height": "35vh", "minHeight": "150px", "overflowY": "auto"})
                 ]
             ),
 
@@ -520,11 +525,13 @@ def build_app_layout(initial_elements, env="production"):
                 id="sidebar-filters-container",
                 children=[filters_content],
                 style={
-                    "width": "0px",
+                    "width": "320px",
+                    "minWidth": "320px",
+                    "marginRight": "-320px",
                     "overflowX": "hidden",
                     "overflowY": "auto",
                     "borderLeft": "1px solid #495057",
-                    "transition": "width 0.3s ease-in-out",
+                    "transition": "margin-right 0.3s ease",
                     "backgroundColor": "#212529"
                 }
             )

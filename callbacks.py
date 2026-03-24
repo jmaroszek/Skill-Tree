@@ -92,31 +92,30 @@ def _format_suggestions_table(suggs):
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
 
     raw_scores = [getattr(s, 'priority_score', 0) for s in suggs]
-    min_score = min(raw_scores)
     max_score = max(raw_scores)
-    score_range = max_score - min_score
 
     def normalize(score):
-        if score_range == 0:
-            return 100.0 if len(suggs) == 1 else 50.0
-        return round(((score - min_score) / score_range) * 100, 1)
+        if max_score == 0:
+            return 0.0
+        return round((score / max_score) * 100, 1)
 
     table_header = [html.Thead(html.Tr([
-        html.Th("Task"), html.Th("Context"), html.Th("Type"),
-        html.Th("Priority Score"), html.Th("Unlocks")
+        html.Th("Task"), html.Th("Priority"), html.Th("Context"), html.Th("Type"),
+        html.Th("Unlocks")
     ]))]
     row_data = [html.Tr([
         html.Td(s.name),
+        html.Td(f"{normalize(getattr(s, 'priority_score', 0)):.1f}"),
         html.Td(str(s.context)),
         html.Td(s.type),
-        html.Td(f"{normalize(getattr(s, 'priority_score', 0)):.1f}"),
         html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None")
     ]) for s in suggs]
-    return dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True, size="sm")
+    return dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,
+                     style={"width": "fit-content", "minWidth": "50%", "tableLayout": "auto"})
 
 
 def _format_traversal_ui(tapped_node, active_node_id):
-    traversal_ui = html.Div(className="text-muted", children="Select a node to see backwards dependencies.")
+    traversal_ui = html.Div(className="text-muted", children="Select a node to see dependencies.")
     synergies_ui = html.Div(className="text-muted", children="Select a node to see synergies.")
 
     if not tapped_node: return traversal_ui, synergies_ui
@@ -136,7 +135,7 @@ def _format_traversal_ui(tapped_node, active_node_id):
         for c in chains:
             display_chain = c[:-1] if c and c[-1] == active_node_id else c
             if display_chain:
-                chain_items.append(html.Div(" → ".join(display_chain)))
+                chain_items.append(html.Div(" → ".join(display_chain), style={"overflowWrap": "break-word"}))
         traversal_ui = html.Div(chain_items) if chain_items else html.P("None", className="text-dark")
 
     synergies_ui = html.Div([html.Div(s) for s in synergies]) if synergies else html.P("None", className="text-dark")
@@ -159,18 +158,13 @@ def register_callbacks(app):
         p = float(data.get('time_p', 0))
         final_time = data.get('time', 0)
         
-        # Method deduction and standard deviation
-        method = "Scalar"
+        # Standard deviation (PERT method)
         std_dev = 0.0
-        
-        if o > 0 and m == 0 and p > 0:
-            method = "Geometric"
-        elif m > 0 and o > 0 and p > 0 and not (o == m == p):
-            method = "PERT"
+        if m > 0 and o > 0 and p > 0 and not (o == m == p):
             std_dev = round((p - o) / 6.0, 2)
             
         std_str = f" ±{std_dev}" if std_dev > 0 else ""
-        time_str = f"{final_time}h{std_str} ({method})"
+        time_str = f"{final_time}h{std_str}"
 
         lines = [
             html.Div(html.Strong(data.get('label', data.get('id', ''))),
@@ -294,7 +288,8 @@ def register_callbacks(app):
          Input('btn-close-editor', 'n_clicks'),
          Input('btn-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('modal-settings', 'is_open'),
-         Input('btn-toggle-done-node', 'n_clicks')], # Triggers refresh on settings close
+         Input('btn-toggle-done-node', 'n_clicks'),
+         Input('group-delete-input', 'value')],
         
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -310,6 +305,7 @@ def register_callbacks(app):
     def core_engine(save_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val, tapped_node,
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
                      btn_edit, btn_add, btn_close_ed, btn_filters, btn_close_fil, settings_open, btn_toggle_done,
+                     group_delete_data,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, 
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
@@ -322,26 +318,26 @@ def register_callbacks(app):
         filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty)
 
         # Editor Sidebar State
-        next_ed_style = ed_style or {"width": "0px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "width 0.3s", "backgroundColor": "#212529"}
+        next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
         if trigger_id in ('btn-edit-node', 'btn-add') or (trigger_id == 'search-node' and search_val):
-            next_ed_style['width'] = "380px"
+            next_ed_style['marginLeft'] = "0px"
         elif trigger_id in ('btn-save', 'btn-clear', 'btn-delete', 'btn-close-editor'):
-            next_ed_style['width'] = "0px"
+            next_ed_style['marginLeft'] = "-380px"
 
         # Filters Sidebar State
-        next_fil_style = fil_style or {"width": "0px", "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "width 0.3s", "backgroundColor": "#212529"}
+        next_fil_style = fil_style or {"width": "320px", "minWidth": "320px", "marginRight": "-320px", "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "margin-right 0.3s ease", "backgroundColor": "#212529"}
         if trigger_id == 'btn-filters-toggle':
-            next_fil_style['width'] = "320px" if next_fil_style.get('width', '0px') == "0px" else "0px"
+            next_fil_style['marginRight'] = "0px" if next_fil_style.get('marginRight', '-320px') == "-320px" else "-320px"
         elif trigger_id == 'btn-close-filters':
-            next_fil_style['width'] = "0px"
+            next_fil_style['marginRight'] = "-320px"
 
         active_node_id = None
         if trigger_id == 'search-node' and search_val: active_node_id = search_val
         elif trigger_id == 'cytoscape-graph' and tapped_node: active_node_id = tapped_node.get('id')
         else: active_node_id = name
 
-        # --- Save ---
-        if trigger_id == 'btn-save' and name and n_type:
+        # --- Save (also auto-saves when editor is closed) ---
+        if trigger_id in ('btn-save', 'btn-close-editor') and name and n_type:
             target_status = "Done" if (status_done and "Done" in status_done) else "Open"
             
             # graph_manager will correctly recalculate "Blocked" if necessary on sync_edges
@@ -356,7 +352,7 @@ def register_callbacks(app):
                 )
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update
 
             try:
                 if manager.get_node(name):
@@ -388,9 +384,23 @@ def register_callbacks(app):
             except Exception as e:
                 msg = str(e)
 
+        # --- Group Delete ---
+        elif trigger_id == 'group-delete-input' and group_delete_data:
+            try:
+                import json
+                # JS sends "["name1","name2"]|timestamp" — strip the timestamp suffix
+                raw = group_delete_data.split('|')[0] if isinstance(group_delete_data, str) else ''
+                names = json.loads(raw) if raw else []
+                for node_name in names:
+                    manager.delete_node(node_name)
+                if names:
+                    msg = f"Deleted {len(names)} node(s)"
+            except Exception as e:
+                msg = str(e)
+
         # --- Visual Generation ---
         community_method = community_method or "components"
-        communities = manager.detect_communities(method=community_method)
+        communities = manager.detect_communities(method=community_method, filters=filters)
         community_options = [{"label": "All", "value": "All"}]
         for i, comm in enumerate(communities):
             community_options.append({"label": f"Community {i+1} ({len(comm)} nodes)", "value": str(i)})
@@ -502,8 +512,8 @@ def register_callbacks(app):
             # Load stored config
             hp = ConfigManager.get_hyperparams()
             obs = ConfigManager.get_obsidian_vault(r"C:\Users\jonah\Documents\Obsidian")
-            ntypes = ",\n".join(ConfigManager.get_node_types())
-            ctxts = ",\n".join(ConfigManager.get_contexts())
+            ntypes = ", ".join(ConfigManager.get_node_types())
+            ctxts = ", ".join(ConfigManager.get_contexts())
             s_dict = ConfigManager.get_subcontexts()
             subctxts_lines = []
             for k, v in s_dict.items():
@@ -529,24 +539,30 @@ def register_callbacks(app):
                 ConfigManager.set_hyperparams(new_hp)
                 ConfigManager.set_obsidian_vault(obs_path)
                 
-                # Context parsing
-                import re
+                # Parse comma-separated lists
                 if n_types_val is not None:
-                    n_list = [c.strip() for c in re.split(r'[,|\n]', n_types_val) if c.strip()]
+                    n_list = [c.strip() for c in n_types_val.split(',') if c.strip()]
                     ConfigManager.set_node_types(n_list)
                 if contexts_val is not None:
-                    c_list = [c.strip() for c in re.split(r'[,|\n]', contexts_val) if c.strip()]
+                    c_list = [c.strip() for c in contexts_val.split(',') if c.strip()]
                     ConfigManager.set_contexts(c_list)
-                    
+
+                # Parse subcontexts: one context per line, comma-separated subs
+                # Format: "Mind: Rational, Sensory\nBody: Stress, Sleep"
                 if subcontexts_val is not None:
                     s_dict = {}
                     for line in subcontexts_val.split('\n'):
+                        line = line.strip()
                         if ':' in line:
-                            parts = line.split(':', 1)
-                            ctx_name = parts[0].strip()
-                            subs = [s.strip() for s in re.split(r'[,|\n]', parts[1]) if s.strip()]
+                            ctx_name, subs_str = line.split(':', 1)
+                            ctx_name = ctx_name.strip()
+                            subs = [s.strip() for s in subs_str.split(',') if s.strip()]
                             if ctx_name and subs:
-                                s_dict[ctx_name] = subs
+                                # Merge if same context appears on multiple lines
+                                if ctx_name in s_dict:
+                                    s_dict[ctx_name].extend(subs)
+                                else:
+                                    s_dict[ctx_name] = subs
                     ConfigManager.set_subcontexts(s_dict)
                 
             except Exception: pass
@@ -582,28 +598,28 @@ def register_callbacks(app):
             import sys
             
             script = f'''import tkinter as tk
-from tkinter import filedialog
-import os
-import ctypes
+            from tkinter import filedialog
+            import os
+            import ctypes
 
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
-    pass
+            try:
+                ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            except Exception:
+                pass
 
-root = tk.Tk()
-root.withdraw()
-root.attributes('-topmost', True)
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
 
-abs_path = filedialog.askopenfilename(
-    initialdir=r"{vault}",
-    title="Select Obsidian File",
-    filetypes=[("Markdown files", "*.md"), ("All files", "*.*")]
-)
+            abs_path = filedialog.askopenfilename(
+                initialdir=r"{vault}",
+                title="Select Obsidian File",
+                filetypes=[("Markdown files", "*.md"), ("All files", "*.*")]
+            )
 
-if abs_path:
-    print(os.path.normpath(abs_path), end="")
-'''
+            if abs_path:
+                print(os.path.normpath(abs_path), end="")
+            '''
             with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
                 f.write(script)
                 tmp_path = f.name
@@ -686,21 +702,3 @@ if abs_path:
         except Exception as e:
             return f"Error opening URL: {str(e)}"
 
-    @app.callback(
-        Output("bottom-tabs", "active_tab"),
-        Input("btn-show-deps", "n_clicks"),
-        Input("btn-show-syns", "n_clicks"),
-        prevent_initial_call=True
-    )
-    def switch_bottom_tab(deps_clicks, syns_clicks):
-        ctx = dash.callback_context
-        if not ctx.triggered:
-            return dash.no_update
-            
-        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        if trigger_id == 'btn-show-deps':
-            return "tab-dependencies"
-        if trigger_id == 'btn-show-syns':
-            return "tab-synergies"
-            
-        return dash.no_update
