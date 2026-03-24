@@ -3,6 +3,8 @@ from database import get_connection
 
 ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
+DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
+
 DEFAULT_NODE_TYPES = ["Topic", "Goal", "Skill", "Habit", "Resource"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
 DEFAULT_SUBCONTEXTS = {}
@@ -88,7 +90,7 @@ class ConfigManager:
             if isinstance(data, list):
                 return {}
             return data
-        except:
+        except (json.JSONDecodeError, TypeError):
             return {}
 
     @classmethod
@@ -123,9 +125,9 @@ class ConfigManager:
         cls._set_db_value("HYPERPARAMS", json.dumps(params))
 
     @classmethod
-    def get_obsidian_vault(cls, default: str):
+    def get_obsidian_vault(cls, default: str = None):
         val = cls._get_db_value("OBSIDIAN_VAULT")
-        return val if val else default
+        return val if val else (default or DEFAULT_OBSIDIAN_VAULT)
 
     @classmethod
     def set_obsidian_vault(cls, path: str):

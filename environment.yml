@@ -4,13 +4,9 @@ channels:
   - defaults
 dependencies:
   - python=3.10
-  - pandas
   - dash
   - dash_cytoscape
   - dash-bootstrap-components
   - networkx
   - sqlite
   - pytest
-  - pip
-  - pip:
-    - ruamel.yaml

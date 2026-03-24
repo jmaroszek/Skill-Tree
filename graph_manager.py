@@ -1,7 +1,7 @@
 import sqlite3
 import database
 import networkx as nx
-from models import Node
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
 from config import ConfigManager
 from scoring import score_nodes
 from typing import List, Dict, Set
@@ -81,8 +81,8 @@ class GraphManager:
     # --- Edge Operations ---
 
     def add_edge(self, source: str, target: str, edge_type: str):
-        """Adds an edge to the DB, ensuring no cycle if 'Needs_Hard' or 'Needs_Soft' edge."""
-        if edge_type in ('Needs_Hard', 'Needs_Soft'):
+        """Adds an edge to the DB, ensuring no cycle if Needs_Hard or Needs_Soft edge."""
+        if edge_type in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
             if self._will_create_cycle(source, target):
                 raise ValueError(f"Adding edge {source} -> {target} creates a cycle.")
 
@@ -91,7 +91,7 @@ class GraphManager:
             try:
                 cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
                 conn.commit()
-                if edge_type == 'Needs_Hard':
+                if edge_type == EDGE_NEEDS_HARD:
                     self._update_node_state(target)
             except sqlite3.IntegrityError:
                 pass  # Edge already exists
@@ -102,7 +102,7 @@ class GraphManager:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM Edges WHERE source=? AND target=? AND type=?", (source, target, edge_type))
             conn.commit()
-            if edge_type == 'Needs_Hard':
+            if edge_type == EDGE_NEEDS_HARD:
                 self._update_node_state(target)
 
     def get_edges(self) -> List[Dict[str, str]]:
@@ -130,21 +130,21 @@ class GraphManager:
             cursor.execute("DELETE FROM Edges WHERE (target=? OR source=?) AND type='Helps'", (node_name, node_name))
 
             def _insert_edge(src, trgt, etype):
-                if etype in ('Needs_Hard', 'Needs_Soft') and self._will_create_cycle(src, trgt):
+                if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) and self._will_create_cycle(src, trgt):
                     return
                 try:
                     cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)", (src, trgt, etype))
                 except sqlite3.IntegrityError:
                     pass
 
-            for src in needs_hard: _insert_edge(src, node_name, 'Needs_Hard')
-            for src in needs_soft: _insert_edge(src, node_name, 'Needs_Soft')
-            
-            for trgt in supports_hard: _insert_edge(node_name, trgt, 'Needs_Hard')
-            for trgt in supports_soft: _insert_edge(node_name, trgt, 'Needs_Soft')
-            
-            for linked in helps: _insert_edge(node_name, linked, 'Helps')
-            for r_src in resources: _insert_edge(r_src, node_name, 'Resource')
+            for src in needs_hard: _insert_edge(src, node_name, EDGE_NEEDS_HARD)
+            for src in needs_soft: _insert_edge(src, node_name, EDGE_NEEDS_SOFT)
+
+            for trgt in supports_hard: _insert_edge(node_name, trgt, EDGE_NEEDS_HARD)
+            for trgt in supports_soft: _insert_edge(node_name, trgt, EDGE_NEEDS_SOFT)
+
+            for linked in helps: _insert_edge(node_name, linked, EDGE_HELPS)
+            for r_src in resources: _insert_edge(r_src, node_name, EDGE_RESOURCE)
 
             conn.commit()
 
