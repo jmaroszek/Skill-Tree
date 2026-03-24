@@ -4,12 +4,17 @@
  * Uses Cytoscape.js native node events (mouseover/mouseout) so the tooltip
  * stays visible while the cursor rests on a node and only starts fading
  * when the cursor moves off a node.
+ *
+ * Fix for same-node re-hover: if the tooltip already has content when the
+ * user hovers the same node again, we show it immediately rather than
+ * waiting for the Dash callback (which won't re-fire for identical data).
  */
 (function () {
 
     var hideTimer = null;
     var HIDE_DELAY_MS = 300;
     var onNode = false;
+    var lastHoveredNodeId = null;
 
     function initTooltip() {
         var tooltip = document.getElementById('hover-tooltip');
@@ -71,9 +76,17 @@
                 }
 
                 // Mouse enters a node — show tooltip, cancel any hide timer
-                cy.on('mouseover', 'node', function () {
+                cy.on('mouseover', 'node', function (evt) {
+                    var nodeId = evt.target.id();
                     onNode = true;
                     clearTimeout(hideTimer);
+
+                    // If re-hovering the same node, Dash callback won't fire
+                    // since mouseoverNodeData hasn't changed. Show existing content.
+                    if (nodeId === lastHoveredNodeId && tooltip.innerText.trim().length > 0) {
+                        tooltip.style.display = 'block';
+                    }
+                    lastHoveredNodeId = nodeId;
                     // Content will be populated by Dash callback; MutationObserver shows it
                 });
 

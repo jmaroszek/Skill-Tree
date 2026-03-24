@@ -23,3 +23,21 @@ input[type=number] {
 #sidebar-editor-container::-webkit-scrollbar { 
     display: none;  /* Safari and Chrome */
 }
+
+/* Resize handle between canvas and bottom panel */
+#resize-handle {
+    height: 6px;
+    cursor: ns-resize;
+    background: transparent;
+    margin: 0 12px;
+    border-top: 1px solid #495057;
+    transition: background 0.15s;
+}
+#resize-handle:hover {
+    background: #495057;
+}
+
+/* Cytoscape box-selection rectangle */
+.cytoscape-container canvas {
+    cursor: crosshair;
+}

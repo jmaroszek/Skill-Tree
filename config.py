@@ -1,7 +1,7 @@
 import json
 from database import get_connection
 
-ENVIRONMENT = "sandbox" # Options: sandbox, production
+ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
 DEFAULT_NODE_TYPES = ["Topic", "Goal", "Skill", "Habit", "Resource"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
