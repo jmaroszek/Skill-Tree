@@ -8,7 +8,7 @@ import dash
 import os
 import subprocess
 import urllib.parse
-from dash import html, Input, Output, State
+from dash import html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
@@ -17,6 +17,8 @@ from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESO
 logger = logging.getLogger(__name__)
 
 manager = GraphManager()
+
+SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
 
 
 def _get_trigger_id():
@@ -105,7 +107,7 @@ def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_t
     return filters
 
 
-def _format_suggestions_table(suggs):
+def _format_suggestions_table(suggs, selected_node_id=None):
     """Render the top-scored nodes as an HTML table with normalized priority scores (0-100)."""
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
@@ -118,24 +120,53 @@ def _format_suggestions_table(suggs):
             return 0.0
         return round((score / max_score) * 100, 1)
 
+    edges = manager.get_edges()
+
     table_header = [html.Thead(html.Tr([
         html.Th("Task"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
-        html.Th("Subcontext"), html.Th("Value"), html.Th("Difficulty"), html.Th("Time"),
-        html.Th("Unlocks")
+        html.Th("Subcontext"), html.Th("Value"), html.Th("Effort"), html.Th("Time"),
+        html.Th("Unlocks"), html.Th("Resources")
     ]))]
-    row_data = [html.Tr([
-        html.Td(s.name),
-        html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
-        html.Td(s.type),
-        html.Td(str(s.context)),
-        html.Td(str(s.subcontext) if s.subcontext else "None"),
-        html.Td(str(s.value)),
-        html.Td(str(s.difficulty)),
-        html.Td(f"{round(s.time)}h"),
-        html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None")
-    ]) for s in suggs]
-    return dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,
+    
+    row_data = []
+    for s in suggs:
+        is_selected = (s.name == selected_node_id)
+        # Subtle highlight for the selected row
+        row_class = "table-active" if is_selected else ""
+        
+        node_res = [e['source'] for e in edges if e['target'] == s.name and e['type'] == EDGE_RESOURCE]
+        res_str = ", ".join(node_res) if node_res else "None"
+        
+        row_data.append(html.Tr([
+            html.Td(s.name),
+            html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
+            html.Td(s.type),
+            html.Td(str(s.context)),
+            html.Td(str(s.subcontext) if s.subcontext else "None"),
+            html.Td(str(s.value)),
+            html.Td(str(s.difficulty)),
+            html.Td(f"{round(s.time)}h"),
+            html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None"),
+            html.Td(res_str)
+        ], id={"type": "suggestion-row", "index": s.name}, className=row_class, style={"cursor": "pointer"}))
+        
+    table = dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,
                      style={"width": "fit-content", "minWidth": "50%", "tableLayout": "auto"})
+
+    node = None
+    if selected_node_id:
+        node = next((n for n in suggs if n.name == selected_node_id), None)
+        if not node:
+            node = manager.get_node(selected_node_id)
+    
+    desc_content = node.description.strip() if node and node.description and node.description.strip() else "None"
+    
+    desc_area = html.Div([
+        html.H6("Description", className="text-muted mb-2", style=SECTION_TITLE_STYLE),
+        html.Div(desc_content, style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
+    ], className="mt-4", style={"maxWidth": "800px"})
+
+    return [table, desc_area]
 
 
 def _format_traversal_ui(tapped_node, active_node_id):
@@ -275,7 +306,7 @@ def register_callbacks(app):
         lines.extend([
             html.Div([html.Strong("Context: "), data.get('context', '')]),
             html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
-            html.Div([html.Strong("Difficulty: "), str(data.get('difficulty', ''))]),
+            html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
         ])
 
         if node_type != 'Habit':
@@ -283,9 +314,6 @@ def register_callbacks(app):
 
         if node_type == 'Resource' and data.get('progress') is not None:
             lines.append(html.Div([html.Strong("Progress: "), f"{data.get('progress', 0)}%"]))
-
-        if data.get('description'):
-            lines.append(html.Div([html.Strong("Desc: "), html.Span(data.get('description'), style={'whiteSpace': 'normal'})]))
 
         return lines
 
@@ -427,12 +455,13 @@ def register_callbacks(app):
          Input('suggestion-count-store', 'data'),
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'),
-         Input('btn-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
+         Input('btn-filters-toggle', 'n_clicks'), Input('btn-suggestions-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('modal-settings', 'is_open'),
          Input('modal-migration', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
          Input('group-delete-input', 'value'),
-         Input('filter-node-type', 'value')],
+         Input('filter-node-type', 'value'),
+         Input('selected-suggestion-store', 'data')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -452,8 +481,9 @@ def register_callbacks(app):
     def core_engine(save_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_close_ed, btn_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_close_ed, btn_filters, btn_sugg_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
+                     active_suggestion_id,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
@@ -484,12 +514,12 @@ def register_callbacks(app):
         elif trigger_id in ('btn-save', 'btn-clear', 'btn-delete', 'btn-close-editor'):
             next_ed_style['marginLeft'] = "-380px"
 
-        # Filters Sidebar State (320px matches filters_content width in layout.py)
-        next_fil_style = fil_style or {"width": "320px", "minWidth": "320px", "marginRight": "-320px", "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "margin-right 0.3s ease", "backgroundColor": "#212529"}
-        if trigger_id == 'btn-filters-toggle':
-            next_fil_style['marginRight'] = "0px" if next_fil_style.get('marginRight', '-320px') == "-320px" else "-320px"
+        # Filters Sidebar State (overlay, shared between Canvas + Suggestions tabs)
+        next_fil_style = fil_style or {"position": "absolute", "top": "0", "right": "-320px", "width": "320px", "height": "100%", "zIndex": 100, "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "right 0.3s ease", "backgroundColor": "#212529"}
+        if trigger_id in ('btn-filters-toggle', 'btn-suggestions-filters-toggle'):
+            next_fil_style['right'] = "0px" if next_fil_style.get('right', '-320px') == "-320px" else "-320px"
         elif trigger_id == 'btn-close-filters':
-            next_fil_style['marginRight'] = "-320px"
+            next_fil_style['right'] = "-320px"
 
         active_node_id = None
         if trigger_id == 'search-node' and search_val: active_node_id = search_val
@@ -547,7 +577,7 @@ def register_callbacks(app):
         elements = generate_elements(filters, active_node_id, community_names=community_names)
 
         count = sugg_count if sugg_count else 5
-        sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count))
+        sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
         traversal_ui, synergies_ui = _format_traversal_ui(tapped_node, active_node_id)
 
         all_nodes = manager.get_all_nodes()
@@ -624,6 +654,7 @@ def register_callbacks(app):
          Output('setting-obsidian-path', 'value'),
          Output('pending-settings-store', 'data')],
         [Input('btn-settings-toggle', 'n_clicks'),
+         Input('btn-suggestions-settings-toggle', 'n_clicks'),
          Input('btn-settings-cancel', 'n_clicks'),
          Input('btn-settings-save', 'n_clicks'),
          Input('setting-hp-profile', 'value')],
@@ -636,13 +667,13 @@ def register_callbacks(app):
          State('setting-obsidian-path', 'value')],
         prevent_initial_call=True
     )
-    def manage_settings_modal(open_cm, cancel_cm, save_cm, profile_val,
+    def manage_settings_modal(open_cm, open_sugg_cm, cancel_cm, save_cm, profile_val,
                               wv, wi, dh, ds, dsyn, we, wt, beta, n_types_val, contexts_val, subcontexts_val, obs_path):
         trigger_id = _get_trigger_id()
         NO_UPDATE_14 = (dash.no_update,) * 14
         NO_PENDING = dash.no_update
 
-        if trigger_id == 'btn-settings-toggle':
+        if trigger_id in ('btn-settings-toggle', 'btn-suggestions-settings-toggle'):
             # Load stored config
             hp = ConfigManager.get_hyperparams()
             obs = ConfigManager.get_obsidian_vault()
@@ -775,8 +806,7 @@ def register_callbacks(app):
                 for old_val, node_names in val_map.items():
                     orphans_for_ui[field][old_val] = [type('N', (), {'name': n})() for n in node_names]
 
-            children, mapping = build_migration_content(orphans_for_ui, new_values)
-            return True, children, mapping
+        return True, children, mapping
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             # Save the pending settings
@@ -938,4 +968,19 @@ def register_callbacks(app):
             return dash.no_update
         except Exception as e:
             return f"Error opening URL: {str(e)}"
+
+
+    # --- Suggestion Row Selection ---
+    @app.callback(
+        Output('selected-suggestion-store', 'data'),
+        Input({'type': 'suggestion-row', 'index': ALL}, 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def update_selected_suggestion(n_clicks_list):
+        if not any(n_clicks_list): return dash.no_update
+        trigger_id = ctx.triggered_id
+        if trigger_id and isinstance(trigger_id, dict) and 'index' in trigger_id:
+            return trigger_id['index']
+        return dash.no_update
+
 

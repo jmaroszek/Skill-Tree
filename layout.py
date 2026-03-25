@@ -175,7 +175,7 @@ sidebar_content = html.Div(
             dbc.Label("Interest", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
 
-            dbc.Label("Difficulty", className="mt-2"),
+            dbc.Label("Effort", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
 
             # --- Section: Time Estimates (Learn, Goal, Resource — hidden for Habit) ---
@@ -234,7 +234,7 @@ sidebar_content = html.Div(
             html.Div([
                 html.Div(id="save-output", className="text-success fw-bold flex-grow-1 align-self-center pe-2"),
                 dbc.Button("Clear", id="btn-clear", color="secondary", className="me-2"),
-                dbc.Button("Delete", id="btn-delete", color="danger", className="me-2"),
+                dbc.Button("Delete", id="btn-delete", color="danger", className="me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
                 dbc.Button("Save", id="btn-save", color="primary")
             ], className="d-flex justify-content-end mt-4 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True)
@@ -287,8 +287,9 @@ filters_content = html.Div([
         id="filter-node-type",
         options=[{"label": t, "value": t} for t in NODE_TYPES],
         multi=True,
-        placeholder="All Types",
-        value=None
+        placeholder="All",
+        value=None,
+        style={"color": "#212529"}
     ), className="text-dark"),
 
     dbc.Label("Context", className="mt-2"),
@@ -324,7 +325,7 @@ filters_content = html.Div([
     dcc.Slider(min=1, max=10, step=1, value=1, id="filter-interest",
                marks={i: str(i) for i in range(1, 11)}),
 
-    dbc.Label("Max Difficulty", className="mt-3"),
+    dbc.Label("Max Effort", className="mt-3"),
     dcc.Slider(min=1, max=10, step=1, value=10, id="filter-difficulty",
                marks={i: str(i) for i in range(1, 11)}),
 
@@ -376,6 +377,7 @@ suggestions_view = html.Div([
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
         ], className="align-middle"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
+    dcc.Store(id='selected-suggestion-store', data=None),
     html.Div(id="suggestions-table", style={"maxHeight": "750px", "overflowY": "auto"}),
 ])
 
@@ -459,9 +461,9 @@ settings_modal = dbc.Modal([
                     html.Div("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2", style=_formula_hint_style),
                     dbc.Row([
                         dbc.Col([
-                            dbc.Label("Difficulty Weight"),
+                            dbc.Label("Effort Weight"),
                             dbc.Input(id="hp-we", type="number", step=0.1),
-                            html.Small("Scales difficulty score", className="text-muted"),
+                            html.Small("Scales effort score", className="text-muted"),
                         ]),
                         dbc.Col([
                             dbc.Label("Time Weight"),
@@ -561,12 +563,9 @@ migration_modal = dbc.Modal([
 ], id="modal-migration", size="lg", is_open=False, centered=True, backdrop="static")
 
 
-# --- Bottom Panel (Suggestions + Relationships side-by-side) ---
+# --- Bottom Panel (Relationships only) ---
 
-bottom_panel = dbc.Row([
-    dbc.Col(suggestions_view, width="auto", className="p-3 pe-5"),
-    dbc.Col(relationships_view, className="p-3"),
-], className="g-0")
+bottom_panel = html.Div([relationships_view], className="p-3")
 
 
 # --- Floating Tooltip ---
@@ -603,6 +602,8 @@ def build_app_layout(initial_elements, env="production"):
             html.Hr(style={"margin": "2px"}),
             html.Div("Open in Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Open in Drive", id="ctx-menu-drive", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
+            html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item", style={"color": ConfigManager.get_danger_color()}),
         ],
         style={
             "display": "none",
@@ -623,6 +624,7 @@ def build_app_layout(initial_elements, env="production"):
         active_tab="tab-canvas",
         children=[
             dbc.Tab(label="Canvas", tab_id="tab-canvas"),
+            dbc.Tab(label="Suggestions", tab_id="tab-suggestions"),
             dbc.Tab(label="Events", tab_id="tab-events"),
         ],
         className="px-3 pt-1",
@@ -663,8 +665,8 @@ def build_app_layout(initial_elements, env="production"):
                     dbc.Row([
                         dbc.Col(
                             html.Div([
-                                dbc.Button("+ New Node", id="btn-add", color="success", size="sm", className="me-2"),
-                                dbc.Button("⚙ Settings", id="btn-settings-toggle", color="outline-info", size="sm", className="me-2")
+                                dbc.Button("+ New Node", id="btn-add", color="outline-success", size="sm", className="me-2"),
+                                dbc.Button("⚙ Settings", id="btn-settings-toggle", color="outline-light", size="sm", className="me-2")
                             ], className="d-flex"),
                             width="auto"
                         ),
@@ -678,7 +680,7 @@ def build_app_layout(initial_elements, env="production"):
                             width="auto",
                             className="text-end"
                         ),
-                    ], className="py-2 px-3 mb-2 align-items-center m-0", style={"borderBottom": "1px solid #495057", "width": "100%"}),
+                    ], className="py-3 px-3 mb-2 align-items-center m-0", style={"borderBottom": "1px solid #495057", "width": "100%"}),
 
                     # Canvas Container
                     html.Div([create_graph_view(initial_elements)], className="flex-grow-1 px-3 mt-2", style={"position": "relative", "minHeight": "200px"}),
@@ -691,21 +693,6 @@ def build_app_layout(initial_elements, env="production"):
                 ]
             ),
 
-            # --- RIGHT SIDEBAR (FILTERS) ---
-            html.Div(
-                id="sidebar-filters-container",
-                children=[filters_content],
-                style={
-                    "width": "320px",
-                    "minWidth": "320px",
-                    "marginRight": "-320px",
-                    "overflowX": "hidden",
-                    "overflowY": "auto",
-                    "borderLeft": "1px solid #495057",
-                    "transition": "margin-right 0.3s ease",
-                    "backgroundColor": "#212529"
-                }
-            )
         ],
         className="d-flex",
         style={"width": "100%", "height": "100%", "overflow": "hidden",
@@ -718,6 +705,31 @@ def build_app_layout(initial_elements, env="production"):
         children=[build_events_tab_content()],
         style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
                "position": "absolute", "top": "0", "left": "0"}
+    )
+
+    # --- Suggestions Tab Content (hidden by default) ---
+    suggestions_tab_content = html.Div(
+        id="suggestions-tab-content",
+        children=[
+            html.Div([
+                # Toolbar
+                dbc.Row([
+                    dbc.Col(
+                        dbc.Button("⚙ Settings", id="btn-suggestions-settings-toggle", color="outline-light", size="sm"),
+                        width="auto"
+                    ),
+                    dbc.Col(width=True),
+                    dbc.Col(
+                        dbc.Button("⧨ Filters", id="btn-suggestions-filters-toggle", color="outline-light", size="sm"),
+                        width="auto", className="text-end"
+                    ),
+                ], className="py-3 px-3 align-items-center m-0", style={"borderBottom": "1px solid #495057", "width": "100%"}),
+                # Content
+                html.Div([suggestions_view], className="p-4", style={"maxWidth": "900px"}),
+            ], style={"flex": "1", "overflowY": "auto"}),
+        ],
+        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
+               "position": "absolute", "top": "0", "left": "0", "flexDirection": "column"}
     )
 
     return html.Div([
@@ -737,7 +749,26 @@ def build_app_layout(initial_elements, env="production"):
         # Tab content wrapper — only one tab visible at a time
         html.Div([
             canvas_tab_content,
+            suggestions_tab_content,
             events_tab_content,
+            # --- SHARED FILTERS SIDEBAR (overlay, accessible from Canvas + Suggestions) ---
+            html.Div(
+                id="sidebar-filters-container",
+                children=[filters_content],
+                style={
+                    "position": "absolute",
+                    "top": "0",
+                    "right": "-320px",
+                    "width": "320px",
+                    "height": "100%",
+                    "zIndex": 100,
+                    "overflowX": "hidden",
+                    "overflowY": "auto",
+                    "borderLeft": "1px solid #495057",
+                    "transition": "right 0.3s ease",
+                    "backgroundColor": "#212529"
+                }
+            )
         ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),
     ], style={"width": "100vw", "height": "100vh", "overflow": "hidden",
               "display": "flex", "flexDirection": "column"})

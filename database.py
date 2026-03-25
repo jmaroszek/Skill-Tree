@@ -97,6 +97,12 @@ def init_db():
     if 'dormant' not in columns:
         cursor.execute("ALTER TABLE Nodes ADD COLUMN dormant INTEGER NOT NULL DEFAULT 0")
 
+    # Migration: add trigger_date column to Events if it doesn't exist
+    cursor.execute("PRAGMA table_info(Events)")
+    event_columns = [row[1] for row in cursor.fetchall()]
+    if 'trigger_date' not in event_columns:
+        cursor.execute("ALTER TABLE Events ADD COLUMN trigger_date TEXT")
+
     conn.commit()
     conn.close()
 

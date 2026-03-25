@@ -19,8 +19,8 @@ class EventManager:
             cursor = conn.cursor()
             try:
                 cursor.execute(
-                    "INSERT INTO Events (name, description, status) VALUES (?, ?, ?)",
-                    (event.name, event.description, event.status)
+                    "INSERT INTO Events (name, description, status, trigger_date) VALUES (?, ?, ?, ?)",
+                    (event.name, event.description, event.status, event.trigger_date)
                 )
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -33,8 +33,8 @@ class EventManager:
                 # Temporarily disable FK checks for the rename
                 cursor.execute("PRAGMA foreign_keys = OFF")
                 cursor.execute(
-                    "UPDATE Events SET name=?, description=?, status=? WHERE name=?",
-                    (event.name, event.description, event.status, old_name)
+                    "UPDATE Events SET name=?, description=?, status=?, trigger_date=? WHERE name=?",
+                    (event.name, event.description, event.status, event.trigger_date, old_name)
                 )
                 cursor.execute(
                     "UPDATE EventNodes SET event_name=? WHERE event_name=?",
@@ -43,8 +43,8 @@ class EventManager:
                 cursor.execute("PRAGMA foreign_keys = ON")
             else:
                 cursor.execute(
-                    "UPDATE Events SET description=?, status=? WHERE name=?",
-                    (event.description, event.status, old_name)
+                    "UPDATE Events SET description=?, status=?, trigger_date=? WHERE name=?",
+                    (event.description, event.status, event.trigger_date, old_name)
                 )
             conn.commit()
 

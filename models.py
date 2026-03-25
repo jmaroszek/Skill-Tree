@@ -127,6 +127,10 @@ class Event:
     name: str
     description: str = ""
     status: str = "Pending"  # Pending | Triggered
+    trigger_date: str = None  # ISO date string or None for manual-only
+
+    def __post_init__(self):
+        self.trigger_date = self.trigger_date or None
 
     def to_dict(self):
         return asdict(self)

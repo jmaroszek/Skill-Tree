@@ -94,6 +94,15 @@
     border-bottom: 2px solid #0d6efd;
 }
 
+/* --- Filter Node Type dropdown placeholder color fix --- */
+
+#filter-node-type .Select-placeholder,
+#filter-node-type input::placeholder,
+#filter-node-type .VirtualizedSelectPlaceholder,
+#filter-node-type [class$="-placeholder"] {
+    color: #212529 !important;
+}
+
 /* --- Events Tab --- */
 
 .event-card {

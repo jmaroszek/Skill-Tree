@@ -41,3 +41,21 @@ input[type=number] {
 .cytoscape-container canvas {
     cursor: crosshair;
 }
+
+/* Tame red/danger buttons and text for a calmer dark mode */
+.btn-danger, .badge.bg-danger {
+    background-color: #c94c4c !important;
+    border-color: #c94c4c !important;
+}
+.btn-outline-danger {
+    color: #c94c4c !important;
+    border-color: #c94c4c !important;
+}
+.btn-outline-danger:hover {
+    background-color: #c94c4c !important;
+    color: white !important;
+}
+.text-danger {
+    color: #ee6666 !important; /* Slightly brighter but still muted red for text */
+}
+

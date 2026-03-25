@@ -13,8 +13,9 @@
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
+        var deleteItem = document.getElementById('ctx-menu-delete');
 
-        if (!cyWrapper || !menu || !obsidianItem) {
+        if (!cyWrapper || !menu || !obsidianItem || !deleteItem) {
             setTimeout(initContextMenu, 300);
             return;
         }
@@ -226,6 +227,17 @@
                 hideMenu();
                 if (_currentNodeData && _currentNodeData.google_drive_path) {
                     window.open(_currentNodeData.google_drive_path, '_blank');
+                }
+            });
+        }
+
+        if (deleteItem) {
+            deleteItem.addEventListener('click', function () {
+                hideMenu();
+                if (_currentNodeData && _currentNodeData.id) {
+                    if (confirm('Delete node "' + _currentNodeData.id + '"?')) {
+                        triggerGroupDelete([_currentNodeData.id]);
+                    }
                 }
             });
         }
