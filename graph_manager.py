@@ -26,8 +26,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, frequency, session_lower, session_expected, session_upper, habit_status, progress, website)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :frequency, :session_lower, :session_expected, :session_upper, :habit_status, :progress, :website)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, frequency, session_lower, session_expected, session_upper, habit_status, progress, website, dormant)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :frequency, :session_lower, :session_expected, :session_upper, :habit_status, :progress, :website, :dormant)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -47,7 +47,8 @@ class GraphManager:
                     context=:context, subcontext=:subcontext, status=:status,
                     obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
                     frequency=:frequency, session_lower=:session_lower, session_expected=:session_expected,
-                    session_upper=:session_upper, habit_status=:habit_status, progress=:progress, website=:website
+                    session_upper=:session_upper, habit_status=:habit_status, progress=:progress, website=:website,
+                    dormant=:dormant
                 WHERE name=:name
             ''', data)
             conn.commit()
@@ -72,12 +73,15 @@ class GraphManager:
                 return Node(**dict(row))
             return None
 
-    def get_all_nodes(self) -> List[Node]:
-        """Retrieves all nodes."""
+    def get_all_nodes(self, include_dormant: bool = False) -> List[Node]:
+        """Retrieves all nodes. Excludes dormant nodes by default."""
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM Nodes")
+            if include_dormant:
+                cursor.execute("SELECT * FROM Nodes")
+            else:
+                cursor.execute("SELECT * FROM Nodes WHERE dormant = 0")
             return [Node(**dict(row)) for row in cursor.fetchall()]
 
     # --- Edge Operations ---

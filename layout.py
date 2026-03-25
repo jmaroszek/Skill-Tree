@@ -7,6 +7,7 @@ from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from config import ConfigManager
+from events_layout import build_events_tab_content
 
 # Read initial config values (lightweight DB reads, no GraphManager needed).
 # These are only used for the initial render; core_engine refreshes them dynamically.
@@ -616,20 +617,22 @@ def build_app_layout(initial_elements, env="production"):
         }
     )
 
-    return html.Div([
-        hover_tooltip,
-        edit_trigger,
-        toggle_trigger,
-        context_menu,
-        dcc.Store(id='ctx-obsidian-path-store', data=None),
-        dcc.Store(id='ctx-drive-path-store', data=None),
-        dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
-        settings_modal,
-        migration_modal,
-        dcc.Store(id='pending-settings-store', data=None),
-        dcc.Store(id='migration-mapping-store', data=None),
+    # --- Tab Navigation ---
+    main_tabs = dbc.Tabs(
+        id="main-tabs",
+        active_tab="tab-canvas",
+        children=[
+            dbc.Tab(label="Canvas", tab_id="tab-canvas"),
+            dbc.Tab(label="Events", tab_id="tab-events"),
+        ],
+        className="px-3 pt-1",
+        style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"}
+    )
 
-        html.Div([
+    # --- Canvas Tab Content (existing layout, unchanged) ---
+    canvas_tab_content = html.Div(
+        id="canvas-tab-content",
+        children=[
             # --- LEFT SIDEBAR (EDITOR) ---
             html.Div(
                 id="sidebar-editor-container",
@@ -652,14 +655,13 @@ def build_app_layout(initial_elements, env="production"):
                     "flexGrow": 1,
                     "display": "flex",
                     "flexDirection": "column",
-                    "minWidth": "0",  # Prevents flex clipping
+                    "minWidth": "0",
                     "transition": "flex-grow 0.3s ease-in-out"
                 },
                 children=[
                     # Top Toolbar
                     dbc.Row([
                         dbc.Col(
-                            # Group left actions
                             html.Div([
                                 dbc.Button("+ New Node", id="btn-add", color="success", size="sm", className="me-2"),
                                 dbc.Button("⚙ Settings", id="btn-settings-toggle", color="outline-info", size="sm", className="me-2")
@@ -704,5 +706,38 @@ def build_app_layout(initial_elements, env="production"):
                     "backgroundColor": "#212529"
                 }
             )
-        ], className="d-flex", style={"width": "100vw", "height": "100vh", "overflow": "hidden"})
-    ])
+        ],
+        className="d-flex",
+        style={"width": "100%", "height": "100%", "overflow": "hidden",
+               "position": "absolute", "top": "0", "left": "0"}
+    )
+
+    # --- Events Tab Content (hidden by default) ---
+    events_tab_content = html.Div(
+        id="events-tab-content",
+        children=[build_events_tab_content()],
+        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
+               "position": "absolute", "top": "0", "left": "0"}
+    )
+
+    return html.Div([
+        hover_tooltip,
+        edit_trigger,
+        toggle_trigger,
+        context_menu,
+        dcc.Store(id='ctx-obsidian-path-store', data=None),
+        dcc.Store(id='ctx-drive-path-store', data=None),
+        dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
+        settings_modal,
+        migration_modal,
+        dcc.Store(id='pending-settings-store', data=None),
+        dcc.Store(id='migration-mapping-store', data=None),
+
+        main_tabs,
+        # Tab content wrapper — only one tab visible at a time
+        html.Div([
+            canvas_tab_content,
+            events_tab_content,
+        ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),
+    ], style={"width": "100vw", "height": "100vh", "overflow": "hidden",
+              "display": "flex", "flexDirection": "column"})

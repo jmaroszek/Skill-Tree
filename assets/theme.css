@@ -69,8 +69,40 @@
 
 /* --- Tab Styling --- */
 
+.nav-tabs {
+    background-color: #1a1d21;
+}
+
 .nav-tabs .nav-link {
     transition: color 0.2s ease, border-color 0.2s ease;
+    color: #6c757d;
+    border: none;
+    padding: 8px 20px;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #dee2e6;
+    border-color: transparent;
+}
+
+.nav-tabs .nav-link.active {
+    color: #dee2e6;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid #0d6efd;
+}
+
+/* --- Events Tab --- */
+
+.event-card {
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.event-card:hover {
+    border-color: #0d6efd !important;
+    background-color: #2b3035 !important;
 }
 
 /* --- Offcanvas Transitions --- */

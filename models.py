@@ -36,6 +36,7 @@ class Node:
     habit_status: Optional[str] = None       # Active, Paused, Retired
     progress: Optional[int] = None           # 0-100
     website: Optional[str] = None
+    dormant: int = 0
     priority_score: Optional[float] = None
 
     def __post_init__(self):
@@ -57,6 +58,7 @@ class Node:
             self.session_expected = float(self.session_expected)
         if self.session_upper is not None:
             self.session_upper = float(self.session_upper)
+        self.dormant = int(self.dormant) if self.dormant is not None else 0
 
     @property
     def time(self) -> float:
@@ -116,4 +118,19 @@ class Node:
         data.pop('time', None)
         if 'difficulty' not in data and 'effort' in data:
             data['difficulty'] = data.pop('effort')
+        return cls(**data)
+
+
+@dataclass
+class Event:
+    """Represents an Event — an activation gate for dormant nodes."""
+    name: str
+    description: str = ""
+    status: str = "Pending"  # Pending | Triggered
+
+    def to_dict(self):
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data):
         return cls(**data)

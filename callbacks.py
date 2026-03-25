@@ -470,6 +470,11 @@ def register_callbacks(app):
         trigger_id = _get_trigger_id()
         msg = ""
 
+        # Check for any delayed event nodes that are due for activation
+        from event_manager import EventManager
+        _event_mgr = EventManager()
+        _event_mgr.check_pending_activations()
+
         filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types)
 
         # Editor Sidebar State (380px matches sidebar_content width in layout.py)
