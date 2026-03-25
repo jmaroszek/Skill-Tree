@@ -350,7 +350,7 @@ def register_callbacks(app):
         options = _node_options(all_nodes)
 
         def_out = [
-            "", "Learn", "", "None", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
+            "", "Learn", "", ConfigManager.get_contexts()[0] if ConfigManager.get_contexts() else "None", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
             [], [], [], [], [], [],
             options, options, options, options, options, options,
             "", "", "",
