@@ -1,5 +1,4 @@
 import sqlite3
-import json
 import os
 from pathlib import Path
 
@@ -54,84 +53,12 @@ def init_db():
         )
     ''')
 
-    # Migration
-    existing_cols = {row[1] for row in cursor.execute('PRAGMA table_info(Nodes)').fetchall()}
-    
-    if 'time' in existing_cols:
-        cursor.execute('ALTER TABLE Nodes RENAME COLUMN time TO time_m')
-        cursor.execute('ALTER TABLE Nodes RENAME COLUMN effort TO difficulty')
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN time_o REAL DEFAULT 1.0')
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN time_p REAL DEFAULT 1.0')
-        cursor.execute('UPDATE Nodes SET time_o = time_m, time_p = time_m')
-        
-    if 'obsidian_path' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN obsidian_path TEXT')
-        
-    if 'google_drive_path' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN google_drive_path TEXT')
-        
-    if 'subcontext' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN subcontext TEXT')
-
-    if 'frequency' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN frequency TEXT')
-    if 'session_lower' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN session_lower REAL')
-    if 'session_expected' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN session_expected REAL')
-    if 'session_upper' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN session_upper REAL')
-    if 'habit_status' not in existing_cols:
-        cursor.execute("ALTER TABLE Nodes ADD COLUMN habit_status TEXT DEFAULT 'Active'")
-    if 'progress' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN progress INTEGER DEFAULT 0')
-    if 'website' not in existing_cols:
-        cursor.execute('ALTER TABLE Nodes ADD COLUMN website TEXT')
-
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         )
     ''')
-
-    # Migrate Topic/Skill types to Learn
-    cursor.execute("UPDATE Nodes SET type='Learn' WHERE type IN ('Topic', 'Skill')")
-
-    # Migrate stored NODE_TYPES setting: replace Topic/Skill with Learn
-    cursor.execute("SELECT value FROM Settings WHERE key='NODE_TYPES'")
-    row = cursor.fetchone()
-    if row:
-        try:
-            types = json.loads(row[0])
-            old_types = set(types)
-            if 'Topic' in old_types or 'Skill' in old_types:
-                new_types = []
-                learn_added = False
-                for t in types:
-                    if t in ('Topic', 'Skill'):
-                        if not learn_added:
-                            new_types.append('Learn')
-                            learn_added = True
-                    else:
-                        new_types.append(t)
-                cursor.execute("UPDATE Settings SET value=? WHERE key='NODE_TYPES'", (json.dumps(new_types),))
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    # Migrate stored NODE_SHAPES setting: replace Topic/Skill keys with Learn
-    cursor.execute("SELECT value FROM Settings WHERE key='NODE_SHAPES'")
-    row = cursor.fetchone()
-    if row:
-        try:
-            shapes = json.loads(row[0])
-            if 'Topic' in shapes or 'Skill' in shapes:
-                shapes['Learn'] = shapes.pop('Topic', shapes.pop('Skill', 'ellipse'))
-                shapes.pop('Topic', None)
-                shapes.pop('Skill', None)
-                cursor.execute("UPDATE Settings SET value=? WHERE key='NODE_SHAPES'", (json.dumps(shapes),))
-        except (json.JSONDecodeError, TypeError):
-            pass
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Edges (
@@ -143,9 +70,33 @@ def init_db():
             FOREIGN KEY (target) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Events (
+            name TEXT PRIMARY KEY,
+            description TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'Pending'
+        )
+    ''')
 
-    # Edge migration for Needs -> Needs_Hard
-    cursor.execute("UPDATE Edges SET type='Needs_Hard' WHERE type='Needs'")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS EventNodes (
+            event_name TEXT NOT NULL,
+            node_name TEXT NOT NULL,
+            delay_days INTEGER NOT NULL DEFAULT 0,
+            activation_date TEXT,
+            activated INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (event_name, node_name),
+            FOREIGN KEY (event_name) REFERENCES Events(name) ON DELETE CASCADE,
+            FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
+        )
+    ''')
+
+    # Migration: add dormant column to Nodes if it doesn't exist
+    cursor.execute("PRAGMA table_info(Nodes)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if 'dormant' not in columns:
+        cursor.execute("ALTER TABLE Nodes ADD COLUMN dormant INTEGER NOT NULL DEFAULT 0")
+
     conn.commit()
     conn.close()
 

@@ -34,7 +34,7 @@ def mgr():
 def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
     """Helper to create a Node with sensible defaults using current field names."""
     defaults: dict[str, Any] = dict(
-        name=name, type="Topic", description="A test node",
+        name=name, type="Learn", description="A test node",
         value=5, time_o=1.0, time_m=2.0, time_p=4.0,
         interest=5, difficulty=5, status="Open", context="Mind"
     )
@@ -149,7 +149,7 @@ class TestNodeCRUD:
         result = mgr.get_node("Alpha")
         assert result is not None
         assert result.name == "Alpha"
-        assert result.type == "Topic"
+        assert result.type == "Learn"
 
     def test_add_duplicate_raises(self, mgr):
         mgr.add_node(_make_node("Alpha"))

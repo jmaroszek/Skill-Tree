@@ -26,7 +26,7 @@ def temp_database(monkeypatch, tmp_path):
 
 def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
     defaults: dict[str, Any] = dict(
-        name=name, type="Topic", description="A test node",
+        name=name, type="Learn", description="A test node",
         value=5, time_o=1.0, time_m=2.0, time_p=4.0,
         interest=5, difficulty=5, status="Open", context="Mind"
     )
@@ -112,8 +112,8 @@ class TestNodeOptions:
 class TestHandleSave:
     def test_creates_new_node(self):
         msg = _handle_save(
-            "NewNode", "Topic", "desc", 5, 1.0, 2.0, 4.0, 5, 5,
-            [], "Mind", None, None, None,
+            "NewNode", "Learn", "desc", 5, 1.0, 2.0, 4.0, 5, 5,
+            [], "Mind", None, None, None, None,
             [], [], [], [], [], []
         )
         assert "Added" in msg
@@ -122,8 +122,8 @@ class TestHandleSave:
     def test_updates_existing_node(self):
         manager.add_node(_make_node("Existing", value=3))
         msg = _handle_save(
-            "Existing", "Topic", "updated desc", 9, 1.0, 2.0, 4.0, 5, 5,
-            [], "Mind", None, None, None,
+            "Existing", "Learn", "updated desc", 9, 1.0, 2.0, 4.0, 5, 5,
+            [], "Mind", None, None, None, None,
             [], [], [], [], [], []
         )
         assert "Updated" in msg
@@ -133,8 +133,8 @@ class TestHandleSave:
         manager.add_node(_make_node("A"))
         manager.add_node(_make_node("B", status="Done"))
         msg = _handle_save(
-            "A", "Topic", "", 5, 1.0, 2.0, 4.0, 5, 5,
-            [], "Mind", None, None, None,
+            "A", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+            [], "Mind", None, None, None, None,
             ["B"], [], [], [], [], []  # B is a hard prereq of A
         )
         edges = manager.get_edges()
