@@ -30,6 +30,7 @@
         var dragging = false;
         var startY = 0;
         var startHeight = 0;
+        var ticking = false; // Prevents layout thrashing
 
         handle.addEventListener('mousedown', function (e) {
             e.preventDefault();
@@ -42,10 +43,18 @@
 
         document.addEventListener('mousemove', function (e) {
             if (!dragging) return;
-            var delta = startY - e.clientY;
-            var maxHeight = window.innerHeight * MAX_PANEL_RATIO;
-            var newHeight = Math.min(maxHeight, Math.max(MIN_PANEL_HEIGHT, startHeight + delta));
-            panel.style.height = newHeight + 'px';
+
+            // requestAnimationFrame syncs the DOM update to the monitor's refresh rate
+            if (!ticking) {
+                window.requestAnimationFrame(function () {
+                    var delta = startY - e.clientY;
+                    var maxHeight = window.innerHeight * MAX_PANEL_RATIO;
+                    var newHeight = Math.min(maxHeight, Math.max(MIN_PANEL_HEIGHT, startHeight + delta));
+                    panel.style.height = newHeight + 'px';
+                    ticking = false;
+                });
+                ticking = true;
+            }
         });
 
         document.addEventListener('mouseup', function () {

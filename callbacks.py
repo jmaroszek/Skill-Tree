@@ -31,6 +31,54 @@ def _node_options(nodes, exclude=None):
     """Build dropdown options from a list of nodes, optionally excluding one by name."""
     return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]
 
+
+def _spawn_local_file_picker(initial_dir, title, filetypes_list):
+    """Helper to launch a non-blocking Windows file picker via a temporary Python script."""
+    import tempfile
+    import sys
+    import subprocess
+    import os
+    
+    # Format the filetypes list as a string to inject into the script
+    filetypes_str = str(filetypes_list)
+    
+    script = f'''import tkinter as tk
+from tkinter import filedialog
+import ctypes
+
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except Exception:
+    pass
+
+root = tk.Tk()
+root.withdraw()
+root.attributes('-topmost', True)
+
+abs_path = filedialog.askopenfilename(
+    initialdir=r"{initial_dir}",
+    title="{title}",
+    filetypes={filetypes_str}
+)
+
+if abs_path:
+    print(os.path.normpath(abs_path), end="")
+'''
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write(script)
+            tmp_path = f.name
+            
+        result = subprocess.run([sys.executable, tmp_path], capture_output=True, text=True)
+        os.remove(tmp_path)
+        
+        return result.stdout.strip()
+        
+    except Exception as e:
+        logger.error(f"Error launching file picker: {e}")
+        return ""
+
+
 def generate_elements(filters=None, active_node_id=None, community_names=None):
     """Convert nodes and edges from the database into Cytoscape-compatible element dicts."""
     if filters is None: filters = {}
@@ -806,7 +854,8 @@ def register_callbacks(app):
                 for old_val, node_names in val_map.items():
                     orphans_for_ui[field][old_val] = [type('N', (), {'name': n})() for n in node_names]
 
-        return True, children, mapping
+            children, mapping = build_migration_content(orphans_for_ui, new_values)
+            return True, children, mapping
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             # Save the pending settings
@@ -862,56 +911,25 @@ def register_callbacks(app):
     def handle_obsidian_browse(n_clicks):
         if not n_clicks:
             return dash.no_update
+        
         vault = ConfigManager.get_obsidian_vault()
-        try:
-            import tempfile
-            import sys
-            
-            script = f'''import tkinter as tk
-            from tkinter import filedialog
-            import os
-            import ctypes
-
-            try:
-                ctypes.windll.shcore.SetProcessDpiAwareness(1)
-            except Exception:
-                pass
-
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-
-            abs_path = filedialog.askopenfilename(
-                initialdir=r"{vault}",
-                title="Select Obsidian File",
-                filetypes=[("Markdown files", "*.md"), ("All files", "*.*")]
-            )
-
-            if abs_path:
-                print(os.path.normpath(abs_path), end="")
-            '''
-            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-                f.write(script)
-                tmp_path = f.name
-                
-            result = subprocess.run([sys.executable, tmp_path], capture_output=True, text=True)
-            os.remove(tmp_path)
-            
-            abs_path = result.stdout.strip()
-            
-            if not abs_path:
-                return dash.no_update
-
-            vault_norm = os.path.normpath(vault)
-            if abs_path.startswith(vault_norm):
-                rel = abs_path[len(vault_norm):].lstrip(os.sep)
-            else:
-                rel = abs_path
-                
-            return rel
-        except Exception as e:
-            logger.error(f"Error browsing obsidian: {e}")
+        abs_path = _spawn_local_file_picker(
+            initial_dir=vault,
+            title="Select Obsidian File",
+            filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")]
+        )
+        
+        if not abs_path:
             return dash.no_update
+
+        import os
+        vault_norm = os.path.normpath(vault)
+        if abs_path.startswith(vault_norm):
+            rel = abs_path[len(vault_norm):].lstrip(os.sep)
+        else:
+            rel = abs_path
+            
+        return rel
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -935,12 +953,33 @@ def register_callbacks(app):
         except Exception as e:
             return f"Error opening Obsidian: {str(e)}"
 
+    # --- Google Drive Integration Callbacks ---
+    @app.callback(
+        Output('node-google-drive-path', 'value', allow_duplicate=True),
+        Input('btn-drive-browse', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def handle_drive_browse(n_clicks):
+        if not n_clicks:
+            return dash.no_update
+        
+        abs_path = _spawn_local_file_picker(
+            initial_dir=r"G:\\My Drive",
+            title="Select Google Drive File",
+            filetypes_list=[("All files", "*.*")]
+        )
+        
+        if not abs_path:
+            return dash.no_update
+            
+        return abs_path
+
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
         [Input('btn-drive-open', 'n_clicks'),
-         Input('btn-website-open', 'n_clicks')],
+        Input('btn-website-open', 'n_clicks')],
         [State('node-google-drive-path', 'value'),
-         State('node-website-path', 'value')],
+        State('node-website-path', 'value')],
         prevent_initial_call=True
     )
     def handle_external_links(drive_clicks, web_clicks, drive_path, web_path):
@@ -948,7 +987,6 @@ def register_callbacks(app):
         if not trigger_id:
             return dash.no_update
         
-        # Grab the correct URL based on the button clicked
         url = None
         if trigger_id == 'btn-drive-open' and drive_path:
             url = drive_path.strip()
@@ -956,18 +994,28 @@ def register_callbacks(app):
             url = web_path.strip()
             
         if not url:
-            return "No URL set for this specific link."
+            return "No URL/Path set for this specific link."
             
-        # Ensure it has a protocol so it doesn't route internally
-        if not url.startswith('http://') and not url.startswith('https://'):
-            url = 'https://' + url
-            
+        import os
         import webbrowser
-        try:
-            webbrowser.open_new_tab(url)
-            return dash.no_update
-        except Exception as e:
-            return f"Error opening URL: {str(e)}"
+
+        # 1. Check if it is a local file path
+        if os.path.exists(url) or url.startswith(('G:\\', 'C:\\', 'D:\\', '\\\\')):
+            try:
+                os.startfile(url) # Native Windows file execution
+                return dash.no_update
+            except Exception as e:
+                return f"Error opening local file: {str(e)}"
+                
+        # 2. Otherwise, treat it as a web URL
+        else:
+            if not url.startswith('http://') and not url.startswith('https://'):
+                url = 'https://' + url
+            try:
+                webbrowser.open_new_tab(url)
+                return dash.no_update
+            except Exception as e:
+                return f"Error opening URL: {str(e)}"
 
 
     # --- Suggestion Row Selection ---
@@ -982,5 +1030,3 @@ def register_callbacks(app):
         if trigger_id and isinstance(trigger_id, dict) and 'index' in trigger_id:
             return trigger_id['index']
         return dash.no_update
-
-

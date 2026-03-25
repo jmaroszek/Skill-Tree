@@ -220,7 +220,8 @@ sidebar_content = html.Div(
             
             dbc.Label("Google Drive", className="mt-2"),
             html.Div([
-                dbc.Input(id="node-google-drive-path", type="text", placeholder="Link to Drive file", className="me-1", style={"flex": "1"}),
+                dbc.Input(id="node-google-drive-path", type="text", placeholder="Local Drive path or URL", className="me-1", style={"flex": "1"}),
+                dbc.Button("📁", id="btn-drive-browse", color="secondary", size="sm", title="Browse Drive", className="me-1"),
                 dbc.Button("🔗", id="btn-drive-open", color="outline-info", size="sm", title="Open in Drive"),
             ], className="d-flex"),
 
@@ -268,8 +269,8 @@ def create_graph_view(initial_elements):
                 className="btn btn-outline-light btn-sm btn-fullscreen-toggle",
                 title="Toggle fullscreen"
             ),
-        ], id="canvas-container", className="canvas-container h-100"),
-    ], className="h-100")
+        ], id="canvas-container", className="canvas-container h-100", style={"overflow": "hidden", "borderRadius": "8px"}),
+    ], className="h-100", style={"overflow": "hidden"})
 
 
 
@@ -683,13 +684,32 @@ def build_app_layout(initial_elements, env="production"):
                     ], className="py-3 px-3 mb-2 align-items-center m-0", style={"borderBottom": "1px solid #495057", "width": "100%"}),
 
                     # Canvas Container
-                    html.Div([create_graph_view(initial_elements)], className="flex-grow-1 px-3 mt-2", style={"position": "relative", "minHeight": "200px"}),
+                    html.Div(
+                        [create_graph_view(initial_elements)], 
+                        className="flex-grow-1 px-3 mt-2", 
+                        style={
+                            "flexBasis": "750px", 
+                            "minHeight": "200px", 
+                            "position": "relative", 
+                            "overflow": "hidden" 
+                        }
+                    ),
 
                     # Resize Handle
                     html.Div(id="resize-handle"),
 
                     # Bottom panel
-                    html.Div([bottom_panel], id="bottom-panel-container", className="px-3 pb-2", style={"height": "35vh", "minHeight": "150px", "overflowY": "auto"})
+                    html.Div(
+                        [bottom_panel], 
+                        id="bottom-panel-container", 
+                        className="px-3 pb-2", 
+                        style={
+                            "height": "35vh", 
+                            "minHeight": "150px", 
+                            "overflowY": "auto",
+                            "flexShrink": 0  # Forces the panel to perfectly match the mouse pixel height
+                        }
+                    )
                 ]
             ),
 
