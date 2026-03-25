@@ -4,7 +4,6 @@ Callback definitions for the Events tab.
 
 import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update
-import dash_bootstrap_components as dbc
 from event_manager import EventManager
 from graph_manager import GraphManager
 from config import ConfigManager
@@ -20,6 +19,7 @@ def register_event_callbacks(app):
     # --- Tab Visibility Toggle ---
     @app.callback(
         Output("canvas-tab-content", "style"),
+        Output("suggestions-tab-content", "style"),
         Output("events-tab-content", "style"),
         Input("main-tabs", "active_tab"),
     )
@@ -28,10 +28,14 @@ def register_event_callbacks(app):
         canvas_style = {**base,
                         "display": "flex" if active_tab == "tab-canvas" else "none",
                         "visibility": "visible" if active_tab == "tab-canvas" else "hidden"}
+        suggestions_style = {**base,
+                             "overflow": "auto",
+                             "display": "block" if active_tab == "tab-suggestions" else "none",
+                             "visibility": "visible" if active_tab == "tab-suggestions" else "hidden"}
         events_style = {**base,
                         "display": "flex" if active_tab == "tab-events" else "none",
                         "visibility": "visible" if active_tab == "tab-events" else "hidden"}
-        return canvas_style, events_style
+        return canvas_style, suggestions_style, events_style
 
     # --- Events List Rendering ---
     @app.callback(

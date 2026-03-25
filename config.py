@@ -9,6 +9,8 @@ DEFAULT_NODE_TYPES = ["Learn", "Goal", "Habit", "Resource"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
 DEFAULT_SUBCONTEXTS = {}
 
+DEFAULT_DANGER_COLOR = '#c94c4c' # Tamed red for a calmer dark mode
+
 DEFAULT_NODE_COLORS = {
     'Blocked': '#dc3545',
     'Open': '#0d6efd',
@@ -143,3 +145,9 @@ class ConfigManager:
             if t not in shapes:
                 shapes[t] = 'rectangle'
         cls.set_node_shapes(shapes)
+
+    @classmethod
+    def get_danger_color(cls):
+        """Returns the tamed danger/red color."""
+        return DEFAULT_DANGER_COLOR
+

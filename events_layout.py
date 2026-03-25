@@ -4,6 +4,7 @@ Layout definitions for the Events tab.
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
+from config import ConfigManager
 
 
 def build_events_tab_content():
@@ -14,7 +15,7 @@ def build_events_tab_content():
         html.Div([
             html.H4("Events", className="mb-0"),
             dbc.Button("+ New Event", id="btn-new-event", color="success", size="sm"),
-        ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
+        ], className="d-flex justify-content-between align-items-center mb-3 mt-3"),
         html.Div(id="events-list-container", style={"overflowY": "auto", "flex": "1"}),
     ], style={
         "width": "350px",
@@ -48,7 +49,7 @@ def build_events_tab_content():
             dbc.Label("Interest", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-interest"),
 
-            dbc.Label("Difficulty", className="mt-2"),
+            dbc.Label("Effort", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-difficulty"),
 
             dbc.Label("Time Estimates in Hours", className="mt-3"),
@@ -106,15 +107,14 @@ def build_events_tab_content():
                 ], style={"flex": "1"}),
                 dbc.Badge(id="event-status-badge", children="Pending", color="primary",
                           className="ms-3 align-self-center", style={"fontSize": "0.85rem"}),
-            ], className="d-flex align-items-end mb-3 mt-2"),
+            ], className="d-flex align-items-end mb-3 mt-3"),
 
-            dbc.Label("Description", className="mt-1"),
-            dbc.Textarea(id="event-description", rows=2, style={"resize": "vertical"}),
+            html.H5("Description", className="mb-2 mt-1"),
+            dbc.Textarea(id="event-description", rows=2, style={"height": "120px", "resize": "vertical"}),
 
             html.Div([
                 html.Div(id="event-save-status", className="text-success flex-grow-1 align-self-center"),
-                dbc.Button("Delete Event", id="btn-event-delete", color="danger", size="sm", className="me-2"),
-                dbc.Button("Save Event", id="btn-event-save", color="primary", size="sm"),
+                dbc.Button("Save", id="btn-event-save", color="primary", size="sm"),
             ], className="d-flex justify-content-end mt-2"),
 
             html.Hr(className="my-3"),
@@ -131,9 +131,8 @@ def build_events_tab_content():
 
             # Trigger Section
             html.Div(id="event-trigger-section", children=[
-                html.Small("Activating an event will promote its dormant nodes to the active canvas.",
-                           className="text-muted align-self-center"),
-                dbc.Button("Trigger Event", id="btn-trigger-event", color="success", className="ms-2"),
+                dbc.Button("Delete", id="btn-event-delete", color="danger", size="sm", className="me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
+                dbc.Button("Trigger", id="btn-trigger-event", color="success", size="sm"),
             ], className="d-flex align-items-center justify-content-end"),
 
             dbc.Modal([
@@ -147,7 +146,7 @@ def build_events_tab_content():
                 dbc.ModalBody("Are you sure you want to delete this event? This will also delete all its dormant nodes."),
                 dbc.ModalFooter([
                     dbc.Button("Cancel", id="btn-delete-cancel", color="secondary", className="me-2"),
-                    dbc.Button("Delete", id="btn-delete-confirm", color="danger"),
+                    dbc.Button("Delete", id="btn-delete-confirm", color="danger", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
                 ]),
             ], id="modal-confirm-delete", is_open=False, centered=True),
         ]),
