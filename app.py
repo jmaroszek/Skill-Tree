@@ -7,7 +7,8 @@ import dash_bootstrap_components as dbc
 from layout import build_app_layout
 from callbacks import generate_elements, register_callbacks
 from event_callbacks import register_event_callbacks
-from config import ENVIRONMENT
+from goal_callbacks import register_goal_callbacks
+from config import ENVIRONMENT, ConfigManager
 import ctypes
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s: %(message)s')
@@ -18,11 +19,13 @@ try:
 except Exception:
     pass
 
+ConfigManager.ensure_action_type()
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
 app.layout = build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)
 register_callbacks(app)
 register_event_callbacks(app)
+register_goal_callbacks(app)
 
 @app.server.route('/open-obsidian')
 def open_obsidian_route():

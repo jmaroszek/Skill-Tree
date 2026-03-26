@@ -126,20 +126,21 @@ def get_suggestions(filters=None, count=5):
     if filters is None: filters = {}
     nodes = manager.get_all_nodes()
     filtered_nodes = manager.filter_nodes(nodes, filters)
-    scored = manager.calculate_priority_scores(filtered_nodes)
+    priority_goals = ConfigManager.get_priority_goals()
+    scored = manager.calculate_priority_scores(filtered_nodes, priority_goals=priority_goals)
     valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
     return valid[:count]
 
 
-def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_time=None, f_difficulty="All", f_node_types=None):
+def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_time=None, f_difficulty="All", f_node_types=None, f_goal=None):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
     if f_context and f_context != "All":
         filters['context'] = f_context if f_context != "None" else None
     if f_subcontext and f_subcontext != "All" and f_subcontext.strip():
         filters['subcontext'] = f_subcontext.strip()
-    if f_node_types:
-        filters['node_types'] = f_node_types
+    if f_node_types and f_node_types != "All":
+        filters['node_types'] = [f_node_types]
     if f_done and "hide_done" in f_done:
         filters['hide_done'] = True
     if f_value and f_value > 1:
@@ -152,6 +153,8 @@ def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_t
     if f_difficulty and f_difficulty != "All":
         try: filters['max_difficulty'] = int(f_difficulty)
         except (ValueError, TypeError): pass
+    if f_goal and f_goal != "All":
+        filters['goal'] = f_goal
     return filters
 
 
@@ -264,7 +267,7 @@ def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff
         name=name, type=n_type, description=desc or "",
         value=val, time_o=time_o or 0, time_m=time_m or 0, time_p=time_p or 0,
         interest=interest, difficulty=diff,
-        status=target_status, context=context, subcontext=(subctx or '').strip() or None,
+        status=target_status, context=context or None, subcontext=(subctx or '').strip() or None,
         obsidian_path=(obs_path or '').strip() or None,
         google_drive_path=(drive_path or '').strip() or None,
         website=(website_path or '').strip() or None,
@@ -398,7 +401,7 @@ def register_callbacks(app):
         options = _node_options(all_nodes)
 
         def_out = [
-            "", "Learn", "", ConfigManager.get_contexts()[0] if ConfigManager.get_contexts() else "None", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
+            "", "Learn", "", "", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
             [], [], [], [], [], [],
             options, options, options, options, options, options,
             "", "", "",
@@ -447,7 +450,7 @@ def register_callbacks(app):
 
         return [
             name, data.get('type'), data.get('description'),
-            data.get('context'), data.get('subcontext', ''),
+            data.get('context') or '', data.get('subcontext') or '',
             data.get('value', 5), data.get('interest', 5), data.get('difficulty', 5),
             data.get('time_o', 1.0), data.get('time_m', 1.0), data.get('time_p', 1.0),
             actual_status, done_val,
@@ -478,8 +481,28 @@ def register_callbacks(app):
             return hide, hide, show, hide
         elif node_type == 'Resource':
             return show, show, hide, show
-        else:  # Learn, Goal
+        elif node_type == 'Goal':
+            return show, hide, hide, hide
+        else:  # Learn, Action
             return show, show, hide, hide
+
+    # --- Priority Badge in Node Editor ---
+    @app.callback(
+        Output('node-priority-badge', 'children'),
+        Output('node-priority-badge', 'style'),
+        Input('node-name', 'value'),
+        Input('node-type', 'value'),
+    )
+    def update_node_priority_badge(node_name, node_type):
+        hidden = {"display": "none", "fontSize": "0.75rem"}
+        visible = {"display": "inline-block", "fontSize": "0.75rem"}
+        if not node_name or node_type != "Goal":
+            return "", hidden
+        priority_goals = ConfigManager.get_priority_goals()
+        if node_name in priority_goals:
+            rank = priority_goals.index(node_name) + 1
+            return f"#{rank} Priority", visible
+        return "", hidden
 
     # --- Core State: Save, Delete, Render ---
     @app.callback(
@@ -491,7 +514,10 @@ def register_callbacks(app):
          Output('sidebar-editor-container', 'style'), Output('sidebar-filters-container', 'style'),
          Output('filter-context', 'options'), Output('node-context', 'options'),
          Output('node-type', 'options'),
-         Output('filter-node-type', 'options')],
+         Output('filter-node-type', 'options'),
+         Output('filter-goal', 'options'),
+         Output('cytoscape-graph', 'stylesheet'),
+         Output('btn-clear-focus', 'style')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -509,7 +535,9 @@ def register_callbacks(app):
          Input('btn-toggle-done-node', 'n_clicks'),
          Input('group-delete-input', 'value'),
          Input('filter-node-type', 'value'),
-         Input('selected-suggestion-store', 'data')],
+         Input('selected-suggestion-store', 'data'),
+         Input('filter-goal', 'value'),
+         Input('focus-goal-store', 'data')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -532,6 +560,7 @@ def register_callbacks(app):
                      btn_edit, btn_add, btn_close_ed, btn_filters, btn_sugg_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
+                     f_goal, focus_goal,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
@@ -548,12 +577,13 @@ def register_callbacks(app):
         trigger_id = _get_trigger_id()
         msg = ""
 
-        # Check for any delayed event nodes that are due for activation
+        # Check for any delayed event nodes or scheduled events that are due
         from event_manager import EventManager
         _event_mgr = EventManager()
         _event_mgr.check_pending_activations()
+        _event_mgr.check_scheduled_triggers()
 
-        filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types)
+        filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_goal=f_goal)
 
         # Editor Sidebar State (380px matches sidebar_content width in layout.py)
         next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
@@ -585,7 +615,7 @@ def register_callbacks(app):
                                    habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             except Exception as e:
                 msg = str(e)
 
@@ -634,15 +664,45 @@ def register_callbacks(app):
         # Populate dynamic contexts datalists from DB + Config preserving defined order
         base_ctx = ConfigManager.get_contexts()
         
-        ctx_list = [{"label": c, "value": c} for c in base_ctx]
-        f_ctx_list = [{"label": "All", "value": "All"}] + ctx_list
+        ctx_list = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in base_ctx]
+        f_ctx_list = [{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in base_ctx]
 
         base_types = ConfigManager.get_node_types()
         type_list = [{"label": t, "value": t} for t in base_types]
 
-        f_type_list = [{"label": t, "value": t} for t in base_types]
+        f_type_list = [{"label": "All", "value": "All"}] + [{"label": t, "value": t} for t in base_types]
 
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list
+        # Goal filter options (dbc.Select — needs "All" option first)
+        goal_nodes = [n for n in all_nodes if n.type == "Goal"]
+        goal_opts = [{"label": "All", "value": "All"}] + [{"label": g.name, "value": g.name} for g in goal_nodes]
+
+        # Focus mode stylesheet: highlight subtree, dim others
+        from layout import stylesheet as base_stylesheet
+        active_stylesheet = list(base_stylesheet)
+        if focus_goal:
+            focus_subtree = manager.get_goal_subtree(focus_goal)
+            focus_subtree.add(focus_goal)
+            active_stylesheet.append({
+                'selector': 'node',
+                'style': {'opacity': 0.15}
+            })
+            active_stylesheet.append({
+                'selector': 'edge',
+                'style': {'opacity': 0.08}
+            })
+            for node_name in focus_subtree:
+                safe_id = node_name.replace("'", "\\'")
+                active_stylesheet.append({
+                    'selector': f'node[id = "{safe_id}"]',
+                    'style': {'opacity': 1}
+                })
+            active_stylesheet.append({
+                'selector': 'node:selected',
+                'style': {'opacity': 1}
+            })
+
+        clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
+        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -659,9 +719,11 @@ def register_callbacks(app):
         Input('node-context', 'value')
     )
     def update_node_subcontexts(ctx):
-        if not ctx or ctx == "None": return []
+        base = [{"label": "None", "value": ""}]
+        if not ctx:
+            return base
         subs = ConfigManager.get_subcontexts().get(ctx, [])
-        return [{"label": s, "value": s} for s in subs]
+        return base + [{"label": s, "value": s} for s in subs]
 
     @app.callback(
         Output('filter-subcontext', 'options'),
@@ -692,6 +754,7 @@ def register_callbacks(app):
     # --- Settings Modal ---
     @app.callback(
         Output('modal-settings', 'is_open'),
+        Output('settings-modal-tabs', 'active_tab'),
         [Output('hp-wv', 'value'), Output('hp-wi', 'value'),
          Output('hp-dh', 'value'), Output('hp-ds', 'value'), Output('hp-dsyn', 'value'),
          Output('hp-we', 'value'), Output('hp-wt', 'value'), Output('hp-beta', 'value'),
@@ -718,10 +781,11 @@ def register_callbacks(app):
     def manage_settings_modal(open_cm, open_sugg_cm, cancel_cm, save_cm, profile_val,
                               wv, wi, dh, ds, dsyn, we, wt, beta, n_types_val, contexts_val, subcontexts_val, obs_path):
         trigger_id = _get_trigger_id()
-        NO_UPDATE_14 = (dash.no_update,) * 14
+        NO_UPDATE_15 = (dash.no_update,) * 15
         NO_PENDING = dash.no_update
 
         if trigger_id in ('btn-settings-toggle', 'btn-suggestions-settings-toggle'):
+            active_tab = 'tab-algorithm' if trigger_id == 'btn-suggestions-settings-toggle' else 'tab-nodes'
             # Load stored config
             hp = ConfigManager.get_hyperparams()
             obs = ConfigManager.get_obsidian_vault()
@@ -733,14 +797,14 @@ def register_callbacks(app):
                 if v:
                     subctxts_lines.append(f"{k}: {', '.join(v)}")
             subctxts = "\n".join(subctxts_lines)
-            return True, hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'), hp.get('w_e'), hp.get('w_t'), hp.get('beta'), ntypes, ctxts, subctxts, "Custom", obs, NO_PENDING
+            return True, active_tab, hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'), hp.get('w_e'), hp.get('w_t'), hp.get('beta'), ntypes, ctxts, subctxts, "Custom", obs, NO_PENDING
 
         if trigger_id == 'setting-hp-profile':
             from config import PROFILES
             if profile_val in PROFILES:
                 p = PROFILES[profile_val]
-                return True, p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'], p['w_e'], p['w_t'], p['beta'], dash.no_update, dash.no_update, dash.no_update, profile_val, dash.no_update, NO_PENDING
-            return (*NO_UPDATE_14, NO_PENDING)
+                return True, dash.no_update, p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'], p['w_e'], p['w_t'], p['beta'], dash.no_update, dash.no_update, dash.no_update, profile_val, dash.no_update, NO_PENDING
+            return (*NO_UPDATE_15, NO_PENDING)
 
         if trigger_id == 'btn-settings-save':
             try:
@@ -803,7 +867,7 @@ def register_callbacks(app):
                             'subcontext': new_sub_flat,
                         }
                     }
-                    return False, *(dash.no_update,) * 13, pending
+                    return False, dash.no_update, *(dash.no_update,) * 13, pending
 
                 # No orphans — save immediately
                 ConfigManager.set_hyperparams(new_hp)
@@ -817,12 +881,12 @@ def register_callbacks(app):
 
             except Exception:
                 logger.exception("Failed to save settings")
-            return False, *(dash.no_update,) * 13, NO_PENDING
+            return False, dash.no_update, *(dash.no_update,) * 13, NO_PENDING
 
         if trigger_id == 'btn-settings-cancel':
-            return False, *(dash.no_update,) * 13, NO_PENDING
+            return False, dash.no_update, *(dash.no_update,) * 13, NO_PENDING
 
-        return (*NO_UPDATE_14, NO_PENDING)
+        return (*NO_UPDATE_15, NO_PENDING)
 
     # --- Migration Modal ---
     @app.callback(

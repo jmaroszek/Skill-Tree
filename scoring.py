@@ -93,9 +93,25 @@ def total_value(
     return iv + nv
 
 
+def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
+    """BFS over Hard_in to find all prerequisite descendants of a goal."""
+    visited = set()
+    queue = list(Hard_in.get(goal_name, []))
+    while queue:
+        node = queue.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        for prereq in Hard_in.get(node, []):
+            if prereq not in visited:
+                queue.append(prereq)
+    return visited
+
+
 def score_nodes(
     active_nodes: List[Node], all_nodes: List[Node],
-    edges: List[Dict], hyperparams: dict
+    edges: List[Dict], hyperparams: dict,
+    priority_goals: List[str] = None
 ) -> List[Node]:
     """Scores active nodes by priority (TV / Cost) and returns them sorted descending."""
     w_v = hyperparams.get('w_v', 1.0)
@@ -106,13 +122,31 @@ def score_nodes(
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
+    goal_boost = hyperparams.get('goal_boost', 1.5)
 
     all_nodes_dict = {n.name: n for n in all_nodes}
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
 
+    # Pre-compute per-node boost from ranked priority goals
+    # Index 0 = rank 1 (full boost), index 1 = rank 2 (66%), index 2 = rank 3 (33%)
+    rank_multipliers = [
+        goal_boost,
+        1 + (goal_boost - 1) * 0.66,
+        1 + (goal_boost - 1) * 0.33,
+    ]
+    node_to_boost = {}
+    if priority_goals:
+        for rank_idx, g in enumerate(priority_goals[:3]):
+            multiplier = rank_multipliers[rank_idx]
+            subtree = _get_goal_subtree_from_adjacency(g, Hard_in)
+            for n in subtree:
+                # Highest rank wins if node appears in multiple goal subtrees
+                if n not in node_to_boost or multiplier > node_to_boost[n]:
+                    node_to_boost[n] = multiplier
+
     scored_nodes = []
     for node in active_nodes:
-        if node.type == 'Habit':
+        if node.type in ('Habit', 'Goal'):
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue
@@ -129,7 +163,13 @@ def score_nodes(
 
         cost = perceived_cost(node, w_e, w_t, beta)
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn)
-        node.priority_score = round(tv / cost, 2)
+        score = round(tv / cost, 2)
+
+        # Apply ranked priority goal boost (highest rank wins)
+        if node.name in node_to_boost:
+            score = round(score * node_to_boost[node.name], 2)
+
+        node.priority_score = score
         scored_nodes.append(node)
 
     return sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1.0), reverse=True)
