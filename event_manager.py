@@ -180,8 +180,12 @@ class EventManager:
 
     # --- Activation ---
 
-    def trigger_event(self, event_name: str) -> Dict[str, list]:
-        """Triggers an event, activating immediate nodes and scheduling delayed ones.
+    def trigger_event(self, event_name: str, selected_nodes: list = None) -> Dict[str, list]:
+        """Triggers an event, activating selected immediate nodes and scheduling delayed ones.
+
+        Args:
+            event_name: The event to trigger.
+            selected_nodes: Optional list of node names to activate. If None, activates all.
 
         Returns dict with 'activated' (immediate) and 'scheduled' (delayed) node names.
         """
@@ -207,6 +211,10 @@ class EventManager:
             rows = cursor.fetchall()
 
             for node_name, delay_days in rows:
+                # Skip if node is not in the selected set
+                if selected_nodes is not None and node_name not in selected_nodes:
+                    continue
+
                 if delay_days == 0:
                     # Immediate activation
                     cursor.execute("UPDATE Nodes SET dormant=0 WHERE name=?", (node_name,))
@@ -265,6 +273,26 @@ class EventManager:
             gm._update_node_state(node_name)
 
         return activated
+
+    def check_scheduled_triggers(self) -> List[str]:
+        """Auto-triggers events whose trigger_date has arrived.
+
+        Returns list of triggered event names.
+        """
+        today = date.today().isoformat()
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM Events WHERE trigger_date IS NOT NULL "
+                "AND trigger_date <= ? AND status = 'Pending'", (today,)
+            )
+            due = [row[0] for row in cursor.fetchall()]
+
+        triggered = []
+        for name in due:
+            self.trigger_event(name)
+            triggered.append(name)
+        return triggered
 
     # --- Convenience ---
 

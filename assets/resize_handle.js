@@ -17,9 +17,9 @@
             return;
         }
 
-        // Target canvas height tuned for 1080p displays; the bottom panel
-        // gets whatever vertical space remains after toolbar + handle.
-        var TARGET_CANVAS_HEIGHT = 724;
+        // Target canvas height — set CANVAS_HEIGHT in config.py to adjust.
+        var configEl = document.getElementById('canvas-height-config');
+        var TARGET_CANVAS_HEIGHT = configEl ? parseInt(configEl.dataset.height, 10) : 760;
         var siblings = Array.from(handle.parentElement.children);
         var otherHeight = siblings
             .filter(function (el) { return el !== panel && !el.classList.contains('flex-grow-1'); })

@@ -232,11 +232,12 @@ class GraphManager:
 
     # --- Logic ---
 
-    def calculate_priority_scores(self, active_nodes: List[Node]) -> List[Node]:
+    def calculate_priority_scores(self, active_nodes: List[Node], priority_goals: List[str] = None) -> List[Node]:
         """Delegates scoring to the scoring module."""
         return score_nodes(
             active_nodes, self.get_all_nodes(),
-            self.get_edges(), ConfigManager.get_hyperparams()
+            self.get_edges(), ConfigManager.get_hyperparams(),
+            priority_goals=priority_goals
         )
 
     def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
@@ -248,6 +249,55 @@ class GraphManager:
                 WHERE source=? AND Edges.type='Needs_Hard' AND Nodes.status='Blocked'
             ''', (node_name,))
             return [row[0] for row in cursor.fetchall()]
+
+    def get_goal_subtree(self, goal_name: str) -> Set[str]:
+        """Returns all node names reachable as prerequisites of a goal (BFS over Hard/Soft edges).
+
+        The goal node itself is excluded from the returned set.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            visited = set()
+            queue = []
+            # Seed with direct prerequisites of the goal
+            cursor.execute(
+                "SELECT source FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')",
+                (goal_name,)
+            )
+            queue = [row[0] for row in cursor.fetchall()]
+
+            while queue:
+                node = queue.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                cursor.execute(
+                    "SELECT source FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')",
+                    (node,)
+                )
+                for row in cursor.fetchall():
+                    if row[0] not in visited:
+                        queue.append(row[0])
+
+        return visited
+
+    def get_goal_completion(self, goal_name: str) -> dict:
+        """Returns completion stats for a goal based on its subtree.
+
+        Returns dict with: total, done, pct, remaining_time
+        """
+        subtree = self.get_goal_subtree(goal_name)
+        if not subtree:
+            return {"total": 0, "done": 0, "pct": 0, "remaining_time": 0.0}
+
+        nodes = [self.get_node(name) for name in subtree]
+        nodes = [n for n in nodes if n is not None]
+        total = len(nodes)
+        done = sum(1 for n in nodes if n.status == "Done")
+        remaining_time = sum(n.time for n in nodes if n.status != "Done")
+        pct = round(done / total * 100) if total > 0 else 0
+
+        return {"total": total, "done": done, "pct": pct, "remaining_time": round(remaining_time, 1)}
 
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         result = nodes
@@ -279,6 +329,11 @@ class GraphManager:
         if 'search' in filters and filters['search']:
             search_val = filters['search'].lower()
             result = [n for n in result if search_val in n.name.lower()]
+
+        if 'goal' in filters and filters['goal']:
+            subtree = self.get_goal_subtree(filters['goal'])
+            subtree.add(filters['goal'])  # include the goal node itself
+            result = [n for n in result if n.name in subtree]
 
         return result
 

@@ -6,8 +6,9 @@ Contains all UI component definitions and the Cytoscape stylesheet.
 from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
-from config import ConfigManager
+from config import ConfigManager, CANVAS_HEIGHT
 from events_layout import build_events_tab_content
+from goals_layout import build_goals_tab_content
 
 # Read initial config values (lightweight DB reads, no GraphManager needed).
 # These are only used for the initial render; core_engine refreshes them dynamically.
@@ -110,7 +111,7 @@ sidebar_content = html.Div(
 
             dbc.Label("Context", className="mt-2"),
             html.Div([
-                dbc.Select(id="node-context", options=[{"label": c, "value": c} for c in CONTEXTS], value=CONTEXTS[0] if CONTEXTS else None, style={'flex': 1}),
+                dbc.Select(id="node-context", options=[{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in CONTEXTS], value="", style={'flex': 1}),
                 dbc.Button("▾", id="btn-subcontext-toggle", color="light", className="ms-1 px-2")
             ], className="d-flex"),
             dbc.Collapse(dbc.Select(id="node-subcontext", options=[], className="mt-1"), id="collapse-subcontext", is_open=False),
@@ -122,13 +123,18 @@ sidebar_content = html.Div(
 
             # --- Section: Done toggle + Time Estimates (Learn, Goal, Resource) ---
             html.Div(id="section-done-time", children=[
-                dbc.Checklist(
-                    options=[{"label": "Done", "value": "Done"}],
-                    value=[],
-                    id="node-status-done",
-                    switch=True,
-                    className="mt-3",
-                ),
+                html.Div([
+                    dbc.Checklist(
+                        options=[{"label": "Done", "value": "Done"}],
+                        value=[],
+                        id="node-status-done",
+                        switch=True,
+                        className="mt-3",
+                    ),
+                    dbc.Badge(id="node-priority-badge", children="", color="warning",
+                              className="ms-2 mt-3 align-self-start",
+                              style={"display": "none", "fontSize": "0.75rem"}),
+                ], className="d-flex align-items-start"),
             ]),
 
             # --- Section: Resource-specific (progress slider) ---
@@ -183,9 +189,9 @@ sidebar_content = html.Div(
                 html.Hr(),
                 html.H5("Time Estimates in Hours", className="mt-2 mb-1"),
                 dbc.Row([
-                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
-                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
                     dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
                 ]),
             ]),
             
@@ -215,20 +221,20 @@ sidebar_content = html.Div(
             html.Div([
                 dbc.Input(id="node-obsidian-path", type="text", placeholder="Link to Obsidian file", className="me-1", style={"flex": "1"}),
                 dbc.Button("📁", id="btn-obsidian-browse", color="secondary", size="sm", title="Browse vault", className="me-1"),
-                dbc.Button("🔗", id="btn-obsidian-open", color="outline-info", size="sm", title="Open in Obsidian"),
+                dbc.Button("🔗", id="btn-obsidian-open", color="info", size="sm", title="Open in Obsidian"),
             ], className="d-flex"),
             
             dbc.Label("Google Drive", className="mt-2"),
             html.Div([
                 dbc.Input(id="node-google-drive-path", type="text", placeholder="Local Drive path or URL", className="me-1", style={"flex": "1"}),
                 dbc.Button("📁", id="btn-drive-browse", color="secondary", size="sm", title="Browse Drive", className="me-1"),
-                dbc.Button("🔗", id="btn-drive-open", color="outline-info", size="sm", title="Open in Drive"),
+                dbc.Button("🔗", id="btn-drive-open", color="info", size="sm", title="Open in Drive"),
             ], className="d-flex"),
 
             dbc.Label("Website", className="mt-2"),
             html.Div([
                 dbc.Input(id="node-website-path", type="text", placeholder="Link to Website", className="me-1", style={"flex": "1"}),
-                dbc.Button("🔗", id="btn-website-open", color="outline-info", size="sm", title="Open Website"),
+                dbc.Button("🔗", id="btn-website-open", color="info", size="sm", title="Open Website"),
             ], className="d-flex"),
             
             html.Hr(),
@@ -266,7 +272,7 @@ def create_graph_view(initial_elements):
             ),
             html.Button(
                 "⛶", id="btn-fullscreen",
-                className="btn btn-outline-light btn-sm btn-fullscreen-toggle",
+                className="btn btn-secondary btn-sm btn-fullscreen-toggle",
                 title="Toggle fullscreen"
             ),
         ], id="canvas-container", className="canvas-container h-100", style={"overflow": "hidden", "borderRadius": "8px"}),
@@ -284,14 +290,11 @@ filters_content = html.Div([
 
     html.H5("General", className="mt-2 mb-1"),
     dbc.Label("Node Type", className="mt-2"),
-    html.Div(dcc.Dropdown(
+    dbc.Select(
         id="filter-node-type",
-        options=[{"label": t, "value": t} for t in NODE_TYPES],
-        multi=True,
-        placeholder="All",
-        value=None,
-        style={"color": "#212529"}
-    ), className="text-dark"),
+        options=[{"label": "All", "value": "All"}] + [{"label": t, "value": t} for t in NODE_TYPES],
+        value="All",
+    ),
 
     dbc.Label("Context", className="mt-2"),
     dbc.Select(
@@ -302,6 +305,13 @@ filters_content = html.Div([
 
     dbc.Label("Subcontext", className="mt-2"),
     dbc.Select(id="filter-subcontext", options=[{"label": "All", "value": "All"}], value="All"),
+
+    dbc.Label("Goal", className="mt-2"),
+    dbc.Select(
+        id="filter-goal",
+        options=[{"label": "All", "value": "All"}],
+        value="All",
+    ),
 
     html.Hr(className="my-3"),
 
@@ -366,17 +376,22 @@ relationships_view = html.Div([
 suggestions_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=5),
     html.Div([
-        html.H6("Suggestions", className="text-muted mb-0", style=_section_title_style),
+        html.H6("Projects", className="text-muted mb-0", style=_section_title_style),
         dbc.ButtonGroup([
-            dbc.Button("−", id="btn-sugg-minus", color="outline-secondary", size="sm",
+            dbc.Button("−", id="btn-sugg-minus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
             html.Span(id="suggestion-count-display", children="5",
                        className="align-self-center mx-2",
                        style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
                               "textAlign": "center"}),
-            dbc.Button("+", id="btn-sugg-plus", color="outline-secondary", size="sm",
+            dbc.Button("+", id="btn-sugg-plus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
         ], className="align-middle"),
+        html.Div([
+            dbc.Button("Settings", id="btn-suggestions-settings-toggle", color="secondary", size="sm",
+                       className="me-2"),
+            dbc.Button("Filters", id="btn-suggestions-filters-toggle", color="secondary", size="sm"),
+        ], className="ms-auto d-flex align-items-center"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     dcc.Store(id='selected-suggestion-store', data=None),
     html.Div(id="suggestions-table", style={"maxHeight": "750px", "overflowY": "auto"}),
@@ -387,8 +402,8 @@ suggestions_view = html.Div([
 settings_modal = dbc.Modal([
     dbc.ModalHeader(dbc.ModalTitle("Settings")),
     dbc.ModalBody([
-        dbc.Tabs([
-            dbc.Tab(label="Nodes", children=[
+        dbc.Tabs(id="settings-modal-tabs", active_tab="tab-nodes", children=[
+            dbc.Tab(label="Nodes", tab_id="tab-nodes", children=[
                 html.Div([
                     dbc.Label("Node Types", className="fw-bold mt-2"),
                     dbc.Textarea(id="setting-node-types", rows=2, placeholder="e.g. Topic, Goal, Skill, Habit, Resource"),
@@ -405,7 +420,7 @@ settings_modal = dbc.Modal([
                     html.P("One context per line. Comma-separated subcontexts after the colon.", className="text-muted small"),
                 ], className="p-2")
             ]),
-            dbc.Tab(label="Algorithm", children=[
+            dbc.Tab(label="Algorithm", tab_id="tab-algorithm", children=[
                 html.Div([
                     # --- Profile selector ---
                     dbc.Label("Algorithm Profile", className="fw-bold mt-2"),
@@ -419,8 +434,9 @@ settings_modal = dbc.Modal([
 
                     # --- Intrinsic Value section ---
                     html.Hr(className="my-2"),
-                    html.Div("Intrinsic Value", className="fw-bold", style={"fontSize": "0.95rem"}),
-                    html.Div("IV = w_v \u00b7 V + w_i \u00b7 I", style=_formula_hint_style),
+                    html.Div("Intrinsic Value", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                    html.Small("IV = w_v · V + w_i · I", className="text-muted d-block mb-1",
+                               style={"fontFamily": "monospace"}),
                     dbc.Row([
                         dbc.Col([
                             dbc.Label("Value Weight"),
@@ -436,8 +452,9 @@ settings_modal = dbc.Modal([
 
                     # --- Value Propagation section ---
                     html.Hr(className="my-2"),
-                    html.Div("Value Propagation", className="fw-bold", style={"fontSize": "0.95rem"}),
-                    html.Div("Value retention factors through node edges (0-1). Higher = more value retained.", style=_formula_hint_style),
+                    html.Div("Value Propagation", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                    html.Small("Retention factor per edge type (0–1). Higher = more value flows through.",
+                               className="text-muted d-block mb-1"),
                     dbc.Row([
                         dbc.Col([
                             dbc.Label("Hard Need"),
@@ -458,8 +475,9 @@ settings_modal = dbc.Modal([
 
                     # --- Perceived Cost section ---
                     html.Hr(className="my-2"),
-                    html.Div("Perceived Cost", className="fw-bold", style={"fontSize": "0.95rem"}),
-                    html.Div("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2", style=_formula_hint_style),
+                    html.Div("Perceived Cost", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                    html.Small("C = 1 + w_e · E + w_t · T^β", className="text-muted d-block mb-1",
+                               style={"fontFamily": "monospace"}),
                     dbc.Row([
                         dbc.Col([
                             dbc.Label("Effort Weight"),
@@ -474,12 +492,13 @@ settings_modal = dbc.Modal([
                         dbc.Col([
                             dbc.Label("Time Dampener"),
                             dbc.Input(id="hp-beta", type="number", step=0.05),
-                            html.Small("Exponentially scales time estimates. < 1 means sub-linear: a 10h task isn\u2019t 10\u00d7 worse than a  1h task.", className="text-muted"),
+                            html.Small("Sub-linear time scaling. β < 1 means a 10h task isn't 10× worse than 1h.",
+                                       className="text-muted"),
                         ]),
                     ], className="mt-1"),
                 ], className="p-2")
             ]),
-            dbc.Tab(label="Paths", children=[
+            dbc.Tab(label="Paths", tab_id="tab-paths", children=[
                 html.Div([
                     dbc.Label("Obsidian Vault Root Path", className="fw-bold mt-2"),
                     dbc.Input(id="setting-obsidian-path", type="text"),
@@ -624,8 +643,9 @@ def build_app_layout(initial_elements, env="production"):
         id="main-tabs",
         active_tab="tab-canvas",
         children=[
-            dbc.Tab(label="Canvas", tab_id="tab-canvas"),
-            dbc.Tab(label="Suggestions", tab_id="tab-suggestions"),
+            dbc.Tab(label="Nodes", tab_id="tab-canvas"),
+            dbc.Tab(label="Goals", tab_id="tab-goals"),
+            dbc.Tab(label="Projects", tab_id="tab-suggestions"),
             dbc.Tab(label="Events", tab_id="tab-events"),
         ],
         className="px-3 pt-1",
@@ -666,8 +686,10 @@ def build_app_layout(initial_elements, env="production"):
                     dbc.Row([
                         dbc.Col(
                             html.Div([
-                                dbc.Button("+ New Node", id="btn-add", color="outline-success", size="sm", className="me-2"),
-                                dbc.Button("⚙ Settings", id="btn-settings-toggle", color="outline-light", size="sm", className="me-2")
+                                dbc.Button("New Node", id="btn-add", color="success", size="sm", className="me-2"),
+                                dbc.Button("Settings", id="btn-settings-toggle", color="secondary", size="sm", className="me-2"),
+                                dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm", className="me-2",
+                                           style={"display": "none"})
                             ], className="d-flex"),
                             width="auto"
                         ),
@@ -677,7 +699,7 @@ def build_app_layout(initial_elements, env="production"):
                             className="d-flex align-items-center justify-content-center"
                         ),
                         dbc.Col(
-                            dbc.Button("⧨ Filters", id="btn-filters-toggle", color="outline-light", size="sm"),
+                            dbc.Button("Filters", id="btn-filters-toggle", color="secondary", size="sm"),
                             width="auto",
                             className="text-end"
                         ),
@@ -688,8 +710,8 @@ def build_app_layout(initial_elements, env="production"):
                         [create_graph_view(initial_elements)], 
                         className="flex-grow-1 px-3 mt-2", 
                         style={
-                            "flexBasis": "750px", 
-                            "minHeight": "200px", 
+                            "flexBasis": "760px",
+                            "minHeight": "200px",
                             "position": "relative", 
                             "overflow": "hidden" 
                         }
@@ -727,25 +749,20 @@ def build_app_layout(initial_elements, env="production"):
                "position": "absolute", "top": "0", "left": "0"}
     )
 
+    # --- Goals Tab Content (hidden by default) ---
+    goals_tab_content = html.Div(
+        id="goals-tab-content",
+        children=[build_goals_tab_content()],
+        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
+               "position": "absolute", "top": "0", "left": "0"}
+    )
+
     # --- Suggestions Tab Content (hidden by default) ---
     suggestions_tab_content = html.Div(
         id="suggestions-tab-content",
         children=[
             html.Div([
-                # Toolbar
-                dbc.Row([
-                    dbc.Col(
-                        dbc.Button("⚙ Settings", id="btn-suggestions-settings-toggle", color="outline-light", size="sm"),
-                        width="auto"
-                    ),
-                    dbc.Col(width=True),
-                    dbc.Col(
-                        dbc.Button("⧨ Filters", id="btn-suggestions-filters-toggle", color="outline-light", size="sm"),
-                        width="auto", className="text-end"
-                    ),
-                ], className="py-3 px-3 align-items-center m-0", style={"borderBottom": "1px solid #495057", "width": "100%"}),
-                # Content
-                html.Div([suggestions_view], className="p-4", style={"maxWidth": "900px"}),
+                html.Div([suggestions_view], className="px-4 pt-3 pb-4", style={"maxWidth": "900px"}),
             ], style={"flex": "1", "overflowY": "auto"}),
         ],
         style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
@@ -760,6 +777,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
+        html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),
         settings_modal,
         migration_modal,
         dcc.Store(id='pending-settings-store', data=None),
@@ -770,6 +788,7 @@ def build_app_layout(initial_elements, env="production"):
         html.Div([
             canvas_tab_content,
             suggestions_tab_content,
+            goals_tab_content,
             events_tab_content,
             # --- SHARED FILTERS SIDEBAR (overlay, accessible from Canvas + Suggestions) ---
             html.Div(

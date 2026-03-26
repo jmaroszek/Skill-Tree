@@ -94,13 +94,77 @@
     border-bottom: 2px solid #0d6efd;
 }
 
-/* --- Filter Node Type dropdown placeholder color fix --- */
+/* --- Dark-themed dcc.Dropdown (filter sidebar) --- */
 
-#filter-node-type .Select-placeholder,
-#filter-node-type input::placeholder,
-#filter-node-type .VirtualizedSelectPlaceholder,
-#filter-node-type [class$="-placeholder"] {
-    color: #212529 !important;
+.dark-dropdown [class$="-control"] {
+    background-color: #3a3f44;
+    border-color: #495057;
+    min-height: 38px;
+    box-shadow: none;
+}
+.dark-dropdown [class$="-control"]:hover {
+    border-color: #6c757d;
+}
+.dark-dropdown [class$="-singleValue"] {
+    color: #dee2e6;
+}
+.dark-dropdown [class$="-placeholder"] {
+    color: #6c757d !important;
+}
+.dark-dropdown [class$="-Input"] input,
+.dark-dropdown [class$="-Input"] {
+    color: #dee2e6 !important;
+}
+.dark-dropdown [class$="-multiValue"] {
+    background-color: #495057;
+    color: #dee2e6;
+}
+.dark-dropdown [class$="-multiValue"] [class$="-MultiValueRemove"]:hover,
+.dark-dropdown [class$="-multiValue"] > div:last-child:hover {
+    background-color: #6c757d;
+    color: #fff;
+}
+.dark-dropdown [class$="-menu"] {
+    background-color: #3a3f44;
+    border: 1px solid #495057;
+}
+.dark-dropdown [class$="-option"] {
+    background-color: #3a3f44;
+    color: #dee2e6;
+    cursor: pointer;
+}
+.dark-dropdown [class$="-option"]:hover,
+.dark-dropdown [class$="-option"][class*="focused"] {
+    background-color: #495057;
+}
+.dark-dropdown [class$="-indicatorSeparator"] {
+    background-color: #495057;
+}
+.dark-dropdown [class$="-dropdownIndicator"],
+.dark-dropdown [class$="-clearIndicator"] {
+    color: #6c757d;
+}
+.dark-dropdown [class$="-dropdownIndicator"]:hover,
+.dark-dropdown [class$="-clearIndicator"]:hover {
+    color: #dee2e6;
+}
+
+/* --- Settings modal tab styling --- */
+
+.modal .nav-tabs {
+    background-color: transparent;
+    border-bottom: 1px solid #495057;
+}
+.modal .nav-tabs .nav-link {
+    color: #adb5bd;
+}
+.modal .nav-tabs .nav-link:hover {
+    color: #dee2e6;
+}
+.modal .nav-tabs .nav-link.active {
+    color: #dee2e6;
+    background-color: transparent;
+    border-bottom: 2px solid #0d6efd;
 }
 
 /* --- Events Tab --- */

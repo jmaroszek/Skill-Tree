@@ -13,14 +13,16 @@ input[type=number] {
 /* Hide scrollbar for the bottom panels area and sidebars while keeping them scrollable */
 #bottom-panel-container,
 #suggestions-table,
-#sidebar-editor-container {
+#sidebar-editor-container,
+#sidebar-filters-container {
     -ms-overflow-style: none;  /* Internet Explorer 10+ */
     scrollbar-width: none;  /* Firefox */
 }
 
 #bottom-panel-container::-webkit-scrollbar,
 #suggestions-table::-webkit-scrollbar,
-#sidebar-editor-container::-webkit-scrollbar { 
+#sidebar-editor-container::-webkit-scrollbar,
+#sidebar-filters-container::-webkit-scrollbar {
     display: none;  /* Safari and Chrome */
 }
 

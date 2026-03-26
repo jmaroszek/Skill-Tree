@@ -366,3 +366,103 @@ class TestNodeDormantField:
         node = _make_node("N1", dormant=1)
         d = node.to_dict()
         assert d['dormant'] == 1
+
+
+# --- Scheduled Trigger Tests ---
+
+class TestScheduledTriggers:
+
+    def test_event_trigger_date_stored(self, em):
+        em.add_event(Event(name="Scheduled", trigger_date="2026-06-01"))
+        event = em.get_event("Scheduled")
+        assert event.trigger_date == "2026-06-01"
+
+    def test_event_trigger_date_updated(self, em):
+        em.add_event(Event(name="Ev"))
+        event = em.get_event("Ev")
+        assert event.trigger_date is None
+
+        em.update_event("Ev", Event(name="Ev", trigger_date="2026-07-15"))
+        event = em.get_event("Ev")
+        assert event.trigger_date == "2026-07-15"
+
+    def test_event_trigger_date_none_by_default(self, em):
+        em.add_event(Event(name="NoDate"))
+        event = em.get_event("NoDate")
+        assert event.trigger_date is None
+
+    def test_check_scheduled_triggers_fires_on_due_date(self, em, mgr):
+        em.add_event(Event(name="Due", trigger_date="2026-03-25"))
+        node = _make_node("DueNode")
+        mgr.add_node(node)
+        em.add_node_to_event("Due", "DueNode")
+
+        with patch("event_manager.date") as mock_date:
+            mock_date.today.return_value = date(2026, 3, 25)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            triggered = em.check_scheduled_triggers()
+
+        assert "Due" in triggered
+        event = em.get_event("Due")
+        assert event.status == "Triggered"
+
+    def test_check_scheduled_triggers_fires_past_date(self, em, mgr):
+        em.add_event(Event(name="Past", trigger_date="2026-01-01"))
+        node = _make_node("PastNode")
+        mgr.add_node(node)
+        em.add_node_to_event("Past", "PastNode")
+
+        with patch("event_manager.date") as mock_date:
+            mock_date.today.return_value = date(2026, 3, 25)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            triggered = em.check_scheduled_triggers()
+
+        assert "Past" in triggered
+
+    def test_check_scheduled_triggers_skips_future(self, em):
+        em.add_event(Event(name="Future", trigger_date="2027-01-01"))
+
+        with patch("event_manager.date") as mock_date:
+            mock_date.today.return_value = date(2026, 3, 25)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            triggered = em.check_scheduled_triggers()
+
+        assert triggered == []
+        event = em.get_event("Future")
+        assert event.status == "Pending"
+
+    def test_check_scheduled_triggers_skips_already_triggered(self, em, mgr):
+        em.add_event(Event(name="Done", trigger_date="2026-01-01"))
+        node = _make_node("DoneNode")
+        mgr.add_node(node)
+        em.add_node_to_event("Done", "DoneNode")
+        em.trigger_event("Done")
+
+        with patch("event_manager.date") as mock_date:
+            mock_date.today.return_value = date(2026, 3, 25)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            triggered = em.check_scheduled_triggers()
+
+        assert triggered == []
+
+    def test_check_scheduled_triggers_skips_no_date(self, em):
+        em.add_event(Event(name="Manual"))
+
+        with patch("event_manager.date") as mock_date:
+            mock_date.today.return_value = date(2026, 3, 25)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            triggered = em.check_scheduled_triggers()
+
+        assert triggered == []
+
+
+class TestDormantNodeSubcontext:
+
+    def test_dormant_node_with_subcontext(self, em, mgr):
+        em.add_event(Event(name="Ev"))
+        node = _make_node("SubNode", context="Mind", subcontext="Rational")
+        em.create_dormant_node(node, "Ev")
+
+        saved = mgr.get_node("SubNode")
+        assert saved.subcontext == "Rational"
+        assert saved.dormant == 1

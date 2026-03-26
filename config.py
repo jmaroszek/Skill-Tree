@@ -3,9 +3,11 @@ from database import get_connection
 
 ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
+CANVAS_HEIGHT = 760  # Default pixel height of the node canvas area
+
 DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
 
-DEFAULT_NODE_TYPES = ["Learn", "Goal", "Habit", "Resource"]
+DEFAULT_NODE_TYPES = ["Learn", "Goal", "Habit", "Resource", "Action"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
 DEFAULT_SUBCONTEXTS = {}
 
@@ -19,9 +21,10 @@ DEFAULT_NODE_COLORS = {
 
 DEFAULT_NODE_SHAPES = {
     'Learn': 'ellipse',
+    'Action': 'triangle',
     'Goal': 'star',
-    'Habit': 'diamond',
     'Resource': 'pentagon',
+    
 }
 
 DEFAULT_HYPERPARAMS = {
@@ -32,7 +35,8 @@ DEFAULT_HYPERPARAMS = {
     'd_Syn': 0.35,
     'w_e': 2.50,
     'w_t': 1.00,
-    'beta': 0.85
+    'beta': 0.85,
+    'goal_boost': 1.50,
 }
 
 PROFILES = {
@@ -145,6 +149,24 @@ class ConfigManager:
             if t not in shapes:
                 shapes[t] = 'rectangle'
         cls.set_node_shapes(shapes)
+
+    @classmethod
+    def get_priority_goals(cls):
+        val = cls._get_db_value("PRIORITY_GOALS")
+        return json.loads(val) if val else []
+
+    @classmethod
+    def set_priority_goals(cls, goals: list):
+        cls._set_db_value("PRIORITY_GOALS", json.dumps(goals[:3]))
+
+    @classmethod
+    def ensure_action_type(cls):
+        """Ensure 'Action' type exists in stored node types (migration for existing DBs)."""
+        types = cls.get_node_types()
+        if 'Action' not in types:
+            types.append('Action')
+            cls.set_node_types(types)
+            cls.sync_shapes_to_types(types)
 
     @classmethod
     def get_danger_color(cls):
