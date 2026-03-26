@@ -52,7 +52,7 @@ def register_event_callbacks(app):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
-                html.P("No events yet. Click '+ New Event' to create one.", className="text-muted"),
+                html.P("No events yet.", className="text-muted"),
                 className="text-center py-5"
             )
 

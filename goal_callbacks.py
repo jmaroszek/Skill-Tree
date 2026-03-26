@@ -28,7 +28,7 @@ def register_goal_callbacks(app):
 
         if not goals:
             return html.Div(
-                html.P("No goals yet. Click 'New Goal' to create one.", className="text-muted"),
+                html.P("No goals yet.", className="text-muted"),
                 className="text-center py-5"
             )
 
