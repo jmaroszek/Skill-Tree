@@ -189,9 +189,9 @@ sidebar_content = html.Div(
                 html.Hr(),
                 html.H5("Time Estimates in Hours", className="mt-2 mb-1"),
                 dbc.Row([
-                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
-                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
                     dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
+                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
                 ]),
             ]),
             
@@ -221,20 +221,20 @@ sidebar_content = html.Div(
             html.Div([
                 dbc.Input(id="node-obsidian-path", type="text", placeholder="Link to Obsidian file", className="me-1", style={"flex": "1"}),
                 dbc.Button("📁", id="btn-obsidian-browse", color="secondary", size="sm", title="Browse vault", className="me-1"),
-                dbc.Button("🔗", id="btn-obsidian-open", color="info", size="sm", title="Open in Obsidian"),
+                dbc.Button("🔗", id="btn-obsidian-open", color="secondary", size="sm", title="Open in Obsidian"),
             ], className="d-flex"),
             
             dbc.Label("Google Drive", className="mt-2"),
             html.Div([
                 dbc.Input(id="node-google-drive-path", type="text", placeholder="Local Drive path or URL", className="me-1", style={"flex": "1"}),
                 dbc.Button("📁", id="btn-drive-browse", color="secondary", size="sm", title="Browse Drive", className="me-1"),
-                dbc.Button("🔗", id="btn-drive-open", color="info", size="sm", title="Open in Drive"),
+                dbc.Button("🔗", id="btn-drive-open", color="secondary", size="sm", title="Open in Drive"),
             ], className="d-flex"),
 
             dbc.Label("Website", className="mt-2"),
             html.Div([
                 dbc.Input(id="node-website-path", type="text", placeholder="Link to Website", className="me-1", style={"flex": "1"}),
-                dbc.Button("🔗", id="btn-website-open", color="info", size="sm", title="Open Website"),
+                dbc.Button("🔗", id="btn-website-open", color="secondary", size="sm", title="Open Website"),
             ], className="d-flex"),
             
             html.Hr(),
