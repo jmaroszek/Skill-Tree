@@ -10,7 +10,7 @@ See README.md for full mathematical specification and hyperparameter profiles.
 """
 
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 
 def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dict, dict]:
@@ -111,7 +111,7 @@ def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
 def score_nodes(
     active_nodes: List[Node], all_nodes: List[Node],
     edges: List[Dict], hyperparams: dict,
-    priority_goals: List[str] = None
+    priority_goals: Optional[List[str]] = None
 ) -> List[Node]:
     """Scores active nodes by priority (TV / Cost) and returns them sorted descending."""
     w_v = hyperparams.get('w_v', 1.0)

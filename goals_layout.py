@@ -4,6 +4,7 @@ Layout definitions for the Goals tab.
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
+from typing import Optional, List, Any
 import dash_cytoscape as cyto
 from config import ConfigManager
 from models import EDGE_RESOURCE
@@ -291,8 +292,8 @@ def build_goals_tab_content():
     })
 
 
-def build_goal_card(name, status, completion, subtask_count, is_selected=False, priority_rank=None,
-                    show_order_buttons=False, is_first=False, is_last=False):
+def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,
+                    show_order_buttons: bool = False, is_first: bool = False, is_last: bool = False):
     """Builds a single goal card for the list."""
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
@@ -314,7 +315,7 @@ def build_goal_card(name, status, completion, subtask_count, is_selected=False, 
                    style={**_btn_style, "opacity": "0.3" if is_last else "1"}),
     ], className="d-flex flex-column me-2", style={"gap": "1px"}) if show_order_buttons else None
 
-    children = [
+    children: List[Any] = [
         html.Div([
             html.Div([
                 order_controls,
