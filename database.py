@@ -91,17 +91,18 @@ def init_db():
         )
     ''')
 
-    # Migration: add dormant column to Nodes if it doesn't exist
+    # Migrations: add columns that may not exist in older databases
     cursor.execute("PRAGMA table_info(Nodes)")
-    columns = [row[1] for row in cursor.fetchall()]
-    if 'dormant' not in columns:
+    node_columns = [row[1] for row in cursor.fetchall()]
+    if 'dormant' not in node_columns:
         cursor.execute("ALTER TABLE Nodes ADD COLUMN dormant INTEGER NOT NULL DEFAULT 0")
 
-    # Migration: add trigger_date column to Events if it doesn't exist
     cursor.execute("PRAGMA table_info(Events)")
     event_columns = [row[1] for row in cursor.fetchall()]
     if 'trigger_date' not in event_columns:
         cursor.execute("ALTER TABLE Events ADD COLUMN trigger_date TEXT")
+    if 'trigger_node' not in event_columns:
+        cursor.execute("ALTER TABLE Events ADD COLUMN trigger_node TEXT")
 
     conn.commit()
     conn.close()

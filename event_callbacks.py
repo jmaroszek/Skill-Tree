@@ -8,10 +8,12 @@ from event_manager import EventManager
 from graph_manager import GraphManager
 from config import ConfigManager
 from models import Node, Event
-from events_layout import build_event_card, build_dormant_nodes_table, _event_badge
+from events_layout import build_event_card, build_dormant_nodes_table, _event_badge, _event_trigger_type
 
 event_manager = EventManager()
 graph_manager = GraphManager()
+
+_badge_hidden = {"fontSize": "0.85rem", "display": "none"}
 
 
 def register_event_callbacks(app):
@@ -21,6 +23,8 @@ def register_event_callbacks(app):
         Output("canvas-tab-content", "style"),
         Output("suggestions-tab-content", "style"),
         Output("goals-tab-content", "style"),
+        Output("simulate-tab-content", "style"),
+        Output("settings-tab-content", "style"),
         Output("events-tab-content", "style"),
         Input("main-tabs", "active_tab"),
     )
@@ -36,10 +40,16 @@ def register_event_callbacks(app):
         goals_style = {**base,
                        "display": "flex" if active_tab == "tab-goals" else "none",
                        "visibility": "visible" if active_tab == "tab-goals" else "hidden"}
+        simulate_style = {**base, "overflow": "visible",
+                          "display": "flex" if active_tab == "tab-simulate" else "none",
+                          "visibility": "visible" if active_tab == "tab-simulate" else "hidden"}
+        settings_style = {**base, "overflow": "auto",
+                          "display": "block" if active_tab == "tab-settings" else "none",
+                          "visibility": "visible" if active_tab == "tab-settings" else "hidden"}
         events_style = {**base,
                         "display": "flex" if active_tab == "tab-events" else "none",
                         "visibility": "visible" if active_tab == "tab-events" else "hidden"}
-        return canvas_style, suggestions_style, goals_style, events_style
+        return canvas_style, suggestions_style, goals_style, simulate_style, settings_style, events_style
 
     # --- Events List Rendering ---
     @app.callback(
@@ -62,15 +72,34 @@ def register_event_callbacks(app):
             cards.append(build_event_card(
                 event.name, event.description, event.status, counts,
                 is_selected=(event.name == selected_event),
-                trigger_date=event.trigger_date
+                trigger_date=event.trigger_date,
+                trigger_node=event.trigger_node,
             ))
         return cards
 
-    _badge_visible = {"fontSize": "0.85rem"}
-    _badge_hidden = {"fontSize": "0.85rem", "display": "none"}
-
-    # --- New Event ---
+    # --- Populate trigger node dropdown when events tab opens ---
     @app.callback(
+        Output("event-trigger-node", "options"),
+        Input("main-tabs", "active_tab"),
+        Input("events-refresh-trigger", "data"),
+    )
+    def populate_trigger_node_dropdown(active_tab, _refresh):
+        nodes = graph_manager.get_all_nodes()
+        return [{"label": n.name, "value": n.name} for n in sorted(nodes, key=lambda n: n.name)]
+
+    # --- Trigger Type Section Visibility ---
+    @app.callback(
+        Output("event-date-section", "style"),
+        Output("event-node-section", "style"),
+        Input("event-trigger-type", "value"),
+    )
+    def toggle_trigger_sections(trigger_type):
+        date_style = {"display": "block"} if trigger_type == "date" else {"display": "none"}
+        node_style = {"display": "block"} if trigger_type == "node" else {"display": "none"}
+        return date_style, node_style
+
+    # 13 outputs for create/select (same set of fields)
+    _DETAIL_OUTPUTS = [
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
         Output("event-detail-empty", "style", allow_duplicate=True),
@@ -84,79 +113,79 @@ def register_event_callbacks(app):
         Output("event-trigger-section", "style", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
         Output("event-trigger-date", "value", allow_duplicate=True),
+        Output("event-trigger-type", "value", allow_duplicate=True),
+        Output("event-trigger-node", "value", allow_duplicate=True),
+    ]
+    _N_DETAIL = len(_DETAIL_OUTPUTS)
+
+    # --- New Event ---
+    @app.callback(
+        *_DETAIL_OUTPUTS,
         Input("btn-new-event", "n_clicks"),
         prevent_initial_call=True,
     )
     def create_new_event(n_clicks):
         if not n_clicks:
-            return (no_update,) * 13
+            return (no_update,) * _N_DETAIL
 
         return (
-            None,  # selected_event_store — clear (new unsaved event)
-            dash.callback_context.triggered_id,  # refresh trigger
-            {"display": "none"},  # hide empty state
-            {"display": "block"},  # show detail
-            "",  # name
-            "",  # description
-            "", "primary", _badge_hidden,  # badge — hidden for new events
+            None,                   # selected_event_store — clear
+            dash.callback_context.triggered_id,
+            {"display": "none"},    # hide empty state
+            {"display": "block"},   # show detail
+            "",                     # name
+            "",                     # description
+            "", "primary", _badge_hidden,
             html.Div(
                 html.P("Save the event first, then add dormant nodes.", className="text-muted"),
                 className="text-center py-3"
             ),
-            {"display": "none"},  # hide trigger section for new event
-            "",  # save status
-            "",  # trigger date
+            {"display": "none"},    # hide trigger/delete for new event
+            "",                     # save status
+            "",                     # trigger date
+            "manual",               # trigger type
+            None,                   # trigger node
         )
 
     # --- Event Selection ---
     @app.callback(
-        Output("selected-event-store", "data", allow_duplicate=True),
-        Output("events-refresh-trigger", "data", allow_duplicate=True),
-        Output("event-detail-empty", "style", allow_duplicate=True),
-        Output("event-detail-content", "style", allow_duplicate=True),
-        Output("event-name", "value", allow_duplicate=True),
-        Output("event-description", "value", allow_duplicate=True),
-        Output("event-status-badge", "children", allow_duplicate=True),
-        Output("event-status-badge", "color", allow_duplicate=True),
-        Output("event-status-badge", "style", allow_duplicate=True),
-        Output("dormant-nodes-table-container", "children", allow_duplicate=True),
-        Output("event-trigger-section", "style", allow_duplicate=True),
-        Output("event-save-status", "children", allow_duplicate=True),
-        Output("event-trigger-date", "value", allow_duplicate=True),
+        *_DETAIL_OUTPUTS,
         Input({"type": "event-card", "index": ALL}, "n_clicks"),
         prevent_initial_call=True,
     )
     def select_event(n_clicks_list):
         if not any(n_clicks_list):
-            return (no_update,) * 13
+            return (no_update,) * _N_DETAIL
 
         triggered = ctx.triggered_id
         if not triggered:
-            return (no_update,) * 13
+            return (no_update,) * _N_DETAIL
 
         event_name = triggered["index"]
         event = event_manager.get_event(event_name)
         if not event:
-            return (no_update,) * 13
+            return (no_update,) * _N_DETAIL
 
         event_nodes = event_manager.get_event_nodes(event_name)
-        badge_text, badge_color = _event_badge(event.status, event.trigger_date)
-        trigger_style = {"display": "none"} if event.status == "Triggered" else {"display": "flex", "alignItems": "center", "justifyContent": "flex-end"}
+        trigger_style = {"display": "none"} if event.status == "Triggered" else {
+            "display": "flex", "alignItems": "center"
+        }
+        t_type = _event_trigger_type(event)
 
         return (
-            event_name,  # selected_event_store
-            f"select-{event_name}",  # refresh trigger
-            {"display": "none"},  # hide empty state
-            {"display": "block"},  # show detail
+            event_name,
+            f"select-{event_name}",
+            {"display": "none"},
+            {"display": "block"},
             event.name,
             event.description,
-            badge_text,
-            badge_color,
-            _badge_visible,  # restore badge visibility
+            "", "primary", _badge_hidden,
             build_dormant_nodes_table(event_nodes, event.status),
             trigger_style,
-            "",  # save status
+            "",
             event.trigger_date or "",
+            t_type,
+            event.trigger_node or None,
         )
 
     # --- Save Event ---
@@ -173,36 +202,44 @@ def register_event_callbacks(app):
         State("selected-event-store", "data"),
         State("event-name", "value"),
         State("event-description", "value"),
+        State("event-trigger-type", "value"),
         State("event-trigger-date", "value"),
+        State("event-trigger-node", "value"),
         prevent_initial_call=True,
     )
-    def save_event(n_clicks, selected_event, name, description, trigger_date):
-        _fail = (no_update,) * 7 + (no_update,)
+    def save_event(n_clicks, selected_event, name, description, trigger_type, trigger_date, trigger_node):
         if not n_clicks or not name or not name.strip():
             return no_update, no_update, "Event name is required.", no_update, no_update, no_update, no_update, no_update
 
         name = name.strip()
         description = (description or "").strip()
-        trigger_date = trigger_date or None
+
+        # Resolve trigger fields based on type
+        resolved_date = trigger_date if trigger_type == "date" else None
+        resolved_node = trigger_node if trigger_type == "node" else None
 
         try:
             if selected_event is None:
-                event_manager.add_event(Event(name=name, description=description, trigger_date=trigger_date))
+                event_manager.add_event(Event(
+                    name=name, description=description,
+                    trigger_date=resolved_date, trigger_node=resolved_node,
+                ))
             else:
                 existing = event_manager.get_event(selected_event)
                 event_manager.update_event(selected_event, Event(
                     name=name, description=description,
                     status=existing.status if existing else "Pending",
-                    trigger_date=trigger_date
+                    trigger_date=resolved_date, trigger_node=resolved_node,
                 ))
         except ValueError as e:
             return no_update, no_update, str(e), no_update, no_update, no_update, no_update, no_update
 
         event = event_manager.get_event(name)
-        trigger_style = {"display": "none"} if event and event.status == "Triggered" else {"display": "flex", "alignItems": "center", "justifyContent": "flex-end"}
-        badge_text, badge_color = _event_badge(event.status, event.trigger_date) if event else ("Pending", "primary")
+        trigger_style = {"display": "none"} if event and event.status == "Triggered" else {
+            "display": "flex", "alignItems": "center"
+        }
 
-        return name, f"save-{name}", "Saved.", trigger_style, badge_text, badge_color, _badge_visible, False
+        return name, f"save-{name}", "Saved.", trigger_style, "", "primary", _badge_hidden, False
 
     # --- Auto-dismiss save status ---
     @app.callback(
@@ -247,9 +284,9 @@ def register_event_callbacks(app):
         return (
             None,
             f"delete-{selected_event}",
-            {"display": "block"},  # show empty state
-            {"display": "none"},  # hide detail
-            False,  # close modal
+            {"display": "block"},
+            {"display": "none"},
+            False,
         )
 
     # --- Trigger Event ---
@@ -288,9 +325,8 @@ def register_event_callbacks(app):
             return (no_update,) * 9
 
         if triggered == "btn-trigger-all-confirm":
-            selected_nodes = None  # activate all nodes
+            selected_nodes = None
         else:
-            # Trigger Checked: only the checked ones
             selected_nodes = [
                 cb_id["index"]
                 for cb_id, checked in zip(checkbox_ids, checkbox_values)
@@ -309,12 +345,62 @@ def register_event_callbacks(app):
             selected_event,
             f"trigger-{selected_event}",
             "Triggered", "success",
-            {"display": "none"},  # hide delete button (event already triggered)
+            {"display": "none"},
             build_dormant_nodes_table(event_nodes, "Triggered"),
             "Event triggered. " + (", ".join(msg_parts) if msg_parts else "No nodes selected."),
-            False,  # close modal
-            "",  # clear trigger date
+            False,
+            "",
         )
+
+    # --- Node Completion Confirmation Modal ---
+    @app.callback(
+        Output("modal-node-completion", "is_open", allow_duplicate=True),
+        Output("node-completion-modal-desc", "children", allow_duplicate=True),
+        Output("node-completion-event-list", "children", allow_duplicate=True),
+        Input("node-completion-events-store", "data"),
+        prevent_initial_call=True,
+    )
+    def show_node_completion_modal(event_names):
+        if not event_names:
+            return False, no_update, no_update
+
+        desc = f"Completing this node triggers {len(event_names)} event(s). Select which to trigger:"
+        event_list = html.Div([
+            dbc.Checkbox(
+                id={"type": "completion-event-select", "index": name},
+                label=name,
+                value=True,
+                className="mb-1",
+            )
+            for name in event_names
+        ])
+        return True, desc, event_list
+
+    @app.callback(
+        Output("modal-node-completion", "is_open", allow_duplicate=True),
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Input("btn-node-completion-confirm", "n_clicks"),
+        Input("btn-node-completion-skip", "n_clicks"),
+        State({"type": "completion-event-select", "index": ALL}, "value"),
+        State({"type": "completion-event-select", "index": ALL}, "id"),
+        prevent_initial_call=True,
+    )
+    def handle_node_completion_confirm(confirm_clicks, skip_clicks, checkbox_values, checkbox_ids):
+        triggered = ctx.triggered_id
+        if triggered == "btn-node-completion-skip" or not confirm_clicks:
+            return False, no_update
+
+        # Trigger selected events
+        import time
+        for cb_id, checked in zip(checkbox_ids, checkbox_values):
+            if checked:
+                event_name = cb_id["index"]
+                try:
+                    event_manager.trigger_event(event_name, selected_nodes=None)
+                except Exception:
+                    pass
+
+        return False, time.time()
 
     # --- Open Dormant Node Modal ---
     @app.callback(
@@ -403,7 +489,6 @@ def register_event_callbacks(app):
         if not name or not name.strip():
             return no_update, "Node name is required.", no_update, no_update, no_update, no_update, no_update
 
-        # Auto-save the event if it hasn't been saved yet
         event_status_msg = no_update
         event_trigger_style = no_update
         if not selected_event:
@@ -418,11 +503,9 @@ def register_event_callbacks(app):
                 return no_update, str(e), no_update, no_update, no_update, no_update, no_update
             selected_event = ev_name
             event_status_msg = "Event auto-saved."
-            event_trigger_style = {"display": "flex", "alignItems": "center", "justifyContent": "flex-end"}
+            event_trigger_style = {"display": "flex", "alignItems": "center"}
 
         name = name.strip()
-
-        # Convert delay to days
         delay_value = int(delay_value or 0)
         if delay_unit == "weeks":
             delay_days = delay_value * 7
@@ -455,8 +538,8 @@ def register_event_callbacks(app):
         event_nodes = event_manager.get_event_nodes(selected_event)
 
         return (
-            False,  # close modal
-            "",     # clear node save status
+            False,
+            "",
             build_dormant_nodes_table(event_nodes, event.status if event else "Pending"),
             f"add-node-{name}",
             selected_event,

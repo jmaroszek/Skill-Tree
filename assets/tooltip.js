@@ -45,10 +45,10 @@
         observer.observe(tooltip, { childList: true, subtree: true, characterData: true });
 
         // --- 3. Attach to Cytoscape.js instance for precise node events ---
-        function attachCytoEvents() {
-            var cyWrapper = document.getElementById('cytoscape-graph');
+        function attachCytoEvents(selector) {
+            var cyWrapper = document.querySelector(selector);
             if (!cyWrapper) {
-                setTimeout(attachCytoEvents, 300);
+                setTimeout(function() { attachCytoEvents(selector); }, 300);
                 return;
             }
 
@@ -61,9 +61,8 @@
 
             // Access the Cytoscape.js instance (Dash Cytoscape stores it on the DOM element)
             function getCyInstance() {
-                var cyEl = cyWrapper;
-                if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                    return cyEl._cyreg.cy;
+                if (cyWrapper && cyWrapper._cyreg && cyWrapper._cyreg.cy) {
+                    return cyWrapper._cyreg.cy;
                 }
                 return null;
             }
@@ -103,7 +102,8 @@
             bindCyEvents();
         }
 
-        attachCytoEvents();
+        attachCytoEvents('#cytoscape-graph');
+        attachCytoEvents('#goal-mini-graph');
     }
 
     if (document.readyState === 'loading') {

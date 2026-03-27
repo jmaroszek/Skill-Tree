@@ -61,3 +61,60 @@ input[type=number] {
     color: #ee6666 !important; /* Slightly brighter but still muted red for text */
 }
 
+/* Fix sim dropdown: Dash uses Radix UI button, not React-Select */
+#sim-node-select.dash-dropdown {
+    background-color: #2b3035 !important;
+    border: 1px solid #495057 !important;
+    color: #dee2e6 !important;
+}
+#sim-node-select .dash-dropdown-value {
+    color: #dee2e6 !important;
+}
+
+/* Fix event trigger-node dropdown: white bg so use black text */
+#event-trigger-node.dash-dropdown {
+    border: 1px solid #495057 !important;
+}
+#event-trigger-node .dash-dropdown-value {
+    color: #000 !important;
+}
+
+/* Fix goal add node dropdown text color */
+#goal-add-existing-dropdown .Select-value-label,
+#goal-add-existing-dropdown .Select-input input {
+    color: #000 !important;
+}
+
+/* Hide horizontal scrollbar in goals subtasks area */
+#goal-subtasks-table-container {
+    overflow-x: hidden;
+}
+#goal-subtasks-table-container .table-responsive {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+#goal-subtasks-table-container .table-responsive::-webkit-scrollbar {
+    display: none;
+}
+
+/* Remove underline from restore-defaults icon buttons */
+#btn-restore-shapes,
+#btn-restore-colors {
+    text-decoration: none !important;
+}
+#btn-restore-shapes:hover,
+#btn-restore-colors:hover {
+    text-decoration: none !important;
+    color: #fff !important;
+}
+
+/* Hide horizontal scrollbar in goal detail left column */
+#goal-detail-content .goal-left-column {
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+#goal-detail-content .goal-left-column::-webkit-scrollbar {
+    display: none;
+}

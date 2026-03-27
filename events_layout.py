@@ -86,6 +86,19 @@ def build_events_tab_content():
         ]),
     ], id="modal-dormant-node", size="lg", is_open=False, centered=True)
 
+    # --- Node Completion Confirmation Modal ---
+    node_completion_modal = dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Node Completion Trigger")),
+        dbc.ModalBody([
+            html.P(id="node-completion-modal-desc", className="mb-3"),
+            html.Div(id="node-completion-event-list"),
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Skip", id="btn-node-completion-skip", color="secondary", className="me-auto"),
+            dbc.Button("Trigger Selected", id="btn-node-completion-confirm", color="success"),
+        ]),
+    ], id="modal-node-completion", is_open=False, centered=True)
+
     # --- Right Panel: Event Detail ---
     event_detail_panel = html.Div([
         # Shown when no event is selected
@@ -101,85 +114,104 @@ def build_events_tab_content():
 
         # Event editor (hidden when no event selected)
         html.Div(id="event-detail-content", style={"display": "none"}, children=[
-            # Hidden status badge — kept in DOM so callbacks don't break
-            dbc.Badge(id="event-status-badge", children="Pending", color="primary",
-                      style={"display": "none"}),
-
-            # --- Toolbar: Name + Action Buttons ---
             html.Div([
-                html.Div([
-                    dbc.Input(id="event-name", type="text", placeholder="Event Name",
-                              style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
-                                     "border": "none", "borderBottom": "1px solid #495057", "color": "#dee2e6",
-                                     "borderRadius": "0", "paddingLeft": "0"}),
-                ], style={"flex": "1"}),
-                # Delete + Trigger visibility controlled by callbacks via event-trigger-section
-                html.Div(id="event-trigger-section", className="d-flex align-items-center ms-2", children=[
-                    dbc.Button("Delete", id="btn-event-delete", color="danger", size="sm", className="ms-1",
-                               style={"backgroundColor": ConfigManager.get_danger_color(),
-                                      "borderColor": ConfigManager.get_danger_color()}),
-                ]),
-                dbc.Button("Save", id="btn-event-save", color="primary", size="sm", className="ms-2"),
-                dbc.Button("Trigger", id="btn-trigger-event", color="success", size="sm", className="ms-2"),
-            ], className="d-flex align-items-end mb-2 mt-3"),
+                # Hidden status badge — kept in DOM so callbacks don't break
+                dbc.Badge(id="event-status-badge", children="Pending", color="primary",
+                          style={"display": "none"}),
 
-            # Save status feedback
-            html.Div(id="event-save-status", className="text-success mb-3",
-                     style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
+                # --- Name ---
+                dbc.Input(id="event-name", type="text", placeholder="Event Name",
+                          className="mt-3 mb-1",
+                          style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
+                                 "border": "none", "borderBottom": "1px solid #495057", "color": "#dee2e6",
+                                 "borderRadius": "0", "paddingLeft": "0"}),
 
-            # --- Two-Column Body ---
-            dbc.Row([
-                # Left column: description
-                dbc.Col([
-                    dbc.Label("Description", className="mb-1"),
-                    dbc.Textarea(id="event-description", rows=5,
-                                 style={"height": "140px", "resize": "vertical"}),
-                ], width=7),
+                html.Div(id="event-save-status", className="text-success mb-2",
+                         style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
 
-                # Right column: trigger date (calendar icon only)
-                dbc.Col([
-                    dbc.Label("Trigger Date", className="mb-1"),
+                # --- Description ---
+                dbc.Label("Description", className="mb-1"),
+                dbc.Textarea(id="event-description", rows=3,
+                             style={"height": "90px", "resize": "vertical"}),
+
+                # --- Trigger Type ---
+                dbc.Label("Trigger Type", className="mt-3 mb-1"),
+                dbc.RadioItems(
+                    id="event-trigger-type",
+                    options=[
+                        {"label": "Manual", "value": "manual"},
+                        {"label": "Date", "value": "date"},
+                        {"label": "Node Completion", "value": "node"},
+                    ],
+                    value="manual",
+                    inline=True,
+                    className="mb-2",
+                ),
+
+                # Date trigger section
+                html.Div(id="event-date-section", style={"display": "none"}, children=[
                     html.Div([
-                        html.Label("📅", htmlFor="event-trigger-date",
-                                   style={"fontSize": "1.4rem", "cursor": "pointer",
-                                          "userSelect": "none", "lineHeight": "1",
-                                          "display": "block", "marginBottom": "4px"}),
                         dbc.Input(id="event-trigger-date", type="date",
-                                  style={"position": "absolute", "top": "0", "left": "0",
-                                         "width": "100%", "height": "100%", "opacity": "0",
-                                         "cursor": "pointer"}),
-                    ], style={"position": "relative", "display": "inline-block",
-                              "width": "2rem", "height": "2rem"}),
-                    html.Small("Optional. Auto-triggers on or after this date.",
-                               className="text-muted d-block mt-2", style={"fontSize": "0.8rem"}),
-                ], width=5),
-            ], className="mb-3"),
-
-            html.Hr(className="my-3"),
-
-            # Dormant Nodes Section
-            html.Div([
-                html.H5("Dormant Nodes", className="mb-0"),
-                dbc.Button("Add Node", id="btn-add-dormant-node", color="success", size="sm"),
-            ], className="d-flex justify-content-between align-items-center mb-3"),
-
-            html.Div(id="dormant-nodes-table-container"),
-
-            dbc.Modal([
-                dbc.ModalBody("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
-                dbc.ModalFooter([
-                    dbc.Button("Cancel", id="btn-trigger-cancel", color="secondary", className="me-auto"),
-                    dbc.Button("Trigger Checked", id="btn-trigger-confirm", color="success", className="me-2"),
-                    dbc.Button("Trigger All", id="btn-trigger-all-confirm", color="success"),
+                                  style={"maxWidth": "200px"}),
+                        html.Small("Auto-triggers on or after this date.",
+                                   className="text-muted ms-2 align-self-center",
+                                   style={"fontSize": "0.8rem"}),
+                    ], className="d-flex align-items-center mb-2"),
                 ]),
-            ], id="modal-confirm-trigger", is_open=False, centered=True),
-            dbc.Modal([
-                dbc.ModalBody("Are you sure you want to delete this event? This will also delete all its dormant nodes."),
-                dbc.ModalFooter([
-                    dbc.Button("Cancel", id="btn-delete-cancel", color="secondary", className="me-2"),
-                    dbc.Button("Delete", id="btn-delete-confirm", color="danger", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
+
+                # Node completion trigger section
+                html.Div(id="event-node-section", style={"display": "none"}, children=[
+                    html.Div(
+                        dcc.Dropdown(
+                            id="event-trigger-node",
+                            placeholder="Select a node...",
+                        ),
+                        className="text-dark mb-2",
+                        style={"maxWidth": "350px"},
+                    ),
+                    html.Small("Auto-triggers when the selected node is marked complete.",
+                               className="text-muted d-block mb-2",
+                               style={"fontSize": "0.8rem"}),
                 ]),
-            ], id="modal-confirm-delete", is_open=False, centered=True),
+
+                # --- Action Buttons (right-aligned: Delete | Save | Trigger) ---
+                html.Div([
+                    html.Div(id="event-trigger-section", className="d-flex align-items-center", children=[
+                        dbc.Button("Delete", id="btn-event-delete", color="danger", size="sm",
+                                   className="me-2",
+                                   style={"backgroundColor": ConfigManager.get_danger_color(),
+                                          "borderColor": ConfigManager.get_danger_color()}),
+                        dbc.Button("Save", id="btn-event-save", color="primary", size="sm", className="me-2"),
+                        dbc.Button("Trigger", id="btn-trigger-event", color="success", size="sm"),
+                    ]),
+                ], className="d-flex justify-content-end mb-3 mt-2"),
+
+                html.Hr(className="my-3"),
+
+                # Dormant Nodes Section
+                html.Div([
+                    html.H5("Dormant Nodes", className="mb-0"),
+                    dbc.Button("Add Node", id="btn-add-dormant-node", color="success", size="sm"),
+                ], className="d-flex justify-content-between align-items-center mb-3"),
+
+                html.Div(id="dormant-nodes-table-container"),
+
+                dbc.Modal([
+                    dbc.ModalBody("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
+                    dbc.ModalFooter([
+                        dbc.Button("Cancel", id="btn-trigger-cancel", color="secondary", className="me-auto"),
+                        dbc.Button("Trigger Checked", id="btn-trigger-confirm", color="success", className="me-2"),
+                        dbc.Button("Trigger All", id="btn-trigger-all-confirm", color="success"),
+                    ]),
+                ], id="modal-confirm-trigger", is_open=False, centered=True),
+                dbc.Modal([
+                    dbc.ModalBody("Are you sure you want to delete this event? This will also delete all its dormant nodes."),
+                    dbc.ModalFooter([
+                        dbc.Button("Cancel", id="btn-delete-cancel", color="secondary", className="me-2"),
+                        dbc.Button("Delete", id="btn-delete-confirm", color="danger", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
+                    ]),
+                ], id="modal-confirm-delete", is_open=False, centered=True),
+            ], style={"maxWidth": "650px"}),
         ]),
     ], style={
         "flex": "1",
@@ -190,8 +222,10 @@ def build_events_tab_content():
     return html.Div([
         dcc.Store(id='selected-event-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
+        dcc.Store(id='node-completion-events-store', data=None),
         dcc.Interval(id='event-clear-interval', interval=3000, n_intervals=0, disabled=True),
         dormant_node_modal,
+        node_completion_modal,
         event_list_panel,
         event_detail_panel,
     ], style={
@@ -201,18 +235,30 @@ def build_events_tab_content():
     })
 
 
-def _event_badge(status, trigger_date):
+def _event_trigger_type(event):
+    """Returns the trigger type string for an event."""
+    if event.trigger_node:
+        return "node"
+    if event.trigger_date:
+        return "date"
+    return "manual"
+
+
+def _event_badge(status, trigger_date, trigger_node=None):
     """Returns (badge_text, badge_color) for an event."""
     if status == "Triggered":
         return "Triggered", "success"
+    if trigger_node:
+        return "On Completion", "warning"
     if trigger_date:
         return "Scheduled", "info"
-    return "Pending", "primary"
+    return "Manual", "secondary"
 
 
-def build_event_card(event_name, description, status, node_count, is_selected=False, trigger_date=None):
+def build_event_card(event_name, description, status, node_count, is_selected=False,
+                     trigger_date=None, trigger_node=None):
     """Builds a single event card for the list."""
-    badge_text, badge_color = _event_badge(status, trigger_date)
+    badge_text, badge_color = _event_badge(status, trigger_date, trigger_node)
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
     children = [
@@ -229,7 +275,13 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
         ))
     if trigger_date and status != "Triggered":
         children.append(html.Small(
-            f"Scheduled: {trigger_date}",
+            f"Date: {trigger_date}",
+            className="text-muted d-block",
+            style={"fontSize": "0.75rem"}
+        ))
+    if trigger_node and status != "Triggered":
+        children.append(html.Small(
+            f"Node: {trigger_node}",
             className="text-muted d-block",
             style={"fontSize": "0.75rem"}
         ))

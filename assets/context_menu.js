@@ -4,15 +4,17 @@
 (function () {
 
     var _currentNodeData = null;
+    var _menuSource = 'main';
 
     function initContextMenu() {
         var cyWrapper = document.getElementById('cytoscape-graph');
         var menu = document.getElementById('node-context-menu');
-        
+
         var editItem = document.getElementById('ctx-menu-edit');
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
+        var simulateItem = document.getElementById('ctx-menu-simulate');
         var deleteItem = document.getElementById('ctx-menu-delete');
 
         if (!cyWrapper || !menu || !obsidianItem || !deleteItem) {
@@ -22,6 +24,15 @@
 
         function getCy() {
             return (cyWrapper._cyreg && cyWrapper._cyreg.cy) ? cyWrapper._cyreg.cy : null;
+        }
+
+        function _getFirstLink(pathData) {
+            if (!pathData) return null;
+            try {
+                var parsed = JSON.parse(pathData);
+                if (Array.isArray(parsed)) return parsed[0] || null;
+            } catch(e) {}
+            return pathData;
         }
 
         function hideMenu() {
@@ -35,7 +46,8 @@
             
             _currentNodeData = nodeData;
 
-            if (nodeData.obsidian_path) {
+            var hasObsidian = _getFirstLink(nodeData.obsidian_path);
+            if (hasObsidian) {
                 obsidianItem.style.opacity = '1';
                 obsidianItem.style.cursor = 'pointer';
                 obsidianItem.style.pointerEvents = 'auto';
@@ -44,8 +56,9 @@
                 obsidianItem.style.cursor = 'default';
                 obsidianItem.style.pointerEvents = 'none';
             }
-            
-            if (nodeData.google_drive_path) {
+
+            var hasDrive = _getFirstLink(nodeData.google_drive_path);
+            if (hasDrive) {
                 driveItem.style.opacity = '1';
                 driveItem.style.cursor = 'pointer';
                 driveItem.style.pointerEvents = 'auto';
@@ -67,14 +80,33 @@
             }
         }
 
+        function _setHiddenInput(inputId, value) {
+            var input = document.getElementById(inputId);
+            if (input) {
+                var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype, 'value'
+                ).set;
+                nativeInputValueSetter.call(input, value + '|' + Date.now());
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
         function triggerEdit() {
             hideMenu();
-            _clickDashBtn('btn-edit-node');
+            if (_menuSource === 'goal' && _currentNodeData && _currentNodeData.id) {
+                _setHiddenInput('edit-trigger-input', _currentNodeData.id);
+            } else {
+                _clickDashBtn('btn-edit-node');
+            }
         }
 
         function triggerToggleDone() {
             hideMenu();
-            _clickDashBtn('btn-toggle-done-node');
+            if (_menuSource === 'goal' && _currentNodeData && _currentNodeData.id) {
+                _setHiddenInput('toggle-done-trigger-input', _currentNodeData.id);
+            } else {
+                _clickDashBtn('btn-toggle-done-node');
+            }
         }
 
         function openInObsidian(path) {
@@ -99,6 +131,17 @@
                 ).set;
                 // Add timestamp to ensure value is always "new" even if deleting same nodes
                 nativeInputValueSetter.call(input, JSON.stringify(nodeNames) + '|' + Date.now());
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+        function triggerSimulate(nodeName) {
+            var input = document.getElementById('simulate-trigger-input');
+            if (input) {
+                var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype, 'value'
+                ).set;
+                nativeInputValueSetter.call(input, nodeName + '|' + Date.now());
                 input.dispatchEvent(new Event('input', { bubbles: true }));
             }
         }
@@ -136,6 +179,7 @@
                     e.stopPropagation();
                     cy.$('node:selected').unselect();
                     hitNode.select();
+                    _menuSource = 'main';
                     triggerEdit();
                 }
             });
@@ -156,6 +200,7 @@
                 
                 var nodeData = evt.target.data();
                 var pos = evt.originalEvent;
+                _menuSource = 'main';
                 showMenu(pos.clientX, pos.clientY, nodeData);
             });
 
@@ -218,15 +263,16 @@
         
         if (obsidianItem) {
             obsidianItem.addEventListener('click', function () {
-                if (_currentNodeData) openInObsidian(_currentNodeData.obsidian_path);
+                if (_currentNodeData) openInObsidian(_getFirstLink(_currentNodeData.obsidian_path));
             });
         }
-        
+
         if (driveItem) {
             driveItem.addEventListener('click', function () {
                 hideMenu();
-                if (_currentNodeData && _currentNodeData.google_drive_path) {
-                    window.open(_currentNodeData.google_drive_path, '_blank');
+                if (_currentNodeData) {
+                    var link = _getFirstLink(_currentNodeData.google_drive_path);
+                    if (link) window.open(link, '_blank');
                 }
             });
         }
@@ -242,7 +288,55 @@
             });
         }
 
+        if (simulateItem) {
+            simulateItem.addEventListener('click', function () {
+                hideMenu();
+                if (_currentNodeData && _currentNodeData.id) {
+                    triggerSimulate(_currentNodeData.id);
+                }
+            });
+        }
+
         bindCyEvents();
+
+        // --- Also bind context menu on goal mini graph ---
+        function bindGoalGraphEvents() {
+            var goalWrapper = document.getElementById('goal-mini-graph');
+            if (!goalWrapper) {
+                setTimeout(bindGoalGraphEvents, 500);
+                return;
+            }
+
+            function getGoalCy() {
+                return (goalWrapper._cyreg && goalWrapper._cyreg.cy) ? goalWrapper._cyreg.cy : null;
+            }
+
+            function tryBind() {
+                var cy = getGoalCy();
+                if (!cy) {
+                    setTimeout(tryBind, 500);
+                    return;
+                }
+
+                cy.on('cxttap', 'node', function (evt) {
+                    evt.originalEvent.preventDefault();
+                    var nodeData = evt.target.data();
+                    var pos = evt.originalEvent;
+                    _menuSource = 'goal';
+                    showMenu(pos.clientX, pos.clientY, nodeData);
+                });
+
+                cy.on('tap', function (evt) {
+                    if (evt.target === cy) hideMenu();
+                });
+
+                goalWrapper.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                });
+            }
+            tryBind();
+        }
+        bindGoalGraphEvents();
     }
 
     if (document.readyState === 'loading') {

@@ -8,6 +8,7 @@ from layout import build_app_layout
 from callbacks import generate_elements, register_callbacks
 from event_callbacks import register_event_callbacks
 from goal_callbacks import register_goal_callbacks
+from simulate_callbacks import register_simulate_callbacks
 from config import ENVIRONMENT, ConfigManager
 import ctypes
 
@@ -26,6 +27,7 @@ app.layout = build_app_layout(initial_elements=generate_elements(), env=ENVIRONM
 register_callbacks(app)
 register_event_callbacks(app)
 register_goal_callbacks(app)
+register_simulate_callbacks(app)
 
 @app.server.route('/open-obsidian')
 def open_obsidian_route():
