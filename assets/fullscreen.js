@@ -10,10 +10,10 @@
     // We handle wheel events ourselves with cy.zoom() for gradual control.
     var ZOOM_FACTOR = 1.1;  // per-tick multiplier (closer to 1 = slower)
 
-    function initScrollSensitivity() {
-        var cyWrapper = document.getElementById('cytoscape-graph');
+    function initScrollSensitivity(selector) {
+        var cyWrapper = document.querySelector(selector);
         if (!cyWrapper) {
-            setTimeout(initScrollSensitivity, 300);
+            setTimeout(function() { initScrollSensitivity(selector); }, 300);
             return;
         }
 
@@ -48,10 +48,10 @@
     // --- Right-click panning ---
     // userPanningEnabled is set to False in Cytoscape config.
     // We manually pan on right-click drag on the canvas background.
-    function initRightClickPan() {
-        var cyWrapper = document.getElementById('cytoscape-graph');
+    function initRightClickPan(selector) {
+        var cyWrapper = document.querySelector(selector);
         if (!cyWrapper) {
-            setTimeout(initRightClickPan, 300);
+            setTimeout(function() { initRightClickPan(selector); }, 300);
             return;
         }
 
@@ -161,13 +161,17 @@
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
-            initScrollSensitivity();
+            initScrollSensitivity('#cytoscape-graph');
+            initScrollSensitivity('#goal-mini-graph');
             initFullscreen();
-            initRightClickPan();
+            initRightClickPan('#cytoscape-graph');
+            initRightClickPan('#goal-mini-graph');
         });
     } else {
-        initScrollSensitivity();
+        initScrollSensitivity('#cytoscape-graph');
+        initScrollSensitivity('#goal-mini-graph');
         initFullscreen();
-        initRightClickPan();
+        initRightClickPan('#cytoscape-graph');
+        initRightClickPan('#goal-mini-graph');
     }
 })();

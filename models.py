@@ -127,10 +127,12 @@ class Event:
     name: str
     description: str = ""
     status: str = "Pending"  # Pending | Triggered
-    trigger_date: str = None  # ISO date string or None for manual-only
+    trigger_date: str = None   # ISO date string — used for date-based triggers
+    trigger_node: str = None   # Node name — used for node-completion triggers
 
     def __post_init__(self):
         self.trigger_date = self.trigger_date or None
+        self.trigger_node = self.trigger_node or None
 
     def to_dict(self):
         return asdict(self)

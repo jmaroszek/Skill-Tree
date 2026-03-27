@@ -4,8 +4,10 @@ Layout definitions for the Goals tab.
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
+import dash_cytoscape as cyto
 from config import ConfigManager
 from models import EDGE_RESOURCE
+from styles import stylesheet
 
 
 def build_goals_tab_content():
@@ -29,6 +31,121 @@ def build_goals_tab_content():
     })
 
     # --- Right Panel: Goal Detail ---
+
+    # Right column: full-height dependency graph
+    graph_column = html.Div([
+        html.Div([
+            html.H5("Dependency Graph", className="mb-0",
+                     style={"lineHeight": "1.2"}),
+            dbc.Button("Focus", id="btn-goal-focus", color="info", size="sm",
+                       className="ms-2"),
+            dbc.Tooltip("Focus this goal's subtree on the Nodes tab canvas",
+                        target="btn-goal-focus", placement="bottom"),
+        ], className="d-flex align-items-center mt-3 mb-2"),
+        cyto.Cytoscape(
+            id='goal-mini-graph',
+            elements=[],
+            layout={'name': 'cose', 'animate': False, 'fit': True, 'padding': 20},
+            style={'width': '100%', 'flex': '1', 'backgroundColor': '#1a1d21',
+                   'borderRadius': '8px', 'minHeight': '300px', 'marginBottom': '12px'},
+            stylesheet=stylesheet,
+            userZoomingEnabled=False,
+            userPanningEnabled=False,
+            boxSelectionEnabled=False,
+            autoungrabify=False,
+        ),
+    ], style={
+        "flex": "1",
+        "minWidth": "350px",
+        "paddingLeft": "16px",
+        "borderLeft": "1px solid #495057",
+        "marginLeft": "16px",
+        "display": "flex",
+        "flexDirection": "column",
+    })
+
+    # Add Node modal
+    add_node_modal = dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Add Node to Goal")),
+        dbc.ModalBody([
+            dbc.RadioItems(
+                id="goal-add-mode",
+                options=[
+                    {"label": "Create New Node", "value": "create"},
+                    {"label": "Link Existing Node", "value": "link"},
+                ],
+                value="create",
+                inline=True,
+                className="mb-3",
+            ),
+
+            # --- Link Existing mode ---
+            html.Div(id="goal-add-link-section", style={"display": "none"}, children=[
+                dbc.Label("Select Node"),
+                html.Div(dcc.Dropdown(
+                    id="goal-add-existing-dropdown",
+                    placeholder="Search for a node...",
+                    style={"backgroundColor": "#2b3035", "color": "#dee2e6"},
+                ), className="text-dark mb-3"),
+            ]),
+
+            # --- Create New mode ---
+            html.Div(id="goal-add-create-section", children=[
+                dbc.Label("Name"),
+                dbc.Input(id="goal-add-name", type="text"),
+
+                dbc.Label("Type", className="mt-2"),
+                dbc.Select(id="goal-add-type", options=[], value="Learn"),
+
+                dbc.Label("Context", className="mt-2"),
+                dbc.Select(id="goal-add-context", options=[{"label": "None", "value": ""}]),
+
+                dbc.Label("Subcontext", className="mt-2"),
+                dbc.Select(id="goal-add-subcontext", options=[{"label": "None", "value": ""}]),
+
+                dbc.Label("Description", className="mt-2"),
+                dbc.Textarea(id="goal-add-desc"),
+
+                dbc.Label("Value", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="goal-add-value"),
+
+                dbc.Label("Interest", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="goal-add-interest"),
+
+                dbc.Label("Effort", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="goal-add-difficulty"),
+
+                dbc.Label("Time Estimates in Hours", className="mt-3"),
+                dbc.Row([
+                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
+                             dbc.Input(id="goal-add-time-o", type="number", min=0, value=0)]),
+                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
+                             dbc.Input(id="goal-add-time-m", type="number", min=0, value=0)]),
+                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
+                             dbc.Input(id="goal-add-time-p", type="number", min=0, value=0)]),
+                ]),
+            ]),
+
+            html.Hr(),
+            dbc.Label("Edge Type"),
+            dbc.Select(
+                id="goal-add-edge-type",
+                options=[
+                    {"label": "Hard Dependency", "value": "Needs_Hard"},
+                    {"label": "Soft Dependency", "value": "Needs_Soft"},
+                ],
+                value="Needs_Hard",
+            ),
+
+            html.Div(id="goal-add-save-status", className="text-danger mt-2",
+                     style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-goal-add-cancel", color="secondary", className="me-2"),
+            dbc.Button("Add", id="btn-goal-add-save", color="primary"),
+        ]),
+    ], id="modal-goal-add-node", size="lg", is_open=False, centered=True)
+
     goal_detail_panel = html.Div([
         # Shown when no goal is selected
         html.Div(
@@ -42,92 +159,103 @@ def build_goals_tab_content():
         ),
 
         # Goal editor (hidden when no goal selected)
-        html.Div(id="goal-detail-content", style={"display": "none"}, children=[
-            # --- Toolbar: Name + Buttons ---
+        html.Div(id="goal-detail-content", style={"display": "none", "flexDirection": "column", "height": "100%"}, children=[
+            # Two-column layout: left (editor+subtasks) + right (graph)
             html.Div([
+                # Left column: editor form + subtasks
                 html.Div([
-                    dbc.Input(id="goal-name", type="text", placeholder="Goal Name",
-                              style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
-                                     "border": "none", "borderBottom": "1px solid #495057", "color": "#dee2e6",
-                                     "borderRadius": "0", "paddingLeft": "0"}),
-                ], style={"flex": "1"}),
-                dbc.Button("Focus", id="btn-goal-focus", color="info", size="sm",
-                           className="ms-2", title="Show this goal's subtree on the canvas"),
-                dbc.Button("Save", id="btn-goal-save", color="primary", size="sm", className="ms-2"),
-                dbc.Button("Delete", id="btn-goal-delete", color="danger", size="sm",
-                           className="ms-2",
-                           style={"backgroundColor": ConfigManager.get_danger_color(),
-                                  "borderColor": ConfigManager.get_danger_color()}),
-            ], className="d-flex align-items-end mb-2 mt-3"),
+                    # --- Toolbar: Name + Buttons ---
+                    html.Div([
+                        html.Div([
+                            dbc.Input(id="goal-name", type="text", placeholder="Goal Name",
+                                      style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
+                                             "border": "none", "borderBottom": "1px solid #495057", "color": "#dee2e6",
+                                             "borderRadius": "0", "paddingLeft": "0"}),
+                        ], style={"flex": "1"}),
+                        dbc.Button("Delete", id="btn-goal-delete", color="danger", size="sm",
+                                   className="ms-2",
+                                   style={"backgroundColor": ConfigManager.get_danger_color(),
+                                          "borderColor": ConfigManager.get_danger_color()}),
+                        dbc.Button("Save", id="btn-goal-save", color="primary", size="sm", className="ms-2"),
+                    ], className="d-flex align-items-end mb-2 mt-3"),
 
-            # Save status feedback
-            html.Div(id="goal-save-status", className="text-success mb-3",
-                     style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
+                    # Save status feedback
+                    html.Div(id="goal-save-status", className="text-success mb-3",
+                             style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
 
-            # --- Two-Column Body ---
-            dbc.Row([
-                # Left column: description, sliders, done toggle
-                dbc.Col([
-                    dbc.Label("Description", className="mb-1"),
-                    dbc.Textarea(id="goal-description", rows=2,
-                                 style={"height": "80px", "resize": "vertical"}),
+                    # --- Two-Column Body ---
+                    dbc.Row([
+                        # Left column: description, sliders, done toggle
+                        dbc.Col([
+                            dbc.Label("Description", className="mb-1"),
+                            dbc.Textarea(id="goal-description", rows=2,
+                                         style={"height": "80px", "resize": "vertical"}),
 
-                    dbc.Label("Value", className="mt-3 mb-0"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="goal-value"),
+                            dbc.Label("Value", className="mt-3 mb-0"),
+                            dcc.Slider(min=1, max=10, step=1, value=5, id="goal-value"),
 
-                    dbc.Label("Interest", className="mt-2 mb-0"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="goal-interest"),
+                            dbc.Label("Interest", className="mt-2 mb-0"),
+                            dcc.Slider(min=1, max=10, step=1, value=5, id="goal-interest"),
 
-                    dbc.Label("Difficulty", className="mt-2 mb-0"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="goal-difficulty"),
+                            dbc.Label("Difficulty", className="mt-2 mb-0"),
+                            dcc.Slider(min=1, max=10, step=1, value=5, id="goal-difficulty"),
 
-                    dbc.Checklist(
-                        id="goal-done-toggle",
-                        options=[{"label": "Done", "value": "done"}],
-                        value=[],
-                        switch=True,
-                        className="mt-3",
-                    ),
-                ], width=7),
+                            dbc.Checklist(
+                                id="goal-done-toggle",
+                                options=[{"label": "Done", "value": "done"}],
+                                value=[],
+                                switch=True,
+                                className="mt-3",
+                            ),
+                        ], width=7),
 
-                # Right column: priority rank, context, subcontext, progress
-                dbc.Col([
-                    html.H6("Priority Rank", className="mb-2"),
-                    dbc.Select(
-                        id="goal-priority-rank",
-                        options=[
-                            {"label": "\u2014", "value": "none"},
-                            {"label": "#1 Priority", "value": "1"},
-                            {"label": "#2 Priority", "value": "2"},
-                            {"label": "#3 Priority", "value": "3"},
-                        ],
-                        value="none",
-                        className="mb-1",
-                    ),
-                    html.Small("Higher rank = stronger score boost", className="text-muted d-block mb-3",
-                               style={"fontSize": "0.75rem"}),
+                        # Right column: priority rank, context, subcontext, progress
+                        dbc.Col([
+                            html.H6("Priority Rank", className="mb-2"),
+                            dbc.Select(
+                                id="goal-priority-rank",
+                                options=[
+                                    {"label": "\u2014", "value": "none"},
+                                    {"label": "#1 Priority", "value": "1"},
+                                    {"label": "#2 Priority", "value": "2"},
+                                    {"label": "#3 Priority", "value": "3"},
+                                ],
+                                value="none",
+                                className="mb-1",
+                            ),
+                            html.Small("Higher rank = stronger score boost", className="text-muted d-block mb-3",
+                                       style={"fontSize": "0.75rem"}),
 
-                    dbc.Label("Context", className="mb-1"),
-                    dbc.Select(id="goal-context", options=[], className="mb-2"),
+                            dbc.Label("Context", className="mb-1"),
+                            dbc.Select(id="goal-context", options=[], className="mb-2"),
 
-                    dbc.Label("Subcontext", className="mb-1"),
-                    dbc.Select(id="goal-subcontext", options=[], className="mb-3"),
+                            dbc.Label("Subcontext", className="mb-1"),
+                            dbc.Select(id="goal-subcontext", options=[], className="mb-3"),
 
-                    html.Div(id="goal-stats-section", children=[
-                        html.H6("Progress", className="mb-2"),
-                        dbc.Progress(id="goal-progress-bar", value=0,
-                                     className="mb-2", style={"height": "20px"}),
-                        html.Div(id="goal-stats-text", className="text-muted mb-3",
-                                 style={"fontSize": "0.85rem"}),
+                            html.Div(id="goal-stats-section", children=[
+                                html.H6("Progress", className="mb-2"),
+                                dbc.Progress(id="goal-progress-bar", value=0,
+                                             className="mb-2", style={"height": "20px"}),
+                                html.Div(id="goal-stats-text", className="text-muted mb-3",
+                                         style={"fontSize": "0.85rem"}),
+                            ]),
+                        ], width=5),
                     ]),
-                ], width=5),
-            ]),
 
-            html.Hr(className="my-3"),
+                    html.Hr(className="my-3"),
 
-            # --- Subtasks Table (full width) ---
-            html.H5("Subtasks", className="mb-3"),
-            html.Div(id="goal-subtasks-table-container"),
+                    # --- Subtasks Table ---
+                    html.Div([
+                        html.H5("Subtasks", className="mb-0"),
+                        dbc.Button("Add Node", id="btn-goal-add-node", color="success", size="sm",
+                                   className="ms-2"),
+                    ], className="d-flex align-items-center mb-3"),
+                    html.Div(id="goal-subtasks-table-container"),
+                ], className="goal-left-column", style={"flex": "1", "minWidth": "500px", "overflowY": "auto", "paddingRight": "8px"}),
+
+                # Right column: full-height dependency graph
+                graph_column,
+            ], style={"display": "flex", "height": "100%"}),
 
             # Delete confirmation modal
             dbc.Modal([
@@ -139,12 +267,14 @@ def build_goals_tab_content():
                                       "borderColor": ConfigManager.get_danger_color()}),
                 ]),
             ], id="modal-goal-confirm-delete", is_open=False, centered=True),
+
+            # Add node modal
+            add_node_modal,
         ]),
     ], style={
         "flex": "1",
         "padding": "0 24px",
         "overflowY": "auto",
-        "maxWidth": "900px",
     })
 
     return html.Div([
@@ -178,9 +308,9 @@ def build_goal_card(name, status, completion, subtask_count, is_selected=False, 
     _btn_style = {"padding": "0 2px", "fontSize": "0.6rem", "background": "none",
                   "border": "none", "lineHeight": "1.2", "color": "#6c757d"}
     order_controls = html.Div([
-        dbc.Button("▲", id={"type": "goal-up", "index": name}, disabled=is_first,
+        dbc.Button("\u25b2", id={"type": "goal-up", "index": name}, disabled=is_first,
                    style={**_btn_style, "opacity": "0.3" if is_first else "1"}),
-        dbc.Button("▼", id={"type": "goal-down", "index": name}, disabled=is_last,
+        dbc.Button("\u25bc", id={"type": "goal-down", "index": name}, disabled=is_last,
                    style={**_btn_style, "opacity": "0.3" if is_last else "1"}),
     ], className="d-flex flex-column me-2", style={"gap": "1px"}) if show_order_buttons else None
 
@@ -200,7 +330,7 @@ def build_goal_card(name, status, completion, subtask_count, is_selected=False, 
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
 
-    # Stats line (no progress bar — keep it clean)
+    # Stats line (no progress bar -- keep it clean)
     if total > 0:
         stats_text = f"{done}/{total} subtasks \u00b7 {pct}% \u00b7 {remaining_hours}h"
     else:
@@ -237,11 +367,11 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
         unlocks = []
         if graph_manager:
             unlocks = graph_manager.get_directly_unlocked_nodes(node.name)
-        unlocks_str = ", ".join(unlocks) if unlocks else "—"
+        unlocks_str = ", ".join(unlocks) if unlocks else "\u2014"
 
         # Resources
         res = [e['source'] for e in edges if e['target'] == node.name and e['type'] == EDGE_RESOURCE]
-        res_str = ", ".join(res) if res else "—"
+        res_str = ", ".join(res) if res else "\u2014"
 
         rows.append(html.Tr([
             html.Td(
@@ -252,13 +382,13 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
             html.Td(dbc.Badge(node.status, color=status_color, style={"fontSize": "0.7rem"}),
                     style={"verticalAlign": "middle"}),
             html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(str(node.context) if node.context else "—",
+            html.Td(str(node.context) if node.context else "\u2014",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(str(node.subcontext) if node.subcontext else "—",
+            html.Td(str(node.subcontext) if node.subcontext else "\u2014",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.value), style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.difficulty), style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(f"{round(node.time)}h" if node.time and node.time > 0 else "—",
+            html.Td(f"{round(node.time)}h" if node.time and node.time > 0 else "\u2014",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(unlocks_str, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(res_str, style={"verticalAlign": "middle", "color": "#6c757d"}),

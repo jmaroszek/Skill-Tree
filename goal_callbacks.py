@@ -6,7 +6,7 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update
 from graph_manager import GraphManager
 from config import ConfigManager
-from models import Node
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from goals_layout import build_goal_card, build_subtasks_table
 
 graph_manager = GraphManager()
@@ -149,7 +149,7 @@ def register_goal_callbacks(app):
             None,  # selected_goal_store — clear (new unsaved goal)
             dash.callback_context.triggered_id,  # refresh trigger
             {"display": "none"},  # hide empty state
-            {"display": "block"},  # show detail
+            {"display": "flex", "flexDirection": "column", "height": "100%"},  # show detail
             "",  # name
             "",  # description
             5, 5, 5,  # value, interest, difficulty
@@ -225,7 +225,7 @@ def register_goal_callbacks(app):
             goal_name,  # selected_goal_store
             f"select-{goal_name}",  # refresh trigger
             {"display": "none"},  # hide empty state
-            {"display": "block"},  # show detail
+            {"display": "flex", "flexDirection": "column", "height": "100%"},  # show detail
             goal.name,
             goal.description or "",
             goal.value, goal.interest, goal.difficulty,
@@ -419,3 +419,207 @@ def register_goal_callbacks(app):
         if n_clicks:
             return None
         return no_update
+
+    # --- Mini Dependency Graph ---
+    @app.callback(
+        Output("goal-mini-graph", "elements"),
+        Input("selected-goal-store", "data"),
+        Input("goals-refresh-trigger", "data"),
+    )
+    def update_goal_mini_graph(selected_goal, _refresh):
+        if not selected_goal:
+            return []
+
+        subtree = graph_manager.get_goal_subtree(selected_goal)
+        node_names = subtree | {selected_goal}
+
+        colors = ConfigManager.get_node_colors()
+        shapes = ConfigManager.get_node_shapes()
+
+        elements = []
+        for name in node_names:
+            node = graph_manager.get_node(name)
+            if not node:
+                continue
+            elements.append({
+                'data': {
+                    'id': node.name,
+                    'label': node.name,
+                    'color': colors.get(node.status, '#6c757d'),
+                    'shape': shapes.get(node.type, 'ellipse'),
+                    'type': node.type,
+                    'status': node.status,
+                    'value': node.value,
+                    'difficulty': node.difficulty,
+                    'context': node.context or '',
+                    'time': round(node.time, 1) if node.time else 0,
+                    'time_o': node.time_o,
+                    'time_m': node.time_m,
+                    'time_p': node.time_p,
+                },
+            })
+
+        edges = graph_manager.get_edges()
+        for e in edges:
+            if e['source'] in node_names and e['target'] in node_names:
+                elements.append({
+                    'data': {
+                        'id': f"{e['source']}_{e['target']}_{e['type']}",
+                        'source': e['source'],
+                        'target': e['target'],
+                        'type': e['type'],
+                    },
+                })
+
+        return elements
+
+    # --- Add Node Modal: Open ---
+    @app.callback(
+        Output("modal-goal-add-node", "is_open", allow_duplicate=True),
+        Output("goal-add-type", "options"),
+        Output("goal-add-context", "options", allow_duplicate=True),
+        Output("goal-add-subcontext", "options", allow_duplicate=True),
+        Output("goal-add-existing-dropdown", "options"),
+        Output("goal-add-name", "value"),
+        Output("goal-add-desc", "value"),
+        Output("goal-add-save-status", "children", allow_duplicate=True),
+        Input("btn-goal-add-node", "n_clicks"),
+        State("selected-goal-store", "data"),
+        prevent_initial_call=True,
+    )
+    def open_add_node_modal(n_clicks, selected_goal):
+        if not n_clicks:
+            return (no_update,) * 8
+
+        types = ConfigManager.get_node_types()
+        contexts = ConfigManager.get_contexts()
+        type_opts = [{"label": t, "value": t} for t in types]
+        ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
+
+        # Build existing node options (exclude goal itself and its subtree)
+        all_nodes = graph_manager.get_all_nodes()
+        subtree = graph_manager.get_goal_subtree(selected_goal) if selected_goal else set()
+        exclude = subtree | {selected_goal} if selected_goal else set()
+        existing_opts = [{"label": n.name, "value": n.name}
+                        for n in sorted(all_nodes, key=lambda n: n.name)
+                        if n.name not in exclude]
+
+        return True, type_opts, ctx_opts, [{"label": "None", "value": ""}], existing_opts, "", "", ""
+
+    # --- Add Node Modal: Toggle mode (create vs link) ---
+    @app.callback(
+        Output("goal-add-create-section", "style"),
+        Output("goal-add-link-section", "style"),
+        Input("goal-add-mode", "value"),
+    )
+    def toggle_add_mode(mode):
+        if mode == "link":
+            return {"display": "none"}, {"display": "block"}
+        return {"display": "block"}, {"display": "none"}
+
+    # --- Add Node Modal: Update subcontexts ---
+    @app.callback(
+        Output("goal-add-subcontext", "options"),
+        Input("goal-add-context", "value"),
+    )
+    def update_add_node_subcontexts(context):
+        base = [{"label": "None", "value": ""}]
+        if not context:
+            return base
+        subs = ConfigManager.get_subcontexts().get(context, [])
+        return base + [{"label": s, "value": s} for s in subs]
+
+    # --- Add Node Modal: Cancel ---
+    @app.callback(
+        Output("modal-goal-add-node", "is_open", allow_duplicate=True),
+        Input("btn-goal-add-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def close_add_node_modal(n_clicks):
+        if n_clicks:
+            return False
+        return no_update
+
+    # --- Add Node Modal: Save ---
+    @app.callback(
+        Output("modal-goal-add-node", "is_open", allow_duplicate=True),
+        Output("goal-add-save-status", "children", allow_duplicate=True),
+        Output("goals-refresh-trigger", "data", allow_duplicate=True),
+        Output("goal-subtasks-table-container", "children", allow_duplicate=True),
+        Input("btn-goal-add-save", "n_clicks"),
+        State("selected-goal-store", "data"),
+        State("goal-add-mode", "value"),
+        State("goal-add-existing-dropdown", "value"),
+        State("goal-add-name", "value"),
+        State("goal-add-type", "value"),
+        State("goal-add-context", "value"),
+        State("goal-add-subcontext", "value"),
+        State("goal-add-desc", "value"),
+        State("goal-add-value", "value"),
+        State("goal-add-interest", "value"),
+        State("goal-add-difficulty", "value"),
+        State("goal-add-time-o", "value"),
+        State("goal-add-time-m", "value"),
+        State("goal-add-time-p", "value"),
+        State("goal-add-edge-type", "value"),
+        prevent_initial_call=True,
+    )
+    def save_add_node(n_clicks, selected_goal, mode, existing_node,
+                      name, node_type, context, subcontext, desc,
+                      value, interest, difficulty, time_o, time_m, time_p,
+                      edge_type):
+        if not n_clicks or not selected_goal:
+            return (no_update,) * 4
+
+        edge_type = edge_type or EDGE_NEEDS_HARD
+
+        if mode == "link":
+            # Link existing node
+            if not existing_node:
+                return no_update, "Select a node to link.", no_update, no_update
+            node_name = existing_node
+        else:
+            # Create new node
+            if not name or not name.strip():
+                return no_update, "Node name is required.", no_update, no_update
+            node_name = name.strip()
+
+            new_node = Node(
+                name=node_name,
+                type=node_type or "Learn",
+                description=(desc or "").strip(),
+                value=value or 5,
+                time_o=float(time_o or 0),
+                time_m=float(time_m or 0),
+                time_p=float(time_p or 0),
+                interest=interest or 5,
+                difficulty=difficulty or 5,
+                status="Open",
+                context=context or None,
+                subcontext=(subcontext or "").strip() or None,
+            )
+
+            try:
+                graph_manager.add_node(new_node)
+            except ValueError as e:
+                return no_update, str(e), no_update, no_update
+
+        # Add edge: node_name → selected_goal (node_name is a dependency of the goal)
+        try:
+            graph_manager.add_edge(node_name, selected_goal, edge_type)
+        except (ValueError, Exception) as e:
+            return no_update, str(e), no_update, no_update
+
+        # Rebuild subtasks table
+        subtree = graph_manager.get_goal_subtree(selected_goal)
+        subtask_nodes = [graph_manager.get_node(n) for n in subtree]
+        subtask_nodes = [n for n in subtask_nodes if n is not None]
+        subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
+        edges = graph_manager.get_edges()
+
+        return (
+            False,  # close modal
+            "",  # clear status
+            f"add-node-{node_name}",  # refresh trigger
+            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges),
+        )

@@ -3,7 +3,6 @@ Callback definitions for the Skill Tree Dash application.
 """
 
 import logging
-import math
 import dash
 import os
 import subprocess
@@ -19,6 +18,31 @@ logger = logging.getLogger(__name__)
 manager = GraphManager()
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
+
+
+def _parse_links(db_value):
+    """Parse a DB field that may contain a JSON array or a plain string into a list."""
+    import json as _json
+    if not db_value:
+        return ['']
+    try:
+        parsed = _json.loads(db_value)
+        if isinstance(parsed, list):
+            return parsed if parsed else ['']
+    except (ValueError, TypeError):
+        pass
+    return [db_value]
+
+
+def _serialize_links(values_list):
+    """Serialize a list of link input values into a JSON string for DB storage."""
+    import json as _json
+    if not values_list:
+        return None
+    links = [v.strip() for v in values_list if v and v.strip()]
+    if not links:
+        return None
+    return _json.dumps(links)
 
 
 def _get_trigger_id():
@@ -174,22 +198,27 @@ def _format_suggestions_table(suggs, selected_node_id=None):
     edges = manager.get_edges()
 
     table_header = [html.Thead(html.Tr([
-        html.Th("Task"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
+        html.Th("Name"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
         html.Th("Subcontext"), html.Th("Value"), html.Th("Effort"), html.Th("Time"),
         html.Th("Unlocks"), html.Th("Resources")
     ]))]
-    
+
     row_data = []
     for s in suggs:
         is_selected = (s.name == selected_node_id)
         # Subtle highlight for the selected row
         row_class = "table-active" if is_selected else ""
-        
+
         node_res = [e['source'] for e in edges if e['target'] == s.name and e['type'] == EDGE_RESOURCE]
         res_str = ", ".join(node_res) if node_res else "None"
-        
+
         row_data.append(html.Tr([
-            html.Td(s.name),
+            html.Td(html.Span(
+                s.name,
+                id={"type": "suggestion-name-link", "index": s.name},
+                title="Go to this node in the Nodes tab",
+                style={"cursor": "pointer"},
+            )),
             html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
             html.Td(s.type),
             html.Td(str(s.context)),
@@ -321,9 +350,13 @@ def register_callbacks(app):
     # --- Tooltip Formatting ---
     @app.callback(
         Output('hover-tooltip', 'children'),
-        Input('cytoscape-graph', 'mouseoverNodeData')
+        Input('cytoscape-graph', 'mouseoverNodeData'),
+        Input('goal-mini-graph', 'mouseoverNodeData'),
     )
-    def display_hover_data(data):
+    def display_hover_data(data, goal_data):
+        trigger = _get_trigger_id()
+        if trigger == 'goal-mini-graph':
+            data = goal_data
         if not data: return ""
 
         o = float(data.get('time_o', 0))
@@ -381,8 +414,8 @@ def register_callbacks(app):
          Output('edge-needs-hard', 'options'), Output('edge-needs-soft', 'options'),
          Output('edge-supports-hard', 'options'), Output('edge-supports-soft', 'options'),
          Output('edge-helps', 'options'), Output('edge-resources', 'options'),
-         Output('node-obsidian-path', 'value'), Output('node-google-drive-path', 'value'),
-         Output('node-website-path', 'value'),
+         Output('obsidian-links-store', 'data'), Output('drive-links-store', 'data'),
+         Output('website-links-store', 'data'),
          # Type-specific outputs
          Output('habit-status', 'value'), Output('habit-frequency', 'value'),
          Output('session-lower', 'value'), Output('session-expected', 'value'), Output('session-upper', 'value'),
@@ -404,7 +437,7 @@ def register_callbacks(app):
             "", "Learn", "", "", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
             [], [], [], [], [], [],
             options, options, options, options, options, options,
-            "", "", "",
+            [''], [''], [''],
             # Type-specific defaults
             "Active", "Daily", None, None, None, 0
         ]
@@ -457,8 +490,9 @@ def register_callbacks(app):
             needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals,
             helps_vals, res_vals,
             filtered_options, filtered_options, filtered_options, filtered_options, filtered_options, filtered_options,
-            data.get('obsidian_path', ''), data.get('google_drive_path', ''),
-            data.get('website', ''),
+            _parse_links(data.get('obsidian_path', '')),
+            _parse_links(data.get('google_drive_path', '')),
+            _parse_links(data.get('website', '')),
             # Type-specific fields
             data.get('habit_status') or 'Active',
             data.get('frequency') or 'Daily',
@@ -517,7 +551,8 @@ def register_callbacks(app):
          Output('filter-node-type', 'options'),
          Output('filter-goal', 'options'),
          Output('cytoscape-graph', 'stylesheet'),
-         Output('btn-clear-focus', 'style')],
+         Output('btn-clear-focus', 'style'),
+         Output('node-completion-events-store', 'data')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -530,14 +565,16 @@ def register_callbacks(app):
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'),
          Input('btn-filters-toggle', 'n_clicks'), Input('btn-suggestions-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
-         Input('modal-settings', 'is_open'),
+         Input('btn-settings-save', 'n_clicks'),
          Input('modal-migration', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
          Input('group-delete-input', 'value'),
          Input('filter-node-type', 'value'),
          Input('selected-suggestion-store', 'data'),
          Input('filter-goal', 'value'),
-         Input('focus-goal-store', 'data')],
+         Input('focus-goal-store', 'data'),
+         Input('edit-trigger-input', 'value'),
+         Input('toggle-done-trigger-input', 'value')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -546,8 +583,9 @@ def register_callbacks(app):
          State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
          State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
          State('edge-helps', 'value'), State('edge-resources', 'value'),
-         State('node-obsidian-path', 'value'), State('node-google-drive-path', 'value'),
-         State('node-website-path', 'value'),
+         State({'type': 'obsidian-link', 'index': ALL}, 'value'),
+         State({'type': 'drive-link', 'index': ALL}, 'value'),
+         State({'type': 'website-link', 'index': ALL}, 'value'),
          State('habit-status', 'value'), State('habit-frequency', 'value'),
          State('session-lower', 'value'), State('session-expected', 'value'), State('session-upper', 'value'),
          State('node-progress', 'value'),
@@ -561,10 +599,11 @@ def register_callbacks(app):
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
+                     edit_trigger_data, toggle_done_trigger_data,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
-                     obs_path, drive_path, website_path,
+                     obs_link_values, drive_link_values, website_link_values,
                      habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val,
                      current_elements, ed_style, fil_style):
         """Central state callback handling node CRUD, filtering, and UI updates.
@@ -576,6 +615,7 @@ def register_callbacks(app):
                      
         trigger_id = _get_trigger_id()
         msg = ""
+        completion_check_node = None  # Set when a node transitions to Done
 
         # Check for any delayed event nodes or scheduled events that are due
         from event_manager import EventManager
@@ -587,7 +627,7 @@ def register_callbacks(app):
 
         # Editor Sidebar State (380px matches sidebar_content width in layout.py)
         next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
-        if trigger_id in ('btn-edit-node', 'btn-add') or (trigger_id == 'search-node' and search_val):
+        if trigger_id in ('btn-edit-node', 'btn-add', 'edit-trigger-input') or (trigger_id == 'search-node' and search_val):
             next_ed_style['marginLeft'] = "0px"
         elif trigger_id in ('btn-save', 'btn-clear', 'btn-delete', 'btn-close-editor'):
             next_ed_style['marginLeft'] = "-380px"
@@ -600,13 +640,23 @@ def register_callbacks(app):
             next_fil_style['right'] = "-320px"
 
         active_node_id = None
-        if trigger_id == 'search-node' and search_val: active_node_id = search_val
+        if trigger_id == 'edit-trigger-input' and edit_trigger_data:
+            active_node_id = edit_trigger_data.split('|')[0] if edit_trigger_data else None
+        elif trigger_id == 'search-node' and search_val: active_node_id = search_val
         elif trigger_id == 'cytoscape-graph' and tapped_node: active_node_id = tapped_node.get('id')
         else: active_node_id = name
+
+        # Serialize multi-link arrays for storage
+        obs_path = _serialize_links(obs_link_values)
+        drive_path = _serialize_links(drive_link_values)
+        website_path = _serialize_links(website_link_values)
 
         # --- Action Routing ---
         if trigger_id in ('btn-save', 'btn-close-editor') and name and n_type:
             try:
+                # Track if this save marks the node Done (for event completion check)
+                if status_done and "done" in (status_done or []):
+                    completion_check_node = name
                 msg = _handle_save(name, n_type, desc, val, time_o, time_m, time_p,
                                    interest, diff, status_done, context, subctx,
                                    obs_path, drive_path, website_path,
@@ -615,7 +665,7 @@ def register_callbacks(app):
                                    habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             except Exception as e:
                 msg = str(e)
 
@@ -627,7 +677,24 @@ def register_callbacks(app):
 
         elif trigger_id == 'btn-toggle-done-node' and tapped_node:
             try:
+                node_id = tapped_node.get('id')
+                _pre_node = manager.get_node(node_id)
+                if _pre_node and _pre_node.status != "Done":
+                    completion_check_node = node_id
                 msg = _handle_toggle_done(tapped_node)
+            except Exception as e:
+                msg = str(e)
+
+        elif trigger_id == 'toggle-done-trigger-input' and toggle_done_trigger_data:
+            try:
+                node_name = toggle_done_trigger_data.split('|')[0]
+                node = manager.get_node(node_name)
+                if node:
+                    if node.status != "Done":
+                        completion_check_node = node_name
+                    node.status = "Open" if node.status == "Done" else "Done"
+                    manager.update_node(node)
+                    msg = f"Toggled status of '{node.name}' to {node.status}"
             except Exception as e:
                 msg = str(e)
 
@@ -702,7 +769,18 @@ def register_callbacks(app):
             })
 
         clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style
+
+        # Check for events triggered by node completion
+        node_completion_events = dash.no_update
+        if completion_check_node:
+            try:
+                triggered_events = _event_mgr.get_events_triggered_by_node(completion_check_node)
+                if triggered_events:
+                    node_completion_events = [e.name for e in triggered_events]
+            except Exception:
+                pass
+
+        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -751,142 +829,228 @@ def register_callbacks(app):
         elif trigger_id == 'btn-sugg-minus': count = max(1, count - 1)
         return count, str(count)
 
-    # --- Settings Modal ---
+    # --- Settings: Load when Settings tab activates ---
     @app.callback(
-        Output('modal-settings', 'is_open'),
-        Output('settings-modal-tabs', 'active_tab'),
-        [Output('hp-wv', 'value'), Output('hp-wi', 'value'),
-         Output('hp-dh', 'value'), Output('hp-ds', 'value'), Output('hp-dsyn', 'value'),
-         Output('hp-we', 'value'), Output('hp-wt', 'value'), Output('hp-beta', 'value'),
-         Output('setting-node-types', 'value'),
-         Output('setting-contexts', 'value'),
-         Output('setting-subcontexts', 'value'),
-         Output('setting-hp-profile', 'value'),
-         Output('setting-obsidian-path', 'value'),
-         Output('pending-settings-store', 'data')],
-        [Input('btn-settings-toggle', 'n_clicks'),
-         Input('btn-suggestions-settings-toggle', 'n_clicks'),
-         Input('btn-settings-cancel', 'n_clicks'),
-         Input('btn-settings-save', 'n_clicks'),
-         Input('setting-hp-profile', 'value')],
-        [State('hp-wv', 'value'), State('hp-wi', 'value'),
-         State('hp-dh', 'value'), State('hp-ds', 'value'), State('hp-dsyn', 'value'),
-         State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
-         State('setting-node-types', 'value'),
-         State('setting-contexts', 'value'),
-         State('setting-subcontexts', 'value'),
-         State('setting-obsidian-path', 'value')],
-        prevent_initial_call=True
+        Output('hp-wv', 'value'),
+        Output('hp-wi', 'value'),
+        Output('hp-dh', 'value'),
+        Output('hp-ds', 'value'),
+        Output('hp-dsyn', 'value'),
+        Output('hp-we', 'value'),
+        Output('hp-wt', 'value'),
+        Output('hp-beta', 'value'),
+        Output('hp-goal-boost', 'value'),
+        Output('setting-node-types', 'value'),
+        Output('setting-contexts', 'value'),
+        Output('setting-subcontexts', 'value'),
+        Output('setting-hp-profile', 'value'),
+        Output('setting-obsidian-path', 'value'),
+        Output('setting-node-shapes-container', 'children'),
+        Output('setting-node-colors-container', 'children'),
+        Input('main-tabs', 'active_tab'),
+        prevent_initial_call=True,
     )
-    def manage_settings_modal(open_cm, open_sugg_cm, cancel_cm, save_cm, profile_val,
-                              wv, wi, dh, ds, dsyn, we, wt, beta, n_types_val, contexts_val, subcontexts_val, obs_path):
-        trigger_id = _get_trigger_id()
-        NO_UPDATE_15 = (dash.no_update,) * 15
-        NO_PENDING = dash.no_update
+    def load_settings(active_tab):
+        if active_tab != 'tab-settings':
+            return (dash.no_update,) * 16
 
-        if trigger_id in ('btn-settings-toggle', 'btn-suggestions-settings-toggle'):
-            active_tab = 'tab-algorithm' if trigger_id == 'btn-suggestions-settings-toggle' else 'tab-nodes'
-            # Load stored config
-            hp = ConfigManager.get_hyperparams()
-            obs = ConfigManager.get_obsidian_vault()
-            ntypes = ", ".join(ConfigManager.get_node_types())
-            ctxts = ", ".join(ConfigManager.get_contexts())
-            s_dict = ConfigManager.get_subcontexts()
-            subctxts_lines = []
-            for k, v in s_dict.items():
-                if v:
-                    subctxts_lines.append(f"{k}: {', '.join(v)}")
-            subctxts = "\n".join(subctxts_lines)
-            return True, active_tab, hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'), hp.get('w_e'), hp.get('w_t'), hp.get('beta'), ntypes, ctxts, subctxts, "Custom", obs, NO_PENDING
+        hp = ConfigManager.get_hyperparams()
+        obs = ConfigManager.get_obsidian_vault()
+        ntypes = ", ".join(ConfigManager.get_node_types())
+        ctxts = ", ".join(ConfigManager.get_contexts())
+        s_dict = ConfigManager.get_subcontexts()
+        subctxts_lines = []
+        for k, v in s_dict.items():
+            if v:
+                subctxts_lines.append(f"{k}: {', '.join(v)}")
+        subctxts = "\n".join(subctxts_lines)
 
-        if trigger_id == 'setting-hp-profile':
-            from config import PROFILES
-            if profile_val in PROFILES:
-                p = PROFILES[profile_val]
-                return True, dash.no_update, p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'], p['w_e'], p['w_t'], p['beta'], dash.no_update, dash.no_update, dash.no_update, profile_val, dash.no_update, NO_PENDING
-            return (*NO_UPDATE_15, NO_PENDING)
+        # Build shapes editor
+        node_types = ConfigManager.get_node_types()
+        shapes = ConfigManager.get_node_shapes()
+        shape_options = [
+            {"label": s.title(), "value": s}
+            for s in ["ellipse", "triangle", "rectangle", "star", "pentagon", "hexagon",
+                       "diamond", "octagon", "round-rectangle", "vee"]
+        ]
+        shape_rows = []
+        for t in node_types:
+            shape_rows.append(dbc.Row([
+                dbc.Col(dbc.Label(t, className="mb-0"), width=4, className="d-flex align-items-center"),
+                dbc.Col(dbc.Select(
+                    id={"type": "setting-shape", "index": t},
+                    options=shape_options,
+                    value=shapes.get(t, "ellipse"),
+                ), width=8),
+            ], className="mb-2"))
 
-        if trigger_id == 'btn-settings-save':
-            try:
-                new_hp = {
-                    'w_v': float(wv), 'w_i': float(wi),
-                    'd_H': float(dh), 'd_S': float(ds), 'd_Syn': float(dsyn),
-                    'w_e': float(we), 'w_t': float(wt), 'beta': float(beta)
-                }
+        # Build colors editor
+        colors = ConfigManager.get_node_colors()
+        status_list = ["Open", "Blocked", "Done"]
+        color_rows = []
+        for status in status_list:
+            color_rows.append(dbc.Row([
+                dbc.Col(dbc.Label(status, className="mb-0"), width=4, className="d-flex align-items-center"),
+                dbc.Col(dbc.Input(
+                    id={"type": "setting-color", "index": status},
+                    type="color",
+                    value=colors.get(status, "#6c757d"),
+                    style={"height": "38px", "padding": "2px"},
+                ), width=4),
+                dbc.Col(html.Small(
+                    colors.get(status, "#6c757d"),
+                    className="text-muted d-flex align-items-center",
+                    style={"fontSize": "0.8rem"},
+                ), width=4),
+            ], className="mb-2"))
 
-                # Parse new values
-                new_types = [c.strip() for c in (n_types_val or '').split(',') if c.strip()]
-                new_contexts = [c.strip() for c in (contexts_val or '').split(',') if c.strip()]
-                new_subcontexts = {}
-                if subcontexts_val is not None:
-                    for line in subcontexts_val.split('\n'):
-                        line = line.strip()
-                        if ':' in line:
-                            ctx_name, subs_str = line.split(':', 1)
-                            ctx_name = ctx_name.strip()
-                            subs = [s.strip() for s in subs_str.split(',') if s.strip()]
-                            if ctx_name and subs:
-                                if ctx_name in new_subcontexts:
-                                    new_subcontexts[ctx_name].extend(subs)
-                                else:
-                                    new_subcontexts[ctx_name] = subs
+        return (hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'),
+                hp.get('w_e'), hp.get('w_t'), hp.get('beta'), hp.get('goal_boost', 1.5),
+                ntypes, ctxts, subctxts, "Custom", obs, shape_rows, color_rows)
 
-                # Load old values
-                old_types = ConfigManager.get_node_types()
-                old_contexts = ConfigManager.get_contexts()
-                old_subcontexts = ConfigManager.get_subcontexts()
+    # --- Settings: Profile selector ---
+    @app.callback(
+        Output('hp-wv', 'value', allow_duplicate=True),
+        Output('hp-wi', 'value', allow_duplicate=True),
+        Output('hp-dh', 'value', allow_duplicate=True),
+        Output('hp-ds', 'value', allow_duplicate=True),
+        Output('hp-dsyn', 'value', allow_duplicate=True),
+        Output('hp-we', 'value', allow_duplicate=True),
+        Output('hp-wt', 'value', allow_duplicate=True),
+        Output('hp-beta', 'value', allow_duplicate=True),
+        Output('hp-goal-boost', 'value', allow_duplicate=True),
+        Input('setting-hp-profile', 'value'),
+        prevent_initial_call=True,
+    )
+    def apply_profile(profile_val):
+        from config import PROFILES
+        if profile_val in PROFILES:
+            p = PROFILES[profile_val]
+            return (p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'],
+                    p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5))
+        return (dash.no_update,) * 9
 
-                # Flatten old/new subcontexts for comparison
-                old_sub_flat = [s for subs in old_subcontexts.values() for s in subs]
-                new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
+    # --- Settings: Save ---
+    @app.callback(
+        Output('settings-save-status', 'children'),
+        Output('pending-settings-store', 'data'),
+        Input('btn-settings-save', 'n_clicks'),
+        State('hp-wv', 'value'), State('hp-wi', 'value'),
+        State('hp-dh', 'value'), State('hp-ds', 'value'), State('hp-dsyn', 'value'),
+        State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
+        State('hp-goal-boost', 'value'),
+        State('setting-node-types', 'value'),
+        State('setting-contexts', 'value'),
+        State('setting-subcontexts', 'value'),
+        State('setting-obsidian-path', 'value'),
+        State({"type": "setting-shape", "index": ALL}, "value"),
+        State({"type": "setting-shape", "index": ALL}, "id"),
+        State({"type": "setting-color", "index": ALL}, "value"),
+        State({"type": "setting-color", "index": ALL}, "id"),
+        prevent_initial_call=True,
+    )
+    def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
+                      n_types_val, contexts_val, subcontexts_val, obs_path,
+                      shape_values, shape_ids, color_values, color_ids):
+        if not n_clicks:
+            return dash.no_update, dash.no_update
 
-                # Detect orphans
-                orphans = {}
-                type_orphans = manager.find_orphaned_nodes('type', old_types, new_types)
-                if type_orphans:
-                    orphans['type'] = {k: [n.name for n in v] for k, v in type_orphans.items()}
-                ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
-                if ctx_orphans:
-                    orphans['context'] = {k: [n.name for n in v] for k, v in ctx_orphans.items()}
-                sub_orphans = manager.find_orphaned_nodes('subcontext', old_sub_flat, new_sub_flat)
-                if sub_orphans:
-                    orphans['subcontext'] = {k: [n.name for n in v] for k, v in sub_orphans.items()}
+        try:
+            new_hp = {
+                'w_v': float(wv), 'w_i': float(wi),
+                'd_H': float(dh), 'd_S': float(ds), 'd_Syn': float(dsyn),
+                'w_e': float(we), 'w_t': float(wt), 'beta': float(beta),
+                'goal_boost': float(goal_boost) if goal_boost is not None else 1.5,
+            }
 
-                if orphans:
-                    # Defer save — store pending data and open migration modal
-                    pending = {
-                        'hp': new_hp,
-                        'obs_path': obs_path,
-                        'types': new_types,
-                        'contexts': new_contexts,
-                        'subcontexts': new_subcontexts,
-                        'orphans': orphans,
-                        'new_values': {
-                            'type': new_types,
-                            'context': new_contexts,
-                            'subcontext': new_sub_flat,
-                        }
+            # Parse new values
+            new_types = [c.strip() for c in (n_types_val or '').split(',') if c.strip()]
+            new_contexts = [c.strip() for c in (contexts_val or '').split(',') if c.strip()]
+            new_subcontexts = {}
+            if subcontexts_val is not None:
+                for line in subcontexts_val.split('\n'):
+                    line = line.strip()
+                    if ':' in line:
+                        ctx_name, subs_str = line.split(':', 1)
+                        ctx_name = ctx_name.strip()
+                        subs = [s.strip() for s in subs_str.split(',') if s.strip()]
+                        if ctx_name and subs:
+                            if ctx_name in new_subcontexts:
+                                new_subcontexts[ctx_name].extend(subs)
+                            else:
+                                new_subcontexts[ctx_name] = subs
+
+            # Load old values
+            old_types = ConfigManager.get_node_types()
+            old_contexts = ConfigManager.get_contexts()
+            old_subcontexts = ConfigManager.get_subcontexts()
+
+            # Flatten old/new subcontexts for comparison
+            old_sub_flat = [s for subs in old_subcontexts.values() for s in subs]
+            new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
+
+            # Detect orphans
+            orphans = {}
+            type_orphans = manager.find_orphaned_nodes('type', old_types, new_types)
+            if type_orphans:
+                orphans['type'] = {k: [n.name for n in v] for k, v in type_orphans.items()}
+            ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
+            if ctx_orphans:
+                orphans['context'] = {k: [n.name for n in v] for k, v in ctx_orphans.items()}
+            sub_orphans = manager.find_orphaned_nodes('subcontext', old_sub_flat, new_sub_flat)
+            if sub_orphans:
+                orphans['subcontext'] = {k: [n.name for n in v] for k, v in sub_orphans.items()}
+
+            if orphans:
+                # Defer save — store pending data and open migration modal
+                pending = {
+                    'hp': new_hp,
+                    'obs_path': obs_path,
+                    'types': new_types,
+                    'contexts': new_contexts,
+                    'subcontexts': new_subcontexts,
+                    'orphans': orphans,
+                    'new_values': {
+                        'type': new_types,
+                        'context': new_contexts,
+                        'subcontext': new_sub_flat,
                     }
-                    return False, dash.no_update, *(dash.no_update,) * 13, pending
+                }
+                return "Migration required — check the migration dialog.", pending
 
-                # No orphans — save immediately
-                ConfigManager.set_hyperparams(new_hp)
-                ConfigManager.set_obsidian_vault(obs_path)
-                if new_types:
-                    ConfigManager.set_node_types(new_types)
-                    ConfigManager.sync_shapes_to_types(new_types)
-                if new_contexts:
-                    ConfigManager.set_contexts(new_contexts)
-                ConfigManager.set_subcontexts(new_subcontexts)
+            # No orphans — save immediately
+            ConfigManager.set_hyperparams(new_hp)
+            ConfigManager.set_obsidian_vault(obs_path)
+            if new_types:
+                ConfigManager.set_node_types(new_types)
+                ConfigManager.sync_shapes_to_types(new_types)
+            if new_contexts:
+                ConfigManager.set_contexts(new_contexts)
+            ConfigManager.set_subcontexts(new_subcontexts)
 
-            except Exception:
-                logger.exception("Failed to save settings")
-            return False, dash.no_update, *(dash.no_update,) * 13, NO_PENDING
+            # Save shapes
+            if shape_ids and shape_values:
+                new_shapes = {}
+                for sid, sval in zip(shape_ids, shape_values):
+                    if sval:
+                        new_shapes[sid["index"]] = sval
+                if new_shapes:
+                    ConfigManager.set_node_shapes(new_shapes)
 
-        if trigger_id == 'btn-settings-cancel':
-            return False, dash.no_update, *(dash.no_update,) * 13, NO_PENDING
+            # Save colors
+            if color_ids and color_values:
+                new_colors = {}
+                for cid, cval in zip(color_ids, color_values):
+                    if cval:
+                        new_colors[cid["index"]] = cval
+                if new_colors:
+                    ConfigManager.set_node_colors(new_colors)
 
-        return (*NO_UPDATE_15, NO_PENDING)
+            return "Settings saved.", dash.no_update
+
+        except Exception:
+            logger.exception("Failed to save settings")
+            return "Error saving settings.", dash.no_update
 
     # --- Migration Modal ---
     @app.callback(
@@ -966,112 +1130,201 @@ def register_callbacks(app):
         if n: return not is_open
         return is_open
 
-    # --- Obsidian Integration Callbacks ---
-    @app.callback(
-        Output('node-obsidian-path', 'value', allow_duplicate=True),
-        Input('btn-obsidian-browse', 'n_clicks'),
-        prevent_initial_call=True
-    )
-    def handle_obsidian_browse(n_clicks):
-        if not n_clicks:
-            return dash.no_update
-        
-        vault = ConfigManager.get_obsidian_vault()
-        abs_path = _spawn_local_file_picker(
-            initial_dir=vault,
-            title="Select Obsidian File",
-            filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")]
-        )
-        
-        if not abs_path:
-            return dash.no_update
-
-        import os
-        vault_norm = os.path.normpath(vault)
-        if abs_path.startswith(vault_norm):
-            rel = abs_path[len(vault_norm):].lstrip(os.sep)
-        else:
-            rel = abs_path
-            
-        return rel
-
-    @app.callback(
-        Output('save-output', 'children', allow_duplicate=True),
-        Input('btn-obsidian-open', 'n_clicks'),
-        State('node-obsidian-path', 'value'),
-        prevent_initial_call=True
-    )
-    def handle_obsidian_open(n_clicks, rel_path):
-        if not n_clicks:
-            return dash.no_update
-        if not rel_path or not rel_path.strip():
-            return "No Obsidian file path set for this node."
-        
-        vault = ConfigManager.get_obsidian_vault()
-        abs_path = os.path.join(vault, rel_path.strip())
-        encoded = urllib.parse.quote(abs_path, safe='')
-        uri = f'obsidian://open?path={encoded}'
-        try:
-            subprocess.Popen(['cmd', '/c', 'start', '', uri], shell=False)
-            return dash.no_update
-        except Exception as e:
-            return f"Error opening Obsidian: {str(e)}"
-
-    # --- Google Drive Integration Callbacks ---
-    @app.callback(
-        Output('node-google-drive-path', 'value', allow_duplicate=True),
-        Input('btn-drive-browse', 'n_clicks'),
-        prevent_initial_call=True
-    )
-    def handle_drive_browse(n_clicks):
-        if not n_clicks:
-            return dash.no_update
-        
-        abs_path = _spawn_local_file_picker(
-            initial_dir=r"G:\\My Drive",
-            title="Select Google Drive File",
-            filetypes_list=[("All files", "*.*")]
-        )
-        
-        if not abs_path:
-            return dash.no_update
-            
-        return abs_path
+    # --- Multi-Link Render Callbacks ---
+    def _render_link_rows(links, link_type, has_browse=False):
+        """Build a list of input rows for a resource type.
+        link_type: 'obsidian-link', 'drive-link', or 'website-link'
+        """
+        from dash import html as _html
+        link_list = links or ['']
+        add_btn_id = f"btn-{link_type.replace('-link', '')}-add"
+        rows = []
+        for i, path in enumerate(link_list):
+            is_last = (i == len(link_list) - 1)
+            buttons = []
+            if has_browse:
+                browse_type = 'btn-obsidian-browse' if 'obsidian' in link_type else 'btn-drive-browse'
+                buttons.append(dbc.Button(
+                    "\U0001f4c1", id={"type": browse_type, "index": i},
+                    color="secondary", size="sm", title="Browse",
+                    className="me-1", style={"minWidth": "32px"}
+                ))
+            buttons.append(dbc.Button(
+                "\U0001f517", id={"type": f"btn-{link_type.replace('-link','')}-open", "index": i},
+                color="secondary", size="sm", title="Open",
+                className="me-1", style={"minWidth": "32px"}
+            ))
+            if len(link_list) > 1:
+                buttons.append(dbc.Button(
+                    "\u00d7", id={"type": f"btn-{link_type}-remove", "index": i},
+                    color="danger", size="sm", outline=True,
+                    className="me-1", style={"minWidth": "28px", "padding": "2px 6px"}
+                ))
+            # Add "+" button on last row only
+            if is_last:
+                buttons.append(dbc.Button(
+                    "+", id=add_btn_id,
+                    color="secondary", size="sm", outline=True,
+                    title="Add another",
+                    style={"minWidth": "28px", "padding": "2px 6px", "color": "#6c757d"}
+                ))
+            rows.append(_html.Div([
+                dbc.Input(id={"type": link_type, "index": i}, type="text",
+                          value=path or '', placeholder="Enter path or URL...",
+                          className="me-1", style={"flex": "1", "fontSize": "0.85rem"}),
+                *buttons
+            ], className="d-flex mb-1"))
+        return rows
 
     @app.callback(
-        Output('save-output', 'children', allow_duplicate=True),
-        [Input('btn-drive-open', 'n_clicks'),
-        Input('btn-website-open', 'n_clicks')],
-        [State('node-google-drive-path', 'value'),
-        State('node-website-path', 'value')],
-        prevent_initial_call=True
+        Output('obsidian-links-container', 'children'),
+        Input('obsidian-links-store', 'data'),
     )
-    def handle_external_links(drive_clicks, web_clicks, drive_path, web_path):
-        trigger_id = _get_trigger_id()
-        if not trigger_id:
-            return dash.no_update
-        
-        url = None
-        if trigger_id == 'btn-drive-open' and drive_path:
-            url = drive_path.strip()
-        elif trigger_id == 'btn-website-open' and web_path:
-            url = web_path.strip()
-            
-        if not url:
-            return "No URL/Path set for this specific link."
-            
-        import os
+    def render_obsidian_links(links):
+        return _render_link_rows(links, 'obsidian-link', has_browse=True)
+
+    @app.callback(
+        Output('drive-links-container', 'children'),
+        Input('drive-links-store', 'data'),
+    )
+    def render_drive_links(links):
+        return _render_link_rows(links, 'drive-link', has_browse=True)
+
+    @app.callback(
+        Output('website-links-container', 'children'),
+        Input('website-links-store', 'data'),
+    )
+    def render_website_links(links):
+        return _render_link_rows(links, 'website-link', has_browse=False)
+
+    # --- Multi-Link Add/Remove Callbacks ---
+    def _handle_link_modify(add_clicks, remove_clicks, current_values, store_data, browse_clicks=None, browse_result=None):
+        """Shared logic for add/remove/browse on a link list. Returns updated list."""
+        trigger = ctx.triggered_id
+        # Capture current input values (they may have been edited by the user)
+        links = list(current_values) if current_values else list(store_data or [''])
+        if isinstance(trigger, str):
+            # Add button
+            links.append('')
+        elif isinstance(trigger, dict):
+            if 'remove' in trigger.get('type', ''):
+                idx = trigger['index']
+                if 0 <= idx < len(links) and len(links) > 1:
+                    links.pop(idx)
+            elif 'browse' in trigger.get('type', '') and browse_result:
+                idx = trigger['index']
+                if 0 <= idx < len(links):
+                    links[idx] = browse_result
+        return links
+
+    @app.callback(
+        Output('obsidian-links-store', 'data', allow_duplicate=True),
+        [Input('btn-obsidian-add', 'n_clicks'),
+         Input({'type': 'btn-obsidian-link-remove', 'index': ALL}, 'n_clicks'),
+         Input({'type': 'btn-obsidian-browse', 'index': ALL}, 'n_clicks')],
+        [State({'type': 'obsidian-link', 'index': ALL}, 'value'),
+         State('obsidian-links-store', 'data')],
+        prevent_initial_call=True,
+    )
+    def modify_obsidian_links(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-obsidian-add':
+            links.append('')
+        elif isinstance(trigger, dict):
+            if trigger.get('type') == 'btn-obsidian-link-remove':
+                idx = trigger['index']
+                if 0 <= idx < len(links) and len(links) > 1:
+                    links.pop(idx)
+            elif trigger.get('type') == 'btn-obsidian-browse':
+                idx = trigger['index']
+                if not any(browse_clicks):
+                    return dash.no_update
+                vault = ConfigManager.get_obsidian_vault()
+                abs_path = _spawn_local_file_picker(
+                    initial_dir=vault,
+                    title="Select Obsidian File",
+                    filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")]
+                )
+                if abs_path:
+                    vault_norm = os.path.normpath(vault)
+                    if abs_path.startswith(vault_norm):
+                        rel = abs_path[len(vault_norm):].lstrip(os.sep)
+                    else:
+                        rel = abs_path
+                    if 0 <= idx < len(links):
+                        links[idx] = rel
+                else:
+                    return dash.no_update
+        return links
+
+    @app.callback(
+        Output('drive-links-store', 'data', allow_duplicate=True),
+        [Input('btn-drive-add', 'n_clicks'),
+         Input({'type': 'btn-drive-link-remove', 'index': ALL}, 'n_clicks'),
+         Input({'type': 'btn-drive-browse', 'index': ALL}, 'n_clicks')],
+        [State({'type': 'drive-link', 'index': ALL}, 'value'),
+         State('drive-links-store', 'data')],
+        prevent_initial_call=True,
+    )
+    def modify_drive_links(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-drive-add':
+            links.append('')
+        elif isinstance(trigger, dict):
+            if trigger.get('type') == 'btn-drive-link-remove':
+                idx = trigger['index']
+                if 0 <= idx < len(links) and len(links) > 1:
+                    links.pop(idx)
+            elif trigger.get('type') == 'btn-drive-browse':
+                idx = trigger['index']
+                if not any(browse_clicks):
+                    return dash.no_update
+                abs_path = _spawn_local_file_picker(
+                    initial_dir=r"G:\\My Drive",
+                    title="Select Google Drive File",
+                    filetypes_list=[("All files", "*.*")]
+                )
+                if abs_path:
+                    if 0 <= idx < len(links):
+                        links[idx] = abs_path
+                else:
+                    return dash.no_update
+        return links
+
+    @app.callback(
+        Output('website-links-store', 'data', allow_duplicate=True),
+        [Input('btn-website-add', 'n_clicks'),
+         Input({'type': 'btn-website-link-remove', 'index': ALL}, 'n_clicks')],
+        [State({'type': 'website-link', 'index': ALL}, 'value'),
+         State('website-links-store', 'data')],
+        prevent_initial_call=True,
+    )
+    def modify_website_links(add_clicks, remove_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-website-add':
+            links.append('')
+        elif isinstance(trigger, dict) and trigger.get('type') == 'btn-website-link-remove':
+            idx = trigger['index']
+            if 0 <= idx < len(links) and len(links) > 1:
+                links.pop(idx)
+        return links
+
+    # --- Multi-Link Open Callbacks ---
+    def _open_url_or_path(url):
+        """Open a URL or local file path. Returns error message or no_update."""
         import webbrowser
-
-        # 1. Check if it is a local file path
+        if not url or not url.strip():
+            return "No URL/Path set for this link."
+        url = url.strip()
         if os.path.exists(url) or url.startswith(('G:\\', 'C:\\', 'D:\\', '\\\\')):
             try:
-                os.startfile(url) # Native Windows file execution
+                os.startfile(url)
                 return dash.no_update
             except Exception as e:
                 return f"Error opening local file: {str(e)}"
-                
-        # 2. Otherwise, treat it as a web URL
         else:
             if not url.startswith('http://') and not url.startswith('https://'):
                 url = 'https://' + url
@@ -1081,6 +1334,94 @@ def register_callbacks(app):
             except Exception as e:
                 return f"Error opening URL: {str(e)}"
 
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        Input({'type': 'btn-obsidian-open', 'index': ALL}, 'n_clicks'),
+        State({'type': 'obsidian-link', 'index': ALL}, 'value'),
+        prevent_initial_call=True,
+    )
+    def open_obsidian_link(n_clicks_list, values):
+        if not any(n_clicks_list):
+            return dash.no_update
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict):
+            return dash.no_update
+        idx = trigger['index']
+        if 0 <= idx < len(values):
+            rel_path = values[idx]
+            if not rel_path or not rel_path.strip():
+                return "No Obsidian file path set."
+            vault = ConfigManager.get_obsidian_vault()
+            abs_path = os.path.join(vault, rel_path.strip())
+            encoded = urllib.parse.quote(abs_path, safe='')
+            uri = f'obsidian://open?path={encoded}'
+            try:
+                subprocess.Popen(['cmd', '/c', 'start', '', uri], shell=False)
+                return dash.no_update
+            except Exception as e:
+                return f"Error opening Obsidian: {str(e)}"
+        return dash.no_update
+
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        Input({'type': 'btn-drive-open', 'index': ALL}, 'n_clicks'),
+        State({'type': 'drive-link', 'index': ALL}, 'value'),
+        prevent_initial_call=True,
+    )
+    def open_drive_link(n_clicks_list, values):
+        if not any(n_clicks_list):
+            return dash.no_update
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict):
+            return dash.no_update
+        idx = trigger['index']
+        if 0 <= idx < len(values):
+            return _open_url_or_path(values[idx])
+        return dash.no_update
+
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        Input({'type': 'btn-website-open', 'index': ALL}, 'n_clicks'),
+        State({'type': 'website-link', 'index': ALL}, 'value'),
+        prevent_initial_call=True,
+    )
+    def open_website_link(n_clicks_list, values):
+        if not any(n_clicks_list):
+            return dash.no_update
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict):
+            return dash.no_update
+        idx = trigger['index']
+        if 0 <= idx < len(values):
+            return _open_url_or_path(values[idx])
+        return dash.no_update
+
+    # --- Edit/Toggle Done Trigger from Goal Graph ---
+    @app.callback(
+        Output('main-tabs', 'active_tab', allow_duplicate=True),
+        Output('search-node', 'value', allow_duplicate=True),
+        Input('edit-trigger-input', 'value'),
+        prevent_initial_call=True,
+    )
+    def handle_edit_trigger(value):
+        if not value:
+            return dash.no_update, dash.no_update
+        node_name = value.split('|')[0]
+        if not node_name:
+            return dash.no_update, dash.no_update
+        return 'tab-canvas', node_name
+
+
+    @app.callback(
+        Output('goals-refresh-trigger', 'data', allow_duplicate=True),
+        Input('toggle-done-trigger-input', 'value'),
+        prevent_initial_call=True,
+    )
+    def refresh_goals_on_toggle(value):
+        if not value:
+            return dash.no_update
+        import time
+        return time.time()
 
     # --- Suggestion Row Selection ---
     @app.callback(
@@ -1094,3 +1435,75 @@ def register_callbacks(app):
         if trigger_id and isinstance(trigger_id, dict) and 'index' in trigger_id:
             return trigger_id['index']
         return dash.no_update
+
+    # --- Suggestion Name Click → Navigate to Nodes Tab ---
+    @app.callback(
+        Output('main-tabs', 'active_tab', allow_duplicate=True),
+        Output('search-node', 'value', allow_duplicate=True),
+        Input({'type': 'suggestion-name-link', 'index': ALL}, 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def navigate_to_suggestion_node(n_clicks_list):
+        if not any(n_clicks_list):
+            return dash.no_update, dash.no_update
+        trigger = ctx.triggered_id
+        if trigger and isinstance(trigger, dict) and 'index' in trigger:
+            return 'tab-canvas', trigger['index']
+        return dash.no_update, dash.no_update
+
+    # --- Settings: Restore Default Shapes ---
+    @app.callback(
+        Output('setting-node-shapes-container', 'children', allow_duplicate=True),
+        Input('btn-restore-shapes', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def restore_default_shapes(n_clicks):
+        if not n_clicks:
+            return dash.no_update
+        from config import DEFAULT_NODE_SHAPES
+        node_types = ConfigManager.get_node_types()
+        shape_options = [
+            {"label": s.title(), "value": s}
+            for s in ["ellipse", "triangle", "rectangle", "star", "pentagon", "hexagon",
+                       "diamond", "octagon", "round-rectangle", "vee"]
+        ]
+        shape_rows = []
+        for t in node_types:
+            shape_rows.append(dbc.Row([
+                dbc.Col(dbc.Label(t, className="mb-0"), width=4, className="d-flex align-items-center"),
+                dbc.Col(dbc.Select(
+                    id={"type": "setting-shape", "index": t},
+                    options=shape_options,
+                    value=DEFAULT_NODE_SHAPES.get(t, "ellipse"),
+                ), width=8),
+            ], className="mb-2"))
+        return shape_rows
+
+    # --- Settings: Restore Default Colors ---
+    @app.callback(
+        Output('setting-node-colors-container', 'children', allow_duplicate=True),
+        Input('btn-restore-colors', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def restore_default_colors(n_clicks):
+        if not n_clicks:
+            return dash.no_update
+        from config import DEFAULT_NODE_COLORS
+        status_list = ["Open", "Blocked", "Done"]
+        color_rows = []
+        for status in status_list:
+            color_rows.append(dbc.Row([
+                dbc.Col(dbc.Label(status, className="mb-0"), width=4, className="d-flex align-items-center"),
+                dbc.Col(dbc.Input(
+                    id={"type": "setting-color", "index": status},
+                    type="color",
+                    value=DEFAULT_NODE_COLORS.get(status, "#6c757d"),
+                    style={"height": "38px", "padding": "2px"},
+                ), width=4),
+                dbc.Col(html.Small(
+                    DEFAULT_NODE_COLORS.get(status, "#6c757d"),
+                    className="text-muted d-flex align-items-center",
+                    style={"fontSize": "0.8rem"},
+                ), width=4),
+            ], className="mb-2"))
+        return color_rows

@@ -9,80 +9,16 @@ import dash_bootstrap_components as dbc
 from config import ConfigManager, CANVAS_HEIGHT
 from events_layout import build_events_tab_content
 from goals_layout import build_goals_tab_content
+from simulate_layout import build_simulate_tab_content
+from settings_layout import build_settings_tab_content
+from styles import stylesheet
 
 # Read initial config values (lightweight DB reads, no GraphManager needed).
 # These are only used for the initial render; core_engine refreshes them dynamically.
 NODE_TYPES = ConfigManager.get_node_types()
 CONTEXTS = ConfigManager.get_contexts()
 
-# --- Cytoscape Stylesheet ---
-stylesheet = [
-    {
-        'selector': 'node',
-        'style': {
-            'label': 'data(label)',
-            'text-valign': 'center',
-            'text-halign': 'center',
-            'background-color': 'data(color)',
-            'shape': 'data(shape)',
-            'color': '#fff',
-            'text-outline-width': 2,
-            'text-outline-color': '#1a1d21',
-            'width': 60,
-            'height': 60,
-        }
-    },
-    {
-        'selector': 'node:selected',
-        'style': {
-            'background-color': '#0dcaf0',
-            'border-width': 4,
-            'border-color': '#055160'
-        }
-    },
-    {
-        'selector': 'edge',
-        'style': {
-            'curve-style': 'bezier',
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#666',
-            'line-color': '#666',
-            'width': 2
-        }
-    },
-    {
-        'selector': '[type = "Needs_Hard"]',
-        'style': {
-            'target-arrow-color': '#f8f9fa',
-            'line-color': '#adb5bd',
-            'line-style': 'solid'
-        }
-    },
-    {
-        'selector': '[type = "Needs_Soft"]',
-        'style': {
-            'target-arrow-color': '#6c757d',
-            'line-color': '#6c757d',
-            'line-style': 'dashed'
-        }
-    },
-    {
-        'selector': '[type = "Helps"]',
-        'style': {
-            'source-arrow-shape': 'triangle',
-            'source-arrow-color': '#0d6efd',
-            'target-arrow-color': '#0d6efd',
-            'line-color': '#0d6efd',
-            'line-style': 'solid'
-        }
-    },
-    {
-        'selector': '[type = "Resource"]',
-        'style': {
-            'line-style': 'dotted'
-        }
-    }
-]
+# Cytoscape stylesheet is imported from styles.py
 
 # --- Sidebar (Node Editor) ---
 
@@ -217,25 +153,20 @@ sidebar_content = html.Div(
 
             html.Hr(),
             html.H5("External Resources", className="mt-2 mb-1"),
+
+            # Stores hold JSON arrays of links for each resource type
+            dcc.Store(id='obsidian-links-store', data=['']),
+            dcc.Store(id='drive-links-store', data=['']),
+            dcc.Store(id='website-links-store', data=['']),
+
             dbc.Label("Obsidian", className="mt-0"),
-            html.Div([
-                dbc.Input(id="node-obsidian-path", type="text", placeholder="Link to Obsidian file", className="me-1", style={"flex": "1"}),
-                dbc.Button("📁", id="btn-obsidian-browse", color="secondary", size="sm", title="Browse vault", className="me-1"),
-                dbc.Button("🔗", id="btn-obsidian-open", color="secondary", size="sm", title="Open in Obsidian"),
-            ], className="d-flex"),
-            
+            html.Div(id='obsidian-links-container'),
+
             dbc.Label("Google Drive", className="mt-2"),
-            html.Div([
-                dbc.Input(id="node-google-drive-path", type="text", placeholder="Local Drive path or URL", className="me-1", style={"flex": "1"}),
-                dbc.Button("📁", id="btn-drive-browse", color="secondary", size="sm", title="Browse Drive", className="me-1"),
-                dbc.Button("🔗", id="btn-drive-open", color="secondary", size="sm", title="Open in Drive"),
-            ], className="d-flex"),
+            html.Div(id='drive-links-container'),
 
             dbc.Label("Website", className="mt-2"),
-            html.Div([
-                dbc.Input(id="node-website-path", type="text", placeholder="Link to Website", className="me-1", style={"flex": "1"}),
-                dbc.Button("🔗", id="btn-website-open", color="secondary", size="sm", title="Open Website"),
-            ], className="d-flex"),
+            html.Div(id='website-links-container'),
             
             html.Hr(),
             html.Div([
@@ -376,7 +307,7 @@ relationships_view = html.Div([
 suggestions_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=5),
     html.Div([
-        html.H6("Projects", className="text-muted mb-0", style=_section_title_style),
+        html.H6("Suggestions", className="text-muted mb-0", style=_section_title_style),
         dbc.ButtonGroup([
             dbc.Button("−", id="btn-sugg-minus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
@@ -388,8 +319,6 @@ suggestions_view = html.Div([
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
         ], className="align-middle"),
         html.Div([
-            dbc.Button("Settings", id="btn-suggestions-settings-toggle", color="secondary", size="sm",
-                       className="me-2"),
             dbc.Button("Filters", id="btn-suggestions-filters-toggle", color="secondary", size="sm"),
         ], className="ms-auto d-flex align-items-center"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
@@ -398,121 +327,8 @@ suggestions_view = html.Div([
 ])
 
 
-# --- Global Settings Modal ---
-settings_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Settings")),
-    dbc.ModalBody([
-        dbc.Tabs(id="settings-modal-tabs", active_tab="tab-nodes", children=[
-            dbc.Tab(label="Nodes", tab_id="tab-nodes", children=[
-                html.Div([
-                    dbc.Label("Node Types", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-node-types", rows=2, placeholder="e.g. Topic, Goal, Skill, Habit, Resource"),
-                    html.P("Comma-separated list. Order is preserved in drop-downs.", className="text-muted small"),
-                    
-                    html.Hr(),
-                    dbc.Label("Contexts", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-contexts", rows=2, placeholder="e.g. Mind, Body, Social"),
-                    html.P("Comma-separated list. Order is preserved in drop-downs.", className="text-muted small"),
-                    
-                    html.Hr(),
-                    dbc.Label("Subcontexts", className="fw-bold mt-2"),
-                    dbc.Textarea(id="setting-subcontexts", rows=4, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep"),
-                    html.P("One context per line. Comma-separated subcontexts after the colon.", className="text-muted small"),
-                ], className="p-2")
-            ]),
-            dbc.Tab(label="Algorithm", tab_id="tab-algorithm", children=[
-                html.Div([
-                    # --- Profile selector ---
-                    dbc.Label("Algorithm Profile", className="fw-bold mt-2"),
-                    dbc.Select(id="setting-hp-profile", options=[
-                        {"label": "Default", "value": "Default"},
-                        {"label": "Curious", "value": "Curious"},
-                        {"label": "Industrious", "value": "Industrious"},
-                        {"label": "Custom", "value": "Custom"}
-                    ], value="Default"),
-                    
 
-                    # --- Intrinsic Value section ---
-                    html.Hr(className="my-2"),
-                    html.Div("Intrinsic Value", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
-                    html.Small("IV = w_v · V + w_i · I", className="text-muted d-block mb-1",
-                               style={"fontFamily": "monospace"}),
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Value Weight"),
-                            dbc.Input(id="hp-wv", type="number", step=0.1),
-                            html.Small("Scales base value", className="text-muted"),
-                        ]),
-                        dbc.Col([
-                            dbc.Label("Interest Weight"),
-                            dbc.Input(id="hp-wi", type="number", step=0.1),
-                            html.Small("Scales base interest", className="text-muted"),
-                        ]),
-                    ], className="mt-1"),
 
-                    # --- Value Propagation section ---
-                    html.Hr(className="my-2"),
-                    html.Div("Value Propagation", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
-                    html.Small("Retention factor per edge type (0–1). Higher = more value flows through.",
-                               className="text-muted d-block mb-1"),
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Hard Need"),
-                            dbc.Input(id="hp-dh", type="number", step=0.01),
-                            html.Small("Value through hard need edges", className="text-muted"),
-                        ]),
-                        dbc.Col([
-                            dbc.Label("Soft Need"),
-                            dbc.Input(id="hp-ds", type="number", step=0.01),
-                            html.Small("Value through soft need edges", className="text-muted"),
-                        ]),
-                        dbc.Col([
-                            dbc.Label("Synergy"),
-                            dbc.Input(id="hp-dsyn", type="number", step=0.01),
-                            html.Small("Value through Helps edges", className="text-muted"),
-                        ]),
-                    ], className="mt-1"),
-
-                    # --- Perceived Cost section ---
-                    html.Hr(className="my-2"),
-                    html.Div("Perceived Cost", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
-                    html.Small("C = 1 + w_e · E + w_t · T^β", className="text-muted d-block mb-1",
-                               style={"fontFamily": "monospace"}),
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Effort Weight"),
-                            dbc.Input(id="hp-we", type="number", step=0.1),
-                            html.Small("Scales effort score", className="text-muted"),
-                        ]),
-                        dbc.Col([
-                            dbc.Label("Time Weight"),
-                            dbc.Input(id="hp-wt", type="number", step=0.1),
-                            html.Small("Linearly scales time estimates", className="text-muted"),
-                        ]),
-                        dbc.Col([
-                            dbc.Label("Time Dampener"),
-                            dbc.Input(id="hp-beta", type="number", step=0.05),
-                            html.Small("Sub-linear time scaling. β < 1 means a 10h task isn't 10× worse than 1h.",
-                                       className="text-muted"),
-                        ]),
-                    ], className="mt-1"),
-                ], className="p-2")
-            ]),
-            dbc.Tab(label="Paths", tab_id="tab-paths", children=[
-                html.Div([
-                    dbc.Label("Obsidian Vault Root Path", className="fw-bold mt-2"),
-                    dbc.Input(id="setting-obsidian-path", type="text"),
-        
-                    
-                ], className="p-2")
-            ])
-        ])
-    ]),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-settings-cancel", color="secondary", className="me-2"),
-        dbc.Button("Save Settings", id="btn-settings-save", color="primary"),
-    ])
-], id="modal-settings", size="lg", is_open=False, centered=True)
 
 
 # --- Migration Modal ---
@@ -619,6 +435,7 @@ def build_app_layout(initial_elements, env="production"):
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
             html.Div("Toggle Done", id="ctx-menu-toggle-done", className="ctx-menu-item"),
+            html.Div("Simulate", id="ctx-menu-simulate", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Open in Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Open in Drive", id="ctx-menu-drive", className="ctx-menu-item"),
@@ -645,8 +462,10 @@ def build_app_layout(initial_elements, env="production"):
         children=[
             dbc.Tab(label="Nodes", tab_id="tab-canvas"),
             dbc.Tab(label="Goals", tab_id="tab-goals"),
-            dbc.Tab(label="Projects", tab_id="tab-suggestions"),
+            dbc.Tab(label="Suggestions", tab_id="tab-suggestions"),
+            dbc.Tab(label="Simulation", tab_id="tab-simulate"),
             dbc.Tab(label="Events", tab_id="tab-events"),
+            dbc.Tab(label="Settings", tab_id="tab-settings"),
         ],
         className="px-3 pt-1",
         style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"}
@@ -687,7 +506,6 @@ def build_app_layout(initial_elements, env="production"):
                         dbc.Col(
                             html.Div([
                                 dbc.Button("New Node", id="btn-add", color="success", size="sm", className="me-2"),
-                                dbc.Button("Settings", id="btn-settings-toggle", color="secondary", size="sm", className="me-2"),
                                 dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm", className="me-2",
                                            style={"display": "none"})
                             ], className="d-flex"),
@@ -769,6 +587,22 @@ def build_app_layout(initial_elements, env="production"):
                "position": "absolute", "top": "0", "left": "0", "flexDirection": "column"}
     )
 
+    # --- Simulate Tab Content (hidden by default) ---
+    simulate_tab_content = html.Div(
+        id="simulate-tab-content",
+        children=[build_simulate_tab_content()],
+        style={"display": "none", "width": "100%", "height": "100%",
+               "position": "absolute", "top": "0", "left": "0"}
+    )
+
+    # --- Settings Tab Content (hidden by default) ---
+    settings_tab_content = html.Div(
+        id="settings-tab-content",
+        children=[build_settings_tab_content()],
+        style={"display": "none", "width": "100%", "height": "100%", "overflow": "auto",
+               "position": "absolute", "top": "0", "left": "0"}
+    )
+
     return html.Div([
         hover_tooltip,
         edit_trigger,
@@ -777,8 +611,10 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='simulate-trigger-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),
-        settings_modal,
         migration_modal,
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
@@ -789,6 +625,8 @@ def build_app_layout(initial_elements, env="production"):
             canvas_tab_content,
             suggestions_tab_content,
             goals_tab_content,
+            simulate_tab_content,
+            settings_tab_content,
             events_tab_content,
             # --- SHARED FILTERS SIDEBAR (overlay, accessible from Canvas + Suggestions) ---
             html.Div(

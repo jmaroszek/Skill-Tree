@@ -19,8 +19,8 @@ class EventManager:
             cursor = conn.cursor()
             try:
                 cursor.execute(
-                    "INSERT INTO Events (name, description, status, trigger_date) VALUES (?, ?, ?, ?)",
-                    (event.name, event.description, event.status, event.trigger_date)
+                    "INSERT INTO Events (name, description, status, trigger_date, trigger_node) VALUES (?, ?, ?, ?, ?)",
+                    (event.name, event.description, event.status, event.trigger_date, event.trigger_node)
                 )
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -30,11 +30,10 @@ class EventManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if old_name != event.name:
-                # Temporarily disable FK checks for the rename
                 cursor.execute("PRAGMA foreign_keys = OFF")
                 cursor.execute(
-                    "UPDATE Events SET name=?, description=?, status=?, trigger_date=? WHERE name=?",
-                    (event.name, event.description, event.status, event.trigger_date, old_name)
+                    "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, trigger_node=? WHERE name=?",
+                    (event.name, event.description, event.status, event.trigger_date, event.trigger_node, old_name)
                 )
                 cursor.execute(
                     "UPDATE EventNodes SET event_name=? WHERE event_name=?",
@@ -43,8 +42,8 @@ class EventManager:
                 cursor.execute("PRAGMA foreign_keys = ON")
             else:
                 cursor.execute(
-                    "UPDATE Events SET description=?, status=?, trigger_date=? WHERE name=?",
-                    (event.description, event.status, event.trigger_date, old_name)
+                    "UPDATE Events SET description=?, status=?, trigger_date=?, trigger_node=? WHERE name=?",
+                    (event.description, event.status, event.trigger_date, event.trigger_node, old_name)
                 )
             conn.commit()
 
@@ -168,6 +167,17 @@ class EventManager:
                 (delay_days, event_name, node_name)
             )
             conn.commit()
+
+    def get_events_triggered_by_node(self, node_name: str) -> List['Event']:
+        """Returns Pending events whose trigger_node matches this node name."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM Events WHERE trigger_node=? AND status='Pending'",
+                (node_name,)
+            )
+            return [Event(**dict(row)) for row in cursor.fetchall()]
 
     def get_events_for_node(self, node_name: str) -> List[str]:
         """Returns list of event names that own this node."""
