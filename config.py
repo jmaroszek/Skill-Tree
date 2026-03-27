@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from database import get_connection
 
 ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
@@ -55,7 +56,7 @@ PROFILES = {
 
 class ConfigManager:
     @staticmethod
-    def _get_db_value(key: str) -> str:
+    def _get_db_value(key: str) -> Optional[str]:
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM Settings WHERE key=?", (key,))
@@ -132,7 +133,7 @@ class ConfigManager:
         cls._set_db_value("HYPERPARAMS", json.dumps(params))
 
     @classmethod
-    def get_obsidian_vault(cls, default: str = None):
+    def get_obsidian_vault(cls, default: Optional[str] = None):
         val = cls._get_db_value("OBSIDIAN_VAULT")
         return val if val else (default or DEFAULT_OBSIDIAN_VAULT)
 

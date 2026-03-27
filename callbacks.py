@@ -12,6 +12,7 @@ import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
+from typing import Tuple, Any
 
 logger = logging.getLogger(__name__)
 
@@ -850,7 +851,7 @@ def register_callbacks(app):
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
-    def load_settings(active_tab):
+    def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
             return (dash.no_update,) * 16
 

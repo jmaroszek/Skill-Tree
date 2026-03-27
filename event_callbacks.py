@@ -6,6 +6,8 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update
 from event_manager import EventManager
 from graph_manager import GraphManager
+import dash_bootstrap_components as dbc
+from typing import Optional, List
 from config import ConfigManager
 from models import Node, Event
 from events_layout import build_event_card, build_dormant_nodes_table, _event_badge, _event_trigger_type

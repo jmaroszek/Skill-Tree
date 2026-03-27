@@ -190,7 +190,7 @@ class EventManager:
 
     # --- Activation ---
 
-    def trigger_event(self, event_name: str, selected_nodes: list = None) -> Dict[str, list]:
+    def trigger_event(self, event_name: str, selected_nodes: Optional[List[str]] = None) -> Dict[str, list]:
         """Triggers an event, activating selected immediate nodes and scheduling delayed ones.
 
         Args:

@@ -4,6 +4,7 @@ Layout definitions for the Events tab.
 
 from dash import html, dcc, no_update
 import dash_bootstrap_components as dbc
+from typing import Optional, List, Any
 from config import ConfigManager
 
 
@@ -261,7 +262,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
     badge_text, badge_color = _event_badge(status, trigger_date, trigger_node)
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
-    children = [
+    children: List[Any] = [
         html.Div([
             html.H6(event_name, className="mb-0", style={"fontWeight": "500"}),
             dbc.Badge(badge_text, color=badge_color, className="ms-2",
@@ -269,8 +270,9 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
         ], className="d-flex align-items-center mb-1"),
     ]
     if description:
+        description_str = description[:80] + "..." if len(description) > 80 else description
         children.append(html.Small(
-            description[:80] + "..." if len(description) > 80 else description,
+            description_str,
             className="text-muted d-block mb-1"
         ))
     if trigger_date and status != "Triggered":
