@@ -61,14 +61,18 @@ input[type=number] {
     color: #ee6666 !important; /* Slightly brighter but still muted red for text */
 }
 
-/* Fix sim dropdown: Dash uses Radix UI button, not React-Select */
-#sim-node-select.dash-dropdown {
-    background-color: #2b3035 !important;
-    border: 1px solid #495057 !important;
-    color: #dee2e6 !important;
+/* Fix sim dropdown: Force white background and black text */
+#sim-node-select.dash-dropdown,
+#sim-node-select .Select-control {
+    background-color: #ffffff !important;
+    border: 1px solid #cccccc !important;
+    color: #000000 !important;
 }
-#sim-node-select .dash-dropdown-value {
-    color: #dee2e6 !important;
+
+#sim-node-select .dash-dropdown-value,
+#sim-node-select .Select-value-label,
+#sim-node-select .Select-input input {
+    color: #000000 !important;
 }
 
 /* Fix event trigger-node dropdown: white bg so use black text */

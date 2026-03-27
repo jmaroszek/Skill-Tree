@@ -136,8 +136,10 @@ def register_simulate_callbacks(app):
                     chain_items.append(
                         html.Div([
                             html.Span(name, id={"type": "sim-chain-node", "index": name},
-                                      style={"flex": "1", "cursor": "pointer", "textDecoration": "underline",
-                                             "textDecorationColor": "#495057"}),
+                                      style={"flex": "1", "cursor": "pointer"}),
+                            dbc.Tooltip("Click to open in Nodes tab",
+                                        target={"type": "sim-chain-node", "index": name},
+                                        placement="top"),
                             dbc.Badge(node.status, color=status_color,
                                       style={"fontSize": "0.7rem", "width": "55px", "textAlign": "center"}),
                             html.Small(time_str, className="text-muted ms-2",
