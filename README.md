@@ -64,5 +64,3 @@ Skill Tree runs locally as a Dash web application backed by SQLite. The codebase
 - **`app.py`, `callbacks.py` & layout modules:** The presentation layer dynamically updating cytoscape trees, context menus, and toolbars based on UI interactions.
 
 ---
-
-*(Note: Features and behavior tailored for subjective continuous usage)*

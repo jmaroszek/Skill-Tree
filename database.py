@@ -53,7 +53,8 @@ def init_db():
             obsidian_path TEXT,
             google_drive_path TEXT,
             progress INTEGER DEFAULT 0,
-            website TEXT
+            website TEXT,
+            dormant INTEGER NOT NULL DEFAULT 0
         )
     ''')
 
@@ -78,7 +79,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS Events (
             name TEXT PRIMARY KEY,
             description TEXT DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'Pending'
+            status TEXT NOT NULL DEFAULT 'Pending',
+            trigger_date TEXT,
+            trigger_node TEXT
         )
     ''')
 
@@ -95,26 +98,6 @@ def init_db():
         )
     ''')
 
-    # Migrations: add columns that may not exist in older databases
-    cursor.execute("PRAGMA table_info(Nodes)")
-    node_columns = [row[1] for row in cursor.fetchall()]
-    if 'dormant' not in node_columns:
-        cursor.execute("ALTER TABLE Nodes ADD COLUMN dormant INTEGER NOT NULL DEFAULT 0")
-    if 'progress' not in node_columns:
-        cursor.execute("ALTER TABLE Nodes ADD COLUMN progress INTEGER DEFAULT 0")
-    if 'website' not in node_columns:
-        cursor.execute("ALTER TABLE Nodes ADD COLUMN website TEXT")
-    for col in ('frequency', 'session_lower', 'session_expected', 'session_upper', 'habit_status'):
-        if col in node_columns:
-            cursor.execute(f"ALTER TABLE Nodes DROP COLUMN {col}")
-
-
-    cursor.execute("PRAGMA table_info(Events)")
-    event_columns = [row[1] for row in cursor.fetchall()]
-    if 'trigger_date' not in event_columns:
-        cursor.execute("ALTER TABLE Events ADD COLUMN trigger_date TEXT")
-    if 'trigger_node' not in event_columns:
-        cursor.execute("ALTER TABLE Events ADD COLUMN trigger_node TEXT")
 
     conn.commit()
     conn.close()

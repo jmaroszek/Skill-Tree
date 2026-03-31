@@ -1,4 +1,5 @@
 import logging
+import sys
 import dash
 import webbrowser
 import threading
@@ -9,8 +10,14 @@ from callbacks import generate_elements, register_callbacks
 from event_callbacks import register_event_callbacks
 from goal_callbacks import register_goal_callbacks
 from simulate_callbacks import register_simulate_callbacks
-from config import ENVIRONMENT, ConfigManager
+import config
+from config import ConfigManager
 import ctypes
+
+if "-sandbox" in sys.argv:
+    config.ENVIRONMENT = "sandbox"
+
+ENVIRONMENT = config.ENVIRONMENT
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s: %(message)s')
 
