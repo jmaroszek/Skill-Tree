@@ -26,8 +26,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, frequency, session_lower, session_expected, session_upper, habit_status, progress, website, dormant)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :frequency, :session_lower, :session_expected, :session_upper, :habit_status, :progress, :website, :dormant)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, progress, website, dormant)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :progress, :website, :dormant)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -46,8 +46,7 @@ class GraphManager:
                     interest=:interest, difficulty=:difficulty, competence=:competence,
                     context=:context, subcontext=:subcontext, status=:status,
                     obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
-                    frequency=:frequency, session_lower=:session_lower, session_expected=:session_expected,
-                    session_upper=:session_upper, habit_status=:habit_status, progress=:progress, website=:website,
+                    progress=:progress, website=:website,
                     dormant=:dormant
                 WHERE name=:name
             ''', data)
@@ -181,23 +180,17 @@ class GraphManager:
 
     @staticmethod
     def _is_prereq_satisfied(p_node) -> bool:
-        """Check if a prerequisite node is satisfied.
-
-        Habit nodes are satisfied only when Active.
-        All other nodes are satisfied when Done.
-        """
+        """Check if a prerequisite node is satisfied (Done)."""
         if not p_node:
             return False
-        if p_node.type == 'Habit':
-            return p_node.habit_status == 'Active'
         return p_node.status == 'Done'
 
     def _update_node_state(self, node_name: str):
         node = self.get_node(node_name)
         if not node or node.status == "Done":
             return
-        # Habit and Goal nodes use their own status, not the auto-calculated status
-        if node.type in ('Habit', 'Goal'):
+        # Goal nodes use their own status, not the auto-calculated status
+        if node.type == 'Goal':
             return
 
         with self.get_connection() as conn:
@@ -424,16 +417,10 @@ class GraphManager:
                     new_val = None
 
                 if field == 'type' and new_val is not None:
-                    # Clear type-specific fields when changing away from Habit or Resource
+                    # Clear type-specific fields when changing away from Resource
                     cursor.execute("SELECT name, type FROM Nodes WHERE type=?", (old_val,))
                     rows = cursor.fetchall()
                     for name, old_type in rows:
-                        if old_type == 'Habit' and new_val != 'Habit':
-                            cursor.execute("""
-                                UPDATE Nodes SET frequency=NULL, session_lower=NULL,
-                                session_expected=NULL, session_upper=NULL, habit_status=NULL
-                                WHERE name=?
-                            """, (name,))
                         if old_type == 'Resource' and new_val != 'Resource':
                             cursor.execute("UPDATE Nodes SET progress=NULL WHERE name=?", (name,))
 

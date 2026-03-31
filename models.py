@@ -15,7 +15,7 @@ class Node:
     Represents a Node in the Skill Tree.
     """
     name: str               # Primary key
-    type: str               # [Learn, Goal, Habit, Resource]
+    type: str               # [Learn, Goal, Action, Resource]
     description: str
     value: int              # 1-10
     time_o: float           # Optimistic Hours
@@ -29,11 +29,6 @@ class Node:
     subcontext: Optional[str] = None
     obsidian_path: Optional[str] = None
     google_drive_path: Optional[str] = None
-    frequency: Optional[str] = None          # Daily, Weekly, Monthly, Yearly
-    session_lower: Optional[float] = None    # Minutes (lower bound)
-    session_expected: Optional[float] = None # Minutes (expected)
-    session_upper: Optional[float] = None    # Minutes (upper bound)
-    habit_status: Optional[str] = None       # Active, Paused, Retired
     progress: Optional[int] = None           # 0-100
     website: Optional[str] = None
     dormant: int = 0
@@ -52,12 +47,6 @@ class Node:
         self.difficulty = max(1, min(10, self.difficulty))
         if self.progress is not None:
             self.progress = max(0, min(100, int(self.progress)))
-        if self.session_lower is not None:
-            self.session_lower = float(self.session_lower)
-        if self.session_expected is not None:
-            self.session_expected = float(self.session_expected)
-        if self.session_upper is not None:
-            self.session_upper = float(self.session_upper)
         self.dormant = int(self.dormant) if self.dormant is not None else 0
 
     @property

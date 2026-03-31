@@ -50,16 +50,13 @@ def perceived_cost(node: Node, w_e: float, w_t: float, beta: float) -> float:
 def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
     """True if all hard prerequisites are satisfied.
 
-    Habit prereqs are satisfied when Active; all others when Done.
+    All prereqs are satisfied when Done.
     """
     for req in hard_in.get(node_name, []):
         req_node = all_nodes.get(req)
         if not req_node:
             return False
-        if req_node.type == 'Habit':
-            if req_node.habit_status != 'Active':
-                return False
-        elif req_node.status != "Done":
+        if req_node.status != "Done":
             return False
     return True
 
@@ -146,7 +143,7 @@ def score_nodes(
 
     scored_nodes = []
     for node in active_nodes:
-        if node.type in ('Habit', 'Goal'):
+        if node.type == 'Goal':
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue

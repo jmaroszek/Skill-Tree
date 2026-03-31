@@ -19,7 +19,7 @@ def build_settings_tab_content():
                 dbc.Tab(label="Nodes", tab_id="tab-nodes", children=[
                     html.Div([
                         dbc.Label("Node Types", className="fw-bold mt-2"),
-                        dbc.Textarea(id="setting-node-types", rows=2, placeholder="e.g. Topic, Goal, Skill, Habit, Resource"),
+                        dbc.Textarea(id="setting-node-types", rows=2, placeholder="e.g. Topic, Goal, Skill, Action, Resource"),
                         html.P("Comma-separated list. Order is preserved in drop-downs.", className="text-muted small"),
 
                         html.Hr(),

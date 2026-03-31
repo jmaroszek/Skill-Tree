@@ -2,17 +2,17 @@ import json
 from typing import Optional
 from database import get_connection
 
-ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
+ENVIRONMENT = "sandbox" # Options: sandbox, production (case sensitive!)
 
 CANVAS_HEIGHT = 760  # Default pixel height of the node canvas area
 
 DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
 
-DEFAULT_NODE_TYPES = ["Learn", "Goal", "Habit", "Resource", "Action"]
+DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
 DEFAULT_SUBCONTEXTS = {}
 
-DEFAULT_DANGER_COLOR = '#c94c4c' # Tamed red for a calmer dark mode
+DEFAULT_DANGER_COLOR = '#c94c4c' # subtle red
 
 DEFAULT_NODE_COLORS = {
     'Blocked': '#dc3545',
@@ -30,10 +30,9 @@ DEFAULT_NODE_SHAPES = {
 }
 
 DEFAULT_TIME_SETTINGS = {
-    'hours_per_week': 40,
-    'hours_per_month': 160
+    'hours_per_week': 20,
+    'hours_per_month': 80
 }
-
 
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,

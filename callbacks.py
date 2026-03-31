@@ -147,12 +147,12 @@ def _format_traversal_ui(tapped_node, active_node_id):
 def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                   status_done, context, subctx, obs_path, drive_path, website_path,
                   e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
-                  habit_status_val=None, habit_freq=None, sess_lower=None, sess_expected=None, sess_upper=None, progress_val=None):
+                  progress_val=None):
     """Create or update a node and sync its edges. Returns a status message."""
     return handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                        status_done, context, subctx, obs_path, drive_path, website_path,
                        e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
-                       habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val)
+                       progress_val)
 
 
 def _handle_delete(name):
@@ -210,22 +210,13 @@ def register_callbacks(app):
             html.Div([html.Strong("Type: "), node_type]),
         ]
 
-        if node_type == 'Habit':
-            lines.append(html.Div([html.Strong("Habit Status: "), data.get('habit_status', 'Active')]))
-            freq = data.get('frequency')
-            if freq:
-                lines.append(html.Div([html.Strong("Frequency: "), freq]))
-        else:
-            lines.append(html.Div([html.Strong("Status: "), data.get('status', '')]))
-
         lines.extend([
+            html.Div([html.Strong("Status: "), data.get('status', '')]),
             html.Div([html.Strong("Context: "), data.get('context', '')]),
             html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
             html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
+            html.Div([html.Strong("Time: "), time_str])
         ])
-
-        if node_type != 'Habit':
-            lines.append(html.Div([html.Strong("Time: "), time_str]))
 
         if node_type == 'Resource' and data.get('progress') is not None:
             lines.append(html.Div([html.Strong("Progress: "), f"{data.get('progress', 0)}%"]))
@@ -248,8 +239,6 @@ def register_callbacks(app):
          Output('obsidian-links-store', 'data'), Output('drive-links-store', 'data'),
          Output('website-links-store', 'data'),
          # Type-specific outputs
-         Output('habit-status', 'value'), Output('habit-frequency', 'value'),
-         Output('session-lower', 'value'), Output('session-expected', 'value'), Output('session-upper', 'value'),
          Output('node-progress', 'value'), Output('node-time-unit', 'value')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
@@ -270,7 +259,7 @@ def register_callbacks(app):
             options, options, options, options, options, options,
             [''], [''], [''],
             # Type-specific defaults
-            "Active", "Daily", None, None, None, 0, "hours"
+            0, "hours"
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
@@ -325,9 +314,6 @@ def register_callbacks(app):
             _parse_links(data.get('google_drive_path', '')),
             _parse_links(data.get('website', '')),
             # Type-specific fields
-            data.get('habit_status') or 'Active',
-            data.get('frequency') or 'Daily',
-            data.get('session_lower'), data.get('session_expected'), data.get('session_upper'),
             data.get('progress') or 0, "hours"
         ]
 
@@ -335,21 +321,18 @@ def register_callbacks(app):
     @app.callback(
         [Output('section-done-time', 'style'),
          Output('section-time-estimates', 'style'),
-         Output('section-habit', 'style'),
          Output('section-resource', 'style')],
         Input('node-type', 'value')
     )
     def toggle_type_fields(node_type):
         show = {}
         hide = {'display': 'none'}
-        if node_type == 'Habit':
-            return hide, hide, show, hide
-        elif node_type == 'Resource':
-            return show, show, hide, show
+        if node_type == 'Resource':
+            return show, show, show
         elif node_type == 'Goal':
-            return show, hide, hide, hide
+            return show, hide, hide
         else:  # Learn, Action
-            return show, show, hide, hide
+            return show, show, hide
 
     # --- Priority Badge in Node Editor ---
     @app.callback(
@@ -418,8 +401,6 @@ def register_callbacks(app):
          State({'type': 'obsidian-link', 'index': ALL}, 'value'),
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
-         State('habit-status', 'value'), State('habit-frequency', 'value'),
-         State('session-lower', 'value'), State('session-expected', 'value'), State('session-upper', 'value'),
          State('node-progress', 'value'),
          State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style')]
@@ -436,7 +417,7 @@ def register_callbacks(app):
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
                      obs_link_values, drive_link_values, website_link_values,
-                     habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val,
+                     progress_val,
                      current_elements, ed_style, fil_style):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
@@ -462,7 +443,12 @@ def register_callbacks(app):
         if trigger_id in ('btn-edit-node', 'btn-add', 'edit-trigger-input') or (trigger_id == 'search-node' and search_val):
             next_ed_style['marginLeft'] = "0px"
         elif trigger_id in ('btn-save', 'btn-clear', 'btn-delete', 'btn-close-editor'):
-            next_ed_style['marginLeft'] = "-380px"
+            # For save triggers (Save button or × close), keep sidebar open if
+            # validation will fail so the user can fix the form.
+            if trigger_id in ('btn-save', 'btn-close-editor') and (not name or not n_type):
+                pass  # Keep sidebar open — validation error shown below
+            else:
+                next_ed_style['marginLeft'] = "-380px"
 
         # Filters Sidebar State (overlay, shared between Canvas + Suggestions tabs)
         next_fil_style = fil_style or {"position": "absolute", "top": "0", "right": "-320px", "width": "320px", "height": "100%", "zIndex": 100, "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "right 0.3s ease", "backgroundColor": "#212529"}
@@ -484,10 +470,16 @@ def register_callbacks(app):
         website_path = _serialize_links(website_link_values)
 
         # --- Action Routing ---
-        if trigger_id in ('btn-save', 'btn-close-editor') and name and n_type:
+        if trigger_id in ('btn-save', 'btn-close-editor'):
+            if not name or not name.strip():
+                msg = "Error: Node name is required."
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            if not n_type:
+                msg = "Error: Node type is required."
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             try:
                 # Track if this save marks the node Done (for event completion check)
-                if status_done and "done" in (status_done or []):
+                if status_done and "Done" in (status_done or []):
                     completion_check_node = name
 
                 multiplier = ConfigManager.get_time_multiplier(time_unit)
@@ -500,19 +492,17 @@ def register_callbacks(app):
                                    obs_path, drive_path, website_path,
                                    e_needs_h, e_needs_s,
                                    e_supp_h, e_supp_s, e_helps, e_res,
-                                   habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val)
+                                   progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
                 return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             except Exception as e:
-                msg = str(e)
-
+                msg = f"Error: {e}"
         elif trigger_id == 'btn-delete' and name:
             try:
                 msg = _handle_delete(name)
             except Exception as e:
-                msg = str(e)
-
+                msg = f"Error: {e}"
         elif trigger_id == 'btn-toggle-done-node' and tapped_node:
             try:
                 node_id = tapped_node.get('id')
@@ -521,8 +511,7 @@ def register_callbacks(app):
                     completion_check_node = node_id
                 msg = _handle_toggle_done(tapped_node)
             except Exception as e:
-                msg = str(e)
-
+                msg = f"Error: {e}"
         elif trigger_id == 'toggle-done-trigger-input' and toggle_done_trigger_data:
             try:
                 node_name = toggle_done_trigger_data.split('|')[0]
@@ -534,14 +523,12 @@ def register_callbacks(app):
                     manager.update_node(node)
                     msg = f"Toggled status of '{node.name}' to {node.status}"
             except Exception as e:
-                msg = str(e)
-
+                msg = f"Error: {e}"
         elif trigger_id == 'group-delete-input' and group_delete_data:
             try:
                 msg = _handle_group_delete(group_delete_data)
             except Exception as e:
-                msg = str(e)
-
+                msg = f"Error: {e}"
         # --- Visual Generation ---
         community_method = community_method or "components"
         communities = manager.detect_communities(method=community_method, filters=filters)
@@ -645,6 +632,23 @@ def register_callbacks(app):
         return dash.no_update, dash.no_update
 
     @app.callback(
+        Output("modal-error", "is_open"),
+        Output("error-modal-body", "children"),
+        Input("save-output", "children"),
+        Input("btn-close-error", "n_clicks"),
+        State("modal-error", "is_open"),
+        prevent_initial_call=True
+    )
+    def toggle_error_modal(save_msg, close_clicks, is_open):
+        ctx = dash.callback_context
+        trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
+        if trigger == "btn-close-error":
+            return False, dash.no_update
+        if trigger == "save-output" and save_msg and isinstance(save_msg, str) and save_msg.startswith("Error:"):
+            return True, save_msg
+        return is_open, dash.no_update
+
+    @app.callback(
         Output('node-subcontext', 'options'),
         Input('node-context', 'value')
     )
@@ -722,7 +726,7 @@ def register_callbacks(app):
         # Build shapes editor
         node_types = ConfigManager.get_node_types()
         display_types = node_types.copy()
-        for ft in ["Goal", "Habit"]:
+        for ft in ["Goal"]:
             if ft not in display_types:
                 display_types.append(ft)
 
@@ -1350,7 +1354,7 @@ def register_callbacks(app):
         from config import DEFAULT_NODE_SHAPES
         node_types = ConfigManager.get_node_types()
         display_types = node_types.copy()
-        for ft in ["Goal", "Habit"]:
+        for ft in ["Goal"]:
             if ft not in display_types:
                 display_types.append(ft)
 

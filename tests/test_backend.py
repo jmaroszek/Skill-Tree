@@ -634,7 +634,7 @@ class TestCommunityNaming:
         # No dominant context or type
         mgr.add_node(_make_node("Python Basics", context="Mind", type="Learn"))
         mgr.add_node(_make_node("Python Advanced", context="Body", type="Goal"))
-        mgr.add_node(_make_node("Rust Intro", context="Spirit", type="Habit"))
+        mgr.add_node(_make_node("Rust Intro", context="Spirit", type="Action"))
         name = mgr.name_community({"Python Basics", "Python Advanced", "Rust Intro"})
         assert name == "Python"  # "python" appears twice
 
@@ -903,16 +903,6 @@ class TestNodeMigration:
         mgr.apply_migration('context', {"OldCtx": "__clear__"})
         assert mgr.get_node("A").context is None
 
-    def test_apply_migration_type_clears_habit_fields(self, mgr):
-        mgr.add_node(_make_node("A", type="Habit", frequency="Daily",
-                                session_lower=10, session_expected=20,
-                                session_upper=30, habit_status="Active"))
-        mgr.apply_migration('type', {"Habit": "Learn"})
-        node = mgr.get_node("A")
-        assert node.type == "Learn"
-        assert node.frequency is None
-        assert node.session_lower is None
-        assert node.habit_status is None
 
     def test_apply_migration_type_clears_resource_fields(self, mgr):
         mgr.add_node(_make_node("A", type="Resource", progress=50))
@@ -1176,50 +1166,6 @@ class TestGoalCompletion:
         assert result["is_blocked"] == False  # Blocker is still Open (workable)
 
 
-# ============================================================================
-# GraphManager — Habit Prerequisite Satisfaction
-# ============================================================================
-
-class TestHabitPrereqs:
-    def test_habit_active_satisfies_hard_prereq(self, mgr):
-        mgr.add_node(_make_node("H", type="Habit", habit_status="Active"))
-        mgr.add_node(_make_node("Target"))
-        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
-        assert mgr.get_node("Target").status == "Open"
-
-    def test_habit_paused_blocks_dependent(self, mgr):
-        mgr.add_node(_make_node("H", type="Habit", habit_status="Paused"))
-        mgr.add_node(_make_node("Target"))
-        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
-        assert mgr.get_node("Target").status == "Blocked"
-
-    def test_habit_retired_blocks_dependent(self, mgr):
-        mgr.add_node(_make_node("H", type="Habit", habit_status="Retired"))
-        mgr.add_node(_make_node("Target"))
-        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
-        assert mgr.get_node("Target").status == "Blocked"
-
-    def test_habit_no_status_blocks(self, mgr):
-        mgr.add_node(_make_node("H", type="Habit", habit_status=None))
-        mgr.add_node(_make_node("Target"))
-        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
-        assert mgr.get_node("Target").status == "Blocked"
-
-    def test_is_prereq_satisfied_static(self):
-        from graph_manager import GraphManager
-        active = _make_node("H", type="Habit", habit_status="Active")
-        assert GraphManager._is_prereq_satisfied(active) is True
-
-        paused = _make_node("H", type="Habit", habit_status="Paused")
-        assert GraphManager._is_prereq_satisfied(paused) is False
-
-        done = _make_node("A", status="Done")
-        assert GraphManager._is_prereq_satisfied(done) is True
-
-        open_node = _make_node("A", status="Open")
-        assert GraphManager._is_prereq_satisfied(open_node) is False
-
-        assert GraphManager._is_prereq_satisfied(None) is False
 
 
 # ============================================================================
@@ -1227,10 +1173,6 @@ class TestHabitPrereqs:
 # ============================================================================
 
 class TestScoringGoalBoost:
-    def test_habit_nodes_get_negative_score(self, mgr):
-        mgr.add_node(_make_node("H", type="Habit", habit_status="Active"))
-        scored = mgr.calculate_priority_scores([mgr.get_node("H")])
-        assert scored[0].priority_score == -1.0
 
     def test_goal_nodes_get_negative_score(self, mgr):
         mgr.add_node(_make_node("G", type="Goal"))

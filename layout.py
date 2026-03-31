@@ -76,35 +76,6 @@ sidebar_content = html.Div(
                            marks={0: "0%", 25: "25%", 50: "50%", 75: "75%", 100: "100%"}),
             ]),
 
-            # --- Section: Habit-specific (status, frequency, session duration) ---
-            html.Div(id="section-habit", style={"display": "none"}, children=[
-                dbc.Label("Status", className="mt-3"),
-                dbc.Select(id="habit-status", options=[
-                    {"label": "Active", "value": "Active"},
-                    {"label": "Paused", "value": "Paused"},
-                    {"label": "Retired", "value": "Retired"},
-                ], value="Active"),
-
-                html.Hr(className="my-2"),
-                html.H5("Habit Schedule", className="mt-2 mb-1"),
-                dbc.Label("Frequency", className="mt-2"),
-                dbc.Select(id="habit-frequency", options=[
-                    {"label": "Daily", "value": "Daily"},
-                    {"label": "Weekly", "value": "Weekly"},
-                    {"label": "Monthly", "value": "Monthly"},
-                    {"label": "Yearly", "value": "Yearly"},
-                ], value="Daily"),
-
-                dbc.Label("Session Duration in Minutes", className="mt-3"),
-                dbc.Row([
-                    dbc.Col([dbc.Label("Lower Bound", className="small text-muted mb-0"), dbc.Input(id="session-lower", type="number", min=0)]),
-                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="session-expected", type="number", min=0)]),
-                    dbc.Col([dbc.Label("Upper Bound", className="small text-muted mb-0"), dbc.Input(id="session-upper", type="number", min=0)]),
-                ]),
-            ]),
-
-            html.Hr(className="my-2"),
-
             # Numeric inputs (shared by all types)
             html.H5("Ratings", className="mt-2 mb-1"),
             dbc.Label("Value", className="mt-2"),
@@ -116,7 +87,7 @@ sidebar_content = html.Div(
             dbc.Label("Effort", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
 
-            # --- Section: Time Estimates (Learn, Goal, Resource — hidden for Habit) ---
+            # --- Section: Time Estimates ---
             html.Div(id="section-time-estimates", children=[
                 html.Hr(),
                 html.Div([
@@ -411,6 +382,13 @@ migration_modal = dbc.Modal([
 ], id="modal-migration", size="lg", is_open=False, centered=True, backdrop="static")
 
 
+error_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Validation Error", className="text-danger")),
+    dbc.ModalBody(id="error-modal-body", style={"color": "#dee2e6"}),
+    dbc.ModalFooter(dbc.Button("Close", id="btn-close-error", color="secondary"))
+], id="modal-error", size="sm", is_open=False, centered=True)
+
+
 # --- Bottom Panel (Relationships only) ---
 
 bottom_panel = html.Div([relationships_view], className="p-3")
@@ -628,6 +606,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         migration_modal,
+        error_modal,
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
 

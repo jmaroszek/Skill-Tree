@@ -52,11 +52,6 @@ def init_db():
             status TEXT NOT NULL,
             obsidian_path TEXT,
             google_drive_path TEXT,
-            frequency TEXT,
-            session_lower REAL,
-            session_expected REAL,
-            session_upper REAL,
-            habit_status TEXT DEFAULT 'Active',
             progress INTEGER DEFAULT 0,
             website TEXT
         )
@@ -105,6 +100,14 @@ def init_db():
     node_columns = [row[1] for row in cursor.fetchall()]
     if 'dormant' not in node_columns:
         cursor.execute("ALTER TABLE Nodes ADD COLUMN dormant INTEGER NOT NULL DEFAULT 0")
+    if 'progress' not in node_columns:
+        cursor.execute("ALTER TABLE Nodes ADD COLUMN progress INTEGER DEFAULT 0")
+    if 'website' not in node_columns:
+        cursor.execute("ALTER TABLE Nodes ADD COLUMN website TEXT")
+    for col in ('frequency', 'session_lower', 'session_expected', 'session_upper', 'habit_status'):
+        if col in node_columns:
+            cursor.execute(f"ALTER TABLE Nodes DROP COLUMN {col}")
+
 
     cursor.execute("PRAGMA table_info(Events)")
     event_columns = [row[1] for row in cursor.fetchall()]
