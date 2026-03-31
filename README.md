@@ -1,6 +1,6 @@
 # Skill Tree
 
-A graph-based task manager and priority engine built with [Dash](https://dash.plotly.com/) and [Cytoscape.js](https://js.cytoscape.org/). Model your goals, skills, habits, and resources as an interactive node graph — then let the priority algorithm tell you what to work on next.
+A graph-based task manager and priority engine that tells you what to work on next.
 
 ![Python 3.10](https://img.shields.io/badge/Python-3.10-blue) ![Dash](https://img.shields.io/badge/Dash-Plotly-purple) ![SQLite](https://img.shields.io/badge/Database-SQLite-green)
 
@@ -8,59 +8,152 @@ A graph-based task manager and priority engine built with [Dash](https://dash.pl
 
 ## What It Does
 
-Skill Tree breaks away from traditional list-based task managers. By mapping out tasks into a bidirectional dependency graph, the app calculates the **Return on Investment (ROI)** for every possible thing you could do, naturally bubbling up high-value prerequisite tasks to the top. 
-
-Here are the core components that make the engine tick:
-
-### Interactive Graph Canvas
-- **Visual Node Graph:** Drag, zoom, and explore nodes rendered with a force-directed (COSE) layout. Primary interaction is mapped intuitively (Right-click to pan canvas, Left-click to interact).
-- **Visual Language:** Nodes are color-coded by status (Open is blue, Blocked is red, Done is green) and styled by type (Goals are natively rendered as yellow stars, Topics, Skills, etc. have distinct custom shapes). 
-- **Right-Click Context Menus:** Quickly toggle completion, delete nodes, open associated Obsidian vault files, or jump straight to a node's full dependency / synergy chains. 
-- **Hover Tooltips:** Get immediate summaries including time estimates and Monte Carlo standard deviations without clicking.
-
-### Goals & Subtasks System
-- **Goals Tab:** A dedicated workspace for overarching objectives. Goals are prioritized with explicit ranks (#1, #2, #3, ...) which act as powerful multiplier bonuses in the scoring algorithm.
-- **Mini Dependency Graphs:** Inside the Goals Tab, focus on an isolated sub-graph containing only the subtasks strictly necessary to achieve that specific goal.
-- **Progress Tracking:** Goals automatically track the percentage completion of their underlying subtasks, converting to "Done" seamlessly when prerequisites are cleared.
-
-### Events & Dormant Nodes
-- **Trigger-Based Workflows:** Want to plan tasks that shouldn't clutter your graph until the time is right? Tie them to Events.
-- **Automated Triggers:** Events can be triggered manually, scheduled to open on a specific **Date**, or set to automatically fire when a specific **Node completes**.
-- **Activation Delays:** Nodes tied to events can be staggered (e.g., spawn Task B exactly 2 weeks after the triggering event fires). 
-
-### Monte Carlo Simulation Engine
-- Beyond elementary time estimates, Skill Tree employs a built-in Monte Carlo simulation engine.
-- By providing Optimistic, Most Likely, and Pessimistic time bounds, the engine runs critical-path analysis across your entire dependency chain thousands of times, surfacing highly accurate Expected Times and Standard Deviations directly in your suggestions.
-
-### Dynamic Settings & Contexts
-- **Highly Configurable:** The Settings modal lets you tune all algorithm hyperparameters without touching code, switch between ideological profiles (e.g. "Curious" vs "Industrious"), and enforce logic rules (like standard 1:4 ratios for weeks-to-months conversions).
-- **Custom Node Types:** Manage custom shapes and colors for brand new node types dynamically.
-- **Hierarchical drill-down:** Formally map Subcontexts to Parent Contexts to keep massive graphs perfectly filtered. 
-- **Community Detection:** Built-in modularity algorithms let you isolate tightly-knit clusters of tasks or identify completely disconnected "island" projects.
+Skill Tree replaces traditional to-do lists with a **bidirectional dependency graph**. Instead of staring at a flat list wondering what to tackle first, you map out tasks, goals, and their relationships — then let the priority algorithm calculate the **Return on Investment (ROI)** of every possible action, naturally bubbling up high-value prerequisite tasks to the top.
 
 ---
 
-## The Priority Scoring Algorithm
+## The Priority Algorithm
 
-The core capability of the app is the algorithm determining priority scores:
+The heart of Skill Tree is an ROI-based scoring engine that ranks every eligible task:
 
-**Score = Eligibility × (Recursive Total Value / Perceived Cost)**
+**Score = Eligibility x (Total Value / Perceived Cost)**
 
-1. **Eligibility Filter:** A node is ineligible (score = -1) if any of its **Hard Prerequisites** are incomplete. Soft Prerequisites do not block nodes.
-2. **Intrinsic Value:** Based on user-assigned 'Value' and 'Interest'.
-3. **Network Value:** The algorithm recursively looks continuously downstream. A node inherits discounted value from what it **Hard Unlocks**, what it **Soft Unlocks**, and nodes it provides **Synergy** to. Completing a foundational bottleneck task will artificially inflate its score because of everything resting on top of it.
-4. **Perceived Cost:** A penalty sub-linearly scaled by the task's **Difficulty** and the Monte Carlo **Time Estimate**. Long, agonizing tasks are penalized, but not purely linearly (a 100-hour task isn't 100x worse than a 1-hour task).
+- **Eligibility Filter:** A node scores -1 if any Hard Prerequisite is incomplete. Soft Prerequisites never block — they just add value.
+- **Intrinsic Value:** Derived from your user-assigned **Value** (1-10) and **Interest** (1-10) ratings.
+- **Network Value:** The algorithm looks continuously downstream. A node inherits discounted value from everything it **Hard Unlocks**, **Soft Unlocks**, and provides **Synergy** to. Foundational bottleneck tasks naturally rise to the top because the entire graph rests on them.
+- **Perceived Cost:** A sub-linear penalty based on **Difficulty** and the Monte Carlo **Time Estimate**. Long tasks are penalized, but not linearly — a 100-hour task isn't treated as 100x worse than a 1-hour task.
+
+---
+
+## Interactive Graph Canvas
+
+- **Visual Node Graph:** Drag, zoom, and pan across a force-directed (COSE) layout. Right-click to pan the canvas, left-click to interact with nodes.
+- **Color-Coded Status:** Nodes are colored by status — blue for Open, red for Blocked, green for Done, yellow for Goals.
+- **Distinct Node Shapes:** Each node type gets its own shape — stars for Goals, triangles for Actions, pentagons for Resources, ellipses for Learn, and more.
+- **Right-Click Context Menus:** Toggle completion, delete nodes, open linked Obsidian notes, launch a simulation, or jump to a node's full dependency chain — all from a right-click.
+- **Hover Tooltips:** Instantly see a node's time estimate, Monte Carlo standard deviation, and key stats without clicking.
+- **Multi-Select:** Ctrl+Click to select multiple nodes at once.
 
 ---
 
-## Project Architecture
+## Edge Types & Relationships
 
-Skill Tree runs locally as a Dash web application backed by SQLite. The codebase is heavily modularized with thorough Pytest coverage:
+Skill Tree supports four distinct relationship types between nodes:
 
-- **`models.py`:** Core dataclasses for Nodes and Events.
-- **`graph_manager.py` / `event_manager.py`:** Separation of concerns handling CRUD operations, database queries, and complex graph state cascades.
-- **`simulation.py`:** The topological BFS sorting and Monte Carlo sample generation engine.
-- **`scoring.py`:** The recursive network-value priority scoring algorithm.
-- **`app.py`, `callbacks.py` & layout modules:** The presentation layer dynamically updating cytoscape trees, context menus, and toolbars based on UI interactions.
+- **Hard Prerequisites** (solid arrows): Must be completed before the dependent node becomes eligible. These gate the priority algorithm.
+- **Soft Prerequisites** (dashed arrows): Helpful but not blocking. They contribute value without preventing progress.
+- **Synergies** (blue bidirectional arrows): Mutually beneficial relationships where working on one node boosts the value of another.
+- **Resource Dependencies** (dotted arrows): Links to materials, tools, or references needed for a task.
+- **Cycle Detection:** The graph prevents you from creating circular dependencies, keeping your task structure clean and solvable.
 
 ---
+
+## Goals & Subtasks
+
+- **Dedicated Goals Tab:** A focused workspace for your overarching objectives, separate from the main graph.
+- **Priority Ranking:** Rank goals as #1, #2, #3, etc. Each rank acts as a powerful **score multiplier** in the algorithm, ensuring subtasks of your top goals rise to the surface.
+- **Mini Dependency Graphs:** Each goal displays an isolated sub-graph containing only the nodes strictly necessary to achieve it. Edit and toggle completion right from the goal view.
+- **Auto-Progress Tracking:** Goals automatically compute completion percentage from their subtasks and transition to "Done" when all prerequisites are cleared.
+- **Blocked Detection:** Goals automatically show as blocked when all remaining subtasks are themselves blocked.
+
+---
+
+## Events & Dormant Nodes
+
+Plan work that shouldn't clutter your graph until the time is right.
+
+- **Named Events:** Create events like "Conference Q4" or "Project Launch" to group future work.
+- **Dormant Nodes:** Attach hidden nodes to events. They stay invisible on the canvas until their event triggers, keeping your graph clean.
+- **Three Trigger Modes:**
+  - **Manual:** Click a button to fire the event when you're ready.
+  - **Date-Based:** Schedule the event to trigger on a specific date.
+  - **Node-Based:** Automatically trigger when a specific node is marked Done.
+- **Activation Delays:** Stagger dormant nodes — e.g., "Promote webinar" activates 2 weeks after "Webinar Published" is completed.
+- **Cascading Triggers:** Completing a node can trigger linked events, which awaken their dormant nodes in one smooth cascade.
+
+---
+
+## Monte Carlo Simulation Engine
+
+Go beyond simple time estimates with stochastic simulation.
+
+- **PERT Estimates:** Provide Optimistic, Most Likely, and Pessimistic time bounds for any node. The engine uses proper beta distributions — not simple averages.
+- **Critical Path Analysis:** Select any node and run a Monte Carlo simulation across its entire dependency chain (10,000 samples by default).
+- **Rich Results:** View a histogram of estimated completion times plus key statistics — expected duration, standard deviation, and 5th/95th percentile bounds.
+- **Chain Summary:** See every node in the critical path, with clickable links to navigate the main canvas.
+- **Flexible Inclusion:** Optionally include soft dependencies and synergies in the simulation for a fuller picture.
+
+---
+
+## Smart Suggestions
+
+The Suggestions panel shows your **top-N eligible nodes** ranked by ROI score, normalized to a 0-100 scale. Suggestions update live as your graph changes.
+
+Filter suggestions by:
+- Context and Subcontext
+- Minimum Value or Interest threshold
+- Maximum Time or Difficulty
+- Node Type
+- Specific Goal (show only that goal's subtasks)
+
+Adjust the number of suggestions shown with increase/decrease buttons.
+
+---
+
+## Contexts & Community Detection
+
+### Hierarchical Contexts
+- Organize nodes into **Contexts** and **Subcontexts** for clean filtering across large graphs.
+- Subcontexts cascade — selecting a parent context automatically includes its children.
+- Dropdowns update dynamically as you add or rename contexts.
+
+### Community Detection
+- **Connected Components:** Identify completely disconnected "island" projects with no ties to the main graph.
+- **Louvain Clustering:** Run modularity algorithms to discover tightly-knit clusters of related tasks.
+- **Orphan Detection:** When restructuring contexts or node types, the app identifies affected nodes and guides you through a migration workflow to prevent data loss.
+
+---
+
+## Settings & Customization
+
+### Algorithm Profiles
+Tune how the priority algorithm weighs competing factors:
+- **Default:** Balanced weights across value, interest, and cost.
+- **Curious:** Emphasizes interest — great for exploratory, learning-driven phases.
+- **Industrious:** Emphasizes value and penalizes difficulty more — ideal for shipping mode.
+- **Custom:** Set every hyperparameter yourself — value/interest weights, edge discount factors, effort/time cost weights, sub-linearity exponent, and goal boost multiplier.
+
+### Custom Node Types
+- Add, remove, and reorder node types beyond the defaults.
+- Assign custom shapes (rectangle, circle, triangle, pentagon, star, and more) and colors per type.
+
+### Visual Customization
+- Configure node colors per status (Open, Blocked, Done, Goal).
+- Reset to defaults at any time.
+
+### Time Units
+- Configure hours-per-week and hours-per-month conversion ratios.
+- Time estimates auto-format to the most readable unit (e.g., "2w" instead of "80h").
+
+---
+
+## External Integrations
+
+- **Obsidian:** Link one or more Obsidian vault notes to any node. Open them directly from the right-click context menu.
+- **Google Drive:** Attach Google Drive links to nodes and open them from the context menu.
+- **Website URLs:** Store and access any external URL per node.
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| **Double-click node** | Open node editor |
+| **Right-click node** | Context menu |
+| **Right-click + drag** | Pan canvas |
+| **Scroll** | Zoom in/out |
+| **Ctrl + Click** | Multi-select nodes |
+| **Delete / Backspace** | Delete selected nodes (with confirmation) |
+| **Ctrl + S** | Save node editor |
+| **Left-click background** | Deselect all nodes |
