@@ -11,7 +11,7 @@ def get_db_path() -> str:
     db_name = DB_FILENAME
     if ENVIRONMENT == "sandbox":
         db_name = "sandbox_" + DB_FILENAME
-    return str(Path(__file__).parent / db_name)
+    return str(Path(__file__).parent / "data" / db_name)
 
 
 def get_connection() -> sqlite3.Connection:
