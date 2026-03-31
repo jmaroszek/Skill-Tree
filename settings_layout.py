@@ -154,6 +154,23 @@ def build_settings_tab_content():
                                     className="text-muted"),
                             ], width=4),
                         ], className="mt-1"),
+
+                        # --- Time Estimates section ---
+                        html.Hr(className="my-2"),
+                        html.Div("Time Estimates", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                        html.Small("Conversion rates for displaying and inputting time units.", className="text-muted d-block mb-1"),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Hours per Week"),
+                                dbc.Input(id="setting-hpw", type="number", min=1, step=1),
+                                html.Small("e.g. 40", className="text-muted"),
+                            ]),
+                            dbc.Col([
+                                dbc.Label("Hours per Month"),
+                                dbc.Input(id="setting-hpm", type="number", min=1, step=1),
+                                html.Small("e.g. 160", className="text-muted"),
+                            ]),
+                        ], className="mt-1"),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Paths", tab_id="tab-paths", children=[

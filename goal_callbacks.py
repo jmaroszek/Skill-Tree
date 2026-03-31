@@ -445,7 +445,7 @@ def register_goal_callbacks(app):
                 'data': {
                     'id': node.name,
                     'label': node.name,
-                    'color': colors.get(node.status, '#6c757d'),
+                    'color': colors.get('Goal', '#ffc107') if node.type == 'Goal' else colors.get(node.status, '#6c757d'),
                     'shape': shapes.get(node.type, 'ellipse'),
                     'type': node.type,
                     'status': node.status,
@@ -483,6 +483,7 @@ def register_goal_callbacks(app):
         Output("goal-add-name", "value"),
         Output("goal-add-desc", "value"),
         Output("goal-add-save-status", "children", allow_duplicate=True),
+        Output("goal-node-time-unit", "value"),
         Input("btn-goal-add-node", "n_clicks"),
         State("selected-goal-store", "data"),
         prevent_initial_call=True,
@@ -504,7 +505,7 @@ def register_goal_callbacks(app):
                         for n in sorted(all_nodes, key=lambda n: n.name)
                         if n.name not in exclude]
 
-        return True, type_opts, ctx_opts, [{"label": "None", "value": ""}], existing_opts, "", "", ""
+        return True, type_opts, ctx_opts, [{"label": "None", "value": ""}], existing_opts, "", "", "", "hours"
 
     # --- Add Node Modal: Toggle mode (create vs link) ---
     @app.callback(
@@ -561,13 +562,14 @@ def register_goal_callbacks(app):
         State("goal-add-time-o", "value"),
         State("goal-add-time-m", "value"),
         State("goal-add-time-p", "value"),
+        State("goal-node-time-unit", "value"),
         State("goal-add-edge-type", "value"),
         prevent_initial_call=True,
     )
     def save_add_node(n_clicks, selected_goal, mode, existing_node,
                       name, node_type, context, subcontext, desc,
                       value, interest, difficulty, time_o, time_m, time_p,
-                      edge_type):
+                      time_unit, edge_type):
         if not n_clicks or not selected_goal:
             return (no_update,) * 4
 
@@ -584,14 +586,16 @@ def register_goal_callbacks(app):
                 return no_update, "Node name is required.", no_update, no_update
             node_name = name.strip()
 
+            multiplier = ConfigManager.get_time_multiplier(time_unit)
+
             new_node = Node(
                 name=node_name,
                 type=node_type or "Learn",
                 description=(desc or "").strip(),
                 value=value or 5,
-                time_o=float(time_o or 0),
-                time_m=float(time_m or 0),
-                time_p=float(time_p or 0),
+                time_o=float(time_o or 0) * multiplier,
+                time_m=float(time_m or 0) * multiplier,
+                time_p=float(time_p or 0) * multiplier,
                 interest=interest or 5,
                 difficulty=difficulty or 5,
                 status="Open",

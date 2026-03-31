@@ -56,7 +56,14 @@ def build_events_tab_content():
             dbc.Label("Effort", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-difficulty"),
 
-            dbc.Label("Time Estimates in Hours", className="mt-3"),
+            html.Div([
+                dbc.Label("Time Estimates", className="mb-0"),
+                dbc.Select(id="dormant-node-time-unit", options=[
+                    {"label": "Hours", "value": "hours"},
+                    {"label": "Weeks", "value": "weeks"},
+                    {"label": "Months", "value": "months"},
+                ], value="hours", size="sm", style={"width": "100px", "marginLeft": "auto"})
+            ], className="d-flex align-items-center mt-3 mb-1"),
             dbc.Row([
                 dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=0)]),
                 dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=0)]),
@@ -152,7 +159,7 @@ def build_events_tab_content():
                 # Date trigger section
                 html.Div(id="event-date-section", style={"display": "none"}, children=[
                     html.Div([
-                        dbc.Input(id="event-trigger-date", type="date",
+                        dbc.Input(id="event-trigger-date", type="date",  # type: ignore[reportArgumentType]
                                   style={"maxWidth": "200px"}),
                         html.Small("Auto-triggers on or after this date.",
                                    className="text-muted ms-2 align-self-center",

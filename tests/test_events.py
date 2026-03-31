@@ -20,6 +20,7 @@ from event_manager import EventManager
 def temp_database(monkeypatch, tmp_path):
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
+    database._initialized = False
     database.init_db()
     yield tmp_db_path
 

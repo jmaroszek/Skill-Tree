@@ -21,8 +21,17 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+_initialized = False
+
+
 def init_db():
-    """Initializes the SQLite database with the required tables."""
+    """Initializes the SQLite database with the required tables.
+
+    Safe to call multiple times — only performs work on the first invocation.
+    """
+    global _initialized
+    if _initialized:
+        return
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -106,6 +115,7 @@ def init_db():
 
     conn.commit()
     conn.close()
+    _initialized = True
 
 
 if __name__ == "__main__":

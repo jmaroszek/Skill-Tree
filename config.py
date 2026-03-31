@@ -18,6 +18,7 @@ DEFAULT_NODE_COLORS = {
     'Blocked': '#dc3545',
     'Open': '#0d6efd',
     'Done': '#198754',
+    'Goal': '#ffc107',
 }
 
 DEFAULT_NODE_SHAPES = {
@@ -27,6 +28,12 @@ DEFAULT_NODE_SHAPES = {
     'Resource': 'pentagon',
     
 }
+
+DEFAULT_TIME_SETTINGS = {
+    'hours_per_week': 40,
+    'hours_per_month': 160
+}
+
 
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
@@ -131,6 +138,53 @@ class ConfigManager:
     @classmethod
     def set_hyperparams(cls, params: dict):
         cls._set_db_value("HYPERPARAMS", json.dumps(params))
+
+    @classmethod
+    def get_time_settings(cls):
+        val = cls._get_db_value("TIME_SETTINGS")
+        return json.loads(val) if val else DEFAULT_TIME_SETTINGS
+
+    @classmethod
+    def set_time_settings(cls, params: dict):
+        cls._set_db_value("TIME_SETTINGS", json.dumps(params))
+
+    @classmethod
+    def get_time_multiplier(cls, unit: str) -> float:
+        """Returns the hours-per-unit multiplier for time input conversion.
+
+        Args:
+            unit: 'hours', 'weeks', or 'months'
+
+        Returns:
+            Multiplier to convert from the given unit to hours.
+        """
+        if unit == 'weeks':
+            return cls.get_time_settings().get('hours_per_week', 40.0)
+        elif unit == 'months':
+            return cls.get_time_settings().get('hours_per_month', 160.0)
+        return 1.0
+
+    @classmethod
+    def format_time_friendly(cls, hours: float) -> str:
+        """Format an hour based on user configured time bounds"""
+        if hours is None or hours <= 0:
+            return "0h"
+        settings = cls.get_time_settings()
+        hw = settings.get('hours_per_week', 40)
+        hm = settings.get('hours_per_month', 160)
+        
+        if hm > 0 and hours >= hm:
+            months = round(hours / hm, 1)
+            if months.is_integer(): months = int(months)
+            return f"{months}m"
+        elif hw > 0 and hours >= hw:
+            weeks = round(hours / hw, 1)
+            if weeks.is_integer(): weeks = int(weeks)
+            return f"{weeks}w"
+        else:
+            h = round(hours, 1)
+            if h.is_integer(): h = int(h)
+            return f"{h}h"
 
     @classmethod
     def get_obsidian_vault(cls, default: Optional[str] = None):

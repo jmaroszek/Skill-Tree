@@ -75,33 +75,50 @@ def simulate_task_chain(
 
     Returns dict with 'samples', 'stats', 'chain_nodes', 'chain_size'.
     """
-    # Determine which edge types to traverse
-    edge_types = {'Needs_Hard'}
-    if include_soft:
-        edge_types.add('Needs_Soft')
-    if include_helps:
-        edge_types.add('Helps')
-
-    # Build prereq map: target → [sources]
-    prereq_map: Dict[str, List[str]] = {}
+    prereq_hard: Dict[str, List[str]] = {}
+    prereq_soft: Dict[str, List[str]] = {}
+    synergies: Dict[str, List[str]] = {}
+    
     for e in edges:
-        if e['type'] in edge_types:
-            prereq_map.setdefault(e['target'], []).append(e['source'])
-            # Helps edges are bidirectional — also traverse reverse
-            if e['type'] == 'Helps':
-                prereq_map.setdefault(e['source'], []).append(e['target'])
-
-    # BFS to find all reachable nodes
+        src, tgt, etype = e['source'], e['target'], e['type']
+        if etype == 'Needs_Hard':
+            prereq_hard.setdefault(tgt, []).append(src)
+        elif etype == 'Needs_Soft':
+            prereq_soft.setdefault(tgt, []).append(src)
+        elif etype == 'Helps':
+            synergies.setdefault(tgt, []).append(src)
+            synergies.setdefault(src, []).append(tgt)
+            
+    # BFS to find all reachable nodes and their relationships for this simulation
     visited = set()
-    queue = [target_name]
+    queue = [(target_name, True)]
+    sim_edges = set() # (prereq, dependent)
+    
     while queue:
-        current = queue.pop(0)
+        current, is_root = queue.pop(0)
         if current in visited:
             continue
         visited.add(current)
-        for prereq in prereq_map.get(current, []):
-            if prereq not in visited:
-                queue.append(prereq)
+        
+        # Hard dependencies: current depends on p
+        for p in prereq_hard.get(current, []):
+            sim_edges.add((p, current))
+            if p not in visited:
+                queue.append((p, False))
+                
+        # Soft dependencies (only for target)
+        if is_root and include_soft:
+            for p in prereq_soft.get(current, []):
+                sim_edges.add((p, current))
+                if p not in visited:
+                    queue.append((p, False))
+                    
+        # Synergies (only for target)
+        if is_root and include_helps:
+            for p in synergies.get(current, []):
+                sim_edges.add((p, current))
+                if p not in visited:
+                    queue.append((p, False))
 
     # Filter to incomplete nodes only
     incomplete = set()
@@ -132,9 +149,8 @@ def simulate_task_chain(
     forward = {name: [] for name in incomplete}
     in_degree = {name: 0 for name in incomplete}
 
-    for e in edges:
-        src, tgt = e['source'], e['target']
-        if e['type'] in edge_types and src in incomplete and tgt in incomplete:
+    for src, tgt in sim_edges:
+        if src in incomplete and tgt in incomplete:
             forward[src].append(tgt)
             in_degree[tgt] += 1
 
@@ -149,7 +165,7 @@ def simulate_task_chain(
             if in_degree[dep] == 0:
                 queue.append(dep)
 
-    # Handle any nodes not reached by topo sort (cycles from Helps edges)
+    # Handle any nodes not reached by topo sort (cycles)
     remaining = incomplete - set(topo_order)
     topo_order.extend(remaining)
 
@@ -160,9 +176,8 @@ def simulate_task_chain(
     for name in topo_order:
         idx = name_to_idx[name]
         prereqs_of_name = [
-            e['source'] for e in edges
-            if e['target'] == name and e['source'] in incomplete
-            and e['type'] in edge_types
+            src for src, tgt in sim_edges
+            if tgt == name and src in incomplete
         ]
         if prereqs_of_name:
             prereq_finishes = [finish[name_to_idx[p]] for p in prereqs_of_name if p in name_to_idx]

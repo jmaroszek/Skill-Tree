@@ -4,7 +4,7 @@ import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
 from config import ConfigManager
 from scoring import score_nodes
-from typing import List, Dict, Set
+from typing import List, Dict, Optional, Set
 
 
 class GraphManager:
@@ -62,7 +62,7 @@ class GraphManager:
             cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
             conn.commit()
 
-    def get_node(self, name: str) -> Node:
+    def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
@@ -196,8 +196,8 @@ class GraphManager:
         node = self.get_node(node_name)
         if not node or node.status == "Done":
             return
-        # Habit nodes use habit_status, not the auto-calculated status
-        if node.type == 'Habit':
+        # Habit and Goal nodes use their own status, not the auto-calculated status
+        if node.type in ('Habit', 'Goal'):
             return
 
         with self.get_connection() as conn:
@@ -232,7 +232,7 @@ class GraphManager:
 
     # --- Logic ---
 
-    def calculate_priority_scores(self, active_nodes: List[Node], priority_goals: List[str] = None) -> List[Node]:
+    def calculate_priority_scores(self, active_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
         """Delegates scoring to the scoring module."""
         return score_nodes(
             active_nodes, self.get_all_nodes(),
@@ -294,10 +294,14 @@ class GraphManager:
         nodes = [n for n in nodes if n is not None]
         total = len(nodes)
         done = sum(1 for n in nodes if n.status == "Done")
+        blocked = sum(1 for n in nodes if n.status == "Blocked")
         remaining_time = sum(n.time for n in nodes if n.status != "Done")
         pct = round(done / total * 100) if total > 0 else 0
+        
+        # A goal is considered blocked if ALL of its remaining subtasks are blocked
+        is_blocked = (done + blocked == total) and (blocked > 0)
 
-        return {"total": total, "done": done, "pct": pct, "remaining_time": round(remaining_time, 1)}
+        return {"total": total, "done": done, "pct": pct, "remaining_time": round(remaining_time, 1), "is_blocked": is_blocked}
 
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         result = nodes
@@ -370,7 +374,7 @@ class GraphManager:
 
         return chains
 
-    def _build_nx_graph(self, allowed_names: Set[str] = None) -> nx.Graph:
+    def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> nx.Graph:
         G = nx.Graph()
         nodes = self.get_all_nodes()
         edges = self.get_edges()
@@ -402,7 +406,7 @@ class GraphManager:
                 orphans[val] = affected
         return orphans
 
-    def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Dict = None):
+    def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Optional[Dict] = None):
         """Remap node attribute values in bulk.
 
         Args:
@@ -454,7 +458,68 @@ class GraphManager:
 
             conn.commit()
 
-    def detect_communities(self, method: str = "components", filters: Dict = None) -> List[Set[str]]:
+    def name_community(self, community: Set[str]) -> str:
+        """Generate a descriptive name for a community based on member node attributes.
+
+        Strategy (in priority order):
+        1. If a dominant context covers >=50% of nodes, use it.
+           - If a subcontext also dominates within that context, append it.
+        2. Otherwise, if a dominant node type covers >=60%, use it as the label.
+        3. Otherwise, find the most frequent meaningful word across node names.
+        """
+        if not community:
+            return "Empty"
+
+        nodes = [self.get_node(name) for name in community]
+        nodes = [n for n in nodes if n is not None]
+        if not nodes:
+            return "Unknown"
+
+        from collections import Counter
+
+        # --- Strategy 1: Dominant context ---
+        contexts = [n.context for n in nodes if n.context]
+        if contexts:
+            ctx_counts = Counter(contexts)
+            top_ctx, top_count = ctx_counts.most_common(1)[0]
+            if top_count / len(nodes) >= 0.5:
+                # Check for dominant subcontext within this context
+                subcontexts = [n.subcontext for n in nodes if n.context == top_ctx and n.subcontext]
+                if subcontexts:
+                    sub_counts = Counter(subcontexts)
+                    top_sub, sub_count = sub_counts.most_common(1)[0]
+                    if sub_count / top_count >= 0.5:
+                        return f"{top_ctx} › {top_sub}"
+                return top_ctx
+
+        # --- Strategy 2: Dominant type ---
+        types = [n.type for n in nodes if n.type]
+        if types:
+            type_counts = Counter(types)
+            top_type, type_count = type_counts.most_common(1)[0]
+            if type_count / len(nodes) >= 0.6:
+                return f"{top_type}s"
+
+        # --- Strategy 3: Common words in node names ---
+        stop_words = {
+            'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'for', 'with',
+            'on', 'at', 'by', 'is', 'it', 'as', 'be', 'do', 'how', 'my',
+            'i', 'me', 'up', 'so', 'no', 'not', 'but', 'get', 'set', '&',
+            '-', '1', '2', '3', '4', '5',
+        }
+        all_words: list[str] = []
+        for n in nodes:
+            words = n.name.lower().replace('-', ' ').replace('_', ' ').split()
+            all_words.extend(w for w in words if len(w) > 2 and w not in stop_words)
+        if all_words:
+            word_counts = Counter(all_words)
+            top_word, _ = word_counts.most_common(1)[0]
+            return top_word.title()
+
+        # Final fallback
+        return "Mixed"
+
+    def detect_communities(self, method: str = "components", filters: Optional[Dict] = None) -> List[Set[str]]:
         if filters:
             all_nodes = self.get_all_nodes()
             filtered_nodes = self.filter_nodes(all_nodes, filters)

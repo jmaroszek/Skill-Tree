@@ -13,15 +13,11 @@ from simulate_layout import build_simulate_tab_content
 from settings_layout import build_settings_tab_content
 from styles import stylesheet
 
-# Read initial config values (lightweight DB reads, no GraphManager needed).
 # These are only used for the initial render; core_engine refreshes them dynamically.
 NODE_TYPES = ConfigManager.get_node_types()
 CONTEXTS = ConfigManager.get_contexts()
 
-# Cytoscape stylesheet is imported from styles.py
-
 # --- Sidebar (Node Editor) ---
-
 sidebar_content = html.Div(
     [
         html.Div([
@@ -47,7 +43,7 @@ sidebar_content = html.Div(
 
             dbc.Label("Context", className="mt-2"),
             html.Div([
-                dbc.Select(id="node-context", options=[{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in CONTEXTS], value="", style={'flex': 1}),
+                dbc.Select(id="node-context", options=[{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in CONTEXTS], value="", style={'flex': 1}),  # type: ignore[reportArgumentType]
                 dbc.Button("▾", id="btn-subcontext-toggle", color="light", className="ms-1 px-2")
             ], className="d-flex"),
             dbc.Collapse(dbc.Select(id="node-subcontext", options=[], className="mt-1"), id="collapse-subcontext", is_open=False),
@@ -123,7 +119,14 @@ sidebar_content = html.Div(
             # --- Section: Time Estimates (Learn, Goal, Resource — hidden for Habit) ---
             html.Div(id="section-time-estimates", children=[
                 html.Hr(),
-                html.H5("Time Estimates in Hours", className="mt-2 mb-1"),
+                html.Div([
+                    html.H5("Time Estimates", className="mb-0"),
+                    dbc.Select(id="node-time-unit", options=[
+                        {"label": "Hours", "value": "hours"},
+                        {"label": "Weeks", "value": "weeks"},
+                        {"label": "Months", "value": "months"},
+                    ], value="hours", size="sm", style={"width": "100px"})
+                ], className="d-flex justify-content-between align-items-center mt-2 mb-1"),
                 dbc.Row([
                     dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
                     dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
@@ -159,13 +162,22 @@ sidebar_content = html.Div(
             dcc.Store(id='drive-links-store', data=['']),
             dcc.Store(id='website-links-store', data=['']),
 
-            dbc.Label("Obsidian", className="mt-0"),
+            html.Div([
+                dbc.Label("Obsidian", className="mb-0"),
+                dbc.Button("+", id="btn-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+            ], className="d-flex align-items-center mt-2 mb-1"),
             html.Div(id='obsidian-links-container'),
 
-            dbc.Label("Google Drive", className="mt-2"),
+            html.Div([
+                dbc.Label("Google Drive", className="mb-0"),
+                dbc.Button("+", id="btn-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+            ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='drive-links-container'),
 
-            dbc.Label("Website", className="mt-2"),
+            html.Div([
+                dbc.Label("Website", className="mb-0"),
+                dbc.Button("+", id="btn-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+            ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='website-links-container'),
             
             html.Hr(),
@@ -223,7 +235,7 @@ filters_content = html.Div([
     dbc.Label("Node Type", className="mt-2"),
     dbc.Select(
         id="filter-node-type",
-        options=[{"label": "All", "value": "All"}] + [{"label": t, "value": t} for t in NODE_TYPES],
+        options=[{"label": "All", "value": "All"}] + [{"label": t, "value": t} for t in NODE_TYPES],  # type: ignore[reportArgumentType]
         value="All",
     ),
 
@@ -376,7 +388,7 @@ def build_migration_content(orphans_by_field, new_values_by_field):
                     html.Small(display_names, className="text-muted d-block mb-2"),
                     dbc.Select(
                         id={"type": "migration-dropdown", "index": idx},
-                        options=options,
+                        options=options,  # type: ignore[reportArgumentType]
                         value=new_vals[0] if new_vals else None,
                         placeholder=f"Reassign to..."
                     ),
@@ -614,7 +626,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='simulate-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
-        html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),
+        html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         migration_modal,
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),

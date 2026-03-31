@@ -13,48 +13,22 @@ from graph_manager import GraphManager
 from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
 from typing import Tuple, Any
+from callback_helpers import (
+    parse_links, serialize_links, get_trigger_id, node_options, build_filters,
+    handle_save, handle_delete, handle_toggle_done, handle_group_delete,
+    format_suggestions_table, format_traversal_ui, SECTION_TITLE_STYLE,
+)
 
 logger = logging.getLogger(__name__)
 
 manager = GraphManager()
 
-SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
 
-
-def _parse_links(db_value):
-    """Parse a DB field that may contain a JSON array or a plain string into a list."""
-    import json as _json
-    if not db_value:
-        return ['']
-    try:
-        parsed = _json.loads(db_value)
-        if isinstance(parsed, list):
-            return parsed if parsed else ['']
-    except (ValueError, TypeError):
-        pass
-    return [db_value]
-
-
-def _serialize_links(values_list):
-    """Serialize a list of link input values into a JSON string for DB storage."""
-    import json as _json
-    if not values_list:
-        return None
-    links = [v.strip() for v in values_list if v and v.strip()]
-    if not links:
-        return None
-    return _json.dumps(links)
-
-
-def _get_trigger_id():
-    """Return the component ID that triggered the current callback, or '' if none."""
-    ctx = dash.callback_context
-    return ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else ""
-
-
-def _node_options(nodes, exclude=None):
-    """Build dropdown options from a list of nodes, optionally excluding one by name."""
-    return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]
+# Backward-compatible aliases for helpers now in callback_helpers.py
+_parse_links = parse_links
+_serialize_links = serialize_links
+_get_trigger_id = get_trigger_id
+_node_options = node_options
 
 
 def _spawn_local_file_picker(initial_dir, title, filetypes_list):
@@ -125,7 +99,7 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
             'data': {
                 'id': node.name,
                 'label': node.name,
-                'color': colors.get(node.status, '#888'),
+                'color': colors.get('Goal', '#ffc107') if node.type == 'Goal' else colors.get(node.status, '#888'),
                 'shape': shapes.get(node.type, 'rectangle'),
                 **node.to_dict()
             },
@@ -157,127 +131,17 @@ def get_suggestions(filters=None, count=5):
     return valid[:count]
 
 
-def _build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1, f_time=None, f_difficulty="All", f_node_types=None, f_goal=None):
-    """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
-    filters = {}
-    if f_context and f_context != "All":
-        filters['context'] = f_context if f_context != "None" else None
-    if f_subcontext and f_subcontext != "All" and f_subcontext.strip():
-        filters['subcontext'] = f_subcontext.strip()
-    if f_node_types and f_node_types != "All":
-        filters['node_types'] = [f_node_types]
-    if f_done and "hide_done" in f_done:
-        filters['hide_done'] = True
-    if f_value and f_value > 1:
-        filters['min_value'] = f_value
-    if f_interest and f_interest > 1:
-        filters['min_interest'] = f_interest
-    if f_time is not None and f_time != "" and f_time != 0:
-        try: filters['max_time'] = float(f_time)
-        except (ValueError, TypeError): pass
-    if f_difficulty and f_difficulty != "All":
-        try: filters['max_difficulty'] = int(f_difficulty)
-        except (ValueError, TypeError): pass
-    if f_goal and f_goal != "All":
-        filters['goal'] = f_goal
-    return filters
+_build_filters = build_filters
 
 
 def _format_suggestions_table(suggs, selected_node_id=None):
     """Render the top-scored nodes as an HTML table with normalized priority scores (0-100)."""
-    if not suggs:
-        return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
-
-    raw_scores = [getattr(s, 'priority_score', 0) for s in suggs]
-    max_score = max(raw_scores)
-
-    def normalize(score):
-        if max_score == 0:
-            return 0.0
-        return round((score / max_score) * 100, 1)
-
-    edges = manager.get_edges()
-
-    table_header = [html.Thead(html.Tr([
-        html.Th("Name"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
-        html.Th("Subcontext"), html.Th("Value"), html.Th("Effort"), html.Th("Time"),
-        html.Th("Unlocks"), html.Th("Resources")
-    ]))]
-
-    row_data = []
-    for s in suggs:
-        is_selected = (s.name == selected_node_id)
-        # Subtle highlight for the selected row
-        row_class = "table-active" if is_selected else ""
-
-        node_res = [e['source'] for e in edges if e['target'] == s.name and e['type'] == EDGE_RESOURCE]
-        res_str = ", ".join(node_res) if node_res else "None"
-
-        row_data.append(html.Tr([
-            html.Td(html.Span(
-                s.name,
-                id={"type": "suggestion-name-link", "index": s.name},
-                title="Go to this node in the Nodes tab",
-                style={"cursor": "pointer"},
-            )),
-            html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
-            html.Td(s.type),
-            html.Td(str(s.context)),
-            html.Td(str(s.subcontext) if s.subcontext else "None"),
-            html.Td(str(s.value)),
-            html.Td(str(s.difficulty)),
-            html.Td(f"{round(s.time)}h"),
-            html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None"),
-            html.Td(res_str)
-        ], id={"type": "suggestion-row", "index": s.name}, className=row_class, style={"cursor": "pointer"}))
-        
-    table = dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,
-                     style={"width": "fit-content", "minWidth": "50%", "tableLayout": "auto"})
-
-    node = None
-    if selected_node_id:
-        node = next((n for n in suggs if n.name == selected_node_id), None)
-        if not node:
-            node = manager.get_node(selected_node_id)
-    
-    desc_content = node.description.strip() if node and node.description and node.description.strip() else "None"
-    
-    desc_area = html.Div([
-        html.H6("Description", className="text-muted mb-2", style=SECTION_TITLE_STYLE),
-        html.Div(desc_content, style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
-    ], className="mt-4", style={"maxWidth": "800px"})
-
-    return [table, desc_area]
+    return format_suggestions_table(suggs, manager, selected_node_id)
 
 
 def _format_traversal_ui(tapped_node, active_node_id):
     """Build the dependency chains and synergies display for the selected node."""
-    traversal_ui = html.Div(className="text-muted", children="Select a node to see dependencies.")
-    synergies_ui = html.Div(className="text-muted", children="Select a node to see synergies.")
-
-    if not tapped_node: return traversal_ui, synergies_ui
-
-    node_id = tapped_node.get('id')
-    chains = manager.get_prerequisite_chains(node_id)
-
-    edges = manager.get_edges()
-    synergies = [e['target'] for e in edges if e['source'] == node_id and e['type'] == EDGE_HELPS]
-    synergies += [e['source'] for e in edges if e['target'] == node_id and e['type'] == EDGE_HELPS]
-    synergies = list(set(synergies))
-
-    if not chains:
-        traversal_ui = html.P("None", className="text-dark")
-    else:
-        chain_items = []
-        for c in chains:
-            display_chain = c[:-1] if c and c[-1] == active_node_id else c
-            if display_chain:
-                chain_items.append(html.Div(" → ".join(display_chain), style={"overflowWrap": "break-word"}))
-        traversal_ui = html.Div(chain_items) if chain_items else html.P("None", className="text-dark")
-
-    synergies_ui = html.Div([html.Div(s) for s in synergies]) if synergies else html.P("None", className="text-dark")
-
-    return traversal_ui, synergies_ui
+    return format_traversal_ui(tapped_node, active_node_id, manager)
 
 
 def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
@@ -285,64 +149,25 @@ def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff
                   e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
                   habit_status_val=None, habit_freq=None, sess_lower=None, sess_expected=None, sess_upper=None, progress_val=None):
     """Create or update a node and sync its edges. Returns a status message."""
-    # target_status: what the user selected in the form (Done or Open).
-    # graph_manager may override to "Blocked" after sync_edges if hard prerequisites aren't met.
-    target_status = "Done" if (status_done and "Done" in status_done) else "Open"
-
-    # Auto-set progress to 100% when resource is marked Done
-    if n_type == 'Resource' and target_status == 'Done':
-        progress_val = 100
-
-    node = Node(
-        name=name, type=n_type, description=desc or "",
-        value=val, time_o=time_o or 0, time_m=time_m or 0, time_p=time_p or 0,
-        interest=interest, difficulty=diff,
-        status=target_status, context=context or None, subcontext=(subctx or '').strip() or None,
-        obsidian_path=(obs_path or '').strip() or None,
-        google_drive_path=(drive_path or '').strip() or None,
-        website=(website_path or '').strip() or None,
-        frequency=habit_freq if n_type == 'Habit' else None,
-        session_lower=sess_lower if n_type == 'Habit' else None,
-        session_expected=sess_expected if n_type == 'Habit' else None,
-        session_upper=sess_upper if n_type == 'Habit' else None,
-        habit_status=habit_status_val if n_type == 'Habit' else None,
-        progress=int(progress_val) if n_type == 'Resource' and progress_val is not None else None,
-    )
-    if manager.get_node(name):
-        manager.update_node(node)
-        msg = f"Updated node '{name}'"
-    else:
-        manager.add_node(node)
-        msg = f"Added node '{name}'"
-    manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res)
-    return msg
+    return handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
+                       status_done, context, subctx, obs_path, drive_path, website_path,
+                       e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
+                       habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val)
 
 
 def _handle_delete(name):
     """Delete a single node by name. Returns a status message."""
-    manager.delete_node(name)
-    return f"Deleted node '{name}'"
+    return handle_delete(manager, name)
 
 
 def _handle_toggle_done(tapped_node):
     """Toggle a node's status between Done and Open. Returns a status message."""
-    node = manager.get_node(tapped_node.get('id'))
-    if node:
-        node.status = "Open" if node.status == "Done" else "Done"
-        manager.update_node(node)
-        return f"Toggled status of '{node.name}' to {node.status}"
-    return ""
+    return handle_toggle_done(manager, tapped_node)
 
 
 def _handle_group_delete(group_delete_data):
     """Delete multiple nodes from a JSON-encoded list. Returns a status message."""
-    import json
-    # JS sends "["name1","name2"]|timestamp" — strip the timestamp suffix
-    raw = group_delete_data.split('|')[0] if isinstance(group_delete_data, str) else ''
-    names = json.loads(raw) if raw else []
-    for node_name in names:
-        manager.delete_node(node_name)
-    return f"Deleted {len(names)} node(s)" if names else ""
+    return handle_group_delete(manager, group_delete_data)
 
 
 def register_callbacks(app):
@@ -370,8 +195,13 @@ def register_callbacks(app):
         if m > 0 and o > 0 and p > 0 and not (o == m == p):
             std_dev = round((p - o) / 6.0, 2)
             
-        std_str = f" ±{std_dev}" if std_dev > 0 else ""
-        time_str = f"{final_time}h{std_str}"
+        formatted_final = ConfigManager.format_time_friendly(final_time)
+        std_str = f" ±{std_dev}h" if std_dev > 0 else ""
+        
+        if formatted_final.endswith('h'):
+            time_str = f"{formatted_final}{std_str}"
+        else:
+            time_str = f"{final_time}h ({formatted_final}){std_str}"
 
         node_type = data.get('type', '')
         lines = [
@@ -420,7 +250,7 @@ def register_callbacks(app):
          # Type-specific outputs
          Output('habit-status', 'value'), Output('habit-frequency', 'value'),
          Output('session-lower', 'value'), Output('session-expected', 'value'), Output('session-upper', 'value'),
-         Output('node-progress', 'value')],
+         Output('node-progress', 'value'), Output('node-time-unit', 'value')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
@@ -440,7 +270,7 @@ def register_callbacks(app):
             options, options, options, options, options, options,
             [''], [''], [''],
             # Type-specific defaults
-            "Active", "Daily", None, None, None, 0
+            "Active", "Daily", None, None, None, 0, "hours"
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
@@ -498,7 +328,7 @@ def register_callbacks(app):
             data.get('habit_status') or 'Active',
             data.get('frequency') or 'Daily',
             data.get('session_lower'), data.get('session_expected'), data.get('session_upper'),
-            data.get('progress') or 0,
+            data.get('progress') or 0, "hours"
         ]
 
     # --- Type-adaptive field visibility ---
@@ -581,6 +411,7 @@ def register_callbacks(app):
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'), State('node-difficulty', 'value'),
          State('node-time-o', 'value'), State('node-time-m', 'value'), State('node-time-p', 'value'),
+         State('node-time-unit', 'value'),
          State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
          State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
          State('edge-helps', 'value'), State('edge-resources', 'value'),
@@ -602,7 +433,7 @@ def register_callbacks(app):
                      f_goal, focus_goal,
                      edit_trigger_data, toggle_done_trigger_data,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
-                     time_o, time_m, time_p,
+                     time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
                      obs_link_values, drive_link_values, website_link_values,
                      habit_status_val, habit_freq, sess_lower, sess_expected, sess_upper, progress_val,
@@ -658,7 +489,13 @@ def register_callbacks(app):
                 # Track if this save marks the node Done (for event completion check)
                 if status_done and "done" in (status_done or []):
                     completion_check_node = name
-                msg = _handle_save(name, n_type, desc, val, time_o, time_m, time_p,
+
+                multiplier = ConfigManager.get_time_multiplier(time_unit)
+                t_o = float(time_o or 0) * multiplier
+                t_m = float(time_m or 0) * multiplier
+                t_p = float(time_p or 0) * multiplier
+
+                msg = _handle_save(name, n_type, desc, val, t_o, t_m, t_p,
                                    interest, diff, status_done, context, subctx,
                                    obs_path, drive_path, website_path,
                                    e_needs_h, e_needs_s,
@@ -709,8 +546,22 @@ def register_callbacks(app):
         community_method = community_method or "components"
         communities = manager.detect_communities(method=community_method, filters=filters)
         community_options = [{"label": "All", "value": "All"}]
+        name_counts: dict[str, int] = {}
         for i, comm in enumerate(communities):
-            community_options.append({"label": f"Community {i+1} ({len(comm)} nodes)", "value": str(i)})
+            base_name = manager.name_community(comm)
+            name_counts[base_name] = name_counts.get(base_name, 0) + 1
+            if name_counts[base_name] > 1:
+                label = f"{base_name} #{name_counts[base_name]} ({len(comm)} nodes)"
+            else:
+                label = f"{base_name} ({len(comm)} nodes)"
+            community_options.append({"label": label, "value": str(i)})
+        # Fix labels retroactively when the first occurrence also needs a number
+        for key, count in name_counts.items():
+            if count > 1:
+                for opt in community_options:
+                    if opt["label"].startswith(f"{key} (") and opt["value"] != "All":
+                        opt["label"] = opt["label"].replace(f"{key} (", f"{key} #1 (", 1)
+                        break
 
         community_names = None
         if f_community and f_community != "All":
@@ -848,12 +699,14 @@ def register_callbacks(app):
         Output('setting-obsidian-path', 'value'),
         Output('setting-node-shapes-container', 'children'),
         Output('setting-node-colors-container', 'children'),
+        Output('setting-hpw', 'value'),
+        Output('setting-hpm', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 16
+            return (dash.no_update,) * 18
 
         hp = ConfigManager.get_hyperparams()
         obs = ConfigManager.get_obsidian_vault()
@@ -868,6 +721,11 @@ def register_callbacks(app):
 
         # Build shapes editor
         node_types = ConfigManager.get_node_types()
+        display_types = node_types.copy()
+        for ft in ["Goal", "Habit"]:
+            if ft not in display_types:
+                display_types.append(ft)
+
         shapes = ConfigManager.get_node_shapes()
         shape_options = [
             {"label": s.title(), "value": s}
@@ -875,26 +733,26 @@ def register_callbacks(app):
                        "diamond", "octagon", "round-rectangle", "vee"]
         ]
         shape_rows = []
-        for t in node_types:
+        for t in display_types:
             shape_rows.append(dbc.Row([
                 dbc.Col(dbc.Label(t, className="mb-0"), width=4, className="d-flex align-items-center"),
                 dbc.Col(dbc.Select(
                     id={"type": "setting-shape", "index": t},
-                    options=shape_options,
+                    options=shape_options,  # type: ignore[reportArgumentType]
                     value=shapes.get(t, "ellipse"),
                 ), width=8),
             ], className="mb-2"))
 
         # Build colors editor
         colors = ConfigManager.get_node_colors()
-        status_list = ["Open", "Blocked", "Done"]
+        status_list = ["Open", "Blocked", "Done", "Goal"]
         color_rows = []
         for status in status_list:
             color_rows.append(dbc.Row([
                 dbc.Col(dbc.Label(status, className="mb-0"), width=4, className="d-flex align-items-center"),
                 dbc.Col(dbc.Input(
                     id={"type": "setting-color", "index": status},
-                    type="color",
+                    type="color",  # type: ignore[reportArgumentType]
                     value=colors.get(status, "#6c757d"),
                     style={"height": "38px", "padding": "2px"},
                 ), width=4),
@@ -905,9 +763,12 @@ def register_callbacks(app):
                 ), width=4),
             ], className="mb-2"))
 
+        ts = ConfigManager.get_time_settings()
+
         return (hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'),
                 hp.get('w_e'), hp.get('w_t'), hp.get('beta'), hp.get('goal_boost', 1.5),
-                ntypes, ctxts, subctxts, "Custom", obs, shape_rows, color_rows)
+                ntypes, ctxts, subctxts, "Custom", obs, shape_rows, color_rows,
+                ts.get('hours_per_week', 40), ts.get('hours_per_month', 160))
 
     # --- Settings: Profile selector ---
     @app.callback(
@@ -931,6 +792,29 @@ def register_callbacks(app):
                     p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5))
         return (dash.no_update,) * 9
 
+    # --- Settings: Sync Time Estimates ---
+    @app.callback(
+        Output('setting-hpw', 'value', allow_duplicate=True),
+        Output('setting-hpm', 'value', allow_duplicate=True),
+        Input('setting-hpw', 'value'),
+        Input('setting-hpm', 'value'),
+        prevent_initial_call=True,
+    )
+    def sync_time_settings(hpw, hpm):
+        from dash import ctx, no_update
+        triggered = ctx.triggered_id
+        if not triggered:
+            return no_update, no_update
+            
+        try:
+            if triggered == 'setting-hpw' and hpw is not None:
+                return no_update, round(float(hpw) * 4.0, 2)
+            elif triggered == 'setting-hpm' and hpm is not None:
+                return round(float(hpm) / 4.0, 2), no_update
+        except Exception:
+            pass
+        return no_update, no_update
+
     # --- Settings: Save ---
     @app.callback(
         Output('settings-save-status', 'children'),
@@ -948,11 +832,13 @@ def register_callbacks(app):
         State({"type": "setting-shape", "index": ALL}, "id"),
         State({"type": "setting-color", "index": ALL}, "value"),
         State({"type": "setting-color", "index": ALL}, "id"),
+        State('setting-hpw', 'value'), State('setting-hpm', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
                       n_types_val, contexts_val, subcontexts_val, obs_path,
-                      shape_values, shape_ids, color_values, color_ids):
+                      shape_values, shape_ids, color_values, color_ids,
+                      hpw, hpm):
         if not n_clicks:
             return dash.no_update, dash.no_update
 
@@ -962,6 +848,11 @@ def register_callbacks(app):
                 'd_H': float(dh), 'd_S': float(ds), 'd_Syn': float(dsyn),
                 'w_e': float(we), 'w_t': float(wt), 'beta': float(beta),
                 'goal_boost': float(goal_boost) if goal_boost is not None else 1.5,
+            }
+
+            new_ts = {
+                'hours_per_week': float(hpw) if hpw is not None else 40,
+                'hours_per_month': float(hpm) if hpm is not None else 160,
             }
 
             # Parse new values
@@ -1006,6 +897,7 @@ def register_callbacks(app):
                 # Defer save — store pending data and open migration modal
                 pending = {
                     'hp': new_hp,
+                    'ts': new_ts,
                     'obs_path': obs_path,
                     'types': new_types,
                     'contexts': new_contexts,
@@ -1021,6 +913,7 @@ def register_callbacks(app):
 
             # No orphans — save immediately
             ConfigManager.set_hyperparams(new_hp)
+            ConfigManager.set_time_settings(new_ts)
             ConfigManager.set_obsidian_vault(obs_path)
             if new_types:
                 ConfigManager.set_node_types(new_types)
@@ -1090,6 +983,8 @@ def register_callbacks(app):
             # Save the pending settings
             try:
                 ConfigManager.set_hyperparams(pending_state['hp'])
+                if 'ts' in pending_state:
+                    ConfigManager.set_time_settings(pending_state['ts'])
                 ConfigManager.set_obsidian_vault(pending_state['obs_path'])
                 new_types = pending_state.get('types', [])
                 if new_types:
@@ -1138,41 +1033,32 @@ def register_callbacks(app):
         """
         from dash import html as _html
         link_list = links or ['']
-        add_btn_id = f"btn-{link_type.replace('-link', '')}-add"
         rows = []
         for i, path in enumerate(link_list):
-            is_last = (i == len(link_list) - 1)
             buttons = []
             if has_browse:
                 browse_type = 'btn-obsidian-browse' if 'obsidian' in link_type else 'btn-drive-browse'
                 buttons.append(dbc.Button(
                     "\U0001f4c1", id={"type": browse_type, "index": i},
-                    color="secondary", size="sm", title="Browse",
-                    className="me-1", style={"minWidth": "32px"}
+                    color="secondary", title="Browse",
+                    className="me-1 d-flex justify-content-center align-items-center p-0", style={"width": "38px"}
                 ))
             buttons.append(dbc.Button(
                 "\U0001f517", id={"type": f"btn-{link_type.replace('-link','')}-open", "index": i},
-                color="secondary", size="sm", title="Open",
-                className="me-1", style={"minWidth": "32px"}
+                color="secondary", title="Open",
+                className="me-1 d-flex justify-content-center align-items-center p-0", style={"width": "38px"}
             ))
             if len(link_list) > 1:
                 buttons.append(dbc.Button(
                     "\u00d7", id={"type": f"btn-{link_type}-remove", "index": i},
-                    color="danger", size="sm", outline=True,
-                    className="me-1", style={"minWidth": "28px", "padding": "2px 6px"}
-                ))
-            # Add "+" button on last row only
-            if is_last:
-                buttons.append(dbc.Button(
-                    "+", id=add_btn_id,
-                    color="secondary", size="sm", outline=True,
-                    title="Add another",
-                    style={"minWidth": "28px", "padding": "2px 6px", "color": "#6c757d"}
+                    color="danger", outline=True,
+                    className="d-flex justify-content-center align-items-center p-0",
+                    style={"width": "38px", "fontSize": "1.5rem"}
                 ))
             rows.append(_html.Div([
                 dbc.Input(id={"type": link_type, "index": i}, type="text",
                           value=path or '', placeholder="Enter path or URL...",
-                          className="me-1", style={"flex": "1", "fontSize": "0.85rem"}),
+                          className="me-1", style={"flex": "1"}),
                 *buttons
             ], className="d-flex mb-1"))
         return rows
@@ -1463,18 +1349,23 @@ def register_callbacks(app):
             return dash.no_update
         from config import DEFAULT_NODE_SHAPES
         node_types = ConfigManager.get_node_types()
+        display_types = node_types.copy()
+        for ft in ["Goal", "Habit"]:
+            if ft not in display_types:
+                display_types.append(ft)
+
         shape_options = [
             {"label": s.title(), "value": s}
             for s in ["ellipse", "triangle", "rectangle", "star", "pentagon", "hexagon",
                        "diamond", "octagon", "round-rectangle", "vee"]
         ]
         shape_rows = []
-        for t in node_types:
+        for t in display_types:
             shape_rows.append(dbc.Row([
                 dbc.Col(dbc.Label(t, className="mb-0"), width=4, className="d-flex align-items-center"),
                 dbc.Col(dbc.Select(
                     id={"type": "setting-shape", "index": t},
-                    options=shape_options,
+                    options=shape_options,  # type: ignore[reportArgumentType]
                     value=DEFAULT_NODE_SHAPES.get(t, "ellipse"),
                 ), width=8),
             ], className="mb-2"))
@@ -1490,14 +1381,14 @@ def register_callbacks(app):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_COLORS
-        status_list = ["Open", "Blocked", "Done"]
+        status_list = ["Open", "Blocked", "Done", "Goal"]
         color_rows = []
         for status in status_list:
             color_rows.append(dbc.Row([
                 dbc.Col(dbc.Label(status, className="mb-0"), width=4, className="d-flex align-items-center"),
                 dbc.Col(dbc.Input(
                     id={"type": "setting-color", "index": status},
-                    type="color",
+                    type="color",  # type: ignore[reportArgumentType]
                     value=DEFAULT_NODE_COLORS.get(status, "#6c757d"),
                     style={"height": "38px", "padding": "2px"},
                 ), width=4),

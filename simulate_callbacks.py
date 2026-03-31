@@ -7,6 +7,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from graph_manager import GraphManager
 from simulation import simulate_task_chain
+from config import ConfigManager
 
 graph_manager = GraphManager()
 
@@ -99,7 +100,7 @@ def register_simulate_callbacks(app):
         ]:
             fig.add_vline(
                 x=val, line_dash="dash", line_color=color, line_width=2,
-                annotation_text=f"{label}: {int(round(val))}h",
+                annotation_text=f"{label}: {ConfigManager.format_time_friendly(val)}",
                 annotation_position="top",
                 annotation_font_color=color,
             )
@@ -116,13 +117,13 @@ def register_simulate_callbacks(app):
 
         # --- Stats row ---
         stats_children = html.Div([
-            _stat_card("P10", f"{int(round(stats['p10']))}h", "success"),
-            _stat_card("P25", f"{int(round(stats['p25']))}h", "success"),
-            _stat_card("P50", f"{int(round(stats['p50']))}h", "warning"),
-            _stat_card("P75", f"{int(round(stats['p75']))}h", "danger"),
-            _stat_card("P90", f"{int(round(stats['p90']))}h", "danger"),
-            _stat_card("Mean", f"{int(round(stats['mean']))}h", "info"),
-            _stat_card("Std Dev", f"{int(round(stats['std']))}h", "secondary"),
+            _stat_card("P10", ConfigManager.format_time_friendly(stats['p10']), "success"),
+            _stat_card("P25", ConfigManager.format_time_friendly(stats['p25']), "success"),
+            _stat_card("P50", ConfigManager.format_time_friendly(stats['p50']), "warning"),
+            _stat_card("P75", ConfigManager.format_time_friendly(stats['p75']), "danger"),
+            _stat_card("P90", ConfigManager.format_time_friendly(stats['p90']), "danger"),
+            _stat_card("Mean", ConfigManager.format_time_friendly(stats['mean']), "info"),
+            _stat_card("Std Dev", ConfigManager.format_time_friendly(stats['std']), "secondary"),
         ], className="d-flex gap-3 flex-wrap")
 
         # --- Chain node list ---
@@ -132,7 +133,7 @@ def register_simulate_callbacks(app):
                 node = nodes_dict.get(name)
                 if node:
                     status_color = {"Done": "success", "Blocked": "danger", "Open": "primary"}.get(node.status, "secondary")
-                    time_str = f"{round(node.time)}h" if node.time else "1h"
+                    time_str = ConfigManager.format_time_friendly(node.time) if node.time else "1h"
                     chain_items.append(
                         html.Div([
                             html.Span(name, id={"type": "sim-chain-node", "index": name},
@@ -143,7 +144,7 @@ def register_simulate_callbacks(app):
                             dbc.Badge(node.status, color=status_color,
                                       style={"fontSize": "0.7rem", "width": "55px", "textAlign": "center"}),
                             html.Small(time_str, className="text-muted ms-2",
-                                       style={"width": "45px", "textAlign": "right"}),
+                                       style={"width": "50px", "textAlign": "right"}),
                         ], className="d-flex align-items-center py-1",
                            style={"fontSize": "0.82rem", "borderBottom": "1px solid #343a40"})
                     )

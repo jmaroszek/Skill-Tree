@@ -21,6 +21,7 @@ def temp_database(monkeypatch, tmp_path):
     """Creates a temporary database for each test, ensuring full isolation."""
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
+    database._initialized = False
     database.init_db()
     yield tmp_db_path
 
@@ -598,6 +599,52 @@ class TestCommunityDetection:
 
 
 # ============================================================================
+# Community Naming
+# ============================================================================
+
+class TestCommunityNaming:
+    def test_empty_community(self, mgr):
+        assert mgr.name_community(set()) == "Empty"
+
+    def test_nonexistent_nodes(self, mgr):
+        assert mgr.name_community({"DoesNotExist"}) == "Unknown"
+
+    def test_dominant_context(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind"))
+        mgr.add_node(_make_node("B", context="Mind"))
+        mgr.add_node(_make_node("C", context="Body"))
+        name = mgr.name_community({"A", "B", "C"})
+        assert name == "Mind"  # 2/3 >= 50%
+
+    def test_dominant_context_with_subcontext(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind", subcontext="Logic"))
+        mgr.add_node(_make_node("B", context="Mind", subcontext="Logic"))
+        name = mgr.name_community({"A", "B"})
+        assert name == "Mind › Logic"
+
+    def test_type_fallback(self, mgr):
+        # No dominant context — all different contexts
+        mgr.add_node(_make_node("A", context="Mind", type="Goal"))
+        mgr.add_node(_make_node("B", context="Body", type="Goal"))
+        mgr.add_node(_make_node("C", context="Spirit", type="Goal"))
+        name = mgr.name_community({"A", "B", "C"})
+        assert name == "Goals"  # 100% Goal type
+
+    def test_word_fallback(self, mgr):
+        # No dominant context or type
+        mgr.add_node(_make_node("Python Basics", context="Mind", type="Learn"))
+        mgr.add_node(_make_node("Python Advanced", context="Body", type="Goal"))
+        mgr.add_node(_make_node("Rust Intro", context="Spirit", type="Habit"))
+        name = mgr.name_community({"Python Basics", "Python Advanced", "Rust Intro"})
+        assert name == "Python"  # "python" appears twice
+
+    def test_single_node_uses_context(self, mgr):
+        mgr.add_node(_make_node("Solo Node", context="Body"))
+        name = mgr.name_community({"Solo Node"})
+        assert name == "Body"
+
+
+# ============================================================================
 # Priority Scoring (integration via GraphManager)
 # ============================================================================
 
@@ -891,3 +938,345 @@ class TestNodeMigration:
         mgr.add_node(_make_node("A", context="Mind"))
         mgr.apply_migration('context', {})
         assert mgr.get_node("A").context == "Mind"  # unchanged
+
+
+# ============================================================================
+# ConfigManager — Time Multiplier
+# ============================================================================
+
+class TestTimeMultiplier:
+    def test_hours_returns_one(self):
+        assert ConfigManager.get_time_multiplier('hours') == 1.0
+
+    def test_weeks_returns_hours_per_week(self):
+        result = ConfigManager.get_time_multiplier('weeks')
+        settings = ConfigManager.get_time_settings()
+        assert result == settings.get('hours_per_week', 40.0)
+
+    def test_months_returns_hours_per_month(self):
+        result = ConfigManager.get_time_multiplier('months')
+        settings = ConfigManager.get_time_settings()
+        assert result == settings.get('hours_per_month', 160.0)
+
+    def test_unknown_unit_returns_one(self):
+        assert ConfigManager.get_time_multiplier('days') == 1.0
+
+    def test_custom_settings_reflected(self):
+        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        assert ConfigManager.get_time_multiplier('weeks') == 20
+        assert ConfigManager.get_time_multiplier('months') == 80
+
+
+# ============================================================================
+# ConfigManager — format_time_friendly
+# ============================================================================
+
+class TestFormatTimeFriendly:
+    def test_zero_hours(self):
+        assert ConfigManager.format_time_friendly(0) == "0h"
+
+    def test_none_hours(self):
+        assert ConfigManager.format_time_friendly(None) == "0h"
+
+    def test_negative_hours(self):
+        assert ConfigManager.format_time_friendly(-5) == "0h"
+
+    def test_small_hours(self):
+        result = ConfigManager.format_time_friendly(2.5)
+        assert result == "2.5h"
+
+    def test_integer_hours_no_decimal(self):
+        result = ConfigManager.format_time_friendly(8.0)
+        assert result == "8h"  # Should not show ".0"
+
+    def test_exactly_one_week(self):
+        hw = ConfigManager.get_time_settings().get('hours_per_week', 40)
+        result = ConfigManager.format_time_friendly(float(hw))
+        assert "w" in result
+
+    def test_exactly_one_month(self):
+        hm = ConfigManager.get_time_settings().get('hours_per_month', 160)
+        result = ConfigManager.format_time_friendly(float(hm))
+        assert "m" in result
+
+    def test_weeks_format(self):
+        # With default 40h/week, 80h = 2w
+        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
+        result = ConfigManager.format_time_friendly(80.0)
+        assert result == "2w"
+
+    def test_months_format(self):
+        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
+        result = ConfigManager.format_time_friendly(320.0)
+        assert result == "2m"
+
+
+# ============================================================================
+# ConfigManager — Priority Goals
+# ============================================================================
+
+class TestPriorityGoals:
+    def test_default_empty(self):
+        assert ConfigManager.get_priority_goals() == []
+
+    def test_set_and_get(self):
+        ConfigManager.set_priority_goals(["Goal A", "Goal B"])
+        result = ConfigManager.get_priority_goals()
+        assert result == ["Goal A", "Goal B"]
+
+    def test_capped_at_three(self):
+        ConfigManager.set_priority_goals(["A", "B", "C", "D", "E"])
+        result = ConfigManager.get_priority_goals()
+        assert len(result) == 3
+
+    def test_empty_list(self):
+        ConfigManager.set_priority_goals([])
+        assert ConfigManager.get_priority_goals() == []
+
+
+# ============================================================================
+# ConfigManager — ensure_action_type
+# ============================================================================
+
+class TestEnsureActionType:
+    def test_adds_action_if_missing(self):
+        ConfigManager.set_node_types(["Learn", "Goal"])
+        ConfigManager.ensure_action_type()
+        types = ConfigManager.get_node_types()
+        assert "Action" in types
+
+    def test_no_duplicate_if_present(self):
+        ConfigManager.set_node_types(["Learn", "Action", "Goal"])
+        ConfigManager.ensure_action_type()
+        types = ConfigManager.get_node_types()
+        assert types.count("Action") == 1
+
+    def test_shape_added_for_new_type(self):
+        ConfigManager.set_node_types(["Learn"])
+        ConfigManager.set_node_shapes({"Learn": "ellipse"})
+        ConfigManager.ensure_action_type()
+        shapes = ConfigManager.get_node_shapes()
+        assert "Action" in shapes
+
+
+# ============================================================================
+# GraphManager — Goal Subtree
+# ============================================================================
+
+class TestGoalSubtree:
+    def test_empty_goal_no_prereqs(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        subtree = mgr.get_goal_subtree("Goal")
+        assert subtree == set()
+
+    def test_single_prereq(self, mgr):
+        mgr.add_node(_make_node("Prereq", status="Done"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Prereq", "Goal", EDGE_NEEDS_HARD)
+        subtree = mgr.get_goal_subtree("Goal")
+        assert subtree == {"Prereq"}
+
+    def test_transitive_prereqs(self, mgr):
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("B", status="Done"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Goal", EDGE_NEEDS_HARD)
+        subtree = mgr.get_goal_subtree("Goal")
+        assert subtree == {"A", "B"}
+
+    def test_includes_soft_prereqs(self, mgr):
+        mgr.add_node(_make_node("Soft"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Soft", "Goal", EDGE_NEEDS_SOFT)
+        subtree = mgr.get_goal_subtree("Goal")
+        assert "Soft" in subtree
+
+    def test_goal_itself_excluded(self, mgr):
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("A", "Goal", EDGE_NEEDS_HARD)
+        subtree = mgr.get_goal_subtree("Goal")
+        assert "Goal" not in subtree
+
+    def test_nonexistent_goal(self, mgr):
+        subtree = mgr.get_goal_subtree("DoesNotExist")
+        assert subtree == set()
+
+
+# ============================================================================
+# GraphManager — Goal Completion
+# ============================================================================
+
+class TestGoalCompletion:
+    def test_no_subtree_returns_zeros(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        result = mgr.get_goal_completion("Goal")
+        assert result["total"] == 0
+        assert result["done"] == 0
+        assert result["pct"] == 0
+        assert result["remaining_time"] == 0.0
+
+    def test_all_done(self, mgr):
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("A", "Goal", EDGE_NEEDS_HARD)
+        result = mgr.get_goal_completion("Goal")
+        assert result["total"] == 1
+        assert result["done"] == 1
+        assert result["pct"] == 100
+
+    def test_partial_completion(self, mgr):
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("B", status="Done"))
+        mgr.add_node(_make_node("C", status="Open"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("C", "Goal", EDGE_NEEDS_HARD)
+        result = mgr.get_goal_completion("Goal")
+        assert result["total"] == 3
+        assert result["done"] == 2
+        assert result["pct"] == 67  # 2/3 rounded
+
+    def test_remaining_time_excludes_done(self, mgr):
+        mgr.add_node(_make_node("A", status="Done", time_o=10, time_m=10, time_p=10))
+        mgr.add_node(_make_node("B", status="Open", time_o=5, time_m=5, time_p=5))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("A", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Goal", EDGE_NEEDS_HARD)
+        result = mgr.get_goal_completion("Goal")
+        assert result["remaining_time"] == 5.0  # Only B's time
+
+    def test_is_blocked_all_subtasks_blocked(self, mgr):
+        mgr.add_node(_make_node("Prereq", status="Open"))
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Prereq", "A", EDGE_NEEDS_HARD)
+        mgr.add_edge("A", "Goal", EDGE_NEEDS_HARD)
+        # A is blocked because Prereq is Open
+        result = mgr.get_goal_completion("Goal")
+        # The subtree is [Prereq, A]. Prereq is Open, A is Blocked.
+        # done + blocked = 0 + 1, total = 2 → not all blocked
+        # Only "blocked" if ALL remaining are blocked
+        # Prereq is Open (not blocked), so the goal is not fully blocked
+
+    def test_is_blocked_flag(self, mgr):
+        # Create a scenario where all subtask nodes are either done or blocked
+        mgr.add_node(_make_node("Blocker", status="Open"))
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Done"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Blocker", "A", EDGE_NEEDS_HARD)
+        mgr.add_edge("A", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Goal", EDGE_NEEDS_HARD)
+        # Subtree: {Blocker, A, B}. Blocker=Open, A=Blocked, B=Done
+        # done + blocked = 1 + 1 = 2, total = 3, blocked > 0 → not all blocked
+        result = mgr.get_goal_completion("Goal")
+        assert result["is_blocked"] == False  # Blocker is still Open (workable)
+
+
+# ============================================================================
+# GraphManager — Habit Prerequisite Satisfaction
+# ============================================================================
+
+class TestHabitPrereqs:
+    def test_habit_active_satisfies_hard_prereq(self, mgr):
+        mgr.add_node(_make_node("H", type="Habit", habit_status="Active"))
+        mgr.add_node(_make_node("Target"))
+        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
+        assert mgr.get_node("Target").status == "Open"
+
+    def test_habit_paused_blocks_dependent(self, mgr):
+        mgr.add_node(_make_node("H", type="Habit", habit_status="Paused"))
+        mgr.add_node(_make_node("Target"))
+        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
+        assert mgr.get_node("Target").status == "Blocked"
+
+    def test_habit_retired_blocks_dependent(self, mgr):
+        mgr.add_node(_make_node("H", type="Habit", habit_status="Retired"))
+        mgr.add_node(_make_node("Target"))
+        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
+        assert mgr.get_node("Target").status == "Blocked"
+
+    def test_habit_no_status_blocks(self, mgr):
+        mgr.add_node(_make_node("H", type="Habit", habit_status=None))
+        mgr.add_node(_make_node("Target"))
+        mgr.add_edge("H", "Target", EDGE_NEEDS_HARD)
+        assert mgr.get_node("Target").status == "Blocked"
+
+    def test_is_prereq_satisfied_static(self):
+        from graph_manager import GraphManager
+        active = _make_node("H", type="Habit", habit_status="Active")
+        assert GraphManager._is_prereq_satisfied(active) is True
+
+        paused = _make_node("H", type="Habit", habit_status="Paused")
+        assert GraphManager._is_prereq_satisfied(paused) is False
+
+        done = _make_node("A", status="Done")
+        assert GraphManager._is_prereq_satisfied(done) is True
+
+        open_node = _make_node("A", status="Open")
+        assert GraphManager._is_prereq_satisfied(open_node) is False
+
+        assert GraphManager._is_prereq_satisfied(None) is False
+
+
+# ============================================================================
+# Scoring — Goal Boost & Type Exclusions
+# ============================================================================
+
+class TestScoringGoalBoost:
+    def test_habit_nodes_get_negative_score(self, mgr):
+        mgr.add_node(_make_node("H", type="Habit", habit_status="Active"))
+        scored = mgr.calculate_priority_scores([mgr.get_node("H")])
+        assert scored[0].priority_score == -1.0
+
+    def test_goal_nodes_get_negative_score(self, mgr):
+        mgr.add_node(_make_node("G", type="Goal"))
+        scored = mgr.calculate_priority_scores([mgr.get_node("G")])
+        assert scored[0].priority_score == -1.0
+
+    def test_goal_boost_applied(self, mgr):
+        # Gateway is a hard prereq of GoalNode → Gateway should be boosted
+        mgr.add_node(_make_node("Gateway", value=5, interest=5))
+        mgr.add_node(_make_node("Unrelated", value=5, interest=5))
+        mgr.add_node(_make_node("GoalNode", type="Goal"))
+        mgr.add_edge("Gateway", "GoalNode", EDGE_NEEDS_HARD)
+
+        scored_without = mgr.calculate_priority_scores(
+            [mgr.get_node("Gateway"), mgr.get_node("Unrelated")]
+        )
+        gw_base = next(n for n in scored_without if n.name == "Gateway").priority_score
+        un_base = next(n for n in scored_without if n.name == "Unrelated").priority_score
+        # Without goals, Gateway and Unrelated should score similarly
+        # (Gateway has a slight edge due to network value from GoalNode)
+
+        scored_with = mgr.calculate_priority_scores(
+            [mgr.get_node("Gateway"), mgr.get_node("Unrelated")],
+            priority_goals=["GoalNode"]
+        )
+        gw_boosted = next(n for n in scored_with if n.name == "Gateway").priority_score
+        un_boosted = next(n for n in scored_with if n.name == "Unrelated").priority_score
+
+        assert gw_boosted > gw_base  # Gateway got boosted
+        assert un_boosted == un_base  # Unrelated unchanged
+
+    def test_ranked_goals_decreasing_boost(self, mgr):
+        # Three goals, each with one prereq
+        for i, name in enumerate(["P1", "P2", "P3"]):
+            mgr.add_node(_make_node(name, value=5, interest=5))
+        for i, name in enumerate(["G1", "G2", "G3"]):
+            mgr.add_node(_make_node(name, type="Goal"))
+            mgr.add_edge(f"P{i+1}", name, EDGE_NEEDS_HARD)
+
+        scored = mgr.calculate_priority_scores(
+            [mgr.get_node("P1"), mgr.get_node("P2"), mgr.get_node("P3")],
+            priority_goals=["G1", "G2", "G3"]
+        )
+        p1 = next(n for n in scored if n.name == "P1").priority_score
+        p2 = next(n for n in scored if n.name == "P2").priority_score
+        p3 = next(n for n in scored if n.name == "P3").priority_score
+
+        # Rank 1 gets full boost, rank 2 gets 66%, rank 3 gets 33%
+        assert p1 >= p2 >= p3

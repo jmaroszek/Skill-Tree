@@ -413,6 +413,7 @@ def register_event_callbacks(app):
         Output("dormant-node-name", "value"),
         Output("dormant-node-desc", "value"),
         Output("dormant-node-save-status", "children", allow_duplicate=True),
+        Output("dormant-node-time-unit", "value"),
         Input("btn-add-dormant-node", "n_clicks"),
         prevent_initial_call=True,
     )
@@ -425,7 +426,7 @@ def register_event_callbacks(app):
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
 
-        return True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", ""
+        return True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", "", "hours"
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -475,6 +476,7 @@ def register_event_callbacks(app):
         State("dormant-node-time-o", "value"),
         State("dormant-node-time-m", "value"),
         State("dormant-node-time-p", "value"),
+        State("dormant-node-time-unit", "value"),
         State("dormant-node-delay-value", "value"),
         State("dormant-node-delay-unit", "value"),
         prevent_initial_call=True,
@@ -482,7 +484,7 @@ def register_event_callbacks(app):
     def save_dormant_node(n_clicks, selected_event,
                           event_name_val, event_desc_val, event_date_val,
                           name, node_type, context, subcontext, desc,
-                          value, interest, difficulty, time_o, time_m, time_p,
+                          value, interest, difficulty, time_o, time_m, time_p, time_unit,
                           delay_value, delay_unit):
         _nu7 = (no_update,) * 7
         if not n_clicks:
@@ -516,14 +518,16 @@ def register_event_callbacks(app):
         else:
             delay_days = delay_value
 
+        multiplier = ConfigManager.get_time_multiplier(time_unit)
+
         node = Node(
             name=name,
             type=node_type or "Learn",
             description=desc or "",
             value=value or 5,
-            time_o=float(time_o or 0),
-            time_m=float(time_m or 0),
-            time_p=float(time_p or 0),
+            time_o=float(time_o or 0) * multiplier,
+            time_m=float(time_m or 0) * multiplier,
+            time_p=float(time_p or 0) * multiplier,
             interest=interest or 5,
             difficulty=difficulty or 5,
             status="Open",

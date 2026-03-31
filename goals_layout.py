@@ -86,8 +86,8 @@ def build_goals_tab_content():
                 html.Div(dcc.Dropdown(
                     id="goal-add-existing-dropdown",
                     placeholder="Search for a node...",
-                    style={"backgroundColor": "#2b3035", "color": "#dee2e6"},
-                ), className="text-dark mb-3"),
+                    style={"backgroundColor": "#ffffff", "color": "#000000"},
+                ), className="mb-3"),
             ]),
 
             # --- Create New mode ---
@@ -116,7 +116,14 @@ def build_goals_tab_content():
                 dbc.Label("Effort", className="mt-2"),
                 dcc.Slider(min=1, max=10, step=1, value=5, id="goal-add-difficulty"),
 
-                dbc.Label("Time Estimates in Hours", className="mt-3"),
+                html.Div([
+                    dbc.Label("Time Estimates", className="mb-0"),
+                    dbc.Select(id="goal-node-time-unit", options=[
+                        {"label": "Hours", "value": "hours"},
+                        {"label": "Weeks", "value": "weeks"},
+                        {"label": "Months", "value": "months"},
+                    ], value="hours", size="sm", style={"width": "100px", "marginLeft": "auto"})
+                ], className="d-flex align-items-center mt-3 mb-1"),
                 dbc.Row([
                     dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
                              dbc.Input(id="goal-add-time-o", type="number", min=0, value=0)]),
@@ -300,11 +307,17 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     pct = completion.get("pct", 0)
     done = completion.get("done", 0)
     total = completion.get("total", 0)
-    remaining_hours = round(completion.get("remaining_time", 0))
+    formatted_time = ConfigManager.format_time_friendly(completion.get("remaining_time", 0))
 
     # A goal is effectively Done if its toggle is on OR all subtasks are complete
-    effective_status = "Done" if (status == "Done" or (pct == 100 and total > 0)) else status
-    status_color = "success" if effective_status == "Done" else "primary"
+    if status == "Done" or (pct == 100 and total > 0):
+        effective_status = "Done"
+    elif completion.get("is_blocked", False):
+        effective_status = "Blocked"
+    else:
+        effective_status = "Open"
+        
+    status_color = {"Done": "success", "Blocked": "danger", "Open": "primary"}.get(effective_status, "primary")
 
     _btn_style = {"padding": "0 2px", "fontSize": "0.6rem", "background": "none",
                   "border": "none", "lineHeight": "1.2", "color": "#6c757d"}
@@ -333,7 +346,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     # Stats line (no progress bar -- keep it clean)
     if total > 0:
-        stats_text = f"{done}/{total} subtasks \u00b7 {pct}% \u00b7 {remaining_hours}h"
+        stats_text = f"{done}/{total} subtasks \u00b7 {pct}% \u00b7 {formatted_time}"
     else:
         stats_text = "No subtasks yet"
 
@@ -389,7 +402,7 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.value), style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.difficulty), style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(f"{round(node.time)}h" if node.time and node.time > 0 else "\u2014",
+            html.Td(ConfigManager.format_time_friendly(node.time) if node.time and node.time > 0 else "\u2014",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(unlocks_str, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(res_str, style={"verticalAlign": "middle", "color": "#6c757d"}),
