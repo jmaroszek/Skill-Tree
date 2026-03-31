@@ -1,23 +1,24 @@
 import logging
 import sys
+import os
+import ctypes
+
+# Set environment before importing modules that read config.ENVIRONMENT (e.g. database)
+import config
+if "-sandbox" in sys.argv:
+    config.ENVIRONMENT = "sandbox"
+ENVIRONMENT = config.ENVIRONMENT
+
 import dash
 import webbrowser
 import threading
-import os
 import dash_bootstrap_components as dbc
 from layout import build_app_layout
 from callbacks import generate_elements, register_callbacks
 from event_callbacks import register_event_callbacks
 from goal_callbacks import register_goal_callbacks
 from simulate_callbacks import register_simulate_callbacks
-import config
 from config import ConfigManager
-import ctypes
-
-if "-sandbox" in sys.argv:
-    config.ENVIRONMENT = "sandbox"
-
-ENVIRONMENT = config.ENVIRONMENT
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s: %(message)s')
 
