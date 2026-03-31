@@ -41,7 +41,8 @@ def _spawn_local_file_picker(initial_dir, title, filetypes_list):
     # Format the filetypes list as a string to inject into the script
     filetypes_str = str(filetypes_list)
     
-    script = f'''import tkinter as tk
+    script = f'''import os
+import tkinter as tk
 from tkinter import filedialog
 import ctypes
 
@@ -239,8 +240,7 @@ def register_callbacks(app):
          Output('obsidian-links-store', 'data'), Output('drive-links-store', 'data'),
          Output('website-links-store', 'data'),
          # Type-specific outputs
-         Output('node-progress', 'value'), Output('node-time-unit', 'value'),
-         Output('node-goal', 'value'), Output('node-goal', 'options')],
+         Output('node-progress', 'value'), Output('node-time-unit', 'value')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
@@ -253,8 +253,6 @@ def register_callbacks(app):
 
         all_nodes = manager.get_all_nodes()
         options = _node_options(all_nodes)
-        goal_name_set = {n.name for n in all_nodes if n.type == 'Goal'}
-        goal_options = [{"label": n.name, "value": n.name} for n in all_nodes if n.type == 'Goal']
 
         def_out = [
             "", "Learn", "", "", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
@@ -263,8 +261,6 @@ def register_callbacks(app):
             [''], [''], [''],
             # Type-specific defaults
             0, "hours",
-            # Goal assignment
-            None, goal_options
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
@@ -278,21 +274,19 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*9 + [dash.no_update, goal_options]
+                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*5
         elif data:
             name = data.get('id')
 
         if not name or not data:
-            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*9 + [dash.no_update, goal_options]
+            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*5
 
         edges = manager.get_edges()
 
         # In/Out Edges mapping
         needs_hard_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_NEEDS_HARD]
         needs_soft_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_NEEDS_SOFT]
-        supp_hard_raw = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_NEEDS_HARD]
-        assigned_goal = next((t for t in supp_hard_raw if t in goal_name_set), None)
-        supp_hard_vals = [t for t in supp_hard_raw if t not in goal_name_set]
+        supp_hard_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_NEEDS_HARD]
         supp_soft_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_NEEDS_SOFT]
 
         helps_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_HELPS]
@@ -301,7 +295,6 @@ def register_callbacks(app):
         res_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_RESOURCE]
 
         filtered_options = _node_options(all_nodes, exclude=name)
-        filtered_goal_options = [{"label": n.name, "value": n.name} for n in all_nodes if n.type == 'Goal' and n.name != name]
 
         # actual_status: the authoritative status from the DB (may be Blocked/Open/Done),
         # as opposed to the Cytoscape data dict which may be stale after state cascades.
@@ -323,8 +316,6 @@ def register_callbacks(app):
             _parse_links(data.get('website', '')),
             # Type-specific fields
             data.get('progress') or 0, "hours",
-            # Goal assignment
-            assigned_goal, filtered_goal_options
         ]
 
     # --- Type-adaptive field visibility ---
@@ -405,7 +396,6 @@ def register_callbacks(app):
          State('node-value', 'value'), State('node-interest', 'value'), State('node-difficulty', 'value'),
          State('node-time-o', 'value'), State('node-time-m', 'value'), State('node-time-p', 'value'),
          State('node-time-unit', 'value'),
-         State('node-goal', 'value'),
          State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
          State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
          State('edge-helps', 'value'), State('edge-resources', 'value'),
@@ -426,7 +416,6 @@ def register_callbacks(app):
                      edit_trigger_data, toggle_done_trigger_data,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
-                     node_goal,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
                      obs_link_values, drive_link_values, website_link_values,
                      progress_val,
@@ -499,17 +488,11 @@ def register_callbacks(app):
                 t_m = float(time_m or 0) * multiplier
                 t_p = float(time_p or 0) * multiplier
 
-                # Merge goal assignment into e_supp_h (goal dropdown manages goal edges exclusively)
-                _all_goal_names = {n.name for n in manager.get_all_nodes() if n.type == 'Goal'}
-                e_supp_h_merged = [n for n in (e_supp_h or []) if n not in _all_goal_names]
-                if node_goal:
-                    e_supp_h_merged.append(node_goal)
-
                 msg = _handle_save(name, n_type, desc, val, t_o, t_m, t_p,
                                    interest, diff, status_done, context, subctx,
                                    obs_path, drive_path, website_path,
                                    e_needs_h, e_needs_s,
-                                   e_supp_h_merged, e_supp_s, e_helps, e_res,
+                                   e_supp_h, e_supp_s, e_helps, e_res,
                                    progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."

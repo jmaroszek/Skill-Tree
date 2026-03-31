@@ -155,6 +155,17 @@ def build_settings_tab_content():
                             ], width=4),
                         ], className="mt-1"),
 
+                    ], className="p-2")
+                ]),
+                dbc.Tab(label="Me", tab_id="tab-paths", children=[
+                    html.Div([
+                        dbc.Label("Obsidian Vault Root Path", className="fw-bold mt-2"),
+                        dbc.Input(id="setting-obsidian-path", type="text"),
+
+                        html.Hr(),
+                        dbc.Label("Google Drive Root Path", className="fw-bold mt-2"),
+                        dbc.Input(id="setting-gdrive-path", type="text"),
+
                         # --- Time Estimates section ---
                         html.Hr(className="my-2"),
                         html.Div("Time Estimates", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
@@ -171,12 +182,6 @@ def build_settings_tab_content():
                                 html.Small("e.g. 160", className="text-muted"),
                             ]),
                         ], className="mt-1"),
-                    ], className="p-2")
-                ]),
-                dbc.Tab(label="Paths", tab_id="tab-paths", children=[
-                    html.Div([
-                        dbc.Label("Obsidian Vault Root Path", className="fw-bold mt-2"),
-                        dbc.Input(id="setting-obsidian-path", type="text"),
                     ], className="p-2")
                 ])
             ]),

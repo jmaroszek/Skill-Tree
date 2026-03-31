@@ -234,7 +234,7 @@ def register_goal_callbacks(app):
             ["done"] if goal.status == "Done" else [],
             rank_value,  # priority rank dropdown
             {"display": "block"},  # show stats
-            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges),
+            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges, goal_name=goal_name),
             "",  # save status
             completion["pct"],  # progress bar
             f"{completion['done']}/{completion['total']} subtasks complete \u00b7 {round(completion['remaining_time'])}h remaining",
@@ -473,6 +473,133 @@ def register_goal_callbacks(app):
 
         return elements
 
+    # --- Subtask × Click: Open Confirmation Modal ---
+    @app.callback(
+        Output("modal-subtask-remove-confirm", "is_open", allow_duplicate=True),
+        Output("subtask-remove-pending", "data"),
+        Output("subtask-remove-modal-body", "children"),
+        Input({"type": "subtask-remove", "index": ALL}, "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def open_subtask_remove_modal(n_clicks_list):
+        if not any(n_clicks_list):
+            return no_update, no_update, no_update
+        triggered = ctx.triggered_id
+        if not triggered:
+            return no_update, no_update, no_update
+        node_name = triggered["index"]
+        body = html.Div([
+            html.P([
+                'What would you like to do with node ',
+                html.Strong(node_name),
+                '?',
+            ]),
+            html.Ul([
+                html.Li([html.Strong("Remove from Goal"), " — removes it from this goal's subtask list, but keeps the node in the database and on the canvas."]),
+                html.Li([html.Strong("Delete Node"), " — permanently deletes the node and all its edges from the database."]),
+            ]),
+        ])
+        return True, node_name, body
+
+    # --- Cancel Modal ---
+    @app.callback(
+        Output("modal-subtask-remove-confirm", "is_open", allow_duplicate=True),
+        Input("btn-subtask-remove-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def cancel_subtask_remove(n_clicks):
+        if n_clicks:
+            return False
+        return no_update
+
+    # --- Confirm: Remove Edge Only ---
+    @app.callback(
+        Output("modal-subtask-remove-confirm", "is_open", allow_duplicate=True),
+        Output("goal-subtasks-table-container", "children", allow_duplicate=True),
+        Output("goals-refresh-trigger", "data", allow_duplicate=True),
+        Input("btn-subtask-remove-edge", "n_clicks"),
+        State("subtask-remove-pending", "data"),
+        State("selected-goal-store", "data"),
+        State("goal-include-soft-needs", "value"),
+        prevent_initial_call=True,
+    )
+    def confirm_remove_subtask_edge(n_clicks, node_name, selected_goal, include_soft_value):
+        if not n_clicks or not node_name or not selected_goal:
+            return no_update, no_update, no_update
+
+        edges = graph_manager.get_edges()
+        for e in edges:
+            if e['source'] == node_name and e['target'] == selected_goal and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+                graph_manager.remove_edge(node_name, selected_goal, e['type'])
+
+        include_soft = bool(include_soft_value and "include" in include_soft_value)
+        subtree = graph_manager.get_goal_subtree(selected_goal)
+        subtask_nodes = [graph_manager.get_node(n) for n in subtree]
+        subtask_nodes = [n for n in subtask_nodes if n is not None]
+        subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
+        edges = graph_manager.get_edges()
+
+        return (
+            False,
+            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges,
+                                 goal_name=selected_goal, include_soft=include_soft),
+            f"remove-subtask-{node_name}",
+        )
+
+    # --- Confirm: Delete Node Entirely ---
+    @app.callback(
+        Output("modal-subtask-remove-confirm", "is_open", allow_duplicate=True),
+        Output("goal-subtasks-table-container", "children", allow_duplicate=True),
+        Output("goals-refresh-trigger", "data", allow_duplicate=True),
+        Input("btn-subtask-delete-node", "n_clicks"),
+        State("subtask-remove-pending", "data"),
+        State("selected-goal-store", "data"),
+        State("goal-include-soft-needs", "value"),
+        prevent_initial_call=True,
+    )
+    def confirm_delete_subtask_node(n_clicks, node_name, selected_goal, include_soft_value):
+        if not n_clicks or not node_name or not selected_goal:
+            return no_update, no_update, no_update
+
+        graph_manager.delete_node(node_name)
+
+        include_soft = bool(include_soft_value and "include" in include_soft_value)
+        subtree = graph_manager.get_goal_subtree(selected_goal)
+        subtask_nodes = [graph_manager.get_node(n) for n in subtree]
+        subtask_nodes = [n for n in subtask_nodes if n is not None]
+        subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
+        edges = graph_manager.get_edges()
+
+        return (
+            False,
+            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges,
+                                 goal_name=selected_goal, include_soft=include_soft),
+            f"delete-subtask-{node_name}",
+        )
+
+    # --- Soft Needs Filter Toggle ---
+    @app.callback(
+        Output("goal-subtasks-table-container", "children", allow_duplicate=True),
+        Input("goal-include-soft-needs", "value"),
+        State("selected-goal-store", "data"),
+        prevent_initial_call=True,
+    )
+    def toggle_soft_needs_filter(include_soft_value, selected_goal):
+        if not selected_goal:
+            return no_update
+
+        include_soft = bool(include_soft_value and "include" in include_soft_value)
+        subtree = graph_manager.get_goal_subtree(selected_goal)
+        subtask_nodes = [graph_manager.get_node(n) for n in subtree]
+        subtask_nodes = [n for n in subtask_nodes if n is not None]
+        subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
+        edges = graph_manager.get_edges()
+
+        return build_subtasks_table(
+            subtask_nodes, graph_manager=graph_manager, edges=edges,
+            goal_name=selected_goal, include_soft=include_soft,
+        )
+
     # --- Add Node Modal: Open ---
     @app.callback(
         Output("modal-goal-add-node", "is_open", allow_duplicate=True),
@@ -625,5 +752,5 @@ def register_goal_callbacks(app):
             False,  # close modal
             "",  # clear status
             f"add-node-{node_name}",  # refresh trigger
-            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges),
+            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges, goal_name=selected_goal),
         )

@@ -243,19 +243,28 @@ class GraphManager:
             ''', (node_name,))
             return [row[0] for row in cursor.fetchall()]
 
-    def get_goal_subtree(self, goal_name: str) -> Set[str]:
-        """Returns all node names reachable as prerequisites of a goal (BFS over Hard/Soft edges).
+    def get_goal_subtree(self, goal_name: str, edge_types=None) -> Set[str]:
+        """Returns all node names reachable as prerequisites of a goal (BFS over specified edge types).
 
         The goal node itself is excluded from the returned set.
+
+        Args:
+            goal_name: The goal node to start from.
+            edge_types: Tuple of edge types to traverse. Defaults to (Needs_Hard, Needs_Soft).
         """
+        if edge_types is None:
+            edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
+
+        placeholders = ','.join('?' for _ in edge_types)
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             visited = set()
             queue = []
             # Seed with direct prerequisites of the goal
             cursor.execute(
-                "SELECT source FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')",
-                (goal_name,)
+                f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
+                (goal_name, *edge_types)
             )
             queue = [row[0] for row in cursor.fetchall()]
 
@@ -265,8 +274,8 @@ class GraphManager:
                     continue
                 visited.add(node)
                 cursor.execute(
-                    "SELECT source FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')",
-                    (node,)
+                    f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
+                    (node, *edge_types)
                 )
                 for row in cursor.fetchall():
                     if row[0] not in visited:

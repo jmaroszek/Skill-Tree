@@ -48,9 +48,6 @@ sidebar_content = html.Div(
             ], className="d-flex"),
             dbc.Collapse(dbc.Select(id="node-subcontext", options=[], className="mt-1"), id="collapse-subcontext", is_open=False),
 
-            dbc.Label("Goal", className="mt-2"),
-            html.Div(dcc.Dropdown(id="node-goal", options=[], clearable=True), className="text-dark"),
-
             dbc.Label("Description", className="mt-2"),
             dbc.Textarea(id="node-desc"),
             

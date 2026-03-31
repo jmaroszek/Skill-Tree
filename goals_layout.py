@@ -7,7 +7,7 @@ import dash_bootstrap_components as dbc
 from typing import Optional, List, Any
 import dash_cytoscape as cyto
 from config import ConfigManager
-from models import EDGE_RESOURCE
+from models import EDGE_RESOURCE, EDGE_NEEDS_HARD
 from styles import stylesheet
 
 
@@ -254,10 +254,19 @@ def build_goals_tab_content():
 
                     # --- Subtasks Table ---
                     html.Div([
-                        html.H5("Subtasks", className="mb-0"),
-                        dbc.Button("Add Node", id="btn-goal-add-node", color="success", size="sm",
-                                   className="ms-2"),
-                    ], className="d-flex align-items-center mb-3"),
+                        html.Div([
+                            html.H5("Subtasks", className="mb-0"),
+                            dbc.Button("Add Node", id="btn-goal-add-node", color="success", size="sm",
+                                       className="ms-2"),
+                        ], className="d-flex align-items-center"),
+                        dbc.Checklist(
+                            id="goal-include-soft-needs",
+                            options=[{"label": "Include Soft Needs", "value": "include"}],
+                            value=["include"],
+                            switch=True,
+                            style={"fontSize": "0.85rem"},
+                        ),
+                    ], className="d-flex align-items-center justify-content-between mb-3"),
                     html.Div(id="goal-subtasks-table-container"),
                 ], className="goal-left-column", style={"flex": "1", "minWidth": "500px", "overflowY": "auto", "paddingRight": "8px"}),
 
@@ -285,11 +294,24 @@ def build_goals_tab_content():
         "overflowY": "auto",
     })
 
+    # --- Subtask Remove Confirmation Modal ---
+    subtask_remove_modal = dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Remove Subtask")),
+        dbc.ModalBody(id="subtask-remove-modal-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-subtask-remove-cancel", color="secondary", className="me-auto"),
+            dbc.Button("Remove from Goal", id="btn-subtask-remove-edge", color="warning", className="me-2"),
+            dbc.Button("Delete Node", id="btn-subtask-delete-node", color="danger"),
+        ]),
+    ], id="modal-subtask-remove-confirm", is_open=False, centered=True)
+
     return html.Div([
         dcc.Store(id='selected-goal-store', data=None),
         dcc.Store(id='goals-refresh-trigger', data=0),
         dcc.Store(id='focus-goal-store', data=None),
         dcc.Store(id='goal-order-store', data=[]),
+        dcc.Store(id='subtask-remove-pending', data=None),
+        subtask_remove_modal,
         goal_list_panel,
         goal_detail_panel,
     ], style={
@@ -363,8 +385,16 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
        })
 
 
-def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
-    """Builds the subtasks table for a goal detail view."""
+def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_name=None, include_soft=True):
+    """Builds the subtasks table for a goal detail view.
+
+    Args:
+        subtask_nodes: List of Node objects in the full goal subtree.
+        graph_manager: GraphManager instance for looking up unlocked nodes.
+        edges: List of all edge dicts.
+        goal_name: The goal node name, used to compute need types.
+        include_soft: If False, only hard-need subtasks are shown.
+    """
     if not subtask_nodes:
         return html.Div(
             html.P("No subtasks yet. Add prerequisite nodes to this goal to see them here.", className="text-muted"),
@@ -373,9 +403,39 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
 
     edges = edges or []
 
+    # Determine need type for each subtask: "Hard" if reachable via hard-only edges, else "Soft"
+    need_types = {}
+    if goal_name and graph_manager:
+        hard_subtree = graph_manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
+        for node in subtask_nodes:
+            need_types[node.name] = "Hard" if node.name in hard_subtree else "Soft"
+    else:
+        for node in subtask_nodes:
+            need_types[node.name] = "Hard"
+
+    # Filter to hard-only if requested
+    if not include_soft:
+        subtask_nodes = [n for n in subtask_nodes if need_types.get(n.name) == "Hard"]
+
+    if not subtask_nodes:
+        return html.Div(
+            html.P("No hard-need subtasks for this goal.", className="text-muted"),
+            className="text-center py-3"
+        )
+
+    # Build set of nodes with a direct edge to the goal (removable)
+    direct_children = set()
+    if goal_name:
+        from models import EDGE_NEEDS_SOFT
+        for e in edges:
+            if e['target'] == goal_name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+                direct_children.add(e['source'])
+
     rows = []
     for node in subtask_nodes:
         status_color = {"Done": "success", "Blocked": "danger", "Open": "primary"}.get(node.status, "secondary")
+        need = need_types.get(node.name, "Hard")
+        need_color = "danger" if need == "Hard" else "info"
 
         # Unlocks
         unlocks = []
@@ -387,6 +447,21 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
         res = [e['source'] for e in edges if e['target'] == node.name and e['type'] == EDGE_RESOURCE]
         res_str = ", ".join(res) if res else "\u2014"
 
+        is_direct = node.name in direct_children
+        remove_btn = dbc.Button(
+            "\u00d7",
+            id={"type": "subtask-remove", "index": node.name},
+            color="danger",
+            size="sm",
+            disabled=not is_direct,
+            style={
+                "padding": "0 5px",
+                "fontSize": "0.75rem",
+                "lineHeight": "1.4",
+                "opacity": "1" if is_direct else "0.25",
+            },
+        )
+
         rows.append(html.Tr([
             html.Td(
                 html.Span(node.name, style={"cursor": "pointer"}),
@@ -394,6 +469,8 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
                 style={"verticalAlign": "middle"},
             ),
             html.Td(dbc.Badge(node.status, color=status_color, style={"fontSize": "0.7rem"}),
+                    style={"verticalAlign": "middle"}),
+            html.Td(dbc.Badge(need, color=need_color, style={"fontSize": "0.7rem"}),
                     style={"verticalAlign": "middle"}),
             html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.context) if node.context else "\u2014",
@@ -406,12 +483,14 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(unlocks_str, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(res_str, style={"verticalAlign": "middle", "color": "#6c757d"}),
+            html.Td(remove_btn, style={"verticalAlign": "middle"}),
         ]))
 
     return dbc.Table([
         html.Thead(html.Tr([
             html.Th("Name"),
             html.Th("Status"),
+            html.Th("Need"),
             html.Th("Type"),
             html.Th("Context"),
             html.Th("Subcontext"),
@@ -420,6 +499,7 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None):
             html.Th("Time"),
             html.Th("Unlocks"),
             html.Th("Resources"),
+            html.Th(""),
         ])),
         html.Tbody(rows),
     ], bordered=False, hover=True, responsive=True, size="sm",
