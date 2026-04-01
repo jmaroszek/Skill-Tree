@@ -57,9 +57,14 @@ class GraphManager:
         """Deletes a node by name."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            # Find dependents before deleting edges so we can recalculate their state
+            cursor.execute("SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'", (node_name,))
+            dependents = [row[0] for row in cursor.fetchall()]
             cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (node_name, node_name))
             cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
             conn.commit()
+        for dept in dependents:
+            self._update_node_state(dept)
 
     def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
@@ -153,7 +158,14 @@ class GraphManager:
 
             conn.commit()
 
+        # Recalculate state for the saved node and all nodes affected by its edges
         self._update_node_state(node_name)
+        for trgt in supports_hard:
+            self._update_node_state(trgt)
+        for trgt in supports_soft:
+            self._update_node_state(trgt)
+        for src in needs_hard:
+            self._update_dependent_nodes_state(src)
 
     # --- Integrity and State ---
 

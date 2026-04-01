@@ -344,6 +344,97 @@ class TestStateManagement:
         mgr.update_node(_make_node("P2", status="Done"))
         assert mgr.get_node("Target").status == "Open"
 
+    def test_sync_edges_blocks_chain_via_needs(self, mgr):
+        """Creating a chain A→B→C via sync_edges should block B and C immediately."""
+        mgr.add_node(_make_node("Chain1"))
+        mgr.add_node(_make_node("Chain2"))
+        mgr.add_node(_make_node("Chain3"))
+        # Chain2 needs Chain1
+        mgr.sync_edges("Chain2", needs_hard=["Chain1"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        assert mgr.get_node("Chain2").status == "Blocked"
+        # Chain3 needs Chain2
+        mgr.sync_edges("Chain3", needs_hard=["Chain2"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        assert mgr.get_node("Chain3").status == "Blocked"
+
+    def test_sync_edges_blocks_via_supports(self, mgr):
+        """When node A declares supports_hard=[B, C], B and C should become Blocked."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_node(_make_node("C"))
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B", "C"], supports_soft=[], helps=[], resources=[])
+        assert mgr.get_node("B").status == "Blocked"
+        assert mgr.get_node("C").status == "Blocked"
+
+    def test_sync_edges_supports_unblocks_when_done(self, mgr):
+        """After A supports B and A is marked Done, B should become Open."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[], resources=[])
+        assert mgr.get_node("B").status == "Blocked"
+        mgr.update_node(_make_node("A", status="Done"))
+        assert mgr.get_node("B").status == "Open"
+
+    def test_sync_edges_chain_via_supports_cascades(self, mgr):
+        """Building a chain entirely through supports: A supports B, B supports C.
+        When saving B, existing needs_hard from A must be preserved in the call."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_node(_make_node("C"))
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[], resources=[])
+        # B also supports C; preserve the existing A→B prereq in needs_hard
+        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=["C"], supports_soft=[], helps=[], resources=[])
+        assert mgr.get_node("B").status == "Blocked"
+        assert mgr.get_node("C").status == "Blocked"
+        # Complete A — B unblocks, C stays blocked
+        mgr.update_node(_make_node("A", status="Done"))
+        assert mgr.get_node("B").status == "Open"
+        assert mgr.get_node("C").status == "Blocked"
+
+    def test_delete_node_unblocks_dependents(self, mgr):
+        """Deleting a hard prereq should unblock its dependents."""
+        mgr.add_node(_make_node("Prereq"))
+        mgr.add_node(_make_node("Target"))
+        mgr.add_edge("Prereq", "Target", EDGE_NEEDS_HARD)
+        assert mgr.get_node("Target").status == "Blocked"
+        mgr.delete_node("Prereq")
+        assert mgr.get_node("Target").status == "Open"
+
+    def test_delete_node_cascades_unblock(self, mgr):
+        """Deleting the root of a chain should cascade unblocking through dependents."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_node(_make_node("C"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "C", EDGE_NEEDS_HARD)
+        assert mgr.get_node("B").status == "Blocked"
+        assert mgr.get_node("C").status == "Blocked"
+        # Delete A — B loses its only prereq → Open, C still blocked by B (not Done)
+        mgr.delete_node("A")
+        assert mgr.get_node("B").status == "Open"
+        assert mgr.get_node("C").status == "Blocked"
+
+    def test_removing_edge_via_sync_unblocks(self, mgr):
+        """Removing a hard prereq via sync_edges should unblock the node."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        assert mgr.get_node("B").status == "Blocked"
+        # Remove the prereq
+        mgr.sync_edges("B", needs_hard=[], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        assert mgr.get_node("B").status == "Open"
+
+    def test_in_progress_preserved_when_unblocked(self, mgr):
+        """A node with In Progress status should keep it when prereqs are satisfied."""
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="In Progress"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        # B gets blocked
+        assert mgr.get_node("B").status == "Blocked"
+        # Complete A — B should return to Open (In Progress → Blocked → Open, not back to In Progress)
+        mgr.update_node(_make_node("A", status="Done"))
+        # _update_node_state re-reads from DB where status is now "Blocked", so it becomes "Open"
+        assert mgr.get_node("B").status == "Open"
+
 
 # ============================================================================
 # Sync Edges

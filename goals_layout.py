@@ -137,14 +137,14 @@ def build_goals_tab_content():
                 html.H6("Relationships", className="mt-2 mb-1"),
                 dbc.Label("Needs"),
                 html.Div([
-                    dcc.Dropdown(id="goal-add-needs-hard", multi=True, placeholder="Hard Prerequisites..."),
-                    dcc.Dropdown(id="goal-add-needs-soft", multi=True, placeholder="Soft Prerequisites...", className="mt-1"),
+                    dcc.Dropdown(id="goal-add-needs-hard", multi=True, placeholder="Hard..."),
+                    dcc.Dropdown(id="goal-add-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
                 ], className="text-dark"),
 
                 dbc.Label("Supports", className="mt-2"),
                 html.Div([
-                    dcc.Dropdown(id="goal-add-supports-hard", multi=True, placeholder="Hard Dependents..."),
-                    dcc.Dropdown(id="goal-add-supports-soft", multi=True, placeholder="Soft Dependents...", className="mt-1"),
+                    dcc.Dropdown(id="goal-add-supports-hard", multi=True, placeholder="Hard..."),
+                    dcc.Dropdown(id="goal-add-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
                 ], className="text-dark"),
 
                 dbc.Label("Helps", className="mt-2"),

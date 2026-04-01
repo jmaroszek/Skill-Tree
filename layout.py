@@ -109,14 +109,14 @@ sidebar_content = html.Div(
             html.H5("Relationships", className="mt-2 mb-1"),
             dbc.Label("Needs", className="mt-2"),
             html.Div([
-                dcc.Dropdown(id="edge-needs-hard", multi=True, placeholder="Hard Prerequisites..."),
-                dcc.Dropdown(id="edge-needs-soft", multi=True, placeholder="Soft Prerequisites...", className="mt-1"),
+                dcc.Dropdown(id="edge-needs-hard", multi=True, placeholder="Hard..."),
+                dcc.Dropdown(id="edge-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
             ], className="text-dark"),
 
             dbc.Label("Supports", className="mt-2"),
             html.Div([
-                dcc.Dropdown(id="edge-supports-hard", multi=True, placeholder="Hard Dependents..."),
-                dcc.Dropdown(id="edge-supports-soft", multi=True, placeholder="Soft Dependents...", className="mt-1"),
+                dcc.Dropdown(id="edge-supports-hard", multi=True, placeholder="Hard..."),
+                dcc.Dropdown(id="edge-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
             ], className="text-dark"),
 
             dbc.Label("Helps", className="mt-2"),
@@ -153,12 +153,12 @@ sidebar_content = html.Div(
             
             html.Hr(className="my-2"),
             html.Div([
-                html.Div(id="save-output", className="text-success fw-bold flex-grow-1 align-self-center pe-2"),
                 dbc.Button("Delete", id="btn-delete", color="danger", className="me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
                 dbc.Button("Clear", id="btn-clear", color="secondary", className="me-2"),
                 dbc.Button("Save", id="btn-save", color="primary", className="me-2"),
                 dbc.Button("Save & Close", id="btn-save-close", color="success")
-            ], className="d-flex justify-content-end mt-4 mb-5"),
+            ], className="d-flex justify-content-end mt-4"),
+            html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
             dcc.Store(id='node-time-unit-prev', data='hours')
         ])
