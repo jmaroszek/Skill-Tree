@@ -195,6 +195,15 @@ class ConfigManager:
         cls._set_db_value("OBSIDIAN_VAULT", path)
 
     @classmethod
+    def get_gdrive_path(cls, default: Optional[str] = None):
+        val = cls._get_db_value("GDRIVE_ROOT_PATH")
+        return val if val else (default or "")
+
+    @classmethod
+    def set_gdrive_path(cls, path: str):
+        cls._set_db_value("GDRIVE_ROOT_PATH", path)
+
+    @classmethod
     def sync_shapes_to_types(cls, new_types: list):
         """Prune shapes for removed types and add defaults for new types."""
         shapes = cls.get_node_shapes()

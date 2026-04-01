@@ -161,8 +161,8 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
 
     table_header = [html.Thead(html.Tr([
         html.Th("Name"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
-        html.Th("Subcontext"), html.Th("Value"), html.Th("Effort"), html.Th("Time"),
-        html.Th("Unlocks"), html.Th("Resources")
+        html.Th("Subcontext"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
+        html.Th("Unlocks"), html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive"), html.Th("Website")
     ]))]
 
     row_data = []
@@ -171,7 +171,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
         row_class = "table-active" if is_selected else ""
 
         node_res = [e['source'] for e in edges if e['target'] == s.name and e['type'] == EDGE_RESOURCE]
-        res_str = ", ".join(node_res) if node_res else "None"
+        res_str = "Yes" if node_res else "No"
 
         row_data.append(html.Tr([
             html.Td(html.Span(
@@ -185,10 +185,14 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             html.Td(str(s.context)),
             html.Td(str(s.subcontext) if s.subcontext else "None"),
             html.Td(str(s.value)),
+            html.Td(str(s.interest) if hasattr(s, 'interest') and s.interest is not None else "None"),
             html.Td(str(s.difficulty)),
             html.Td(ConfigManager.format_time_friendly(s.time) if hasattr(s, 'time') and s.time else "0h"),
             html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None"),
-            html.Td(res_str)
+            html.Td(res_str),
+            html.Td("Yes" if getattr(s, 'obsidian_path', None) else "No"),
+            html.Td("Yes" if getattr(s, 'google_drive_path', None) else "No"),
+            html.Td("Yes" if getattr(s, 'website', None) else "No"),
         ], id={"type": "suggestion-row", "index": s.name}, className=row_class, style={"cursor": "pointer"}))
 
     table = dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,

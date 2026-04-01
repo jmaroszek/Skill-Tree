@@ -702,6 +702,7 @@ def register_callbacks(app):
         Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
         Output('setting-obsidian-path', 'value'),
+        Output('setting-gdrive-path', 'value'),
         Output('setting-node-shapes-container', 'children'),
         Output('setting-node-colors-container', 'children'),
         Output('setting-hpw', 'value'),
@@ -711,10 +712,11 @@ def register_callbacks(app):
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 18
+            return (dash.no_update,) * 19
 
         hp = ConfigManager.get_hyperparams()
         obs = ConfigManager.get_obsidian_vault()
+        gdrive = ConfigManager.get_gdrive_path()
         ntypes = ", ".join(ConfigManager.get_node_types())
         ctxts = ", ".join(ConfigManager.get_contexts())
         s_dict = ConfigManager.get_subcontexts()
@@ -772,7 +774,7 @@ def register_callbacks(app):
 
         return (hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'),
                 hp.get('w_e'), hp.get('w_t'), hp.get('beta'), hp.get('goal_boost', 1.5),
-                ntypes, ctxts, subctxts, "Custom", obs, shape_rows, color_rows,
+                ntypes, ctxts, subctxts, "Custom", obs, gdrive, shape_rows, color_rows,
                 ts.get('hours_per_week', 40), ts.get('hours_per_month', 160))
 
     # --- Settings: Profile selector ---
@@ -833,6 +835,7 @@ def register_callbacks(app):
         State('setting-contexts', 'value'),
         State('setting-subcontexts', 'value'),
         State('setting-obsidian-path', 'value'),
+        State('setting-gdrive-path', 'value'),
         State({"type": "setting-shape", "index": ALL}, "value"),
         State({"type": "setting-shape", "index": ALL}, "id"),
         State({"type": "setting-color", "index": ALL}, "value"),
@@ -841,7 +844,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
-                      n_types_val, contexts_val, subcontexts_val, obs_path,
+                      n_types_val, contexts_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm):
         if not n_clicks:
@@ -904,6 +907,7 @@ def register_callbacks(app):
                     'hp': new_hp,
                     'ts': new_ts,
                     'obs_path': obs_path,
+                    'gdrive_path': gdrive_path or "",
                     'types': new_types,
                     'contexts': new_contexts,
                     'subcontexts': new_subcontexts,
@@ -920,6 +924,7 @@ def register_callbacks(app):
             ConfigManager.set_hyperparams(new_hp)
             ConfigManager.set_time_settings(new_ts)
             ConfigManager.set_obsidian_vault(obs_path)
+            ConfigManager.set_gdrive_path(gdrive_path or "")
             if new_types:
                 ConfigManager.set_node_types(new_types)
                 ConfigManager.sync_shapes_to_types(new_types)
@@ -991,6 +996,7 @@ def register_callbacks(app):
                 if 'ts' in pending_state:
                     ConfigManager.set_time_settings(pending_state['ts'])
                 ConfigManager.set_obsidian_vault(pending_state['obs_path'])
+                ConfigManager.set_gdrive_path(pending_state.get('gdrive_path', ''))
                 new_types = pending_state.get('types', [])
                 if new_types:
                     ConfigManager.set_node_types(new_types)

@@ -570,7 +570,7 @@ def build_app_layout(initial_elements, env="production"):
         id="suggestions-tab-content",
         children=[
             html.Div([
-                html.Div([suggestions_view], className="px-4 pt-3 pb-4", style={"maxWidth": "900px"}),
+                html.Div([suggestions_view], className="px-4 pt-3 pb-4"),
             ], style={"flex": "1", "overflowY": "auto"}),
         ],
         style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
