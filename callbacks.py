@@ -31,6 +31,23 @@ _get_trigger_id = get_trigger_id
 _node_options = node_options
 
 
+def _friendly_time_estimates(time_o, time_m, time_p):
+    """Convert stored hour values to the most logical display unit.
+
+    Uses the largest value (pessimistic) to pick the unit, then converts all
+    three consistently.  Returns (o, m, p, unit_string).
+    """
+    max_hours = max(time_o or 0, time_m or 0, time_p or 0)
+    _, unit = ConfigManager.hours_to_friendly_unit(max_hours)
+    multiplier = ConfigManager.get_time_multiplier(unit)
+    def _convert(h):
+        v = round((h or 0) / multiplier, 2)
+        if v == int(v):
+            v = int(v)
+        return v
+    return _convert(time_o), _convert(time_m), _convert(time_p), unit
+
+
 def _spawn_local_file_picker(initial_dir, title, filetypes_list):
     """Helper to launch a non-blocking Windows file picker via a temporary Python script."""
     import tempfile
@@ -186,23 +203,8 @@ def register_callbacks(app):
             data = goal_data
         if not data: return ""
 
-        o = float(data.get('time_o', 0))
-        m = float(data.get('time_m', 0))
-        p = float(data.get('time_p', 0))
         final_time = data.get('time', 0)
-        
-        # Standard deviation (PERT method)
-        std_dev = 0.0
-        if m > 0 and o > 0 and p > 0 and not (o == m == p):
-            std_dev = round((p - o) / 6.0, 2)
-            
-        formatted_final = ConfigManager.format_time_friendly(final_time)
-        std_str = f" ±{std_dev}h" if std_dev > 0 else ""
-        
-        if formatted_final.endswith('h'):
-            time_str = f"{formatted_final}{std_str}"
-        else:
-            time_str = f"{final_time}h ({formatted_final}){std_str}"
+        time_str = ConfigManager.format_time_friendly(final_time)
 
         node_type = data.get('type', '')
         lines = [
@@ -240,12 +242,14 @@ def register_callbacks(app):
          Output('obsidian-links-store', 'data'), Output('drive-links-store', 'data'),
          Output('website-links-store', 'data'),
          # Type-specific outputs
-         Output('node-progress', 'value'), Output('node-time-unit', 'value')],
+         Output('node-progress', 'value'), Output('node-time-unit', 'value'),
+         Output('node-time-unit-prev', 'data', allow_duplicate=True)],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
          Input('search-node', 'value'),
-         Input('cytoscape-graph', 'elements')]
+         Input('cytoscape-graph', 'elements')],
+        prevent_initial_call='initial_duplicate'
     )
     def populate_editor(data, add_clicks, clear_clicks, search_val, elements):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
@@ -260,7 +264,7 @@ def register_callbacks(app):
             options, options, options, options, options, options,
             [''], [''], [''],
             # Type-specific defaults
-            0, "hours",
+            0, "hours", "hours",
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
@@ -274,12 +278,12 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*5
+                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*6
         elif data:
             name = data.get('id')
 
         if not name or not data:
-            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*5
+            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*6
 
         edges = manager.get_edges()
 
@@ -302,11 +306,15 @@ def register_callbacks(app):
         actual_status = db_node.status if db_node else data.get('status', 'Open')
         done_val = ["Done"] if actual_status == "Done" else []
 
+        friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
+            data.get('time_o', 1.0), data.get('time_m', 1.0), data.get('time_p', 1.0)
+        )
+
         return [
             name, data.get('type'), data.get('description'),
             data.get('context') or '', data.get('subcontext') or '',
             data.get('value', 5), data.get('interest', 5), data.get('difficulty', 5),
-            data.get('time_o', 1.0), data.get('time_m', 1.0), data.get('time_p', 1.0),
+            friendly_o, friendly_m, friendly_p,
             actual_status, done_val,
             needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals,
             helps_vals, res_vals,
@@ -315,7 +323,7 @@ def register_callbacks(app):
             _parse_links(data.get('google_drive_path', '')),
             _parse_links(data.get('website', '')),
             # Type-specific fields
-            data.get('progress') or 0, "hours",
+            data.get('progress') or 0, friendly_unit, friendly_unit,
         ]
 
     # --- Type-adaptive field visibility ---
@@ -334,6 +342,37 @@ def register_callbacks(app):
             return show, hide, hide
         else:  # Learn, Action
             return show, show, hide
+
+    # --- Auto-convert time estimates when unit dropdown changes ---
+    @app.callback(
+        Output('node-time-o', 'value', allow_duplicate=True),
+        Output('node-time-m', 'value', allow_duplicate=True),
+        Output('node-time-p', 'value', allow_duplicate=True),
+        Output('node-time-unit-prev', 'data'),
+        Input('node-time-unit', 'value'),
+        State('node-time-o', 'value'),
+        State('node-time-m', 'value'),
+        State('node-time-p', 'value'),
+        State('node-time-unit-prev', 'data'),
+        prevent_initial_call=True,
+    )
+    def convert_time_unit(new_unit, val_o, val_m, val_p, prev_unit):
+        """Re-express time values when the unit selector changes."""
+        old_unit = prev_unit or 'hours'
+        no_change = dash.no_update, dash.no_update, dash.no_update, new_unit
+        if not new_unit or new_unit == old_unit:
+            return no_change
+        old_mult = ConfigManager.get_time_multiplier(old_unit)
+        new_mult = ConfigManager.get_time_multiplier(new_unit)
+        if new_mult == 0:
+            return no_change
+        def _reexpress(v):
+            if v is None:
+                return v
+            hours = float(v) * old_mult
+            result = round(hours / new_mult, 2)
+            return int(result) if result == int(result) else result
+        return _reexpress(val_o), _reexpress(val_m), _reexpress(val_p), new_unit
 
     # --- Priority Badge in Node Editor ---
     @app.callback(
@@ -369,7 +408,7 @@ def register_callbacks(app):
          Output('btn-clear-focus', 'style'),
          Output('node-completion-events-store', 'data')],
 
-        [Input('btn-save', 'n_clicks'), Input('btn-delete', 'n_clicks'),
+        [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
          Input('search-node', 'value'),
          Input('cytoscape-graph', 'tapNodeData'),
@@ -406,7 +445,7 @@ def register_callbacks(app):
          State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style')]
     )
-    def core_engine(save_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
+    def core_engine(save_clicks, save_close_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
                      btn_edit, btn_add, btn_close_ed, btn_filters, btn_sugg_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
@@ -443,12 +482,11 @@ def register_callbacks(app):
         next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
         if trigger_id in ('btn-edit-node', 'btn-add', 'edit-trigger-input') or (trigger_id == 'search-node' and search_val):
             next_ed_style['marginLeft'] = "0px"
-        elif trigger_id in ('btn-save', 'btn-clear', 'btn-delete', 'btn-close-editor'):
-            # For save triggers (Save button or × close), keep sidebar open if
-            # validation will fail so the user can fix the form.
-            if trigger_id in ('btn-save', 'btn-close-editor') and (not name or not n_type):
+        elif trigger_id in ('btn-save', 'btn-save-close', 'btn-clear', 'btn-delete', 'btn-close-editor'):
+            # btn-save keeps the editor open; btn-save-close and × close it.
+            if trigger_id in ('btn-save-close', 'btn-close-editor') and (not name or not n_type):
                 pass  # Keep sidebar open — validation error shown below
-            else:
+            elif trigger_id not in ('btn-save',):
                 next_ed_style['marginLeft'] = "-380px"
 
         # Filters Sidebar State (overlay, shared between Canvas + Suggestions tabs)
@@ -471,10 +509,23 @@ def register_callbacks(app):
         website_path = _serialize_links(website_link_values)
 
         # --- Action Routing ---
-        if trigger_id in ('btn-save', 'btn-close-editor'):
+        if trigger_id in ('btn-save', 'btn-save-close', 'btn-close-editor'):
             if not name or not name.strip():
-                msg = "Error: Node name is required."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                # Only show the error if the user has filled in something meaningful.
+                # If the form is blank (no desc, all ratings at default), they just
+                # changed their mind after clicking New Node — silently close.
+                form_has_content = any([
+                    desc and desc.strip(),
+                    val not in (None, 5),
+                    interest not in (None, 5),
+                    diff not in (None, 5),
+                ])
+                if form_has_content:
+                    msg = "Error: Node name is required."
+                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                else:
+                    next_ed_style['marginLeft'] = "-380px"
+                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             if not n_type:
                 msg = "Error: Node type is required."
                 return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update

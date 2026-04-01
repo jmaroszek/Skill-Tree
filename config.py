@@ -186,6 +186,28 @@ class ConfigManager:
             return f"{h}h"
 
     @classmethod
+    def hours_to_friendly_unit(cls, hours: float) -> tuple:
+        """Convert hours to the most logical display unit.
+
+        Returns:
+            (converted_value, unit_string) e.g. (2.0, 'weeks')
+        """
+        if hours is None or hours <= 0:
+            return (0, 'hours')
+        settings = cls.get_time_settings()
+        hw = settings.get('hours_per_week', 40)
+        hm = settings.get('hours_per_month', 160)
+
+        if hm > 0 and hours >= hm:
+            val = round(hours / hm, 2)
+            return (val, 'months')
+        elif hw > 0 and hours >= hw:
+            val = round(hours / hw, 2)
+            return (val, 'weeks')
+        else:
+            return (round(hours, 2), 'hours')
+
+    @classmethod
     def get_obsidian_vault(cls, default: Optional[str] = None):
         val = cls._get_db_value("OBSIDIAN_VAULT")
         return val if val else (default or DEFAULT_OBSIDIAN_VAULT)

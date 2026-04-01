@@ -134,7 +134,7 @@ def build_goals_tab_content():
                 ]),
             ]),
 
-            html.Hr(),
+            html.Hr(className="my-2"),
             dbc.Label("Edge Type"),
             dbc.Select(
                 id="goal-add-edge-type",

@@ -49,7 +49,7 @@ sidebar_content = html.Div(
             dbc.Collapse(dbc.Select(id="node-subcontext", options=[], className="mt-1"), id="collapse-subcontext", is_open=False),
 
             dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="node-desc"),
+            dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
             
             html.Div(id="auto-status-display", className="d-none"),
 
@@ -89,7 +89,7 @@ sidebar_content = html.Div(
 
             # --- Section: Time Estimates ---
             html.Div(id="section-time-estimates", children=[
-                html.Hr(),
+                html.Hr(className="my-2"),
                 html.Div([
                     html.H5("Time Estimates", className="mb-0"),
                     dbc.Select(id="node-time-unit", options=[
@@ -105,7 +105,7 @@ sidebar_content = html.Div(
                 ]),
             ]),
             
-            html.Hr(),
+            html.Hr(className="my-2"),
             html.H5("Relationships", className="mt-2 mb-1"),
             dbc.Label("Needs", className="mt-2"),
             html.Div([
@@ -125,7 +125,7 @@ sidebar_content = html.Div(
             dbc.Label("Resources", className="mt-2"),
             html.Div(dcc.Dropdown(id="edge-resources", multi=True, placeholder="Resource Nodes..."), className="text-dark"),
 
-            html.Hr(),
+            html.Hr(className="my-2"),
             html.H5("External Resources", className="mt-2 mb-1"),
 
             # Stores hold JSON arrays of links for each resource type
@@ -151,14 +151,16 @@ sidebar_content = html.Div(
             ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='website-links-container'),
             
-            html.Hr(),
+            html.Hr(className="my-2"),
             html.Div([
                 html.Div(id="save-output", className="text-success fw-bold flex-grow-1 align-self-center pe-2"),
-                dbc.Button("Clear", id="btn-clear", color="secondary", className="me-2"),
                 dbc.Button("Delete", id="btn-delete", color="danger", className="me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
-                dbc.Button("Save", id="btn-save", color="primary")
+                dbc.Button("Clear", id="btn-clear", color="secondary", className="me-2"),
+                dbc.Button("Save", id="btn-save", color="primary", className="me-2"),
+                dbc.Button("Save & Close", id="btn-save-close", color="success")
             ], className="d-flex justify-content-end mt-4 mb-5"),
-            dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True)
+            dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
+            dcc.Store(id='node-time-unit-prev', data='hours')
         ])
     ],
     className="ps-3 pe-4 pb-2 pt-0",

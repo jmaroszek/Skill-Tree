@@ -2,15 +2,13 @@
 Layout definitions for the Settings tab.
 """
 
-from dash import html, dcc
+from dash import html
 import dash_bootstrap_components as dbc
 
 _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
 
 
 def build_settings_tab_content():
-    """Builds the Settings tab UI, extracted from the former settings modal."""
-
     return html.Div([
         html.Div([
             html.H4("Settings", className="mb-3 mt-3"),
@@ -18,15 +16,16 @@ def build_settings_tab_content():
             dbc.Tabs(id="settings-modal-tabs", active_tab="tab-nodes", children=[
                 dbc.Tab(label="Nodes", tab_id="tab-nodes", children=[
                     html.Div([
-                        dbc.Label("Node Types", className="fw-bold mt-2"),
+                        # --- Node Appearance group ---
+                        html.H5("Node Appearance", className="mt-2 mb-1"),
+                        dbc.Label("Types", className="mt-2"),
                         dbc.Textarea(id="setting-node-types", rows=2, placeholder="e.g. Topic, Goal, Skill, Action, Resource"),
-                        html.P("Comma-separated list. Order is preserved in drop-downs.", className="text-muted small"),
+                        html.Small("Comma-separated list. Order is preserved in drop-downs.", className="text-muted d-block mb-1"),
 
-                        html.Hr(),
                         dbc.Row([
                             dbc.Col([
                                 html.Div([
-                                    dbc.Label("Node Shapes", className="fw-bold mb-0"),
+                                    dbc.Label("Shapes", className="mb-0"),
                                     html.Span([
                                         dbc.Button(_RESTORE_ICON, id="btn-restore-shapes",
                                                    color="link", size="sm",
@@ -34,13 +33,13 @@ def build_settings_tab_content():
                                                    style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd"}),
                                         dbc.Tooltip("Restore defaults", target="btn-restore-shapes", placement="top"),
                                     ]),
-                                ], className="d-flex align-items-center mb-1"),
-                                html.P("Shape for each node type.", className="text-muted small mb-2"),
+                                ], className="d-flex align-items-center mt-2 mb-1"),
+                                html.Small("Shape for each node type.", className="text-muted d-block mb-2"),
                                 html.Div(id="setting-node-shapes-container"),
                             ], width=6),
                             dbc.Col([
                                 html.Div([
-                                    dbc.Label("Node Colors", className="fw-bold mb-0"),
+                                    dbc.Label("Colors", className="mb-0"),
                                     html.Span([
                                         dbc.Button(_RESTORE_ICON, id="btn-restore-colors",
                                                    color="link", size="sm",
@@ -48,27 +47,28 @@ def build_settings_tab_content():
                                                    style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd"}),
                                         dbc.Tooltip("Restore defaults", target="btn-restore-colors", placement="top"),
                                     ]),
-                                ], className="d-flex align-items-center mb-1"),
-                                html.P("Color for each node status.", className="text-muted small mb-2"),
+                                ], className="d-flex align-items-center mt-2 mb-1"),
+                                html.Small("Color for each node status.", className="text-muted d-block mb-2"),
                                 html.Div(id="setting-node-colors-container"),
                             ], width=6),
                         ]),
 
-                        html.Hr(),
-                        dbc.Label("Contexts", className="fw-bold mt-2"),
+                        # --- Contexts group ---
+                        html.Hr(className="my-2"),
+                        html.H5("Contexts", className="mt-2 mb-1"),
+                        dbc.Label("Contexts", className="mt-2"),
                         dbc.Textarea(id="setting-contexts", rows=2, placeholder="e.g. Mind, Body, Social"),
-                        html.P("Comma-separated list. Order is preserved in drop-downs.", className="text-muted small"),
+                        html.Small("Comma-separated list. Order is preserved in drop-downs.", className="text-muted d-block mb-1"),
 
-                        html.Hr(),
-                        dbc.Label("Subcontexts", className="fw-bold mt-2"),
-                        dbc.Textarea(id="setting-subcontexts", rows=4, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep"),
-                        html.P("One context per line. Comma-separated subcontexts after the colon.", className="text-muted small"),
+                        dbc.Label("Subcontexts", className="mt-2"),
+                        dbc.Textarea(id="setting-subcontexts", rows=6, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep"),
+                        html.Small("One context per line. Comma-separated subcontexts after the colon.", className="text-muted d-block mb-1"),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Algorithm", tab_id="tab-algorithm", children=[
                     html.Div([
                         # --- Profile selector ---
-                        dbc.Label("Algorithm Profile", className="fw-bold mt-2"),
+                        html.H5("Algorithm Profile", className="mt-2 mb-1"),
                         dbc.Select(id="setting-hp-profile", options=[
                             {"label": "Default", "value": "Default"},
                             {"label": "Curious", "value": "Curious"},
@@ -78,7 +78,7 @@ def build_settings_tab_content():
 
                         # --- Intrinsic Value section ---
                         html.Hr(className="my-2"),
-                        html.Div("Intrinsic Value", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                        html.H5("Intrinsic Value", className="mt-2 mb-1"),
                         html.Small("IV = w_v \u00b7 V + w_i \u00b7 I", className="text-muted d-block mb-1",
                                    style={"fontFamily": "monospace"}),
                         dbc.Row([
@@ -96,7 +96,7 @@ def build_settings_tab_content():
 
                         # --- Value Propagation section ---
                         html.Hr(className="my-2"),
-                        html.Div("Value Propagation", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                        html.H5("Value Propagation", className="mt-2 mb-1"),
                         html.Small("Retention factor per edge type (0\u20131). Higher = more value flows through.",
                                    className="text-muted d-block mb-1"),
                         dbc.Row([
@@ -119,7 +119,7 @@ def build_settings_tab_content():
 
                         # --- Perceived Cost section ---
                         html.Hr(className="my-2"),
-                        html.Div("Perceived Cost", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                        html.H5("Perceived Cost", className="mt-2 mb-1"),
                         html.Small("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2", className="text-muted d-block mb-1",
                                    style={"fontFamily": "monospace"}),
                         dbc.Row([
@@ -143,7 +143,7 @@ def build_settings_tab_content():
 
                         # --- Goal Priority Boost section ---
                         html.Hr(className="my-2"),
-                        html.Div("Goal Priority Boost", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                        html.H5("Goal Priority Boost", className="mt-2 mb-1"),
                         dbc.Row([
                             dbc.Col([
                                 dbc.Label("Goal Boost"),
@@ -159,16 +159,17 @@ def build_settings_tab_content():
                 ]),
                 dbc.Tab(label="Me", tab_id="tab-paths", children=[
                     html.Div([
-                        dbc.Label("Obsidian Vault Root Path", className="fw-bold mt-2"),
-                        dbc.Input(id="setting-obsidian-path", type="text"),
+                        # --- Paths group ---
+                        html.H5("Paths", className="mt-2 mb-1"),
+                        dbc.Label("Obsidian Vault Root Path", className="mt-2"),
+                        dbc.Input(id="setting-obsidian-path", type="text", className="mb-2"),
 
-                        html.Hr(),
-                        dbc.Label("Google Drive Root Path", className="fw-bold mt-2"),
+                        dbc.Label("Google Drive Root Path"),
                         dbc.Input(id="setting-gdrive-path", type="text"),
 
                         # --- Time Estimates section ---
                         html.Hr(className="my-2"),
-                        html.Div("Time Estimates", style={"fontSize": "1rem", "fontWeight": "600", "color": "#dee2e6"}),
+                        html.H5("Time Estimates", className="mt-2 mb-1"),
                         html.Small("Estimate productive hours.", className="text-muted d-block mb-1"),
                         dbc.Row([
                             dbc.Col([

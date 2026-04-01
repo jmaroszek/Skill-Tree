@@ -70,7 +70,7 @@ def build_events_tab_content():
                 dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=0)]),
             ]),
 
-            html.Hr(),
+            html.Hr(className="my-2"),
             html.H6("Activation Delay"),
             dbc.Row([
                 dbc.Col([
