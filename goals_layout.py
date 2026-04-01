@@ -132,18 +132,58 @@ def build_goals_tab_content():
                     dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
                              dbc.Input(id="goal-add-time-p", type="number", min=0, value=0)]),
                 ]),
+
+                html.Hr(className="my-2"),
+                html.H6("Relationships", className="mt-2 mb-1"),
+                dbc.Label("Needs"),
+                html.Div([
+                    dcc.Dropdown(id="goal-add-needs-hard", multi=True, placeholder="Hard Prerequisites..."),
+                    dcc.Dropdown(id="goal-add-needs-soft", multi=True, placeholder="Soft Prerequisites...", className="mt-1"),
+                ], className="text-dark"),
+
+                dbc.Label("Supports", className="mt-2"),
+                html.Div([
+                    dcc.Dropdown(id="goal-add-supports-hard", multi=True, placeholder="Hard Dependents..."),
+                    dcc.Dropdown(id="goal-add-supports-soft", multi=True, placeholder="Soft Dependents...", className="mt-1"),
+                ], className="text-dark"),
+
+                dbc.Label("Helps", className="mt-2"),
+                html.Div(dcc.Dropdown(id="goal-add-helps", multi=True, placeholder="Synergistic Nodes..."), className="text-dark"),
+
+                dbc.Label("Resources", className="mt-2"),
+                html.Div(dcc.Dropdown(id="goal-add-edge-resources", multi=True, placeholder="Resource Nodes..."), className="text-dark"),
+
+                html.Hr(className="my-2"),
+                html.H6("External Resources", className="mt-2 mb-1"),
+                dcc.Store(id='goal-add-obsidian-store', data=['']),
+                dcc.Store(id='goal-add-drive-store', data=['']),
+                dcc.Store(id='goal-add-website-store', data=['']),
+
+                html.Div([
+                    dbc.Label("Obsidian", className="mb-0"),
+                    dbc.Button("+", id="btn-goal-add-obsidian-add", color="link",
+                               className="p-0 ms-2 text-decoration-none text-muted",
+                               title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                ], className="d-flex align-items-center mt-2 mb-1"),
+                html.Div(id='goal-add-obsidian-container'),
+
+                html.Div([
+                    dbc.Label("Google Drive", className="mb-0"),
+                    dbc.Button("+", id="btn-goal-add-drive-add", color="link",
+                               className="p-0 ms-2 text-decoration-none text-muted",
+                               title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                ], className="d-flex align-items-center mt-3 mb-1"),
+                html.Div(id='goal-add-drive-container'),
+
+                html.Div([
+                    dbc.Label("Website", className="mb-0"),
+                    dbc.Button("+", id="btn-goal-add-website-add", color="link",
+                               className="p-0 ms-2 text-decoration-none text-muted",
+                               title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                ], className="d-flex align-items-center mt-3 mb-1"),
+                html.Div(id='goal-add-website-container'),
             ]),
 
-            html.Hr(className="my-2"),
-            dbc.Label("Edge Type"),
-            dbc.Select(
-                id="goal-add-edge-type",
-                options=[
-                    {"label": "Hard Dependency", "value": "Needs_Hard"},
-                    {"label": "Soft Dependency", "value": "Needs_Soft"},
-                ],
-                value="Needs_Hard",
-            ),
 
             html.Div(id="goal-add-save-status", className="text-danger mt-2",
                      style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
@@ -152,7 +192,8 @@ def build_goals_tab_content():
             dbc.Button("Cancel", id="btn-goal-add-cancel", color="secondary", className="me-2"),
             dbc.Button("Add", id="btn-goal-add-save", color="primary"),
         ]),
-    ], id="modal-goal-add-node", size="lg", is_open=False, centered=True)
+    ], id="modal-goal-add-node", size="lg", is_open=False, centered=True,
+       scrollable=True)
 
     goal_detail_panel = html.Div([
         # Shown when no goal is selected
@@ -285,6 +326,16 @@ def build_goals_tab_content():
                 ]),
             ], id="modal-goal-confirm-delete", is_open=False, centered=True),
 
+            # Rename confirmation modal
+            dbc.Modal([
+                dbc.ModalHeader(dbc.ModalTitle("Rename Goal")),
+                dbc.ModalBody(id="goal-rename-modal-body"),
+                dbc.ModalFooter([
+                    dbc.Button("Cancel", id="btn-goal-rename-cancel", color="secondary", className="me-2"),
+                    dbc.Button("Rename", id="btn-goal-rename-confirm", color="primary"),
+                ]),
+            ], id="modal-goal-confirm-rename", is_open=False, centered=True),
+
             # Add node modal
             add_node_modal,
         ]),
@@ -311,6 +362,7 @@ def build_goals_tab_content():
         dcc.Store(id='focus-goal-store', data=None),
         dcc.Store(id='goal-order-store', data=[]),
         dcc.Store(id='subtask-remove-pending', data=None),
+        dcc.Store(id='goal-rename-pending', data=None),
         subtask_remove_modal,
         goal_list_panel,
         goal_detail_panel,

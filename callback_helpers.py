@@ -243,3 +243,92 @@ def format_traversal_ui(tapped_node, active_node_id, manager):
     synergies_ui = html.Div([html.Div(s) for s in synergies]) if synergies else html.P("None", className="text-dark")
 
     return traversal_ui, synergies_ui
+
+
+# --- Link Row UI Helper ---
+
+def render_link_rows(links, link_type, has_browse=False):
+    """Build a list of input rows for a resource type.
+
+    link_type: e.g. 'obsidian-link', 'drive-link', 'goal-add-obsidian-link'
+    The browse/open/remove button IDs are derived from link_type automatically.
+    """
+    link_list = links or ['']
+    prefix = link_type.replace('-link', '')  # e.g. 'obsidian', 'goal-add-obsidian'
+    rows = []
+    for i, path in enumerate(link_list):
+        buttons = []
+        if has_browse:
+            buttons.append(dbc.Button(
+                "\U0001f4c1", id={"type": f"btn-{prefix}-browse", "index": i},
+                color="secondary", title="Browse",
+                className="me-1 d-flex justify-content-center align-items-center p-0",
+                style={"width": "38px"},
+            ))
+        buttons.append(dbc.Button(
+            "\U0001f517", id={"type": f"btn-{prefix}-open", "index": i},
+            color="secondary", title="Open",
+            className="me-1 d-flex justify-content-center align-items-center p-0",
+            style={"width": "38px"},
+        ))
+        if len(link_list) > 1:
+            buttons.append(dbc.Button(
+                "\u00d7", id={"type": f"btn-{link_type}-remove", "index": i},
+                color="danger", outline=True,
+                className="d-flex justify-content-center align-items-center p-0",
+                style={"width": "38px", "fontSize": "1.5rem"},
+            ))
+        rows.append(html.Div([
+            dbc.Input(
+                id={"type": link_type, "index": i}, type="text",
+                value=path or '', placeholder="Enter path or URL...",
+                className="me-1", style={"flex": "1"},
+            ),
+            *buttons,
+        ], className="d-flex mb-1"))
+    return rows
+
+
+def spawn_local_file_picker(initial_dir, title, filetypes_list):
+    """Launch a blocking Windows file-picker dialog in a subprocess. Returns the selected path or ''."""
+    import logging
+    import tempfile
+    import sys
+    import subprocess
+    import os
+
+    _logger = logging.getLogger(__name__)
+    filetypes_str = str(filetypes_list)
+    script = f'''import os
+import tkinter as tk
+from tkinter import filedialog
+import ctypes
+
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except Exception:
+    pass
+
+root = tk.Tk()
+root.withdraw()
+root.attributes('-topmost', True)
+
+abs_path = filedialog.askopenfilename(
+    initialdir=r"{initial_dir}",
+    title="{title}",
+    filetypes={filetypes_str}
+)
+
+if abs_path:
+    print(os.path.normpath(abs_path), end="")
+'''
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write(script)
+            tmp_path = f.name
+        result = subprocess.run([sys.executable, tmp_path], capture_output=True, text=True)
+        os.remove(tmp_path)
+        return result.stdout.strip()
+    except Exception as e:
+        _logger.error(f"Error launching file picker: {e}")
+        return ""

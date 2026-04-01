@@ -2,12 +2,14 @@
 Callback definitions for the Goals tab.
 """
 
+import os
 import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update
 from graph_manager import GraphManager
 from config import ConfigManager
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
 from goals_layout import build_goal_card, build_subtasks_table
+from callback_helpers import serialize_links, render_link_rows, spawn_local_file_picker
 
 graph_manager = GraphManager()
 
@@ -257,6 +259,9 @@ def register_goal_callbacks(app):
         Output("selected-goal-store", "data", allow_duplicate=True),
         Output("goals-refresh-trigger", "data", allow_duplicate=True),
         Output("goal-save-status", "children", allow_duplicate=True),
+        Output("modal-goal-confirm-rename", "is_open", allow_duplicate=True),
+        Output("goal-rename-pending", "data"),
+        Output("goal-rename-modal-body", "children"),
         Input("btn-goal-save", "n_clicks"),
         State("selected-goal-store", "data"),
         State("goal-name", "value"),
@@ -272,22 +277,22 @@ def register_goal_callbacks(app):
     def save_goal(n_clicks, selected_goal, name, description, value, interest, difficulty,
                   context, subcontext, done_toggle):
         if not n_clicks or not name or not name.strip():
-            return no_update, no_update, "Goal name is required."
+            return no_update, no_update, "Goal name is required.", no_update, no_update, no_update
 
         name = name.strip()
         description = (description or "").strip()
         status = "Done" if done_toggle and "done" in done_toggle else "Open"
 
-        node = graph_manager.get_node(selected_goal) if selected_goal else None
+        existing = graph_manager.get_node(selected_goal) if selected_goal else None
 
         goal_node = Node(
             name=name,
             type="Goal",
             description=description,
             value=value or 5,
-            time_o=node.time_o if node else 0.0,
-            time_m=node.time_m if node else 0.0,
-            time_p=node.time_p if node else 0.0,
+            time_o=existing.time_o if existing else 0.0,
+            time_m=existing.time_m if existing else 0.0,
+            time_p=existing.time_p if existing else 0.0,
             interest=interest or 5,
             difficulty=difficulty or 5,
             status=status,
@@ -298,22 +303,85 @@ def register_goal_callbacks(app):
         try:
             if selected_goal is None:
                 graph_manager.add_node(goal_node)
+                return name, f"save-{name}", "Saved.", False, None, ""
+            elif name != selected_goal:
+                # Name changed — ask for confirmation before overwriting
+                pending = {
+                    "old_name": selected_goal,
+                    "new_name": name,
+                    "description": description,
+                    "value": value or 5,
+                    "interest": interest or 5,
+                    "difficulty": difficulty or 5,
+                    "context": context or None,
+                    "subcontext": (subcontext or "").strip() or None,
+                    "status": status,
+                }
+                modal_body = f'Would you like to rename "{selected_goal}" to "{name}"?'
+                return no_update, no_update, no_update, True, pending, modal_body
             else:
                 goal_node.name = selected_goal
-                if name != selected_goal:
-                    graph_manager.delete_node(selected_goal)
-                    graph_manager.add_node(goal_node)
-                    priority_goals = ConfigManager.get_priority_goals()
-                    if selected_goal in priority_goals:
-                        priority_goals = [name if g == selected_goal else g for g in priority_goals]
-                        ConfigManager.set_priority_goals(priority_goals)
-                    goal_node.name = name
-                else:
-                    graph_manager.update_node(goal_node)
+                graph_manager.update_node(goal_node)
+                return name, f"save-{name}", "Saved.", False, None, ""
         except ValueError as e:
-            return no_update, no_update, str(e)
+            return no_update, no_update, str(e), False, None, ""
 
-        return name, f"save-{name}", "Saved."
+    # --- Rename Goal: Confirm ---
+    @app.callback(
+        Output("selected-goal-store", "data", allow_duplicate=True),
+        Output("goals-refresh-trigger", "data", allow_duplicate=True),
+        Output("goal-save-status", "children", allow_duplicate=True),
+        Output("modal-goal-confirm-rename", "is_open", allow_duplicate=True),
+        Output("goal-rename-pending", "data", allow_duplicate=True),
+        Input("btn-goal-rename-confirm", "n_clicks"),
+        State("goal-rename-pending", "data"),
+        prevent_initial_call=True,
+    )
+    def confirm_rename_goal(n_clicks, pending):
+        if not n_clicks or not pending:
+            return (no_update,) * 5
+
+        old_name = pending["old_name"]
+        new_name = pending["new_name"]
+        existing = graph_manager.get_node(old_name)
+
+        goal_node = Node(
+            name=new_name,
+            type="Goal",
+            description=pending.get("description", ""),
+            value=pending.get("value") or 5,
+            time_o=existing.time_o if existing else 0.0,
+            time_m=existing.time_m if existing else 0.0,
+            time_p=existing.time_p if existing else 0.0,
+            interest=pending.get("interest") or 5,
+            difficulty=pending.get("difficulty") or 5,
+            status=pending.get("status", "Open"),
+            context=pending.get("context") or None,
+            subcontext=pending.get("subcontext") or None,
+        )
+
+        try:
+            graph_manager.delete_node(old_name)
+            graph_manager.add_node(goal_node)
+            priority_goals = ConfigManager.get_priority_goals()
+            if old_name in priority_goals:
+                priority_goals = [new_name if g == old_name else g for g in priority_goals]
+                ConfigManager.set_priority_goals(priority_goals)
+        except ValueError as e:
+            return no_update, no_update, str(e), True, pending
+
+        return new_name, f"save-{new_name}", "Saved.", False, None
+
+    # --- Rename Goal: Cancel ---
+    @app.callback(
+        Output("modal-goal-confirm-rename", "is_open", allow_duplicate=True),
+        Input("btn-goal-rename-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def cancel_rename_goal(n_clicks):
+        if n_clicks:
+            return False
+        return no_update
 
     # --- Priority Rank Change ---
     @app.callback(
@@ -611,28 +679,51 @@ def register_goal_callbacks(app):
         Output("goal-add-desc", "value"),
         Output("goal-add-save-status", "children", allow_duplicate=True),
         Output("goal-node-time-unit", "value"),
+        Output("goal-add-needs-hard", "options"),
+        Output("goal-add-needs-soft", "options"),
+        Output("goal-add-supports-hard", "options"),
+        Output("goal-add-supports-soft", "options"),
+        Output("goal-add-helps", "options"),
+        Output("goal-add-edge-resources", "options"),
+        Output("goal-add-needs-hard", "value"),
+        Output("goal-add-needs-soft", "value"),
+        Output("goal-add-supports-hard", "value"),
+        Output("goal-add-supports-soft", "value"),
+        Output("goal-add-helps", "value"),
+        Output("goal-add-edge-resources", "value"),
+        Output("goal-add-obsidian-store", "data"),
+        Output("goal-add-drive-store", "data"),
+        Output("goal-add-website-store", "data"),
         Input("btn-goal-add-node", "n_clicks"),
         State("selected-goal-store", "data"),
         prevent_initial_call=True,
     )
     def open_add_node_modal(n_clicks, selected_goal):
         if not n_clicks:
-            return (no_update,) * 8
+            return (no_update,) * 24
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
 
-        # Build existing node options (exclude goal itself and its subtree)
+        # Build node options (all nodes, excluding goal and its subtree)
         all_nodes = graph_manager.get_all_nodes()
         subtree = graph_manager.get_goal_subtree(selected_goal) if selected_goal else set()
         exclude = subtree | {selected_goal} if selected_goal else set()
         existing_opts = [{"label": n.name, "value": n.name}
-                        for n in sorted(all_nodes, key=lambda n: n.name)
-                        if n.name not in exclude]
+                         for n in sorted(all_nodes, key=lambda n: n.name)
+                         if n.name not in exclude]
+        all_node_opts = [{"label": n.name, "value": n.name}
+                         for n in sorted(all_nodes, key=lambda n: n.name)]
 
-        return True, type_opts, ctx_opts, [{"label": "None", "value": ""}], existing_opts, "", "", "", "hours"
+        return (
+            True, type_opts, ctx_opts, [{"label": "None", "value": ""}],
+            existing_opts, "", "", "", "hours",
+            all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts,
+            [], [], [], [], [], [],
+            [''], [''], [''],
+        )
 
     # --- Add Node Modal: Toggle mode (create vs link) ---
     @app.callback(
@@ -656,6 +747,202 @@ def register_goal_callbacks(app):
             return base
         subs = ConfigManager.get_subcontexts().get(context, [])
         return base + [{"label": s, "value": s} for s in subs]
+
+    # --- Add Node Modal: Link Row Renderers ---
+    @app.callback(
+        Output('goal-add-obsidian-container', 'children'),
+        Input('goal-add-obsidian-store', 'data'),
+    )
+    def render_goal_add_obsidian(links):
+        return render_link_rows(links, 'goal-add-obsidian-link', has_browse=True)
+
+    @app.callback(
+        Output('goal-add-drive-container', 'children'),
+        Input('goal-add-drive-store', 'data'),
+    )
+    def render_goal_add_drive(links):
+        return render_link_rows(links, 'goal-add-drive-link', has_browse=True)
+
+    @app.callback(
+        Output('goal-add-website-container', 'children'),
+        Input('goal-add-website-store', 'data'),
+    )
+    def render_goal_add_website(links):
+        return render_link_rows(links, 'goal-add-website-link', has_browse=False)
+
+    # --- Add Node Modal: Link Add/Remove/Browse ---
+    @app.callback(
+        Output('goal-add-obsidian-store', 'data', allow_duplicate=True),
+        Input('btn-goal-add-obsidian-add', 'n_clicks'),
+        Input({'type': 'btn-goal-add-obsidian-link-remove', 'index': ALL}, 'n_clicks'),
+        Input({'type': 'btn-goal-add-obsidian-browse', 'index': ALL}, 'n_clicks'),
+        State({'type': 'goal-add-obsidian-link', 'index': ALL}, 'value'),
+        State('goal-add-obsidian-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def modify_goal_add_obsidian(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-goal-add-obsidian-add':
+            links.append('')
+        elif isinstance(trigger, dict):
+            if trigger.get('type') == 'btn-goal-add-obsidian-link-remove':
+                idx = trigger['index']
+                if 0 <= idx < len(links) and len(links) > 1:
+                    links.pop(idx)
+            elif trigger.get('type') == 'btn-goal-add-obsidian-browse':
+                idx = trigger['index']
+                if not any(browse_clicks):
+                    return no_update
+                vault = ConfigManager.get_obsidian_vault()
+                abs_path = spawn_local_file_picker(
+                    initial_dir=vault,
+                    title="Select Obsidian File",
+                    filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")],
+                )
+                if abs_path:
+                    vault_norm = os.path.normpath(vault)
+                    rel = abs_path[len(vault_norm):].lstrip(os.sep) if abs_path.startswith(vault_norm) else abs_path
+                    if 0 <= idx < len(links):
+                        links[idx] = rel
+                else:
+                    return no_update
+        return links
+
+    @app.callback(
+        Output('goal-add-drive-store', 'data', allow_duplicate=True),
+        Input('btn-goal-add-drive-add', 'n_clicks'),
+        Input({'type': 'btn-goal-add-drive-link-remove', 'index': ALL}, 'n_clicks'),
+        Input({'type': 'btn-goal-add-drive-browse', 'index': ALL}, 'n_clicks'),
+        State({'type': 'goal-add-drive-link', 'index': ALL}, 'value'),
+        State('goal-add-drive-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def modify_goal_add_drive(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-goal-add-drive-add':
+            links.append('')
+        elif isinstance(trigger, dict):
+            if trigger.get('type') == 'btn-goal-add-drive-link-remove':
+                idx = trigger['index']
+                if 0 <= idx < len(links) and len(links) > 1:
+                    links.pop(idx)
+            elif trigger.get('type') == 'btn-goal-add-drive-browse':
+                idx = trigger['index']
+                if not any(browse_clicks):
+                    return no_update
+                abs_path = spawn_local_file_picker(
+                    initial_dir=r"G:\\My Drive",
+                    title="Select Google Drive File",
+                    filetypes_list=[("All files", "*.*")],
+                )
+                if abs_path:
+                    if 0 <= idx < len(links):
+                        links[idx] = abs_path
+                else:
+                    return no_update
+        return links
+
+    @app.callback(
+        Output('goal-add-website-store', 'data', allow_duplicate=True),
+        Input('btn-goal-add-website-add', 'n_clicks'),
+        Input({'type': 'btn-goal-add-website-link-remove', 'index': ALL}, 'n_clicks'),
+        State({'type': 'goal-add-website-link', 'index': ALL}, 'value'),
+        State('goal-add-website-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def modify_goal_add_website(add_clicks, remove_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-goal-add-website-add':
+            links.append('')
+        elif isinstance(trigger, dict) and trigger.get('type') == 'btn-goal-add-website-link-remove':
+            idx = trigger['index']
+            if 0 <= idx < len(links) and len(links) > 1:
+                links.pop(idx)
+        return links
+
+    # --- Add Node Modal: Link Open ---
+    @app.callback(
+        Output('goal-add-save-status', 'children', allow_duplicate=True),
+        Input({'type': 'btn-goal-add-obsidian-open', 'index': ALL}, 'n_clicks'),
+        State({'type': 'goal-add-obsidian-link', 'index': ALL}, 'value'),
+        prevent_initial_call=True,
+    )
+    def open_goal_add_obsidian(n_clicks_list, values):
+        import subprocess, urllib.parse
+        if not any(n_clicks_list):
+            return no_update
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict):
+            return no_update
+        idx = trigger['index']
+        if 0 <= idx < len(values):
+            rel_path = values[idx]
+            if not rel_path or not rel_path.strip():
+                return "No Obsidian file path set."
+            vault = ConfigManager.get_obsidian_vault()
+            abs_path = os.path.join(vault, rel_path.strip())
+            encoded = urllib.parse.quote(abs_path, safe='')
+            uri = f'obsidian://open?path={encoded}'
+            try:
+                subprocess.Popen(['cmd', '/c', 'start', '', uri], shell=False)
+                return no_update
+            except Exception as e:
+                return f"Error opening Obsidian: {str(e)}"
+        return no_update
+
+    @app.callback(
+        Output('goal-add-save-status', 'children', allow_duplicate=True),
+        Input({'type': 'btn-goal-add-drive-open', 'index': ALL}, 'n_clicks'),
+        State({'type': 'goal-add-drive-link', 'index': ALL}, 'value'),
+        prevent_initial_call=True,
+    )
+    def open_goal_add_drive(n_clicks_list, values):
+        if not any(n_clicks_list):
+            return no_update
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict):
+            return no_update
+        idx = trigger['index']
+        if 0 <= idx < len(values):
+            url = values[idx]
+            if not url or not url.strip():
+                return "No path set."
+            try:
+                os.startfile(url.strip())
+                return no_update
+            except Exception as e:
+                return f"Error opening: {str(e)}"
+        return no_update
+
+    @app.callback(
+        Output('goal-add-save-status', 'children', allow_duplicate=True),
+        Input({'type': 'btn-goal-add-website-open', 'index': ALL}, 'n_clicks'),
+        State({'type': 'goal-add-website-link', 'index': ALL}, 'value'),
+        prevent_initial_call=True,
+    )
+    def open_goal_add_website(n_clicks_list, values):
+        import webbrowser
+        if not any(n_clicks_list):
+            return no_update
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict):
+            return no_update
+        idx = trigger['index']
+        if 0 <= idx < len(values):
+            url = (values[idx] or '').strip()
+            if not url:
+                return "No URL set."
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            try:
+                webbrowser.open_new_tab(url)
+                return no_update
+            except Exception as e:
+                return f"Error opening URL: {str(e)}"
+        return no_update
 
     # --- Add Node Modal: Cancel ---
     @app.callback(
@@ -690,25 +977,31 @@ def register_goal_callbacks(app):
         State("goal-add-time-m", "value"),
         State("goal-add-time-p", "value"),
         State("goal-node-time-unit", "value"),
-        State("goal-add-edge-type", "value"),
+        State("goal-add-needs-hard", "value"),
+        State("goal-add-needs-soft", "value"),
+        State("goal-add-supports-hard", "value"),
+        State("goal-add-supports-soft", "value"),
+        State("goal-add-helps", "value"),
+        State("goal-add-edge-resources", "value"),
+        State({'type': 'goal-add-obsidian-link', 'index': ALL}, 'value'),
+        State({'type': 'goal-add-drive-link', 'index': ALL}, 'value'),
+        State({'type': 'goal-add-website-link', 'index': ALL}, 'value'),
         prevent_initial_call=True,
     )
     def save_add_node(n_clicks, selected_goal, mode, existing_node,
                       name, node_type, context, subcontext, desc,
                       value, interest, difficulty, time_o, time_m, time_p,
-                      time_unit, edge_type):
+                      time_unit,
+                      needs_hard, needs_soft, supports_hard, supports_soft, helps, edge_resources,
+                      obsidian_vals, drive_vals, website_vals):
         if not n_clicks or not selected_goal:
             return (no_update,) * 4
 
-        edge_type = edge_type or EDGE_NEEDS_HARD
-
         if mode == "link":
-            # Link existing node
             if not existing_node:
                 return no_update, "Select a node to link.", no_update, no_update
             node_name = existing_node
         else:
-            # Create new node
             if not name or not name.strip():
                 return no_update, "Node name is required.", no_update, no_update
             node_name = name.strip()
@@ -728,6 +1021,9 @@ def register_goal_callbacks(app):
                 status="Open",
                 context=context or None,
                 subcontext=(subcontext or "").strip() or None,
+                obsidian_path=serialize_links(obsidian_vals),
+                google_drive_path=serialize_links(drive_vals),
+                website=serialize_links(website_vals),
             )
 
             try:
@@ -735,9 +1031,17 @@ def register_goal_callbacks(app):
             except ValueError as e:
                 return no_update, str(e), no_update, no_update
 
+            # Apply relationships for the new node
+            graph_manager.sync_edges(
+                node_name,
+                needs_hard or [], needs_soft or [],
+                supports_hard or [], supports_soft or [],
+                helps or [], edge_resources or [],
+            )
+
         # Add edge: node_name → selected_goal (node_name is a dependency of the goal)
         try:
-            graph_manager.add_edge(node_name, selected_goal, edge_type)
+            graph_manager.add_edge(node_name, selected_goal, EDGE_NEEDS_HARD)
         except (ValueError, Exception) as e:
             return no_update, str(e), no_update, no_update
 
@@ -749,8 +1053,8 @@ def register_goal_callbacks(app):
         edges = graph_manager.get_edges()
 
         return (
-            False,  # close modal
-            "",  # clear status
-            f"add-node-{node_name}",  # refresh trigger
+            False,
+            "",
+            f"add-node-{node_name}",
             build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges, goal_name=selected_goal),
         )

@@ -17,6 +17,7 @@ from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, node_options, build_filters,
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     format_suggestions_table, format_traversal_ui, SECTION_TITLE_STYLE,
+    render_link_rows, spawn_local_file_picker,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,52 +49,7 @@ def _friendly_time_estimates(time_o, time_m, time_p):
     return _convert(time_o), _convert(time_m), _convert(time_p), unit
 
 
-def _spawn_local_file_picker(initial_dir, title, filetypes_list):
-    """Helper to launch a non-blocking Windows file picker via a temporary Python script."""
-    import tempfile
-    import sys
-    import subprocess
-    import os
-    
-    # Format the filetypes list as a string to inject into the script
-    filetypes_str = str(filetypes_list)
-    
-    script = f'''import os
-import tkinter as tk
-from tkinter import filedialog
-import ctypes
-
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
-    pass
-
-root = tk.Tk()
-root.withdraw()
-root.attributes('-topmost', True)
-
-abs_path = filedialog.askopenfilename(
-    initialdir=r"{initial_dir}",
-    title="{title}",
-    filetypes={filetypes_str}
-)
-
-if abs_path:
-    print(os.path.normpath(abs_path), end="")
-'''
-    try:
-        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-            f.write(script)
-            tmp_path = f.name
-            
-        result = subprocess.run([sys.executable, tmp_path], capture_output=True, text=True)
-        os.remove(tmp_path)
-        
-        return result.stdout.strip()
-        
-    except Exception as e:
-        logger.error(f"Error launching file picker: {e}")
-        return ""
+_spawn_local_file_picker = spawn_local_file_picker  # backward-compat alias
 
 
 def generate_elements(filters=None, active_node_id=None, community_names=None):
@@ -1089,62 +1045,26 @@ def register_callbacks(app):
         return is_open
 
     # --- Multi-Link Render Callbacks ---
-    def _render_link_rows(links, link_type, has_browse=False):
-        """Build a list of input rows for a resource type.
-        link_type: 'obsidian-link', 'drive-link', or 'website-link'
-        """
-        from dash import html as _html
-        link_list = links or ['']
-        rows = []
-        for i, path in enumerate(link_list):
-            buttons = []
-            if has_browse:
-                browse_type = 'btn-obsidian-browse' if 'obsidian' in link_type else 'btn-drive-browse'
-                buttons.append(dbc.Button(
-                    "\U0001f4c1", id={"type": browse_type, "index": i},
-                    color="secondary", title="Browse",
-                    className="me-1 d-flex justify-content-center align-items-center p-0", style={"width": "38px"}
-                ))
-            buttons.append(dbc.Button(
-                "\U0001f517", id={"type": f"btn-{link_type.replace('-link','')}-open", "index": i},
-                color="secondary", title="Open",
-                className="me-1 d-flex justify-content-center align-items-center p-0", style={"width": "38px"}
-            ))
-            if len(link_list) > 1:
-                buttons.append(dbc.Button(
-                    "\u00d7", id={"type": f"btn-{link_type}-remove", "index": i},
-                    color="danger", outline=True,
-                    className="d-flex justify-content-center align-items-center p-0",
-                    style={"width": "38px", "fontSize": "1.5rem"}
-                ))
-            rows.append(_html.Div([
-                dbc.Input(id={"type": link_type, "index": i}, type="text",
-                          value=path or '', placeholder="Enter path or URL...",
-                          className="me-1", style={"flex": "1"}),
-                *buttons
-            ], className="d-flex mb-1"))
-        return rows
-
     @app.callback(
         Output('obsidian-links-container', 'children'),
         Input('obsidian-links-store', 'data'),
     )
     def render_obsidian_links(links):
-        return _render_link_rows(links, 'obsidian-link', has_browse=True)
+        return render_link_rows(links, 'obsidian-link', has_browse=True)
 
     @app.callback(
         Output('drive-links-container', 'children'),
         Input('drive-links-store', 'data'),
     )
     def render_drive_links(links):
-        return _render_link_rows(links, 'drive-link', has_browse=True)
+        return render_link_rows(links, 'drive-link', has_browse=True)
 
     @app.callback(
         Output('website-links-container', 'children'),
         Input('website-links-store', 'data'),
     )
     def render_website_links(links):
-        return _render_link_rows(links, 'website-link', has_browse=False)
+        return render_link_rows(links, 'website-link', has_browse=False)
 
     # --- Multi-Link Add/Remove Callbacks ---
     def _handle_link_modify(add_clicks, remove_clicks, current_values, store_data, browse_clicks=None, browse_result=None):
