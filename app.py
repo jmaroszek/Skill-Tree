@@ -5,6 +5,7 @@ import ctypes
 
 # Set environment before importing modules that read config.ENVIRONMENT (e.g. database.py)
 import config
+
 if "-sandbox" in sys.argv:
     config.ENVIRONMENT = "sandbox"
 ENVIRONMENT = config.ENVIRONMENT

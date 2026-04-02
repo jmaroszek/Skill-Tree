@@ -6,7 +6,10 @@ Tests pure functions that don't require a database.
 
 import json
 import pytest
-from callback_helpers import parse_links, serialize_links
+from callback_helpers import (
+    parse_links, serialize_links,
+    get_all_triggered_ids, should_open_editor, resolve_active_node_id,
+)
 from styles import stylesheet, mini_stylesheet
 
 
@@ -130,3 +133,123 @@ class TestStylesheets:
         main_node = next(r for r in stylesheet if r['selector'] == 'node')
         mini_node = next(r for r in mini_stylesheet if r['selector'] == 'node')
         assert main_node['style']['width'] != mini_node['style']['width']
+
+
+# ============================================================================
+# get_all_triggered_ids
+# ============================================================================
+
+class TestGetAllTriggeredIds:
+    def test_single_trigger(self):
+        props = [{'prop_id': 'btn-edit-node.n_clicks', 'value': 1}]
+        assert get_all_triggered_ids(props) == {'btn-edit-node'}
+
+    def test_multiple_triggers(self):
+        props = [
+            {'prop_id': 'cytoscape-graph.tapNodeData', 'value': {'id': 'A'}},
+            {'prop_id': 'edit-trigger-input.value', 'value': 'A|123'},
+        ]
+        assert get_all_triggered_ids(props) == {'cytoscape-graph', 'edit-trigger-input'}
+
+    def test_empty_list(self):
+        assert get_all_triggered_ids([]) == set()
+
+
+# ============================================================================
+# should_open_editor — double-click race condition regression tests
+# ============================================================================
+
+class TestShouldOpenEditor:
+    """Verify that the editor opens for all edit-intent triggers, including
+    when they are batched with tapNodeData in the same Dash callback cycle
+    (the double-click race condition).
+    """
+
+    def test_edit_trigger_alone(self):
+        assert should_open_editor({'edit-trigger-input'}, 'edit-trigger-input', None)
+
+    def test_btn_edit_node_alone(self):
+        assert should_open_editor({'btn-edit-node'}, 'btn-edit-node', None)
+
+    def test_btn_add_alone(self):
+        assert should_open_editor({'btn-add'}, 'btn-add', None)
+
+    def test_search_node_with_value(self):
+        assert should_open_editor({'search-node'}, 'search-node', 'MyNode')
+
+    def test_search_node_without_value(self):
+        assert not should_open_editor({'search-node'}, 'search-node', None)
+
+    def test_tap_node_does_not_open(self):
+        assert not should_open_editor({'cytoscape-graph'}, 'cytoscape-graph', None)
+
+    def test_unrelated_trigger_does_not_open(self):
+        assert not should_open_editor({'filter-context'}, 'filter-context', None)
+
+    # --- The critical double-click race condition scenario ---
+    def test_edit_trigger_batched_with_tap_node_data(self):
+        """When a double-click causes both tapNodeData and edit-trigger-input
+        to fire in the same Dash callback cycle, the editor must still open
+        even though tapNodeData appears first in the Input list."""
+        all_ids = {'cytoscape-graph', 'edit-trigger-input'}
+        assert should_open_editor(all_ids, 'cytoscape-graph', None)
+
+    def test_btn_edit_batched_with_tap_node_data(self):
+        all_ids = {'cytoscape-graph', 'btn-edit-node'}
+        assert should_open_editor(all_ids, 'cytoscape-graph', None)
+
+
+# ============================================================================
+# resolve_active_node_id — double-click race condition regression tests
+# ============================================================================
+
+class TestResolveActiveNodeId:
+    """Verify correct node selection, especially when triggers are batched."""
+
+    def test_edit_trigger_alone(self):
+        result = resolve_active_node_id(
+            {'edit-trigger-input'}, 'edit-trigger-input',
+            'NodeA|12345', None, None, 'stale')
+        assert result == 'NodeA'
+
+    def test_search_node(self):
+        result = resolve_active_node_id(
+            {'search-node'}, 'search-node',
+            None, 'SearchedNode', None, 'stale')
+        assert result == 'SearchedNode'
+
+    def test_tap_node(self):
+        result = resolve_active_node_id(
+            {'cytoscape-graph'}, 'cytoscape-graph',
+            None, None, {'id': 'TappedNode'}, 'stale')
+        assert result == 'TappedNode'
+
+    def test_fallback_to_current_name(self):
+        result = resolve_active_node_id(
+            {'filter-context'}, 'filter-context',
+            None, None, None, 'CurrentNode')
+        assert result == 'CurrentNode'
+
+    # --- The critical double-click race condition scenario ---
+    def test_edit_trigger_batched_with_tap_prefers_edit_trigger(self):
+        """When edit-trigger-input and tapNodeData fire together, the node ID
+        from edit-trigger-input is used (it carries the ID explicitly)."""
+        result = resolve_active_node_id(
+            {'cytoscape-graph', 'edit-trigger-input'}, 'cytoscape-graph',
+            'NodeA|12345', None, {'id': 'NodeA'}, 'stale')
+        assert result == 'NodeA'
+
+    def test_edit_trigger_batched_with_stale_tap(self):
+        """Even if tapNodeData points to a different (stale) node, the
+        edit-trigger-input value wins."""
+        result = resolve_active_node_id(
+            {'cytoscape-graph', 'edit-trigger-input'}, 'cytoscape-graph',
+            'CorrectNode|999', None, {'id': 'StaleNode'}, 'OldName')
+        assert result == 'CorrectNode'
+
+    def test_edit_trigger_without_data_falls_through(self):
+        """If edit-trigger-input fired but has no data, fall through."""
+        result = resolve_active_node_id(
+            {'cytoscape-graph', 'edit-trigger-input'}, 'cytoscape-graph',
+            None, None, {'id': 'TappedNode'}, 'stale')
+        assert result == 'TappedNode'

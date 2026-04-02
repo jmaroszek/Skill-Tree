@@ -14,10 +14,12 @@ from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
 from typing import Tuple, Any
 from callback_helpers import (
-    parse_links, serialize_links, get_trigger_id, node_options, build_filters,
+    parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
+    node_options, build_filters,
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     format_suggestions_table, format_traversal_ui, SECTION_TITLE_STYLE,
     render_link_rows, spawn_local_file_picker,
+    should_open_editor, resolve_active_node_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -463,7 +465,8 @@ def register_callbacks(app):
          Input('filter-goal', 'value'),
          Input('focus-goal-store', 'data'),
          Input('edit-trigger-input', 'value'),
-         Input('toggle-done-trigger-input', 'value')],
+         Input('toggle-done-trigger-input', 'value'),
+         Input('events-refresh-trigger', 'data')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -488,7 +491,7 @@ def register_callbacks(app):
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
-                     edit_trigger_data, toggle_done_trigger_data,
+                     edit_trigger_data, toggle_done_trigger_data, _events_refresh,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
@@ -503,6 +506,7 @@ def register_callbacks(app):
         """
                      
         trigger_id = _get_trigger_id()
+        all_triggered_ids = get_all_triggered_ids()
         msg = ""
         completion_check_node = None  # Set when a node transitions to Done
 
@@ -516,7 +520,7 @@ def register_callbacks(app):
 
         # Editor Sidebar State (380px matches sidebar_content width in layout.py)
         next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
-        if trigger_id in ('btn-edit-node', 'btn-add', 'edit-trigger-input') or (trigger_id == 'search-node' and search_val):
+        if should_open_editor(all_triggered_ids, trigger_id, search_val):
             next_ed_style['marginLeft'] = "0px"
         elif trigger_id in ('btn-save', 'btn-save-close', 'btn-clear', 'btn-delete', 'btn-close-editor'):
             # btn-save keeps the editor open; btn-save-close and × close it.
@@ -532,12 +536,9 @@ def register_callbacks(app):
         elif trigger_id == 'btn-close-filters':
             next_fil_style['right'] = "-320px"
 
-        active_node_id = None
-        if trigger_id == 'edit-trigger-input' and edit_trigger_data:
-            active_node_id = edit_trigger_data.split('|')[0] if edit_trigger_data else None
-        elif trigger_id == 'search-node' and search_val: active_node_id = search_val
-        elif trigger_id == 'cytoscape-graph' and tapped_node: active_node_id = tapped_node.get('id')
-        else: active_node_id = name
+        active_node_id = resolve_active_node_id(
+            all_triggered_ids, trigger_id, edit_trigger_data,
+            search_val, tapped_node, name)
 
         # Serialize multi-link arrays for storage
         obs_path = _serialize_links(obs_link_values)

@@ -179,8 +179,12 @@
                     e.stopPropagation();
                     cy.$('node:selected').unselect();
                     hitNode.select();
-                    _menuSource = 'main';
-                    triggerEdit();
+                    // Use edit-trigger-input (not btn-edit-node) to avoid a
+                    // race condition where tapNodeData from the first click
+                    // and the btn-edit-node click land in the same Dash
+                    // callback cycle, causing the sidebar-open trigger to
+                    // be masked by the earlier tapNodeData trigger.
+                    _setHiddenInput('edit-trigger-input', hitNode.id());
                 }
             });
 

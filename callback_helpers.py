@@ -49,6 +49,45 @@ def get_trigger_id():
     return triggered[0]['prop_id'].split('.')[0] if triggered else ""
 
 
+def get_all_triggered_ids(triggered_props=None):
+    """Return the set of ALL component IDs that fired in this callback cycle.
+
+    When multiple Dash Inputs change within the same update cycle (e.g. a
+    double-click fires both tapNodeData and edit-trigger-input), only
+    ``triggered[0]`` is returned by :func:`get_trigger_id`.  This helper
+    exposes the full set so callers can detect batched triggers.
+    """
+    if triggered_props is None:
+        triggered_props = dash.callback_context.triggered
+    return {t['prop_id'].split('.')[0] for t in triggered_props}
+
+
+def should_open_editor(all_triggered_ids, trigger_id, search_val):
+    """Decide whether the sidebar editor should slide open.
+
+    Checks ALL triggered IDs (not just the primary) so that an edit trigger
+    batched with tapNodeData in the same Dash cycle still opens the sidebar.
+    """
+    return bool(all_triggered_ids & {'btn-edit-node', 'btn-add', 'edit-trigger-input'}) or \
+           (trigger_id == 'search-node' and bool(search_val))
+
+
+def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
+                           search_val, tapped_node, current_name):
+    """Determine which node the editor should display.
+
+    Prefers ``edit-trigger-input`` (carries the node ID explicitly) even when
+    it is batched with another trigger like tapNodeData.
+    """
+    if ('edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
+        return edit_trigger_data.split('|')[0]
+    if trigger_id == 'search-node' and search_val:
+        return search_val
+    if trigger_id == 'cytoscape-graph' and tapped_node:
+        return tapped_node.get('id')
+    return current_name
+
+
 def node_options(nodes, exclude=None):
     """Build dropdown options from a list of nodes, optionally excluding one by name."""
     return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]
