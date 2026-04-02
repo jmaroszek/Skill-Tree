@@ -589,9 +589,10 @@ def register_goal_callbacks(app):
         State("subtask-remove-pending", "data"),
         State("selected-goal-store", "data"),
         State("goal-include-soft-needs", "value"),
+        State("goal-include-transitive", "value"),
         prevent_initial_call=True,
     )
-    def confirm_remove_subtask_edge(n_clicks, node_name, selected_goal, include_soft_value):
+    def confirm_remove_subtask_edge(n_clicks, node_name, selected_goal, include_soft_value, include_transitive_value):
         if not n_clicks or not node_name or not selected_goal:
             return no_update, no_update, no_update
 
@@ -601,6 +602,7 @@ def register_goal_callbacks(app):
                 graph_manager.remove_edge(node_name, selected_goal, e['type'])
 
         include_soft = bool(include_soft_value and "include" in include_soft_value)
+        include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
         subtree = graph_manager.get_goal_subtree(selected_goal)
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
@@ -610,7 +612,8 @@ def register_goal_callbacks(app):
         return (
             False,
             build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges,
-                                 goal_name=selected_goal, include_soft=include_soft),
+                                 goal_name=selected_goal, include_soft=include_soft,
+                                 include_transitive=include_transitive),
             f"remove-subtask-{node_name}",
         )
 
@@ -623,15 +626,17 @@ def register_goal_callbacks(app):
         State("subtask-remove-pending", "data"),
         State("selected-goal-store", "data"),
         State("goal-include-soft-needs", "value"),
+        State("goal-include-transitive", "value"),
         prevent_initial_call=True,
     )
-    def confirm_delete_subtask_node(n_clicks, node_name, selected_goal, include_soft_value):
+    def confirm_delete_subtask_node(n_clicks, node_name, selected_goal, include_soft_value, include_transitive_value):
         if not n_clicks or not node_name or not selected_goal:
             return no_update, no_update, no_update
 
         graph_manager.delete_node(node_name)
 
         include_soft = bool(include_soft_value and "include" in include_soft_value)
+        include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
         subtree = graph_manager.get_goal_subtree(selected_goal)
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
@@ -641,22 +646,25 @@ def register_goal_callbacks(app):
         return (
             False,
             build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges,
-                                 goal_name=selected_goal, include_soft=include_soft),
+                                 goal_name=selected_goal, include_soft=include_soft,
+                                 include_transitive=include_transitive),
             f"delete-subtask-{node_name}",
         )
 
-    # --- Soft Needs Filter Toggle ---
+    # --- Subtasks Filter Toggles ---
     @app.callback(
         Output("goal-subtasks-table-container", "children", allow_duplicate=True),
         Input("goal-include-soft-needs", "value"),
+        Input("goal-include-transitive", "value"),
         State("selected-goal-store", "data"),
         prevent_initial_call=True,
     )
-    def toggle_soft_needs_filter(include_soft_value, selected_goal):
+    def toggle_subtask_filters(include_soft_value, include_transitive_value, selected_goal):
         if not selected_goal:
             return no_update
 
         include_soft = bool(include_soft_value and "include" in include_soft_value)
+        include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
         subtree = graph_manager.get_goal_subtree(selected_goal)
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
@@ -666,6 +674,7 @@ def register_goal_callbacks(app):
         return build_subtasks_table(
             subtask_nodes, graph_manager=graph_manager, edges=edges,
             goal_name=selected_goal, include_soft=include_soft,
+            include_transitive=include_transitive,
         )
 
     # --- Add Node Modal: Open ---
@@ -716,11 +725,14 @@ def register_goal_callbacks(app):
                          if n.name not in exclude]
         all_node_opts = [{"label": n.name, "value": n.name}
                          for n in sorted(all_nodes, key=lambda n: n.name)]
+        resource_opts = [{"label": n.name, "value": n.name}
+                         for n in sorted(all_nodes, key=lambda n: n.name)
+                         if n.type == 'Resource']
 
         return (
             True, type_opts, ctx_opts, [{"label": "None", "value": ""}],
             existing_opts, "", "", "", "hours",
-            all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts,
+            all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts, resource_opts,
             [], [], [], [], [], [],
             [''], [''], [''],
         )
@@ -986,6 +998,8 @@ def register_goal_callbacks(app):
         State({'type': 'goal-add-obsidian-link', 'index': ALL}, 'value'),
         State({'type': 'goal-add-drive-link', 'index': ALL}, 'value'),
         State({'type': 'goal-add-website-link', 'index': ALL}, 'value'),
+        State("goal-include-soft-needs", "value"),
+        State("goal-include-transitive", "value"),
         prevent_initial_call=True,
     )
     def save_add_node(n_clicks, selected_goal, mode, existing_node,
@@ -993,7 +1007,8 @@ def register_goal_callbacks(app):
                       value, interest, difficulty, time_o, time_m, time_p,
                       time_unit,
                       needs_hard, needs_soft, supports_hard, supports_soft, helps, edge_resources,
-                      obsidian_vals, drive_vals, website_vals):
+                      obsidian_vals, drive_vals, website_vals,
+                      include_soft_value, include_transitive_value):
         if not n_clicks or not selected_goal:
             return (no_update,) * 4
 
@@ -1039,11 +1054,19 @@ def register_goal_callbacks(app):
                 helps or [], edge_resources or [],
             )
 
-        # Add edge: node_name → selected_goal (node_name is a dependency of the goal)
-        try:
-            graph_manager.add_edge(node_name, selected_goal, EDGE_NEEDS_HARD)
-        except (ValueError, Exception) as e:
-            return no_update, str(e), no_update, no_update
+        # Add a hard edge to the goal only if the user didn't already set one
+        # via supports_hard/supports_soft (which would have been applied by sync_edges above)
+        existing_edges = graph_manager.get_edges()
+        has_goal_edge = any(
+            e['source'] == node_name and e['target'] == selected_goal
+            and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
+            for e in existing_edges
+        )
+        if not has_goal_edge:
+            try:
+                graph_manager.add_edge(node_name, selected_goal, EDGE_NEEDS_HARD)
+            except (ValueError, Exception) as e:
+                return no_update, str(e), no_update, no_update
 
         # Rebuild subtasks table
         subtree = graph_manager.get_goal_subtree(selected_goal)
@@ -1052,9 +1075,14 @@ def register_goal_callbacks(app):
         subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
         edges = graph_manager.get_edges()
 
+        include_soft = bool(include_soft_value and "include" in include_soft_value)
+        include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
+
         return (
             False,
             "",
             f"add-node-{node_name}",
-            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges, goal_name=selected_goal),
+            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges,
+                                 goal_name=selected_goal, include_soft=include_soft,
+                                 include_transitive=include_transitive),
         )

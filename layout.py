@@ -160,7 +160,8 @@ sidebar_content = html.Div(
             ], className="d-flex justify-content-end mt-4"),
             html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
-            dcc.Store(id='node-time-unit-prev', data='hours')
+            dcc.Store(id='node-time-unit-prev', data='hours'),
+            dcc.Store(id='node-original-name', data=None)
         ])
     ],
     className="ps-3 pe-4 pb-2 pt-0",
@@ -267,6 +268,9 @@ filters_content = html.Div([
         id="filter-done",
         switch=True,
     ),
+
+    html.Hr(className="my-3"),
+    dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="w-100 mb-3"),
 ], className="px-3 pb-2 pt-0", style={"width": "320px", "minWidth": "320px"})
 
 
@@ -609,6 +613,15 @@ def build_app_layout(initial_elements, env="production"):
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         migration_modal,
         error_modal,
+        dbc.Modal([
+            dbc.ModalHeader(dbc.ModalTitle("Rename Node")),
+            dbc.ModalBody(id="node-rename-modal-body"),
+            dbc.ModalFooter([
+                dbc.Button("Cancel", id="btn-node-rename-cancel", color="secondary", className="me-2"),
+                dbc.Button("Rename", id="btn-node-rename-confirm", color="primary"),
+            ]),
+        ], id="modal-node-confirm-rename", is_open=False, centered=True),
+        dcc.Store(id='node-rename-pending', data=None),
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
 

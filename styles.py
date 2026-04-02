@@ -44,8 +44,8 @@ stylesheet = [
     {
         'selector': '[type = "Needs_Hard"]',
         'style': {
-            'target-arrow-color': '#f8f9fa',
-            'line-color': '#adb5bd',
+            'target-arrow-color': '#6c757d',
+            'line-color': '#6c757d',
             'line-style': 'solid'
         }
     },

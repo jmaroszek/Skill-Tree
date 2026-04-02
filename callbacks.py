@@ -147,6 +147,25 @@ def _handle_group_delete(group_delete_data):
 def register_callbacks(app):
     """Register all Dash callbacks for the application."""
 
+    # --- Clear Filters ---
+    @app.callback(
+        Output('filter-node-type', 'value'),
+        Output('filter-context', 'value'),
+        Output('filter-subcontext', 'value'),
+        Output('filter-goal', 'value'),
+        Output('community-method', 'value'),
+        Output('filter-community', 'value'),
+        Output('filter-value', 'value'),
+        Output('filter-interest', 'value'),
+        Output('filter-difficulty', 'value'),
+        Output('filter-time', 'value'),
+        Output('filter-done', 'value'),
+        Input('btn-clear-filters', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def clear_filters(_):
+        return 'All', 'All', 'All', 'All', 'components', 'All', 1, 1, 10, None, ['hide_done']
+
     # --- Tooltip Formatting ---
     @app.callback(
         Output('hover-tooltip', 'children'),
@@ -159,26 +178,79 @@ def register_callbacks(app):
             data = goal_data
         if not data: return ""
 
-        final_time = data.get('time', 0)
-        time_str = ConfigManager.format_time_friendly(final_time)
-
         node_type = data.get('type', '')
-        lines = [
-            html.Div(html.Strong(data.get('label', data.get('id', ''))),
-                     style={"fontSize": "0.95rem", "marginBottom": "4px", "borderBottom": "1px solid #495057", "paddingBottom": "4px"}),
-            html.Div([html.Strong("Type: "), node_type]),
-        ]
+        node_id = data.get('id', data.get('label', ''))
 
-        lines.extend([
-            html.Div([html.Strong("Status: "), data.get('status', '')]),
-            html.Div([html.Strong("Context: "), data.get('context', '')]),
-            html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
-            html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
-            html.Div([html.Strong("Time: "), time_str])
-        ])
+        header = html.Div(
+            html.Strong(data.get('label', node_id)),
+            style={"fontSize": "0.95rem", "marginBottom": "4px",
+                   "borderBottom": "1px solid #495057", "paddingBottom": "4px"}
+        )
 
-        if node_type == 'Resource' and data.get('progress') is not None:
-            lines.append(html.Div([html.Strong("Progress: "), f"{data.get('progress', 0)}%"]))
+        if node_type == 'Goal':
+            completion = manager.get_goal_completion(node_id)
+            total = completion.get('total', 0)
+            done = completion.get('done', 0)
+            pct = completion.get('pct', 0)
+            remaining = completion.get('remaining_time', 0)
+
+            if total > 0:
+                if pct == 100:
+                    effective_status = "Done"
+                elif completion.get('is_blocked', False):
+                    effective_status = "Blocked"
+                else:
+                    effective_status = data.get('status', 'Open')
+            else:
+                effective_status = data.get('status', 'Open')
+
+            status_color = {"Done": "#198754", "Blocked": "#dc3545"}.get(effective_status, "#dee2e6")
+
+            lines = [
+                header,
+                html.Div([html.Strong("Type: "), node_type]),
+                html.Div([html.Strong("Status: "),
+                          html.Span(effective_status, style={"color": status_color})]),
+            ]
+            if data.get('context'):
+                lines.append(html.Div([html.Strong("Context: "), data.get('context', '')]))
+
+            if total > 0:
+                bar_color = "#198754" if pct == 100 else "#0d6efd"
+                lines += [
+                    html.Hr(style={"margin": "6px 0", "borderColor": "#495057"}),
+                    html.Div([html.Strong("Progress: "), f"{done}/{total} subtasks ({pct}%)"]),
+                    html.Div(
+                        html.Div(style={
+                            "width": f"{pct}%", "height": "6px",
+                            "backgroundColor": bar_color, "borderRadius": "3px",
+                            "transition": "width 0.3s ease"
+                        }),
+                        style={"backgroundColor": "#495057", "borderRadius": "3px",
+                               "margin": "4px 0", "overflow": "hidden"}
+                    ),
+                    html.Div([html.Strong("Remaining: "),
+                              ConfigManager.format_time_friendly(remaining)]),
+                ]
+            else:
+                lines.append(html.Div("No subtasks yet", style={"color": "#6c757d", "fontStyle": "italic"}))
+
+        else:
+            final_time = data.get('time', 0)
+            time_str = ConfigManager.format_time_friendly(final_time)
+
+            lines = [
+                header,
+                html.Div([html.Strong("Type: "), node_type]),
+                html.Div([html.Strong("Status: "), data.get('status', '')]),
+                html.Div([html.Strong("Context: "), data.get('context', '')]),
+                html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
+                html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
+                html.Div([html.Strong("Time: "), time_str]),
+            ]
+
+            if node_type == 'Resource' and data.get('progress') is not None:
+                lines.append(html.Div([html.Strong("Progress: "), f"{data.get('progress', 0)}%"]))
 
         return lines
 
@@ -199,7 +271,8 @@ def register_callbacks(app):
          Output('website-links-store', 'data'),
          # Type-specific outputs
          Output('node-progress', 'value'), Output('node-time-unit', 'value'),
-         Output('node-time-unit-prev', 'data', allow_duplicate=True)],
+         Output('node-time-unit-prev', 'data', allow_duplicate=True),
+         Output('node-original-name', 'data', allow_duplicate=True)],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
@@ -221,6 +294,7 @@ def register_callbacks(app):
             [''], [''], [''],
             # Type-specific defaults
             0, "hours", "hours",
+            None,  # node-original-name
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
@@ -234,12 +308,12 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*6
+                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*7
         elif data:
             name = data.get('id')
 
         if not name or not data:
-            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*6
+            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*7
 
         edges = manager.get_edges()
 
@@ -255,6 +329,7 @@ def register_callbacks(app):
         res_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_RESOURCE]
 
         filtered_options = _node_options(all_nodes, exclude=name)
+        resource_options = _node_options([n for n in all_nodes if n.type == 'Resource'], exclude=name)
 
         # actual_status: the authoritative status from the DB (may be Blocked/Open/Done),
         # as opposed to the Cytoscape data dict which may be stale after state cascades.
@@ -274,12 +349,13 @@ def register_callbacks(app):
             actual_status, done_val,
             needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals,
             helps_vals, res_vals,
-            filtered_options, filtered_options, filtered_options, filtered_options, filtered_options, filtered_options,
+            filtered_options, filtered_options, filtered_options, filtered_options, filtered_options, resource_options,
             _parse_links(data.get('obsidian_path', '')),
             _parse_links(data.get('google_drive_path', '')),
             _parse_links(data.get('website', '')),
             # Type-specific fields
             data.get('progress') or 0, friendly_unit, friendly_unit,
+            name,  # node-original-name — track what was loaded
         ]
 
     # --- Type-adaptive field visibility ---
@@ -362,7 +438,10 @@ def register_callbacks(app):
          Output('filter-goal', 'options'),
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
-         Output('node-completion-events-store', 'data')],
+         Output('node-completion-events-store', 'data'),
+         Output('modal-node-confirm-rename', 'is_open'),
+         Output('node-rename-modal-body', 'children'),
+         Output('node-rename-pending', 'data')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -399,7 +478,8 @@ def register_callbacks(app):
          State({'type': 'website-link', 'index': ALL}, 'value'),
          State('node-progress', 'value'),
          State('cytoscape-graph', 'elements'),
-         State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style')]
+         State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style'),
+         State('node-original-name', 'data')]
     )
     def core_engine(save_clicks, save_close_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
@@ -414,7 +494,7 @@ def register_callbacks(app):
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
                      obs_link_values, drive_link_values, website_link_values,
                      progress_val,
-                     current_elements, ed_style, fil_style):
+                     current_elements, ed_style, fil_style, original_name):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -478,13 +558,13 @@ def register_callbacks(app):
                 ])
                 if form_has_content:
                     msg = "Error: Node name is required."
-                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
                 else:
                     next_ed_style['marginLeft'] = "-380px"
-                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
             if not n_type:
                 msg = "Error: Node type is required."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
             try:
                 # Track if this save marks the node Done (for event completion check)
                 if status_done and "Done" in (status_done or []):
@@ -495,6 +575,28 @@ def register_callbacks(app):
                 t_m = float(time_m or 0) * multiplier
                 t_p = float(time_p or 0) * multiplier
 
+                # Intercept rename: if original name differs from current name, show confirm modal
+                if (trigger_id in ('btn-save', 'btn-save-close', 'btn-close-editor') and
+                        original_name and original_name.strip() and
+                        name.strip() != original_name.strip() and
+                        manager.get_node(original_name.strip())):
+                    pending = {
+                        'old_name': original_name.strip(),
+                        'new_name': name.strip(),
+                        'n_type': n_type, 'desc': desc, 'val': val,
+                        't_o': t_o, 't_m': t_m, 't_p': t_p,
+                        'interest': interest, 'diff': diff,
+                        'status_done': status_done, 'context': context, 'subctx': subctx,
+                        'obs_path': obs_path, 'drive_path': drive_path, 'website_path': website_path,
+                        'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
+                        'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s,
+                        'e_helps': e_helps, 'e_res': e_res,
+                        'progress_val': progress_val,
+                        'close_after': trigger_id == 'btn-save-close',
+                    }
+                    modal_body = f'Rename "{original_name.strip()}" to "{name.strip()}"?'
+                    return current_elements, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, True, modal_body, pending
+
                 msg = _handle_save(name, n_type, desc, val, t_o, t_m, t_p,
                                    interest, diff, status_done, context, subctx,
                                    obs_path, drive_path, website_path,
@@ -503,7 +605,7 @@ def register_callbacks(app):
                                    progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-delete' and name:
@@ -627,7 +729,7 @@ def register_callbacks(app):
             except Exception:
                 pass
 
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events
+        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, False, dash.no_update, dash.no_update
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -638,6 +740,49 @@ def register_callbacks(app):
     def clear_message(n):
         if n > 0: return "", True
         return dash.no_update, dash.no_update
+
+    @app.callback(
+        Output('modal-node-confirm-rename', 'is_open', allow_duplicate=True),
+        Output('node-rename-pending', 'data', allow_duplicate=True),
+        Input('btn-node-rename-cancel', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def cancel_rename_node(_):
+        return False, None
+
+    @app.callback(
+        Output('modal-node-confirm-rename', 'is_open', allow_duplicate=True),
+        Output('node-rename-pending', 'data', allow_duplicate=True),
+        Output('save-output', 'children', allow_duplicate=True),
+        Output('clear-interval', 'disabled', allow_duplicate=True),
+        Output('cytoscape-graph', 'elements', allow_duplicate=True),
+        Output('node-original-name', 'data', allow_duplicate=True),
+        Input('btn-node-rename-confirm', 'n_clicks'),
+        State('node-rename-pending', 'data'),
+        prevent_initial_call=True
+    )
+    def confirm_rename_node(_, pending):
+        if not pending:
+            return False, None, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        old_name = pending['old_name']
+        new_name = pending['new_name']
+        old_node = manager.get_node(old_name)
+        if not old_node:
+            return False, None, f"Error: Node '{old_name}' not found.", False, dash.no_update, dash.no_update
+        # Delete old node (removes it and its edges), then save under new name
+        manager.delete_node(old_name)
+        _handle_save(
+            new_name, pending['n_type'], pending['desc'], pending['val'],
+            pending['t_o'], pending['t_m'], pending['t_p'],
+            pending['interest'], pending['diff'], pending['status_done'],
+            pending['context'], pending['subctx'],
+            pending['obs_path'], pending['drive_path'], pending['website_path'],
+            pending['e_needs_h'], pending['e_needs_s'],
+            pending['e_supp_h'], pending['e_supp_s'], pending['e_helps'], pending['e_res'],
+            pending['progress_val']
+        )
+        elements = generate_elements()
+        return False, None, f"Renamed '{old_name}' \u2192 '{new_name}'.", False, elements, new_name
 
     @app.callback(
         Output("modal-error", "is_open"),

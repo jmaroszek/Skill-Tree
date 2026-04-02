@@ -196,6 +196,95 @@ class TestNodeCRUD:
 
 
 # ============================================================================
+# Node Rename (delete old + re-add under new name)
+# ============================================================================
+
+class TestNodeRename:
+    """Simulates the rename flow used by the UI: delete old node, save new node
+    with _handle_save (which calls add_node + sync_edges)."""
+
+    def _rename(self, mgr, old_name, new_name, edges_from_form=None):
+        """Helper that mirrors what confirm_rename_node does in callbacks.py."""
+        old = mgr.get_node(old_name)
+        assert old is not None
+        mgr.delete_node(old_name)
+        new_node = _make_node(new_name, type=old.type, description=old.description,
+                              value=old.value, interest=old.interest, difficulty=old.difficulty,
+                              status=old.status, context=old.context,
+                              time_o=old.time_o, time_m=old.time_m, time_p=old.time_p)
+        mgr.add_node(new_node)
+        if edges_from_form:
+            mgr.sync_edges(new_name, **edges_from_form)
+
+    def test_rename_preserves_attributes(self, mgr):
+        mgr.add_node(_make_node("OldName", description="desc", value=8,
+                                interest=3, difficulty=7, context="Mind"))
+        self._rename(mgr, "OldName", "NewName")
+        assert mgr.get_node("OldName") is None
+        new = mgr.get_node("NewName")
+        assert new is not None
+        assert new.description == "desc"
+        assert new.value == 8
+        assert new.interest == 3
+        assert new.difficulty == 7
+        assert new.context == "Mind"
+
+    def test_rename_rewires_outgoing_edges(self, mgr):
+        """When B is renamed to B2, B2 should still hard-need A."""
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        # The UI form would still list A as a hard prerequisite
+        self._rename(mgr, "B", "B2", edges_from_form={
+            'needs_hard': ["A"], 'needs_soft': [], 'supports_hard': [],
+            'supports_soft': [], 'helps': [], 'resources': []})
+        edges = mgr.get_edges()
+        assert any(e['source'] == "A" and e['target'] == "B2" for e in edges)
+        assert not any(e['target'] == "B" for e in edges)
+
+    def test_rename_rewires_incoming_edges(self, mgr):
+        """When A is renamed to A2, B should still hard-need A2 (via sync on B)."""
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        # Rename A — the supports direction is handled by the form
+        self._rename(mgr, "A", "A2", edges_from_form={
+            'needs_hard': [], 'needs_soft': [], 'supports_hard': ["B"],
+            'supports_soft': [], 'helps': [], 'resources': []})
+        edges = mgr.get_edges()
+        assert any(e['source'] == "A2" and e['target'] == "B" for e in edges)
+        assert not any(e['source'] == "A" for e in edges)
+
+    def test_rename_preserves_state_cascade(self, mgr):
+        """Renaming a Done prereq should keep the dependent Open, not Blocked."""
+        mgr.add_node(_make_node("Prereq", status="Done"))
+        mgr.add_node(_make_node("Dep"))
+        mgr.add_edge("Prereq", "Dep", EDGE_NEEDS_HARD)
+        assert mgr.get_node("Dep").status == "Open"
+        self._rename(mgr, "Prereq", "Prereq2", edges_from_form={
+            'needs_hard': [], 'needs_soft': [], 'supports_hard': ["Dep"],
+            'supports_soft': [], 'helps': [], 'resources': []})
+        assert mgr.get_node("Dep").status == "Open"
+
+    def test_rename_undone_prereq_blocks_dependent(self, mgr):
+        """Renaming an incomplete prereq should keep the dependent Blocked."""
+        mgr.add_node(_make_node("Prereq", status="Open"))
+        mgr.add_node(_make_node("Dep"))
+        mgr.add_edge("Prereq", "Dep", EDGE_NEEDS_HARD)
+        assert mgr.get_node("Dep").status == "Blocked"
+        self._rename(mgr, "Prereq", "Prereq2", edges_from_form={
+            'needs_hard': [], 'needs_soft': [], 'supports_hard': ["Dep"],
+            'supports_soft': [], 'helps': [], 'resources': []})
+        assert mgr.get_node("Dep").status == "Blocked"
+
+    def test_rename_old_node_removed(self, mgr):
+        mgr.add_node(_make_node("Old"))
+        self._rename(mgr, "Old", "New")
+        assert mgr.get_node("Old") is None
+        assert mgr.get_node("New") is not None
+
+
+# ============================================================================
 # Edge Operations
 # ============================================================================
 

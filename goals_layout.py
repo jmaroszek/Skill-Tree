@@ -300,13 +300,22 @@ def build_goals_tab_content():
                             dbc.Button("Add Node", id="btn-goal-add-node", color="success", size="sm",
                                        className="ms-2"),
                         ], className="d-flex align-items-center"),
-                        dbc.Checklist(
-                            id="goal-include-soft-needs",
-                            options=[{"label": "Include Soft Needs", "value": "include"}],
-                            value=["include"],
-                            switch=True,
-                            style={"fontSize": "0.85rem"},
-                        ),
+                        html.Div([
+                            dbc.Checklist(
+                                id="goal-include-soft-needs",
+                                options=[{"label": "Include Soft Needs", "value": "include"}],
+                                value=[],
+                                switch=True,
+                                style={"fontSize": "0.85rem"},
+                            ),
+                            dbc.Checklist(
+                                id="goal-include-transitive",
+                                options=[{"label": "Include Transitive", "value": "include"}],
+                                value=[],
+                                switch=True,
+                                style={"fontSize": "0.85rem"},
+                            ),
+                        ], className="d-flex gap-3"),
                     ], className="d-flex align-items-center justify-content-between mb-3"),
                     html.Div(id="goal-subtasks-table-container"),
                 ], className="goal-left-column", style={"flex": "1", "minWidth": "500px", "overflowY": "auto", "paddingRight": "8px"}),
@@ -437,7 +446,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
        })
 
 
-def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_name=None, include_soft=True):
+def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_name=None, include_soft=True, include_transitive=True):
     """Builds the subtasks table for a goal detail view.
 
     Args:
@@ -446,6 +455,7 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
         edges: List of all edge dicts.
         goal_name: The goal node name, used to compute need types.
         include_soft: If False, only hard-need subtasks are shown.
+        include_transitive: If False, only direct children of the goal are shown.
     """
     if not subtask_nodes:
         return html.Div(
@@ -483,11 +493,21 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
             if e['target'] == goal_name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
                 direct_children.add(e['source'])
 
+    # Filter to direct-only if requested
+    if not include_transitive:
+        subtask_nodes = [n for n in subtask_nodes if n.name in direct_children]
+
+    if not subtask_nodes:
+        return html.Div(
+            html.P("No direct subtasks for this goal.", className="text-muted"),
+            className="text-center py-3"
+        )
+
     rows = []
     for node in subtask_nodes:
         status_color = {"Done": "success", "Blocked": "danger", "Open": "primary"}.get(node.status, "secondary")
         need = need_types.get(node.name, "Hard")
-        need_color = "danger" if need == "Hard" else "info"
+        need_color = "secondary"
 
         # Unlocks
         unlocks = []
@@ -500,7 +520,7 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
         res_str = ", ".join(res) if res else "\u2014"
 
         is_direct = node.name in direct_children
-        remove_btn = dbc.Button(
+        btn = dbc.Button(
             "\u00d7",
             id={"type": "subtask-remove", "index": node.name},
             color="danger",
@@ -511,8 +531,17 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
                 "fontSize": "0.75rem",
                 "lineHeight": "1.4",
                 "opacity": "1" if is_direct else "0.25",
+                "pointerEvents": "auto" if is_direct else "none",
             },
         )
+        if is_direct:
+            remove_btn = btn
+        else:
+            remove_btn = html.Span(
+                btn,
+                title="Transitive dependency — remove from its parent instead",
+                style={"cursor": "not-allowed", "display": "inline-block"},
+            )
 
         rows.append(html.Tr([
             html.Td(
@@ -530,6 +559,7 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
             html.Td(str(node.subcontext) if node.subcontext else "\u2014",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.value), style={"verticalAlign": "middle", "color": "#6c757d"}),
+            html.Td(str(node.interest), style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.difficulty), style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(ConfigManager.format_time_friendly(node.time) if node.time and node.time > 0 else "\u2014",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
@@ -547,6 +577,7 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
             html.Th("Context"),
             html.Th("Subcontext"),
             html.Th("Value"),
+            html.Th("Interest"),
             html.Th("Effort"),
             html.Th("Time"),
             html.Th("Unlocks"),
