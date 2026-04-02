@@ -218,11 +218,19 @@ def format_traversal_ui(tapped_node, active_node_id, manager):
     """Build the dependency chains and synergies display for the selected node."""
     traversal_ui = html.Div(className="text-muted", children="Select a node to see dependencies.")
     synergies_ui = html.Div(className="text-muted", children="Select a node to see synergies.")
+    description = ""
 
-    if not tapped_node:
-        return traversal_ui, synergies_ui
+    node_id = active_node_id or (tapped_node.get('id') if tapped_node else None)
 
-    node_id = tapped_node.get('id')
+    if not node_id:
+        return traversal_ui, synergies_ui, description
+
+    node = manager.get_node(node_id)
+    if node:
+        description = node.description.strip() if node.description else "No description available."
+    else:
+        description = ""
+
     chains = manager.get_prerequisite_chains(node_id)
 
     edges = manager.get_edges()
@@ -242,7 +250,7 @@ def format_traversal_ui(tapped_node, active_node_id, manager):
 
     synergies_ui = html.Div([html.Div(s) for s in synergies]) if synergies else html.P("None", className="text-dark")
 
-    return traversal_ui, synergies_ui
+    return traversal_ui, synergies_ui, description
 
 
 # --- Link Row UI Helper ---

@@ -428,7 +428,7 @@ def register_callbacks(app):
     @app.callback(
         [Output('cytoscape-graph', 'elements'), Output('save-output', 'children'),
          Output('suggestions-table', 'children'), Output('traversal-chains', 'children'),
-         Output('synergies-list', 'children'),
+         Output('synergies-list', 'children'), Output('node-info-description', 'children'),
          Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
          Output('filter-community', 'options'), Output('search-node', 'options'),
          Output('sidebar-editor-container', 'style'), Output('sidebar-filters-container', 'style'),
@@ -672,7 +672,7 @@ def register_callbacks(app):
 
         count = sugg_count if sugg_count else 5
         sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
-        traversal_ui, synergies_ui = _format_traversal_ui(tapped_node, active_node_id)
+        traversal_ui, synergies_ui, description_ui = _format_traversal_ui(tapped_node, active_node_id)
 
         all_nodes = manager.get_all_nodes()
         search_options = _node_options(all_nodes)
@@ -729,7 +729,7 @@ def register_callbacks(app):
             except Exception:
                 pass
 
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, False, dash.no_update, dash.no_update
+        return elements, msg, sugg_ui, traversal_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, False, dash.no_update, dash.no_update
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),

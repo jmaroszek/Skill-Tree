@@ -291,7 +291,14 @@ relationships_view = html.Div([
             html.Div(id="synergies-list")
         ]),
     ], style={"display": "flex", "alignItems": "flex-start"})
-])
+], style={"flex": "0 0 auto", "minWidth": "400px"})
+
+description_view = html.Div([
+    html.H6("Description", className="text-muted mb-2", style=_section_title_style),
+    html.Div(id="node-info-description", style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
+], style={"flex": "1", "marginLeft": "3rem"})
+
+# --- Suggestions View ---
 
 suggestions_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=5),
@@ -395,9 +402,14 @@ error_modal = dbc.Modal([
 ], id="modal-error", size="sm", is_open=False, centered=True)
 
 
-# --- Bottom Panel (Relationships only) ---
+# --- Bottom Panel (Relationships + Description) ---
 
-bottom_panel = html.Div([relationships_view], className="p-3")
+bottom_panel = html.Div([
+    html.Div([
+        relationships_view,
+        description_view
+    ], className="d-flex")
+], className="p-3")
 
 
 # --- Floating Tooltip ---
