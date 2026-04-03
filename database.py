@@ -1,5 +1,4 @@
 import sqlite3
-import os
 from pathlib import Path
 
 DB_FILENAME = "skilltree.db"
@@ -97,20 +96,6 @@ def init_db():
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
-
-
-    # --- Migrations ---
-    # Convert legacy EDGE_RESOURCE edges to Needs_Soft (skip duplicates)
-    cursor.execute("""
-        DELETE FROM Edges WHERE type='Resource'
-        AND EXISTS (
-            SELECT 1 FROM Edges e2
-            WHERE e2.source = Edges.source AND e2.target = Edges.target
-            AND e2.type = 'Needs_Soft'
-        )
-    """)
-    cursor.execute("UPDATE Edges SET type='Needs_Soft' WHERE type='Resource'")
-
     conn.commit()
     conn.close()
     _initialized = True

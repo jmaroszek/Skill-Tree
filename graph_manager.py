@@ -311,12 +311,28 @@ class GraphManager:
 
         return visited
 
-    def get_goal_completion(self, goal_name: str) -> dict:
+    def get_goal_completion(self, goal_name: str, include_soft: bool = True, include_transitive: bool = True) -> dict:
         """Returns completion stats for a goal based on its subtree.
+
+        Args:
+            include_soft: If False, only traverse hard-need edges.
+            include_transitive: If False, only count direct children of the goal.
 
         Returns dict with: total, done, pct, remaining_time
         """
-        subtree = self.get_goal_subtree(goal_name)
+        edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) if include_soft else (EDGE_NEEDS_HARD,)
+        subtree = self.get_goal_subtree(goal_name, edge_types=edge_types)
+        if include_transitive is False:
+            # Restrict to direct children only
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                placeholders = ','.join('?' for _ in edge_types)
+                cursor.execute(
+                    f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
+                    (goal_name, *edge_types)
+                )
+                direct = {row[0] for row in cursor.fetchall()}
+            subtree = subtree & direct
         if not subtree:
             return {"total": 0, "done": 0, "pct": 0, "remaining_time": 0.0}
 

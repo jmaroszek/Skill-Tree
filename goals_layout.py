@@ -122,15 +122,15 @@ def build_goals_tab_content():
                         {"label": "Hours", "value": "hours"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
-                    ], value="hours", size="sm", style={"width": "100px", "marginLeft": "auto"})
+                    ], value="weeks", size="sm", style={"width": "100px", "marginLeft": "auto"})
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 dbc.Row([
                     dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
-                             dbc.Input(id="goal-add-time-o", type="number", min=0, value=0)]),
+                             dbc.Input(id="goal-add-time-o", type="number", min=0, value=2)]),
                     dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
-                             dbc.Input(id="goal-add-time-m", type="number", min=0, value=0)]),
+                             dbc.Input(id="goal-add-time-m", type="number", min=0, value=4)]),
                     dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
-                             dbc.Input(id="goal-add-time-p", type="number", min=0, value=0)]),
+                             dbc.Input(id="goal-add-time-p", type="number", min=0, value=6)]),
                 ]),
 
                 html.Hr(className="my-2"),
@@ -212,20 +212,13 @@ def build_goals_tab_content():
             html.Div([
                 # Left column: editor form + subtasks
                 html.Div([
-                    # --- Toolbar: Name + Buttons ---
+                    # --- Toolbar: Name only ---
                     html.Div([
-                        html.Div([
-                            dbc.Input(id="goal-name", type="text", placeholder="Goal Name",
-                                      style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
-                                             "border": "none", "borderBottom": "1px solid #495057", "color": "#dee2e6",
-                                             "borderRadius": "0", "paddingLeft": "0"}),
-                        ], style={"flex": "1"}),
-                        dbc.Button("Delete", id="btn-goal-delete", color="danger", size="sm",
-                                   className="ms-2",
-                                   style={"backgroundColor": ConfigManager.get_danger_color(),
-                                          "borderColor": ConfigManager.get_danger_color()}),
-                        dbc.Button("Save", id="btn-goal-save", color="primary", size="sm", className="ms-2"),
-                    ], className="d-flex align-items-end mb-2 mt-3"),
+                        dbc.Input(id="goal-name", type="text", placeholder="Goal Name",
+                                  style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
+                                         "border": "none", "borderBottom": "1px solid #495057", "color": "#dee2e6",
+                                         "borderRadius": "0", "paddingLeft": "0"}),
+                    ], className="mb-2 mt-3"),
 
                     # Save status feedback
                     html.Div(id="goal-save-status", className="text-success mb-3",
@@ -257,7 +250,7 @@ def build_goals_tab_content():
                             ),
                         ], width=7),
 
-                        # Right column: priority rank, context, subcontext, progress
+                        # Right column: priority rank, context, subcontext, progress, save/delete
                         dbc.Col([
                             html.H6("Priority Rank", className="mb-2"),
                             dbc.Select(
@@ -287,6 +280,14 @@ def build_goals_tab_content():
                                 html.Div(id="goal-stats-text", className="text-muted mb-3",
                                          style={"fontSize": "0.85rem"}),
                             ]),
+
+                            html.Div([
+                                dbc.Button("Delete", id="btn-goal-delete", color="danger", size="sm",
+                                           className="me-2",
+                                           style={"backgroundColor": ConfigManager.get_danger_color(),
+                                                  "borderColor": ConfigManager.get_danger_color()}),
+                                dbc.Button("Save", id="btn-goal-save", color="primary", size="sm"),
+                            ], className="d-flex justify-content-end mt-2"),
                         ], width=5),
                     ]),
 
@@ -309,7 +310,7 @@ def build_goals_tab_content():
                             ),
                             dbc.Checklist(
                                 id="goal-include-transitive",
-                                options=[{"label": "Include Transitive", "value": "include"}],
+                                options=[{"label": "Include Transitive Dependencies", "value": "include"}],
                                 value=[],
                                 switch=True,
                                 style={"fontSize": "0.85rem"},

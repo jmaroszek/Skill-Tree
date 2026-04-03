@@ -210,7 +210,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
     table_header = [html.Thead(html.Tr([
         html.Th("Name"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
         html.Th("Subcontext"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
-        html.Th("Hard Unlocks"), html.Th("Soft Unlocks"),
+        html.Th("Hard Unlocks"), html.Th("Soft Unlocks"), html.Th("Synergies"),
         html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive"), html.Th("Website")
     ]))]
 
@@ -224,6 +224,10 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             e['source'] in resource_names
             for e in edges
             if e['target'] == s.name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
+        )
+        synergy_count = sum(
+            1 for e in edges
+            if e['type'] == EDGE_HELPS and (e['source'] == s.name or e['target'] == s.name)
         )
 
         row_data.append(html.Tr([
@@ -243,6 +247,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             html.Td(ConfigManager.format_time_friendly(s.time) if hasattr(s, 'time') and s.time else "0h"),
             html.Td(str(len(unlocks['hard']))),
             html.Td(str(len(unlocks['soft']))),
+            html.Td(str(synergy_count)),
             html.Td(_bool_icon(has_resource)),
             html.Td(_bool_icon(getattr(s, 'obsidian_path', None))),
             html.Td(_bool_icon(getattr(s, 'google_drive_path', None))),

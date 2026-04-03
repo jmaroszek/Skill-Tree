@@ -25,9 +25,9 @@ sidebar_content = html.Div(
             html.Span("×", id="btn-close-editor", className="fs-3 text-white float-end", style={"cursor": "pointer"})
         ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
         dbc.Form([
-            dbc.Badge(id="node-priority-badge", children="", color="warning",
-                      className="mb-2",
-                      style={"display": "none", "fontSize": "0.75rem"}),
+            html.Div(id="node-priority-badge", children=[],
+                     className="d-flex gap-1 flex-wrap mb-2",
+                     style={"display": "none"}),
             html.H5("Search", className="mt-2 mb-1"),
             html.Div(dcc.Dropdown(
                 id="search-node",

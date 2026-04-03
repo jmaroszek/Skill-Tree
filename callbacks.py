@@ -35,13 +35,16 @@ _node_options = node_options
 
 
 def _friendly_time_estimates(time_o, time_m, time_p):
-    """Convert stored hour values to the most logical display unit.
+    """Convert stored hour values for display in the node editor.
 
-    Uses the largest value (pessimistic) to pick the unit, then converts all
-    three consistently.  Returns (o, m, p, unit_string).
+    Uses weeks as the maximum unit — never months — so the editor always
+    shows values in hours or weeks regardless of magnitude.  Returns (o, m, p, unit_string).
     """
     max_hours = max(time_o or 0, time_m or 0, time_p or 0)
     _, unit = ConfigManager.hours_to_friendly_unit(max_hours)
+    # Cap at weeks: months is too coarse for direct editing
+    if unit == 'months':
+        unit = 'weeks'
     multiplier = ConfigManager.get_time_multiplier(unit)
     def _convert(h):
         v = round((h or 0) / multiplier, 2)
@@ -296,7 +299,7 @@ def register_callbacks(app):
         options = _node_options(all_nodes)
 
         def_out = [
-            "", "Learn", "", "", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
+            "", "Learn", "", "", "", 5, 5, 5, 2, 4, 6, "Open", [],
             [], [], [], [], [],
             options, options, options, options, options,
             [''], [''], [''],
@@ -424,15 +427,36 @@ def register_callbacks(app):
         Input('node-type', 'value'),
     )
     def update_node_priority_badge(node_name, node_type):
-        hidden = {"display": "none", "fontSize": "0.75rem"}
-        visible = {"display": "inline-block", "fontSize": "0.75rem"}
-        if not node_name or node_type != "Goal":
-            return "", hidden
+        hidden = {"display": "none"}
+        visible = {"display": "flex", "gap": "4px", "flexWrap": "wrap", "marginBottom": "8px"}
+        if not node_name:
+            return [], hidden
+
         priority_goals = ConfigManager.get_priority_goals()
-        if node_name in priority_goals:
+        if not priority_goals:
+            return [], hidden
+
+        badges = []
+
+        if node_type == "Goal" and node_name in priority_goals:
             rank = priority_goals.index(node_name) + 1
-            return f"#{rank} Priority", visible
-        return "", hidden
+            badges.append(dbc.Badge(f"#{rank} Priority", color="warning", style={"fontSize": "0.75rem"}))
+        else:
+            # Check if this node is in any priority goal's subtree
+            for rank_idx, goal_name in enumerate(priority_goals[:3]):
+                full_subtree = manager.get_goal_subtree(goal_name)
+                if node_name not in full_subtree:
+                    continue
+                rank = rank_idx + 1
+                hard_subtree = manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
+                rel_type = "Hard" if node_name in hard_subtree else "Soft"
+                rel_color = "primary" if rel_type == "Hard" else "info"
+                badges.append(dbc.Badge(f"#{rank} Priority", color="warning", style={"fontSize": "0.75rem"}))
+                badges.append(dbc.Badge(rel_type, color=rel_color, style={"fontSize": "0.75rem"}))
+
+        if not badges:
+            return [], hidden
+        return badges, visible
 
     # --- Core State: Save, Delete, Render ---
     @app.callback(
@@ -769,9 +793,19 @@ def register_callbacks(app):
         Output('node-original-name', 'data', allow_duplicate=True),
         Input('btn-node-rename-confirm', 'n_clicks'),
         State('node-rename-pending', 'data'),
+        State('filter-context', 'value'),
+        State('filter-subcontext', 'value'),
+        State('filter-done', 'value'),
+        State('filter-value', 'value'),
+        State('filter-interest', 'value'),
+        State('filter-time', 'value'),
+        State('filter-difficulty', 'value'),
+        State('filter-node-type', 'value'),
+        State('filter-goal', 'value'),
         prevent_initial_call=True
     )
-    def confirm_rename_node(_, pending):
+    def confirm_rename_node(_, pending, f_context, f_subcontext, f_done, f_value,
+                            f_interest, f_time, f_difficulty, f_node_types, f_goal):
         if not pending:
             return False, None, dash.no_update, dash.no_update, dash.no_update, dash.no_update
         old_name = pending['old_name']
@@ -791,7 +825,9 @@ def register_callbacks(app):
             pending['e_supp_h'], pending['e_supp_s'], pending['e_helps'],
             pending['progress_val']
         )
-        elements = generate_elements()
+        filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest,
+                                 f_time, f_difficulty, f_node_types, f_goal=f_goal)
+        elements = generate_elements(filters, active_node_id=new_name)
         return False, None, f"Renamed '{old_name}' \u2192 '{new_name}'.", False, elements, new_name
 
     @app.callback(
@@ -866,7 +902,8 @@ def register_callbacks(app):
         Output('setting-obsidian-path', 'value'),
         Output('setting-gdrive-path', 'value'),
         Output('setting-node-shapes-container', 'children'),
-        Output('setting-node-colors-container', 'children'),
+        Output('setting-node-status-colors-container', 'children'),
+        Output('setting-node-type-colors-container', 'children'),
         Output('setting-hpw', 'value'),
         Output('setting-hpm', 'value'),
         Input('main-tabs', 'active_tab'),
@@ -874,7 +911,7 @@ def register_callbacks(app):
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 19
+            return (dash.no_update,) * 20
 
         hp = ConfigManager.get_hyperparams()
         obs = ConfigManager.get_obsidian_vault()
@@ -931,12 +968,13 @@ def register_callbacks(app):
                 ), width=4),
             ], className="mb-2")
 
-        color_rows = [
-            html.H6("Status Colors", className="mb-2"),
+        status_color_rows = [
             _color_row("Open", "Open"),
             _color_row("Blocked", "Blocked"),
             _color_row("Done", "Done"),
-            html.H6("Type Colors", className="mt-3 mb-2"),
+        ]
+
+        type_color_rows = [
             _color_row("Goal", "Goal"),
             _color_row("Resource", "Resource"),
         ]
@@ -945,7 +983,8 @@ def register_callbacks(app):
 
         return (hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'),
                 hp.get('w_e'), hp.get('w_t'), hp.get('beta'), hp.get('goal_boost', 1.5),
-                ntypes, ctxts, subctxts, "Custom", obs, gdrive, shape_rows, color_rows,
+                ntypes, ctxts, subctxts, "Custom", obs, gdrive, shape_rows,
+                status_color_rows, type_color_rows,
                 ts.get('hours_per_week', 40), ts.get('hours_per_month', 160))
 
     # --- Settings: Profile selector ---
@@ -1517,13 +1556,13 @@ def register_callbacks(app):
             ], className="mb-2"))
         return shape_rows
 
-    # --- Settings: Restore Default Colors ---
+    # --- Settings: Restore Default Status Colors ---
     @app.callback(
-        Output('setting-node-colors-container', 'children', allow_duplicate=True),
-        Input('btn-restore-colors', 'n_clicks'),
+        Output('setting-node-status-colors-container', 'children', allow_duplicate=True),
+        Input('btn-restore-status-colors', 'n_clicks'),
         prevent_initial_call=True,
     )
-    def restore_default_colors(n_clicks):
+    def restore_default_status_colors(n_clicks):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_COLORS
@@ -1545,11 +1584,39 @@ def register_callbacks(app):
             ], className="mb-2")
 
         return [
-            html.H6("Status Colors", className="mb-2"),
             _color_row("Open", "Open"),
             _color_row("Blocked", "Blocked"),
             _color_row("Done", "Done"),
-            html.H6("Type Colors", className="mt-3 mb-2"),
+        ]
+
+    # --- Settings: Restore Default Type Colors ---
+    @app.callback(
+        Output('setting-node-type-colors-container', 'children', allow_duplicate=True),
+        Input('btn-restore-type-colors', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def restore_default_type_colors(n_clicks):
+        if not n_clicks:
+            return dash.no_update
+        from config import DEFAULT_NODE_COLORS
+
+        def _color_row(label, key):
+            return dbc.Row([
+                dbc.Col(dbc.Label(label, className="mb-0"), width=4, className="d-flex align-items-center"),
+                dbc.Col(dbc.Input(
+                    id={"type": "setting-color", "index": key},
+                    type="color",  # type: ignore[reportArgumentType]
+                    value=DEFAULT_NODE_COLORS.get(key, "#6c757d"),
+                    style={"height": "38px", "padding": "2px"},
+                ), width=4),
+                dbc.Col(html.Small(
+                    DEFAULT_NODE_COLORS.get(key, "#6c757d"),
+                    className="text-muted d-flex align-items-center",
+                    style={"fontSize": "0.8rem"},
+                ), width=4),
+            ], className="mb-2")
+
+        return [
             _color_row("Goal", "Goal"),
             _color_row("Resource", "Resource"),
         ]

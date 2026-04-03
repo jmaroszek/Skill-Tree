@@ -104,11 +104,13 @@ input[type=number] {
 
 /* Remove underline from restore-defaults icon buttons */
 #btn-restore-shapes,
-#btn-restore-colors {
+#btn-restore-status-colors,
+#btn-restore-type-colors {
     text-decoration: none !important;
 }
 #btn-restore-shapes:hover,
-#btn-restore-colors:hover {
+#btn-restore-status-colors:hover,
+#btn-restore-type-colors:hover {
     text-decoration: none !important;
     color: #fff !important;
 }

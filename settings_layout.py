@@ -36,21 +36,35 @@ def build_settings_tab_content():
                                 ], className="d-flex align-items-center mt-2 mb-1"),
                                 html.Small("Shape for each node type.", className="text-muted d-block mb-2"),
                                 html.Div(id="setting-node-shapes-container"),
-                            ], width=6),
+                            ], width=4),
                             dbc.Col([
                                 html.Div([
-                                    dbc.Label("Colors", className="mb-0"),
+                                    dbc.Label("Status Colors", className="mb-0"),
                                     html.Span([
-                                        dbc.Button(_RESTORE_ICON, id="btn-restore-colors",
+                                        dbc.Button(_RESTORE_ICON, id="btn-restore-status-colors",
                                                    color="link", size="sm",
                                                    className="ms-1 p-0",
                                                    style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd"}),
-                                        dbc.Tooltip("Restore defaults", target="btn-restore-colors", placement="top"),
+                                        dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top"),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
-                                html.Small("Color for node statuses and type overrides.", className="text-muted d-block mb-2"),
-                                html.Div(id="setting-node-colors-container"),
-                            ], width=6),
+                                html.Small("Color for Open, Blocked, and Done.", className="text-muted d-block mb-2"),
+                                html.Div(id="setting-node-status-colors-container"),
+                            ], width=4),
+                            dbc.Col([
+                                html.Div([
+                                    dbc.Label("Type Colors", className="mb-0"),
+                                    html.Span([
+                                        dbc.Button(_RESTORE_ICON, id="btn-restore-type-colors",
+                                                   color="link", size="sm",
+                                                   className="ms-1 p-0",
+                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd"}),
+                                        dbc.Tooltip("Restore defaults", target="btn-restore-type-colors", placement="top"),
+                                    ]),
+                                ], className="d-flex align-items-center mt-2 mb-1"),
+                                html.Small("Color overrides for Goal and Resource types.", className="text-muted d-block mb-2"),
+                                html.Div(id="setting-node-type-colors-container"),
+                            ], width=4),
                         ]),
 
                         # --- Contexts group ---
@@ -190,7 +204,7 @@ def build_settings_tab_content():
                      style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
             dbc.Button("Save Settings", id="btn-settings-save", color="primary",
                        className="w-100 mt-3", size="lg"),
-        ], style={"maxWidth": "900px", "padding": "0 24px"}),
+        ], style={"maxWidth": "1100px", "padding": "0 24px"}),
     ], style={
         "flex": "1",
         "overflowY": "auto",

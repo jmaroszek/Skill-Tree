@@ -22,9 +22,14 @@ def register_goal_callbacks(app):
         Input("goals-refresh-trigger", "data"),
         Input("main-tabs", "active_tab"),
         Input("goal-order-store", "data"),
+        Input("goal-include-soft-needs", "value"),
+        Input("goal-include-transitive", "value"),
         State("selected-goal-store", "data"),
     )
-    def render_goals_list(refresh_trigger, active_tab, goal_order, selected_goal):
+    def render_goals_list(refresh_trigger, active_tab, goal_order, include_soft_value, include_transitive_value, selected_goal):
+        include_soft = bool(include_soft_value and "include" in include_soft_value)
+        include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
+
         all_nodes = graph_manager.get_all_nodes()
         goals = [n for n in all_nodes if n.type == "Goal"]
 
@@ -44,7 +49,7 @@ def register_goal_callbacks(app):
             goal = goal_map.get(pg_name)
             if not goal:
                 continue
-            completion = graph_manager.get_goal_completion(goal.name)
+            completion = graph_manager.get_goal_completion(goal.name, include_soft=include_soft, include_transitive=include_transitive)
             cards.append(build_goal_card(
                 goal.name, goal.status, completion,
                 completion.get("total", 0),
@@ -63,7 +68,7 @@ def register_goal_callbacks(app):
         ordered_non_priority = [goal_map[n] for n in (ordered_names + remaining) if n in goal_map]
 
         for i, goal in enumerate(ordered_non_priority):
-            completion = graph_manager.get_goal_completion(goal.name)
+            completion = graph_manager.get_goal_completion(goal.name, include_soft=include_soft, include_transitive=include_transitive)
             cards.append(build_goal_card(
                 goal.name, goal.status, completion,
                 completion.get("total", 0),
@@ -220,7 +225,7 @@ def register_goal_callbacks(app):
         include_soft = bool(include_soft_value and "include" in include_soft_value)
         include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
 
-        completion = graph_manager.get_goal_completion(goal_name)
+        completion = graph_manager.get_goal_completion(goal_name, include_soft=include_soft, include_transitive=include_transitive)
         subtree = graph_manager.get_goal_subtree(goal_name)
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
@@ -246,7 +251,7 @@ def register_goal_callbacks(app):
                                  include_transitive=include_transitive),
             "",  # save status
             completion["pct"],  # progress bar
-            f"{completion['done']}/{completion['total']} subtasks complete \u00b7 {round(completion['remaining_time'])}h remaining",
+            f"{completion['done']}/{completion['total']} subtasks complete \u00b7 {ConfigManager.format_time_friendly(completion['remaining_time'])} remaining",
         )
 
     # --- Update Subcontext Options ---
@@ -666,6 +671,8 @@ def register_goal_callbacks(app):
     # --- Subtasks Filter Toggles ---
     @app.callback(
         Output("goal-subtasks-table-container", "children", allow_duplicate=True),
+        Output("goal-progress-bar", "value", allow_duplicate=True),
+        Output("goal-stats-text", "children", allow_duplicate=True),
         Input("goal-include-soft-needs", "value"),
         Input("goal-include-transitive", "value"),
         State("selected-goal-store", "data"),
@@ -673,7 +680,7 @@ def register_goal_callbacks(app):
     )
     def toggle_subtask_filters(include_soft_value, include_transitive_value, selected_goal):
         if not selected_goal:
-            return no_update
+            return no_update, no_update, no_update
 
         include_soft = bool(include_soft_value and "include" in include_soft_value)
         include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
@@ -682,11 +689,16 @@ def register_goal_callbacks(app):
         subtask_nodes = [n for n in subtask_nodes if n is not None]
         subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
         edges = graph_manager.get_edges()
+        completion = graph_manager.get_goal_completion(selected_goal, include_soft=include_soft, include_transitive=include_transitive)
 
-        return build_subtasks_table(
-            subtask_nodes, graph_manager=graph_manager, edges=edges,
-            goal_name=selected_goal, include_soft=include_soft,
-            include_transitive=include_transitive,
+        return (
+            build_subtasks_table(
+                subtask_nodes, graph_manager=graph_manager, edges=edges,
+                goal_name=selected_goal, include_soft=include_soft,
+                include_transitive=include_transitive,
+            ),
+            completion["pct"],
+            f"{completion['done']}/{completion['total']} subtasks complete \u00b7 {ConfigManager.format_time_friendly(completion['remaining_time'])} remaining",
         )
 
     # --- Add Node Modal: Open ---
@@ -752,12 +764,12 @@ def register_goal_callbacks(app):
 
         return (
             True, type_opts, ctx_opts, [{"label": "None", "value": ""}],
-            existing_opts, "", "", "", "hours",
+            existing_opts, "", "", "", "weeks",
             all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts, resource_opts,
             [], [], [], [], [], [],
             [''], [''], [''],
             5, 5, 5,          # value, interest, difficulty
-            0, 0, 0,          # time-o, time-m, time-p
+            2, 4, 6,          # time-o, time-m, time-p (in weeks)
             "", "",           # context, subcontext
             "create",         # mode
         )
