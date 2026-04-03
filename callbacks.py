@@ -716,7 +716,7 @@ def register_callbacks(app):
         hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(effective_tapped_node, active_node_id)
 
         all_nodes = manager.get_all_nodes()
-        search_options = _node_options(all_nodes)
+        search_options = _node_options(manager.get_all_nodes(include_dormant=True))
         
         # Populate dynamic contexts datalists from DB + Config preserving defined order
         base_ctx = ConfigManager.get_contexts()

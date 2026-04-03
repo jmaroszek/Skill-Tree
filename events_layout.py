@@ -362,13 +362,20 @@ def build_dormant_nodes_table(event_nodes, event_status):
         else:
             trigger_checkbox = html.Span()
 
-        remove_btn = None
+        action_btns = None
         if not activated and event_status != "Triggered":
+            edit_btn = dbc.Button(
+                "✎",
+                id={"type": "btn-edit-dormant-node", "index": node.name},
+                color="secondary", size="sm",
+                style={"fontSize": "0.7rem", "padding": "1px 6px", "lineHeight": "1"}
+            )
             remove_btn = dbc.Button(
                 "x", id={"type": "btn-remove-dormant-node", "index": node.name},
                 color="danger", size="sm",
                 style={"fontSize": "0.7rem", "padding": "1px 6px", "lineHeight": "1"}
             )
+            action_btns = html.Div([edit_btn, remove_btn], className="d-flex gap-1 justify-content-end")
 
         rows.append(html.Tr([
             html.Td(trigger_checkbox, style={"verticalAlign": "middle", "width": "32px"}),
@@ -376,7 +383,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
             html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td([delay_display, activation_info], style={"verticalAlign": "middle"}),
             html.Td(status_badge, style={"verticalAlign": "middle"}),
-            html.Td(remove_btn, style={"verticalAlign": "middle", "textAlign": "right"}),
+            html.Td(action_btns, style={"verticalAlign": "middle", "textAlign": "right"}),
         ]))
 
     return dbc.Table([

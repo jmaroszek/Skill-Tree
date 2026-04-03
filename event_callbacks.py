@@ -2,6 +2,7 @@
 Callback definitions for the Events tab.
 """
 
+import time
 import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update
 from event_manager import EventManager
@@ -552,6 +553,20 @@ def register_event_callbacks(app):
             event_trigger_style,
             event_status_msg,
         )
+
+    # --- Edit Dormant Node ---
+    @app.callback(
+        Output("edit-trigger-input", "value"),
+        Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def edit_dormant_node(n_clicks_list):
+        if not any(n_clicks_list):
+            return no_update
+        triggered = ctx.triggered_id
+        if not triggered:
+            return no_update
+        return f"{triggered['index']}|{int(time.time())}"
 
     # --- Remove Dormant Node ---
     @app.callback(
