@@ -287,11 +287,12 @@ def register_callbacks(app):
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
-         Input('search-node', 'value')],
+         Input('search-node', 'value'),
+         Input('background-click-input', 'value')],
         [State('cytoscape-graph', 'elements')],
         prevent_initial_call='initial_duplicate'
     )
-    def populate_editor(data, add_clicks, clear_clicks, search_val, elements):
+    def populate_editor(data, add_clicks, clear_clicks, search_val, _bg_click, elements):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = _get_trigger_id()
 
@@ -309,7 +310,7 @@ def register_callbacks(app):
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
         ]
 
-        if trigger_id in ['btn-add', 'btn-clear']:
+        if trigger_id in ['btn-add', 'btn-clear', 'background-click-input']:
             return def_out
 
         name = None
@@ -503,7 +504,8 @@ def register_callbacks(app):
          Input('edit-trigger-input', 'value'),
          Input('toggle-done-trigger-input', 'value'),
          Input('events-refresh-trigger', 'data'),
-         Input('goals-refresh-trigger', 'data')],
+         Input('goals-refresh-trigger', 'data'),
+         Input('background-click-input', 'value')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -528,7 +530,7 @@ def register_callbacks(app):
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
-                     edit_trigger_data, toggle_done_trigger_data, _events_refresh, _goals_refresh,
+                     edit_trigger_data, toggle_done_trigger_data, _events_refresh, _goals_refresh, _bg_click,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -710,7 +712,8 @@ def register_callbacks(app):
 
         count = sugg_count if sugg_count else 5
         sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
-        hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(tapped_node, active_node_id)
+        effective_tapped_node = None if trigger_id == 'background-click-input' else tapped_node
+        hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(effective_tapped_node, active_node_id)
 
         all_nodes = manager.get_all_nodes()
         search_options = _node_options(all_nodes)

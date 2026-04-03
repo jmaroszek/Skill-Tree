@@ -208,9 +208,12 @@
                 showMenu(pos.clientX, pos.clientY, nodeData);
             });
 
-            // Click on background hides context menu
+            // Click on background hides context menu and clears selection
             cy.on('tap', function (evt) {
-                if (evt.target === cy) hideMenu();
+                if (evt.target === cy) {
+                    hideMenu();
+                    _setHiddenInput('background-click-input', 'click');
+                }
             });
 
             // Prevent browser context menu on cytoscape container

@@ -282,22 +282,22 @@ relationships_view = html.Div([
         html.Div([
             html.H6("Hard Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
             html.Div(id="traversal-chains-hard")
-        ], style={"marginRight": "2rem", "flex": "1"}),
+        ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
         html.Div([
             html.H6("Soft Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
             html.Div(id="traversal-chains-soft")
-        ], style={"marginRight": "2rem", "flex": "1"}),
+        ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
         html.Div([
             html.H6("Synergies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
             html.Div(id="synergies-list")
-        ], style={"flex": "1"}),
+        ], style={"flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
     ], style={"display": "flex", "alignItems": "flex-start"})
-], style={"flex": "0 0 auto", "minWidth": "400px"})
+], style={"flex": "0 0 auto", "maxWidth": "80%", "minWidth": 0})
 
 description_view = html.Div([
     html.H6("Description", className="text-muted mb-2", style=_section_title_style),
     html.Div(id="node-info-description", style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
-], style={"flex": "1", "marginLeft": "3rem"})
+], style={"flex": "1", "marginLeft": "3rem", "minWidth": 0})
 
 # --- Suggestions View ---
 
@@ -623,6 +623,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='simulate-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         migration_modal,
         error_modal,
