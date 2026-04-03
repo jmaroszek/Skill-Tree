@@ -270,3 +270,111 @@ class TestHandleSaveNoResources:
         assert len(edges) == 1
         assert edges[0]['type'] == EDGE_NEEDS_HARD
         assert edges[0]['source'] == "Prereq"
+
+
+# ============================================================================
+# Regression tests for Bug 1-3: node save round-trip accuracy
+# The original bugs caused edited values to revert after save because the
+# populate_editor callback re-fired with stale Cytoscape data. The DB-level
+# contract is: _handle_save must always write the exact values it receives,
+# and get_node must return those exact values on the next read.
+# ============================================================================
+
+class TestSaveRoundTrip:
+    """Regression tests verifying that saved values are faithfully stored and returned."""
+
+    def test_time_estimates_stored_and_retrieved_accurately(self):
+        """Exact time_o/m/p values round-trip through add → get_node."""
+        _handle_save(
+            "TimedNode", "Learn", "", 5, 40.0, 80.0, 160.0, 5, 5,
+            [], None, None, None, None, None,
+            [], [], [], [], []
+        )
+        node = manager.get_node("TimedNode")
+        assert node is not None
+        assert node.time_o == 40.0
+        assert node.time_m == 80.0
+        assert node.time_p == 160.0
+
+    def test_updated_time_estimates_replace_old_values(self):
+        """Saving updated time estimates overwrites the previous values in the DB.
+        This directly guards against the stale-data bug where the form appeared
+        to save but the DB retained the original values."""
+        _handle_save(
+            "Node", "Learn", "", 5, 16.0, 32.0, 64.0, 5, 5,
+            [], None, None, None, None, None,
+            [], [], [], [], []
+        )
+        assert manager.get_node("Node").time_p == 64.0
+
+        # Simulate the user changing pessimistic from 64 to 80 and saving
+        _handle_save(
+            "Node", "Learn", "", 5, 16.0, 32.0, 80.0, 5, 5,
+            [], None, None, None, None, None,
+            [], [], [], [], []
+        )
+        node = manager.get_node("Node")
+        assert node.time_p == 80.0, (
+            "Pessimistic estimate should be 80.0 after update, not the old value 64.0"
+        )
+
+    def test_all_scalar_fields_persisted_accurately(self):
+        """Every user-editable field is faithfully stored and retrieved."""
+        _handle_save(
+            "FullNode", "Goal", "A description", 9, 10.0, 20.0, 40.0, 7, 3,
+            ["Done"], "Work", "Research", None, None, None,
+            [], [], [], [], [], 0
+        )
+        node = manager.get_node("FullNode")
+        assert node.type == "Goal"
+        assert node.description == "A description"
+        assert node.value == 9
+        assert node.time_o == 10.0
+        assert node.time_m == 20.0
+        assert node.time_p == 40.0
+        assert node.interest == 7
+        assert node.difficulty == 3
+        assert node.status == "Done"
+        assert node.context == "Work"
+        assert node.subcontext == "Research"
+
+    def test_second_save_does_not_revert_to_first_save_values(self):
+        """Two successive saves with different values — the second must win.
+        Guards against any caching or no-op update path."""
+        _handle_save("N", "Learn", "v1", 3, 1.0, 2.0, 4.0, 3, 3,
+                     [], None, None, None, None, None, [], [], [], [], [])
+        _handle_save("N", "Learn", "v2", 8, 5.0, 10.0, 20.0, 8, 8,
+                     [], None, None, None, None, None, [], [], [], [], [])
+        node = manager.get_node("N")
+        assert node.description == "v2"
+        assert node.value == 8
+        assert node.time_o == 5.0
+        assert node.time_m == 10.0
+        assert node.time_p == 20.0
+
+    def test_edge_list_update_replaces_previous_edges(self):
+        """When edges change on save, the new edge list fully replaces the old one.
+        Guards against edges accumulating instead of being replaced."""
+        manager.add_node(_make_node("A", status="Done"))
+        manager.add_node(_make_node("B", status="Done"))
+        manager.add_node(_make_node("C", status="Done"))
+
+        # First save: C is a hard prereq
+        _handle_save("Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+                     [], None, None, None, None, None,
+                     ["C"], [], [], [], [])
+        edges = manager.get_edges()
+        hard_prereqs = [e['source'] for e in edges
+                        if e['target'] == "Target" and e['type'] == EDGE_NEEDS_HARD]
+        assert hard_prereqs == ["C"]
+
+        # Second save: user removes C and adds A, B
+        _handle_save("Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+                     [], None, None, None, None, None,
+                     ["A", "B"], [], [], [], [])
+        edges = manager.get_edges()
+        hard_prereqs = sorted(e['source'] for e in edges
+                              if e['target'] == "Target" and e['type'] == EDGE_NEEDS_HARD)
+        assert hard_prereqs == ["A", "B"], (
+            "Edge list after second save must be exactly [A, B], not include stale C"
+        )

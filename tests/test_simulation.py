@@ -295,3 +295,72 @@ class TestSimulateTaskChain:
         result = simulate_task_chain("A", nodes, [], n_simulations=500)
         assert result['chain_nodes'] == ["A"]
         assert result['chain_size'] == 1
+
+
+# ============================================================================
+# Regression tests: serial execution model
+#
+# These tests guard against regressing back to critical-path analysis.
+# The original bug: parallel independent tasks returned max(durations)
+# instead of sum(durations), drastically understating the single-person
+# total work time.
+# ============================================================================
+
+class TestSerialExecutionRegression:
+    """Ensures the simulation always computes the sum of all task durations,
+    not the critical-path maximum, regardless of dependency structure."""
+
+    def test_many_parallel_tasks_sum_not_max(self):
+        """10 independent tasks at 1h each must yield ~10h, never ~1h.
+        This was the primary symptom of the bug: P50 ≈ 1h instead of 10h."""
+        nodes = {f"T{i}": _make_node(f"T{i}", time_o=1, time_m=1, time_p=1)
+                 for i in range(10)}
+        # All are prereqs of the target, none depend on each other
+        target = _make_node("Goal", time_o=0, time_m=0, time_p=0, type="Goal")
+        nodes["Goal"] = target
+        edges = [{"source": f"T{i}", "target": "Goal", "type": "Needs_Hard"}
+                 for i in range(10)]
+        result = simulate_task_chain("Goal", nodes, edges, n_simulations=1000)
+        # Serial total ≈ 10h; critical-path would be ≈ 1h
+        assert result['stats']['mean'] == pytest.approx(10.0, abs=0.2), (
+            "10 parallel 1h tasks for a single person should total ~10h, not ~1h"
+        )
+
+    def test_wide_tree_exceeds_longest_branch(self):
+        """In a tree where one branch is longer than others, serial time must
+        still exceed the longest branch (unlike critical-path which equals it)."""
+        # Branch A: 5h. Branch B: 2h. Branch C: 1h. → serial = 5+2+1+1 = 9h
+        nodes = {
+            "A": _make_node("A", time_o=5, time_m=5, time_p=5),
+            "B": _make_node("B", time_o=2, time_m=2, time_p=2),
+            "C": _make_node("C", time_o=1, time_m=1, time_p=1),
+            "Goal": _make_node("Goal", time_o=1, time_m=1, time_p=1, type="Goal"),
+        }
+        edges = [
+            {"source": "A", "target": "Goal", "type": "Needs_Hard"},
+            {"source": "B", "target": "Goal", "type": "Needs_Hard"},
+            {"source": "C", "target": "Goal", "type": "Needs_Hard"},
+        ]
+        result = simulate_task_chain("Goal", nodes, edges, n_simulations=1000)
+        # Serial = 5 + 2 + 1 + 1 = 9. Critical-path would be max(5,2,1) + 1 = 6.
+        assert result['stats']['mean'] == pytest.approx(9.0, abs=0.2), (
+            "Serial time must be the sum of all branches, not just the longest"
+        )
+        assert result['stats']['mean'] > 5.0, (
+            "Serial total must exceed the longest single task duration"
+        )
+
+    def test_serial_chain_unchanged_by_model(self):
+        """For a perfectly sequential chain, serial and critical-path give the
+        same answer. This test confirms the model change didn't break chains."""
+        nodes = {
+            "A": _make_node("A", time_o=3, time_m=3, time_p=3),
+            "B": _make_node("B", time_o=4, time_m=4, time_p=4),
+            "C": _make_node("C", time_o=2, time_m=2, time_p=2),
+        }
+        edges = [
+            {"source": "A", "target": "B", "type": "Needs_Hard"},
+            {"source": "B", "target": "C", "type": "Needs_Hard"},
+        ]
+        result = simulate_task_chain("C", nodes, edges, n_simulations=1000)
+        assert result['stats']['mean'] == pytest.approx(9.0, abs=0.2)

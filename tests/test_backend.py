@@ -304,6 +304,86 @@ class TestNodeRename:
         assert mgr.get_node("Goal2") is not None
 
 
+    def test_rename_preserves_soft_edges(self, mgr):
+        """Soft-need edges (source→renamed) and (renamed→target) both survive."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_node(_make_node("C"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)   # B soft-needs A
+        mgr.add_edge("B", "C", EDGE_NEEDS_SOFT)   # C soft-needs B
+
+        mgr.rename_node("B", "B2")
+        mgr.update_node(_make_node("B2"))
+
+        edges = mgr.get_edges()
+        assert any(e['source'] == "A" and e['target'] == "B2" for e in edges), \
+            "A→B2 soft edge must survive rename"
+        assert any(e['source'] == "B2" and e['target'] == "C" for e in edges), \
+            "B2→C soft edge must survive rename"
+        assert not any(e['source'] == "B" or e['target'] == "B" for e in edges), \
+            "Old name B must not appear in any edge after rename"
+
+    def test_rename_preserves_helps_edges(self, mgr):
+        """Helps edges referencing the renamed node are updated on both sides."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_edge("A", "B", EDGE_HELPS)
+
+        mgr.rename_node("A", "A2")
+        mgr.update_node(_make_node("A2"))
+
+        edges = mgr.get_edges()
+        assert any(e['source'] == "A2" and e['target'] == "B" and e['type'] == EDGE_HELPS
+                   for e in edges), "A2→B Helps edge must survive rename"
+        assert not any(e['source'] == "A" or e['target'] == "A" for e in edges), \
+            "Old name A must not appear in any edge after rename"
+
+    def test_rename_preserves_deep_goal_subtree(self, mgr):
+        """Renaming a goal preserves edges across multiple levels of the subtree.
+        This is the exact scenario from the goal-tab rename bug: all subtasks
+        were deleted because delete_node removed edges."""
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_node(_make_node("Mid"))
+        mgr.add_node(_make_node("Leaf"))
+        mgr.add_edge("Mid", "Goal", EDGE_NEEDS_HARD)   # Mid is a direct subtask
+        mgr.add_edge("Leaf", "Mid", EDGE_NEEDS_HARD)   # Leaf is a transitive subtask
+
+        # Goal-tab rename path: no sync_edges
+        mgr.rename_node("Goal", "Goal2")
+        mgr.update_node(_make_node("Goal2", type="Goal"))
+
+        subtree = mgr.get_goal_subtree("Goal2")
+        assert "Mid" in subtree, "Direct subtask Mid must be in Goal2's subtree"
+        assert "Leaf" in subtree, "Transitive subtask Leaf must be in Goal2's subtree"
+        assert mgr.get_node("Goal") is None
+        assert mgr.get_node("Goal2") is not None
+
+    def test_rename_event_trigger_reference_updated(self, mgr):
+        """If an Event's trigger_node references the renamed node, it is updated."""
+        from event_manager import EventManager
+        from models import Event
+
+        mgr.add_node(_make_node("TriggerNode"))
+        em = EventManager()
+        em.add_event(Event(
+            name="TestEvent",
+            trigger_node="TriggerNode",
+            status="Pending"
+        ))
+
+        mgr.rename_node("TriggerNode", "TriggerRenamed")
+
+        # Read Events table directly to verify the trigger_node column changed
+        import database
+        with database.get_connection() as conn:
+            row = conn.execute(
+                "SELECT trigger_node FROM Events WHERE name='TestEvent'"
+            ).fetchone()
+        assert row is not None
+        assert row[0] == "TriggerRenamed", \
+            "Event.trigger_node must be updated when the referenced node is renamed"
+
+
 # ============================================================================
 # Edge Operations
 # ============================================================================
