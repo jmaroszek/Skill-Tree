@@ -237,7 +237,7 @@ class TestNodeRename:
         # The UI form would still list A as a hard prerequisite
         self._rename(mgr, "B", "B2", edges_from_form={
             'needs_hard': ["A"], 'needs_soft': [], 'supports_hard': [],
-            'supports_soft': [], 'helps': [], 'resources': []})
+            'supports_soft': [], 'helps': []})
         edges = mgr.get_edges()
         assert any(e['source'] == "A" and e['target'] == "B2" for e in edges)
         assert not any(e['target'] == "B" for e in edges)
@@ -250,7 +250,7 @@ class TestNodeRename:
         # Rename A — the supports direction is handled by the form
         self._rename(mgr, "A", "A2", edges_from_form={
             'needs_hard': [], 'needs_soft': [], 'supports_hard': ["B"],
-            'supports_soft': [], 'helps': [], 'resources': []})
+            'supports_soft': [], 'helps': []})
         edges = mgr.get_edges()
         assert any(e['source'] == "A2" and e['target'] == "B" for e in edges)
         assert not any(e['source'] == "A" for e in edges)
@@ -263,7 +263,7 @@ class TestNodeRename:
         assert mgr.get_node("Dep").status == "Open"
         self._rename(mgr, "Prereq", "Prereq2", edges_from_form={
             'needs_hard': [], 'needs_soft': [], 'supports_hard': ["Dep"],
-            'supports_soft': [], 'helps': [], 'resources': []})
+            'supports_soft': [], 'helps': []})
         assert mgr.get_node("Dep").status == "Open"
 
     def test_rename_undone_prereq_blocks_dependent(self, mgr):
@@ -274,7 +274,7 @@ class TestNodeRename:
         assert mgr.get_node("Dep").status == "Blocked"
         self._rename(mgr, "Prereq", "Prereq2", edges_from_form={
             'needs_hard': [], 'needs_soft': [], 'supports_hard': ["Dep"],
-            'supports_soft': [], 'helps': [], 'resources': []})
+            'supports_soft': [], 'helps': []})
         assert mgr.get_node("Dep").status == "Blocked"
 
     def test_rename_old_node_removed(self, mgr):
@@ -439,10 +439,10 @@ class TestStateManagement:
         mgr.add_node(_make_node("Chain2"))
         mgr.add_node(_make_node("Chain3"))
         # Chain2 needs Chain1
-        mgr.sync_edges("Chain2", needs_hard=["Chain1"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("Chain2", needs_hard=["Chain1"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[])
         assert mgr.get_node("Chain2").status == "Blocked"
         # Chain3 needs Chain2
-        mgr.sync_edges("Chain3", needs_hard=["Chain2"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("Chain3", needs_hard=["Chain2"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[])
         assert mgr.get_node("Chain3").status == "Blocked"
 
     def test_sync_edges_blocks_via_supports(self, mgr):
@@ -450,7 +450,7 @@ class TestStateManagement:
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
         mgr.add_node(_make_node("C"))
-        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B", "C"], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B", "C"], supports_soft=[], helps=[])
         assert mgr.get_node("B").status == "Blocked"
         assert mgr.get_node("C").status == "Blocked"
 
@@ -458,7 +458,7 @@ class TestStateManagement:
         """After A supports B and A is marked Done, B should become Open."""
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
-        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[])
         assert mgr.get_node("B").status == "Blocked"
         mgr.update_node(_make_node("A", status="Done"))
         assert mgr.get_node("B").status == "Open"
@@ -469,9 +469,9 @@ class TestStateManagement:
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
         mgr.add_node(_make_node("C"))
-        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[])
         # B also supports C; preserve the existing A→B prereq in needs_hard
-        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=["C"], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=["C"], supports_soft=[], helps=[])
         assert mgr.get_node("B").status == "Blocked"
         assert mgr.get_node("C").status == "Blocked"
         # Complete A — B unblocks, C stays blocked
@@ -506,10 +506,10 @@ class TestStateManagement:
         """Removing a hard prereq via sync_edges should unblock the node."""
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
-        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[])
         assert mgr.get_node("B").status == "Blocked"
         # Remove the prereq
-        mgr.sync_edges("B", needs_hard=[], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("B", needs_hard=[], needs_soft=[], supports_hard=[], supports_soft=[], helps=[])
         assert mgr.get_node("B").status == "Open"
 
     def test_in_progress_preserved_when_unblocked(self, mgr):
@@ -536,7 +536,7 @@ class TestSyncEdges:
         mgr.add_node(_make_node("C"))
         mgr.add_edge("A", "C", EDGE_NEEDS_HARD)
         # Replace A with B as hard prereq
-        mgr.sync_edges("C", needs_hard=["B"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("C", needs_hard=["B"], needs_soft=[], supports_hard=[], supports_soft=[], helps=[])
         edges = mgr.get_edges()
         hard_edges = [e for e in edges if e['type'] == EDGE_NEEDS_HARD]
         assert len(hard_edges) == 1
@@ -548,7 +548,7 @@ class TestSyncEdges:
         mgr.add_node(_make_node("C"))
         mgr.add_edge("A", "B", EDGE_HELPS)
         # Sync A: replace helps from B to C
-        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=[], supports_soft=[], helps=["C"], resources=[])
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=[], supports_soft=[], helps=["C"])
         edges = mgr.get_edges()
         helps_edges = [e for e in edges if e['type'] == EDGE_HELPS]
         assert len(helps_edges) == 1
@@ -558,7 +558,7 @@ class TestSyncEdges:
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
         # A supports_hard B means B Needs_Hard A → edge from A to B
-        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("A", needs_hard=[], needs_soft=[], supports_hard=["B"], supports_soft=[], helps=[])
         edges = mgr.get_edges()
         assert len(edges) == 1
         assert edges[0]['source'] == "A"
@@ -570,7 +570,7 @@ class TestSyncEdges:
         mgr.add_node(_make_node("B"))
         mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
         # Sync B: B needs A (re-creates A→B), and B supports A (would create B→A — a cycle)
-        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=["A"], supports_soft=[], helps=[], resources=[])
+        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=["A"], supports_soft=[], helps=[])
         edges = [e for e in mgr.get_edges() if e['type'] == EDGE_NEEDS_HARD]
         # A→B should exist (from needs_hard), but B→A should be skipped (cycle)
         assert len(edges) == 1
@@ -580,7 +580,7 @@ class TestSyncEdges:
     def test_sync_with_none_args(self, mgr):
         mgr.add_node(_make_node("A"))
         # None args should be treated as empty lists
-        mgr.sync_edges("A", None, None, None, None, None, None)
+        mgr.sync_edges("A", None, None, None, None, None)
         assert len(mgr.get_edges()) == 0
 
 
@@ -1402,3 +1402,224 @@ class TestScoringGoalBoost:
 
         # Rank 1 gets full boost, rank 2 gets 66%, rank 3 gets 33%
         assert p1 >= p2 >= p3
+
+
+# ============================================================================
+# get_prerequisite_chains_typed
+# ============================================================================
+
+class TestPrerequisiteChainsTyped:
+    """Tests for chain classification into Hard vs Soft."""
+
+    def test_single_hard_chain(self, mgr):
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Open"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        chains = mgr.get_prerequisite_chains_typed("B")
+        assert len(chains) == 1
+        chain, ctype = chains[0]
+        assert ctype == "Hard"
+        assert "A" in chain
+
+    def test_single_soft_chain(self, mgr):
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Open"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)
+        chains = mgr.get_prerequisite_chains_typed("B")
+        assert len(chains) == 1
+        chain, ctype = chains[0]
+        assert ctype == "Soft"
+
+    def test_mixed_chain_classified_as_soft(self, mgr):
+        """A chain with one soft edge anywhere is classified as Soft."""
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Open"))
+        mgr.add_node(_make_node("C", status="Open"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "C", EDGE_NEEDS_SOFT)
+        chains = mgr.get_prerequisite_chains_typed("C")
+        # Should find chain A -> B -> C classified as Soft
+        soft_chains = [c for c, t in chains if t == "Soft"]
+        assert len(soft_chains) >= 1
+        assert any("A" in c for c in soft_chains)
+
+    def test_all_done_chain_excluded(self, mgr):
+        """Chains where all nodes are Done should not appear."""
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("B", status="Done"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        chains = mgr.get_prerequisite_chains_typed("B")
+        assert len(chains) == 0
+
+    def test_nonexistent_node_returns_empty(self, mgr):
+        assert mgr.get_prerequisite_chains_typed("NoSuchNode") == []
+
+    def test_no_prereqs_self_chain(self, mgr):
+        """A node with no prereqs but status Open returns itself as a single-node chain."""
+        mgr.add_node(_make_node("Alone", status="Open"))
+        chains = mgr.get_prerequisite_chains_typed("Alone")
+        assert len(chains) == 1
+        assert chains[0][0] == ["Alone"]
+
+    def test_multiple_branches(self, mgr):
+        """Two independent hard prereqs produce two separate chains."""
+        mgr.add_node(_make_node("P1", status="Open"))
+        mgr.add_node(_make_node("P2", status="Open"))
+        mgr.add_node(_make_node("Target", status="Open"))
+        mgr.add_edge("P1", "Target", EDGE_NEEDS_HARD)
+        mgr.add_edge("P2", "Target", EDGE_NEEDS_HARD)
+        chains = mgr.get_prerequisite_chains_typed("Target")
+        assert len(chains) == 2
+        assert all(t == "Hard" for _, t in chains)
+
+    def test_helps_edges_ignored(self, mgr):
+        """Helps edges should not appear in prerequisite chains — only the self-chain."""
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Open"))
+        mgr.add_edge("A", "B", EDGE_HELPS)
+        chains = mgr.get_prerequisite_chains_typed("B")
+        # Only the self-chain for B (no prereqs found via Needs edges)
+        assert len(chains) == 1
+        assert chains[0][0] == ["B"]
+
+
+# ============================================================================
+# get_directly_unlocked_nodes_by_type
+# ============================================================================
+
+class TestDirectlyUnlockedByType:
+    """Tests for separating hard vs soft unlocks."""
+
+    def test_hard_unlock(self, mgr):
+        mgr.add_node(_make_node("Prereq", status="Open"))
+        mgr.add_node(_make_node("Dep", status="Blocked"))
+        mgr.add_edge("Prereq", "Dep", EDGE_NEEDS_HARD)
+        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
+        assert "Dep" in result['hard']
+        assert result['soft'] == []
+
+    def test_soft_unlock(self, mgr):
+        mgr.add_node(_make_node("Prereq", status="Open"))
+        mgr.add_node(_make_node("Dep", status="Open"))
+        mgr.add_edge("Prereq", "Dep", EDGE_NEEDS_SOFT)
+        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
+        assert "Dep" in result['soft']
+        assert result['hard'] == []
+
+    def test_mixed_unlocks(self, mgr):
+        mgr.add_node(_make_node("Prereq", status="Open"))
+        mgr.add_node(_make_node("HardDep", status="Blocked"))
+        mgr.add_node(_make_node("SoftDep", status="Open"))
+        mgr.add_edge("Prereq", "HardDep", EDGE_NEEDS_HARD)
+        mgr.add_edge("Prereq", "SoftDep", EDGE_NEEDS_SOFT)
+        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
+        assert "HardDep" in result['hard']
+        assert "SoftDep" in result['soft']
+
+    def test_done_nodes_excluded(self, mgr):
+        """Nodes already Done should not appear in unlocked lists."""
+        mgr.add_node(_make_node("Prereq", status="Open"))
+        mgr.add_node(_make_node("DoneDep", status="Done"))
+        mgr.add_edge("Prereq", "DoneDep", EDGE_NEEDS_HARD)
+        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
+        assert result['hard'] == []
+        assert result['soft'] == []
+
+    def test_no_dependents_returns_empty(self, mgr):
+        mgr.add_node(_make_node("Alone"))
+        result = mgr.get_directly_unlocked_nodes_by_type("Alone")
+        assert result == {'hard': [], 'soft': []}
+
+    def test_helps_edges_not_included(self, mgr):
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Open"))
+        mgr.add_edge("A", "B", EDGE_HELPS)
+        result = mgr.get_directly_unlocked_nodes_by_type("A")
+        assert result == {'hard': [], 'soft': []}
+
+
+# ============================================================================
+# sync_edges without resources parameter
+# ============================================================================
+
+class TestSyncEdgesWithoutResources:
+    """Tests that sync_edges works without the removed resources parameter."""
+
+    def test_sync_hard_and_soft_needs(self, mgr):
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("B", status="Done"))
+        mgr.add_node(_make_node("C"))
+        mgr.sync_edges("C",
+                        needs_hard=["A"], needs_soft=["B"],
+                        supports_hard=[], supports_soft=[], helps=[])
+        edges = mgr.get_edges()
+        hard = [e for e in edges if e['type'] == EDGE_NEEDS_HARD]
+        soft = [e for e in edges if e['type'] == EDGE_NEEDS_SOFT]
+        assert len(hard) == 1 and hard[0]['source'] == "A"
+        assert len(soft) == 1 and soft[0]['source'] == "B"
+
+    def test_sync_supports_direction(self, mgr):
+        mgr.add_node(_make_node("Source", status="Done"))
+        mgr.add_node(_make_node("Target"))
+        mgr.sync_edges("Source",
+                        needs_hard=[], needs_soft=[],
+                        supports_hard=["Target"], supports_soft=[], helps=[])
+        edges = mgr.get_edges()
+        assert len(edges) == 1
+        assert edges[0]['source'] == "Source"
+        assert edges[0]['target'] == "Target"
+        assert edges[0]['type'] == EDGE_NEEDS_HARD
+
+    def test_sync_helps(self, mgr):
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.sync_edges("A",
+                        needs_hard=[], needs_soft=[],
+                        supports_hard=[], supports_soft=[], helps=["B"])
+        edges = mgr.get_edges()
+        assert len(edges) == 1
+        assert edges[0]['type'] == EDGE_HELPS
+
+    def test_sync_clears_old_edges(self, mgr):
+        mgr.add_node(_make_node("A", status="Done"))
+        mgr.add_node(_make_node("B", status="Done"))
+        mgr.add_node(_make_node("C"))
+        mgr.sync_edges("C",
+                        needs_hard=["A"], needs_soft=[],
+                        supports_hard=[], supports_soft=[], helps=[])
+        assert len(mgr.get_edges()) == 1
+        # Now sync again with different edges
+        mgr.sync_edges("C",
+                        needs_hard=[], needs_soft=["B"],
+                        supports_hard=[], supports_soft=[], helps=[])
+        edges = mgr.get_edges()
+        assert len(edges) == 1
+        assert edges[0]['type'] == EDGE_NEEDS_SOFT
+
+
+# ============================================================================
+# Resource edge migration
+# ============================================================================
+
+class TestResourceEdgeMigration:
+    """Tests that the database migration converts Resource edges to Needs_Soft."""
+
+    def test_resource_edges_migrated_on_init(self, mgr):
+        """Inserting a Resource edge then re-initing should convert it to Needs_Soft."""
+        mgr.add_node(_make_node("R1", type="Resource", status="Done"))
+        mgr.add_node(_make_node("T1"))
+        # Manually insert a Resource edge (simulating old data)
+        with mgr.get_connection() as conn:
+            conn.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)",
+                        ("R1", "T1", "Resource"))
+            conn.commit()
+        edges_before = mgr.get_edges()
+        assert any(e['type'] == 'Resource' for e in edges_before)
+
+        # Re-run init_db migration
+        database._initialized = False
+        database.init_db()
+
+        edges_after = mgr.get_edges()
+        assert not any(e['type'] == 'Resource' for e in edges_after)
+        assert any(e['type'] == 'Needs_Soft' and e['source'] == 'R1' for e in edges_after)

@@ -75,7 +75,12 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
             'data': {
                 'id': node.name,
                 'label': node.name,
-                'color': colors.get('Goal', '#ffc107') if node.type == 'Goal' else colors.get(node.status, '#888'),
+                'color': (
+                    colors.get('Goal', '#ffc107') if node.type == 'Goal'
+                    else colors.get('Done', '#198754') if node.type == 'Resource' and node.status == 'Done'
+                    else colors.get('Resource', '#9b59b6') if node.type == 'Resource'
+                    else colors.get(node.status, '#888')
+                ),
                 'shape': shapes.get(node.type, 'rectangle'),
                 **node.to_dict()
             },
@@ -116,18 +121,18 @@ def _format_suggestions_table(suggs, selected_node_id=None):
 
 
 def _format_traversal_ui(tapped_node, active_node_id):
-    """Build the dependency chains and synergies display for the selected node."""
-    return format_traversal_ui(tapped_node, active_node_id, manager)
+    """Build the dependency chains (hard/soft) and synergies display for the selected node."""
+    return format_traversal_ui(tapped_node, active_node_id, manager)  # returns 4-tuple
 
 
 def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                   status_done, context, subctx, obs_path, drive_path, website_path,
-                  e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
+                  e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                   progress_val=None):
     """Create or update a node and sync its edges. Returns a status message."""
     return handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                        status_done, context, subctx, obs_path, drive_path, website_path,
-                       e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
+                       e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                        progress_val)
 
 
@@ -265,16 +270,17 @@ def register_callbacks(app):
          Output('auto-status-display', 'children'), Output('node-status-done', 'value'),
          Output('edge-needs-hard', 'value'), Output('edge-needs-soft', 'value'),
          Output('edge-supports-hard', 'value'), Output('edge-supports-soft', 'value'),
-         Output('edge-helps', 'value'), Output('edge-resources', 'value'),
+         Output('edge-helps', 'value'),
          Output('edge-needs-hard', 'options'), Output('edge-needs-soft', 'options'),
          Output('edge-supports-hard', 'options'), Output('edge-supports-soft', 'options'),
-         Output('edge-helps', 'options'), Output('edge-resources', 'options'),
+         Output('edge-helps', 'options'),
          Output('obsidian-links-store', 'data'), Output('drive-links-store', 'data'),
          Output('website-links-store', 'data'),
          # Type-specific outputs
          Output('node-progress', 'value'), Output('node-time-unit', 'value'),
          Output('node-time-unit-prev', 'data', allow_duplicate=True),
-         Output('node-original-name', 'data', allow_duplicate=True)],
+         Output('node-original-name', 'data', allow_duplicate=True),
+         Output('search-node', 'value', allow_duplicate=True)],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
@@ -291,31 +297,35 @@ def register_callbacks(app):
 
         def_out = [
             "", "Learn", "", "", "", 5, 5, 5, 1.0, 1.0, 1.0, "Open", [],
-            [], [], [], [], [], [],
-            options, options, options, options, options, options,
+            [], [], [], [], [],
+            options, options, options, options, options,
             [''], [''], [''],
             # Type-specific defaults
-            0, "hours", "hours",
+            0, "weeks", "weeks",
             None,  # node-original-name
+            None,  # search-node — clear the search dropdown
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
             return def_out
 
         name = None
-        if trigger_id == 'search-node' and search_val:
+        if trigger_id == 'search-node':
+            if not search_val:
+                # User cleared the search bar — reset form to defaults
+                return def_out
             node = manager.get_node(search_val)
             if node:
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*7
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*7
         elif data:
             name = data.get('id')
 
         if not name or not data:
-            return [dash.no_update] * 19 + [options]*6 + [dash.no_update]*7
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*7
 
         edges = manager.get_edges()
 
@@ -328,10 +338,7 @@ def register_callbacks(app):
         helps_vals = [e['target'] for e in edges if e['source'] == name and e['type'] == EDGE_HELPS]
         helps_vals += [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_HELPS]
         helps_vals = list(set(helps_vals))
-        res_vals = [e['source'] for e in edges if e['target'] == name and e['type'] == EDGE_RESOURCE]
-
         filtered_options = _node_options(all_nodes, exclude=name)
-        resource_options = _node_options([n for n in all_nodes if n.type == 'Resource'], exclude=name)
 
         # actual_status: the authoritative status from the DB (may be Blocked/Open/Done),
         # as opposed to the Cytoscape data dict which may be stale after state cascades.
@@ -350,14 +357,15 @@ def register_callbacks(app):
             friendly_o, friendly_m, friendly_p,
             actual_status, done_val,
             needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals,
-            helps_vals, res_vals,
-            filtered_options, filtered_options, filtered_options, filtered_options, filtered_options, resource_options,
+            helps_vals,
+            filtered_options, filtered_options, filtered_options, filtered_options, filtered_options,
             _parse_links(data.get('obsidian_path', '')),
             _parse_links(data.get('google_drive_path', '')),
             _parse_links(data.get('website', '')),
             # Type-specific fields
             data.get('progress') or 0, friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
+            dash.no_update,  # search-node — don't change when loading a node
         ]
 
     # --- Type-adaptive field visibility ---
@@ -429,7 +437,8 @@ def register_callbacks(app):
     # --- Core State: Save, Delete, Render ---
     @app.callback(
         [Output('cytoscape-graph', 'elements'), Output('save-output', 'children'),
-         Output('suggestions-table', 'children'), Output('traversal-chains', 'children'),
+         Output('suggestions-table', 'children'),
+         Output('traversal-chains-hard', 'children'), Output('traversal-chains-soft', 'children'),
          Output('synergies-list', 'children'), Output('node-info-description', 'children'),
          Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
          Output('filter-community', 'options'), Output('search-node', 'options'),
@@ -475,7 +484,7 @@ def register_callbacks(app):
          State('node-time-unit', 'value'),
          State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
          State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
-         State('edge-helps', 'value'), State('edge-resources', 'value'),
+         State('edge-helps', 'value'),
          State({'type': 'obsidian-link', 'index': ALL}, 'value'),
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
@@ -494,7 +503,7 @@ def register_callbacks(app):
                      edit_trigger_data, toggle_done_trigger_data, _events_refresh,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
-                     e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
+                     e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                      obs_link_values, drive_link_values, website_link_values,
                      progress_val,
                      current_elements, ed_style, fil_style, original_name):
@@ -559,13 +568,13 @@ def register_callbacks(app):
                 ])
                 if form_has_content:
                     msg = "Error: Node name is required."
-                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
                 else:
                     next_ed_style['marginLeft'] = "-380px"
-                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
             if not n_type:
                 msg = "Error: Node type is required."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
             try:
                 # Track if this save marks the node Done (for event completion check)
                 if status_done and "Done" in (status_done or []):
@@ -591,22 +600,22 @@ def register_callbacks(app):
                         'obs_path': obs_path, 'drive_path': drive_path, 'website_path': website_path,
                         'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
                         'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s,
-                        'e_helps': e_helps, 'e_res': e_res,
+                        'e_helps': e_helps,
                         'progress_val': progress_val,
                         'close_after': trigger_id == 'btn-save-close',
                     }
                     modal_body = f'Rename "{original_name.strip()}" to "{name.strip()}"?'
-                    return current_elements, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, True, modal_body, pending
+                    return current_elements, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, True, modal_body, pending
 
                 msg = _handle_save(name, n_type, desc, val, t_o, t_m, t_p,
                                    interest, diff, status_done, context, subctx,
                                    obs_path, drive_path, website_path,
                                    e_needs_h, e_needs_s,
-                                   e_supp_h, e_supp_s, e_helps, e_res,
+                                   e_supp_h, e_supp_s, e_helps,
                                    progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-delete' and name:
@@ -673,7 +682,7 @@ def register_callbacks(app):
 
         count = sugg_count if sugg_count else 5
         sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
-        traversal_ui, synergies_ui, description_ui = _format_traversal_ui(tapped_node, active_node_id)
+        hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(tapped_node, active_node_id)
 
         all_nodes = manager.get_all_nodes()
         search_options = _node_options(all_nodes)
@@ -730,7 +739,7 @@ def register_callbacks(app):
             except Exception:
                 pass
 
-        return elements, msg, sugg_ui, traversal_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, False, dash.no_update, dash.no_update
+        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, False, dash.no_update, dash.no_update
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -779,7 +788,7 @@ def register_callbacks(app):
             pending['context'], pending['subctx'],
             pending['obs_path'], pending['drive_path'], pending['website_path'],
             pending['e_needs_h'], pending['e_needs_s'],
-            pending['e_supp_h'], pending['e_supp_s'], pending['e_helps'], pending['e_res'],
+            pending['e_supp_h'], pending['e_supp_s'], pending['e_helps'],
             pending['progress_val']
         )
         elements = generate_elements()
@@ -903,25 +912,34 @@ def register_callbacks(app):
                 ), width=8),
             ], className="mb-2"))
 
-        # Build colors editor
+        # Build colors editor — split into Status and Type sections
         colors = ConfigManager.get_node_colors()
-        status_list = ["Open", "Blocked", "Done", "Goal"]
-        color_rows = []
-        for status in status_list:
-            color_rows.append(dbc.Row([
-                dbc.Col(dbc.Label(status, className="mb-0"), width=4, className="d-flex align-items-center"),
+
+        def _color_row(label, key):
+            return dbc.Row([
+                dbc.Col(dbc.Label(label, className="mb-0"), width=4, className="d-flex align-items-center"),
                 dbc.Col(dbc.Input(
-                    id={"type": "setting-color", "index": status},
+                    id={"type": "setting-color", "index": key},
                     type="color",  # type: ignore[reportArgumentType]
-                    value=colors.get(status, "#6c757d"),
+                    value=colors.get(key, "#6c757d"),
                     style={"height": "38px", "padding": "2px"},
                 ), width=4),
                 dbc.Col(html.Small(
-                    colors.get(status, "#6c757d"),
+                    colors.get(key, "#6c757d"),
                     className="text-muted d-flex align-items-center",
                     style={"fontSize": "0.8rem"},
                 ), width=4),
-            ], className="mb-2"))
+            ], className="mb-2")
+
+        color_rows = [
+            html.H6("Status Colors", className="mb-2"),
+            _color_row("Open", "Open"),
+            _color_row("Blocked", "Blocked"),
+            _color_row("Done", "Done"),
+            html.H6("Type Colors", className="mt-3 mb-2"),
+            _color_row("Goal", "Goal"),
+            _color_row("Resource", "Resource"),
+        ]
 
         ts = ConfigManager.get_time_settings()
 
@@ -1509,21 +1527,29 @@ def register_callbacks(app):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_COLORS
-        status_list = ["Open", "Blocked", "Done", "Goal"]
-        color_rows = []
-        for status in status_list:
-            color_rows.append(dbc.Row([
-                dbc.Col(dbc.Label(status, className="mb-0"), width=4, className="d-flex align-items-center"),
+
+        def _color_row(label, key):
+            return dbc.Row([
+                dbc.Col(dbc.Label(label, className="mb-0"), width=4, className="d-flex align-items-center"),
                 dbc.Col(dbc.Input(
-                    id={"type": "setting-color", "index": status},
+                    id={"type": "setting-color", "index": key},
                     type="color",  # type: ignore[reportArgumentType]
-                    value=DEFAULT_NODE_COLORS.get(status, "#6c757d"),
+                    value=DEFAULT_NODE_COLORS.get(key, "#6c757d"),
                     style={"height": "38px", "padding": "2px"},
                 ), width=4),
                 dbc.Col(html.Small(
-                    DEFAULT_NODE_COLORS.get(status, "#6c757d"),
+                    DEFAULT_NODE_COLORS.get(key, "#6c757d"),
                     className="text-muted d-flex align-items-center",
                     style={"fontSize": "0.8rem"},
                 ), width=4),
-            ], className="mb-2"))
-        return color_rows
+            ], className="mb-2")
+
+        return [
+            html.H6("Status Colors", className="mb-2"),
+            _color_row("Open", "Open"),
+            _color_row("Blocked", "Blocked"),
+            _color_row("Done", "Done"),
+            html.H6("Type Colors", className="mt-3 mb-2"),
+            _color_row("Goal", "Goal"),
+            _color_row("Resource", "Resource"),
+        ]

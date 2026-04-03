@@ -6,9 +6,11 @@ Tests pure functions that don't require a database.
 
 import json
 import pytest
+from dash import html
 from callback_helpers import (
     parse_links, serialize_links,
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
+    _bool_icon,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -253,3 +255,35 @@ class TestResolveActiveNodeId:
             {'cytoscape-graph', 'edit-trigger-input'}, 'cytoscape-graph',
             None, None, {'id': 'TappedNode'}, 'stale')
         assert result == 'TappedNode'
+
+
+# ============================================================================
+# _bool_icon
+# ============================================================================
+
+class TestBoolIcon:
+    """Tests for the boolean checkmark/cross icon helper."""
+
+    def test_truthy_returns_checkmark(self):
+        result = _bool_icon(True)
+        assert isinstance(result, html.Span)
+        assert result.children == "\u2713"
+        assert result.style["color"] == "#198754"
+
+    def test_falsy_returns_cross(self):
+        result = _bool_icon(False)
+        assert isinstance(result, html.Span)
+        assert result.children == "\u2717"
+        assert result.style["color"] == "#dc3545"
+
+    def test_none_returns_cross(self):
+        result = _bool_icon(None)
+        assert result.children == "\u2717"
+
+    def test_nonempty_string_returns_checkmark(self):
+        result = _bool_icon("some/path.md")
+        assert result.children == "\u2713"
+
+    def test_empty_string_returns_cross(self):
+        result = _bool_icon("")
+        assert result.children == "\u2717"

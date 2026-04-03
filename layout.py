@@ -25,6 +25,9 @@ sidebar_content = html.Div(
             html.Span("×", id="btn-close-editor", className="fs-3 text-white float-end", style={"cursor": "pointer"})
         ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
         dbc.Form([
+            dbc.Badge(id="node-priority-badge", children="", color="warning",
+                      className="mb-2",
+                      style={"display": "none", "fontSize": "0.75rem"}),
             html.H5("Search", className="mt-2 mb-1"),
             html.Div(dcc.Dropdown(
                 id="search-node",
@@ -55,18 +58,13 @@ sidebar_content = html.Div(
 
             # --- Section: Done toggle + Time Estimates (Learn, Goal, Resource) ---
             html.Div(id="section-done-time", children=[
-                html.Div([
-                    dbc.Checklist(
-                        options=[{"label": "Done", "value": "Done"}],
-                        value=[],
-                        id="node-status-done",
-                        switch=True,
-                        className="mt-3",
-                    ),
-                    dbc.Badge(id="node-priority-badge", children="", color="warning",
-                              className="ms-2 mt-3 align-self-start",
-                              style={"display": "none", "fontSize": "0.75rem"}),
-                ], className="d-flex align-items-start"),
+                dbc.Checklist(
+                    options=[{"label": "Done", "value": "Done"}],
+                    value=[],
+                    id="node-status-done",
+                    switch=True,
+                    className="mt-3",
+                ),
             ]),
 
             # --- Section: Resource-specific (progress slider) ---
@@ -96,7 +94,7 @@ sidebar_content = html.Div(
                         {"label": "Hours", "value": "hours"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
-                    ], value="hours", size="sm", style={"width": "100px"})
+                    ], value="weeks", size="sm", style={"width": "100px"})
                 ], className="d-flex justify-content-between align-items-center mt-2 mb-1"),
                 dbc.Row([
                     dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
@@ -120,10 +118,9 @@ sidebar_content = html.Div(
             ], className="text-dark"),
 
             dbc.Label("Helps", className="mt-2"),
-            html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergistic Nodes..."), className="text-dark"),
+            html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
 
-            dbc.Label("Resources", className="mt-2"),
-            html.Div(dcc.Dropdown(id="edge-resources", multi=True, placeholder="Resource Nodes..."), className="text-dark"),
+            dcc.Store(id='edge-resources', data=[]),
 
             html.Hr(className="my-2"),
             html.H5("External Resources", className="mt-2 mb-1"),
@@ -160,7 +157,7 @@ sidebar_content = html.Div(
             ], className="d-flex justify-content-end mt-4"),
             html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
-            dcc.Store(id='node-time-unit-prev', data='hours'),
+            dcc.Store(id='node-time-unit-prev', data='weeks'),
             dcc.Store(id='node-original-name', data=None)
         ])
     ],
@@ -283,13 +280,17 @@ relationships_view = html.Div([
     html.H6("Relationships", className="text-muted mb-2", style=_section_title_style),
     html.Div([
         html.Div([
-            html.H6("Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
-            html.Div(id="traversal-chains")
-        ], style={"marginRight": "2rem"}),
+            html.H6("Hard Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+            html.Div(id="traversal-chains-hard")
+        ], style={"marginRight": "2rem", "flex": "1"}),
+        html.Div([
+            html.H6("Soft Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+            html.Div(id="traversal-chains-soft")
+        ], style={"marginRight": "2rem", "flex": "1"}),
         html.Div([
             html.H6("Synergies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
             html.Div(id="synergies-list")
-        ]),
+        ], style={"flex": "1"}),
     ], style={"display": "flex", "alignItems": "flex-start"})
 ], style={"flex": "0 0 auto", "minWidth": "400px"})
 

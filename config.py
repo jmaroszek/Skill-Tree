@@ -2,7 +2,7 @@ import json
 from typing import Optional
 from database import get_connection
 
-ENVIRONMENT = "sandbox" # Options: sandbox, production (case sensitive!)
+ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
 CANVAS_HEIGHT = 760  # Default pixel height of the node canvas area
 
@@ -19,6 +19,7 @@ DEFAULT_NODE_COLORS = {
     'Open': '#0d6efd',
     'Done': '#198754',
     'Goal': '#ffc107',
+    'Resource': '#9b59b6',
 }
 
 DEFAULT_NODE_SHAPES = {

@@ -7,7 +7,7 @@ import dash_bootstrap_components as dbc
 from typing import Optional, List, Any
 import dash_cytoscape as cyto
 from config import ConfigManager
-from models import EDGE_RESOURCE, EDGE_NEEDS_HARD
+from models import EDGE_NEEDS_HARD
 from styles import stylesheet
 
 
@@ -150,8 +150,7 @@ def build_goals_tab_content():
                 dbc.Label("Helps", className="mt-2"),
                 html.Div(dcc.Dropdown(id="goal-add-helps", multi=True, placeholder="Synergistic Nodes..."), className="text-dark"),
 
-                dbc.Label("Resources", className="mt-2"),
-                html.Div(dcc.Dropdown(id="goal-add-edge-resources", multi=True, placeholder="Resource Nodes..."), className="text-dark"),
+                dcc.Store(id='goal-add-edge-resources', data=[]),
 
                 html.Hr(className="my-2"),
                 html.H6("External Resources", className="mt-2 mb-1"),
@@ -507,17 +506,7 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
     for node in subtask_nodes:
         status_color = {"Done": "success", "Blocked": "danger", "Open": "primary"}.get(node.status, "secondary")
         need = need_types.get(node.name, "Hard")
-        need_color = "secondary"
-
-        # Unlocks
-        unlocks = []
-        if graph_manager:
-            unlocks = graph_manager.get_directly_unlocked_nodes(node.name)
-        unlocks_str = ", ".join(unlocks) if unlocks else "\u2014"
-
-        # Resources
-        res = [e['source'] for e in edges if e['target'] == node.name and e['type'] == EDGE_RESOURCE]
-        res_str = ", ".join(res) if res else "\u2014"
+        need_color = "primary" if need == "Hard" else "info"
 
         is_direct = node.name in direct_children
         btn = dbc.Button(
@@ -563,8 +552,6 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
             html.Td(str(node.difficulty), style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(ConfigManager.format_time_friendly(node.time) if node.time and node.time > 0 else "\u2014",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(unlocks_str, style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(res_str, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(remove_btn, style={"verticalAlign": "middle"}),
         ]))
 
@@ -580,8 +567,6 @@ def build_subtasks_table(subtask_nodes, graph_manager=None, edges=None, goal_nam
             html.Th("Interest"),
             html.Th("Effort"),
             html.Th("Time"),
-            html.Th("Unlocks"),
-            html.Th("Resources"),
             html.Th(""),
         ])),
         html.Tbody(rows),

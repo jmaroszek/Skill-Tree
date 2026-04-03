@@ -8,10 +8,10 @@ global `manager` instance).
 from typing import Any
 import pytest
 import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_HELPS
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from callbacks import (
     _build_filters, _node_options, _handle_save, _handle_delete,
-    _handle_toggle_done, _handle_group_delete, manager
+    _handle_toggle_done, _handle_group_delete, generate_elements, manager
 )
 
 
@@ -115,7 +115,7 @@ class TestHandleSave:
         msg = _handle_save(
             "NewNode", "Learn", "desc", 5, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
-            [], [], [], [], [], []
+            [], [], [], [], []
         )
         assert "Added" in msg
         assert manager.get_node("NewNode") is not None
@@ -125,7 +125,7 @@ class TestHandleSave:
         msg = _handle_save(
             "Existing", "Learn", "updated desc", 9, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
-            [], [], [], [], [], []
+            [], [], [], [], []
         )
         assert "Updated" in msg
         assert manager.get_node("Existing").value == 9
@@ -136,7 +136,7 @@ class TestHandleSave:
         msg = _handle_save(
             "A", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
-            ["B"], [], [], [], [], []  # B is a hard prereq of A
+            ["B"], [], [], [], []  # B is a hard prereq of A
         )
         edges = manager.get_edges()
         hard = [e for e in edges if e['type'] == EDGE_NEEDS_HARD]
@@ -204,3 +204,69 @@ class TestHandleGroupDelete:
         msg = _handle_group_delete('["X"]|1234567890')
         assert manager.get_node("X") is None
         assert "1" in msg
+
+
+# ============================================================================
+# generate_elements — Resource node color logic
+# ============================================================================
+
+class TestResourceNodeColor:
+    """Tests that Resource nodes get the correct color in generate_elements."""
+
+    def test_resource_open_gets_purple(self):
+        manager.add_node(_make_node("Res1", type="Resource", status="Open"))
+        elements = generate_elements()
+        node_el = next(e for e in elements if e['data'].get('id') == 'Res1')
+        assert node_el['data']['color'] == '#9b59b6'
+
+    def test_resource_done_gets_green(self):
+        manager.add_node(_make_node("Res2", type="Resource", status="Done"))
+        elements = generate_elements()
+        node_el = next(e for e in elements if e['data'].get('id') == 'Res2')
+        # Done color
+        assert node_el['data']['color'] == '#198754'
+
+    def test_resource_blocked_gets_purple(self):
+        """Blocked resource nodes should still be purple, not the Blocked red."""
+        manager.add_node(_make_node("Blocker", type="Learn", status="Open"))
+        manager.add_node(_make_node("Res3", type="Resource", status="Open"))
+        manager.add_edge("Blocker", "Res3", EDGE_NEEDS_HARD)
+        # Res3 should now be Blocked
+        assert manager.get_node("Res3").status == "Blocked"
+        elements = generate_elements()
+        node_el = next(e for e in elements if e['data'].get('id') == 'Res3')
+        assert node_el['data']['color'] == '#9b59b6'
+
+    def test_goal_node_gets_yellow(self):
+        manager.add_node(_make_node("G1", type="Goal"))
+        elements = generate_elements()
+        node_el = next(e for e in elements if e['data'].get('id') == 'G1')
+        assert node_el['data']['color'] == '#ffc107'
+
+    def test_normal_node_gets_status_color(self):
+        manager.add_node(_make_node("Learn1", type="Learn", status="Open"))
+        elements = generate_elements()
+        node_el = next(e for e in elements if e['data'].get('id') == 'Learn1')
+        # Open color
+        assert node_el['data']['color'] == '#0d6efd'
+
+
+# ============================================================================
+# _handle_save — no resources parameter
+# ============================================================================
+
+class TestHandleSaveNoResources:
+    """Tests that _handle_save works without a resources edge parameter."""
+
+    def test_save_with_needs_edges_only(self):
+        manager.add_node(_make_node("Prereq", status="Done"))
+        msg = _handle_save(
+            "NewRes", "Resource", "A resource", 5, 1.0, 2.0, 4.0, 5, 5,
+            [], "Mind", None, None, None, None,
+            ["Prereq"], [], [], [], []
+        )
+        assert "Added" in msg
+        edges = manager.get_edges()
+        assert len(edges) == 1
+        assert edges[0]['type'] == EDGE_NEEDS_HARD
+        assert edges[0]['source'] == "Prereq"

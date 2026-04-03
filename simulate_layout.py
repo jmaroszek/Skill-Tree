@@ -43,7 +43,10 @@ def build_simulate_tab_content():
                    className="w-100 mb-4", size="lg"),
 
         # Chain summary
-        html.Div(id="sim-chain-list"),
+        html.Div(id="sim-chain-list", style={
+            "flex": "1", "minHeight": "0",
+            "display": "flex", "flexDirection": "column",
+        }),
 
     ], style={
         "width": "380px",
@@ -52,7 +55,7 @@ def build_simulate_tab_content():
         "display": "flex",
         "flexDirection": "column",
         "padding": "0 20px",
-        "overflow": "visible",
+        "overflow": "hidden",
     })
 
     # --- Right Panel: Results ---

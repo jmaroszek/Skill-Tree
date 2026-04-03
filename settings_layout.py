@@ -48,7 +48,7 @@ def build_settings_tab_content():
                                         dbc.Tooltip("Restore defaults", target="btn-restore-colors", placement="top"),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
-                                html.Small("Color for each node status.", className="text-muted d-block mb-2"),
+                                html.Small("Color for node statuses and type overrides.", className="text-muted d-block mb-2"),
                                 html.Div(id="setting-node-colors-container"),
                             ], width=6),
                         ]),

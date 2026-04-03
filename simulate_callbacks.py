@@ -150,8 +150,9 @@ def register_simulate_callbacks(app):
                     )
             chain_content = html.Div([
                 html.H6(f"Chain ({len(chain_nodes)} nodes)", className="mb-2 mt-2"),
-                html.Div(chain_items, style={"maxHeight": "300px", "overflowY": "auto"}),
-            ])
+                html.Div(chain_items, id="sim-chain-items",
+                         style={"flex": "1", "overflowY": "auto", "minHeight": "0"}),
+            ], style={"display": "flex", "flexDirection": "column", "flex": "1", "minHeight": "0"})
         else:
             chain_content = html.Div(
                 html.P("All tasks in chain are complete.", className="text-muted mt-3"),

@@ -6,7 +6,7 @@ import math
 EDGE_NEEDS_HARD = 'Needs_Hard'
 EDGE_NEEDS_SOFT = 'Needs_Soft'
 EDGE_HELPS = 'Helps'
-EDGE_RESOURCE = 'Resource'
+EDGE_RESOURCE = 'Resource'  # Deprecated: migrated to Needs_Soft at startup
 
 
 @dataclass

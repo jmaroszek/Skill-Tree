@@ -10,7 +10,7 @@ import dash
 from dash import html
 import dash_bootstrap_components as dbc
 from config import ConfigManager
-from models import EDGE_RESOURCE, EDGE_HELPS
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -124,7 +124,7 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
 
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
-                e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res,
+                e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                 progress_val=None):
     """Create or update a node and sync its edges. Returns a status message."""
     from models import Node
@@ -151,7 +151,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     else:
         manager.add_node(node)
         msg = f"Added node '{name}'"
-    manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps, e_res)
+    manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps)
     return msg
 
 
@@ -183,6 +183,13 @@ def handle_group_delete(manager, group_delete_data):
 
 # --- UI Formatting Helpers ---
 
+def _bool_icon(val):
+    """Render a boolean as a styled checkmark or cross."""
+    if val:
+        return html.Span("\u2713", style={"color": "#198754", "fontWeight": "bold"})
+    return html.Span("\u2717", style={"color": "#dc3545"})
+
+
 def format_suggestions_table(suggs, manager, selected_node_id=None):
     """Render the top-scored nodes as an HTML table with normalized priority scores (0-100)."""
     if not suggs:
@@ -197,11 +204,14 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
         return round((score / max_score) * 100, 1)
 
     edges = manager.get_edges()
+    all_nodes = manager.get_all_nodes()
+    resource_names = {n.name for n in all_nodes if n.type == 'Resource'}
 
     table_header = [html.Thead(html.Tr([
         html.Th("Name"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
         html.Th("Subcontext"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
-        html.Th("Unlocks"), html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive"), html.Th("Website")
+        html.Th("Hard Unlocks"), html.Th("Soft Unlocks"),
+        html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive"), html.Th("Website")
     ]))]
 
     row_data = []
@@ -209,8 +219,12 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
         is_selected = (s.name == selected_node_id)
         row_class = "table-active" if is_selected else ""
 
-        node_res = [e['source'] for e in edges if e['target'] == s.name and e['type'] == EDGE_RESOURCE]
-        res_str = "Yes" if node_res else "No"
+        unlocks = manager.get_directly_unlocked_nodes_by_type(s.name)
+        has_resource = any(
+            e['source'] in resource_names
+            for e in edges
+            if e['target'] == s.name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
+        )
 
         row_data.append(html.Tr([
             html.Td(html.Span(
@@ -227,11 +241,12 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             html.Td(str(s.interest) if hasattr(s, 'interest') and s.interest is not None else "None"),
             html.Td(str(s.difficulty)),
             html.Td(ConfigManager.format_time_friendly(s.time) if hasattr(s, 'time') and s.time else "0h"),
-            html.Td(", ".join(manager.get_directly_unlocked_nodes(s.name)) or "None"),
-            html.Td(res_str),
-            html.Td("Yes" if getattr(s, 'obsidian_path', None) else "No"),
-            html.Td("Yes" if getattr(s, 'google_drive_path', None) else "No"),
-            html.Td("Yes" if getattr(s, 'website', None) else "No"),
+            html.Td(str(len(unlocks['hard']))),
+            html.Td(str(len(unlocks['soft']))),
+            html.Td(_bool_icon(has_resource)),
+            html.Td(_bool_icon(getattr(s, 'obsidian_path', None))),
+            html.Td(_bool_icon(getattr(s, 'google_drive_path', None))),
+            html.Td(_bool_icon(getattr(s, 'website', None))),
         ], id={"type": "suggestion-row", "index": s.name}, className=row_class, style={"cursor": "pointer"}))
 
     table = dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,
@@ -254,15 +269,20 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
 
 
 def format_traversal_ui(tapped_node, active_node_id, manager):
-    """Build the dependency chains and synergies display for the selected node."""
-    traversal_ui = html.Div(className="text-muted", children="Select a node to see dependencies.")
+    """Build the dependency chains (hard/soft) and synergies display for the selected node.
+
+    Returns (hard_chains_ui, soft_chains_ui, synergies_ui, description).
+    """
+    empty_msg = "Select a node to see dependencies."
+    hard_ui = html.Div(className="text-muted", children=empty_msg)
+    soft_ui = html.Div(className="text-muted", children=empty_msg)
     synergies_ui = html.Div(className="text-muted", children="Select a node to see synergies.")
     description = ""
 
     node_id = active_node_id or (tapped_node.get('id') if tapped_node else None)
 
     if not node_id:
-        return traversal_ui, synergies_ui, description
+        return hard_ui, soft_ui, synergies_ui, description
 
     node = manager.get_node(node_id)
     if node:
@@ -270,26 +290,29 @@ def format_traversal_ui(tapped_node, active_node_id, manager):
     else:
         description = ""
 
-    chains = manager.get_prerequisite_chains(node_id)
+    typed_chains = manager.get_prerequisite_chains_typed(node_id)
 
     edges = manager.get_edges()
     synergies = [e['target'] for e in edges if e['source'] == node_id and e['type'] == EDGE_HELPS]
     synergies += [e['source'] for e in edges if e['target'] == node_id and e['type'] == EDGE_HELPS]
     synergies = list(set(synergies))
 
-    if not chains:
-        traversal_ui = html.P("None", className="text-dark")
-    else:
-        chain_items = []
-        for c in chains:
-            display_chain = c[:-1] if c and c[-1] == active_node_id else c
-            if display_chain:
-                chain_items.append(html.Div(" → ".join(display_chain), style={"overflowWrap": "break-word"}))
-        traversal_ui = html.Div(chain_items) if chain_items else html.P("None", className="text-dark")
+    hard_items, soft_items = [], []
+    for chain, chain_type in typed_chains:
+        display_chain = chain[:-1] if chain and chain[-1] == active_node_id else chain
+        if display_chain:
+            item = html.Div(" \u2192 ".join(display_chain), style={"overflowWrap": "break-word"})
+            if chain_type == "Hard":
+                hard_items.append(item)
+            else:
+                soft_items.append(item)
+
+    hard_ui = html.Div(hard_items) if hard_items else html.P("None", className="text-dark")
+    soft_ui = html.Div(soft_items) if soft_items else html.P("None", className="text-dark")
 
     synergies_ui = html.Div([html.Div(s) for s in synergies]) if synergies else html.P("None", className="text-dark")
 
-    return traversal_ui, synergies_ui, description
+    return hard_ui, soft_ui, synergies_ui, description
 
 
 # --- Link Row UI Helper ---

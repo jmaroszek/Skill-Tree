@@ -67,12 +67,6 @@ stylesheet = [
             'line-style': 'solid'
         }
     },
-    {
-        'selector': '[type = "Resource"]',
-        'style': {
-            'line-style': 'dotted'
-        }
-    }
 ]
 
 # --- Mini Graph Stylesheet (smaller nodes for embedded views) ---

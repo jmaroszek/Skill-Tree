@@ -113,6 +113,15 @@ input[type=number] {
     color: #fff !important;
 }
 
+/* Hide scrollbar for simulation chain list */
+#sim-chain-items {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+#sim-chain-items::-webkit-scrollbar {
+    display: none;
+}
+
 /* Hide horizontal scrollbar in goal detail left column */
 #goal-detail-content .goal-left-column {
     overflow-x: hidden;

@@ -123,19 +123,18 @@ class GraphManager:
             cursor.execute("SELECT * FROM Edges")
             return [dict(row) for row in cursor.fetchall()]
 
-    def sync_edges(self, node_name: str, needs_hard: list, needs_soft: list, supports_hard: list, supports_soft: list, helps: list, resources: list):
+    def sync_edges(self, node_name: str, needs_hard: list, needs_soft: list, supports_hard: list, supports_soft: list, helps: list):
         needs_hard = needs_hard or []
         needs_soft = needs_soft or []
         supports_hard = supports_hard or []
         supports_soft = supports_soft or []
         helps = helps or []
-        resources = resources or []
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
             # Clear existing edges for this node
-            cursor.execute("DELETE FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft', 'Resource')", (node_name,))
+            cursor.execute("DELETE FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')", (node_name,))
             cursor.execute("DELETE FROM Edges WHERE source=? AND type IN ('Needs_Hard', 'Needs_Soft')", (node_name,))
             cursor.execute("DELETE FROM Edges WHERE (target=? OR source=?) AND type='Helps'", (node_name, node_name))
 
@@ -154,7 +153,6 @@ class GraphManager:
             for trgt in supports_soft: _insert_edge(node_name, trgt, EDGE_NEEDS_SOFT)
 
             for linked in helps: _insert_edge(node_name, linked, EDGE_HELPS)
-            for r_src in resources: _insert_edge(r_src, node_name, EDGE_RESOURCE)
 
             conn.commit()
 
@@ -254,6 +252,24 @@ class GraphManager:
                 WHERE source=? AND Edges.type='Needs_Hard' AND Nodes.status='Blocked'
             ''', (node_name,))
             return [row[0] for row in cursor.fetchall()]
+
+    def get_directly_unlocked_nodes_by_type(self, node_name: str) -> Dict[str, List[str]]:
+        """Returns nodes directly unlocked by completing this node, separated by edge type."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT target, Edges.type FROM Edges
+                JOIN Nodes ON Edges.target = Nodes.name
+                WHERE source=? AND Edges.type IN ('Needs_Hard', 'Needs_Soft')
+                AND Nodes.status IN ('Blocked', 'Open')
+            ''', (node_name,))
+            hard, soft = [], []
+            for row in cursor.fetchall():
+                if row[1] == 'Needs_Hard':
+                    hard.append(row[0])
+                else:
+                    soft.append(row[0])
+            return {'hard': hard, 'soft': soft}
 
     def get_goal_subtree(self, goal_name: str, edge_types=None) -> Set[str]:
         """Returns all node names reachable as prerequisites of a goal (BFS over specified edge types).
@@ -387,6 +403,48 @@ class GraphManager:
             dfs([target_name])
 
         return chains
+
+    def get_prerequisite_chains_typed(self, target_name: str) -> List[tuple]:
+        """Returns prerequisite chains classified as 'Hard' or 'Soft'.
+
+        Each result is (chain, type_str) where type_str is 'Hard' if all edges
+        in the chain are Needs_Hard, else 'Soft'.
+        """
+        target_node = self.get_node(target_name)
+        if not target_node:
+            return []
+
+        typed_chains = []
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name, status FROM Nodes")
+            status_lookup = {row[0]: row[1] for row in cursor.fetchall()}
+
+            def dfs(current_path, has_soft):
+                curr_node = current_path[-1]
+                cursor.execute(
+                    "SELECT source, type FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')",
+                    (curr_node,))
+                prereqs = cursor.fetchall()
+
+                if not prereqs:
+                    has_incomplete = any(
+                        status_lookup.get(p, 'Open') != 'Done'
+                        for p in current_path
+                    )
+                    if has_incomplete:
+                        chain = list(reversed(current_path))
+                        typed_chains.append((chain, "Soft" if has_soft else "Hard"))
+                    return
+
+                for prereq_name, edge_type in prereqs:
+                    if prereq_name not in current_path:
+                        dfs(current_path + [prereq_name],
+                            has_soft or edge_type == 'Needs_Soft')
+
+            dfs([target_name], False)
+
+        return typed_chains
 
     def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> nx.Graph:
         G = nx.Graph()

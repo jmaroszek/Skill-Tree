@@ -190,9 +190,11 @@ def register_goal_callbacks(app):
         Output("goal-progress-bar", "value", allow_duplicate=True),
         Output("goal-stats-text", "children", allow_duplicate=True),
         Input({"type": "goal-card", "index": ALL}, "n_clicks"),
+        State("goal-include-soft-needs", "value"),
+        State("goal-include-transitive", "value"),
         prevent_initial_call=True,
     )
-    def select_goal(n_clicks_list):
+    def select_goal(n_clicks_list, include_soft_value, include_transitive_value):
         if not any(n_clicks_list):
             return (no_update,) * 20
 
@@ -215,6 +217,9 @@ def register_goal_callbacks(app):
         if goal_name in priority_goals:
             rank_value = str(priority_goals.index(goal_name) + 1)
 
+        include_soft = bool(include_soft_value and "include" in include_soft_value)
+        include_transitive = bool(include_transitive_value and "include" in include_transitive_value)
+
         completion = graph_manager.get_goal_completion(goal_name)
         subtree = graph_manager.get_goal_subtree(goal_name)
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
@@ -236,7 +241,9 @@ def register_goal_callbacks(app):
             ["done"] if goal.status == "Done" else [],
             rank_value,  # priority rank dropdown
             {"display": "block"},  # show stats
-            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges, goal_name=goal_name),
+            build_subtasks_table(subtask_nodes, graph_manager=graph_manager, edges=edges,
+                                 goal_name=goal_name, include_soft=include_soft,
+                                 include_transitive=include_transitive),
             "",  # save status
             completion["pct"],  # progress bar
             f"{completion['done']}/{completion['total']} subtasks complete \u00b7 {round(completion['remaining_time'])}h remaining",
@@ -513,7 +520,12 @@ def register_goal_callbacks(app):
                 'data': {
                     'id': node.name,
                     'label': node.name,
-                    'color': colors.get('Goal', '#ffc107') if node.type == 'Goal' else colors.get(node.status, '#6c757d'),
+                    'color': (
+                        colors.get('Goal', '#ffc107') if node.type == 'Goal'
+                        else colors.get('Done', '#198754') if node.type == 'Resource' and node.status == 'Done'
+                        else colors.get('Resource', '#9b59b6') if node.type == 'Resource'
+                        else colors.get(node.status, '#6c757d')
+                    ),
                     'shape': shapes.get(node.type, 'ellipse'),
                     'type': node.type,
                     'status': node.status,
@@ -703,13 +715,22 @@ def register_goal_callbacks(app):
         Output("goal-add-obsidian-store", "data"),
         Output("goal-add-drive-store", "data"),
         Output("goal-add-website-store", "data"),
+        Output("goal-add-value", "value"),
+        Output("goal-add-interest", "value"),
+        Output("goal-add-difficulty", "value"),
+        Output("goal-add-time-o", "value"),
+        Output("goal-add-time-m", "value"),
+        Output("goal-add-time-p", "value"),
+        Output("goal-add-context", "value", allow_duplicate=True),
+        Output("goal-add-subcontext", "value", allow_duplicate=True),
+        Output("goal-add-mode", "value"),
         Input("btn-goal-add-node", "n_clicks"),
         State("selected-goal-store", "data"),
         prevent_initial_call=True,
     )
     def open_add_node_modal(n_clicks, selected_goal):
         if not n_clicks:
-            return (no_update,) * 24
+            return (no_update,) * 33
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -735,6 +756,10 @@ def register_goal_callbacks(app):
             all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts, resource_opts,
             [], [], [], [], [], [],
             [''], [''], [''],
+            5, 5, 5,          # value, interest, difficulty
+            0, 0, 0,          # time-o, time-m, time-p
+            "", "",           # context, subcontext
+            "create",         # mode
         )
 
     # --- Add Node Modal: Toggle mode (create vs link) ---
@@ -994,7 +1019,6 @@ def register_goal_callbacks(app):
         State("goal-add-supports-hard", "value"),
         State("goal-add-supports-soft", "value"),
         State("goal-add-helps", "value"),
-        State("goal-add-edge-resources", "value"),
         State({'type': 'goal-add-obsidian-link', 'index': ALL}, 'value'),
         State({'type': 'goal-add-drive-link', 'index': ALL}, 'value'),
         State({'type': 'goal-add-website-link', 'index': ALL}, 'value'),
@@ -1006,7 +1030,7 @@ def register_goal_callbacks(app):
                       name, node_type, context, subcontext, desc,
                       value, interest, difficulty, time_o, time_m, time_p,
                       time_unit,
-                      needs_hard, needs_soft, supports_hard, supports_soft, helps, edge_resources,
+                      needs_hard, needs_soft, supports_hard, supports_soft, helps,
                       obsidian_vals, drive_vals, website_vals,
                       include_soft_value, include_transitive_value):
         if not n_clicks or not selected_goal:
@@ -1051,7 +1075,7 @@ def register_goal_callbacks(app):
                 node_name,
                 needs_hard or [], needs_soft or [],
                 supports_hard or [], supports_soft or [],
-                helps or [], edge_resources or [],
+                helps or [],
             )
 
         # Add a hard edge to the goal only if the user didn't already set one
