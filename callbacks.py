@@ -287,8 +287,8 @@ def register_callbacks(app):
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-clear', 'n_clicks'),
-         Input('search-node', 'value'),
-         Input('cytoscape-graph', 'elements')],
+         Input('search-node', 'value')],
+        [State('cytoscape-graph', 'elements')],
         prevent_initial_call='initial_duplicate'
     )
     def populate_editor(data, add_clicks, clear_clicks, search_val, elements):
@@ -326,6 +326,12 @@ def register_callbacks(app):
                 return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*7
         elif data:
             name = data.get('id')
+            # Always read fresh data from DB on tap (Cytoscape data may be stale)
+            if name:
+                db_node = manager.get_node(name)
+                if db_node:
+                    data = db_node.to_dict()
+                    data['id'] = name
 
         if not name or not data:
             return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*7
@@ -343,10 +349,7 @@ def register_callbacks(app):
         helps_vals = list(set(helps_vals))
         filtered_options = _node_options(all_nodes, exclude=name)
 
-        # actual_status: the authoritative status from the DB (may be Blocked/Open/Done),
-        # as opposed to the Cytoscape data dict which may be stale after state cascades.
-        db_node = manager.get_node(name)
-        actual_status = db_node.status if db_node else data.get('status', 'Open')
+        actual_status = data.get('status', 'Open')
         done_val = ["Done"] if actual_status == "Done" else []
 
         friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
@@ -368,7 +371,7 @@ def register_callbacks(app):
             # Type-specific fields
             data.get('progress') or 0, friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
-            dash.no_update,  # search-node — don't change when loading a node
+            None,  # search-node — clear search bar when loading a node via tap
         ]
 
     # --- Type-adaptive field visibility ---
@@ -499,7 +502,8 @@ def register_callbacks(app):
          Input('focus-goal-store', 'data'),
          Input('edit-trigger-input', 'value'),
          Input('toggle-done-trigger-input', 'value'),
-         Input('events-refresh-trigger', 'data')],
+         Input('events-refresh-trigger', 'data'),
+         Input('goals-refresh-trigger', 'data')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -524,7 +528,7 @@ def register_callbacks(app):
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
-                     edit_trigger_data, toggle_done_trigger_data, _events_refresh,
+                     edit_trigger_data, toggle_done_trigger_data, _events_refresh, _goals_refresh,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -813,8 +817,8 @@ def register_callbacks(app):
         old_node = manager.get_node(old_name)
         if not old_node:
             return False, None, f"Error: Node '{old_name}' not found.", False, dash.no_update, dash.no_update
-        # Delete old node (removes it and its edges), then save under new name
-        manager.delete_node(old_name)
+        # Rename node atomically (preserves all edges), then update attributes
+        manager.rename_node(old_name, new_name)
         _handle_save(
             new_name, pending['n_type'], pending['desc'], pending['val'],
             pending['t_o'], pending['t_m'], pending['t_p'],

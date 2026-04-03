@@ -140,60 +140,20 @@ def simulate_task_chain(
     for name in incomplete:
         node = nodes_dict.get(name)
         if node:
-            task_samples[name] = _sample_node(node, n_simulations)
+            # Goal nodes with no time estimates contribute zero time (they're containers)
+            if node.type == 'Goal' and node.time_o == 0 and node.time_m == 0 and node.time_p == 0:
+                task_samples[name] = np.zeros(n_simulations)
+            else:
+                task_samples[name] = _sample_node(node, n_simulations)
         else:
             task_samples[name] = np.full(n_simulations, 1.0)
 
-    # Build forward adjacency within incomplete subgraph
-    # Edge direction: prereq → dependent (prereq must finish before dependent starts)
-    forward = {name: [] for name in incomplete}
-    in_degree = {name: 0 for name in incomplete}
-
-    for src, tgt in sim_edges:
-        if src in incomplete and tgt in incomplete:
-            forward[src].append(tgt)
-            in_degree[tgt] += 1
-
-    # Topological sort (Kahn's algorithm)
-    topo_order = []
-    queue = [n for n in incomplete if in_degree[n] == 0]
-    while queue:
-        n = queue.pop(0)
-        topo_order.append(n)
-        for dep in forward[n]:
-            in_degree[dep] -= 1
-            if in_degree[dep] == 0:
-                queue.append(dep)
-
-    # Handle any nodes not reached by topo sort (cycles)
-    remaining = incomplete - set(topo_order)
-    topo_order.extend(remaining)
-
-    # Compute earliest finish times via DP
-    name_to_idx = {name: i for i, name in enumerate(topo_order)}
-    finish = np.zeros((len(topo_order), n_simulations))
-
-    for name in topo_order:
-        idx = name_to_idx[name]
-        prereqs_of_name = [
-            src for src, tgt in sim_edges
-            if tgt == name and src in incomplete
-        ]
-        if prereqs_of_name:
-            prereq_finishes = [finish[name_to_idx[p]] for p in prereqs_of_name if p in name_to_idx]
-            if prereq_finishes:
-                max_prereq_finish = np.max(prereq_finishes, axis=0)
-                finish[idx] = max_prereq_finish + task_samples[name]
-            else:
-                finish[idx] = task_samples[name]
-        else:
-            finish[idx] = task_samples[name]
-
-    # Total time = finish time of target node (or max if target is done)
-    if target_name in name_to_idx:
-        samples = finish[name_to_idx[target_name]]
-    else:
-        samples = np.max(finish, axis=0)
+    # Serial execution: total time is the sum of all task durations.
+    # A single person works on one task at a time, so all tasks are sequential
+    # regardless of dependency structure.
+    samples = np.zeros(n_simulations)
+    for name in incomplete:
+        samples += task_samples[name]
 
     chain_nodes = sorted(incomplete)
 

@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-DB_FILENAME = "skilltree.db"
+DB_FILENAME = "skilltree.db" # can not be moved to config without circular imports
 
 
 def get_db_path() -> str:

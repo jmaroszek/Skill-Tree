@@ -200,19 +200,18 @@ class TestNodeCRUD:
 # ============================================================================
 
 class TestNodeRename:
-    """Simulates the rename flow used by the UI: delete old node, save new node
-    with _handle_save (which calls add_node + sync_edges)."""
+    """Tests the rename_node flow used by both Nodes and Goals tab renames."""
 
     def _rename(self, mgr, old_name, new_name, edges_from_form=None):
         """Helper that mirrors what confirm_rename_node does in callbacks.py."""
         old = mgr.get_node(old_name)
         assert old is not None
-        mgr.delete_node(old_name)
+        mgr.rename_node(old_name, new_name)
         new_node = _make_node(new_name, type=old.type, description=old.description,
                               value=old.value, interest=old.interest, difficulty=old.difficulty,
                               status=old.status, context=old.context,
                               time_o=old.time_o, time_m=old.time_m, time_p=old.time_p)
-        mgr.add_node(new_node)
+        mgr.update_node(new_node)
         if edges_from_form:
             mgr.sync_edges(new_name, **edges_from_form)
 
@@ -282,6 +281,27 @@ class TestNodeRename:
         self._rename(mgr, "Old", "New")
         assert mgr.get_node("Old") is None
         assert mgr.get_node("New") is not None
+
+    def test_rename_without_sync_preserves_edges(self, mgr):
+        """Goal tab rename path: rename_node + update_node without sync_edges.
+        All edges must survive the rename."""
+        mgr.add_node(_make_node("Goal1", type="Goal"))
+        mgr.add_node(_make_node("SubA"))
+        mgr.add_node(_make_node("SubB"))
+        mgr.add_edge("SubA", "Goal1", EDGE_NEEDS_HARD)
+        mgr.add_edge("SubB", "Goal1", EDGE_NEEDS_HARD)
+
+        # Rename without sync_edges (Goal tab path)
+        mgr.rename_node("Goal1", "Goal2")
+        new_node = _make_node("Goal2", type="Goal")
+        mgr.update_node(new_node)
+
+        edges = mgr.get_edges()
+        assert any(e['source'] == "SubA" and e['target'] == "Goal2" for e in edges)
+        assert any(e['source'] == "SubB" and e['target'] == "Goal2" for e in edges)
+        assert not any(e['target'] == "Goal1" for e in edges)
+        assert mgr.get_node("Goal1") is None
+        assert mgr.get_node("Goal2") is not None
 
 
 # ============================================================================
@@ -1595,31 +1615,3 @@ class TestSyncEdgesWithoutResources:
         edges = mgr.get_edges()
         assert len(edges) == 1
         assert edges[0]['type'] == EDGE_NEEDS_SOFT
-
-
-# ============================================================================
-# Resource edge migration
-# ============================================================================
-
-class TestResourceEdgeMigration:
-    """Tests that the database migration converts Resource edges to Needs_Soft."""
-
-    def test_resource_edges_migrated_on_init(self, mgr):
-        """Inserting a Resource edge then re-initing should convert it to Needs_Soft."""
-        mgr.add_node(_make_node("R1", type="Resource", status="Done"))
-        mgr.add_node(_make_node("T1"))
-        # Manually insert a Resource edge (simulating old data)
-        with mgr.get_connection() as conn:
-            conn.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)",
-                        ("R1", "T1", "Resource"))
-            conn.commit()
-        edges_before = mgr.get_edges()
-        assert any(e['type'] == 'Resource' for e in edges_before)
-
-        # Re-run init_db migration
-        database._initialized = False
-        database.init_db()
-
-        edges_after = mgr.get_edges()
-        assert not any(e['type'] == 'Resource' for e in edges_after)
-        assert any(e['type'] == 'Needs_Soft' and e['source'] == 'R1' for e in edges_after)

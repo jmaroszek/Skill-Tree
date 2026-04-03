@@ -165,10 +165,11 @@ class ConfigManager:
         return 1.0
 
     @classmethod
-    def format_time_friendly(cls, hours: float) -> str:
+    def format_time_friendly(cls, hours: float | None) -> str:
         """Format an hour based on user configured time bounds"""
         if hours is None or hours <= 0:
             return "0h"
+        
         settings = cls.get_time_settings()
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)

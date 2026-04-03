@@ -174,9 +174,9 @@ class TestSimulateTaskChain:
         assert result['chain_size'] == 3
         assert result['stats']['mean'] == pytest.approx(3.0, abs=0.1)
 
-    def test_parallel_prereqs_takes_max(self):
+    def test_parallel_prereqs_sums_serial(self):
         # A (1h) and B (5h) both required before C (1h)
-        # Critical path = max(1, 5) + 1 = 6h
+        # Serial total = 1 + 5 + 1 = 7h (single person does one task at a time)
         nodes = {
             "A": _make_node("A", time_o=1, time_m=1, time_p=1),
             "B": _make_node("B", time_o=5, time_m=5, time_p=5),
@@ -187,7 +187,7 @@ class TestSimulateTaskChain:
             {"source": "B", "target": "C", "type": "Needs_Hard"},
         ]
         result = simulate_task_chain("C", nodes, edges, n_simulations=500)
-        assert result['stats']['mean'] == pytest.approx(6.0, abs=0.1)
+        assert result['stats']['mean'] == pytest.approx(7.0, abs=0.1)
 
     def test_done_nodes_excluded(self):
         # A is Done, B depends on A → only B should be in the chain
@@ -259,7 +259,7 @@ class TestSimulateTaskChain:
     def test_diamond_dependency(self):
         # A → B, A → C, B → D, C → D
         # A=1h, B=2h, C=3h, D=1h
-        # Critical path: A(1) + C(3) + D(1) = 5h
+        # Serial total: 1 + 2 + 3 + 1 = 7h
         nodes = {
             "A": _make_node("A", time_o=1, time_m=1, time_p=1),
             "B": _make_node("B", time_o=2, time_m=2, time_p=2),
@@ -274,7 +274,18 @@ class TestSimulateTaskChain:
         ]
         result = simulate_task_chain("D", nodes, edges, n_simulations=500)
         assert result['chain_size'] == 4
-        assert result['stats']['mean'] == pytest.approx(5.0, abs=0.1)
+        assert result['stats']['mean'] == pytest.approx(7.0, abs=0.1)
+
+    def test_goal_node_zero_estimates_contributes_zero(self):
+        # Goal node with all-zero estimates should not add spurious 1h default
+        nodes = {
+            "A": _make_node("A", time_o=2, time_m=2, time_p=2),
+            "G": _make_node("G", time_o=0, time_m=0, time_p=0, type="Goal"),
+        }
+        edges = [{"source": "A", "target": "G", "type": "Needs_Hard"}]
+        result = simulate_task_chain("G", nodes, edges, n_simulations=500)
+        # Should be ~2h (just A), not 3h (A + 1h default for Goal)
+        assert result['stats']['mean'] == pytest.approx(2.0, abs=0.1)
 
     def test_no_edges_single_node_only(self):
         nodes = {

@@ -66,6 +66,22 @@ class GraphManager:
         for dept in dependents:
             self._update_node_state(dept)
 
+    def rename_node(self, old_name: str, new_name: str):
+        """Renames a node, updating all edge and event references atomically."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Temporarily disable FK checks so we can rename node + edges atomically
+            cursor.execute("PRAGMA foreign_keys = OFF")
+            cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
+            cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
+            cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
+            # Update event trigger_node references
+            cursor.execute("UPDATE Events SET trigger_node=? WHERE trigger_node=?", (new_name, old_name))
+            # Also update EventNodes mapping table
+            cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
+            conn.commit()
+            cursor.execute("PRAGMA foreign_keys = ON")
+
     def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
         with self.get_connection() as conn:

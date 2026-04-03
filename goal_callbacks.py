@@ -373,8 +373,8 @@ def register_goal_callbacks(app):
         )
 
         try:
-            graph_manager.delete_node(old_name)
-            graph_manager.add_node(goal_node)
+            graph_manager.rename_node(old_name, new_name)
+            graph_manager.update_node(goal_node)
             priority_goals = ConfigManager.get_priority_goals()
             if old_name in priority_goals:
                 priority_goals = [new_name if g == old_name else g for g in priority_goals]
@@ -708,6 +708,7 @@ def register_goal_callbacks(app):
         Output("goal-add-context", "options", allow_duplicate=True),
         Output("goal-add-subcontext", "options", allow_duplicate=True),
         Output("goal-add-existing-dropdown", "options"),
+        Output("goal-add-existing-dropdown", "value"),
         Output("goal-add-name", "value"),
         Output("goal-add-desc", "value"),
         Output("goal-add-save-status", "children", allow_duplicate=True),
@@ -742,7 +743,7 @@ def register_goal_callbacks(app):
     )
     def open_add_node_modal(n_clicks, selected_goal):
         if not n_clicks:
-            return (no_update,) * 33
+            return (no_update,) * 34
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -764,7 +765,7 @@ def register_goal_callbacks(app):
 
         return (
             True, type_opts, ctx_opts, [{"label": "None", "value": ""}],
-            existing_opts, "", "", "", "weeks",
+            existing_opts, None, "", "", "", "weeks",
             all_node_opts, all_node_opts, all_node_opts, all_node_opts, all_node_opts, resource_opts,
             [], [], [], [], [], [],
             [''], [''], [''],
