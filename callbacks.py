@@ -306,7 +306,7 @@ def register_callbacks(app):
             # Type-specific defaults
             0, "weeks", "weeks",
             None,  # node-original-name
-            None,  # search-node — clear the search dropdown
+            dash.no_update,  # search-node — don't change; avoids retriggering core_engine
         ]
 
         if trigger_id in ['btn-add', 'btn-clear']:
@@ -371,7 +371,7 @@ def register_callbacks(app):
             # Type-specific fields
             data.get('progress') or 0, friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
-            None,  # search-node — clear search bar when loading a node via tap
+            dash.no_update,  # search-node — don't change; avoids retriggering core_engine
         ]
 
     # --- Type-adaptive field visibility ---
