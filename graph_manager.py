@@ -369,10 +369,18 @@ class GraphManager:
         result = nodes
         
         if 'context' in filters:
-            result = [n for n in result if n.context == filters['context']]
+            ctx = filters['context']
+            if isinstance(ctx, list):
+                result = [n for n in result if n.context in ctx]
+            else:
+                result = [n for n in result if n.context == ctx]
 
         if 'subcontext' in filters:
-            result = [n for n in result if n.subcontext == filters['subcontext']]
+            sub = filters['subcontext']
+            if isinstance(sub, list):
+                result = [n for n in result if n.subcontext in sub]
+            else:
+                result = [n for n in result if n.subcontext == sub]
 
         if 'min_value' in filters:
             result = [n for n in result if n.value >= int(filters['min_value'])]

@@ -165,7 +165,7 @@ def register_callbacks(app):
     @app.callback(
         Output('filter-node-type', 'value'),
         Output('filter-context', 'value'),
-        Output('filter-subcontext', 'value'),
+        Output('filter-subcontext', 'value', allow_duplicate=True),
         Output('filter-goal', 'value'),
         Output('community-method', 'value'),
         Output('filter-community', 'value'),
@@ -178,7 +178,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def clear_filters(_):
-        return 'All', 'All', 'All', 'All', 'components', 'All', 1, 1, 10, None, ['hide_done']
+        return 'All', [], [], 'All', 'components', 'All', 1, 1, 10, None, ['hide_done']
 
     # --- Tooltip Formatting ---
     @app.callback(
@@ -483,6 +483,7 @@ def register_callbacks(app):
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
          Output('node-completion-events-store', 'data'),
+         Output('filter-node-count', 'children'),
          Output('modal-node-confirm-rename', 'is_open'),
          Output('node-rename-modal-body', 'children'),
          Output('node-rename-pending', 'data')],
@@ -736,7 +737,7 @@ def register_callbacks(app):
         base_ctx = ConfigManager.get_contexts()
         
         ctx_list = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in base_ctx]
-        f_ctx_list = [{"label": "All", "value": "All"}] + [{"label": c, "value": c} for c in base_ctx]
+        f_ctx_list = [{"label": c, "value": c} for c in base_ctx]
 
         base_types = ConfigManager.get_node_types()
         type_list = [{"label": t, "value": t} for t in base_types]
@@ -784,7 +785,10 @@ def register_callbacks(app):
             except Exception:
                 pass
 
-        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, False, dash.no_update, dash.no_update
+        node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
+        node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
+
+        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, node_count_text, False, dash.no_update, dash.no_update
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),
@@ -901,13 +905,22 @@ def register_callbacks(app):
 
     @app.callback(
         Output('filter-subcontext', 'options'),
+        Output('filter-subcontext', 'value'),
         Input('filter-context', 'value')
     )
     def update_filter_subcontexts(ctx):
-        base = [{"label": "All", "value": "All"}]
-        if not ctx or ctx == "All": return base
-        subs = ConfigManager.get_subcontexts().get(ctx, [])
-        return base + [{"label": s, "value": s} for s in subs]
+        if not ctx or ctx == "All" or (isinstance(ctx, list) and not ctx):
+            return [], []
+        contexts = ctx if isinstance(ctx, list) else [ctx]
+        all_subs = ConfigManager.get_subcontexts()
+        seen = set()
+        opts = []
+        for c in contexts:
+            for s in all_subs.get(c, []):
+                if s not in seen:
+                    seen.add(s)
+                    opts.append({"label": s, "value": s})
+        return opts, []
 
     # --- Suggestion Count +/- Callbacks ---
     @app.callback(
