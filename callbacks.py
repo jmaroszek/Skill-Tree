@@ -19,6 +19,7 @@ from callback_helpers import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     format_suggestions_table, format_traversal_ui, SECTION_TITLE_STYLE,
     render_link_rows, spawn_local_file_picker,
+    strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
 )
 
@@ -1270,7 +1271,7 @@ def register_callbacks(app):
         Input('drive-links-store', 'data'),
     )
     def render_drive_links(links):
-        return render_link_rows(links, 'drive-link', has_browse=True)
+        return render_link_rows(strip_gdrive_prefix(links), 'drive-link', has_browse=True)
 
     @app.callback(
         Output('website-links-container', 'children'),
@@ -1458,7 +1459,7 @@ def register_callbacks(app):
             return dash.no_update
         idx = trigger['index']
         if 0 <= idx < len(values):
-            return _open_url_or_path(values[idx])
+            return _open_url_or_path(expand_gdrive_prefix(values[idx]))
         return dash.no_update
 
     @app.callback(

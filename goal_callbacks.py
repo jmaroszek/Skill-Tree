@@ -9,7 +9,7 @@ from graph_manager import GraphManager
 from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
 from goals_layout import build_goal_card, build_subtasks_table
-from callback_helpers import serialize_links, render_link_rows, spawn_local_file_picker
+from callback_helpers import serialize_links, render_link_rows, spawn_local_file_picker, strip_gdrive_prefix, expand_gdrive_prefix
 
 graph_manager = GraphManager()
 
@@ -814,7 +814,7 @@ def register_goal_callbacks(app):
         Input('goal-add-drive-store', 'data'),
     )
     def render_goal_add_drive(links):
-        return render_link_rows(links, 'goal-add-drive-link', has_browse=True)
+        return render_link_rows(strip_gdrive_prefix(links), 'goal-add-drive-link', has_browse=True)
 
     @app.callback(
         Output('goal-add-website-container', 'children'),
@@ -960,7 +960,7 @@ def register_goal_callbacks(app):
             return no_update
         idx = trigger['index']
         if 0 <= idx < len(values):
-            url = values[idx]
+            url = expand_gdrive_prefix(values[idx])
             if not url or not url.strip():
                 return "No path set."
             try:

@@ -12,7 +12,7 @@ from typing import Optional, List
 from config import ConfigManager
 from models import Node, Event
 from events_layout import build_event_card, build_dormant_nodes_table, _event_badge, _event_trigger_type
-from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker
+from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker, strip_gdrive_prefix
 
 event_manager = EventManager()
 graph_manager = GraphManager()
@@ -600,7 +600,7 @@ def register_event_callbacks(app):
         Input('dormant-drive-links-store', 'data'),
     )
     def render_dormant_drive_links(links):
-        return render_link_rows(links, 'dormant-drive-link', has_browse=True, has_open=False)
+        return render_link_rows(strip_gdrive_prefix(links), 'dormant-drive-link', has_browse=True, has_open=False)
 
     @app.callback(
         Output('dormant-website-links-container', 'children'),
