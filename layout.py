@@ -151,7 +151,7 @@ sidebar_content = html.Div(
             html.Hr(className="my-2"),
             html.Div([
                 dbc.Button("Delete", id="btn-delete", color="danger", className="me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
-                dbc.Button("Clear", id="btn-clear", color="secondary", className="me-2"),
+                dbc.Button("Cancel", id="btn-cancel", color="secondary", className="me-2"),
                 dbc.Button("Save", id="btn-save", color="primary", className="me-2"),
                 dbc.Button("Save & Close", id="btn-save-close", color="success")
             ], className="d-flex justify-content-end mt-4"),
@@ -403,6 +403,17 @@ error_modal = dbc.Modal([
 ], id="modal-error", size="sm", is_open=False, centered=True)
 
 
+unsaved_changes_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes")),
+    dbc.ModalBody("You have unsaved changes. What would you like to do?"),
+    dbc.ModalFooter([
+        dbc.Button("Keep Editing", id="btn-unsaved-cancel", color="secondary", className="me-auto"),
+        dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="me-2"),
+        dbc.Button("Save & Close", id="btn-unsaved-save", color="success"),
+    ]),
+], id="modal-unsaved-changes", size="sm", is_open=False, centered=True)
+
+
 # --- Bottom Panel (Relationships + Description) ---
 
 bottom_panel = html.Div([
@@ -627,6 +638,7 @@ def build_app_layout(initial_elements, env="production"):
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         migration_modal,
         error_modal,
+        unsaved_changes_modal,
         dbc.Modal([
             dbc.ModalHeader(dbc.ModalTitle("Rename Node")),
             dbc.ModalBody(id="node-rename-modal-body"),
