@@ -202,6 +202,8 @@ filters_content = html.Div([
         html.Span("×", id="btn-close-filters", className="fs-3 text-white float-end", style={"cursor": "pointer"})
     ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
 
+    html.Div(id="filter-node-count", className="text-muted small mb-2"),
+
     html.H5("General", className="mt-2 mb-1"),
     dbc.Label("Node Type", className="mt-2"),
     dbc.Select(
@@ -211,14 +213,24 @@ filters_content = html.Div([
     ),
 
     dbc.Label("Context", className="mt-2"),
-    dbc.Select(
+    dcc.Dropdown(
         id="filter-context",
-        options=["All"] + CONTEXTS,
-        value="All"
+        options=[{"label": c, "value": c} for c in CONTEXTS],
+        value=[],
+        multi=True,
+        placeholder="All",
+        style={"color": "#212529"},
     ),
 
     dbc.Label("Subcontext", className="mt-2"),
-    dbc.Select(id="filter-subcontext", options=[{"label": "All", "value": "All"}], value="All"),
+    dcc.Dropdown(
+        id="filter-subcontext",
+        options=[],
+        value=[],
+        multi=True,
+        placeholder="All",
+        style={"color": "#212529"},
+    ),
 
     dbc.Label("Goal", className="mt-2"),
     dbc.Select(

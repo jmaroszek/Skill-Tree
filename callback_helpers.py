@@ -100,9 +100,17 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
     if f_context and f_context != "All":
-        filters['context'] = f_context if f_context != "None" else None
-    if f_subcontext and f_subcontext != "All" and f_subcontext.strip():
-        filters['subcontext'] = f_subcontext.strip()
+        if isinstance(f_context, list):
+            if f_context:
+                filters['context'] = f_context
+        else:
+            filters['context'] = [f_context] if f_context != "None" else [None]
+    if f_subcontext and f_subcontext != "All":
+        if isinstance(f_subcontext, list):
+            if f_subcontext:
+                filters['subcontext'] = f_subcontext
+        elif f_subcontext.strip():
+            filters['subcontext'] = [f_subcontext.strip()]
     if f_node_types and f_node_types != "All":
         filters['node_types'] = [f_node_types]
     if f_done and "hide_done" in f_done:

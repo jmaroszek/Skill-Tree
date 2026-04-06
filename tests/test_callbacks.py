@@ -44,13 +44,21 @@ class TestBuildFilters:
         result = _build_filters("All", "All", [])
         assert result == {}
 
+    def test_empty_lists_empty_dict(self):
+        result = _build_filters([], [], [])
+        assert result == {}
+
     def test_context_filter(self):
         result = _build_filters("Mind", "All", [])
-        assert result == {"context": "Mind"}
+        assert result == {"context": ["Mind"]}
+
+    def test_context_filter_multi(self):
+        result = _build_filters(["Mind", "Body"], [], [])
+        assert result == {"context": ["Mind", "Body"]}
 
     def test_none_context_maps_to_none(self):
         result = _build_filters("None", "All", [])
-        assert result == {"context": None}
+        assert result == {"context": [None]}
 
     def test_hide_done(self):
         result = _build_filters("All", "All", ["hide_done"])
@@ -78,7 +86,11 @@ class TestBuildFilters:
 
     def test_subcontext_filter(self):
         result = _build_filters("All", "Rational", [])
-        assert result == {"subcontext": "Rational"}
+        assert result == {"subcontext": ["Rational"]}
+
+    def test_subcontext_filter_multi(self):
+        result = _build_filters("All", ["Rational", "Creative"], [])
+        assert result == {"subcontext": ["Rational", "Creative"]}
 
     def test_subcontext_all_ignored(self):
         result = _build_filters("All", "All", [])
