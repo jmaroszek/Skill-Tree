@@ -81,7 +81,7 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
     """
     if ('edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
         return edit_trigger_data.split('|')[0]
-    if trigger_id == 'background-click-input':
+    if trigger_id in ('background-click-input', 'btn-add'):
         return None
     if trigger_id == 'search-node' and search_val:
         return search_val

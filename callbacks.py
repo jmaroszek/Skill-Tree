@@ -712,7 +712,7 @@ def register_callbacks(app):
 
         count = sugg_count if sugg_count else 5
         sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
-        effective_tapped_node = None if trigger_id == 'background-click-input' else tapped_node
+        effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
         hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(effective_tapped_node, active_node_id)
 
         all_nodes = manager.get_all_nodes()
