@@ -16,6 +16,46 @@ from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
 
 
+# --- Google Drive Path Helpers ---
+
+def _gdrive_prefix():
+    """Return the configured Google Drive root path, normalized with a trailing separator."""
+    import os
+    prefix = (ConfigManager.get_gdrive_path() or '').strip()
+    if prefix and not prefix.endswith(os.sep) and not prefix.endswith('/'):
+        prefix += os.sep
+    return prefix
+
+
+def strip_gdrive_prefix(links):
+    """Strip the configured GDrive root prefix from each path in a list."""
+    prefix = _gdrive_prefix()
+    if not prefix:
+        return links
+    result = []
+    for p in (links or []):
+        if p and p.startswith(prefix):
+            result.append(p[len(prefix):])
+        else:
+            result.append(p)
+    return result
+
+
+def expand_gdrive_prefix(path):
+    """Prepend the configured GDrive root prefix to a relative path if it lacks one."""
+    import os
+    if not path or not path.strip():
+        return path
+    path = path.strip()
+    prefix = _gdrive_prefix()
+    if not prefix:
+        return path
+    # Already absolute — don't double-prefix
+    if os.path.isabs(path) or path.startswith('http://') or path.startswith('https://'):
+        return path
+    return prefix + path
+
+
 # --- Serialization Helpers ---
 
 def parse_links(db_value):
