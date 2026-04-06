@@ -290,13 +290,14 @@ def register_callbacks(app):
          Output('search-node', 'value', allow_duplicate=True)],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
-         Input('btn-clear', 'n_clicks'),
+         Input('btn-cancel', 'n_clicks'),
+         Input('btn-unsaved-discard', 'n_clicks'),
          Input('search-node', 'value'),
          Input('background-click-input', 'value')],
         [State('cytoscape-graph', 'elements')],
         prevent_initial_call='initial_duplicate'
     )
-    def populate_editor(data, add_clicks, clear_clicks, search_val, _bg_click, elements):
+    def populate_editor(data, add_clicks, cancel_clicks, discard_clicks, search_val, _bg_click, elements):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = _get_trigger_id()
 
@@ -314,7 +315,7 @@ def register_callbacks(app):
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
         ]
 
-        if trigger_id in ['btn-add', 'btn-clear', 'background-click-input']:
+        if trigger_id in ['btn-add', 'btn-cancel', 'btn-unsaved-discard', 'background-click-input']:
             return def_out
 
         name = None
@@ -496,6 +497,7 @@ def register_callbacks(app):
          Input('suggestion-count-store', 'data'),
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'),
+         Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'),
          Input('btn-filters-toggle', 'n_clicks'), Input('btn-suggestions-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('btn-settings-save', 'n_clicks'),
          Input('modal-migration', 'is_open'),
@@ -530,7 +532,7 @@ def register_callbacks(app):
     def core_engine(save_clicks, save_close_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_close_ed, btn_filters, btn_sugg_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_close_ed, btn_unsaved_save, btn_unsaved_discard, btn_filters, btn_sugg_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
@@ -565,10 +567,18 @@ def register_callbacks(app):
         next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
         if should_open_editor(all_triggered_ids, trigger_id, search_val):
             next_ed_style['marginLeft'] = "0px"
-        elif trigger_id in ('btn-save', 'btn-save-close', 'btn-clear', 'btn-delete', 'btn-close-editor'):
-            # btn-save keeps the editor open; btn-save-close and × close it.
-            if trigger_id in ('btn-save-close', 'btn-close-editor') and (not name or not n_type):
+        elif trigger_id in ('btn-save', 'btn-save-close', 'btn-cancel', 'btn-delete', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
+            # btn-save keeps the editor open; btn-save-close and unsaved-save close it after saving.
+            # btn-cancel and btn-unsaved-discard close without saving.
+            # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
+            if trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not name or not n_type):
                 pass  # Keep sidebar open — validation error shown below
+            elif trigger_id == 'btn-close-editor':
+                form_has_content = bool(name and name.strip()) or bool(desc and desc.strip()) or any([
+                    val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
+                ])
+                if not form_has_content:
+                    next_ed_style['marginLeft'] = "-380px"
             elif trigger_id not in ('btn-save',):
                 next_ed_style['marginLeft'] = "-380px"
 
@@ -589,7 +599,7 @@ def register_callbacks(app):
         website_path = _serialize_links(website_link_values)
 
         # --- Action Routing ---
-        if trigger_id in ('btn-save', 'btn-save-close', 'btn-close-editor'):
+        if trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save'):
             if not name or not name.strip():
                 # Only show the error if the user has filled in something meaningful.
                 # If the form is blank (no desc, all ratings at default), they just
@@ -620,7 +630,7 @@ def register_callbacks(app):
                 t_p = float(time_p or 0) * multiplier
 
                 # Intercept rename: if original name differs from current name, show confirm modal
-                if (trigger_id in ('btn-save', 'btn-save-close', 'btn-close-editor') and
+                if (trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save') and
                         original_name and original_name.strip() and
                         name.strip() != original_name.strip() and
                         manager.get_node(original_name.strip())):
@@ -636,7 +646,7 @@ def register_callbacks(app):
                         'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s,
                         'e_helps': e_helps,
                         'progress_val': progress_val,
-                        'close_after': trigger_id == 'btn-save-close',
+                        'close_after': trigger_id in ('btn-save-close', 'btn-unsaved-save'),
                     }
                     modal_body = f'Rename "{original_name.strip()}" to "{name.strip()}"?'
                     return current_elements, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, True, modal_body, pending
@@ -775,6 +785,26 @@ def register_callbacks(app):
                 pass
 
         return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, False, dash.no_update, dash.no_update
+
+    @app.callback(
+        Output('modal-unsaved-changes', 'is_open'),
+        [Input('btn-close-editor', 'n_clicks'),
+         Input('btn-unsaved-cancel', 'n_clicks'),
+         Input('btn-unsaved-save', 'n_clicks'),
+         Input('btn-unsaved-discard', 'n_clicks')],
+        [State('node-name', 'value'), State('node-desc', 'value'),
+         State('node-value', 'value'), State('node-interest', 'value'),
+         State('node-difficulty', 'value')],
+        prevent_initial_call=True
+    )
+    def toggle_unsaved_modal(_close, _cancel, _save, _discard, name, desc, val, interest, diff):
+        trigger_id = _get_trigger_id()
+        if trigger_id == 'btn-close-editor':
+            has_content = bool(name and name.strip()) or bool(desc and desc.strip()) or any([
+                val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
+            ])
+            return has_content
+        return False
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
