@@ -324,7 +324,7 @@ def format_traversal_ui(tapped_node, active_node_id, manager):
 
 # --- Link Row UI Helper ---
 
-def render_link_rows(links, link_type, has_browse=False):
+def render_link_rows(links, link_type, has_browse=False, has_open=True):
     """Build a list of input rows for a resource type.
 
     link_type: e.g. 'obsidian-link', 'drive-link', 'goal-add-obsidian-link'
@@ -342,12 +342,13 @@ def render_link_rows(links, link_type, has_browse=False):
                 className="me-1 d-flex justify-content-center align-items-center p-0",
                 style={"width": "38px"},
             ))
-        buttons.append(dbc.Button(
-            "\U0001f517", id={"type": f"btn-{prefix}-open", "index": i},
-            color="secondary", title="Open",
-            className="me-1 d-flex justify-content-center align-items-center p-0",
-            style={"width": "38px"},
-        ))
+        if has_open:
+            buttons.append(dbc.Button(
+                "\U0001f517", id={"type": f"btn-{prefix}-open", "index": i},
+                color="secondary", title="Open",
+                className="me-1 d-flex justify-content-center align-items-center p-0",
+                style={"width": "38px"},
+            ))
         if len(link_list) > 1:
             buttons.append(dbc.Button(
                 "\u00d7", id={"type": f"btn-{link_type}-remove", "index": i},

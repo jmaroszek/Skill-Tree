@@ -71,6 +71,42 @@ def build_events_tab_content():
             ]),
 
             html.Hr(className="my-2"),
+            html.H5("Relationships", className="mt-2 mb-1"),
+            dbc.Label("Needs", className="mt-2"),
+            html.Div([
+                dcc.Dropdown(id="dormant-node-needs-hard", multi=True, placeholder="Hard..."),
+                dcc.Dropdown(id="dormant-node-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
+            ], className="text-dark"),
+            dbc.Label("Supports", className="mt-2"),
+            html.Div([
+                dcc.Dropdown(id="dormant-node-supports-hard", multi=True, placeholder="Hard..."),
+                dcc.Dropdown(id="dormant-node-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
+            ], className="text-dark"),
+            dbc.Label("Helps", className="mt-2"),
+            html.Div(dcc.Dropdown(id="dormant-node-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
+
+            html.Hr(className="my-2"),
+            html.H5("External Resources", className="mt-2 mb-1"),
+            dcc.Store(id='dormant-obsidian-links-store', data=['']),
+            dcc.Store(id='dormant-drive-links-store', data=['']),
+            dcc.Store(id='dormant-website-links-store', data=['']),
+            html.Div([
+                dbc.Label("Obsidian", className="mb-0"),
+                dbc.Button("+", id="btn-dormant-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+            ], className="d-flex align-items-center mt-2 mb-1"),
+            html.Div(id='dormant-obsidian-links-container'),
+            html.Div([
+                dbc.Label("Google Drive", className="mb-0"),
+                dbc.Button("+", id="btn-dormant-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+            ], className="d-flex align-items-center mt-3 mb-1"),
+            html.Div(id='dormant-drive-links-container'),
+            html.Div([
+                dbc.Label("Website", className="mb-0"),
+                dbc.Button("+", id="btn-dormant-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+            ], className="d-flex align-items-center mt-3 mb-1"),
+            html.Div(id='dormant-website-links-container'),
+
+            html.Hr(className="my-2"),
             html.H6("Activation Delay"),
             dbc.Row([
                 dbc.Col([

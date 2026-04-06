@@ -12,6 +12,7 @@ from typing import Optional, List
 from config import ConfigManager
 from models import Node, Event
 from events_layout import build_event_card, build_dormant_nodes_table, _event_badge, _event_trigger_type
+from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker
 
 event_manager = EventManager()
 graph_manager = GraphManager()
@@ -415,19 +416,35 @@ def register_event_callbacks(app):
         Output("dormant-node-desc", "value"),
         Output("dormant-node-save-status", "children", allow_duplicate=True),
         Output("dormant-node-time-unit", "value"),
+        Output("dormant-node-needs-hard", "options"),
+        Output("dormant-node-needs-soft", "options"),
+        Output("dormant-node-supports-hard", "options"),
+        Output("dormant-node-supports-soft", "options"),
+        Output("dormant-node-helps", "options"),
+        Output("dormant-node-needs-hard", "value"),
+        Output("dormant-node-needs-soft", "value"),
+        Output("dormant-node-supports-hard", "value"),
+        Output("dormant-node-supports-soft", "value"),
+        Output("dormant-node-helps", "value"),
+        Output("dormant-obsidian-links-store", "data"),
+        Output("dormant-drive-links-store", "data"),
+        Output("dormant-website-links-store", "data"),
         Input("btn-add-dormant-node", "n_clicks"),
         prevent_initial_call=True,
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 7
+            return (no_update,) * 21
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
+        node_opts = [{"label": n.name, "value": n.name} for n in graph_manager.get_all_nodes()]
 
-        return True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", "", "hours"
+        return (True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", "", "hours",
+                node_opts, node_opts, node_opts, node_opts, node_opts,
+                [], [], [], [], [], [''], [''], [''])
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -480,13 +497,23 @@ def register_event_callbacks(app):
         State("dormant-node-time-unit", "value"),
         State("dormant-node-delay-value", "value"),
         State("dormant-node-delay-unit", "value"),
+        State("dormant-node-needs-hard", "value"),
+        State("dormant-node-needs-soft", "value"),
+        State("dormant-node-supports-hard", "value"),
+        State("dormant-node-supports-soft", "value"),
+        State("dormant-node-helps", "value"),
+        State({"type": "dormant-obsidian-link", "index": ALL}, "value"),
+        State({"type": "dormant-drive-link", "index": ALL}, "value"),
+        State({"type": "dormant-website-link", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
     def save_dormant_node(n_clicks, selected_event,
                           event_name_val, event_desc_val, event_date_val,
                           name, node_type, context, subcontext, desc,
                           value, interest, difficulty, time_o, time_m, time_p, time_unit,
-                          delay_value, delay_unit):
+                          delay_value, delay_unit,
+                          needs_hard, needs_soft, supports_hard, supports_soft, helps,
+                          obsidian_vals, drive_vals, website_vals):
         _nu7 = (no_update,) * 7
         if not n_clicks:
             return _nu7
@@ -534,12 +561,18 @@ def register_event_callbacks(app):
             status="Open",
             context=context or None,
             subcontext=(subcontext or '').strip() or None,
+            obsidian_path=serialize_links(obsidian_vals) or None,
+            google_drive_path=serialize_links(drive_vals) or None,
+            website=serialize_links(website_vals) or None,
         )
 
         try:
             event_manager.create_dormant_node(node, selected_event, delay_days=delay_days)
         except ValueError as e:
             return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg
+
+        graph_manager.sync_edges(name, needs_hard or [], needs_soft or [],
+                                 supports_hard or [], supports_soft or [], helps or [])
 
         event = event_manager.get_event(selected_event)
         event_nodes = event_manager.get_event_nodes(selected_event)
@@ -553,6 +586,126 @@ def register_event_callbacks(app):
             event_trigger_style,
             event_status_msg,
         )
+
+    # --- Dormant Node Link Render Callbacks ---
+    @app.callback(
+        Output('dormant-obsidian-links-container', 'children'),
+        Input('dormant-obsidian-links-store', 'data'),
+    )
+    def render_dormant_obsidian_links(links):
+        return render_link_rows(links, 'dormant-obsidian-link', has_browse=True, has_open=False)
+
+    @app.callback(
+        Output('dormant-drive-links-container', 'children'),
+        Input('dormant-drive-links-store', 'data'),
+    )
+    def render_dormant_drive_links(links):
+        return render_link_rows(links, 'dormant-drive-link', has_browse=True, has_open=False)
+
+    @app.callback(
+        Output('dormant-website-links-container', 'children'),
+        Input('dormant-website-links-store', 'data'),
+    )
+    def render_dormant_website_links(links):
+        return render_link_rows(links, 'dormant-website-link', has_browse=False, has_open=False)
+
+    # --- Dormant Node Link Modify Callbacks ---
+    @app.callback(
+        Output('dormant-obsidian-links-store', 'data', allow_duplicate=True),
+        [Input('btn-dormant-obsidian-add', 'n_clicks'),
+         Input({'type': 'btn-dormant-obsidian-link-remove', 'index': ALL}, 'n_clicks'),
+         Input({'type': 'btn-dormant-obsidian-browse', 'index': ALL}, 'n_clicks')],
+        [State({'type': 'dormant-obsidian-link', 'index': ALL}, 'value'),
+         State('dormant-obsidian-links-store', 'data')],
+        prevent_initial_call=True,
+    )
+    def modify_dormant_obsidian_links(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-dormant-obsidian-add':
+            links.append('')
+        elif isinstance(trigger, dict):
+            if trigger.get('type') == 'btn-dormant-obsidian-link-remove':
+                idx = trigger['index']
+                if 0 <= idx < len(links) and len(links) > 1:
+                    links.pop(idx)
+            elif trigger.get('type') == 'btn-dormant-obsidian-browse':
+                idx = trigger['index']
+                if not any(browse_clicks):
+                    return no_update
+                vault = ConfigManager.get_obsidian_vault()
+                import os
+                abs_path = spawn_local_file_picker(
+                    initial_dir=vault,
+                    title="Select Obsidian File",
+                    filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")]
+                )
+                if abs_path:
+                    vault_norm = os.path.normpath(vault)
+                    if abs_path.startswith(vault_norm):
+                        rel = abs_path[len(vault_norm):].lstrip(os.sep)
+                    else:
+                        rel = abs_path
+                    if 0 <= idx < len(links):
+                        links[idx] = rel
+                else:
+                    return no_update
+        return links
+
+    @app.callback(
+        Output('dormant-drive-links-store', 'data', allow_duplicate=True),
+        [Input('btn-dormant-drive-add', 'n_clicks'),
+         Input({'type': 'btn-dormant-drive-link-remove', 'index': ALL}, 'n_clicks'),
+         Input({'type': 'btn-dormant-drive-browse', 'index': ALL}, 'n_clicks')],
+        [State({'type': 'dormant-drive-link', 'index': ALL}, 'value'),
+         State('dormant-drive-links-store', 'data')],
+        prevent_initial_call=True,
+    )
+    def modify_dormant_drive_links(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-dormant-drive-add':
+            links.append('')
+        elif isinstance(trigger, dict):
+            if trigger.get('type') == 'btn-dormant-drive-link-remove':
+                idx = trigger['index']
+                if 0 <= idx < len(links) and len(links) > 1:
+                    links.pop(idx)
+            elif trigger.get('type') == 'btn-dormant-drive-browse':
+                idx = trigger['index']
+                if not any(browse_clicks):
+                    return no_update
+                import os
+                abs_path = spawn_local_file_picker(
+                    initial_dir=r"G:\\My Drive",
+                    title="Select Google Drive File",
+                    filetypes_list=[("All files", "*.*")]
+                )
+                if abs_path:
+                    if 0 <= idx < len(links):
+                        links[idx] = abs_path
+                else:
+                    return no_update
+        return links
+
+    @app.callback(
+        Output('dormant-website-links-store', 'data', allow_duplicate=True),
+        [Input('btn-dormant-website-add', 'n_clicks'),
+         Input({'type': 'btn-dormant-website-link-remove', 'index': ALL}, 'n_clicks')],
+        [State({'type': 'dormant-website-link', 'index': ALL}, 'value'),
+         State('dormant-website-links-store', 'data')],
+        prevent_initial_call=True,
+    )
+    def modify_dormant_website_links(add_clicks, remove_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        links = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-dormant-website-add':
+            links.append('')
+        elif isinstance(trigger, dict) and trigger.get('type') == 'btn-dormant-website-link-remove':
+            idx = trigger['index']
+            if 0 <= idx < len(links) and len(links) > 1:
+                links.pop(idx)
+        return links
 
     # --- Edit Dormant Node ---
     @app.callback(

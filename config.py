@@ -19,7 +19,7 @@ DEFAULT_NODE_COLORS = {
     'Open': '#0d6efd',
     'Done': '#198754',
     'Goal': '#ffc107',
-    'Resource': '#9b59b6',
+    'Resource': '#9047b8',
 }
 
 DEFAULT_NODE_SHAPES = {

@@ -23,6 +23,21 @@ The heart of Skill Tree is an ROI-based scoring engine that ranks every eligible
 - **Network Value:** The algorithm looks continuously downstream. A node inherits discounted value from everything it **Hard Unlocks**, **Soft Unlocks**, and provides **Synergy** to. Foundational bottleneck tasks naturally rise to the top because the entire graph rests on them.
 - **Perceived Cost:** A sub-linear penalty based on **Difficulty** and the Monte Carlo **Time Estimate**. Long tasks are penalized, but not linearly — a 100-hour task isn't treated as 100x worse than a 1-hour task.
 
+
+|Rating|Value|Interest|Effort|
+|---|---|---|---|
+|1|No Value: Purely cosmetic; zero skill crossover or utility.|Aversion: You feel active resistance or dread when starting.|Reflexive: Requires no active thought; muscle memory only.|
+|2|Negligible: A "one-off" fix with no long-term reuse.|Boring: Monotonous; requires external stimulation to finish.|Linear: A single-step task with a known, clear outcome.|
+|3|Minor: Slightly optimizes a minor, infrequent workflow.|Indifferent: No strong feelings; purely transactional.|Routine: Requires basic focus; utilizes existing skills only.|
+|4|Helpful: Adds a niche tool or specific knowledge point.|Mild: Curious about the result, but not the process.|Instructive: Requires looking up documentation or syntax.|
+|5|Solid: Fills a defined gap in your current skill set.|Curious: The process itself is mildly mentally rewarding.|Integrated: Requires connecting 2–3 familiar concepts.|
+|6|Marketable: Demonstrates a competency relevant to your field.|Engaged: You look forward to the "problem-solving" aspect.|Technical: Involves a new domain or unfamiliar library/logic.|
+|7|Strategic: Unlocks the ability to start 2+ advanced projects.|Excited: You brainstorm ideas for it during "off" hours.|Abstract: Requires architectural planning and logic design.|
+|8|High Impact: A major upgrade to your primary capabilities.|Deep Flow: You consistently lose track of your surroundings.|Complex: High "mental RAM" usage; many moving variables.|
+|9|Foundational: A keystone skill for your long-term identity.|Obsessed: You find it difficult to stop once you start.|Multidisciplinary: Requires synthesizing disparate systems.|
+|10|Critical: The "North Star"; essential for your top-tier goals.|Pure Passion: Total immersion; the activity is its own reward.|Experimental: Solving an unsolved or highly unique problem.|
+
+
 ---
 
 ## Interactive Graph Canvas
