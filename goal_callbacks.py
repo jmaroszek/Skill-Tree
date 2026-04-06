@@ -528,6 +528,7 @@ def register_goal_callbacks(app):
                     'color': (
                         colors.get('Goal', '#ffc107') if node.type == 'Goal'
                         else colors.get('Done', '#198754') if node.type == 'Resource' and node.status == 'Done'
+                        else colors.get('Blocked', '#dc3545') if node.type == 'Resource' and node.status == 'Blocked'
                         else colors.get('Resource', '#9b59b6') if node.type == 'Resource'
                         else colors.get(node.status, '#6c757d')
                     ),

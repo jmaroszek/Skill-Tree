@@ -217,7 +217,7 @@ class TestResourceNodeColor:
         manager.add_node(_make_node("Res1", type="Resource", status="Open"))
         elements = generate_elements()
         node_el = next(e for e in elements if e['data'].get('id') == 'Res1')
-        assert node_el['data']['color'] == '#9b59b6'
+        assert node_el['data']['color'] == '#9047b8'
 
     def test_resource_done_gets_green(self):
         manager.add_node(_make_node("Res2", type="Resource", status="Done"))
@@ -226,8 +226,8 @@ class TestResourceNodeColor:
         # Done color
         assert node_el['data']['color'] == '#198754'
 
-    def test_resource_blocked_gets_purple(self):
-        """Blocked resource nodes should still be purple, not the Blocked red."""
+    def test_resource_blocked_gets_red(self):
+        """Blocked resource nodes should be red, like other blocked node types."""
         manager.add_node(_make_node("Blocker", type="Learn", status="Open"))
         manager.add_node(_make_node("Res3", type="Resource", status="Open"))
         manager.add_edge("Blocker", "Res3", EDGE_NEEDS_HARD)
@@ -235,7 +235,7 @@ class TestResourceNodeColor:
         assert manager.get_node("Res3").status == "Blocked"
         elements = generate_elements()
         node_el = next(e for e in elements if e['data'].get('id') == 'Res3')
-        assert node_el['data']['color'] == '#9b59b6'
+        assert node_el['data']['color'] == '#dc3545'
 
     def test_goal_node_gets_yellow(self):
         manager.add_node(_make_node("G1", type="Goal"))
