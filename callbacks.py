@@ -965,12 +965,16 @@ def register_callbacks(app):
         Output('setting-node-type-colors-container', 'children'),
         Output('setting-hpw', 'value'),
         Output('setting-hpm', 'value'),
+        Output('setting-default-time-unit', 'value'),
+        Output('setting-default-time-o', 'value'),
+        Output('setting-default-time-m', 'value'),
+        Output('setting-default-time-p', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 20
+            return (dash.no_update,) * 24
 
         hp = ConfigManager.get_hyperparams()
         obs = ConfigManager.get_obsidian_vault()
@@ -1039,12 +1043,15 @@ def register_callbacks(app):
         ]
 
         ts = ConfigManager.get_time_settings()
+        ted = ConfigManager.get_time_estimate_defaults()
 
         return (hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'),
                 hp.get('w_e'), hp.get('w_t'), hp.get('beta'), hp.get('goal_boost', 1.5),
                 ntypes, ctxts, subctxts, "Custom", obs, gdrive, shape_rows,
                 status_color_rows, type_color_rows,
-                ts.get('hours_per_week', 40), ts.get('hours_per_month', 160))
+                ts.get('hours_per_week', 40), ts.get('hours_per_month', 160),
+                ted.get('unit', 'weeks'),
+                ted.get('optimistic', 2), ted.get('expected', 4), ted.get('pessimistic', 6))
 
     # --- Settings: Profile selector ---
     @app.callback(
@@ -1095,6 +1102,8 @@ def register_callbacks(app):
     @app.callback(
         Output('settings-save-status', 'children'),
         Output('pending-settings-store', 'data'),
+        Output('settings-clear-interval', 'disabled'),
+        Output('settings-clear-interval', 'n_intervals'),
         Input('btn-settings-save', 'n_clicks'),
         State('hp-wv', 'value'), State('hp-wi', 'value'),
         State('hp-dh', 'value'), State('hp-ds', 'value'), State('hp-dsyn', 'value'),
@@ -1110,14 +1119,19 @@ def register_callbacks(app):
         State({"type": "setting-color", "index": ALL}, "value"),
         State({"type": "setting-color", "index": ALL}, "id"),
         State('setting-hpw', 'value'), State('setting-hpm', 'value'),
+        State('setting-default-time-unit', 'value'),
+        State('setting-default-time-o', 'value'),
+        State('setting-default-time-m', 'value'),
+        State('setting-default-time-p', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
                       n_types_val, contexts_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
-                      hpw, hpm):
+                      hpw, hpm,
+                      def_time_unit, def_time_o, def_time_m, def_time_p):
         if not n_clicks:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         try:
             new_hp = {
@@ -1130,6 +1144,14 @@ def register_callbacks(app):
             new_ts = {
                 'hours_per_week': float(hpw) if hpw is not None else 40,
                 'hours_per_month': float(hpm) if hpm is not None else 160,
+            }
+
+            from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
+            new_ted = {
+                'optimistic': float(def_time_o) if def_time_o is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic'],
+                'expected': float(def_time_m) if def_time_m is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['expected'],
+                'pessimistic': float(def_time_p) if def_time_p is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic'],
+                'unit': def_time_unit or DEFAULT_TIME_ESTIMATE_DEFAULTS['unit'],
             }
 
             # Parse new values
@@ -1171,15 +1193,30 @@ def register_callbacks(app):
                 orphans['subcontext'] = {k: [n.name for n in v] for k, v in sub_orphans.items()}
 
             if orphans:
+                # Serialize shapes/colors from form so they survive the deferred save
+                pending_shapes = {}
+                if shape_ids and shape_values:
+                    for sid, sval in zip(shape_ids, shape_values):
+                        if sval:
+                            pending_shapes[sid["index"]] = sval
+                pending_colors = {}
+                if color_ids and color_values:
+                    for cid, cval in zip(color_ids, color_values):
+                        if cval:
+                            pending_colors[cid["index"]] = cval
+
                 # Defer save — store pending data and open migration modal
                 pending = {
                     'hp': new_hp,
                     'ts': new_ts,
+                    'ted': new_ted,
                     'obs_path': obs_path,
                     'gdrive_path': gdrive_path or "",
                     'types': new_types,
                     'contexts': new_contexts,
                     'subcontexts': new_subcontexts,
+                    'shapes': pending_shapes,
+                    'colors': pending_colors,
                     'orphans': orphans,
                     'new_values': {
                         'type': new_types,
@@ -1187,11 +1224,12 @@ def register_callbacks(app):
                         'subcontext': new_sub_flat,
                     }
                 }
-                return "Migration required — check the migration dialog.", pending
+                return "Migration required — check the migration dialog.", pending, False, 0
 
             # No orphans — save immediately
             ConfigManager.set_hyperparams(new_hp)
             ConfigManager.set_time_settings(new_ts)
+            ConfigManager.set_time_estimate_defaults(new_ted)
             ConfigManager.set_obsidian_vault(obs_path)
             ConfigManager.set_gdrive_path(gdrive_path or "")
             if new_types:
@@ -1219,11 +1257,11 @@ def register_callbacks(app):
                 if new_colors:
                     ConfigManager.set_node_colors(new_colors)
 
-            return "Settings saved.", dash.no_update
+            return "Settings saved.", dash.no_update, False, 0
 
         except Exception:
             logger.exception("Failed to save settings")
-            return "Error saving settings.", dash.no_update
+            return "Error saving settings.", dash.no_update, False, 0
 
     # --- Migration Modal ---
     @app.callback(
@@ -1264,6 +1302,8 @@ def register_callbacks(app):
                 ConfigManager.set_hyperparams(pending_state['hp'])
                 if 'ts' in pending_state:
                     ConfigManager.set_time_settings(pending_state['ts'])
+                if 'ted' in pending_state:
+                    ConfigManager.set_time_estimate_defaults(pending_state['ted'])
                 ConfigManager.set_obsidian_vault(pending_state['obs_path'])
                 ConfigManager.set_gdrive_path(pending_state.get('gdrive_path', ''))
                 new_types = pending_state.get('types', [])
@@ -1274,27 +1314,54 @@ def register_callbacks(app):
                 if new_contexts:
                     ConfigManager.set_contexts(new_contexts)
                 ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
+
+                # Save shapes and colors from the form (captured before deferral)
+                pending_shapes = pending_state.get('shapes', {})
+                if pending_shapes:
+                    ConfigManager.set_node_shapes(pending_shapes)
+                pending_colors = pending_state.get('colors', {})
+                if pending_colors:
+                    ConfigManager.set_node_colors(pending_colors)
             except Exception:
                 logger.exception("Failed to save pending settings")
 
             # Apply migrations if user clicked Apply
             if trigger_id == 'btn-migration-apply' and mapping_data and dropdown_values:
                 new_subcontexts = pending_state.get('subcontexts', {})
-                remaps = {}  # field -> {old_val: new_val}
                 for i, entry in enumerate(mapping_data):
-                    if i < len(dropdown_values) and dropdown_values[i]:
-                        field = entry['field']
-                        old_val = entry['old_value']
-                        if field not in remaps:
-                            remaps[field] = {}
-                        remaps[field][old_val] = dropdown_values[i]
+                    if i >= len(dropdown_values) or not dropdown_values[i]:
+                        continue
+                    field = entry['field']
+                    node_name = entry['node_name']
+                    new_val = dropdown_values[i]
 
-                for field, remap in remaps.items():
-                    manager.apply_migration(field, remap, new_subcontexts=new_subcontexts)
+                    if new_val == '__ctx_sep__':
+                        continue
+
+                    # Handle context reassignment from subcontext migration
+                    if field == 'subcontext' and new_val.startswith('__ctx__'):
+                        ctx_val = new_val[len('__ctx__'):]
+                        manager.apply_node_migration(node_name, 'context', ctx_val, new_subcontexts)
+                        manager.apply_node_migration(node_name, 'subcontext', '__clear__', new_subcontexts)
+                        continue
+
+                    manager.apply_node_migration(node_name, field, new_val, new_subcontexts)
 
             return False, [], None
 
         return dash.no_update, dash.no_update, dash.no_update
+
+    # --- Settings: Auto-dismiss status message ---
+    @app.callback(
+        Output('settings-save-status', 'children', allow_duplicate=True),
+        Output('settings-clear-interval', 'disabled', allow_duplicate=True),
+        Input('settings-clear-interval', 'n_intervals'),
+        prevent_initial_call=True,
+    )
+    def clear_settings_message(n):
+        if n > 0:
+            return "", True
+        return dash.no_update, dash.no_update
 
     # --- Subcontext Collapse Toggle ---
     @app.callback(

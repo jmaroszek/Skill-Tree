@@ -6,7 +6,7 @@ Contains all UI component definitions and the Cytoscape stylesheet.
 from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
-from config import ConfigManager, CANVAS_HEIGHT
+from config import ConfigManager, CANVAS_HEIGHT, DEFAULT_TIME_ESTIMATE_DEFAULTS
 from events_layout import build_events_tab_content
 from goals_layout import build_goals_tab_content
 from simulate_layout import build_simulate_tab_content
@@ -16,6 +16,7 @@ from styles import stylesheet
 # These are only used for the initial render; core_engine refreshes them dynamically.
 NODE_TYPES = ConfigManager.get_node_types()
 CONTEXTS = ConfigManager.get_contexts()
+_TED = ConfigManager.get_time_estimate_defaults()
 
 # --- Sidebar (Node Editor) ---
 sidebar_content = html.Div(
@@ -94,7 +95,7 @@ sidebar_content = html.Div(
                         {"label": "Hours", "value": "hours"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
-                    ], value="weeks", size="sm", style={"width": "100px"})
+                    ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"})
                 ], className="d-flex justify-content-between align-items-center mt-2 mb-1"),
                 dbc.Row([
                     dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
@@ -345,6 +346,11 @@ suggestions_view = html.Div([
 def build_migration_content(orphans_by_field, new_values_by_field):
     """Build dynamic migration modal body from orphan data.
 
+    Each affected node gets its own dropdown so users can assign different
+    values per node.  For subcontext orphans the dropdown also offers context
+    options (prefixed with "Context: ") so the user can reassign the node's
+    context instead of its subcontext.
+
     Args:
         orphans_by_field: {'context': {'OldCtx': [Node, ...]}, 'type': {...}, 'subcontext': {...}}
         new_values_by_field: {'context': [...], 'type': [...], 'subcontext': [...]}
@@ -353,7 +359,7 @@ def build_migration_content(orphans_by_field, new_values_by_field):
         Tuple of (children list for modal body, mapping list for interpreting dropdown indices)
     """
     children = []
-    mapping = []  # List of (field, old_value) tuples, indexed to match dropdowns
+    mapping = []  # One entry per dropdown, indexed to match ALL pattern
     idx = 0
 
     for field in ('type', 'context', 'subcontext'):
@@ -366,34 +372,54 @@ def build_migration_content(orphans_by_field, new_values_by_field):
         children.append(html.H5(f"{field_label} Changes", className="mt-3 mb-2"))
 
         for old_val, nodes in orphans.items():
-            node_names = [n.name for n in nodes]
-            display_names = ", ".join(node_names[:8])
-            if len(node_names) > 8:
-                display_names += f" (+{len(node_names) - 8} more)"
-
+            # Build options for this field
             options = [{"label": v, "value": v} for v in new_vals]
+            if field == 'subcontext':
+                # Also offer context reassignment
+                ctx_vals = new_values_by_field.get('context', [])
+                if ctx_vals:
+                    options.append({"label": "───── Contexts ─────", "value": "__ctx_sep__", "disabled": True})
+                    for cv in ctx_vals:
+                        options.append({"label": f"Context: {cv}", "value": f"__ctx__{cv}"})
             if field != 'type':
                 options.append({"label": "Clear (set to none)", "value": "__clear__"})
+
+            default_val = new_vals[0] if new_vals else None
 
             children.append(dbc.Card([
                 dbc.CardBody([
                     html.Div([
                         html.Strong(f'"{old_val}"'),
-                        html.Span(f" — {len(node_names)} node{'s' if len(node_names) != 1 else ''} affected",
+                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''} affected",
                                   className="text-muted ms-1"),
-                    ]),
-                    html.Small(display_names, className="text-muted d-block mb-2"),
-                    dbc.Select(
-                        id={"type": "migration-dropdown", "index": idx},
-                        options=options,  # type: ignore[reportArgumentType]
-                        value=new_vals[0] if new_vals else None,
-                        placeholder=f"Reassign to..."
-                    ),
+                    ], className="mb-2"),
+                    # Per-node rows
+                    *[
+                        dbc.Row([
+                            dbc.Col(
+                                html.Span(n.name, className="small",
+                                          style={"lineHeight": "38px"}),
+                                width=5,
+                            ),
+                            dbc.Col(
+                                dbc.Select(
+                                    id={"type": "migration-dropdown", "index": idx + i},
+                                    options=options,  # type: ignore[reportArgumentType]
+                                    value=default_val,
+                                    placeholder="Reassign to...",
+                                    size="sm",
+                                ),
+                                width=7,
+                            ),
+                        ], className="mb-1")
+                        for i, n in enumerate(nodes)
+                    ],
                 ])
             ], className="mb-2"))
 
-            mapping.append({"field": field, "old_value": old_val})
-            idx += 1
+            for n in nodes:
+                mapping.append({"field": field, "old_value": old_val, "node_name": n.name})
+                idx += 1
 
     return children, mapping
 
@@ -662,6 +688,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='node-rename-pending', data=None),
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
+        dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
 
         main_tabs,
         # Tab content wrapper — only one tab visible at a time

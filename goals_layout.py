@@ -6,13 +6,14 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 from typing import Optional, List, Any
 import dash_cytoscape as cyto
-from config import ConfigManager
+from config import ConfigManager, DEFAULT_TIME_ESTIMATE_DEFAULTS
 from models import EDGE_NEEDS_HARD
 from styles import stylesheet
 
 
 def build_goals_tab_content():
     """Builds the Goals tab UI with a two-panel layout."""
+    _ted = ConfigManager.get_time_estimate_defaults()
 
     # --- Left Panel: Goal List ---
     goal_list_panel = html.Div([
@@ -178,15 +179,15 @@ def build_goals_tab_content():
                         {"label": "Hours", "value": "hours"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
-                    ], value="weeks", size="sm", style={"width": "100px", "marginLeft": "auto"})
+                    ], value=_ted.get('unit', 'weeks'), size="sm", style={"width": "100px", "marginLeft": "auto"})
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 dbc.Row([
                     dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
-                             dbc.Input(id="goal-add-time-o", type="number", min=0, value=2)]),
+                             dbc.Input(id="goal-add-time-o", type="number", min=0, value=_ted.get('optimistic', 2))]),
                     dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
-                             dbc.Input(id="goal-add-time-m", type="number", min=0, value=4)]),
+                             dbc.Input(id="goal-add-time-m", type="number", min=0, value=_ted.get('expected', 4))]),
                     dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
-                             dbc.Input(id="goal-add-time-p", type="number", min=0, value=6)]),
+                             dbc.Input(id="goal-add-time-p", type="number", min=0, value=_ted.get('pessimistic', 6))]),
                 ]),
 
                 html.Hr(className="my-2"),

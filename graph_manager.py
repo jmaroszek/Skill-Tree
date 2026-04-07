@@ -564,6 +564,38 @@ class GraphManager:
 
             conn.commit()
 
+    def apply_node_migration(self, node_name: str, field: str, new_val: str,
+                             new_subcontexts: Optional[Dict] = None):
+        """Remap a single node's attribute value.
+
+        Args:
+            node_name: name (primary key) of the node to update
+            field: 'context', 'subcontext', or 'type'
+            new_val: the new value, or '__clear__' to set NULL
+            new_subcontexts: when field is 'context', used to check if subcontexts are still valid
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            actual_val = None if new_val == '__clear__' else new_val
+
+            if field == 'type' and actual_val is not None:
+                cursor.execute("SELECT type FROM Nodes WHERE name=?", (node_name,))
+                row = cursor.fetchone()
+                if row and row[0] == 'Resource' and actual_val != 'Resource':
+                    cursor.execute("UPDATE Nodes SET progress=NULL WHERE name=?", (node_name,))
+
+            cursor.execute(f"UPDATE Nodes SET [{field}]=? WHERE name=?", (actual_val, node_name))
+
+            # When context changes, clear subcontext if invalid under the new context
+            if field == 'context' and actual_val is not None and new_subcontexts is not None:
+                valid_subs = set(new_subcontexts.get(actual_val, []))
+                cursor.execute("SELECT subcontext FROM Nodes WHERE name=?", (node_name,))
+                row = cursor.fetchone()
+                if row and row[0] and row[0] not in valid_subs:
+                    cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE name=?", (node_name,))
+
+            conn.commit()
+
     def name_community(self, community: Set[str]) -> str:
         """Generate a descriptive name for a community based on member node attributes.
 

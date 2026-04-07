@@ -35,6 +35,13 @@ DEFAULT_TIME_SETTINGS = {
     'hours_per_month': 80
 }
 
+DEFAULT_TIME_ESTIMATE_DEFAULTS = {
+    'optimistic': 2,
+    'expected': 4,
+    'pessimistic': 6,
+    'unit': 'weeks',
+}
+
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
     'w_i': 1.00,
@@ -149,6 +156,15 @@ class ConfigManager:
         cls._set_db_value("TIME_SETTINGS", json.dumps(params))
 
     @classmethod
+    def get_time_estimate_defaults(cls):
+        val = cls._get_db_value("TIME_ESTIMATE_DEFAULTS")
+        return json.loads(val) if val else DEFAULT_TIME_ESTIMATE_DEFAULTS
+
+    @classmethod
+    def set_time_estimate_defaults(cls, params: dict):
+        cls._set_db_value("TIME_ESTIMATE_DEFAULTS", json.dumps(params))
+
+    @classmethod
     def get_time_multiplier(cls, unit: str) -> float:
         """Returns the hours-per-unit multiplier for time input conversion.
 
@@ -227,16 +243,20 @@ class ConfigManager:
     def set_gdrive_path(cls, path: str):
         cls._set_db_value("GDRIVE_ROOT_PATH", path)
 
+    # Types that always keep their shape even if not in the user's type list
+    _PERMANENT_SHAPE_TYPES = {'Goal'}
+
     @classmethod
     def sync_shapes_to_types(cls, new_types: list):
         """Prune shapes for removed types and add defaults for new types."""
         shapes = cls.get_node_shapes()
-        # Remove shapes for types that no longer exist
-        shapes = {k: v for k, v in shapes.items() if k in new_types}
+        # Remove shapes for types that no longer exist, but preserve permanent types
+        shapes = {k: v for k, v in shapes.items()
+                  if k in new_types or k in cls._PERMANENT_SHAPE_TYPES}
         # Add default shape for new types
         for t in new_types:
             if t not in shapes:
-                shapes[t] = 'rectangle'
+                shapes[t] = DEFAULT_NODE_SHAPES.get(t, 'rectangle')
         cls.set_node_shapes(shapes)
 
     @classmethod

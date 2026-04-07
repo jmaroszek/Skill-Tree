@@ -10,6 +10,7 @@ from config import ConfigManager
 
 def build_events_tab_content():
     """Builds the Events tab UI with a two-panel layout."""
+    _ted = ConfigManager.get_time_estimate_defaults()
 
     # --- Left Panel: Event List ---
     event_list_panel = html.Div([
@@ -62,12 +63,12 @@ def build_events_tab_content():
                     {"label": "Hours", "value": "hours"},
                     {"label": "Weeks", "value": "weeks"},
                     {"label": "Months", "value": "months"},
-                ], value="hours", size="sm", style={"width": "100px", "marginLeft": "auto"})
+                ], value=_ted.get('unit', 'hours'), size="sm", style={"width": "100px", "marginLeft": "auto"})
             ], className="d-flex align-items-center mt-3 mb-1"),
             dbc.Row([
-                dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=0)]),
-                dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=0)]),
-                dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=0)]),
+                dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=_ted.get('optimistic', 0))]),
+                dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=_ted.get('expected', 0))]),
+                dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=_ted.get('pessimistic', 0))]),
             ]),
 
             html.Hr(className="my-2"),
