@@ -150,11 +150,11 @@ sidebar_content = html.Div(
             
             html.Hr(className="my-2"),
             html.Div([
-                dbc.Button("Delete", id="btn-delete", color="danger", className="me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
-                dbc.Button("Cancel", id="btn-cancel", color="secondary", className="me-2"),
-                dbc.Button("Save", id="btn-save", color="primary", className="me-2"),
-                dbc.Button("Save & Close", id="btn-save-close", color="success")
-            ], className="d-flex justify-content-end mt-4"),
+                dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "10px 0"}),
+                dbc.Button("Cancel", id="btn-cancel", color="secondary", className="flex-fill me-2", style={"padding": "10px 0"}),
+                dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "10px 0"}),
+                dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "10px 0"})
+            ], className="d-flex mt-4"),
             html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
             dcc.Store(id='node-time-unit-prev', data='weeks'),
@@ -314,13 +314,13 @@ description_view = html.Div([
 # --- Suggestions View ---
 
 suggestions_view = html.Div([
-    dcc.Store(id='suggestion-count-store', data=5),
+    dcc.Store(id='suggestion-count-store', data=10),
     html.Div([
         html.H6("Suggestions", className="text-muted mb-0", style=_section_title_style),
         dbc.ButtonGroup([
             dbc.Button("−", id="btn-sugg-minus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
-            html.Span(id="suggestion-count-display", children="5",
+            html.Span(id="suggestion-count-display", children="10",
                        className="align-self-center mx-2",
                        style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
                               "textAlign": "center"}),
@@ -332,7 +332,7 @@ suggestions_view = html.Div([
         ], className="ms-auto d-flex align-items-center"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     dcc.Store(id='selected-suggestion-store', data=None),
-    html.Div(id="suggestions-table", style={"maxHeight": "750px", "overflowY": "auto"}),
+    html.Div(id="suggestions-table"),
 ])
 
 
@@ -419,10 +419,10 @@ unsaved_changes_modal = dbc.Modal([
     dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes")),
     dbc.ModalBody("You have unsaved changes. What would you like to do?"),
     dbc.ModalFooter([
-        dbc.Button("Keep Editing", id="btn-unsaved-cancel", color="secondary", className="me-auto"),
-        dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="me-2"),
-        dbc.Button("Save & Close", id="btn-unsaved-save", color="success"),
-    ]),
+        dbc.Button("Keep Editing", id="btn-unsaved-cancel", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="flex-fill me-2"),
+        dbc.Button("Save & Close", id="btn-unsaved-save", color="success", className="flex-fill"),
+    ], className="d-flex"),
 ], id="modal-unsaved-changes", size="sm", is_open=False, centered=True)
 
 

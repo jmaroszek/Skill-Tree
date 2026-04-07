@@ -261,7 +261,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
         html.Th("Name"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
         html.Th("Subcontext"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
         html.Th("Hard Unlocks"), html.Th("Soft Unlocks"), html.Th("Synergies"),
-        html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive"), html.Th("Website")
+        html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive")
     ]))]
 
     row_data = []
@@ -270,7 +270,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
         row_class = "table-active" if is_selected else ""
 
         unlocks = manager.get_directly_unlocked_nodes_by_type(s.name)
-        has_resource = any(
+        has_resource = s.type == 'Resource' or any(
             e['source'] in resource_names
             for e in edges
             if e['target'] == s.name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
@@ -301,7 +301,6 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             html.Td(_bool_icon(has_resource)),
             html.Td(_bool_icon(getattr(s, 'obsidian_path', None))),
             html.Td(_bool_icon(getattr(s, 'google_drive_path', None))),
-            html.Td(_bool_icon(getattr(s, 'website', None))),
         ], id={"type": "suggestion-row", "index": s.name}, className=row_class, style={"cursor": "pointer"}))
 
     table = dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,

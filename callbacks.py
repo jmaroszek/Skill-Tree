@@ -725,7 +725,7 @@ def register_callbacks(app):
 
         elements = generate_elements(filters, active_node_id, community_names=community_names)
 
-        count = sugg_count if sugg_count else 5
+        count = sugg_count if sugg_count else 10
         sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
         effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
         hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(effective_tapped_node, active_node_id)
@@ -933,8 +933,8 @@ def register_callbacks(app):
     )
     def update_suggestion_count(plus, minus, current_count):
         trigger_id = _get_trigger_id()
-        count = current_count or 5
-        if trigger_id == 'btn-sugg-plus': count = min(15, count + 1)
+        count = current_count or 10
+        if trigger_id == 'btn-sugg-plus': count = count + 1
         elif trigger_id == 'btn-sugg-minus': count = max(1, count - 1)
         return count, str(count)
 

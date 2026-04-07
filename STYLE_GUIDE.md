@@ -170,6 +170,18 @@ style={
 }
 ```
 
+## Scrollbars
+
+**Preference: no visible scrollbars anywhere in the app.** Elements may still scroll — the scrollbar chrome should just be invisible.
+
+This is enforced globally in `assets/custom.css` via a `*` selector:
+```css
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
+```
+
+Do **not** add per-element scrollbar-hiding rules — the global rule covers everything. If a new scrollable container appears with a visible scrollbar, check that the global rule hasn't been overridden locally.
+
 ## Z-Index Scale
 
 | Layer | Value |
