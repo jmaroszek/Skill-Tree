@@ -82,6 +82,15 @@ input[type=number] {
     color: #000 !important;
 }
 
+/* Hide scrollbar in goals list while keeping scrollable */
+#goals-list-container {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+#goals-list-container::-webkit-scrollbar {
+    display: none;
+}
+
 /* Hide horizontal scrollbar in goals subtasks area */
 #goal-subtasks-table-container {
     overflow-x: hidden;

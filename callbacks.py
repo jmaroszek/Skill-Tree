@@ -594,6 +594,11 @@ def register_callbacks(app):
             all_triggered_ids, trigger_id, edit_trigger_data,
             search_val, tapped_node, name)
 
+        # When entering focus mode, clear the selected node so only the
+        # goal's subtree is highlighted (not a previously-tapped node).
+        if trigger_id == 'focus-goal-store' and focus_goal:
+            active_node_id = None
+
         # Serialize multi-link arrays for storage
         obs_path = _serialize_links(obs_link_values)
         drive_path = _serialize_links(drive_link_values)
