@@ -20,6 +20,52 @@ def build_goals_tab_content():
             html.H4("Goals", className="mb-0"),
             dbc.Button("New Goal", id="btn-new-goal", color="success", size="sm"),
         ], className="d-flex justify-content-between align-items-center mb-3 mt-3"),
+
+        # Search bar + Filters button
+        html.Div([
+            dbc.Input(id="goal-search-input", type="text", placeholder="Search goals...",
+                      size="sm", debounce=True,
+                      style={"flex": "1", "backgroundColor": "#2b3035", "border": "1px solid #495057",
+                             "color": "#dee2e6"}),
+            dbc.Button("Filters", id="btn-goal-filters-toggle", color="secondary", size="sm",
+                       outline=True, className="ms-2"),
+        ], className="d-flex align-items-center mb-2"),
+
+        # Collapsible filters panel
+        dbc.Collapse(id="goal-filters-collapse", is_open=False, children=[
+            html.Div([
+                dbc.Label("Context", className="mb-1", style={"fontSize": "0.8rem"}),
+                dbc.Select(id="goal-filter-context", options=[{"label": "All", "value": "All"}],
+                           value="All", size="sm", className="mb-2"),
+                dbc.Label("Subcontext", className="mb-1", style={"fontSize": "0.8rem"}),
+                dbc.Select(id="goal-filter-subcontext", options=[{"label": "All", "value": "All"}],
+                           value="All", size="sm", className="mb-2"),
+                dbc.Label("Min Value", className="mb-0", style={"fontSize": "0.8rem"}),
+                dcc.Slider(id="goal-filter-value", min=1, max=10, step=1, value=1,
+                           marks=None, tooltip={"placement": "bottom", "always_visible": False}),
+                dbc.Label("Min Interest", className="mb-0", style={"fontSize": "0.8rem"}),
+                dcc.Slider(id="goal-filter-interest", min=1, max=10, step=1, value=1,
+                           marks=None, tooltip={"placement": "bottom", "always_visible": False}),
+                dbc.Label("Max Difficulty", className="mb-0", style={"fontSize": "0.8rem"}),
+                dcc.Slider(id="goal-filter-difficulty", min=1, max=10, step=1, value=10,
+                           marks=None, tooltip={"placement": "bottom", "always_visible": False}),
+            ], style={"padding": "8px 4px", "borderBottom": "1px solid #495057", "marginBottom": "8px"}),
+        ]),
+
+        # Sort dropdown
+        html.Div([
+            html.Small("Sort:", className="text-muted me-2", style={"fontSize": "0.75rem"}),
+            dbc.Select(id="goal-sort-mode", options=[
+                {"label": "Manual", "value": "manual"},
+                {"label": "A \u2192 Z", "value": "alpha-asc"},
+                {"label": "Z \u2192 A", "value": "alpha-desc"},
+                {"label": "Time \u2191", "value": "time-asc"},
+                {"label": "Time \u2193", "value": "time-desc"},
+            ], value="manual", size="sm",
+                style={"flex": "1", "backgroundColor": "#2b3035", "border": "1px solid #495057",
+                       "color": "#dee2e6", "fontSize": "0.8rem"}),
+        ], className="d-flex align-items-center mb-2"),
+
         html.Div(id="goals-list-container", style={"overflowY": "auto", "flex": "1"}),
     ], style={
         "width": "350px",
@@ -87,7 +133,17 @@ def build_goals_tab_content():
                     id="goal-add-existing-dropdown",
                     placeholder="Search for a node...",
                     style={"backgroundColor": "#ffffff", "color": "#000000"},
-                ), className="mb-3"),
+                ), className="mb-2"),
+                dbc.Label("Edge Type"),
+                dbc.Select(
+                    id="goal-add-link-edge-type",
+                    options=[
+                        {"label": "Hard (required prerequisite)", "value": "hard"},
+                        {"label": "Soft (optional prerequisite)", "value": "soft"},
+                    ],
+                    value="hard",
+                    className="mb-3",
+                ),
             ]),
 
             # --- Create New mode ---
@@ -290,6 +346,58 @@ def build_goals_tab_content():
                             ], className="d-flex justify-content-end mt-2"),
                         ], width=5),
                     ]),
+
+                    html.Hr(className="my-2"),
+
+                    # --- Relationships Section ---
+                    html.H5("Relationships", className="mt-2 mb-1"),
+                    dbc.Label("Needs", className="mt-2"),
+                    html.Div([
+                        dcc.Dropdown(id="goal-edge-needs-hard", multi=True, placeholder="Hard..."),
+                        dcc.Dropdown(id="goal-edge-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
+                    ], className="text-dark"),
+
+                    dbc.Label("Supports", className="mt-2"),
+                    html.Div([
+                        dcc.Dropdown(id="goal-edge-supports-hard", multi=True, placeholder="Hard..."),
+                        dcc.Dropdown(id="goal-edge-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
+                    ], className="text-dark"),
+
+                    dbc.Label("Helps", className="mt-2"),
+                    html.Div(dcc.Dropdown(id="goal-edge-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
+
+                    html.Hr(className="my-2"),
+
+                    # --- External Resources Section ---
+                    html.H5("External Resources", className="mt-2 mb-1"),
+
+                    dcc.Store(id='goal-obsidian-links-store', data=['']),
+                    dcc.Store(id='goal-drive-links-store', data=['']),
+                    dcc.Store(id='goal-website-links-store', data=['']),
+
+                    html.Div([
+                        dbc.Label("Obsidian", className="mb-0"),
+                        dbc.Button("+", id="btn-goal-obsidian-add", color="link",
+                                   className="p-0 ms-2 text-decoration-none text-muted",
+                                   title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                    ], className="d-flex align-items-center mt-2 mb-1"),
+                    html.Div(id='goal-obsidian-links-container'),
+
+                    html.Div([
+                        dbc.Label("Google Drive", className="mb-0"),
+                        dbc.Button("+", id="btn-goal-drive-add", color="link",
+                                   className="p-0 ms-2 text-decoration-none text-muted",
+                                   title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                    ], className="d-flex align-items-center mt-3 mb-1"),
+                    html.Div(id='goal-drive-links-container'),
+
+                    html.Div([
+                        dbc.Label("Website", className="mb-0"),
+                        dbc.Button("+", id="btn-goal-website-add", color="link",
+                                   className="p-0 ms-2 text-decoration-none text-muted",
+                                   title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                    ], className="d-flex align-items-center mt-3 mb-1"),
+                    html.Div(id='goal-website-links-container'),
 
                     html.Hr(className="my-3"),
 
