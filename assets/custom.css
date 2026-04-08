@@ -113,3 +113,15 @@ input[type=number] {
 #goal-detail-content .goal-left-column {
     overflow-x: hidden;
 }
+
+/* Goal drag-and-drop styles */
+.goal-sortable-ghost {
+    opacity: 0.3;
+}
+.goal-sortable-chosen {
+    border-color: #0d6efd !important;
+    background-color: #2b3035 !important;
+}
+.goal-drag-handle:hover {
+    color: #dee2e6 !important;
+}

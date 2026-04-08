@@ -131,16 +131,34 @@ def register_goal_callbacks(app):
             ))
         return cards
 
-    # --- Goal Reordering ---
+    # --- Goal Reordering (up/down buttons + drag-and-drop) ---
     @app.callback(
         Output("goal-order-store", "data"),
         Input({"type": "goal-up", "index": ALL}, "n_clicks"),
         Input({"type": "goal-down", "index": ALL}, "n_clicks"),
+        Input("goal-drag-order-input", "value"),
         State("goal-order-store", "data"),
         prevent_initial_call=True,
     )
-    def reorder_goal(up_clicks, down_clicks, current_order):
-        triggered = ctx.triggered_id
+    def reorder_goal(up_clicks, down_clicks, drag_order_json, current_order):
+        import json as _json
+        trigger_id = ctx.triggered_id
+
+        # --- Drag-and-drop reorder ---
+        if trigger_id == "goal-drag-order-input" and drag_order_json:
+            try:
+                new_order = _json.loads(drag_order_json)
+                if isinstance(new_order, list) and new_order:
+                    # Filter to non-priority goals only
+                    priority_goals = ConfigManager.get_priority_goals()
+                    priority_set = set(priority_goals[:3])
+                    return [n for n in new_order if n not in priority_set]
+            except (ValueError, TypeError):
+                pass
+            return no_update
+
+        # --- Up/down button reorder (fallback) ---
+        triggered = trigger_id
         if not triggered or not isinstance(triggered, dict):
             return no_update
         if not any((v or 0) for v in ((up_clicks or []) + (down_clicks or []))):

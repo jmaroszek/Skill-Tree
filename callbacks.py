@@ -773,10 +773,15 @@ def register_callbacks(app):
                     'selector': f'node[id = "{safe_id}"]',
                     'style': {'opacity': 1}
                 })
-            active_stylesheet.append({
-                'selector': 'node:selected',
-                'style': {'opacity': 1}
-            })
+            # Highlight edges between focus subtree nodes
+            edges = manager.get_edges()
+            for e in edges:
+                if e['source'] in focus_subtree and e['target'] in focus_subtree:
+                    eid = f"{e['source']}_{e['target']}_{e['type']}".replace("'", "\\'")
+                    active_stylesheet.append({
+                        'selector': f'edge[id = "{eid}"]',
+                        'style': {'opacity': 1}
+                    })
 
         clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
 

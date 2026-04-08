@@ -564,8 +564,6 @@ def build_app_layout(initial_elements, env="production"):
                         dbc.Col(
                             html.Div([
                                 dbc.Button("New Node", id="btn-add", color="success", size="sm", className="me-2"),
-                                dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm", className="me-2",
-                                           style={"display": "none"})
                             ], className="d-flex"),
                             width="auto"
                         ),
@@ -575,7 +573,11 @@ def build_app_layout(initial_elements, env="production"):
                             className="d-flex align-items-center justify-content-center"
                         ),
                         dbc.Col(
-                            dbc.Button("Filters", id="btn-filters-toggle", color="secondary", size="sm"),
+                            html.Div([
+                                dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm", className="me-2",
+                                           style={"display": "none"}),
+                                dbc.Button("Filters", id="btn-filters-toggle", color="secondary", size="sm"),
+                            ], className="d-flex"),
                             width="auto",
                             className="text-end"
                         ),
