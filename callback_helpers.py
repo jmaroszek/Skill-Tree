@@ -183,7 +183,7 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                progress_val=None):
+                progress_val=None, time_mode='manual'):
     """Create or update a node and sync its edges. Returns a status message."""
     from models import Node
 
@@ -202,6 +202,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         google_drive_path=(drive_path or '').strip() or None,
         website=(website_path or '').strip() or None,
         progress=int(progress_val) if n_type == 'Resource' and progress_val is not None else None,
+        time_mode=time_mode,
     )
     if manager.get_node(name):
         manager.update_node(node)

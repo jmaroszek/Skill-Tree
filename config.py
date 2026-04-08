@@ -278,6 +278,15 @@ class ConfigManager:
             cls.sync_shapes_to_types(types)
 
     @classmethod
+    def ensure_goal_type(cls):
+        """Ensure 'Goal' type exists in stored node types (migration for existing DBs)."""
+        types = cls.get_node_types()
+        if 'Goal' not in types:
+            types.append('Goal')
+            cls.set_node_types(types)
+            cls.sync_shapes_to_types(types)
+
+    @classmethod
     def get_danger_color(cls):
         """Returns the tamed danger/red color."""
         return DEFAULT_DANGER_COLOR

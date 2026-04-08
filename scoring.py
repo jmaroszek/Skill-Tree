@@ -42,9 +42,10 @@ def intrinsic_value(node: Node, w_v: float, w_i: float) -> float:
     return (w_v * node.value) + (w_i * node.interest)
 
 
-def perceived_cost(node: Node, w_e: float, w_t: float, beta: float) -> float:
+def perceived_cost(node: Node, w_e: float, w_t: float, beta: float, time_override: float = None) -> float:
     """Sub-linear cost combining Difficulty and PERT time."""
-    return 1.0 + (w_e * node.difficulty) + (w_t * (node.time ** beta))
+    t = time_override if time_override is not None else node.time
+    return 1.0 + (w_e * node.difficulty) + (w_t * (t ** beta))
 
 
 def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
@@ -158,7 +159,10 @@ def score_nodes(
             scored_nodes.append(node)
             continue
 
-        cost = perceived_cost(node, w_e, w_t, beta)
+        # For inherited-time nodes, use minimal time to avoid double-counting
+        # (their dependencies already carry their own time costs in scoring)
+        t_override = 1.0 if node.time_mode == 'inherited' else None
+        cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn)
         score = round(tv / cost, 2)
 

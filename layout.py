@@ -30,6 +30,19 @@ sidebar_content = html.Div(
             html.Div(id="node-priority-badge", children=[],
                      className="d-flex gap-1 flex-wrap mb-2",
                      style={"display": "none"}),
+            html.Div(id="section-priority-rank", style={"display": "none"}, children=[
+                dbc.Label("Priority Rank", className="mt-2"),
+                dbc.Select(
+                    id="node-priority-rank",
+                    options=[
+                        {"label": "\u2014", "value": "none"},
+                        {"label": "#1 Priority", "value": "1"},
+                        {"label": "#2 Priority", "value": "2"},
+                        {"label": "#3 Priority", "value": "3"},
+                    ],
+                    value="none",
+                ),
+            ]),
             html.H5("Search", className="mt-2 mb-1"),
             html.Div(dcc.Dropdown(
                 id="search-node",
@@ -90,18 +103,27 @@ sidebar_content = html.Div(
             # --- Section: Time Estimates ---
             html.Div(id="section-time-estimates", children=[
                 html.Hr(className="my-2"),
-                html.Div([
-                    html.H5("Time Estimates", className="mb-0"),
-                    dbc.Select(id="node-time-unit", options=[
-                        {"label": "Hours", "value": "hours"},
-                        {"label": "Weeks", "value": "weeks"},
-                        {"label": "Months", "value": "months"},
-                    ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"})
-                ], className="d-flex justify-content-between align-items-center mt-2 mb-1"),
-                dbc.Row([
-                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
-                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
-                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
+                html.H5("Time Estimates", className="mt-2 mb-1"),
+                dbc.Checklist(
+                    options=[{"label": "Inherit from dependencies", "value": "inherited"}],
+                    value=[],
+                    id="node-time-mode",
+                    switch=True,
+                    className="mb-2",
+                ),
+                html.Div(id="section-time-omp", children=[
+                    html.Div([
+                        dbc.Select(id="node-time-unit", options=[
+                            {"label": "Hours", "value": "hours"},
+                            {"label": "Weeks", "value": "weeks"},
+                            {"label": "Months", "value": "months"},
+                        ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"})
+                    ], className="d-flex justify-content-end mb-1"),
+                    dbc.Row([
+                        dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
+                        dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
+                        dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
+                    ]),
                 ]),
             ]),
             

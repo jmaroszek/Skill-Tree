@@ -1695,3 +1695,177 @@ class TestSyncEdgesWithoutResources:
         edges = mgr.get_edges()
         assert len(edges) == 1
         assert edges[0]['type'] == EDGE_NEEDS_SOFT
+
+
+# ============================================================================
+# ConfigManager — ensure_goal_type
+# ============================================================================
+
+class TestEnsureGoalType:
+    def test_adds_goal_if_missing(self):
+        ConfigManager.set_node_types(["Learn", "Action"])
+        ConfigManager.ensure_goal_type()
+        types = ConfigManager.get_node_types()
+        assert "Goal" in types
+
+    def test_no_duplicate_if_present(self):
+        ConfigManager.set_node_types(["Learn", "Action", "Goal"])
+        ConfigManager.ensure_goal_type()
+        types = ConfigManager.get_node_types()
+        assert types.count("Goal") == 1
+
+    def test_shape_added_for_new_type(self):
+        ConfigManager.set_node_types(["Learn"])
+        ConfigManager.set_node_shapes({"Learn": "ellipse"})
+        ConfigManager.ensure_goal_type()
+        shapes = ConfigManager.get_node_shapes()
+        assert "Goal" in shapes
+
+
+# ============================================================================
+# Node Model — time_mode validation
+# ============================================================================
+
+class TestTimeModeField:
+    def test_default_is_manual(self):
+        node = _make_node()
+        assert node.time_mode == 'manual'
+
+    def test_inherited_accepted(self):
+        node = _make_node(time_mode='inherited')
+        assert node.time_mode == 'inherited'
+
+    def test_invalid_time_mode_defaults_to_manual(self):
+        node = _make_node(time_mode='auto')
+        assert node.time_mode == 'manual'
+
+    def test_time_mode_in_to_dict(self):
+        node = _make_node(time_mode='inherited')
+        d = node.to_dict()
+        assert d['time_mode'] == 'inherited'
+
+    def test_time_mode_persisted_in_db(self, mgr):
+        mgr.add_node(_make_node("Inherited", time_mode='inherited'))
+        node = mgr.get_node("Inherited")
+        assert node.time_mode == 'inherited'
+
+    def test_time_mode_manual_persisted_in_db(self, mgr):
+        mgr.add_node(_make_node("Manual", time_mode='manual'))
+        node = mgr.get_node("Manual")
+        assert node.time_mode == 'manual'
+
+    def test_time_mode_updated(self, mgr):
+        mgr.add_node(_make_node("Node", time_mode='manual'))
+        node = mgr.get_node("Node")
+        node.time_mode = 'inherited'
+        mgr.update_node(node)
+        updated = mgr.get_node("Node")
+        assert updated.time_mode == 'inherited'
+
+
+# ============================================================================
+# GraphManager — get_effective_time
+# ============================================================================
+
+class TestGetEffectiveTime:
+    def test_manual_returns_node_time(self, mgr):
+        mgr.add_node(_make_node("A", time_o=2, time_m=4, time_p=6, time_mode='manual'))
+        eff = mgr.get_effective_time("A")
+        node = mgr.get_node("A")
+        assert eff == node.time
+
+    def test_inherited_sums_subtree(self, mgr):
+        mgr.add_node(_make_node("A", time_o=3, time_m=3, time_p=3))
+        mgr.add_node(_make_node("B", time_o=5, time_m=5, time_p=5))
+        mgr.add_node(_make_node("Parent", time_mode='inherited', type="Goal"))
+        mgr.add_edge("A", "Parent", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Parent", EDGE_NEEDS_HARD)
+        eff = mgr.get_effective_time("Parent")
+        assert eff == pytest.approx(3.0 + 5.0)
+
+    def test_inherited_excludes_done(self, mgr):
+        mgr.add_node(_make_node("A", time_o=3, time_m=3, time_p=3, status="Done"))
+        mgr.add_node(_make_node("B", time_o=5, time_m=5, time_p=5, status="Open"))
+        mgr.add_node(_make_node("Parent", time_mode='inherited', type="Goal"))
+        mgr.add_edge("A", "Parent", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Parent", EDGE_NEEDS_HARD)
+        eff = mgr.get_effective_time("Parent")
+        assert eff == pytest.approx(5.0)
+
+    def test_inherited_empty_subtree(self, mgr):
+        mgr.add_node(_make_node("Alone", time_mode='inherited'))
+        eff = mgr.get_effective_time("Alone")
+        assert eff == 0.0
+
+    def test_nonexistent_node(self, mgr):
+        eff = mgr.get_effective_time("Ghost")
+        assert eff == 0.0
+
+    def test_inherited_transitive(self, mgr):
+        """Inherited time includes transitive dependencies."""
+        mgr.add_node(_make_node("A", time_o=2, time_m=2, time_p=2))
+        mgr.add_node(_make_node("B", time_o=3, time_m=3, time_p=3))
+        mgr.add_node(_make_node("Top", time_mode='inherited', type="Goal"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Top", EDGE_NEEDS_HARD)
+        eff = mgr.get_effective_time("Top")
+        assert eff == pytest.approx(2.0 + 3.0)
+
+
+# ============================================================================
+# Scoring — perceived_cost time_override
+# ============================================================================
+
+class TestPerceivedCostTimeOverride:
+    def test_default_uses_node_time(self):
+        node = _make_node(difficulty=5, time_o=2, time_m=2, time_p=2)
+        cost_default = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85)
+        cost_explicit = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85, time_override=None)
+        assert cost_default == cost_explicit
+
+    def test_time_override_replaces_node_time(self):
+        node = _make_node(difficulty=5, time_o=10, time_m=10, time_p=10)
+        cost_overridden = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85, time_override=1.0)
+        expected = 1.0 + 2.5 * 5 + 1.0 * (1.0 ** 0.85)
+        assert cost_overridden == pytest.approx(expected, rel=1e-4)
+
+    def test_time_override_zero(self):
+        node = _make_node(difficulty=5, time_o=10, time_m=10, time_p=10)
+        cost = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85, time_override=0.0)
+        expected = 1.0 + 2.5 * 5 + 1.0 * (0.0 ** 0.85)
+        assert cost == pytest.approx(expected, rel=1e-4)
+
+
+# ============================================================================
+# Scoring — inherited time_mode prevents double-counting
+# ============================================================================
+
+class TestScoringInheritedTimeMode:
+    def test_inherited_node_uses_minimal_time_in_cost(self, mgr):
+        """A non-Goal node with time_mode='inherited' should use minimal time in scoring
+        to prevent double-counting with its dependencies."""
+        mgr.add_node(_make_node("Dep", value=5, interest=5, time_o=10, time_m=10, time_p=10))
+        mgr.add_node(_make_node("Container", value=5, interest=5, time_o=10, time_m=10, time_p=10,
+                                time_mode='inherited'))
+        # Score with manual time_mode (high time cost)
+        manual_node = _make_node("Manual", value=5, interest=5, time_o=10, time_m=10, time_p=10,
+                                 time_mode='manual')
+        inherited_node = _make_node("Inherited", value=5, interest=5, time_o=10, time_m=10, time_p=10,
+                                    time_mode='inherited')
+        edges = []
+        scored = score_nodes([manual_node, inherited_node], [manual_node, inherited_node],
+                             edges, {})
+        manual_score = next(n for n in scored if n.name == "Manual").priority_score
+        inherited_score = next(n for n in scored if n.name == "Inherited").priority_score
+        # Inherited should score higher because its time cost is minimal (1.0 vs 10.0)
+        assert inherited_score > manual_score
+
+    def test_manual_node_still_uses_full_time(self, mgr):
+        """A manual-mode node should use its full PERT time in cost calculation."""
+        node = _make_node("Full", value=5, interest=5, time_o=10, time_m=10, time_p=10,
+                          time_mode='manual')
+        scored = score_nodes([node], [node], [], {})
+        cost = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85)
+        iv = intrinsic_value(node, 1.0, 1.0)
+        expected_score = round(iv / cost, 2)
+        assert scored[0].priority_score == expected_score

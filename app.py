@@ -31,6 +31,7 @@ except Exception:
     pass
 
 ConfigManager.ensure_action_type()
+ConfigManager.ensure_goal_type()
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
 app.layout = build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)

@@ -390,3 +390,84 @@ class TestSaveRoundTrip:
         assert hard_prereqs == ["A", "B"], (
             "Edge list after second save must be exactly [A, B], not include stale C"
         )
+
+
+# ============================================================================
+# handle_save — time_mode persistence
+# ============================================================================
+
+class TestHandleSaveTimeMode:
+    def test_default_time_mode_is_manual(self):
+        """Saving without explicit time_mode defaults to 'manual'."""
+        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+                     [], None, None, None, None, None,
+                     [], [], [], [], [])
+        node = manager.get_node("Node")
+        assert node.time_mode == 'manual'
+
+    def test_inherited_time_mode_persisted(self):
+        """Saving with time_mode='inherited' stores it in the DB."""
+        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+                     [], None, None, None, None, None,
+                     [], [], [], [], [], None, time_mode='inherited')
+        node = manager.get_node("Node")
+        assert node.time_mode == 'inherited'
+
+    def test_time_mode_updated_on_save(self):
+        """Changing time_mode from manual to inherited on update persists."""
+        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+                     [], None, None, None, None, None,
+                     [], [], [], [], [], None, time_mode='manual')
+        assert manager.get_node("Node").time_mode == 'manual'
+
+        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+                     [], None, None, None, None, None,
+                     [], [], [], [], [], None, time_mode='inherited')
+        assert manager.get_node("Node").time_mode == 'inherited'
+
+    def test_goal_node_with_inherited_time(self):
+        """Goal nodes can use inherited time mode."""
+        _handle_save("MyGoal", "Goal", "a goal", 5, 0, 0, 0, 5, 5,
+                     [], None, None, None, None, None,
+                     [], [], [], [], [], None, time_mode='inherited')
+        node = manager.get_node("MyGoal")
+        assert node.type == "Goal"
+        assert node.time_mode == 'inherited'
+
+
+# ============================================================================
+# Goal node creation from node editor
+# ============================================================================
+
+class TestGoalNodeCreation:
+    def test_create_goal_node(self):
+        """Goal nodes can be created via _handle_save like any other type."""
+        msg = _handle_save(
+            "NewGoal", "Goal", "My goal", 8, 0, 0, 0, 7, 3,
+            [], "Mind", None, None, None, None,
+            [], [], [], [], []
+        )
+        assert "Added" in msg
+        node = manager.get_node("NewGoal")
+        assert node is not None
+        assert node.type == "Goal"
+
+    def test_goal_node_with_dependencies(self):
+        """Goal nodes can have prerequisites just like other types."""
+        manager.add_node(_make_node("Task1", status="Done"))
+        manager.add_node(_make_node("Task2"))
+        _handle_save(
+            "MyGoal", "Goal", "", 5, 0, 0, 0, 5, 5,
+            [], None, None, None, None, None,
+            ["Task1", "Task2"], [], [], [], []
+        )
+        edges = manager.get_edges()
+        hard = [e for e in edges if e['target'] == "MyGoal" and e['type'] == EDGE_NEEDS_HARD]
+        assert len(hard) == 2
+
+    def test_goal_node_in_generate_elements(self):
+        """Goal nodes appear in the generated Cytoscape elements."""
+        manager.add_node(_make_node("GoalNode", type="Goal"))
+        elements = generate_elements()
+        node_ids = [e['data']['id'] for e in elements if 'source' not in e['data']]
+        assert "GoalNode" in node_ids

@@ -135,12 +135,12 @@ def _format_traversal_ui(tapped_node, active_node_id):
 def _handle_save(name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                   status_done, context, subctx, obs_path, drive_path, website_path,
                   e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                  progress_val=None):
+                  progress_val=None, time_mode='manual'):
     """Create or update a node and sync its edges. Returns a status message."""
     return handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                        status_done, context, subctx, obs_path, drive_path, website_path,
                        e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                       progress_val)
+                       progress_val, time_mode=time_mode)
 
 
 def _handle_delete(name):
@@ -294,7 +294,9 @@ def register_callbacks(app):
          Output('node-progress', 'value'), Output('node-time-unit', 'value'),
          Output('node-time-unit-prev', 'data', allow_duplicate=True),
          Output('node-original-name', 'data', allow_duplicate=True),
-         Output('search-node', 'value', allow_duplicate=True)],
+         Output('search-node', 'value', allow_duplicate=True),
+         Output('node-priority-rank', 'value'),
+         Output('node-time-mode', 'value')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-cancel', 'n_clicks'),
@@ -320,6 +322,8 @@ def register_callbacks(app):
             0, "weeks", "weeks",
             None,  # node-original-name
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
+            "none",  # node-priority-rank
+            [],  # node-time-mode
         ]
 
         if trigger_id in ['btn-add', 'btn-cancel', 'btn-unsaved-discard', 'background-click-input']:
@@ -336,7 +340,7 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*7
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*9
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -347,7 +351,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*7
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*9
 
         edges = manager.get_edges()
 
@@ -369,6 +373,16 @@ def register_callbacks(app):
             data.get('time_o', 1.0), data.get('time_m', 1.0), data.get('time_p', 1.0)
         )
 
+        # Priority rank for Goal nodes
+        priority_goals = ConfigManager.get_priority_goals()
+        if data.get('type') == 'Goal' and name in priority_goals:
+            rank_value = str(priority_goals.index(name) + 1)
+        else:
+            rank_value = "none"
+
+        # Time mode
+        time_mode_val = ["inherited"] if data.get('time_mode') == 'inherited' else []
+
         return [
             name, data.get('type'), data.get('description'),
             data.get('context') or '', data.get('subcontext') or '',
@@ -385,24 +399,37 @@ def register_callbacks(app):
             data.get('progress') or 0, friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
+            rank_value,  # node-priority-rank
+            time_mode_val,  # node-time-mode
         ]
 
     # --- Type-adaptive field visibility ---
     @app.callback(
         [Output('section-done-time', 'style'),
          Output('section-time-estimates', 'style'),
-         Output('section-resource', 'style')],
+         Output('section-resource', 'style'),
+         Output('section-priority-rank', 'style')],
         Input('node-type', 'value')
     )
     def toggle_type_fields(node_type):
         show = {}
         hide = {'display': 'none'}
         if node_type == 'Resource':
-            return show, show, show
+            return show, show, show, hide
         elif node_type == 'Goal':
-            return show, hide, hide
+            return show, show, hide, show  # Show time estimates (for time_mode toggle) + priority rank
         else:  # Learn, Action
-            return show, show, hide
+            return show, show, hide, hide
+
+    # --- Toggle O/M/P fields based on time_mode ---
+    @app.callback(
+        Output('section-time-omp', 'style'),
+        Input('node-time-mode', 'value'),
+    )
+    def toggle_time_omp_visibility(time_mode_val):
+        if time_mode_val and 'inherited' in time_mode_val:
+            return {'display': 'none'}
+        return {}
 
     # --- Auto-convert time estimates when unit dropdown changes ---
     @app.callback(
@@ -532,7 +559,9 @@ def register_callbacks(app):
          State('node-progress', 'value'),
          State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style'),
-         State('node-original-name', 'data')]
+         State('node-original-name', 'data'),
+         State('node-time-mode', 'value'),
+         State('node-priority-rank', 'value')]
     )
     def core_engine(save_clicks, save_close_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
@@ -547,7 +576,8 @@ def register_callbacks(app):
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                      obs_link_values, drive_link_values, website_link_values,
                      progress_val,
-                     current_elements, ed_style, fil_style, original_name):
+                     current_elements, ed_style, fil_style, original_name,
+                     time_mode_val, priority_rank_val):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -658,12 +688,24 @@ def register_callbacks(app):
                         manager.get_node(original_name.strip())):
                     manager.rename_node(original_name.strip(), name.strip())
 
+                time_mode = 'inherited' if (time_mode_val and 'inherited' in time_mode_val) else 'manual'
                 msg = _handle_save(name, n_type, desc, val, t_o, t_m, t_p,
                                    interest, diff, status_done, context, subctx,
                                    obs_path, drive_path, website_path,
                                    e_needs_h, e_needs_s,
                                    e_supp_h, e_supp_s, e_helps,
-                                   progress_val)
+                                   progress_val, time_mode=time_mode)
+
+                # Update priority goals for Goal nodes
+                if n_type == 'Goal':
+                    priority_goals = ConfigManager.get_priority_goals()
+                    if name in priority_goals:
+                        priority_goals.remove(name)
+                    if priority_rank_val and priority_rank_val != "none":
+                        rank_idx = int(priority_rank_val) - 1
+                        rank_idx = min(rank_idx, len(priority_goals))
+                        priority_goals.insert(rank_idx, name)
+                    ConfigManager.set_priority_goals(priority_goals)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
                 return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
