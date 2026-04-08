@@ -10,6 +10,7 @@ from config import ConfigManager, CANVAS_HEIGHT, DEFAULT_TIME_ESTIMATE_DEFAULTS
 from events_layout import build_events_tab_content
 from goals_layout import build_goals_tab_content
 from simulate_layout import build_simulate_tab_content
+from details_layout import build_details_tab_content
 from settings_layout import build_settings_tab_content
 from styles import stylesheet
 
@@ -587,6 +588,7 @@ def build_app_layout(initial_elements, env="production"):
         active_tab="tab-canvas",
         children=[
             dbc.Tab(label="Nodes", tab_id="tab-canvas"),
+            dbc.Tab(label="Details", tab_id="tab-details"),
             dbc.Tab(label="Goals", tab_id="tab-goals"),
             dbc.Tab(label="Suggestions", tab_id="tab-suggestions"),
             dbc.Tab(label="Simulation", tab_id="tab-simulate"),
@@ -715,6 +717,14 @@ def build_app_layout(initial_elements, env="production"):
                "position": "absolute", "top": "0", "left": "0", "flexDirection": "column"}
     )
 
+    # --- Details Tab Content (hidden by default) ---
+    details_tab_content = html.Div(
+        id="details-tab-content",
+        children=[build_details_tab_content()],
+        style={"display": "none", "width": "100%", "height": "100%",
+               "position": "absolute", "top": "0", "left": "0"}
+    )
+
     # --- Simulate Tab Content (hidden by default) ---
     simulate_tab_content = html.Div(
         id="simulate-tab-content",
@@ -756,6 +766,7 @@ def build_app_layout(initial_elements, env="production"):
         # Tab content wrapper — only one tab visible at a time
         html.Div([
             canvas_tab_content,
+            details_tab_content,
             suggestions_tab_content,
             goals_tab_content,
             simulate_tab_content,

@@ -19,6 +19,7 @@ from callbacks import generate_elements, register_callbacks
 from event_callbacks import register_event_callbacks
 from goal_callbacks import register_goal_callbacks
 from simulate_callbacks import register_simulate_callbacks
+from details_callbacks import register_details_callbacks
 from config import ConfigManager
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s: %(message)s')
@@ -37,6 +38,7 @@ register_callbacks(app)
 register_event_callbacks(app)
 register_goal_callbacks(app)
 register_simulate_callbacks(app)
+register_details_callbacks(app)
 
 @app.server.route('/open-obsidian')
 def open_obsidian_route():

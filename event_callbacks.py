@@ -25,6 +25,7 @@ def register_event_callbacks(app):
     # --- Tab Visibility Toggle ---
     @app.callback(
         Output("canvas-tab-content", "style"),
+        Output("details-tab-content", "style"),
         Output("suggestions-tab-content", "style"),
         Output("goals-tab-content", "style"),
         Output("simulate-tab-content", "style"),
@@ -37,6 +38,9 @@ def register_event_callbacks(app):
         canvas_style = {**base,
                         "display": "flex" if active_tab == "tab-canvas" else "none",
                         "visibility": "visible" if active_tab == "tab-canvas" else "hidden"}
+        details_style = {**base,
+                         "display": "flex" if active_tab == "tab-details" else "none",
+                         "visibility": "visible" if active_tab == "tab-details" else "hidden"}
         suggestions_style = {**base,
                              "overflow": "auto",
                              "display": "block" if active_tab == "tab-suggestions" else "none",
@@ -53,7 +57,7 @@ def register_event_callbacks(app):
         events_style = {**base,
                         "display": "flex" if active_tab == "tab-events" else "none",
                         "visibility": "visible" if active_tab == "tab-events" else "hidden"}
-        return canvas_style, suggestions_style, goals_style, simulate_style, settings_style, events_style
+        return canvas_style, details_style, suggestions_style, goals_style, simulate_style, settings_style, events_style
 
     # --- Events List Rendering ---
     @app.callback(
