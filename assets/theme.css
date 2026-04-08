@@ -33,7 +33,8 @@
     margin: 0;
 }
 
-.canvas-fullscreen #cytoscape-graph {
+.canvas-fullscreen #cytoscape-graph,
+.canvas-fullscreen #details-mini-graph {
     height: 100vh !important;
 }
 

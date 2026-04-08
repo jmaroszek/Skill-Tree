@@ -163,15 +163,19 @@
         document.addEventListener('DOMContentLoaded', function () {
             initScrollSensitivity('#cytoscape-graph');
             initScrollSensitivity('#goal-mini-graph');
+            initScrollSensitivity('#details-mini-graph');
             initFullscreen();
             initRightClickPan('#cytoscape-graph');
             initRightClickPan('#goal-mini-graph');
+            initRightClickPan('#details-mini-graph');
         });
     } else {
         initScrollSensitivity('#cytoscape-graph');
         initScrollSensitivity('#goal-mini-graph');
+        initScrollSensitivity('#details-mini-graph');
         initFullscreen();
         initRightClickPan('#cytoscape-graph');
         initRightClickPan('#goal-mini-graph');
+        initRightClickPan('#details-mini-graph');
     }
 })();

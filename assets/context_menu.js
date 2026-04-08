@@ -93,7 +93,9 @@
 
         function triggerEdit() {
             hideMenu();
-            if (_menuSource === 'goal' && _currentNodeData && _currentNodeData.id) {
+            if ((_menuSource === 'goal' || _menuSource === 'details') && _currentNodeData && _currentNodeData.id) {
+                // For goal and details graphs, use edit-trigger-input which
+                // navigates to Nodes tab and opens editor with this node
                 _setHiddenInput('edit-trigger-input', _currentNodeData.id);
             } else {
                 _clickDashBtn('btn-edit-node');
@@ -102,7 +104,7 @@
 
         function triggerToggleDone() {
             hideMenu();
-            if (_menuSource === 'goal' && _currentNodeData && _currentNodeData.id) {
+            if ((_menuSource === 'goal' || _menuSource === 'details') && _currentNodeData && _currentNodeData.id) {
                 _setHiddenInput('toggle-done-trigger-input', _currentNodeData.id);
             } else {
                 _clickDashBtn('btn-toggle-done-node');
@@ -136,7 +138,11 @@
         }
 
         function triggerSimulate(nodeName) {
-            var input = document.getElementById('simulate-trigger-input');
+            // If invoked from the details graph, write to the details trigger
+            var inputId = (_menuSource === 'details')
+                ? 'details-simulate-trigger-input'
+                : 'simulate-trigger-input';
+            var input = document.getElementById(inputId);
             if (input) {
                 var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                     window.HTMLInputElement.prototype, 'value'
@@ -344,6 +350,45 @@
             tryBind();
         }
         bindGoalGraphEvents();
+
+        // --- Also bind context menu on details mini graph ---
+        function bindDetailsGraphEvents() {
+            var detailsWrapper = document.getElementById('details-mini-graph');
+            if (!detailsWrapper) {
+                setTimeout(bindDetailsGraphEvents, 500);
+                return;
+            }
+
+            function getDetailsCy() {
+                return (detailsWrapper._cyreg && detailsWrapper._cyreg.cy) ? detailsWrapper._cyreg.cy : null;
+            }
+
+            function tryBind() {
+                var cy = getDetailsCy();
+                if (!cy) {
+                    setTimeout(tryBind, 500);
+                    return;
+                }
+
+                cy.on('cxttap', 'node', function (evt) {
+                    evt.originalEvent.preventDefault();
+                    var nodeData = evt.target.data();
+                    var pos = evt.originalEvent;
+                    _menuSource = 'details';
+                    showMenu(pos.clientX, pos.clientY, nodeData);
+                });
+
+                cy.on('tap', function (evt) {
+                    if (evt.target === cy) hideMenu();
+                });
+
+                detailsWrapper.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                });
+            }
+            tryBind();
+        }
+        bindDetailsGraphEvents();
     }
 
     if (document.readyState === 'loading') {
