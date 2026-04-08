@@ -673,6 +673,10 @@ class GraphManager:
         if len(G.nodes) == 0:
             return []
 
+        if method == "orphans":
+            # Each isolated node (degree 0 in the filtered graph) is its own "community"
+            return [{node} for node in G.nodes if G.degree(node) == 0]
+
         if method == "louvain":
             communities = []
             for component in nx.connected_components(G):

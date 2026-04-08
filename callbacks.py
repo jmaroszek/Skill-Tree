@@ -751,6 +751,9 @@ def register_callbacks(app):
                     if 0 <= idx < len(communities):
                         community_names = communities[idx]
                 except (ValueError, IndexError): pass
+            elif community_method == "orphans" and communities:
+                # "All" in orphans mode still means "only orphan nodes", not every node
+                community_names = set().union(*communities)
 
             elements = generate_elements(filters, active_node_id, community_names=community_names)
 

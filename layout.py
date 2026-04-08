@@ -252,7 +252,8 @@ filters_content = html.Div([
     dbc.Label("Detection Method", className="mt-2"),
     dbc.Select(id="community-method", options=[
         {"label": "Islands", "value": "components"},
-        {"label": "Clusters", "value": "louvain"}
+        {"label": "Clusters", "value": "louvain"},
+        {"label": "Orphans", "value": "orphans"},
     ], value="components"),
 
     dbc.Label("Community", className="mt-3"),
