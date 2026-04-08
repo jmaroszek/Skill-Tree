@@ -149,6 +149,11 @@
     color: #dee2e6;
 }
 
+/* --- Filter sidebar dropdown placeholder text --- */
+#sidebar-filters-container [class$="-placeholder"] {
+    color: #212529 !important;
+}
+
 /* --- Settings modal tab styling --- */
 
 .modal .nav-tabs {

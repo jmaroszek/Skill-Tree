@@ -405,9 +405,13 @@ class GraphManager:
             result = [n for n in result if search_val in n.name.lower()]
 
         if 'goal' in filters and filters['goal']:
-            subtree = self.get_goal_subtree(filters['goal'])
-            subtree.add(filters['goal'])  # include the goal node itself
-            result = [n for n in result if n.name in subtree]
+            goals = filters['goal'] if isinstance(filters['goal'], list) else [filters['goal']]
+            combined: Set[str] = set()
+            for g in goals:
+                subtree = self.get_goal_subtree(g)
+                subtree.add(g)
+                combined.update(subtree)
+            result = [n for n in result if n.name in combined]
 
         return result
 

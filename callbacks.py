@@ -178,7 +178,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def clear_filters(_):
-        return 'All', [], [], 'All', 'components', 'All', 1, 1, 10, None, ['hide_done']
+        return [], [], [], [], 'components', 'All', 1, 1, 10, None, ['hide_done']
 
     # --- Tooltip Formatting ---
     @app.callback(
@@ -754,11 +754,11 @@ def register_callbacks(app):
         base_types = ConfigManager.get_node_types()
         type_list = [{"label": t, "value": t} for t in base_types]
 
-        f_type_list = [{"label": "All", "value": "All"}] + [{"label": t, "value": t} for t in base_types]
+        f_type_list = [{"label": t, "value": t} for t in base_types]
 
-        # Goal filter options (dbc.Select — needs "All" option first)
+        # Goal filter options
         goal_nodes = [n for n in all_nodes if n.type == "Goal"]
-        goal_opts = [{"label": "All", "value": "All"}] + [{"label": g.name, "value": g.name} for g in goal_nodes]
+        goal_opts = [{"label": g.name, "value": g.name} for g in goal_nodes]
 
         # Focus mode stylesheet: highlight subtree, dim others
         from layout import stylesheet as base_stylesheet

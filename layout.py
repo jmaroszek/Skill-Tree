@@ -207,10 +207,13 @@ filters_content = html.Div([
 
     html.H5("General", className="mt-2 mb-1"),
     dbc.Label("Node Type", className="mt-2"),
-    dbc.Select(
+    dcc.Dropdown(
         id="filter-node-type",
-        options=[{"label": "All", "value": "All"}] + [{"label": t, "value": t} for t in NODE_TYPES],  # type: ignore[reportArgumentType]
-        value="All",
+        options=[{"label": t, "value": t} for t in NODE_TYPES],
+        value=[],
+        multi=True,
+        placeholder="All",
+        style={"color": "#212529"},
     ),
 
     dbc.Label("Context", className="mt-2"),
@@ -234,10 +237,13 @@ filters_content = html.Div([
     ),
 
     dbc.Label("Goal", className="mt-2"),
-    dbc.Select(
+    dcc.Dropdown(
         id="filter-goal",
-        options=[{"label": "All", "value": "All"}],
-        value="All",
+        options=[],
+        value=[],
+        multi=True,
+        placeholder="All",
+        style={"color": "#212529"},
     ),
 
     html.Hr(className="my-3"),

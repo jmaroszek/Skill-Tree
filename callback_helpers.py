@@ -151,8 +151,12 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
                 filters['subcontext'] = f_subcontext
         elif f_subcontext.strip():
             filters['subcontext'] = [f_subcontext.strip()]
-    if f_node_types and f_node_types != "All":
-        filters['node_types'] = [f_node_types]
+    if f_node_types:
+        if isinstance(f_node_types, list):
+            if f_node_types:
+                filters['node_types'] = f_node_types
+        elif f_node_types != "All":
+            filters['node_types'] = [f_node_types]
     if f_done and "hide_done" in f_done:
         filters['hide_done'] = True
     if f_value and f_value > 1:
@@ -165,8 +169,12 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     if f_difficulty and f_difficulty != "All":
         try: filters['max_difficulty'] = int(f_difficulty)
         except (ValueError, TypeError): pass
-    if f_goal and f_goal != "All":
-        filters['goal'] = f_goal
+    if f_goal:
+        if isinstance(f_goal, list):
+            if f_goal:
+                filters['goal'] = f_goal
+        elif f_goal != "All":
+            filters['goal'] = [f_goal]
     return filters
 
 
