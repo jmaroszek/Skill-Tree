@@ -15,7 +15,7 @@
         var vDragLower = document.getElementById('details-v-drag-lower');
         var upper = document.getElementById('details-upper-section');
         var lower = document.getElementById('details-lower-section');
-        var nodeSummary = document.getElementById('details-node-summary');
+        var leftPanel = document.getElementById('details-left-panel') || document.getElementById('details-node-summary');
         var depGraph = document.getElementById('details-dep-graph-container');
         var subtasks = document.getElementById('details-subtasks-section');
         var simSection = document.getElementById('details-sim-section');
@@ -141,7 +141,7 @@
             });
         }
 
-        initVerticalDrag(vDragUpper, nodeSummary, depGraph);
+        initVerticalDrag(vDragUpper, leftPanel, depGraph);
         initVerticalDrag(vDragLower, subtasks, simSection);
     }
 

@@ -266,8 +266,8 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
     resource_names = {n.name for n in all_nodes if n.type == 'Resource'}
 
     table_header = [html.Thead(html.Tr([
-        html.Th("Name"), html.Th("Priority"), html.Th("Type"), html.Th("Context"),
-        html.Th("Subcontext"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
+        html.Th("Name"), html.Th("Type"), html.Th("Context"), html.Th("Subcontext"),
+        html.Th("Priority"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
         html.Th("Hard Unlocks"), html.Th("Soft Unlocks"), html.Th("Synergies"),
         html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive")
     ]))]
@@ -295,10 +295,10 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
                 title="Go to this node in the Nodes tab",
                 style={"cursor": "pointer"},
             )),
-            html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
             html.Td(s.type),
             html.Td(str(s.context)),
             html.Td(str(s.subcontext) if s.subcontext else "None"),
+            html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
             html.Td(str(s.value)),
             html.Td(str(s.interest) if hasattr(s, 'interest') and s.interest is not None else "None"),
             html.Td(str(s.difficulty)),

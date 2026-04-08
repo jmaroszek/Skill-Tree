@@ -15,62 +15,92 @@ from styles import stylesheet
 
 
 def build_details_tab_content():
-    """Builds the Details tab UI."""
+    """Builds the Details tab UI.
+
+    Layout (two vertical zones):
+      ┌─────────────────────────────────┬─────────────────────────────────┐
+      │  LEFT PANEL (orange)            │  CANVAS (teal) — full height    │
+      │  ┌─────────────────────────┐   │                                  │
+      │  │ ☰  [Search ▾] [← ] [→] │   │   Cytoscape dependency graph     │
+      │  ├─────────────────────────┤   │                                  │
+      │  │ Node name / details /   │   │                                  │
+      │  │ Edit | Focus | Filters  │   │                                  │
+      │  └─────────────────────────┘   │                                  │
+      ├─────────────────────────────────┴──────────────────── (h-drag) ───┤
+      │  Subtasks table                     │  Simulation chart           │
+      └─────────────────────────────────────┴─────────────────────────────┘
+    """
 
     _ted = ConfigManager.get_time_estimate_defaults()
 
-    # --- Top Bar: node selector + nav + action buttons ---
-    top_bar = html.Div([
-        dbc.Button("☰ Goals", id="btn-details-goals-toggle", color="secondary",
-                   size="sm", className="me-2", style={"whiteSpace": "nowrap"}),
+    # ------------------------------------------------------------------ #
+    #  LEFT PANEL HEADER  (search bar + nav + goals toggle)               #
+    #  This is the ONLY place these controls live — no full-width top bar  #
+    # ------------------------------------------------------------------ #
+    left_panel_header = html.Div([
+        # Hamburger menu wrapping container (centers it in its left-side space)
+        html.Div([
+            dbc.Button("☰", id="btn-details-goals-toggle", color="secondary",
+                       size="sm", title="Browse goals",
+                       style={"fontSize": "0.85rem", "padding": "2px 8px"})
+        ], style={"flex": "0 0 45px", "display": "flex", "justifyContent": "center"}),
+
+        # Search bar wrapping container
         html.Div(dcc.Dropdown(
             id="details-node-select",
-            placeholder="Select a node to view details...",
+            placeholder="Select a node...",
             clearable=True,
-            style={"minWidth": "200px"},
-        ), className="text-dark", style={"flex": "0 1 320px"}),
-        # Back / Forward navigation — right of dropdown
-        dbc.Button("←", id="btn-details-nav-back", color="secondary",
-                   size="sm", className="ms-1", disabled=True,
-                   style={"whiteSpace": "nowrap", "minWidth": "32px"}),
-        dbc.Button("→", id="btn-details-nav-forward", color="secondary",
-                   size="sm", className="ms-1", disabled=True,
-                   style={"whiteSpace": "nowrap", "minWidth": "32px"}),
-        html.Div(style={"flex": "1"}),  # Spacer
-        dbc.Button("Filters", id="btn-details-filters-toggle", color="secondary",
-                   size="sm", className="ms-2", style={"whiteSpace": "nowrap"}),
-        dbc.Button("Simulate", id="btn-details-simulate", color="info",
-                   size="sm", className="ms-2", style={"whiteSpace": "nowrap"}),
-    ], className="d-flex align-items-center py-2 px-3",
-       style={"borderBottom": "1px solid #495057"})
+            style={"minWidth": "100px"},
+        ), className="text-dark", style={"flex": "1", "minWidth": "0", "margin": "0 8px"}),
 
-    # --- Empty state ---
+        # Navigation arrows wrapping container (centers them in their right-side space)
+        html.Div([
+            dbc.Button("←", id="btn-details-nav-back", color="secondary",
+                       size="sm", disabled=True,
+                       style={"whiteSpace": "nowrap", "minWidth": "30px",
+                              "padding": "2px 6px"}),
+            dbc.Button("→", id="btn-details-nav-forward", color="secondary",
+                       size="sm", className="ms-1", disabled=True,
+                       style={"whiteSpace": "nowrap", "minWidth": "30px",
+                              "padding": "2px 6px"}),
+        ], style={"flex": "0 0 75px", "display": "flex", "justifyContent": "center"}),
+    ], className="d-flex align-items-center py-2 px-2",
+       style={"borderBottom": "1px solid #495057", "flexShrink": "0", "paddingBottom": "8px"})
+
+    # ------------------------------------------------------------------ #
+    #  EMPTY STATE  (inside left panel, shown when no node selected)      #
+    # ------------------------------------------------------------------ #
     empty_state = html.Div(
         id="details-empty",
         children=[
             html.Div([
-                html.H5("No Node Selected", className="text-muted mb-2"),
-                html.P("Select a node from the dropdown or goal list to see its details.",
-                       className="text-muted"),
-            ], style={"textAlign": "center", "marginTop": "20vh"})
+                html.H6("No Node Selected", className="text-muted mb-1"),
+                html.P("Select a node from the dropdown or goal list.",
+                       className="text-muted small"),
+            ], style={"textAlign": "center", "marginTop": "30%"}),
         ],
+        style={"flex": "1"},
     )
 
-    # --- Node attributes summary (left column of upper section) ---
+    # ------------------------------------------------------------------ #
+    #  NODE SUMMARY  (inside details-content, shown when node selected)   #
+    # ------------------------------------------------------------------ #
     node_summary = html.Div([
-        html.H4(id="details-node-name", className="mb-2",
-                style={"fontWeight": "300", "letterSpacing": "1px"}),
-        # Badges row: type, status, and priority badge all inline
+        html.H4(id="details-node-name", className="mt-3 mb-2",
+                style={"fontWeight": "300", "letterSpacing": "1px",
+                       "overflow": "hidden", "textOverflow": "ellipsis",
+                       "whiteSpace": "nowrap"}),
+        # Badges row: type, status, priority
         html.Div(id="details-node-badges", className="d-flex gap-1 flex-wrap mb-2"),
 
-        # Description — taller default
+        # Description
         html.Div(id="details-node-description",
                  className="text-muted mb-2",
                  style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap",
                         "maxHeight": "160px", "overflowY": "auto",
                         "minHeight": "40px"}),
 
-        # Progress bar (above stats, below description)
+        # Progress bar
         html.Div(id="details-progress-section", style={"display": "none"}, children=[
             dbc.Progress(id="details-progress-bar", value=0,
                          className="mb-1", style={"height": "14px"}),
@@ -89,24 +119,52 @@ def build_details_tab_content():
             _attribute_row("Effort", "details-attr-effort"),
         ], className="mt-2"),
 
-        # Hidden container for priority data (badge is merged into badges row)
+        # Hidden priority container
         html.Div(id="details-priority-section", style={"display": "none"}, children=[
             html.Div(id="details-priority-badge"),
         ]),
 
-        # Action buttons — Edit Node first, then Focus on Canvas
+        # Action buttons — Edit | Focus | Filters on one compact row
         html.Div([
-            dbc.Button("Edit Node", id="btn-details-edit", color="secondary",
-                       size="sm", className="mt-3 w-100"),
-            dbc.Button("Focus on Canvas", id="btn-details-focus", color="info",
-                       size="sm", className="mt-1 w-100"),
-        ]),
+            dbc.Button("Edit", id="btn-details-edit", color="secondary",
+                       size="sm", style={"flex": "1"}),
+            dbc.Button("Focus", id="btn-details-focus", color="secondary",
+                       size="sm", className="ms-1", style={"flex": "1"}),
+            dbc.Button("Filters", id="btn-details-filters-toggle", color="secondary",
+                       size="sm", className="ms-1", style={"flex": "1"}),
+        ], className="d-flex mt-3"),
 
     ], id="details-node-summary",
-       style={"minWidth": "240px", "maxWidth": "280px", "paddingRight": "16px",
-              "overflowY": "auto"})
+       style={"overflowY": "auto"})
 
-    # --- Vertical drag handle between node summary and dep graph ---
+    # details-content: wraps node_summary, shown/hidden by callback
+    detail_content = html.Div(
+        id="details-content",
+        style={"display": "none", "flexDirection": "column", "flex": "1",
+               "padding": "24px 14px 12px 14px", "overflowY": "auto"},
+        children=[node_summary],
+    )
+
+    # ------------------------------------------------------------------ #
+    #  LEFT PANEL  (orange area: header + empty/content)                  #
+    # ------------------------------------------------------------------ #
+    left_panel = html.Div([
+        left_panel_header,
+        empty_state,
+        detail_content,
+    ], id="details-left-panel", style={
+        "width": "450px",
+        "minWidth": "260px",
+        "display": "flex",
+        "flexDirection": "column",
+        "borderRight": "1px solid #495057",
+        "flexShrink": "0",
+        "overflow": "hidden",
+    })
+
+    # ------------------------------------------------------------------ #
+    #  VERTICAL DRAG HANDLE (between left panel and canvas)               #
+    # ------------------------------------------------------------------ #
     v_drag_handle_upper = html.Div(
         id="details-v-drag-upper",
         style={
@@ -119,16 +177,17 @@ def build_details_tab_content():
         },
     )
 
-    # --- Dependency Graph (right column of upper section) ---
+    # ------------------------------------------------------------------ #
+    #  DEPENDENCY GRAPH  (teal area: full height, starts at tab bar)      #
+    # ------------------------------------------------------------------ #
     dep_graph = html.Div([
-        # Graph container with relative positioning for fullscreen button overlay
         html.Div([
             cyto.Cytoscape(
                 id='details-mini-graph',
                 elements=[],
                 layout={'name': 'cose', 'animate': False, 'fit': True, 'padding': 20},
                 style={'width': '100%', 'height': '100%', 'backgroundColor': '#1a1d21',
-                       'borderRadius': '8px'},
+                       'borderRadius': '0'},
                 stylesheet=stylesheet,
                 userZoomingEnabled=False,
                 userPanningEnabled=False,
@@ -143,24 +202,26 @@ def build_details_tab_content():
                               "right": "12px", "zIndex": "10",
                               "fontSize": "1.15rem", "lineHeight": "1",
                               "padding": "4px 9px", "opacity": "0.55"}),
-        ], style={"position": "relative", "flex": "1", "minHeight": "200px"}),
+        ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
         "flex": "1",
         "minWidth": "300px",
-        "paddingLeft": "12px",
         "display": "flex",
         "flexDirection": "column",
     })
 
-    # Upper section: attributes + graph — proportionally taller than lower
+    # UPPER SECTION: left panel + drag + canvas — no padding at top so
+    # canvas reaches flush to the tab bar
     upper_section = html.Div([
-        node_summary,
+        left_panel,
         v_drag_handle_upper,
         dep_graph,
     ], id="details-upper-section",
-       style={"display": "flex", "padding": "16px 0", "flex": "1.6", "minHeight": "0"})
+       style={"display": "flex", "flex": "1.6", "minHeight": "0"})
 
-    # --- Horizontal drag handle between upper and lower sections ---
+    # ------------------------------------------------------------------ #
+    #  HORIZONTAL DRAG HANDLE                                             #
+    # ------------------------------------------------------------------ #
     h_drag_handle = html.Div(
         id="details-h-drag",
         style={
@@ -173,7 +234,9 @@ def build_details_tab_content():
         },
     )
 
-    # --- Subtasks Table (left of lower section) ---
+    # ------------------------------------------------------------------ #
+    #  LOWER SECTION: Subtasks table + Simulation                         #
+    # ------------------------------------------------------------------ #
     subtasks_section = html.Div([
         html.Div([
             html.Div([
@@ -214,7 +277,6 @@ def build_details_tab_content():
               "flexDirection": "column", "paddingRight": "8px",
               "overflowY": "auto"})
 
-    # --- Vertical drag handle between subtasks and simulation ---
     v_drag_handle_lower = html.Div(
         id="details-v-drag-lower",
         style={
@@ -227,11 +289,10 @@ def build_details_tab_content():
         },
     )
 
-    # --- Simulation Section (right of lower section) ---
     sim_section = html.Div([
         html.Div(id="details-sim-empty", children=[
             html.Div([
-                html.P("Click 'Simulate' to see the time distribution.",
+                html.P("Select a node to see the time distribution.",
                        className="text-muted text-center",
                        style={"marginTop": "40px"}),
             ]),
@@ -247,29 +308,19 @@ def build_details_tab_content():
        style={"width": "42%", "minWidth": "250px", "paddingLeft": "12px",
               "display": "flex", "flexDirection": "column"})
 
-    # Lower section: subtasks + simulation — taller so x-axis label is visible
     lower_section = html.Div([
         subtasks_section,
         v_drag_handle_lower,
         sim_section,
     ], id="details-lower-section",
-       style={"display": "flex", "paddingTop": "8px", "flex": "1", "minHeight": "0"})
+       style={"display": "flex", "padding": "8px 24px", "flex": "1", "minHeight": "0"})
 
-    # --- Detail content (hidden when no node selected) ---
-    detail_content = html.Div(
-        id="details-content",
-        style={"display": "none", "flexDirection": "column", "flex": "1",
-               "padding": "0 24px", "overflowY": "auto"},
-        children=[upper_section, h_drag_handle, lower_section],
-    )
-
-    # --- Filters Sidebar (right overlay) ---
+    # ------------------------------------------------------------------ #
+    #  MODALS & SIDEBARS                                                  #
+    # ------------------------------------------------------------------ #
     filters_sidebar = _build_filters_sidebar()
-
-    # --- Add Node Modal ---
     add_node_modal = _build_add_node_modal(_ted)
 
-    # --- Subtask Remove Confirmation Modal ---
     subtask_remove_modal = dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Remove Subtask")),
         dbc.ModalBody(id="details-subtask-remove-modal-body"),
@@ -283,7 +334,6 @@ def build_details_tab_content():
         ]),
     ], id="modal-details-subtask-remove", is_open=False, centered=True)
 
-    # --- Goal List Sidebar (left overlay) ---
     goal_sidebar = _build_goal_sidebar()
 
     return html.Div([
@@ -291,30 +341,24 @@ def build_details_tab_content():
         dcc.Store(id='details-refresh-trigger', data=0),
         dcc.Store(id='details-subtask-remove-pending', data=None),
         dcc.Store(id='details-goal-order-store', data=None),
-        # Navigation history for back/forward
         dcc.Store(id='details-nav-history', data=[]),
         dcc.Store(id='details-nav-index', data=-1),
-        # Hidden input for SortableJS drag-and-drop reordering
         dcc.Input(id='details-goal-drag-order-input', type='text', value='',
                   style={'display': 'none'}),
-        # Hidden input for simulate trigger from context menu
         dcc.Input(id='details-simulate-trigger-input', type='text', value='',
                   style={'display': 'none'}),
         subtask_remove_modal,
         add_node_modal,
-
-        # Goal sidebar (overlay from left)
         goal_sidebar,
 
-        # Main content area
+        # Main content: upper (left panel + canvas) + lower (subtasks + sim)
         html.Div([
-            top_bar,
-            empty_state,
-            detail_content,
+            upper_section,
+            h_drag_handle,
+            lower_section,
         ], style={"flex": "1", "display": "flex", "flexDirection": "column",
                   "overflow": "hidden"}),
 
-        # Filters sidebar (overlay from right)
         filters_sidebar,
     ], style={
         "display": "flex",
@@ -620,6 +664,12 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                                   include_synergies=False):
     """Builds the subtasks table for any node's detail view.
 
+    Columns: Name | Status | Relationship | Type | Context | Subcontext |
+             Priority | Value | Interest | Effort | Time | (remove)
+
+    Priority is computed via the same ROI scoring algorithm used in the
+    Suggestions tab, normalized 0–100.  Ineligible/Done/Goal nodes show '—'.
+
     Args:
         subtask_nodes: List of Node objects in the dependency subtree.
         graph_manager: GraphManager instance for looking up nodes.
@@ -637,14 +687,11 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         )
 
     edges = edges or []
-
-    # Determine relationship type for each subtask
     relationship_types = {}
     if parent_name and graph_manager:
-        from models import EDGE_NEEDS_SOFT, EDGE_HELPS
+        from models import EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_NEEDS_HARD
         hard_subtree = graph_manager.get_goal_subtree(parent_name,
                                                        edge_types=(EDGE_NEEDS_HARD,))
-        # Determine synergy nodes (those reachable only via Helps edges)
         synergy_nodes = set()
         if include_synergies:
             helps_subtree = graph_manager.get_goal_subtree(
@@ -664,7 +711,6 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         for node in subtask_nodes:
             relationship_types[node.name] = "Hard"
 
-    # Filter to hard-only if requested
     if not include_soft:
         subtask_nodes = [n for n in subtask_nodes
                          if relationship_types.get(n.name) in ("Hard", "Synergy")]
@@ -678,18 +724,16 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     # Build set of nodes with a direct edge to the parent (removable)
     direct_children = set()
     if parent_name:
-        from models import EDGE_NEEDS_SOFT, EDGE_HELPS
+        from models import EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_NEEDS_HARD
         for e in edges:
             if e['target'] == parent_name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
                 direct_children.add(e['source'])
-            # Also include Helps partners as direct (bidirectional)
             if e['type'] == EDGE_HELPS:
                 if e['target'] == parent_name:
                     direct_children.add(e['source'])
                 elif e['source'] == parent_name:
                     direct_children.add(e['target'])
 
-    # Filter to direct-only if requested
     if not include_transitive:
         subtask_nodes = [n for n in subtask_nodes if n.name in direct_children]
 
@@ -698,6 +742,36 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.P("No direct subtasks for this node.", className="text-muted"),
             className="text-center py-3"
         )
+
+    # --- Priority scoring (same ROI algorithm as Suggestions tab, normalized 0–100) ---
+    # Nodes receive "—" when: status is Done/Blocked, type is Goal, or any hard
+    # prerequisite is not yet Done (ineligible per the scoring algorithm).
+    priority_scores = {}
+    priority_sort_key = {}  # numeric value used for sorting; -1 for unscored nodes
+    if graph_manager:
+        scored = graph_manager.calculate_priority_scores(subtask_nodes)
+        raw_scores = [getattr(n, 'priority_score', -1.0) for n in scored]
+        valid_scores = [s for s in raw_scores if s >= 0]
+        max_score = max(valid_scores) if valid_scores else 0.0
+        for n in scored:
+            raw = getattr(n, 'priority_score', -1.0)
+            if raw < 0 or max_score == 0:
+                priority_scores[n.name] = "—"
+                priority_sort_key[n.name] = -1.0
+            else:
+                normalized = round((raw / max_score) * 100)
+                priority_scores[n.name] = str(normalized)
+                priority_sort_key[n.name] = normalized
+
+    # Sort: eligible nodes descending by score, then unscored alphabetically below
+    subtask_nodes = sorted(
+        subtask_nodes,
+        key=lambda n: (
+            priority_sort_key.get(n.name, -1.0) < 0,  # False (eligible) sorts before True
+            -priority_sort_key.get(n.name, 0.0),       # higher score first
+            n.name.lower(),                              # alpha tie-break / ineligible order
+        ),
+    )
 
     # Muted, desaturated blue palette for relationship badges:
     #   Hard    = deep steel blue
@@ -715,7 +789,6 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                         "Open": "primary"}.get(node.status, "secondary")
         rel = relationship_types.get(node.name, "Hard")
         rel_style = _REL_BADGE_STYLES.get(rel, _REL_BADGE_STYLES["Hard"])
-
         is_direct = node.name in direct_children
         btn = dbc.Button(
             "×",
@@ -756,6 +829,10 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.context) if node.context else "—",
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
+            html.Td(str(node.subcontext) if node.subcontext else "—",
+                    style={"verticalAlign": "middle", "color": "#6c757d"}),
+            html.Td(priority_scores.get(node.name, "—"),
+                    style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.value),
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.interest),
@@ -775,9 +852,11 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.Th("Relationship"),
             html.Th("Type"),
             html.Th("Context"),
-            html.Th("Val"),
-            html.Th("Int"),
-            html.Th("Eff"),
+            html.Th("Subcontext"),
+            html.Th("Priority"),
+            html.Th("Value"),
+            html.Th("Interest"),
+            html.Th("Effort"),
             html.Th("Time"),
             html.Th(""),
         ])),

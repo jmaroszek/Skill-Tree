@@ -19,7 +19,8 @@ from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_
 graph_manager = GraphManager()
 
 
-def _run_simulation(node_name, include_soft_val, include_synergies_val):
+def _run_simulation(node_name, include_soft_val, include_synergies_val,
+                    include_transitive_val=None):
     """Shared helper: run the Monte Carlo simulation and return (figure, style, style)."""
     all_nodes = graph_manager.get_all_nodes()
     nodes_dict = {n.name: n for n in all_nodes}
@@ -30,11 +31,28 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val):
 
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_helps = bool(include_synergies_val and "include" in include_synergies_val)
+    include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
+
+    # When Transitive is off, restrict simulation to direct children only by
+    # filtering edges to those that directly reference the selected node.
+    sim_edges = edges
+    if not include_transitive:
+        direct_sources = set()
+        for e in edges:
+            if e['target'] == node_name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+                direct_sources.add(e['source'])
+            if e['type'] == EDGE_HELPS:
+                if e['target'] == node_name:
+                    direct_sources.add(e['source'])
+                elif e['source'] == node_name:
+                    direct_sources.add(e['target'])
+        allowed = direct_sources | {node_name}
+        sim_edges = [e for e in edges if e['source'] in allowed and e['target'] in allowed]
 
     result = simulate_task_chain(
         target_name=node_name,
         nodes_dict=nodes_dict,
-        edges=edges,
+        edges=sim_edges,
         include_soft=include_soft,
         include_helps=include_helps,
         n_simulations=10000,
@@ -305,7 +323,8 @@ def register_details_callbacks(app):
 
         # Auto-run simulation
         sim_fig, sim_show, sim_hide = _run_simulation(
-            node_name, include_soft_val, include_synergies_val)
+            node_name, include_soft_val, include_synergies_val,
+            include_transitive_val=include_transitive_val)
 
         return (
             {"display": "none"},
@@ -383,7 +402,8 @@ def register_details_callbacks(app):
         if not selected_node:
             return []
         return _build_graph_elements(selected_node, include_soft_val,
-                                     include_synergies_val, filter_types, filter_status)
+                                     include_synergies_val, filter_types, filter_status,
+                                     include_transitive_val=include_transitive_val)
 
     # --- Clicking a node in the dep graph → select it ---
     @app.callback(
@@ -463,7 +483,8 @@ def register_details_callbacks(app):
         if not selected_node:
             return no_update
         return _build_graph_elements(selected_node, include_soft_val,
-                                     include_synergies_val, filter_types, filter_status)
+                                     include_synergies_val, filter_types, filter_status,
+                                     include_transitive_val=include_transitive_val)
 
     # --- Populate Goal Sidebar ---
     @app.callback(
@@ -572,22 +593,24 @@ def register_details_callbacks(app):
                 pass
         return no_update
 
-    # --- Run Simulation (button click) ---
+    # --- Re-run simulation when any toggle changes ---
+    # (Node selection auto-run is handled inside select_detail_node)
     @app.callback(
         Output("details-sim-chart", "figure", allow_duplicate=True),
         Output("details-sim-results", "style", allow_duplicate=True),
         Output("details-sim-empty", "style", allow_duplicate=True),
-        Input("btn-details-simulate", "n_clicks"),
+        Input("details-include-soft-needs", "value"),
+        Input("details-include-transitive", "value"),
+        Input("details-include-synergies", "value"),
         State("details-selected-node-store", "data"),
-        State("details-include-soft-needs", "value"),
-        State("details-include-synergies", "value"),
         prevent_initial_call=True,
     )
-    def run_details_simulation(n_clicks, node_name, include_soft_val,
-                                include_synergies_val):
-        if not n_clicks or not node_name:
+    def run_details_simulation(include_soft_val, include_transitive_val,
+                                include_synergies_val, node_name):
+        if not node_name:
             return no_update, no_update, no_update
-        return _run_simulation(node_name, include_soft_val, include_synergies_val)
+        return _run_simulation(node_name, include_soft_val, include_synergies_val,
+                               include_transitive_val=include_transitive_val)
 
     # --- Run Simulation from context menu trigger ---
     @app.callback(
@@ -1092,10 +1115,11 @@ def register_details_callbacks(app):
 
 
 def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,
-                          filter_types, filter_status):
+                          filter_types, filter_status, include_transitive_val=None):
     """Shared helper to build Cytoscape elements for the dependency graph."""
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
+    include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
 
     edge_types = [EDGE_NEEDS_HARD]
     if include_soft:
@@ -1105,6 +1129,21 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
 
     subtree = graph_manager.get_goal_subtree(selected_node,
                                               edge_types=tuple(edge_types))
+
+    # When Transitive is off, restrict to direct children only
+    if not include_transitive:
+        all_edges = graph_manager.get_edges()
+        direct = set()
+        for e in all_edges:
+            if e['target'] == selected_node and e['type'] in edge_types:
+                direct.add(e['source'])
+            if EDGE_HELPS in edge_types and e['type'] == EDGE_HELPS:
+                if e['target'] == selected_node:
+                    direct.add(e['source'])
+                elif e['source'] == selected_node:
+                    direct.add(e['target'])
+        subtree = subtree & direct
+
     node_names = subtree | {selected_node}
 
     colors = ConfigManager.get_node_colors()
