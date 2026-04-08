@@ -181,46 +181,48 @@ def build_settings_tab_content():
                         dbc.Label("Google Drive Root Path"),
                         dbc.Input(id="setting-gdrive-path", type="text"),
 
-                        # --- Time Estimates section ---
+                        # --- Time Estimates section (merged with defaults) ---
                         html.Hr(className="my-2"),
                         html.H5("Time Estimates", className="mt-2 mb-1"),
-                        html.Small("Estimate productive hours.", className="text-muted d-block mb-1"),
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Hours per Week"),
-                                dbc.Input(id="setting-hpw", type="number", min=1, step=1)
-                            ]),
-                            dbc.Col([
-                                dbc.Label("Hours per Month"),
-                                dbc.Input(id="setting-hpm", type="number", min=1, step=1)
-                            ]),
-                        ], className="mt-1"),
-
-                        # --- Default Time Estimate Values ---
-                        html.Hr(className="my-2"),
-                        html.H5("Default Time Estimate Values", className="mt-2 mb-1"),
-                        html.Small("Pre-filled values when creating new nodes.", className="text-muted d-block mb-1"),
-                        dbc.Row([
-                            dbc.Col([
-                                dbc.Label("Default Unit"),
-                                dbc.Select(id="setting-default-time-unit", options=[
-                                    {"label": "Hours", "value": "hours"},
-                                    {"label": "Weeks", "value": "weeks"},
-                                    {"label": "Months", "value": "months"},
+                                html.Small("Productive hours available.", className="text-muted d-block mb-2"),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dbc.Label("Hours per Week"),
+                                        dbc.Input(id="setting-hpw", type="number", min=1, step=1),
+                                    ]),
+                                    dbc.Col([
+                                        dbc.Label("Hours per Month"),
+                                        dbc.Input(id="setting-hpm", type="number", min=1, step=1),
+                                    ]),
                                 ]),
-                            ]),
-                            dbc.Col([
-                                dbc.Label("Optimistic"),
-                                dbc.Input(id="setting-default-time-o", type="number", min=0, step=1)
-                            ]),
-                            dbc.Col([
-                                dbc.Label("Expected"),
-                                dbc.Input(id="setting-default-time-m", type="number", min=0, step=1)
-                            ]),
-                            dbc.Col([
-                                dbc.Label("Pessimistic"),
-                                dbc.Input(id="setting-default-time-p", type="number", min=0, step=1)
-                            ]),
+                            ], width=4),
+                            dbc.Col(style={"borderLeft": "1px solid #444", "paddingLeft": "1.5rem"}, children=[
+                                html.Small("Pre-filled values when creating new nodes.", className="text-muted d-block mb-2"),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dbc.Label("Default Unit"),
+                                        dbc.Select(id="setting-default-time-unit", options=[
+                                            {"label": "Hours", "value": "hours"},
+                                            {"label": "Weeks", "value": "weeks"},
+                                            {"label": "Months", "value": "months"},
+                                        ]),
+                                    ], width=3),
+                                    dbc.Col([
+                                        dbc.Label("Optimistic"),
+                                        dbc.Input(id="setting-default-time-o", type="number", min=0, step=1),
+                                    ], width=3),
+                                    dbc.Col([
+                                        dbc.Label("Expected"),
+                                        dbc.Input(id="setting-default-time-m", type="number", min=0, step=1),
+                                    ], width=3),
+                                    dbc.Col([
+                                        dbc.Label("Pessimistic"),
+                                        dbc.Input(id="setting-default-time-p", type="number", min=0, step=1),
+                                    ], width=3),
+                                ]),
+                            ], width=8),
                         ], className="mt-1"),
                     ], className="p-2")
                 ])

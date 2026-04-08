@@ -26,6 +26,7 @@ function _setNativeValue(el, val) {
 
 /* ---------- Init / re-init Sortable on the container ---------- */
 var _sortableInstance = null;
+var _isDragging = false;
 
 function _initGoalSortable() {
     var container = document.getElementById('goals-list-container');
@@ -49,7 +50,12 @@ function _initGoalSortable() {
         ghostClass: 'goal-sortable-ghost',
         chosenClass: 'goal-sortable-chosen',
         dragClass: 'goal-sortable-drag',
+        onStart: function () {
+            _isDragging = true;
+        },
         onEnd: function () {
+            _isDragging = false;
+
             // Read the new order from DOM data attributes
             var cards = container.querySelectorAll('[data-goal-name]');
             var order = [];
@@ -69,6 +75,10 @@ function _initGoalSortable() {
 
 /* ---------- MutationObserver: re-init after every Dash render ---------- */
 var _observer = new MutationObserver(function (mutations) {
+    // Never destroy/recreate the Sortable instance mid-drag — doing so would
+    // interrupt the active drag (SortableJS moves DOM nodes while dragging,
+    // which triggers childList mutations) and leave ghost classes stuck on cards.
+    if (_isDragging) return;
     // Debounce: only re-init once per render cycle
     clearTimeout(_observer._timer);
     _observer._timer = setTimeout(_initGoalSortable, 50);

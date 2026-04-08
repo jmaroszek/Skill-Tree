@@ -226,8 +226,6 @@ def register_callbacks(app):
                 html.Div([html.Strong("Status: "),
                           html.Span(effective_status, style={"color": status_color})]),
             ]
-            if data.get('context'):
-                lines.append(html.Div([html.Strong("Context: "), data.get('context', '')]))
 
             if total > 0:
                 bar_color = "#198754" if pct == 100 else "#0d6efd"
@@ -249,6 +247,11 @@ def register_callbacks(app):
             else:
                 lines.append(html.Div("No subtasks yet", style={"color": "#6c757d", "fontStyle": "italic"}))
 
+            if data.get('context'):
+                lines.append(html.Div([html.Strong("Context: "), data.get('context', '')]))
+            if data.get('subcontext'):
+                lines.append(html.Div([html.Strong("Subcontext: "), data.get('subcontext', '')]))
+
         else:
             final_time = data.get('time', 0)
             time_str = ConfigManager.format_time_friendly(final_time)
@@ -257,7 +260,6 @@ def register_callbacks(app):
                 header,
                 html.Div([html.Strong("Type: "), node_type]),
                 html.Div([html.Strong("Status: "), data.get('status', '')]),
-                html.Div([html.Strong("Context: "), data.get('context', '')]),
                 html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
                 html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
                 html.Div([html.Strong("Time: "), time_str]),
@@ -265,6 +267,11 @@ def register_callbacks(app):
 
             if node_type == 'Resource' and data.get('progress') is not None:
                 lines.append(html.Div([html.Strong("Progress: "), f"{data.get('progress', 0)}%"]))
+
+            if data.get('context'):
+                lines.append(html.Div([html.Strong("Context: "), data.get('context', '')]))
+            if data.get('subcontext'):
+                lines.append(html.Div([html.Strong("Subcontext: "), data.get('subcontext', '')]))
 
         return lines
 
@@ -1277,12 +1284,15 @@ def register_callbacks(app):
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-skip', 'n_clicks'),
         State({"type": "migration-dropdown", "index": dash.ALL}, "value"),
+        State({"type": "migration-ctx-dropdown", "index": dash.ALL}, "value"),
+        State({"type": "migration-sub-dropdown", "index": dash.ALL}, "value"),
         State('migration-mapping-store', 'data'),
         State('pending-settings-store', 'data'),
         prevent_initial_call=True
     )
     def handle_migration(pending_data, apply_clicks, skip_clicks,
-                         dropdown_values, mapping_data, pending_state):
+                         type_dropdown_values, ctx_dropdown_values, sub_dropdown_values,
+                         mapping_data, pending_state):
         from layout import build_migration_content
 
         trigger_id = _get_trigger_id()
@@ -1290,6 +1300,7 @@ def register_callbacks(app):
         if trigger_id == 'pending-settings-store' and pending_data:
             orphans = pending_data.get('orphans', {})
             new_values = pending_data.get('new_values', {})
+            subcontexts_by_context = pending_data.get('subcontexts', {})
 
             # Create lightweight objects with .name for the UI builder
             orphans_for_ui = {}
@@ -1298,7 +1309,7 @@ def register_callbacks(app):
                 for old_val, node_names in val_map.items():
                     orphans_for_ui[field][old_val] = [type('N', (), {'name': n})() for n in node_names]
 
-            children, mapping = build_migration_content(orphans_for_ui, new_values)
+            children, mapping = build_migration_content(orphans_for_ui, new_values, subcontexts_by_context)
             return True, children, mapping
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
@@ -1331,30 +1342,58 @@ def register_callbacks(app):
                 logger.exception("Failed to save pending settings")
 
             # Apply migrations if user clicked Apply
-            if trigger_id == 'btn-migration-apply' and mapping_data and dropdown_values:
+            if trigger_id == 'btn-migration-apply' and mapping_data:
                 new_subcontexts = pending_state.get('subcontexts', {})
-                for i, entry in enumerate(mapping_data):
-                    if i >= len(dropdown_values) or not dropdown_values[i]:
+
+                # Apply type-field migrations (migration-dropdown)
+                type_entries = mapping_data.get('type', []) if isinstance(mapping_data, dict) else mapping_data
+                for i, entry in enumerate(type_entries):
+                    if i >= len(type_dropdown_values) or not type_dropdown_values[i]:
                         continue
-                    field = entry['field']
+                    manager.apply_node_migration(entry['node_name'], entry['field'],
+                                                 type_dropdown_values[i], new_subcontexts)
+
+                # Apply context/subcontext migrations (migration-ctx/sub-dropdown)
+                ctx_sub_entries = mapping_data.get('ctx_sub', []) if isinstance(mapping_data, dict) else []
+                for i, entry in enumerate(ctx_sub_entries):
                     node_name = entry['node_name']
-                    new_val = dropdown_values[i]
-
-                    if new_val == '__ctx_sep__':
-                        continue
-
-                    # Handle context reassignment from subcontext migration
-                    if field == 'subcontext' and new_val.startswith('__ctx__'):
-                        ctx_val = new_val[len('__ctx__'):]
-                        manager.apply_node_migration(node_name, 'context', ctx_val, new_subcontexts)
-                        manager.apply_node_migration(node_name, 'subcontext', '__clear__', new_subcontexts)
-                        continue
-
-                    manager.apply_node_migration(node_name, field, new_val, new_subcontexts)
+                    if entry.get('has_ctx_orphan') and i < len(ctx_dropdown_values):
+                        ctx_val = ctx_dropdown_values[i]
+                        if ctx_val:
+                            manager.apply_node_migration(node_name, 'context', ctx_val, new_subcontexts)
+                    if entry.get('has_sub_orphan') and i < len(sub_dropdown_values):
+                        sub_val = sub_dropdown_values[i]
+                        if sub_val:
+                            manager.apply_node_migration(node_name, 'subcontext', sub_val, new_subcontexts)
 
             return False, [], None
 
         return dash.no_update, dash.no_update, dash.no_update
+
+    # --- Migration: dynamic subcontext filtering based on selected context ---
+    @app.callback(
+        Output({"type": "migration-sub-dropdown", "index": dash.ALL}, "options"),
+        Output({"type": "migration-sub-dropdown", "index": dash.ALL}, "value"),
+        Input({"type": "migration-ctx-dropdown", "index": dash.ALL}, "value"),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True
+    )
+    def update_migration_subcontext_options(ctx_values, pending_data):
+        if not ctx_values:
+            return dash.no_update, dash.no_update
+        subcontexts_map = (pending_data or {}).get('subcontexts', {})
+        new_options_list = []
+        new_values_list = []
+        for ctx_val in ctx_values:
+            if ctx_val and ctx_val != '__clear__':
+                subs = subcontexts_map.get(ctx_val, [])
+            else:
+                subs = [s for ss in subcontexts_map.values() for s in ss]
+            options = [{"label": s, "value": s} for s in subs]
+            options.append({"label": "Clear (set to none)", "value": "__clear__"})
+            new_options_list.append(options)
+            new_values_list.append(subs[0] if subs else "__clear__")
+        return new_options_list, new_values_list
 
     # --- Settings: Auto-dismiss status message ---
     @app.callback(

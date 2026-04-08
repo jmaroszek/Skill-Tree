@@ -268,7 +268,10 @@ def build_events_tab_content():
         dcc.Store(id='selected-event-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
         dcc.Store(id='node-completion-events-store', data=None),
+        dcc.Store(id='event-order-store', data=[]),
         dcc.Interval(id='event-clear-interval', interval=3000, n_intervals=0, disabled=True),
+        # Hidden input for drag-and-drop reorder (set by JS SortableJS)
+        dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
         dormant_node_modal,
         node_completion_modal,
         event_list_panel,
@@ -306,12 +309,21 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
     badge_text, badge_color = _event_badge(status, trigger_date, trigger_node)
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
+    drag_handle = html.Span(
+        "\u2630", className="event-drag-handle",
+        style={"cursor": "grab", "color": "#6c757d", "fontSize": "0.9rem",
+               "marginRight": "8px", "userSelect": "none"},
+    )
+
     children: List[Any] = [
         html.Div([
-            html.H6(event_name, className="mb-0", style={"fontWeight": "500"}),
+            html.Div([
+                drag_handle,
+                html.H6(event_name, className="mb-0", style={"fontWeight": "500"}),
+            ], className="d-flex align-items-center"),
             dbc.Badge(badge_text, color=badge_color, className="ms-2",
                       style={"fontSize": "0.7rem"}),
-        ], className="d-flex align-items-center mb-1"),
+        ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
     if description:
         description_str = description[:80] + "..." if len(description) > 80 else description
@@ -340,6 +352,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
 
     return html.Div(children, id={"type": "event-card", "index": event_name},
        className="mb-2 event-card rounded",
+       **{"data-event-name": event_name},
        style={
            "cursor": "pointer",
            "border": border_style,

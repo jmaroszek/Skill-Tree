@@ -60,15 +60,24 @@ def register_event_callbacks(app):
         Output("events-list-container", "children"),
         Input("events-refresh-trigger", "data"),
         Input("main-tabs", "active_tab"),
+        Input("event-order-store", "data"),
         State("selected-event-store", "data"),
     )
-    def render_events_list(refresh_trigger, active_tab, selected_event):
+    def render_events_list(refresh_trigger, active_tab, event_order, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
                 html.P("No events yet.", className="text-muted"),
                 className="text-center py-5"
             )
+
+        # Apply manual order from store
+        stored_order = event_order or []
+        if stored_order:
+            event_map = {e.name: e for e in events}
+            ordered = [event_map[n] for n in stored_order if n in event_map]
+            remaining = [e for e in events if e.name not in set(stored_order)]
+            events = ordered + remaining
 
         cards = []
         for event in events:
@@ -80,6 +89,23 @@ def register_event_callbacks(app):
                 trigger_node=event.trigger_node,
             ))
         return cards
+
+    # --- Event Reordering (drag-and-drop) ---
+    @app.callback(
+        Output("event-order-store", "data"),
+        Input("event-drag-order-input", "value"),
+        prevent_initial_call=True,
+    )
+    def reorder_event(drag_order_json):
+        import json as _json
+        if drag_order_json:
+            try:
+                new_order = _json.loads(drag_order_json)
+                if isinstance(new_order, list) and new_order:
+                    return new_order
+            except (ValueError, TypeError):
+                pass
+        return no_update
 
     # --- Populate trigger node dropdown when events tab opens ---
     @app.callback(
