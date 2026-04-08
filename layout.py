@@ -746,15 +746,7 @@ def build_app_layout(initial_elements, env="production"):
         migration_modal,
         error_modal,
         unsaved_changes_modal,
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Rename Node")),
-            dbc.ModalBody(id="node-rename-modal-body"),
-            dbc.ModalFooter([
-                dbc.Button("Cancel", id="btn-node-rename-cancel", color="secondary", className="me-2"),
-                dbc.Button("Rename", id="btn-node-rename-confirm", color="primary"),
-            ]),
-        ], id="modal-node-confirm-rename", is_open=False, centered=True),
-        dcc.Store(id='node-rename-pending', data=None),
+
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),

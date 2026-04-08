@@ -490,10 +490,7 @@ def register_callbacks(app):
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
          Output('node-completion-events-store', 'data'),
-         Output('filter-node-count', 'children'),
-         Output('modal-node-confirm-rename', 'is_open'),
-         Output('node-rename-modal-body', 'children'),
-         Output('node-rename-pending', 'data')],
+         Output('filter-node-count', 'children')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-delete', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -582,9 +579,21 @@ def register_callbacks(app):
             if trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not name or not n_type):
                 pass  # Keep sidebar open — validation error shown below
             elif trigger_id == 'btn-close-editor':
-                form_has_content = bool(name and name.strip()) or bool(desc and desc.strip()) or any([
-                    val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
-                ])
+                form_has_content = False
+                if original_name:
+                    old_node = manager.get_node(original_name)
+                    if old_node:
+                        form_has_content = any([
+                            (name or "").strip() != (old_node.name or "").strip(),
+                            (desc or "").strip() != (old_node.description or "").strip(),
+                            float(val or 5) != float(old_node.value or 5),
+                            float(interest or 5) != float(old_node.interest or 5),
+                            float(diff or 5) != float(old_node.difficulty or 5)
+                        ])
+                if not original_name or not manager.get_node(original_name):
+                    form_has_content = bool(name and name.strip()) or bool(desc and desc.strip()) or any([
+                        val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
+                    ])
                 if not form_has_content:
                     next_ed_style['marginLeft'] = "-380px"
             elif trigger_id not in ('btn-save',):
@@ -625,13 +634,13 @@ def register_callbacks(app):
                 ])
                 if form_has_content:
                     msg = "Error: Node name is required."
-                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
                 else:
                     next_ed_style['marginLeft'] = "-380px"
-                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             if not n_type:
                 msg = "Error: Node type is required."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             try:
                 # Track if this save marks the node Done (for event completion check)
                 if status_done and "Done" in (status_done or []):
@@ -642,27 +651,12 @@ def register_callbacks(app):
                 t_m = float(time_m or 0) * multiplier
                 t_p = float(time_p or 0) * multiplier
 
-                # Intercept rename: if original name differs from current name, show confirm modal
+                # Intercept rename: if original name differs from current name, rename node atomically
                 if (trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save') and
                         original_name and original_name.strip() and
                         name.strip() != original_name.strip() and
                         manager.get_node(original_name.strip())):
-                    pending = {
-                        'old_name': original_name.strip(),
-                        'new_name': name.strip(),
-                        'n_type': n_type, 'desc': desc, 'val': val,
-                        't_o': t_o, 't_m': t_m, 't_p': t_p,
-                        'interest': interest, 'diff': diff,
-                        'status_done': status_done, 'context': context, 'subctx': subctx,
-                        'obs_path': obs_path, 'drive_path': drive_path, 'website_path': website_path,
-                        'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
-                        'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s,
-                        'e_helps': e_helps,
-                        'progress_val': progress_val,
-                        'close_after': trigger_id in ('btn-save-close', 'btn-unsaved-save'),
-                    }
-                    modal_body = f'Rename "{original_name.strip()}" to "{name.strip()}"?'
-                    return current_elements, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, True, modal_body, pending
+                    manager.rename_node(original_name.strip(), name.strip())
 
                 msg = _handle_save(name, n_type, desc, val, t_o, t_m, t_p,
                                    interest, diff, status_done, context, subctx,
@@ -672,7 +666,7 @@ def register_callbacks(app):
                                    progress_val)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-delete' and name:
@@ -707,105 +701,128 @@ def register_callbacks(app):
             except Exception as e:
                 msg = f"Error: {e}"
         # --- Visual Generation ---
-        community_method = community_method or "components"
-        communities = manager.detect_communities(method=community_method, filters=filters)
-        community_options = [{"label": "All", "value": "All"}]
-        name_counts: dict[str, int] = {}
-        for i, comm in enumerate(communities):
-            base_name = manager.name_community(comm)
-            name_counts[base_name] = name_counts.get(base_name, 0) + 1
-            if name_counts[base_name] > 1:
-                label = f"{base_name} #{name_counts[base_name]} ({len(comm)} nodes)"
-            else:
-                label = f"{base_name} ({len(comm)} nodes)"
-            community_options.append({"label": label, "value": str(i)})
-        # Fix labels retroactively when the first occurrence also needs a number
-        for key, count in name_counts.items():
-            if count > 1:
-                for opt in community_options:
-                    if opt["label"].startswith(f"{key} (") and opt["value"] != "All":
-                        opt["label"] = opt["label"].replace(f"{key} (", f"{key} #1 (", 1)
-                        break
+        ui_only_triggers = ('btn-edit-node', 'btn-add', 'edit-trigger-input', 'cytoscape-graph', 'btn-close-editor')
+        if trigger_id in ui_only_triggers:
+            # We bypass full graph recreation and list evaluation
+            elements = dash.no_update
+            community_options = dash.no_update
+            search_options = dash.no_update
+            f_ctx_list = dash.no_update
+            ctx_list = dash.no_update
+            type_list = dash.no_update
+            f_type_list = dash.no_update
+            goal_opts = dash.no_update
+            active_stylesheet = dash.no_update
+            clear_focus_style = dash.no_update
+            node_completion_events = dash.no_update
+            node_count_text = dash.no_update
+            
+            # Still format sidebar traversal UI
+            count = sugg_count if sugg_count else 10
+            sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
+            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
+            hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(effective_tapped_node, active_node_id)
+            
+        else:
+            community_method = community_method or "components"
+            communities = manager.detect_communities(method=community_method, filters=filters)
+            community_options = [{"label": "All", "value": "All"}]
+            name_counts: dict[str, int] = {}
+            for i, comm in enumerate(communities):
+                base_name = manager.name_community(comm)
+                name_counts[base_name] = name_counts.get(base_name, 0) + 1
+                if name_counts[base_name] > 1:
+                    label = f"{base_name} #{name_counts[base_name]} ({len(comm)} nodes)"
+                else:
+                    label = f"{base_name} ({len(comm)} nodes)"
+                community_options.append({"label": label, "value": str(i)})
+            # Fix labels retroactively when the first occurrence also needs a number
+            for key, count in name_counts.items():
+                if count > 1:
+                    for opt in community_options:
+                        if opt["label"].startswith(f"{key} (") and opt["value"] != "All":
+                            opt["label"] = opt["label"].replace(f"{key} (", f"{key} #1 (", 1)
+                            break
 
-        community_names = None
-        if f_community and f_community != "All":
-            try:
-                idx = int(f_community)
-                if 0 <= idx < len(communities):
-                    community_names = communities[idx]
-            except (ValueError, IndexError): pass
+            community_names = None
+            if f_community and f_community != "All":
+                try:
+                    idx = int(f_community)
+                    if 0 <= idx < len(communities):
+                        community_names = communities[idx]
+                except (ValueError, IndexError): pass
 
-        elements = generate_elements(filters, active_node_id, community_names=community_names)
+            elements = generate_elements(filters, active_node_id, community_names=community_names)
 
-        count = sugg_count if sugg_count else 10
-        sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
-        effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
-        hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(effective_tapped_node, active_node_id)
+            count = sugg_count if sugg_count else 10
+            sugg_ui = _format_suggestions_table(get_suggestions(filters, count=count), active_suggestion_id)
+            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
+            hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = _format_traversal_ui(effective_tapped_node, active_node_id)
 
-        all_nodes = manager.get_all_nodes()
-        search_options = _node_options(manager.get_all_nodes(include_dormant=True))
-        
-        # Populate dynamic contexts datalists from DB + Config preserving defined order
-        base_ctx = ConfigManager.get_contexts()
-        
-        ctx_list = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in base_ctx]
-        f_ctx_list = [{"label": c, "value": c} for c in base_ctx]
+            all_nodes = manager.get_all_nodes()
+            search_options = _node_options(manager.get_all_nodes(include_dormant=True))
+            
+            # Populate dynamic contexts datalists from DB + Config preserving defined order
+            base_ctx = ConfigManager.get_contexts()
+            
+            ctx_list = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in base_ctx]
+            f_ctx_list = [{"label": c, "value": c} for c in base_ctx]
 
-        base_types = ConfigManager.get_node_types()
-        type_list = [{"label": t, "value": t} for t in base_types]
+            base_types = ConfigManager.get_node_types()
+            type_list = [{"label": t, "value": t} for t in base_types]
 
-        f_type_list = [{"label": t, "value": t} for t in base_types]
+            f_type_list = [{"label": t, "value": t} for t in base_types]
 
-        # Goal filter options
-        goal_nodes = [n for n in all_nodes if n.type == "Goal"]
-        goal_opts = [{"label": g.name, "value": g.name} for g in goal_nodes]
+            # Goal filter options
+            goal_nodes = [n for n in all_nodes if n.type == "Goal"]
+            goal_opts = [{"label": g.name, "value": g.name} for g in goal_nodes]
 
-        # Focus mode stylesheet: highlight subtree, dim others
-        from layout import stylesheet as base_stylesheet
-        active_stylesheet = list(base_stylesheet)
-        if focus_goal:
-            focus_subtree = manager.get_goal_subtree(focus_goal)
-            focus_subtree.add(focus_goal)
-            active_stylesheet.append({
-                'selector': 'node',
-                'style': {'opacity': 0.15}
-            })
-            active_stylesheet.append({
-                'selector': 'edge',
-                'style': {'opacity': 0.08}
-            })
-            for node_name in focus_subtree:
-                safe_id = node_name.replace("'", "\\'")
+            # Focus mode stylesheet: highlight subtree, dim others
+            from layout import stylesheet as base_stylesheet
+            active_stylesheet = list(base_stylesheet)
+            if focus_goal:
+                focus_subtree = manager.get_goal_subtree(focus_goal)
+                focus_subtree.add(focus_goal)
                 active_stylesheet.append({
-                    'selector': f'node[id = "{safe_id}"]',
-                    'style': {'opacity': 1}
+                    'selector': 'node',
+                    'style': {'opacity': 0.15}
                 })
-            # Highlight edges between focus subtree nodes
-            edges = manager.get_edges()
-            for e in edges:
-                if e['source'] in focus_subtree and e['target'] in focus_subtree:
-                    eid = f"{e['source']}_{e['target']}_{e['type']}".replace("'", "\\'")
+                active_stylesheet.append({
+                    'selector': 'edge',
+                    'style': {'opacity': 0.08}
+                })
+                for node_name in focus_subtree:
+                    safe_id = node_name.replace("'", "\\'")
                     active_stylesheet.append({
-                        'selector': f'edge[id = "{eid}"]',
+                        'selector': f'node[id = "{safe_id}"]',
                         'style': {'opacity': 1}
                     })
+                # Highlight edges between focus subtree nodes
+                edges = manager.get_edges()
+                for e in edges:
+                    if e['source'] in focus_subtree and e['target'] in focus_subtree:
+                        eid = f"{e['source']}_{e['target']}_{e['type']}".replace("'", "\\'")
+                        active_stylesheet.append({
+                            'selector': f'edge[id = "{eid}"]',
+                            'style': {'opacity': 1}
+                        })
 
-        clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
+            clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
 
-        # Check for events triggered by node completion
-        node_completion_events = dash.no_update
-        if completion_check_node:
-            try:
-                triggered_events = _event_mgr.get_events_triggered_by_node(completion_check_node)
-                if triggered_events:
-                    node_completion_events = [e.name for e in triggered_events]
-            except Exception:
-                pass
+            # Check for events triggered by node completion
+            node_completion_events = dash.no_update
+            if completion_check_node:
+                try:
+                    triggered_events = _event_mgr.get_events_triggered_by_node(completion_check_node)
+                    if triggered_events:
+                        node_completion_events = [e.name for e in triggered_events]
+                except Exception:
+                    pass
 
-        node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
-        node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
+            node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
+            node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
 
-        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, node_count_text, False, dash.no_update, dash.no_update
+        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, node_count_text
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),
@@ -815,12 +832,21 @@ def register_callbacks(app):
          Input('btn-unsaved-discard', 'n_clicks')],
         [State('node-name', 'value'), State('node-desc', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'),
-         State('node-difficulty', 'value')],
+         State('node-difficulty', 'value'), State('node-original-name', 'data')],
         prevent_initial_call=True
     )
-    def toggle_unsaved_modal(_close, _cancel, _save, _discard, name, desc, val, interest, diff):
+    def toggle_unsaved_modal(_close, _cancel, _save, _discard, name, desc, val, interest, diff, original_name):
         trigger_id = _get_trigger_id()
         if trigger_id == 'btn-close-editor':
+            if original_name:
+                old_node = manager.get_node(original_name)
+                if old_node:
+                    name_changed = (name or "").strip() != (old_node.name or "").strip()
+                    desc_changed = (desc or "").strip() != (old_node.description or "").strip()
+                    val_changed = float(val or 5) != float(old_node.value or 5)
+                    interest_changed = float(interest or 5) != float(old_node.interest or 5)
+                    diff_changed = float(diff or 5) != float(old_node.difficulty or 5)
+                    return any([name_changed, desc_changed, val_changed, interest_changed, diff_changed])
             has_content = bool(name and name.strip()) or bool(desc and desc.strip()) or any([
                 val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
             ])
@@ -837,60 +863,7 @@ def register_callbacks(app):
         if n > 0: return "", True
         return dash.no_update, dash.no_update
 
-    @app.callback(
-        Output('modal-node-confirm-rename', 'is_open', allow_duplicate=True),
-        Output('node-rename-pending', 'data', allow_duplicate=True),
-        Input('btn-node-rename-cancel', 'n_clicks'),
-        prevent_initial_call=True
-    )
-    def cancel_rename_node(_):
-        return False, None
 
-    @app.callback(
-        Output('modal-node-confirm-rename', 'is_open', allow_duplicate=True),
-        Output('node-rename-pending', 'data', allow_duplicate=True),
-        Output('save-output', 'children', allow_duplicate=True),
-        Output('clear-interval', 'disabled', allow_duplicate=True),
-        Output('cytoscape-graph', 'elements', allow_duplicate=True),
-        Output('node-original-name', 'data', allow_duplicate=True),
-        Input('btn-node-rename-confirm', 'n_clicks'),
-        State('node-rename-pending', 'data'),
-        State('filter-context', 'value'),
-        State('filter-subcontext', 'value'),
-        State('filter-done', 'value'),
-        State('filter-value', 'value'),
-        State('filter-interest', 'value'),
-        State('filter-time', 'value'),
-        State('filter-difficulty', 'value'),
-        State('filter-node-type', 'value'),
-        State('filter-goal', 'value'),
-        prevent_initial_call=True
-    )
-    def confirm_rename_node(_, pending, f_context, f_subcontext, f_done, f_value,
-                            f_interest, f_time, f_difficulty, f_node_types, f_goal):
-        if not pending:
-            return False, None, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        old_name = pending['old_name']
-        new_name = pending['new_name']
-        old_node = manager.get_node(old_name)
-        if not old_node:
-            return False, None, f"Error: Node '{old_name}' not found.", False, dash.no_update, dash.no_update
-        # Rename node atomically (preserves all edges), then update attributes
-        manager.rename_node(old_name, new_name)
-        _handle_save(
-            new_name, pending['n_type'], pending['desc'], pending['val'],
-            pending['t_o'], pending['t_m'], pending['t_p'],
-            pending['interest'], pending['diff'], pending['status_done'],
-            pending['context'], pending['subctx'],
-            pending['obs_path'], pending['drive_path'], pending['website_path'],
-            pending['e_needs_h'], pending['e_needs_s'],
-            pending['e_supp_h'], pending['e_supp_s'], pending['e_helps'],
-            pending['progress_val']
-        )
-        filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest,
-                                 f_time, f_difficulty, f_node_types, f_goal=f_goal)
-        elements = generate_elements(filters, active_node_id=new_name)
-        return False, None, f"Renamed '{old_name}' \u2192 '{new_name}'.", False, elements, new_name
 
     @app.callback(
         Output("modal-error", "is_open"),
