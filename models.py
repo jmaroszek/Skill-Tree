@@ -32,6 +32,7 @@ class Node:
     progress: Optional[int] = None           # 0-100
     website: Optional[str] = None
     dormant: int = 0
+    time_mode: str = 'manual'  # 'manual' or 'inherited'
     priority_score: Optional[float] = None
 
     def __post_init__(self):
@@ -48,6 +49,8 @@ class Node:
         if self.progress is not None:
             self.progress = max(0, min(100, int(self.progress)))
         self.dormant = int(self.dormant) if self.dormant is not None else 0
+        if self.time_mode not in ('manual', 'inherited'):
+            self.time_mode = 'manual'
 
     @property
     def time(self) -> float:

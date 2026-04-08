@@ -110,8 +110,9 @@ def register_details_callbacks(app):
         if node.subcontext:
             ctx_str += f" › {node.subcontext}"
 
-        # Time
-        time_str = ConfigManager.format_time_friendly(node.time) if node.time else "—"
+        # Time (use effective time for inherited mode)
+        effective_time = graph_manager.get_effective_time(node_name)
+        time_str = ConfigManager.format_time_friendly(effective_time) if effective_time else "—"
 
         # Progress (for goals)
         show_progress = {"display": "none"}

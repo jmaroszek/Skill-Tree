@@ -26,8 +26,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, progress, website, dormant)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :progress, :website, :dormant)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, progress, website, dormant, time_mode)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :progress, :website, :dormant, :time_mode)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -47,7 +47,7 @@ class GraphManager:
                     context=:context, subcontext=:subcontext, status=:status,
                     obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
                     progress=:progress, website=:website,
-                    dormant=:dormant
+                    dormant=:dormant, time_mode=:time_mode
                 WHERE name=:name
             ''', data)
             conn.commit()
@@ -292,6 +292,12 @@ class GraphManager:
 
         The goal node itself is excluded from the returned set.
 
+        For directed edge types (Needs_Hard, Needs_Soft), traversal follows
+        source → target direction (source is a prerequisite of target).
+
+        For the bidirectional Helps edge type, traversal follows both directions
+        so that synergy partners are discovered.
+
         Args:
             goal_name: The goal node to start from.
             edge_types: Tuple of edge types to traverse. Defaults to (Needs_Hard, Needs_Soft).
@@ -299,31 +305,70 @@ class GraphManager:
         if edge_types is None:
             edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
 
-        placeholders = ','.join('?' for _ in edge_types)
+        # Separate directed and bidirectional edge types
+        directed_types = tuple(t for t in edge_types if t != EDGE_HELPS)
+        include_helps = EDGE_HELPS in edge_types
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
             visited = set()
             queue = []
-            # Seed with direct prerequisites of the goal
-            cursor.execute(
-                f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
-                (goal_name, *edge_types)
-            )
-            queue = [row[0] for row in cursor.fetchall()]
+
+            # Seed with direct prerequisites of the goal (directed edges)
+            if directed_types:
+                placeholders = ','.join('?' for _ in directed_types)
+                cursor.execute(
+                    f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
+                    (goal_name, *directed_types)
+                )
+                queue.extend(row[0] for row in cursor.fetchall())
+
+            # Seed with Helps partners of the goal (bidirectional)
+            if include_helps:
+                cursor.execute(
+                    "SELECT source FROM Edges WHERE target=? AND type=?",
+                    (goal_name, EDGE_HELPS)
+                )
+                queue.extend(row[0] for row in cursor.fetchall())
+                cursor.execute(
+                    "SELECT target FROM Edges WHERE source=? AND type=?",
+                    (goal_name, EDGE_HELPS)
+                )
+                queue.extend(row[0] for row in cursor.fetchall())
 
             while queue:
                 node = queue.pop()
                 if node in visited:
                     continue
                 visited.add(node)
-                cursor.execute(
-                    f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
-                    (node, *edge_types)
-                )
-                for row in cursor.fetchall():
-                    if row[0] not in visited:
-                        queue.append(row[0])
+
+                # Follow directed edges
+                if directed_types:
+                    placeholders = ','.join('?' for _ in directed_types)
+                    cursor.execute(
+                        f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
+                        (node, *directed_types)
+                    )
+                    for row in cursor.fetchall():
+                        if row[0] not in visited:
+                            queue.append(row[0])
+
+                # Follow Helps edges bidirectionally
+                if include_helps:
+                    cursor.execute(
+                        "SELECT source FROM Edges WHERE target=? AND type=?",
+                        (node, EDGE_HELPS)
+                    )
+                    for row in cursor.fetchall():
+                        if row[0] not in visited:
+                            queue.append(row[0])
+                    cursor.execute(
+                        "SELECT target FROM Edges WHERE source=? AND type=?",
+                        (node, EDGE_HELPS)
+                    )
+                    for row in cursor.fetchall():
+                        if row[0] not in visited:
+                            queue.append(row[0])
 
         return visited
 
@@ -364,6 +409,35 @@ class GraphManager:
         is_blocked = (done + blocked == total) and (blocked > 0)
 
         return {"total": total, "done": done, "pct": pct, "remaining_time": round(remaining_time, 1), "is_blocked": is_blocked}
+
+    def get_effective_time(self, node_name: str) -> float:
+        """Returns the effective time estimate for a node.
+
+        For nodes with time_mode='manual', returns the PERT-computed time
+        from the node's own time_o/m/p values.
+
+        For nodes with time_mode='inherited', sums the PERT-computed times
+        of all incomplete nodes in the node's dependency subtree, treating
+        the node itself as a container with zero direct time.
+
+        Returns:
+            Time in hours.
+        """
+        node = self.get_node(node_name)
+        if not node:
+            return 0.0
+
+        if node.time_mode != 'inherited':
+            return node.time
+
+        # Inherited mode: sum subtree times
+        subtree = self.get_goal_subtree(node_name)
+        total = 0.0
+        for name in subtree:
+            child = self.get_node(name)
+            if child and child.status != 'Done':
+                total += child.time
+        return round(total, 2)
 
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         result = nodes

@@ -97,6 +97,15 @@ def init_db():
         )
     ''')
     conn.commit()
+
+    # --- Migrations ---
+    # Add time_mode column (defaults to 'manual' for existing nodes)
+    try:
+        cursor.execute("ALTER TABLE Nodes ADD COLUMN time_mode TEXT NOT NULL DEFAULT 'manual'")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
+
     conn.close()
     _initialized = True
 
