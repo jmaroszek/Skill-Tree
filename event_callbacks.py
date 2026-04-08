@@ -61,9 +61,11 @@ def register_event_callbacks(app):
         Input("events-refresh-trigger", "data"),
         Input("main-tabs", "active_tab"),
         Input("event-order-store", "data"),
+        Input("events-search-input", "value"),
+        Input("events-hide-triggered-toggle", "value"),
         State("selected-event-store", "data"),
     )
-    def render_events_list(refresh_trigger, active_tab, event_order, selected_event):
+    def render_events_list(refresh_trigger, active_tab, event_order, search_text, hide_triggered, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
@@ -78,6 +80,24 @@ def register_event_callbacks(app):
             ordered = [event_map[n] for n in stored_order if n in event_map]
             remaining = [e for e in events if e.name not in set(stored_order)]
             events = ordered + remaining
+
+        # Filter: hide triggered events
+        if hide_triggered:
+            events = [e for e in events if e.status != "Triggered"]
+
+        # Filter: search text (name or description, case-insensitive)
+        query = (search_text or "").strip().lower()
+        if query:
+            events = [
+                e for e in events
+                if query in (e.name or "").lower() or query in (e.description or "").lower()
+            ]
+
+        if not events:
+            return html.Div(
+                html.P("No matching events.", className="text-muted"),
+                className="text-center py-5"
+            )
 
         cards = []
         for event in events:

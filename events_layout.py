@@ -17,7 +17,23 @@ def build_events_tab_content():
         html.Div([
             html.H4("Events", className="mb-0"),
             dbc.Button("New Event", id="btn-new-event", color="success", size="sm"),
-        ], className="d-flex justify-content-between align-items-center mb-3 mt-3"),
+        ], className="d-flex justify-content-between align-items-center mb-2 mt-3"),
+        dbc.Input(
+            id="events-search-input",
+            type="search",
+            placeholder="Search events…",
+            size="sm",
+            className="mb-2",
+            style={"backgroundColor": "#2b3035", "border": "1px solid #495057",
+                   "color": "#dee2e6", "borderRadius": "6px"},
+        ),
+        dbc.Switch(
+            id="events-hide-triggered-toggle",
+            label="Hide triggered",
+            value=False,
+            className="mb-2",
+            style={"fontSize": "0.85rem", "color": "#adb5bd"},
+        ),
         html.Div(id="events-list-container", style={"overflowY": "auto", "flex": "1"}),
     ], style={
         "width": "350px",
