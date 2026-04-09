@@ -30,19 +30,6 @@ sidebar_content = html.Div(
             html.Div(id="node-priority-badge", children=[],
                      className="d-flex gap-1 flex-wrap mb-2",
                      style={"display": "none"}),
-            html.Div(id="section-priority-rank", style={"display": "none"}, children=[
-                dbc.Label("Priority Rank", className="mt-2"),
-                dbc.Select(
-                    id="node-priority-rank",
-                    options=[
-                        {"label": "\u2014", "value": "none"},
-                        {"label": "#1 Priority", "value": "1"},
-                        {"label": "#2 Priority", "value": "2"},
-                        {"label": "#3 Priority", "value": "3"},
-                    ],
-                    value="none",
-                ),
-            ]),
             html.H5("Search", className="mt-2 mb-1"),
             html.Div(dcc.Dropdown(
                 id="search-node",
@@ -68,7 +55,21 @@ sidebar_content = html.Div(
 
             dbc.Label("Description", className="mt-2"),
             dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
-            
+
+            html.Div(id="section-priority-rank", style={"display": "none"}, children=[
+                dbc.Label("Priority Rank", className="mt-2"),
+                dbc.Select(
+                    id="node-priority-rank",
+                    options=[
+                        {"label": "\u2014", "value": "none"},
+                        {"label": "#1 Priority", "value": "1"},
+                        {"label": "#2 Priority", "value": "2"},
+                        {"label": "#3 Priority", "value": "3"},
+                    ],
+                    value="none",
+                ),
+            ]),
+
             html.Div(id="auto-status-display", className="d-none"),
 
             # --- Section: Done toggle + Time Estimates (Learn, Goal, Resource) ---
@@ -103,22 +104,22 @@ sidebar_content = html.Div(
             # --- Section: Time Estimates ---
             html.Div(id="section-time-estimates", children=[
                 html.Hr(className="my-2"),
-                html.H5("Time Estimates", className="mt-2 mb-1"),
-                dbc.Checklist(
-                    options=[{"label": "Inherit from dependencies", "value": "inherited"}],
-                    value=[],
-                    id="node-time-mode",
-                    switch=True,
-                    className="mb-2",
-                ),
+                html.H5("Time Estimates", className="mt-2 mb-2"),
+                html.Div([
+                    dbc.Checklist(
+                        options=[{"label": "Inherit", "value": "inherited"}],
+                        value=[],
+                        id="node-time-mode",
+                        switch=True,
+                        className="mb-0 flex-grow-1",
+                    ),
+                    dbc.Select(id="node-time-unit", options=[
+                        {"label": "Hours", "value": "hours"},
+                        {"label": "Weeks", "value": "weeks"},
+                        {"label": "Months", "value": "months"},
+                    ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"}),
+                ], className="d-flex align-items-center mb-2"),
                 html.Div(id="section-time-omp", children=[
-                    html.Div([
-                        dbc.Select(id="node-time-unit", options=[
-                            {"label": "Hours", "value": "hours"},
-                            {"label": "Weeks", "value": "weeks"},
-                            {"label": "Months", "value": "months"},
-                        ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"})
-                    ], className="d-flex justify-content-end mb-1"),
                     dbc.Row([
                         dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
                         dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
@@ -174,10 +175,10 @@ sidebar_content = html.Div(
             
             html.Hr(className="my-2"),
             html.Div([
-                dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "10px 0"}),
-                dbc.Button("Cancel", id="btn-cancel", color="secondary", className="flex-fill me-2", style={"padding": "10px 0"}),
-                dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "10px 0"}),
-                dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "10px 0"})
+                dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
+                dbc.Button("Cancel", id="btn-cancel", color="secondary", className="flex-fill me-2", style={"padding": "6px 0"}),
+                dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
+                dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0"})
             ], className="d-flex mt-4"),
             html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
@@ -224,7 +225,7 @@ filters_content = html.Div([
     html.Div([
         html.H4("Filters"),
         html.Span("×", id="btn-close-filters", className="fs-3 text-white float-end", style={"cursor": "pointer"})
-    ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
+    ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
 
     html.Div(id="filter-node-count", className="text-muted small mb-2"),
 
@@ -358,9 +359,6 @@ suggestions_view = html.Div([
             dbc.Button("+", id="btn-sugg-plus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
         ], className="align-middle"),
-        html.Div([
-            dbc.Button("Filters", id="btn-suggestions-filters-toggle", color="secondary", size="sm"),
-        ], className="ms-auto d-flex align-items-center"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     dcc.Store(id='selected-suggestion-store', data=None),
     html.Div(id="suggestions-table"),
@@ -583,11 +581,11 @@ def build_app_layout(initial_elements, env="production"):
         id="node-context-menu",
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
-            html.Div("Toggle Done", id="ctx-menu-toggle-done", className="ctx-menu-item"),
-            html.Div("Simulate", id="ctx-menu-simulate", className="ctx-menu-item"),
+            html.Div("Details", id="ctx-menu-details", className="ctx-menu-item"),
+            html.Div("Done", id="ctx-menu-toggle-done", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
-            html.Div("Open in Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
-            html.Div("Open in Drive", id="ctx-menu-drive", className="ctx-menu-item"),
+            html.Div("Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
+            html.Div("Drive", id="ctx-menu-drive", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item", style={"color": ConfigManager.get_danger_color()}),
         ],
@@ -604,104 +602,73 @@ def build_app_layout(initial_elements, env="production"):
         }
     )
 
-    # --- Tab Navigation ---
-    main_tabs = dbc.Tabs(
-        id="main-tabs",
-        active_tab="tab-canvas",
-        children=[
-            dbc.Tab(label="Nodes", tab_id="tab-canvas"),
-            dbc.Tab(label="Details", tab_id="tab-details"),
-            dbc.Tab(label="Goals", tab_id="tab-goals"),
-            dbc.Tab(label="Suggestions", tab_id="tab-suggestions"),
-            dbc.Tab(label="Simulation", tab_id="tab-simulate"),
-            dbc.Tab(label="Events", tab_id="tab-events"),
-            dbc.Tab(label="Settings", tab_id="tab-settings"),
-        ],
-        className="px-3 pt-1",
-        style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"}
-    )
+    # --- Tab Navigation (toolbar: left buttons | centered tabs | right buttons) ---
+    main_tabs = html.Div([
+        # LEFT: Goals + New Node (open left-side sidebars)
+        html.Div([
+            dbc.Button(html.I(className="bi bi-star"), id="btn-goals-toggle", color="secondary", size="sm", className="me-2", title="Goals"),
+            dbc.Button(html.I(className="bi bi-node-plus"), id="btn-add", color="secondary", size="sm", title="New Node"),
+        ], className="d-flex align-items-center ps-3",
+           style={"flex": "0 0 auto"}),
+
+        # CENTER: Tabs
+        dbc.Tabs(
+            id="main-tabs",
+            active_tab="tab-canvas",
+            children=[
+                dbc.Tab(label="Nodes", tab_id="tab-canvas"),
+                dbc.Tab(label="Details", tab_id="tab-details"),
+                dbc.Tab(label="Goals", tab_id="tab-goals"),
+                dbc.Tab(label="Suggestions", tab_id="tab-suggestions"),
+                dbc.Tab(label="Simulation", tab_id="tab-simulate"),
+                dbc.Tab(label="Events", tab_id="tab-events"),
+                dbc.Tab(label="Settings", tab_id="tab-settings"),
+            ],
+            className="px-3 pt-1 justify-content-center",
+            style={"flex": "1", "backgroundColor": "#1a1d21", "borderBottom": "none"}
+        ),
+
+        # RIGHT: Clear Focus + Filters (open right-side sidebar)
+        html.Div([
+            dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm",
+                       className="me-2", style={"display": "none"}),
+            dbc.Button(html.I(className="bi bi-filter"), id="btn-filters-toggle", color="secondary", size="sm", title="Filters"),
+        ], className="d-flex align-items-center pe-3",
+           style={"flex": "0 0 auto"}),
+    ], className="d-flex align-items-center",
+       style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"})
 
     # --- Canvas Tab Content (existing layout, unchanged) ---
     canvas_tab_content = html.Div(
         id="canvas-tab-content",
         children=[
-            # --- LEFT SIDEBAR (EDITOR) ---
-            html.Div(
-                id="sidebar-editor-container",
-                children=[sidebar_content],
-                style={
-                    "width": "380px",
-                    "minWidth": "380px",
-                    "marginLeft": "-380px",
-                    "overflowX": "hidden",
-                    "overflowY": "auto",
-                    "borderRight": "1px solid #495057",
-                    "transition": "margin-left 0.3s ease",
-                    "backgroundColor": "#212529"
-                }
-            ),
-
             # --- MAIN CENTER CONTENT ---
             html.Div(
                 style={
-                    "flexGrow": 1,
+                    "flex": "1",
                     "display": "flex",
                     "flexDirection": "column",
                     "minWidth": "0",
-                    "transition": "flex-grow 0.3s ease-in-out"
                 },
                 children=[
-                    # Top Toolbar
-                    dbc.Row([
-                        dbc.Col(
-                            html.Div([
-                                dbc.Button("New Node", id="btn-add", color="success", size="sm", className="me-2"),
-                            ], className="d-flex"),
-                            width="auto"
-                        ),
-                        dbc.Col(
-                            html.H4("Skill Tree (Sandbox)" if env == "sandbox" else "Skill Tree", className="text-center mb-0",
-                                     style={"color": "#dee2e6", "fontWeight": "300", "letterSpacing": "2px"}),
-                            className="d-flex align-items-center justify-content-center"
-                        ),
-                        dbc.Col(
-                            html.Div([
-                                dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm", className="me-2",
-                                           style={"display": "none"}),
-                                dbc.Button("Filters", id="btn-filters-toggle", color="secondary", size="sm"),
-                            ], className="d-flex"),
-                            width="auto",
-                            className="text-end"
-                        ),
-                    ], className="py-3 px-3 mb-2 align-items-center m-0", style={"borderBottom": "1px solid #495057", "width": "100%"}),
-
                     # Canvas Container
                     html.Div(
-                        [create_graph_view(initial_elements)], 
-                        className="flex-grow-1 px-3 mt-2", 
+                        [create_graph_view(initial_elements)],
+                        className="flex-grow-1 px-3 mt-1",
                         style={
-                            "flexBasis": "760px",
                             "minHeight": "200px",
-                            "position": "relative", 
-                            "overflow": "hidden" 
+                            "position": "relative",
+                            "overflow": "hidden"
                         }
                     ),
 
-                    # Resize Handle
-                    html.Div(id="resize-handle"),
-
-                    # Bottom panel
-                    html.Div(
-                        [bottom_panel], 
-                        id="bottom-panel-container", 
-                        className="px-3 pb-2", 
-                        style={
-                            "height": "35vh", 
-                            "minHeight": "150px", 
-                            "overflowY": "auto",
-                            "flexShrink": 0  # Forces the panel to perfectly match the mouse pixel height
-                        }
-                    )
+                    # Hidden outputs for bottom-panel callbacks (IDs must remain in DOM)
+                    html.Div([
+                        html.Div(id="traversal-chains-hard"),
+                        html.Div(id="traversal-chains-soft"),
+                        html.Div(id="synergies-list"),
+                        html.Div(id="node-info-description"),
+                    ], style={"display": "none"})
                 ]
             ),
 
@@ -775,6 +742,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         migration_modal,
         error_modal,
@@ -794,6 +762,90 @@ def build_app_layout(initial_elements, env="production"):
             simulate_tab_content,
             settings_tab_content,
             events_tab_content,
+            # --- SHARED NODE EDITOR SIDEBAR (overlay, accessible from any tab) ---
+            html.Div(
+                id="sidebar-editor-container",
+                children=[sidebar_content],
+                style={
+                    "position": "absolute",
+                    "top": "0",
+                    "left": "0",
+                    "width": "380px",
+                    "minWidth": "380px",
+                    "height": "100%",
+                    "zIndex": 1000,
+                    "overflowX": "hidden",
+                    "overflowY": "auto",
+                    "borderRight": "1px solid #495057",
+                    "transition": "transform 0.3s ease",
+                    "transform": "translateX(-380px)",
+                    "willChange": "transform",
+                    "backgroundColor": "#212529"
+                }
+            ),
+            # --- SHARED GOAL SIDEBAR (overlay, accessible from any tab) ---
+            html.Div(
+                id="details-goal-sidebar",
+                children=[
+                    html.Div([
+                        html.Div([
+                            html.H4("Goals", className="mb-0"),
+                            dbc.Button("+", id="btn-goals-sidebar-new",
+                                       color="link",
+                                       className="p-0 ms-2 text-decoration-none text-muted",
+                                       title="New goal",
+                                       style={"fontSize": "1.4rem", "lineHeight": "1"}),
+                        ], className="d-flex align-items-center"),
+                        html.Span("\u00d7", id="btn-details-goals-close",
+                                   className="fs-3 text-white",
+                                   style={"cursor": "pointer"}),
+                    ], className="d-flex justify-content-between align-items-center mb-3 mt-2 px-3"),
+
+                    html.Div(
+                        dbc.Input(id="details-goal-search", type="text",
+                                  placeholder="Search goals...", size="sm",
+                                  debounce=True,
+                                  style={"backgroundColor": "#2b3035",
+                                         "border": "1px solid #495057",
+                                         "color": "#dee2e6",
+                                         "width": "100%",
+                                         "boxSizing": "border-box"}),
+                        style={"padding": "0 12px", "marginBottom": "8px"},
+                    ),
+
+                    html.Div(
+                        dbc.Select(id="details-goal-sort", options=[
+                            {"label": "A \u2192 Z", "value": "alpha-asc"},
+                            {"label": "Z \u2192 A", "value": "alpha-desc"},
+                            {"label": "Time \u2191", "value": "time-asc"},
+                            {"label": "Time \u2193", "value": "time-desc"},
+                            {"label": "Manual", "value": "manual"},
+                        ], value="alpha-asc", size="sm",
+                            style={"flex": "1", "backgroundColor": "#2b3035",
+                                   "border": "1px solid #495057",
+                                   "color": "#dee2e6", "fontSize": "0.8rem"}),
+                        style={"padding": "0 12px", "marginBottom": "8px"},
+                    ),
+
+                    html.Div(id="details-goal-list-container",
+                             style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
+                ],
+                style={
+                    "position": "absolute",
+                    "top": "0",
+                    "left": "-380px",
+                    "width": "380px",
+                    "height": "100%",
+                    "zIndex": 100,
+                    "overflowX": "hidden",
+                    "overflowY": "auto",
+                    "borderRight": "1px solid #495057",
+                    "transition": "left 0.3s ease",
+                    "backgroundColor": "#212529",
+                    "display": "flex",
+                    "flexDirection": "column",
+                }
+            ),
             # --- SHARED FILTERS SIDEBAR (overlay, accessible from Canvas + Suggestions) ---
             html.Div(
                 id="sidebar-filters-container",

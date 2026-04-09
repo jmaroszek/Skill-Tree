@@ -67,9 +67,10 @@ def register_event_callbacks(app):
         Input("event-order-store", "data"),
         Input("events-search-input", "value"),
         Input("events-hide-triggered-toggle", "value"),
+        Input("events-sort-mode", "value"),
         State("selected-event-store", "data"),
     )
-    def render_events_list(refresh_trigger, active_tab, event_order, search_text, hide_triggered, selected_event):
+    def render_events_list(refresh_trigger, active_tab, event_order, search_text, hide_triggered, sort_mode, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
@@ -77,13 +78,19 @@ def register_event_callbacks(app):
                 className="text-center py-5"
             )
 
-        # Apply manual order from store
-        stored_order = event_order or []
-        if stored_order:
-            event_map = {e.name: e for e in events}
-            ordered = [event_map[n] for n in stored_order if n in event_map]
-            remaining = [e for e in events if e.name not in set(stored_order)]
-            events = ordered + remaining
+        # Apply ordering based on sort mode
+        if sort_mode == "az":
+            events = sorted(events, key=lambda e: (e.name or "").lower())
+        elif sort_mode == "za":
+            events = sorted(events, key=lambda e: (e.name or "").lower(), reverse=True)
+        else:
+            # Manual: apply drag-and-drop order from store
+            stored_order = event_order or []
+            if stored_order:
+                event_map = {e.name: e for e in events}
+                ordered = [event_map[n] for n in stored_order if n in event_map]
+                remaining = [e for e in events if e.name not in set(stored_order)]
+                events = ordered + remaining
 
         # Filter: hide triggered events
         if hide_triggered:
@@ -113,6 +120,17 @@ def register_event_callbacks(app):
                 trigger_node=event.trigger_node,
             ))
         return cards
+
+    # --- Autocomplete datalist for events search ---
+    @app.callback(
+        Output("events-search-datalist", "children"),
+        Input("events-refresh-trigger", "data"),
+        Input("main-tabs", "active_tab"),
+    )
+    def populate_events_search_datalist(refresh_trigger, active_tab):
+        from dash import html as _html
+        events = event_manager.get_all_events()
+        return [_html.Option(value=e.name) for e in events]
 
     # --- Event Reordering (drag-and-drop) ---
     @app.callback(

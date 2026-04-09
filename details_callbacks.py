@@ -14,15 +14,20 @@ from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from details_layout import build_details_subtasks_table
 from simulation import simulate_task_chain
 from goals_layout import build_goal_card
-from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_file_picker
+from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_file_picker, build_filters
 
 graph_manager = GraphManager()
 
 
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
-                    include_transitive_val=None):
+                    include_transitive_val=None, global_filters=None):
     """Shared helper: run the Monte Carlo simulation and return (figure, style, style)."""
     all_nodes = graph_manager.get_all_nodes()
+    if global_filters:
+        # Filter nodes but always keep the target node itself
+        filtered = graph_manager.filter_nodes(all_nodes, global_filters)
+        filtered_names = {n.name for n in filtered} | {node_name}
+        all_nodes = [n for n in all_nodes if n.name in filtered_names]
     nodes_dict = {n.name: n for n in all_nodes}
     edges = graph_manager.get_edges()
 
@@ -216,11 +221,22 @@ def register_details_callbacks(app):
         State("details-include-soft-needs", "value"),
         State("details-include-transitive", "value"),
         State("details-include-synergies", "value"),
+        State("filter-context", "value"),
+        State("filter-subcontext", "value"),
+        State("filter-done", "value"),
+        State("filter-value", "value"),
+        State("filter-interest", "value"),
+        State("filter-time", "value"),
+        State("filter-difficulty", "value"),
+        State("filter-node-type", "value"),
         prevent_initial_call=True,
     )
     def select_detail_node(node_name, _refresh,
                            include_soft_val, include_transitive_val,
-                           include_synergies_val):
+                           include_synergies_val,
+                           f_context, f_subcontext, f_done,
+                           f_value, f_interest, f_time, f_difficulty,
+                           f_node_types):
         if not node_name:
             empty_fig = go.Figure()
             empty_fig.update_layout(template="plotly_dark",
@@ -312,6 +328,13 @@ def register_details_callbacks(app):
                                                   edge_types=tuple(edge_types))
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
+
+        # Apply global filters to subtask nodes
+        global_filters = build_filters(f_context, f_subcontext, f_done,
+                                       f_value, f_interest, f_time, f_difficulty,
+                                       f_node_types)
+        subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
+
         subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
         edges = graph_manager.get_edges()
 
@@ -324,7 +347,8 @@ def register_details_callbacks(app):
         # Auto-run simulation
         sim_fig, sim_show, sim_hide = _run_simulation(
             node_name, include_soft_val, include_synergies_val,
-            include_transitive_val=include_transitive_val)
+            include_transitive_val=include_transitive_val,
+            global_filters=global_filters)
 
         return (
             {"display": "none"},
@@ -353,11 +377,22 @@ def register_details_callbacks(app):
         Input("details-include-soft-needs", "value"),
         Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
+        Input("filter-context", "value"),
+        Input("filter-subcontext", "value"),
+        Input("filter-done", "value"),
+        Input("filter-value", "value"),
+        Input("filter-interest", "value"),
+        Input("filter-time", "value"),
+        Input("filter-difficulty", "value"),
+        Input("filter-node-type", "value"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     def toggle_details_subtask_filters(include_soft_val, include_transitive_val,
-                                        include_synergies_val, selected_node):
+                                        include_synergies_val,
+                                        f_context, f_subcontext, f_done,
+                                        f_value, f_interest, f_time, f_difficulty,
+                                        f_node_types, selected_node):
         if not selected_node:
             return no_update
 
@@ -375,6 +410,12 @@ def register_details_callbacks(app):
                                                   edge_types=tuple(edge_types))
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
+
+        global_filters = build_filters(f_context, f_subcontext, f_done,
+                                       f_value, f_interest, f_time, f_difficulty,
+                                       f_node_types)
+        subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
+
         subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
         edges = graph_manager.get_edges()
 
@@ -392,17 +433,27 @@ def register_details_callbacks(app):
         Input("details-include-soft-needs", "value"),
         Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
-        State("details-filter-types", "value"),
-        State("details-filter-status", "value"),
+        Input("filter-node-type", "value"),
+        Input("filter-done", "value"),
+        Input("filter-context", "value"),
+        Input("filter-subcontext", "value"),
+        Input("filter-value", "value"),
+        Input("filter-interest", "value"),
+        Input("filter-time", "value"),
+        Input("filter-difficulty", "value"),
     )
     def update_details_graph(selected_node, _refresh,
                              include_soft_val, include_transitive_val,
                              include_synergies_val,
-                             filter_types, filter_status):
+                             f_node_types, f_done, f_context, f_subcontext,
+                             f_value, f_interest, f_time, f_difficulty):
         if not selected_node:
             return []
+        global_filters = build_filters(f_context, f_subcontext, f_done,
+                                       f_value, f_interest, f_time, f_difficulty,
+                                       f_node_types)
         return _build_graph_elements(selected_node, include_soft_val,
-                                     include_synergies_val, filter_types, filter_status,
+                                     include_synergies_val, global_filters,
                                      include_transitive_val=include_transitive_val)
 
     # --- Clicking a node in the dep graph → select it ---
@@ -422,71 +473,42 @@ def register_details_callbacks(app):
     # --- Goal Sidebar Toggle ---
     @app.callback(
         Output("details-goal-sidebar", "style"),
-        Input("btn-details-goals-toggle", "n_clicks"),
+        Input("btn-goals-toggle", "n_clicks"),
         Input("btn-details-goals-close", "n_clicks"),
+        Input("btn-add", "n_clicks"),
         State("details-goal-sidebar", "style"),
         prevent_initial_call=True,
     )
-    def toggle_goal_sidebar(open_clicks, close_clicks, current_style):
+    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style):
         trigger = ctx.triggered_id
         style = dict(current_style) if current_style else {}
-        if trigger == "btn-details-goals-toggle":
-            style["left"] = "0px" if style.get("left", "-320px") == "-320px" else "-320px"
-        elif trigger == "btn-details-goals-close":
-            style["left"] = "-320px"
+        if trigger == "btn-goals-toggle":
+            style["left"] = "0px" if style.get("left", "-380px") == "-380px" else "-380px"
+        elif trigger in ("btn-details-goals-close", "btn-add"):
+            style["left"] = "-380px"
         return style
 
-    # --- Filters Sidebar Toggle ---
+# --- New Goal from Sidebar "+" Button ---
     @app.callback(
-        Output("details-filters-sidebar", "style"),
-        Input("btn-details-filters-toggle", "n_clicks"),
-        Input("btn-details-filters-close", "n_clicks"),
-        Input("btn-details-filters-reset", "n_clicks"),
-        State("details-filters-sidebar", "style"),
+        Output("details-goal-sidebar", "style", allow_duplicate=True),
+        Output("main-tabs", "active_tab", allow_duplicate=True),
+        Output("node-type", "value", allow_duplicate=True),
+        Output("sidebar-editor-container", "style", allow_duplicate=True),
+        Input("btn-goals-sidebar-new", "n_clicks"),
+        State("details-goal-sidebar", "style"),
+        State("sidebar-editor-container", "style"),
         prevent_initial_call=True,
     )
-    def toggle_filters_sidebar(open_clicks, close_clicks, reset_clicks, current_style):
-        trigger = ctx.triggered_id
-        style = dict(current_style) if current_style else {}
-        if trigger == "btn-details-filters-toggle":
-            style["right"] = "0px" if style.get("right", "-280px") == "-280px" else "-280px"
-        elif trigger == "btn-details-filters-close":
-            style["right"] = "-280px"
-        return style
-
-    # --- Reset Filters ---
-    @app.callback(
-        Output("details-filter-types", "value"),
-        Output("details-filter-status", "value"),
-        Input("btn-details-filters-reset", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def reset_graph_filters(n_clicks):
+    def new_goal_from_sidebar(n_clicks, goal_sidebar_style, editor_style):
         if not n_clicks:
-            return no_update, no_update
-        return ["Learn", "Goal", "Action", "Resource"], ["Open", "Blocked", "Done"]
+            return no_update, no_update, no_update, no_update
+        goal_style = dict(goal_sidebar_style) if goal_sidebar_style else {}
+        goal_style["left"] = "-380px"
+        ed_style = dict(editor_style) if editor_style else {}
+        ed_style["transform"] = "translateX(0px)"
+        return goal_style, "tab-canvas", "Goal", ed_style
 
-    # --- Filter changes trigger graph refresh ---
-    @app.callback(
-        Output("details-mini-graph", "elements", allow_duplicate=True),
-        Input("details-filter-types", "value"),
-        Input("details-filter-status", "value"),
-        State("details-selected-node-store", "data"),
-        State("details-include-soft-needs", "value"),
-        State("details-include-transitive", "value"),
-        State("details-include-synergies", "value"),
-        prevent_initial_call=True,
-    )
-    def filter_graph_update(filter_types, filter_status,
-                            selected_node, include_soft_val,
-                            include_transitive_val, include_synergies_val):
-        if not selected_node:
-            return no_update
-        return _build_graph_elements(selected_node, include_soft_val,
-                                     include_synergies_val, filter_types, filter_status,
-                                     include_transitive_val=include_transitive_val)
-
-    # --- Populate Goal Sidebar ---
+# --- Populate Goal Sidebar ---
     @app.callback(
         Output("details-goal-list-container", "children"),
         Input("main-tabs", "active_tab"),
@@ -497,8 +519,6 @@ def register_details_callbacks(app):
         State("details-selected-node-store", "data"),
     )
     def render_goal_list(active_tab, _refresh, search_val, sort_mode, manual_order, selected_node):
-        if active_tab != "tab-details":
-            return no_update
 
         all_nodes = graph_manager.get_all_nodes()
         goals = [n for n in all_nodes if n.type == "Goal"]
@@ -560,22 +580,24 @@ def register_details_callbacks(app):
             ))
         return cards
 
-    # --- Goal Card Click → Select in Details ---
+    # --- Goal Card Click → Select in Details + switch tab ---
     @app.callback(
         Output("details-node-select", "value", allow_duplicate=True),
+        Output("main-tabs", "active_tab", allow_duplicate=True),
         Input({"type": "goal-card", "index": ALL}, "n_clicks"),
         State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
     def goal_card_to_details(n_clicks_list, active_tab):
-        if active_tab != "tab-details":
-            return no_update
         if not any(n_clicks_list):
-            return no_update
+            return no_update, no_update
         triggered = ctx.triggered_id
         if not triggered:
-            return no_update
-        return triggered["index"]
+            return no_update, no_update
+        node_name = triggered["index"]
+        # Switch to details tab if not already there
+        next_tab = "tab-details" if active_tab != "tab-details" else no_update
+        return node_name, next_tab
 
     # --- Goal Drag Reorder ---
     @app.callback(
@@ -602,15 +624,30 @@ def register_details_callbacks(app):
         Input("details-include-soft-needs", "value"),
         Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
+        Input("filter-context", "value"),
+        Input("filter-subcontext", "value"),
+        Input("filter-done", "value"),
+        Input("filter-value", "value"),
+        Input("filter-interest", "value"),
+        Input("filter-time", "value"),
+        Input("filter-difficulty", "value"),
+        Input("filter-node-type", "value"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     def run_details_simulation(include_soft_val, include_transitive_val,
-                                include_synergies_val, node_name):
+                                include_synergies_val,
+                                f_context, f_subcontext, f_done,
+                                f_value, f_interest, f_time, f_difficulty,
+                                f_node_types, node_name):
         if not node_name:
             return no_update, no_update, no_update
+        global_filters = build_filters(f_context, f_subcontext, f_done,
+                                       f_value, f_interest, f_time, f_difficulty,
+                                       f_node_types)
         return _run_simulation(node_name, include_soft_val, include_synergies_val,
-                               include_transitive_val=include_transitive_val)
+                               include_transitive_val=include_transitive_val,
+                               global_filters=global_filters)
 
     # --- Run Simulation from context menu trigger ---
     @app.callback(
@@ -654,6 +691,21 @@ def register_details_callbacks(app):
         if not n_clicks or not selected_node:
             return no_update, no_update
         return selected_node, "tab-canvas"
+
+    # --- Context Menu "Details" → Navigate to Details tab with node selected ---
+    @app.callback(
+        Output("main-tabs", "active_tab", allow_duplicate=True),
+        Output("details-node-select", "value", allow_duplicate=True),
+        Input("details-navigate-trigger-input", "value"),
+        prevent_initial_call=True,
+    )
+    def context_menu_details_navigate(trigger_val):
+        if not trigger_val:
+            return no_update, no_update
+        node_name = trigger_val.split('|')[0].strip()
+        if not node_name:
+            return no_update, no_update
+        return "tab-details", node_name
 
     # --- Subtask Name Click → Select that node in Details ---
     @app.callback(
@@ -1093,33 +1145,15 @@ def register_details_callbacks(app):
         graph_manager.delete_node(node_name)
         return False, f"delete-{node_name}"
 
-    # --- Tooltip for details mini graph ---
-    @app.callback(
-        Output('hover-tooltip', 'children', allow_duplicate=True),
-        Input('details-mini-graph', 'mouseoverNodeData'),
-        prevent_initial_call=True,
-    )
-    def details_graph_tooltip(data):
-        if not data:
-            return ""
-        node_id = data.get('id', data.get('label', ''))
-        time_str = ConfigManager.format_time_friendly(data.get('time', 0))
-        return [
-            html.Div(html.Strong(data.get('label', node_id)),
-                     style={"fontSize": "0.95rem", "marginBottom": "4px",
-                            "borderBottom": "1px solid #495057", "paddingBottom": "4px"}),
-            html.Div([html.Strong("Type: "), data.get('type', '')]),
-            html.Div([html.Strong("Status: "), data.get('status', '')]),
-            html.Div([html.Strong("Time: "), time_str]),
-        ]
 
 
 def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,
-                          filter_types, filter_status, include_transitive_val=None):
+                          global_filters=None, include_transitive_val=None):
     """Shared helper to build Cytoscape elements for the dependency graph."""
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
     include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
+    global_filters = global_filters or {}
 
     edge_types = [EDGE_NEEDS_HARD]
     if include_soft:
@@ -1149,8 +1183,11 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     colors = ConfigManager.get_node_colors()
     shapes = ConfigManager.get_node_shapes()
 
-    allowed_types = set(filter_types) if filter_types else {"Learn", "Goal", "Action", "Resource"}
-    allowed_status = set(filter_status) if filter_status else {"Open", "Blocked", "Done"}
+    # Apply global filters to subtree nodes (always include the selected node itself)
+    all_subtree_nodes = [graph_manager.get_node(n) for n in node_names if n != selected_node]
+    all_subtree_nodes = [n for n in all_subtree_nodes if n is not None]
+    filtered_subtree = {n.name for n in graph_manager.filter_nodes(all_subtree_nodes, global_filters)}
+    filtered_subtree.add(selected_node)
 
     elements = []
     filtered_names = set()
@@ -1158,11 +1195,8 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         node = graph_manager.get_node(name)
         if not node:
             continue
-        if name != selected_node:
-            if node.type not in allowed_types:
-                continue
-            if node.status not in allowed_status:
-                continue
+        if name not in filtered_subtree:
+            continue
         filtered_names.add(name)
         elements.append({
             'data': {
@@ -1179,8 +1213,10 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 'type': node.type,
                 'status': node.status,
                 'value': node.value,
+                'interest': node.interest,
                 'difficulty': node.difficulty,
                 'context': node.context or '',
+                'subcontext': node.subcontext or '',
                 'time': round(node.time, 1) if node.time else 0,
                 'time_o': node.time_o,
                 'time_m': node.time_m,

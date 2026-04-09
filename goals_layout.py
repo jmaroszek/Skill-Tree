@@ -18,15 +18,22 @@ def build_goals_tab_content():
     # --- Left Panel: Goal List ---
     goal_list_panel = html.Div([
         html.Div([
-            html.H4("Goals", className="mb-0"),
-            dbc.Button("New Goal", id="btn-new-goal", color="success", size="sm"),
-        ], className="d-flex justify-content-between align-items-center mb-3 mt-3"),
+            html.Div([
+                html.H4("Goals", className="mb-0"),
+                dbc.Button("+", id="btn-new-goal", color="link",
+                           className="p-0 ms-2 text-decoration-none text-muted",
+                           title="New goal",
+                           style={"fontSize": "1.4rem", "lineHeight": "1"}),
+            ], className="d-flex align-items-center"),
+        ], className="d-flex align-items-center mb-3 mt-3"),
 
         # Search bar
+        html.Datalist(id="goal-search-datalist", children=[]),
         dbc.Input(id="goal-search-input", type="text", placeholder="Search goals...",
                   size="sm", debounce=True, className="mb-2",
                   style={"backgroundColor": "#2b3035", "border": "1px solid #495057",
-                         "color": "#dee2e6"}),
+                         "color": "#dee2e6"},
+                  **{"list": "goal-search-datalist"}),
 
         # Sort + Filters on one row
         html.Div([
@@ -481,7 +488,7 @@ def build_goals_tab_content():
         dcc.Store(id='selected-goal-store', data=None),
         dcc.Store(id='goals-refresh-trigger', data=0),
         dcc.Store(id='focus-goal-store', data=None),
-        dcc.Store(id='goal-order-store', data=[]),
+        dcc.Store(id='goal-order-store', data=[], storage_type='local'),
         dcc.Store(id='subtask-remove-pending', data=None),
         dcc.Store(id='goal-rename-pending', data=None),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)

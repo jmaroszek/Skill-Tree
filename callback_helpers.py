@@ -108,7 +108,7 @@ def should_open_editor(all_triggered_ids, trigger_id, search_val):
     Checks ALL triggered IDs (not just the primary) so that an edit trigger
     batched with tapNodeData in the same Dash cycle still opens the sidebar.
     """
-    return bool(all_triggered_ids & {'btn-edit-node', 'btn-add', 'edit-trigger-input'}) or \
+    return bool(all_triggered_ids & {'btn-edit-node', 'btn-add', 'edit-trigger-input', 'details-edit-trigger-input'}) or \
            (trigger_id == 'search-node' and bool(search_val))
 
 
@@ -119,7 +119,7 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
     Prefers ``edit-trigger-input`` (carries the node ID explicitly) even when
     it is batched with another trigger like tapNodeData.
     """
-    if ('edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
+    if ('edit-trigger-input' in all_triggered_ids or 'details-edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
         return edit_trigger_data.split('|')[0]
     if trigger_id in ('background-click-input', 'btn-add'):
         return None
@@ -293,7 +293,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             html.Td(html.Span(
                 s.name,
                 id={"type": "suggestion-name-link", "index": s.name},
-                title="Go to this node in the Nodes tab",
+                title="Open in Details tab",
                 style={"cursor": "pointer"},
             )),
             html.Td(s.type),

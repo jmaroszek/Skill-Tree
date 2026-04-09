@@ -185,11 +185,14 @@ def register_callbacks(app):
         Output('hover-tooltip', 'children'),
         Input('cytoscape-graph', 'mouseoverNodeData'),
         Input('goal-mini-graph', 'mouseoverNodeData'),
+        Input('details-mini-graph', 'mouseoverNodeData'),
     )
-    def display_hover_data(data, goal_data):
+    def display_hover_data(data, goal_data, details_data):
         trigger = _get_trigger_id()
         if trigger == 'goal-mini-graph':
             data = goal_data
+        elif trigger == 'details-mini-graph':
+            data = details_data
         if not data: return ""
 
         node_type = data.get('type', '')
@@ -264,9 +267,6 @@ def register_callbacks(app):
                 html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
                 html.Div([html.Strong("Time: "), time_str]),
             ]
-
-            if node_type == 'Resource' and data.get('progress') is not None:
-                lines.append(html.Div([html.Strong("Progress: "), f"{data.get('progress', 0)}%"]))
 
             if data.get('context'):
                 lines.append(html.Div([html.Strong("Context: "), data.get('context', '')]))
@@ -415,7 +415,7 @@ def register_callbacks(app):
         show = {}
         hide = {'display': 'none'}
         if node_type == 'Resource':
-            return show, show, show, hide
+            return show, show, hide, hide
         elif node_type == 'Goal':
             return show, show, hide, show  # Show time estimates (for time_mode toggle) + priority rank
         else:  # Learn, Action
@@ -424,12 +424,13 @@ def register_callbacks(app):
     # --- Toggle O/M/P fields based on time_mode ---
     @app.callback(
         Output('section-time-omp', 'style'),
+        Output('node-time-unit', 'style'),
         Input('node-time-mode', 'value'),
     )
     def toggle_time_omp_visibility(time_mode_val):
         if time_mode_val and 'inherited' in time_mode_val:
-            return {'display': 'none'}
-        return {}
+            return {'display': 'none'}, {'display': 'none', 'width': '100px'}
+        return {}, {'width': '100px'}
 
     # --- Auto-convert time estimates when unit dropdown changes ---
     @app.callback(
@@ -528,9 +529,9 @@ def register_callbacks(app):
          Input('filter-time', 'value'), Input('filter-difficulty', 'value'),
          Input('suggestion-count-store', 'data'),
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'),
-         Input('btn-close-editor', 'n_clicks'),
+         Input('btn-close-editor', 'n_clicks'), Input('btn-goals-toggle', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'),
-         Input('btn-filters-toggle', 'n_clicks'), Input('btn-suggestions-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
+         Input('btn-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('btn-settings-save', 'n_clicks'),
          Input('modal-migration', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
@@ -540,6 +541,7 @@ def register_callbacks(app):
          Input('filter-goal', 'value'),
          Input('focus-goal-store', 'data'),
          Input('edit-trigger-input', 'value'),
+         Input('details-edit-trigger-input', 'value'),
          Input('toggle-done-trigger-input', 'value'),
          Input('events-refresh-trigger', 'data'),
          Input('goals-refresh-trigger', 'data'),
@@ -566,11 +568,11 @@ def register_callbacks(app):
     def core_engine(save_clicks, save_close_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_close_ed, btn_unsaved_save, btn_unsaved_discard, btn_filters, btn_sugg_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, btn_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
-                     edit_trigger_data, toggle_done_trigger_data, _events_refresh, _goals_refresh, _bg_click,
+                     edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _goals_refresh, _bg_click,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -599,9 +601,11 @@ def register_callbacks(app):
         filters = _build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_goal=f_goal)
 
         # Editor Sidebar State (380px matches sidebar_content width in layout.py)
-        next_ed_style = ed_style or {"width": "380px", "minWidth": "380px", "marginLeft": "-380px", "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "margin-left 0.3s ease", "backgroundColor": "#212529"}
+        next_ed_style = ed_style or {"position": "absolute", "top": "0", "left": "0", "width": "380px", "minWidth": "380px", "height": "100%", "zIndex": 1000, "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "transform 0.3s ease", "transform": "translateX(-380px)", "willChange": "transform", "backgroundColor": "#212529"}
         if should_open_editor(all_triggered_ids, trigger_id, search_val):
-            next_ed_style['marginLeft'] = "0px"
+            next_ed_style['transform'] = "translateX(0px)"
+        elif trigger_id == 'btn-goals-toggle':
+            next_ed_style['transform'] = "translateX(-380px)"
         elif trigger_id in ('btn-save', 'btn-save-close', 'btn-cancel', 'btn-delete', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
             # btn-save keeps the editor open; btn-save-close and unsaved-save close it after saving.
             # btn-cancel and btn-unsaved-discard close without saving.
@@ -625,19 +629,21 @@ def register_callbacks(app):
                         val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
                     ])
                 if not form_has_content:
-                    next_ed_style['marginLeft'] = "-380px"
+                    next_ed_style['transform'] = "translateX(-380px)"
             elif trigger_id not in ('btn-save',):
-                next_ed_style['marginLeft'] = "-380px"
+                next_ed_style['transform'] = "translateX(-380px)"
 
         # Filters Sidebar State (overlay, shared between Canvas + Suggestions tabs)
         next_fil_style = fil_style or {"position": "absolute", "top": "0", "right": "-320px", "width": "320px", "height": "100%", "zIndex": 100, "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "right 0.3s ease", "backgroundColor": "#212529"}
-        if trigger_id in ('btn-filters-toggle', 'btn-suggestions-filters-toggle'):
+        if trigger_id == 'btn-filters-toggle':
             next_fil_style['right'] = "0px" if next_fil_style.get('right', '-320px') == "-320px" else "-320px"
         elif trigger_id == 'btn-close-filters':
             next_fil_style['right'] = "-320px"
 
+        # Use whichever edit trigger fired (details tab or main)
+        _edit_trigger = details_edit_trigger_data if trigger_id == 'details-edit-trigger-input' else edit_trigger_data
         active_node_id = resolve_active_node_id(
-            all_triggered_ids, trigger_id, edit_trigger_data,
+            all_triggered_ids, trigger_id, _edit_trigger,
             search_val, tapped_node, name)
 
         # When entering focus mode, clear the selected node so only the
@@ -666,7 +672,7 @@ def register_callbacks(app):
                     msg = "Error: Node name is required."
                     return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
                 else:
-                    next_ed_style['marginLeft'] = "-380px"
+                    next_ed_style['transform'] = "translateX(-380px)"
                     return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             if not n_type:
                 msg = "Error: Node type is required."
@@ -743,7 +749,7 @@ def register_callbacks(app):
             except Exception as e:
                 msg = f"Error: {e}"
         # --- Visual Generation ---
-        ui_only_triggers = ('btn-edit-node', 'btn-add', 'edit-trigger-input', 'cytoscape-graph', 'btn-close-editor')
+        ui_only_triggers = ('btn-edit-node', 'btn-add', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor')
         if trigger_id in ui_only_triggers:
             # We bypass full graph recreation and list evaluation
             elements = dash.no_update
@@ -1696,10 +1702,10 @@ def register_callbacks(app):
             return trigger_id['index']
         return dash.no_update
 
-    # --- Suggestion Name Click → Navigate to Nodes Tab ---
+    # --- Suggestion Name Click → Navigate to Details Tab ---
     @app.callback(
         Output('main-tabs', 'active_tab', allow_duplicate=True),
-        Output('search-node', 'value', allow_duplicate=True),
+        Output('details-node-select', 'value', allow_duplicate=True),
         Input({'type': 'suggestion-name-link', 'index': ALL}, 'n_clicks'),
         prevent_initial_call=True,
     )
@@ -1708,7 +1714,7 @@ def register_callbacks(app):
             return dash.no_update, dash.no_update
         trigger = ctx.triggered_id
         if trigger and isinstance(trigger, dict) and 'index' in trigger:
-            return 'tab-canvas', trigger['index']
+            return 'tab-details', trigger['index']
         return dash.no_update, dash.no_update
 
     # --- Settings: Restore Default Shapes ---

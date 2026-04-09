@@ -104,6 +104,7 @@
 
         attachCytoEvents('#cytoscape-graph');
         attachCytoEvents('#goal-mini-graph');
+        attachCytoEvents('#details-mini-graph');
     }
 
     if (document.readyState === 'loading') {

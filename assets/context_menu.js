@@ -11,13 +11,13 @@
         var menu = document.getElementById('node-context-menu');
 
         var editItem = document.getElementById('ctx-menu-edit');
+        var detailsItem = document.getElementById('ctx-menu-details');
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
-        var simulateItem = document.getElementById('ctx-menu-simulate');
         var deleteItem = document.getElementById('ctx-menu-delete');
 
-        if (!cyWrapper || !menu || !obsidianItem || !deleteItem) {
+        if (!cyWrapper || !menu || !obsidianItem || !deleteItem || !detailsItem) {
             setTimeout(initContextMenu, 300);
             return;
         }
@@ -93,9 +93,11 @@
 
         function triggerEdit() {
             hideMenu();
-            if ((_menuSource === 'goal' || _menuSource === 'details') && _currentNodeData && _currentNodeData.id) {
-                // For goal and details graphs, use edit-trigger-input which
-                // navigates to Nodes tab and opens editor with this node
+            if (_menuSource === 'details' && _currentNodeData && _currentNodeData.id) {
+                // On the details tab: open the editor in place without switching tabs
+                _setHiddenInput('details-edit-trigger-input', _currentNodeData.id);
+            } else if (_menuSource === 'goal' && _currentNodeData && _currentNodeData.id) {
+                // On the goals tab: navigate to Nodes tab and open editor
                 _setHiddenInput('edit-trigger-input', _currentNodeData.id);
             } else {
                 _clickDashBtn('btn-edit-node');
@@ -137,22 +139,7 @@
             }
         }
 
-        function triggerSimulate(nodeName) {
-            // If invoked from the details graph, write to the details trigger
-            var inputId = (_menuSource === 'details')
-                ? 'details-simulate-trigger-input'
-                : 'simulate-trigger-input';
-            var input = document.getElementById(inputId);
-            if (input) {
-                var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLInputElement.prototype, 'value'
-                ).set;
-                nativeInputValueSetter.call(input, nodeName + '|' + Date.now());
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        }
-
-        function bindCyEvents() {
+function bindCyEvents() {
             var cy = getCy();
             if (!cy) {
                 setTimeout(bindCyEvents, 500);
@@ -272,6 +259,16 @@
         window.addEventListener('resize', hideMenu);
 
         if (editItem) editItem.addEventListener('click', triggerEdit);
+
+        if (detailsItem) {
+            detailsItem.addEventListener('click', function () {
+                hideMenu();
+                if (_currentNodeData && _currentNodeData.id) {
+                    _setHiddenInput('details-navigate-trigger-input', _currentNodeData.id);
+                }
+            });
+        }
+
         if (toggleDoneItem) toggleDoneItem.addEventListener('click', triggerToggleDone);
         
         if (obsidianItem) {
@@ -297,15 +294,6 @@
                     if (confirm('Delete node "' + _currentNodeData.id + '"?')) {
                         triggerGroupDelete([_currentNodeData.id]);
                     }
-                }
-            });
-        }
-
-        if (simulateItem) {
-            simulateItem.addEventListener('click', function () {
-                hideMenu();
-                if (_currentNodeData && _currentNodeData.id) {
-                    triggerSimulate(_currentNodeData.id);
                 }
             });
         }

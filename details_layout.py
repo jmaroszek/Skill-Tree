@@ -38,13 +38,6 @@ def build_details_tab_content():
     #  This is the ONLY place these controls live — no full-width top bar  #
     # ------------------------------------------------------------------ #
     left_panel_header = html.Div([
-        # Hamburger menu wrapping container (centers it in its left-side space)
-        html.Div([
-            dbc.Button("☰", id="btn-details-goals-toggle", color="secondary",
-                       size="sm", title="Browse goals",
-                       style={"fontSize": "0.85rem", "padding": "2px 8px"})
-        ], style={"flex": "0 0 45px", "display": "flex", "justifyContent": "center"}),
-
         # Search bar wrapping container
         html.Div(dcc.Dropdown(
             id="details-node-select",
@@ -55,11 +48,11 @@ def build_details_tab_content():
 
         # Navigation arrows wrapping container (centers them in their right-side space)
         html.Div([
-            dbc.Button("←", id="btn-details-nav-back", color="secondary",
+            dbc.Button("\u2190", id="btn-details-nav-back", color="secondary",
                        size="sm", disabled=True,
                        style={"whiteSpace": "nowrap", "minWidth": "30px",
                               "padding": "2px 6px"}),
-            dbc.Button("→", id="btn-details-nav-forward", color="secondary",
+            dbc.Button("\u2192", id="btn-details-nav-forward", color="secondary",
                        size="sm", className="ms-1", disabled=True,
                        style={"whiteSpace": "nowrap", "minWidth": "30px",
                               "padding": "2px 6px"}),
@@ -124,13 +117,11 @@ def build_details_tab_content():
             html.Div(id="details-priority-badge"),
         ]),
 
-        # Action buttons — Edit | Focus | Filters on one compact row
+        # Action buttons — Edit | Focus
         html.Div([
             dbc.Button("Edit", id="btn-details-edit", color="secondary",
                        size="sm", style={"flex": "1"}),
             dbc.Button("Focus", id="btn-details-focus", color="secondary",
-                       size="sm", className="ms-1", style={"flex": "1"}),
-            dbc.Button("Filters", id="btn-details-filters-toggle", color="secondary",
                        size="sm", className="ms-1", style={"flex": "1"}),
         ], className="d-flex mt-3"),
 
@@ -153,7 +144,7 @@ def build_details_tab_content():
         empty_state,
         detail_content,
     ], id="details-left-panel", style={
-        "width": "450px",
+        "width": "375px",
         "minWidth": "260px",
         "display": "flex",
         "flexDirection": "column",
@@ -334,8 +325,6 @@ def build_details_tab_content():
         ]),
     ], id="modal-details-subtask-remove", is_open=False, centered=True)
 
-    goal_sidebar = _build_goal_sidebar()
-
     return html.Div([
         dcc.Store(id='details-selected-node-store', data=None),
         dcc.Store(id='details-refresh-trigger', data=0),
@@ -347,9 +336,10 @@ def build_details_tab_content():
                   style={'display': 'none'}),
         dcc.Input(id='details-simulate-trigger-input', type='text', value='',
                   style={'display': 'none'}),
+        dcc.Input(id='details-edit-trigger-input', type='text', value='',
+                  style={'display': 'none'}),
         subtask_remove_modal,
         add_node_modal,
-        goal_sidebar,
 
         # Main content: upper (left panel + canvas) + lower (subtasks + sim)
         html.Div([
@@ -375,68 +365,6 @@ def _attribute_row(label, value_id):
                   style={"width": "70px", "fontSize": "0.82rem"}),
         html.Span(id=value_id, style={"fontSize": "0.85rem", "fontWeight": "500"}),
     ], className="d-flex align-items-center mb-1")
-
-
-def _build_goal_sidebar():
-    """Builds the collapsible goal list sidebar for the Details tab."""
-    return html.Div(
-        id="details-goal-sidebar",
-        children=[
-            html.Div([
-                html.H5("Goals", className="mb-0"),
-                html.Span("×", id="btn-details-goals-close",
-                           className="fs-4 text-white",
-                           style={"cursor": "pointer"}),
-            ], className="d-flex justify-content-between align-items-center mb-3 mt-3 px-3"),
-
-            # Search bar — constrained inside sidebar
-            html.Div(
-                dbc.Input(id="details-goal-search", type="text",
-                          placeholder="Search goals...", size="sm",
-                          debounce=True,
-                          style={"backgroundColor": "#2b3035",
-                                 "border": "1px solid #495057",
-                                 "color": "#dee2e6",
-                                 "width": "100%",
-                                 "boxSizing": "border-box"}),
-                style={"padding": "0 12px", "marginBottom": "8px"},
-            ),
-
-            # Sort
-            html.Div(
-                dbc.Select(id="details-goal-sort", options=[
-                    {"label": "A → Z", "value": "alpha-asc"},
-                    {"label": "Z → A", "value": "alpha-desc"},
-                    {"label": "Time ↑", "value": "time-asc"},
-                    {"label": "Time ↓", "value": "time-desc"},
-                    {"label": "Manual", "value": "manual"},
-                ], value="alpha-asc", size="sm",
-                    style={"flex": "1", "backgroundColor": "#2b3035",
-                           "border": "1px solid #495057",
-                           "color": "#dee2e6", "fontSize": "0.8rem"}),
-                style={"padding": "0 12px", "marginBottom": "8px"},
-            ),
-
-            # Goal cards container
-            html.Div(id="details-goal-list-container",
-                     style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
-        ],
-        style={
-            "position": "absolute",
-            "top": "0",
-            "left": "-320px",
-            "width": "320px",
-            "height": "100%",
-            "zIndex": 100,
-            "overflowX": "hidden",
-            "overflowY": "auto",
-            "borderRight": "1px solid #495057",
-            "transition": "left 0.3s ease",
-            "backgroundColor": "#212529",
-            "display": "flex",
-            "flexDirection": "column",
-        }
-    )
 
 
 def _build_filters_sidebar():

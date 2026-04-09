@@ -191,6 +191,17 @@ def register_goal_callbacks(app):
 
         return order
 
+    # --- Autocomplete datalist for goals search ---
+    @app.callback(
+        Output("goal-search-datalist", "children"),
+        Input("goals-refresh-trigger", "data"),
+        Input("main-tabs", "active_tab"),
+    )
+    def populate_goal_search_datalist(refresh_trigger, active_tab):
+        from dash import html as _html
+        all_nodes = graph_manager.get_all_nodes()
+        return [_html.Option(value=n.name) for n in all_nodes if n.type == "Goal"]
+
     # --- Goal Filters Toggle ---
     @app.callback(
         Output("goal-filters-collapse", "is_open"),

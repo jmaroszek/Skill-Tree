@@ -16,8 +16,12 @@ def build_events_tab_content():
     event_list_panel = html.Div([
         html.Div([
             html.H4("Events", className="mb-0"),
-            dbc.Button("New Event", id="btn-new-event", color="success", size="sm"),
-        ], className="d-flex justify-content-between align-items-center mb-2 mt-3"),
+            dbc.Button("+", id="btn-new-event", color="link",
+                       className="p-0 ms-2 text-decoration-none text-muted",
+                       title="New event",
+                       style={"fontSize": "1.2rem", "lineHeight": "1"}),
+        ], className="d-flex align-items-center mb-2 mt-3"),
+        html.Datalist(id="events-search-datalist", children=[]),
         dbc.Input(
             id="events-search-input",
             type="search",
@@ -26,14 +30,27 @@ def build_events_tab_content():
             className="mb-2",
             style={"backgroundColor": "#2b3035", "border": "1px solid #495057",
                    "color": "#dee2e6", "borderRadius": "6px"},
+            **{"list": "events-search-datalist"},
         ),
-        dbc.Switch(
-            id="events-hide-triggered-toggle",
-            label="Hide triggered",
-            value=False,
-            className="mb-2",
-            style={"fontSize": "0.85rem", "color": "#adb5bd"},
-        ),
+        html.Div([
+            dbc.RadioItems(
+                id="events-sort-mode",
+                options=[
+                    {"label": "Manual", "value": "manual"},
+                    {"label": "A–Z", "value": "az"},
+                    {"label": "Z–A", "value": "za"},
+                ],
+                value="manual",
+                inline=True,
+                style={"fontSize": "0.8rem", "color": "#adb5bd"},
+            ),
+            dbc.Switch(
+                id="events-hide-triggered-toggle",
+                label="Hide triggered",
+                value=True,
+                style={"fontSize": "0.85rem", "color": "#adb5bd", "marginBottom": "0"},
+            ),
+        ], className="d-flex justify-content-between align-items-center mb-2"),
         html.Div(id="events-list-container", style={"overflowY": "auto", "flex": "1"}),
     ], style={
         "width": "350px",
@@ -251,9 +268,14 @@ def build_events_tab_content():
 
                 # Dormant Nodes Section
                 html.Div([
-                    html.H5("Dormant Nodes", className="mb-0"),
-                    dbc.Button("Add Node", id="btn-add-dormant-node", color="success", size="sm"),
-                ], className="d-flex justify-content-between align-items-center mb-3"),
+                    html.Div([
+                        html.H5("Dormant Nodes", className="mb-0"),
+                        dbc.Button("+", id="btn-add-dormant-node", color="link",
+                                   className="p-0 ms-2 text-decoration-none text-muted",
+                                   title="Add dormant node",
+                                   style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                    ], className="d-flex align-items-center"),
+                ], className="d-flex align-items-center mb-3"),
 
                 html.Div(id="dormant-nodes-table-container"),
 
@@ -284,7 +306,7 @@ def build_events_tab_content():
         dcc.Store(id='selected-event-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
         dcc.Store(id='node-completion-events-store', data=None),
-        dcc.Store(id='event-order-store', data=[]),
+        dcc.Store(id='event-order-store', data=[], storage_type='local'),
         dcc.Interval(id='event-clear-interval', interval=3000, n_intervals=0, disabled=True),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
