@@ -243,6 +243,15 @@ class ConfigManager:
     def set_gdrive_path(cls, path: str):
         cls._set_db_value("GDRIVE_ROOT_PATH", path)
 
+    @classmethod
+    def get_hp_profile(cls) -> str:
+        val = cls._get_db_value("HP_PROFILE")
+        return val if val else "Default"
+
+    @classmethod
+    def set_hp_profile(cls, profile: str):
+        cls._set_db_value("HP_PROFILE", profile)
+
     # Types that always keep their shape even if not in the user's type list
     _PERMANENT_SHAPE_TYPES = {'Goal'}
 

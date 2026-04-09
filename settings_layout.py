@@ -30,7 +30,7 @@ def build_settings_tab_content():
                                         dbc.Button(_RESTORE_ICON, id="btn-restore-shapes",
                                                    color="link", size="sm",
                                                    className="ms-1 p-0",
-                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd"}),
+                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
                                         dbc.Tooltip("Restore defaults", target="btn-restore-shapes", placement="top"),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
@@ -44,7 +44,7 @@ def build_settings_tab_content():
                                         dbc.Button(_RESTORE_ICON, id="btn-restore-status-colors",
                                                    color="link", size="sm",
                                                    className="ms-1 p-0",
-                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd"}),
+                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
                                         dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top"),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
@@ -58,7 +58,7 @@ def build_settings_tab_content():
                                         dbc.Button(_RESTORE_ICON, id="btn-restore-type-colors",
                                                    color="link", size="sm",
                                                    className="ms-1 p-0",
-                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd"}),
+                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
                                         dbc.Tooltip("Restore defaults", target="btn-restore-type-colors", placement="top"),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
@@ -88,7 +88,7 @@ def build_settings_tab_content():
                             {"label": "Curious", "value": "Curious"},
                             {"label": "Industrious", "value": "Industrious"},
                             {"label": "Custom", "value": "Custom"}
-                        ], value="Default"),
+                        ], value="Default", style={"maxWidth": "300px"}),
 
                         # --- Intrinsic Value section ---
                         html.Hr(className="my-2"),
@@ -187,16 +187,10 @@ def build_settings_tab_content():
                         dbc.Row([
                             dbc.Col([
                                 html.Small("Productive hours available.", className="text-muted d-block mb-2"),
-                                dbc.Row([
-                                    dbc.Col([
-                                        dbc.Label("Hours per Week"),
-                                        dbc.Input(id="setting-hpw", type="number", min=1, step=1),
-                                    ]),
-                                    dbc.Col([
-                                        dbc.Label("Hours per Month"),
-                                        dbc.Input(id="setting-hpm", type="number", min=1, step=1),
-                                    ]),
-                                ]),
+                                dbc.Label("Hours per Week"),
+                                dbc.Input(id="setting-hpw", type="number", min=1, step=1, className="mb-2"),
+                                dbc.Label("Hours per Month"),
+                                dbc.Input(id="setting-hpm", type="number", min=1, step=1),
                             ], width=4),
                             dbc.Col(style={"borderLeft": "1px solid #444", "paddingLeft": "1.5rem"}, children=[
                                 html.Small("Pre-filled values when creating new nodes.", className="text-muted d-block mb-2"),
@@ -231,9 +225,12 @@ def build_settings_tab_content():
             # Save button + status
             html.Div(id="settings-save-status", className="text-success mt-2",
                      style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
-            dbc.Button("Save Settings", id="btn-settings-save", color="primary",
-                       className="w-100 mt-3", size="lg"),
-        ], style={"maxWidth": "1100px", "padding": "0 24px"}),
+            html.Div(
+                dbc.Button("Save Settings", id="btn-settings-save", color="primary",
+                           className="px-4"),
+                className="d-flex justify-content-start mt-2 ps-2"
+            ),
+        ], style={"maxWidth": "900px", "padding": "0 24px"}),
     ], style={
         "flex": "1",
         "overflowY": "auto",

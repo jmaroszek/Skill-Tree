@@ -1083,7 +1083,7 @@ def register_callbacks(app):
 
         return (hp.get('w_v'), hp.get('w_i'), hp.get('d_H'), hp.get('d_S'), hp.get('d_Syn'),
                 hp.get('w_e'), hp.get('w_t'), hp.get('beta'), hp.get('goal_boost', 1.5),
-                ntypes, ctxts, subctxts, "Custom", obs, gdrive, shape_rows,
+                ntypes, ctxts, subctxts, ConfigManager.get_hp_profile(), obs, gdrive, shape_rows,
                 status_color_rows, type_color_rows,
                 ts.get('hours_per_week', 40), ts.get('hours_per_month', 160),
                 ted.get('unit', 'weeks'),
@@ -1159,13 +1159,14 @@ def register_callbacks(app):
         State('setting-default-time-o', 'value'),
         State('setting-default-time-m', 'value'),
         State('setting-default-time-p', 'value'),
+        State('setting-hp-profile', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
                       n_types_val, contexts_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm,
-                      def_time_unit, def_time_o, def_time_m, def_time_p):
+                      def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -1263,6 +1264,7 @@ def register_callbacks(app):
                 return "Migration required — check the migration dialog.", pending, False, 0
 
             # No orphans — save immediately
+            ConfigManager.set_hp_profile(hp_profile or "Custom")
             ConfigManager.set_hyperparams(new_hp)
             ConfigManager.set_time_settings(new_ts)
             ConfigManager.set_time_estimate_defaults(new_ted)
