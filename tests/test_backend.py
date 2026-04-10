@@ -1869,3 +1869,66 @@ class TestScoringInheritedTimeMode:
         iv = intrinsic_value(node, 1.0, 1.0)
         expected_score = round(iv / cost, 2)
         assert scored[0].priority_score == expected_score
+
+
+# ============================================================================
+# Community Detection
+# ============================================================================
+
+class TestDetectCommunities:
+
+    def test_empty_graph(self, mgr):
+        result = mgr.detect_communities()
+        assert result == []
+
+    def test_single_component(self, mgr):
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        result = mgr.detect_communities(method="components")
+        assert len(result) == 1
+        assert {"A", "B"} == result[0]
+
+    def test_two_disconnected_components(self, mgr):
+        for name in ["A", "B", "C", "D"]:
+            mgr.add_node(_make_node(name))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("C", "D", EDGE_NEEDS_HARD)
+        result = mgr.detect_communities(method="components")
+        assert len(result) == 2
+        names = [c for c in result]
+        assert {"A", "B"} in names
+        assert {"C", "D"} in names
+
+    def test_orphan_detection(self, mgr):
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_node(_make_node("Lone"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        result = mgr.detect_communities(method="orphans")
+        assert len(result) == 1
+        assert {"Lone"} in result
+
+    def test_louvain_returns_communities(self, mgr):
+        for name in ["A", "B", "C", "D"]:
+            mgr.add_node(_make_node(name))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("C", "D", EDGE_NEEDS_HARD)
+        result = mgr.detect_communities(method="louvain")
+        assert len(result) >= 2
+        all_names = set()
+        for c in result:
+            all_names |= c
+        assert all_names == {"A", "B", "C", "D"}
+
+    def test_filters_restrict_communities(self, mgr):
+        mgr.add_node(_make_node("A", context="Work"))
+        mgr.add_node(_make_node("B", context="Work"))
+        mgr.add_node(_make_node("C", context="Play"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "C", EDGE_NEEDS_HARD)
+        result = mgr.detect_communities(method="components", filters={"context": ["Work"]})
+        all_names = set()
+        for c in result:
+            all_names |= c
+        assert "C" not in all_names

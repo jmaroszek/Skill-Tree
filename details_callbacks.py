@@ -11,9 +11,8 @@ import plotly.graph_objects as go
 from graph_manager import GraphManager
 from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from details_layout import build_details_subtasks_table
+from details_layout import build_details_subtasks_table, build_goal_card
 from simulation import simulate_task_chain
-from goals_layout import build_goal_card
 from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_file_picker, build_filters
 
 graph_manager = GraphManager()

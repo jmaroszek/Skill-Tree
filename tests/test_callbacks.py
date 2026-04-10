@@ -9,9 +9,10 @@ from typing import Any
 import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from callbacks import (
-    _build_filters, _node_options, _handle_save, _handle_delete,
-    _handle_toggle_done, _handle_group_delete, generate_elements, manager
+from callbacks import generate_elements, manager
+from callback_helpers import (
+    build_filters, node_options, handle_save, handle_delete,
+    handle_toggle_done, handle_group_delete,
 )
 
 
@@ -36,95 +37,95 @@ def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
 
 
 # ============================================================================
-# _build_filters
+# build_filters
 # ============================================================================
 
 class TestBuildFilters:
     def test_all_defaults_empty_dict(self):
-        result = _build_filters("All", "All", [])
+        result = build_filters("All", "All", [])
         assert result == {}
 
     def test_empty_lists_empty_dict(self):
-        result = _build_filters([], [], [])
+        result = build_filters([], [], [])
         assert result == {}
 
     def test_context_filter(self):
-        result = _build_filters("Mind", "All", [])
+        result = build_filters("Mind", "All", [])
         assert result == {"context": ["Mind"]}
 
     def test_context_filter_multi(self):
-        result = _build_filters(["Mind", "Body"], [], [])
+        result = build_filters(["Mind", "Body"], [], [])
         assert result == {"context": ["Mind", "Body"]}
 
     def test_none_context_maps_to_none(self):
-        result = _build_filters("None", "All", [])
+        result = build_filters("None", "All", [])
         assert result == {"context": [None]}
 
     def test_hide_done(self):
-        result = _build_filters("All", "All", ["hide_done"])
+        result = build_filters("All", "All", ["hide_done"])
         assert result == {"hide_done": True}
 
     def test_min_value(self):
-        result = _build_filters("All", "All", [], f_value=5)
+        result = build_filters("All", "All", [], f_value=5)
         assert result == {"min_value": 5}
 
     def test_min_interest(self):
-        result = _build_filters("All", "All", [], f_interest=3)
+        result = build_filters("All", "All", [], f_interest=3)
         assert result == {"min_interest": 3}
 
     def test_max_time(self):
-        result = _build_filters("All", "All", [], f_time=10)
+        result = build_filters("All", "All", [], f_time=10)
         assert result == {"max_time": 10.0}
 
     def test_max_difficulty(self):
-        result = _build_filters("All", "All", [], f_difficulty="7")
+        result = build_filters("All", "All", [], f_difficulty="7")
         assert result == {"max_difficulty": 7}
 
     def test_invalid_time_ignored(self):
-        result = _build_filters("All", "All", [], f_time="abc")
+        result = build_filters("All", "All", [], f_time="abc")
         assert "max_time" not in result
 
     def test_subcontext_filter(self):
-        result = _build_filters("All", "Rational", [])
+        result = build_filters("All", "Rational", [])
         assert result == {"subcontext": ["Rational"]}
 
     def test_subcontext_filter_multi(self):
-        result = _build_filters("All", ["Rational", "Creative"], [])
+        result = build_filters("All", ["Rational", "Creative"], [])
         assert result == {"subcontext": ["Rational", "Creative"]}
 
     def test_subcontext_all_ignored(self):
-        result = _build_filters("All", "All", [])
+        result = build_filters("All", "All", [])
         assert "subcontext" not in result
 
 
 # ============================================================================
-# _node_options
+# node_options
 # ============================================================================
 
 class TestNodeOptions:
     def test_basic_options(self):
         nodes = [_make_node("A"), _make_node("B")]
-        result = _node_options(nodes)
+        result = node_options(nodes)
         assert result == [{"label": "A", "value": "A"}, {"label": "B", "value": "B"}]
 
     def test_exclude_node(self):
         nodes = [_make_node("A"), _make_node("B"), _make_node("C")]
-        result = _node_options(nodes, exclude="B")
+        result = node_options(nodes, exclude="B")
         names = [r['value'] for r in result]
         assert "B" not in names
         assert len(result) == 2
 
     def test_empty_list(self):
-        assert _node_options([]) == []
+        assert node_options([]) == []
 
 
 # ============================================================================
-# _handle_save
+# handle_save
 # ============================================================================
 
 class TestHandleSave:
     def test_creates_new_node(self):
-        msg = _handle_save(
+        msg = handle_save(manager,
             "NewNode", "Learn", "desc", 5, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
             [], [], [], [], []
@@ -134,7 +135,7 @@ class TestHandleSave:
 
     def test_updates_existing_node(self):
         manager.add_node(_make_node("Existing", value=3))
-        msg = _handle_save(
+        msg = handle_save(manager,
             "Existing", "Learn", "updated desc", 9, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
             [], [], [], [], []
@@ -145,7 +146,7 @@ class TestHandleSave:
     def test_syncs_edges(self):
         manager.add_node(_make_node("A"))
         manager.add_node(_make_node("B", status="Done"))
-        msg = _handle_save(
+        msg = handle_save(manager,
             "A", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
             ["B"], [], [], [], []  # B is a hard prereq of A
@@ -158,42 +159,42 @@ class TestHandleSave:
 
 
 # ============================================================================
-# _handle_delete
+# handle_delete
 # ============================================================================
 
 class TestHandleDelete:
     def test_deletes_node(self):
         manager.add_node(_make_node("ToDelete"))
-        msg = _handle_delete("ToDelete")
+        msg = handle_delete(manager,"ToDelete")
         assert "Deleted" in msg
         assert manager.get_node("ToDelete") is None
 
     def test_returns_message_with_name(self):
         manager.add_node(_make_node("MyNode"))
-        msg = _handle_delete("MyNode")
+        msg = handle_delete(manager,"MyNode")
         assert "MyNode" in msg
 
 
 # ============================================================================
-# _handle_toggle_done
+# handle_toggle_done
 # ============================================================================
 
 class TestHandleToggleDone:
     def test_toggle_open_to_done(self):
         manager.add_node(_make_node("A", status="Open"))
-        msg = _handle_toggle_done({"id": "A"})
+        msg = handle_toggle_done(manager,{"id": "A"})
         assert manager.get_node("A").status == "Done"
         assert "Done" in msg
 
     def test_toggle_done_to_open(self):
         manager.add_node(_make_node("A", status="Done"))
-        msg = _handle_toggle_done({"id": "A"})
+        msg = handle_toggle_done(manager,{"id": "A"})
         assert manager.get_node("A").status == "Open"
         assert "Open" in msg
 
 
 # ============================================================================
-# _handle_group_delete
+# handle_group_delete
 # ============================================================================
 
 class TestHandleGroupDelete:
@@ -201,19 +202,19 @@ class TestHandleGroupDelete:
         manager.add_node(_make_node("A"))
         manager.add_node(_make_node("B"))
         manager.add_node(_make_node("C"))
-        msg = _handle_group_delete('["A","B"]')
+        msg = handle_group_delete(manager,'["A","B"]')
         assert manager.get_node("A") is None
         assert manager.get_node("B") is None
         assert manager.get_node("C") is not None
         assert "2" in msg
 
     def test_empty_list_no_error(self):
-        msg = _handle_group_delete("[]")
+        msg = handle_group_delete(manager,"[]")
         assert msg == ""
 
     def test_timestamp_suffix_stripped(self):
         manager.add_node(_make_node("X"))
-        msg = _handle_group_delete('["X"]|1234567890')
+        msg = handle_group_delete(manager,'["X"]|1234567890')
         assert manager.get_node("X") is None
         assert "1" in msg
 
@@ -264,15 +265,15 @@ class TestResourceNodeColor:
 
 
 # ============================================================================
-# _handle_save — no resources parameter
+# handle_save — no resources parameter
 # ============================================================================
 
 class TestHandleSaveNoResources:
-    """Tests that _handle_save works without a resources edge parameter."""
+    """Tests that handle_save works without a resources edge parameter."""
 
     def test_save_with_needs_edges_only(self):
         manager.add_node(_make_node("Prereq", status="Done"))
-        msg = _handle_save(
+        msg = handle_save(manager,
             "NewRes", "Resource", "A resource", 5, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
             ["Prereq"], [], [], [], []
@@ -288,7 +289,7 @@ class TestHandleSaveNoResources:
 # Regression tests for Bug 1-3: node save round-trip accuracy
 # The original bugs caused edited values to revert after save because the
 # populate_editor callback re-fired with stale Cytoscape data. The DB-level
-# contract is: _handle_save must always write the exact values it receives,
+# contract is: handle_save must always write the exact values it receives,
 # and get_node must return those exact values on the next read.
 # ============================================================================
 
@@ -297,7 +298,7 @@ class TestSaveRoundTrip:
 
     def test_time_estimates_stored_and_retrieved_accurately(self):
         """Exact time_o/m/p values round-trip through add → get_node."""
-        _handle_save(
+        handle_save(manager,
             "TimedNode", "Learn", "", 5, 40.0, 80.0, 160.0, 5, 5,
             [], None, None, None, None, None,
             [], [], [], [], []
@@ -312,7 +313,7 @@ class TestSaveRoundTrip:
         """Saving updated time estimates overwrites the previous values in the DB.
         This directly guards against the stale-data bug where the form appeared
         to save but the DB retained the original values."""
-        _handle_save(
+        handle_save(manager,
             "Node", "Learn", "", 5, 16.0, 32.0, 64.0, 5, 5,
             [], None, None, None, None, None,
             [], [], [], [], []
@@ -320,7 +321,7 @@ class TestSaveRoundTrip:
         assert manager.get_node("Node").time_p == 64.0
 
         # Simulate the user changing pessimistic from 64 to 80 and saving
-        _handle_save(
+        handle_save(manager,
             "Node", "Learn", "", 5, 16.0, 32.0, 80.0, 5, 5,
             [], None, None, None, None, None,
             [], [], [], [], []
@@ -332,7 +333,7 @@ class TestSaveRoundTrip:
 
     def test_all_scalar_fields_persisted_accurately(self):
         """Every user-editable field is faithfully stored and retrieved."""
-        _handle_save(
+        handle_save(manager,
             "FullNode", "Goal", "A description", 9, 10.0, 20.0, 40.0, 7, 3,
             ["Done"], "Work", "Research", None, None, None,
             [], [], [], [], [], 0
@@ -353,9 +354,9 @@ class TestSaveRoundTrip:
     def test_second_save_does_not_revert_to_first_save_values(self):
         """Two successive saves with different values — the second must win.
         Guards against any caching or no-op update path."""
-        _handle_save("N", "Learn", "v1", 3, 1.0, 2.0, 4.0, 3, 3,
+        handle_save(manager,"N", "Learn", "v1", 3, 1.0, 2.0, 4.0, 3, 3,
                      [], None, None, None, None, None, [], [], [], [], [])
-        _handle_save("N", "Learn", "v2", 8, 5.0, 10.0, 20.0, 8, 8,
+        handle_save(manager,"N", "Learn", "v2", 8, 5.0, 10.0, 20.0, 8, 8,
                      [], None, None, None, None, None, [], [], [], [], [])
         node = manager.get_node("N")
         assert node.description == "v2"
@@ -372,7 +373,7 @@ class TestSaveRoundTrip:
         manager.add_node(_make_node("C", status="Done"))
 
         # First save: C is a hard prereq
-        _handle_save("Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+        handle_save(manager,"Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
                      ["C"], [], [], [], [])
         edges = manager.get_edges()
@@ -381,7 +382,7 @@ class TestSaveRoundTrip:
         assert hard_prereqs == ["C"]
 
         # Second save: user removes C and adds A, B
-        _handle_save("Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+        handle_save(manager,"Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
                      ["A", "B"], [], [], [], [])
         edges = manager.get_edges()
@@ -399,7 +400,7 @@ class TestSaveRoundTrip:
 class TestHandleSaveTimeMode:
     def test_default_time_mode_is_manual(self):
         """Saving without explicit time_mode defaults to 'manual'."""
-        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+        handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
                      [], [], [], [], [])
         node = manager.get_node("Node")
@@ -407,7 +408,7 @@ class TestHandleSaveTimeMode:
 
     def test_inherited_time_mode_persisted(self):
         """Saving with time_mode='inherited' stores it in the DB."""
-        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+        handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
                      [], [], [], [], [], None, time_mode='inherited')
         node = manager.get_node("Node")
@@ -415,19 +416,19 @@ class TestHandleSaveTimeMode:
 
     def test_time_mode_updated_on_save(self):
         """Changing time_mode from manual to inherited on update persists."""
-        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+        handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
                      [], [], [], [], [], None, time_mode='manual')
         assert manager.get_node("Node").time_mode == 'manual'
 
-        _handle_save("Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+        handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
                      [], [], [], [], [], None, time_mode='inherited')
         assert manager.get_node("Node").time_mode == 'inherited'
 
     def test_goal_node_with_inherited_time(self):
         """Goal nodes can use inherited time mode."""
-        _handle_save("MyGoal", "Goal", "a goal", 5, 0, 0, 0, 5, 5,
+        handle_save(manager,"MyGoal", "Goal", "a goal", 5, 0, 0, 0, 5, 5,
                      [], None, None, None, None, None,
                      [], [], [], [], [], None, time_mode='inherited')
         node = manager.get_node("MyGoal")
@@ -441,8 +442,8 @@ class TestHandleSaveTimeMode:
 
 class TestGoalNodeCreation:
     def test_create_goal_node(self):
-        """Goal nodes can be created via _handle_save like any other type."""
-        msg = _handle_save(
+        """Goal nodes can be created via handle_save like any other type."""
+        msg = handle_save(manager,
             "NewGoal", "Goal", "My goal", 8, 0, 0, 0, 7, 3,
             [], "Mind", None, None, None, None,
             [], [], [], [], []
@@ -456,7 +457,7 @@ class TestGoalNodeCreation:
         """Goal nodes can have prerequisites just like other types."""
         manager.add_node(_make_node("Task1", status="Done"))
         manager.add_node(_make_node("Task2"))
-        _handle_save(
+        handle_save(manager,
             "MyGoal", "Goal", "", 5, 0, 0, 0, 5, 5,
             [], None, None, None, None, None,
             ["Task1", "Task2"], [], [], [], []

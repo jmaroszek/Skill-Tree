@@ -27,27 +27,28 @@ Do NOT run `python app.py` or `python app.py -production` unless explicitly requ
 | Layer | Key Files | Purpose |
 |-------|-----------|---------|
 | Entry point | `app.py` | Initializes Dash, registers callbacks, opens browser |
-| Layout | `layout.py`, `goals_layout.py`, `events_layout.py`, `settings_layout.py`, `simulate_layout.py` | UI construction (tabs: Nodes, Goals, Events, Settings, Simulate) |
-| Callbacks | `callbacks.py`, `goal_callbacks.py`, `event_callbacks.py`, `simulate_callbacks.py` | All Dash interactivity; each file has a `register_*_callbacks(app)` function |
+| Layout | `layout.py`, `details_layout.py`, `events_layout.py`, `settings_layout.py` | UI construction (tabs: Next, Nodes, Details, Events, Settings) |
+| Callbacks | `callbacks.py`, `next_callbacks.py`, `settings_callbacks.py`, `event_callbacks.py`, `details_callbacks.py` | Dash interactivity; each file has a `register_*_callbacks(app)` function |
 | Helpers | `callback_helpers.py` | Stateless utilities for CRUD, filtering, serialization |
 | Graph logic | `graph_manager.py` | Node/edge CRUD, cycle detection, filtering, cascade operations |
 | Scoring | `scoring.py` | ROI-based priority ranking algorithm |
 | Models | `models.py` | `Node` and `Event` dataclasses with PERT estimation |
 | Config | `config.py` | `ConfigManager` class — persistent settings in SQLite Settings table |
 | Events | `event_manager.py` | Dormant node activation via manual/date/node triggers |
-| Simulation | `simulation.py` | Monte Carlo critical-path analysis |
+| Simulation | `simulation.py` | Monte Carlo time distribution analysis |
 | Database | `database.py` | Schema init, connection pooling |
 | Styles | `styles.py` | Cytoscape stylesheet definitions |
-| JS | `assets/context_menu.js`, `tooltip.js`, `fullscreen.js`, `resize_handle.js` | Context menus, tooltips, canvas interactions |
+| JS | `assets/context_menu.js`, `tooltip.js`, `fullscreen.js`, `resize_handle.js`, `details_resize.js`, `details_goal_sortable.js`, `event_sortable.js` | Context menus, tooltips, canvas interactions, drag-to-resize, sortable lists |
 
 ## Key Patterns
 
 - **Callback pattern:** Almost all callbacks regenerate the full element list via `generate_elements()` after mutations. Use Dash `ALL` pattern matching for dynamic component IDs.
 - **Node status:** Open / Blocked / Done. Nodes auto-block when any hard prerequisite is incomplete. Status updates cascade recursively.
-- **Edge types:** `Needs_Hard`, `Needs_Soft`, `Helps`, `Resource`
+- **Edge types:** `Needs_Hard`, `Needs_Soft`, `Helps`
 - **PERT estimates:** Three-point (optimistic/most_likely/pessimistic) with blended arithmetic + logarithmic means.
 - **Database:** Node `name` is the primary key. Edges use composite PK `(source, target, type)`.
-- **JS ↔ Dash:** JS files use native HTML input value setters to bridge into Dash's reactive system.
+- **JS-Dash bridge:** JS files use native HTML input value setters to bridge into Dash's reactive system.
+- **Tab default:** "Next" tab opens by default. Tab order: Next, Nodes, Details, Events, Settings.
 
 ## Styling
 

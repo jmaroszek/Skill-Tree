@@ -8,8 +8,6 @@ import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from config import ConfigManager, CANVAS_HEIGHT, DEFAULT_TIME_ESTIMATE_DEFAULTS
 from events_layout import build_events_tab_content
-from goals_layout import build_goals_tab_content
-from simulate_layout import build_simulate_tab_content
 from details_layout import build_details_tab_content
 from settings_layout import build_settings_tab_content
 from styles import stylesheet
@@ -343,12 +341,12 @@ description_view = html.Div([
     html.Div(id="node-info-description", style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
 ], style={"flex": "1", "marginLeft": "3rem", "minWidth": 0})
 
-# --- Suggestions View ---
+# --- Next View ---
 
-suggestions_view = html.Div([
+next_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=10),
     html.Div([
-        html.H6("Suggestions", className="text-muted mb-0", style=_section_title_style),
+        html.H6("Next", className="text-muted mb-0", style=_section_title_style),
         dbc.ButtonGroup([
             dbc.Button("−", id="btn-sugg-minus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
@@ -361,7 +359,10 @@ suggestions_view = html.Div([
         ], className="align-middle"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     dcc.Store(id='selected-suggestion-store', data=None),
-    html.Div(id="suggestions-table"),
+    dcc.Store(id='focus-goal-store', data=None),
+    html.Div(id="suggestions-table", children=[
+        html.P("Loading suggestions...", className="text-muted mt-3")
+    ]),
 ])
 
 
@@ -614,13 +615,11 @@ def build_app_layout(initial_elements, env="production"):
         # CENTER: Tabs
         dbc.Tabs(
             id="main-tabs",
-            active_tab="tab-canvas",
+            active_tab="tab-next",
             children=[
+                dbc.Tab(label="Next", tab_id="tab-next"),
                 dbc.Tab(label="Nodes", tab_id="tab-canvas"),
                 dbc.Tab(label="Details", tab_id="tab-details"),
-                dbc.Tab(label="Goals", tab_id="tab-goals"),
-                dbc.Tab(label="Suggestions", tab_id="tab-suggestions"),
-                dbc.Tab(label="Simulation", tab_id="tab-simulate"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
                 dbc.Tab(label="Settings", tab_id="tab-settings"),
             ],
@@ -673,8 +672,7 @@ def build_app_layout(initial_elements, env="production"):
             ),
 
         ],
-        className="d-flex",
-        style={"width": "100%", "height": "100%", "overflow": "hidden",
+        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
                "position": "absolute", "top": "0", "left": "0"}
     )
 
@@ -686,38 +684,23 @@ def build_app_layout(initial_elements, env="production"):
                "position": "absolute", "top": "0", "left": "0"}
     )
 
-    # --- Goals Tab Content (hidden by default) ---
-    goals_tab_content = html.Div(
-        id="goals-tab-content",
-        children=[build_goals_tab_content()],
-        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
-               "position": "absolute", "top": "0", "left": "0"}
-    )
-
-    # --- Suggestions Tab Content (hidden by default) ---
-    suggestions_tab_content = html.Div(
-        id="suggestions-tab-content",
+    # --- Next Tab Content (hidden by default) ---
+    next_tab_content = html.Div(
+        id="next-tab-content",
         children=[
             html.Div([
-                html.Div([suggestions_view], className="px-4 pt-3 pb-4"),
+                html.Div([next_view], className="px-4 pt-3 pb-4"),
             ], style={"flex": "1", "overflowY": "auto"}),
         ],
-        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
-               "position": "absolute", "top": "0", "left": "0", "flexDirection": "column"}
+        style={"display": "block", "width": "100%", "height": "100%", "overflow": "auto",
+               "position": "absolute", "top": "0", "left": "0", "flexDirection": "column",
+               "visibility": "visible"}
     )
 
     # --- Details Tab Content (hidden by default) ---
     details_tab_content = html.Div(
         id="details-tab-content",
         children=[build_details_tab_content()],
-        style={"display": "none", "width": "100%", "height": "100%",
-               "position": "absolute", "top": "0", "left": "0"}
-    )
-
-    # --- Simulate Tab Content (hidden by default) ---
-    simulate_tab_content = html.Div(
-        id="simulate-tab-content",
-        children=[build_simulate_tab_content()],
         style={"display": "none", "width": "100%", "height": "100%",
                "position": "absolute", "top": "0", "left": "0"}
     )
@@ -738,7 +721,6 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
-        dcc.Input(id='simulate-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
@@ -755,13 +737,11 @@ def build_app_layout(initial_elements, env="production"):
         main_tabs,
         # Tab content wrapper — only one tab visible at a time
         html.Div([
+            next_tab_content,
             canvas_tab_content,
             details_tab_content,
-            suggestions_tab_content,
-            goals_tab_content,
-            simulate_tab_content,
-            settings_tab_content,
             events_tab_content,
+            settings_tab_content,
             # --- SHARED NODE EDITOR SIDEBAR (overlay, accessible from any tab) ---
             html.Div(
                 id="sidebar-editor-container",

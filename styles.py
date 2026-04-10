@@ -1,6 +1,5 @@
 """
-Shared Cytoscape stylesheet definitions.
-Extracted to avoid circular imports between layout.py and goals_layout.py.
+Shared Cytoscape stylesheet definitions for Cytoscape graph components.
 """
 
 # --- Main Cytoscape Stylesheet ---

@@ -9,6 +9,7 @@ and Simulation tabs.
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
+from typing import Optional, List, Any
 from config import ConfigManager, DEFAULT_TIME_ESTIMATE_DEFAULTS
 from models import EDGE_NEEDS_HARD
 from styles import stylesheet
@@ -365,6 +366,77 @@ def _attribute_row(label, value_id):
                   style={"width": "70px", "fontSize": "0.82rem"}),
         html.Span(id=value_id, style={"fontSize": "0.85rem", "fontWeight": "500"}),
     ], className="d-flex align-items-center mb-1")
+
+
+def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,
+                    show_order_buttons: bool = False, is_first: bool = False, is_last: bool = False):
+    """Builds a single goal card for the goal sidebar list."""
+    border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
+
+    pct = completion.get("pct", 0)
+    done = completion.get("done", 0)
+    total = completion.get("total", 0)
+    formatted_time = ConfigManager.format_time_friendly(completion.get("remaining_time", 0))
+
+    # A goal is effectively Done if its toggle is on OR all subtasks are complete
+    if status == "Done" or (pct == 100 and total > 0):
+        effective_status = "Done"
+    elif completion.get("is_blocked", False):
+        effective_status = "Blocked"
+    else:
+        effective_status = "Open"
+
+    status_color = {"Done": "success", "Blocked": "danger", "Open": "primary"}.get(effective_status, "primary")
+
+    # Hidden up/down buttons (kept for Dash pattern-matching callback registration)
+    _hidden = {"display": "none"}
+    hidden_buttons = html.Div([
+        dbc.Button("", id={"type": "goal-up", "index": name}, style=_hidden),
+        dbc.Button("", id={"type": "goal-down", "index": name}, style=_hidden),
+    ])
+
+    # Drag handle (visible only for non-priority, manual-sort goals)
+    drag_handle = html.Span(
+        "\u2630", className="goal-drag-handle",
+        style={"cursor": "grab", "color": "#6c757d", "fontSize": "0.9rem",
+               "marginRight": "8px", "userSelect": "none"},
+    ) if show_order_buttons else None
+
+    children: List[Any] = [
+        hidden_buttons,
+        html.Div([
+            html.Div([
+                drag_handle,
+                html.H6(name, className="mb-0", style={"fontWeight": "500"}),
+            ], className="d-flex align-items-center"),
+            html.Div([
+                dbc.Badge(f"#{priority_rank}", color="warning",
+                          style={"fontSize": "0.7rem"}) if priority_rank is not None else None,
+                dbc.Badge(effective_status, color=status_color, className="ms-1" if priority_rank is not None else "",
+                          style={"fontSize": "0.7rem", "width": "62px", "textAlign": "center",
+                                 "display": "inline-block"}),
+            ], className="d-flex align-items-center ms-2 gap-1"),
+        ], className="d-flex align-items-center justify-content-between mb-1"),
+    ]
+
+    # Stats line
+    if total > 0:
+        stats_text = f"{done}/{total} subtasks \u00b7 {pct}% \u00b7 {formatted_time}"
+    else:
+        stats_text = "No subtasks yet"
+
+    children.append(html.Small(stats_text, className="text-muted", style={"fontSize": "0.75rem"}))
+
+    return html.Div(children, id={"type": "goal-card", "index": name},
+       className="mb-2 goal-card rounded",
+       **{"data-goal-name": name},
+       style={
+           "cursor": "pointer",
+           "border": border_style,
+           "backgroundColor": "#2b3035" if is_selected else "#212529",
+           "transition": "border-color 0.2s, background-color 0.2s",
+           "padding": "10px 14px",
+       })
 
 
 def _build_filters_sidebar():

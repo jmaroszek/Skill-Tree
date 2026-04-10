@@ -24,40 +24,32 @@ def register_event_callbacks(app):
 
     # --- Tab Visibility Toggle ---
     @app.callback(
+        Output("next-tab-content", "style"),
         Output("canvas-tab-content", "style"),
         Output("details-tab-content", "style"),
-        Output("suggestions-tab-content", "style"),
-        Output("goals-tab-content", "style"),
-        Output("simulate-tab-content", "style"),
-        Output("settings-tab-content", "style"),
         Output("events-tab-content", "style"),
+        Output("settings-tab-content", "style"),
         Input("main-tabs", "active_tab"),
     )
     def toggle_tab_content(active_tab):
         base = {"width": "100%", "height": "100%", "overflow": "hidden", "position": "absolute", "top": "0", "left": "0"}
+        next_style = {**base,
+                      "overflow": "auto",
+                      "display": "block" if active_tab == "tab-next" else "none",
+                      "visibility": "visible" if active_tab == "tab-next" else "hidden"}
         canvas_style = {**base,
                         "display": "flex" if active_tab == "tab-canvas" else "none",
                         "visibility": "visible" if active_tab == "tab-canvas" else "hidden"}
         details_style = {**base,
                          "display": "flex" if active_tab == "tab-details" else "none",
                          "visibility": "visible" if active_tab == "tab-details" else "hidden"}
-        suggestions_style = {**base,
-                             "overflow": "auto",
-                             "display": "block" if active_tab == "tab-suggestions" else "none",
-                             "visibility": "visible" if active_tab == "tab-suggestions" else "hidden"}
-        goals_style = {**base,
-                       "display": "flex" if active_tab == "tab-goals" else "none",
-                       "visibility": "visible" if active_tab == "tab-goals" else "hidden"}
-        simulate_style = {**base, "overflow": "visible",
-                          "display": "flex" if active_tab == "tab-simulate" else "none",
-                          "visibility": "visible" if active_tab == "tab-simulate" else "hidden"}
-        settings_style = {**base, "overflow": "auto",
-                          "display": "block" if active_tab == "tab-settings" else "none",
-                          "visibility": "visible" if active_tab == "tab-settings" else "hidden"}
         events_style = {**base,
                         "display": "flex" if active_tab == "tab-events" else "none",
                         "visibility": "visible" if active_tab == "tab-events" else "hidden"}
-        return canvas_style, details_style, suggestions_style, goals_style, simulate_style, settings_style, events_style
+        settings_style = {**base, "overflow": "auto",
+                          "display": "block" if active_tab == "tab-settings" else "none",
+                          "visibility": "visible" if active_tab == "tab-settings" else "hidden"}
+        return next_style, canvas_style, details_style, events_style, settings_style
 
     # --- Events List Rendering ---
     @app.callback(

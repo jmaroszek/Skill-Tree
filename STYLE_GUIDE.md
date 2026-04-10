@@ -49,7 +49,7 @@ Bootstrap DARKLY theme via `dash-bootstrap-components`.
 ### Heading Hierarchy
 | Level | Element | Style | Usage |
 |-------|---------|-------|-------|
-| Page title | `html.H4` | `className="mb-3 mt-3"` | Top of each tab ("Settings", "Goals") |
+| Page title | `html.H4` | `className="mb-3 mt-3"` | Top of each tab ("Settings", "Next") |
 | Section title | `html.H5` | `className="mt-2 mb-1"` | All section headers everywhere: node editor, settings, modals |
 | Inline heading | `html.H6` | `style={"fontWeight": "500"}` | Minor headings in cards |
 
@@ -80,7 +80,7 @@ Bootstrap DARKLY theme via `dash-bootstrap-components`.
 | Role | `color=` | Usage |
 |------|----------|-------|
 | Primary action | `primary` (blue) | Save |
-| Confirm + close | `success` (green) | Save & Close, New Node, New Goal |
+| Confirm + close | `success` (green) | Save & Close, New Node |
 | Secondary/reset | `secondary` (gray) | Clear |
 | Destructive | `danger` + custom bg | Delete (uses `ConfigManager.get_danger_color()` = `#c94c4c`) |
 | Icon/link | `link` | +/- buttons, restore defaults |
@@ -88,7 +88,7 @@ Bootstrap DARKLY theme via `dash-bootstrap-components`.
 ### Button sizes
 - `size="sm"` — Toolbar, inline actions
 - (default) — Form actions (Save, Delete, Clear)
-- `size="lg"` + `className="w-100"` — Full-width major actions (Save Settings, Run Simulation)
+- `size="lg"` + `className="w-100"` — Full-width major actions (Save Settings)
 
 ## Spacing
 
@@ -115,7 +115,6 @@ Bootstrap DARKLY theme via `dash-bootstrap-components`.
 |---------|-------|
 | Editor sidebar width | `380px` |
 | Filters panel width | `320px` |
-| Goal list panel width | `350px` |
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
 
