@@ -109,8 +109,6 @@ def register_details_callbacks(app):
         Input("details-refresh-trigger", "data"),
     )
     def populate_details_dropdown(active_tab, _refresh):
-        if active_tab != "tab-details":
-            return no_update
         nodes = graph_manager.get_all_nodes()
         return [{"label": n.name, "value": n.name}
                 for n in sorted(nodes, key=lambda n: n.name)]
@@ -542,7 +540,7 @@ def register_details_callbacks(app):
         for g in goals:
             completion_cache[g.name] = graph_manager.get_goal_completion(g.name)
 
-        sort_mode = sort_mode or "alpha-asc"
+        sort_mode = sort_mode or "manual"
         is_manual = sort_mode == "manual"
 
         if sort_mode == "alpha-asc":
@@ -614,6 +612,7 @@ def register_details_callbacks(app):
             try:
                 new_order = _json.loads(drag_order_json)
                 if isinstance(new_order, list) and new_order:
+                    ConfigManager.set_goal_order(new_order)
                     return new_order
             except (ValueError, TypeError):
                 pass

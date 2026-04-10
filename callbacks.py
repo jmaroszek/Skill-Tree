@@ -602,6 +602,8 @@ def register_callbacks(app):
 
         # --- Action Routing ---
         if trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save'):
+            if name and name.strip():
+                name = ConfigManager.apply_titlecase_linter(name.strip())
             if not name or not name.strip():
                 # Only show the error if the user has filled in something meaningful.
                 # If the form is blank (no desc, all ratings at default), they just

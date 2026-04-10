@@ -13,6 +13,7 @@ def build_settings_tab_content():
         html.Div([
             html.H4("Settings", className="mb-3 mt-3"),
 
+            html.Div(style={"position": "relative"}, children=[
             dbc.Tabs(id="settings-modal-tabs", active_tab="tab-nodes", children=[
                 dbc.Tab(label="Nodes", tab_id="tab-nodes", children=[
                     html.Div([
@@ -73,6 +74,21 @@ def build_settings_tab_content():
                         dbc.Label("Contexts & Subcontexts", className="mt-2"),
                         dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
                         html.Small("One context per line. Optionally add a colon and comma-separated subcontexts.", className="text-muted d-block mb-1"),
+
+                        # --- Name Linter group ---
+                        html.Hr(className="my-2"),
+                        html.H5("Name Linter", className="mt-2 mb-1"),
+                        dbc.Checklist(
+                            id="setting-linter-enabled",
+                            options=[{"label": "Auto-convert node names to title case on save", "value": "enabled"}],
+                            value=["enabled"],
+                            switch=True,
+                            className="mb-2",
+                        ),
+                        dbc.Label("Lowercase exceptions", className="mt-1"),
+                        dbc.Textarea(id="setting-linter-exclusions", rows=2,
+                                     placeholder="e.g. a, an, the, and, or, of"),
+                        html.Small("Comma-separated words that stay lowercase (except at the start of a name).", className="text-muted d-block mb-1"),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Algorithm", tab_id="tab-algorithm", children=[
@@ -191,15 +207,16 @@ def build_settings_tab_content():
                     ], className="p-2")
                 ])
             ]),
-
-            # Save button + status
-            html.Div(id="settings-save-status", className="text-success mt-2 ps-2",
-                     style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
-            html.Div(
-                dbc.Button("Save Settings", id="btn-settings-save", color="primary",
-                           className="px-4"),
-                className="d-flex justify-content-start mt-2 ps-2"
-            ),
+            html.Div([
+                html.Span(id="settings-save-status", className="text-success me-2",
+                          style={"fontSize": "0.85rem"}),
+                dbc.Button(html.I(className="bi bi-floppy2-fill"), id="btn-settings-save",
+                           color="primary", size="sm",
+                           style={"fontSize": "0.95rem", "lineHeight": "1", "padding": "4px 7px"}),
+                dbc.Tooltip("Save settings", target="btn-settings-save", placement="bottom",
+                            delay={"show": 700, "hide": 100}),
+            ], style={"position": "absolute", "top": "5px", "right": "12px"}),
+            ]),
         ], style={"maxWidth": "900px", "padding": "0 24px"}),
     ], style={
         "flex": "1",

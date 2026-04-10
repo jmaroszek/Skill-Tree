@@ -42,6 +42,13 @@ DEFAULT_TIME_ESTIMATE_DEFAULTS = {
     'unit': 'weeks',
 }
 
+DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
+
+DEFAULT_TITLECASE_LINTER = {
+    'enabled': True,
+    'exclusions': DEFAULT_TITLECASE_EXCLUSIONS,
+}
+
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
     'w_i': 1.00,
@@ -163,6 +170,15 @@ class ConfigManager:
     @classmethod
     def set_time_estimate_defaults(cls, params: dict):
         cls._set_db_value("TIME_ESTIMATE_DEFAULTS", json.dumps(params))
+
+    @classmethod
+    def get_goal_order(cls):
+        val = cls._get_db_value("GOAL_ORDER")
+        return json.loads(val) if val else []
+
+    @classmethod
+    def set_goal_order(cls, order: list):
+        cls._set_db_value("GOAL_ORDER", json.dumps(order))
 
     @classmethod
     def get_time_multiplier(cls, unit: str) -> float:
@@ -299,4 +315,36 @@ class ConfigManager:
     def get_danger_color(cls):
         """Returns the tamed danger/red color."""
         return DEFAULT_DANGER_COLOR
+
+    @classmethod
+    def get_titlecase_linter(cls) -> dict:
+        val = cls._get_db_value("TITLECASE_LINTER")
+        if val:
+            try:
+                return json.loads(val)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return DEFAULT_TITLECASE_LINTER.copy()
+
+    @classmethod
+    def set_titlecase_linter(cls, linter: dict):
+        cls._set_db_value("TITLECASE_LINTER", json.dumps(linter))
+
+    @classmethod
+    def apply_titlecase_linter(cls, name: str) -> str:
+        """Apply titlecase linting to a node name if the linter is enabled."""
+        linter = cls.get_titlecase_linter()
+        if not linter.get('enabled', True):
+            return name
+        exclusions = {w.lower() for w in linter.get('exclusions', [])}
+        words = name.split()
+        result = []
+        for i, word in enumerate(words):
+            if i == 0:
+                result.append(word[0].upper() + word[1:] if word else word)
+            elif word.lower() in exclusions:
+                result.append(word.lower())
+            else:
+                result.append(word[0].upper() + word[1:] if word else word)
+        return ' '.join(result)
 

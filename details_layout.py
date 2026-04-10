@@ -330,7 +330,7 @@ def build_details_tab_content():
         dcc.Store(id='details-selected-node-store', data=None),
         dcc.Store(id='details-refresh-trigger', data=0),
         dcc.Store(id='details-subtask-remove-pending', data=None),
-        dcc.Store(id='details-goal-order-store', data=None),
+        dcc.Store(id='details-goal-order-store', data=ConfigManager.get_goal_order() or None),
         dcc.Store(id='details-nav-history', data=[]),
         dcc.Store(id='details-nav-index', data=-1),
         dcc.Input(id='details-goal-drag-order-input', type='text', value='',

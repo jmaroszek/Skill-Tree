@@ -43,12 +43,14 @@ def register_settings_callbacks(app):
         Output('setting-default-time-o', 'value'),
         Output('setting-default-time-m', 'value'),
         Output('setting-default-time-p', 'value'),
+        Output('setting-linter-enabled', 'value'),
+        Output('setting-linter-exclusions', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 23
+            return (dash.no_update,) * 25
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -125,6 +127,10 @@ def register_settings_callbacks(app):
         from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
         ted = ConfigManager.get_time_estimate_defaults()
 
+        linter = ConfigManager.get_titlecase_linter()
+        linter_enabled_val = ["enabled"] if linter.get('enabled', True) else []
+        linter_exclusions_val = ', '.join(linter.get('exclusions', []))
+
         return (
             hp.get('w_v', 1.0), hp.get('w_i', 1.0),
             hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35),
@@ -144,6 +150,8 @@ def register_settings_callbacks(app):
             ted.get('optimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic']),
             ted.get('expected', DEFAULT_TIME_ESTIMATE_DEFAULTS['expected']),
             ted.get('pessimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic']),
+            linter_enabled_val,
+            linter_exclusions_val,
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -214,13 +222,16 @@ def register_settings_callbacks(app):
         State('setting-default-time-m', 'value'),
         State('setting-default-time-p', 'value'),
         State('setting-hp-profile', 'value'),
+        State('setting-linter-enabled', 'value'),
+        State('setting-linter-exclusions', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
                       n_types_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm,
-                      def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile):
+                      def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
+                      linter_enabled_val, linter_exclusions_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -300,6 +311,10 @@ def register_settings_callbacks(app):
                         if cval:
                             pending_colors[cid["index"]] = cval
 
+                new_linter = {
+                    'enabled': bool(linter_enabled_val and "enabled" in linter_enabled_val),
+                    'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
+                }
                 pending = {
                     'hp': new_hp,
                     'ts': new_ts,
@@ -311,6 +326,7 @@ def register_settings_callbacks(app):
                     'subcontexts': new_subcontexts,
                     'shapes': pending_shapes,
                     'colors': pending_colors,
+                    'linter': new_linter,
                     'orphans': orphans,
                     'new_values': {
                         'type': new_types,
@@ -348,6 +364,12 @@ def register_settings_callbacks(app):
                         new_colors[cid["index"]] = cval
                 if new_colors:
                     ConfigManager.set_node_colors(new_colors)
+
+            new_linter = {
+                'enabled': bool(linter_enabled_val and "enabled" in linter_enabled_val),
+                'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
+            }
+            ConfigManager.set_titlecase_linter(new_linter)
 
             return "Settings saved.", dash.no_update, False, 0
 
@@ -417,6 +439,8 @@ def register_settings_callbacks(app):
                 pending_colors = pending_state.get('colors', {})
                 if pending_colors:
                     ConfigManager.set_node_colors(pending_colors)
+                if 'linter' in pending_state:
+                    ConfigManager.set_titlecase_linter(pending_state['linter'])
             except Exception:
                 logger.exception("Failed to save pending settings")
 

@@ -926,7 +926,7 @@ def build_app_layout(initial_elements, env="production"):
                             {"label": "Time \u2191", "value": "time-asc"},
                             {"label": "Time \u2193", "value": "time-desc"},
                             {"label": "Manual", "value": "manual"},
-                        ], value="alpha-asc", size="sm",
+                        ], value="manual", size="sm",
                             style={"flex": "1", "backgroundColor": "#2b3035",
                                    "border": "1px solid #495057",
                                    "color": "#dee2e6", "fontSize": "0.8rem"}),
