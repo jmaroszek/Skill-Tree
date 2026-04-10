@@ -89,7 +89,19 @@ sidebar_content = html.Div(
             ]),
 
             # Numeric inputs (shared by all types)
-            html.H5("Ratings", className="mt-2 mb-1"),
+            html.Div([
+                html.H5("Ratings", className="mb-0"),
+                html.Button(
+                    html.I(className="bi bi-info-circle"),
+                    id="btn-ratings-info",
+                    title="Ratings reference",
+                    style={
+                        "background": "none", "border": "none", "padding": "0 0 0 6px",
+                        "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
+                        "lineHeight": "1", "position": "relative", "top": "3px"
+                    }
+                ),
+            ], className="d-flex align-items-center mt-2 mb-1"),
             dbc.Label("Value", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-value"),
 
@@ -572,6 +584,123 @@ hover_tooltip = html.Div(
 )
 
 
+_RATINGS_DATA = [
+    (1,
+     "None: obligatory; I wouldn't do this if I had the choice; no utility, growth, or short-term benefit.",
+     "Averse: I dread this task and have to force myself to start. I am relieved when the work session is over.",
+     "Unconscious: purely reflexive and automatic. I can do it on autopilot without fatigue."),
+    (2,
+     "Fleeting: provides a small immediate benefit, but the results are unlikely to matter long term.",
+     "Reluctant: I don't like this task, but the visceral disgust isn't as strong as level one.",
+     "Simple: a single-step action using familiar skills. I can complete it in less than a few days with zero roadblocks."),
+    (3,
+     "Minor: slightly improves a minor skill, habit, or interest. Will probably impact my life on the scale of weeks to months.",
+     "Boring: monotonous and tedious. Requires discipline to endure; I am glad when it is over and procrastinate on it often.",
+     "Straightforward: a project composed of multiple simple steps. I know what I need to do, I just have to do it."),
+    (4,
+     "Helpful: a meaningful contribution to something I care about. Definitely worth doing if there are no other pressing tasks.",
+     "Tolerable: I don't want to do it, but it is not actively painful once I start. The momentum carries me through.",
+     "Moderate: there is a clear path at the start, but some steps require learning and exertion — not expected to be too challenging."),
+    (5,
+     "Solid: leads to a noticeable improvement in something important.",
+     "Indifferent: no strong feelings either way.",
+     "Involved: there are several unknowns that require me to learn and grow. Will likely take a bit, but I'm sure I can do it."),
+    (6,
+     "Significant: a huge improvement in a core competency, or a helpful addition to a general competency.",
+     "Curious: the process holds my attention, provokes genuine thought, and is easy to keep going. I find it rewarding.",
+     "Difficult: requires sustained focus and discipline. I will succeed as long as I stay focused and go outside my comfort zone."),
+    (7,
+     "Strategic: important as a lever; I expect many future opportunities or compounding benefits to rest on its completion.",
+     "Excited: I look forward to the project and enjoy working on it, but I don't think about it too much outside of work hours.",
+     "Demanding: considerable overall load. The sheer energy required makes other life areas more challenging to manage."),
+    (8,
+     "Fundamental: essential to a core pillar of my life. This supports my broader identity and long-term stability.",
+     "Engaged: I frequently choose this over leisure activities, and think about it casually throughout the day.",
+     "Arduous: needs new approaches and considerable effort over a long time horizon. May need to temporarily cut back elsewhere."),
+    (9,
+     "Transformative: expected to shift my worldview or capabilities entirely, providing lasting value for many years.",
+     "Obsessed: I consistently look forward to it. Working on it is super fun. I think about it continually. I'm upset when I have to stop.",
+     "Daunting: a deep dive into an uncharted, complex landscape. Requires monumental development. Others would think I'm crazy for trying."),
+    (10,
+     "Spiritual: calls to my soul. Connected to my life's work, filling me with a deep sense of purpose, meaning, and fulfillment.",
+     "Flow: the activity is its own reward. I would do it even if there were no external benefit. I love it, plain and simple.",
+     "Herculean: a massive undertaking bridging multiple difficult domains. The road ahead is exceptionally long and requires immense stamina, adaptability, and sacrifice. Failure is the most probable outcome."),
+]
+
+_cell_style = {
+    "padding": "6px 8px",
+    "verticalAlign": "top",
+    "borderBottom": "1px solid #343a40",
+    "lineHeight": "1.4",
+}
+_header_cell_style = {
+    **_cell_style,
+    "fontWeight": "700",
+    "backgroundColor": "#2b3035",
+    "borderBottom": "2px solid #495057",
+    "position": "sticky",
+    "top": "0",
+}
+
+ratings_popup = html.Div([
+    # Draggable header
+    html.Div([
+        html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
+        html.Button("×", id="btn-ratings-close", style={
+            "background": "none", "border": "none", "color": "#adb5bd",
+            "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
+            "padding": "0", "marginLeft": "auto",
+        }),
+    ], id="ratings-popup-header", className="d-flex align-items-center", style={
+        "cursor": "move",
+        "padding": "8px 10px",
+        "backgroundColor": "#2b3035",
+        "borderBottom": "1px solid #495057",
+        "borderRadius": "6px 6px 0 0",
+        "flexShrink": "0",
+        "userSelect": "none",
+    }),
+    # Scrollable body
+    html.Div([
+        html.Table([
+            html.Thead(html.Tr([
+                html.Th("#", style={**_header_cell_style, "width": "36px"}),
+                html.Th("Value", style=_header_cell_style),
+                html.Th("Interest", style=_header_cell_style),
+                html.Th("Effort", style=_header_cell_style),
+            ])),
+            html.Tbody([
+                html.Tr([
+                    html.Td(str(r), style={**_cell_style, "fontWeight": "700", "color": "#adb5bd",
+                                           "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
+                    html.Td(v, style={**_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
+                    html.Td(it, style={**_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
+                    html.Td(e, style={**_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
+                ])
+                for i, (r, v, it, e) in enumerate(_RATINGS_DATA)
+            ]),
+        ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
+    ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
+], id="ratings-popup", style={
+    "display": "none",
+    "flexDirection": "column",
+    "position": "fixed",
+    "top": "120px",
+    "left": "420px",
+    "width": "860px",
+    "height": "820px",
+    "minWidth": "400px",
+    "minHeight": "200px",
+    "zIndex": 9998,
+    "backgroundColor": "#212529",
+    "border": "1px solid #495057",
+    "borderRadius": "6px",
+    "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
+    "resize": "both",
+    "overflow": "hidden",
+})
+
+
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
     
@@ -715,6 +844,7 @@ def build_app_layout(initial_elements, env="production"):
 
     return html.Div([
         hover_tooltip,
+        ratings_popup,
         edit_trigger,
         toggle_trigger,
         context_menu,
