@@ -472,25 +472,30 @@ def register_details_callbacks(app):
     # --- Goal Sidebar Toggle ---
     @app.callback(
         Output("details-goal-sidebar", "style"),
+        Output("details-refresh-trigger", "data", allow_duplicate=True),
         Input("btn-goals-toggle", "n_clicks"),
         Input("btn-details-goals-close", "n_clicks"),
         Input("btn-add", "n_clicks"),
         State("details-goal-sidebar", "style"),
+        State("details-refresh-trigger", "data"),
         prevent_initial_call=True,
     )
-    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style):
+    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style, refresh_data):
         trigger = ctx.triggered_id
         style = dict(current_style) if current_style else {}
+        refresh = no_update
         if trigger == "btn-goals-toggle":
-            style["left"] = "0px" if style.get("left", "-380px") == "-380px" else "-380px"
+            opening = style.get("left", "-380px") == "-380px"
+            style["left"] = "0px" if opening else "-380px"
+            if opening:
+                refresh = (refresh_data or 0) + 1
         elif trigger in ("btn-details-goals-close", "btn-add"):
             style["left"] = "-380px"
-        return style
+        return style, refresh
 
 # --- New Goal from Sidebar "+" Button ---
     @app.callback(
         Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Output("main-tabs", "active_tab", allow_duplicate=True),
         Output("node-type", "value", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Input("btn-goals-sidebar-new", "n_clicks"),
@@ -500,12 +505,12 @@ def register_details_callbacks(app):
     )
     def new_goal_from_sidebar(n_clicks, goal_sidebar_style, editor_style):
         if not n_clicks:
-            return no_update, no_update, no_update, no_update
+            return no_update, no_update, no_update
         goal_style = dict(goal_sidebar_style) if goal_sidebar_style else {}
         goal_style["left"] = "-380px"
         ed_style = dict(editor_style) if editor_style else {}
         ed_style["transform"] = "translateX(0px)"
-        return goal_style, "tab-canvas", "Goal", ed_style
+        return goal_style, "Goal", ed_style
 
 # --- Populate Goal Sidebar ---
     @app.callback(

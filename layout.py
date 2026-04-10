@@ -910,7 +910,7 @@ def build_app_layout(initial_elements, env="production"):
                     html.Div(
                         dbc.Input(id="details-goal-search", type="text",
                                   placeholder="Search goals...", size="sm",
-                                  debounce=True,
+                                  debounce=False,
                                   style={"backgroundColor": "#2b3035",
                                          "border": "1px solid #495057",
                                          "color": "#dee2e6",
