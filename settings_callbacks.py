@@ -30,7 +30,6 @@ def register_settings_callbacks(app):
         Output('hp-beta', 'value'),
         Output('hp-goal-boost', 'value'),
         Output('setting-node-types', 'value'),
-        Output('setting-contexts', 'value'),
         Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
         Output('setting-obsidian-path', 'value'),
@@ -49,7 +48,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 24
+            return (dash.no_update,) * 23
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -60,8 +59,16 @@ def register_settings_callbacks(app):
         profile = ConfigManager.get_hp_profile()
 
         sub_lines = []
+        for ctx_name in contexts:
+            subs = subcontexts.get(ctx_name, [])
+            if subs:
+                sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
+            else:
+                sub_lines.append(ctx_name)
+        # Include any subcontext-only entries not in contexts list
         for ctx_name, subs in subcontexts.items():
-            sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
+            if ctx_name not in contexts:
+                sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
         sub_val = '\n'.join(sub_lines)
 
         shapes = ConfigManager.get_node_shapes()
@@ -124,7 +131,6 @@ def register_settings_callbacks(app):
             hp.get('w_e', 2.5), hp.get('w_t', 1.0), hp.get('beta', 0.85),
             hp.get('goal_boost', 1.5),
             ', '.join(node_types),
-            ', '.join(contexts),
             sub_val,
             profile,
             obs_path,
@@ -195,7 +201,6 @@ def register_settings_callbacks(app):
         State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
         State('hp-goal-boost', 'value'),
         State('setting-node-types', 'value'),
-        State('setting-contexts', 'value'),
         State('setting-subcontexts', 'value'),
         State('setting-obsidian-path', 'value'),
         State('setting-gdrive-path', 'value'),
@@ -212,7 +217,7 @@ def register_settings_callbacks(app):
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
-                      n_types_val, contexts_val, subcontexts_val, obs_path, gdrive_path,
+                      n_types_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile):
@@ -241,20 +246,29 @@ def register_settings_callbacks(app):
             }
 
             new_types = [c.strip() for c in (n_types_val or '').split(',') if c.strip()]
-            new_contexts = [c.strip() for c in (contexts_val or '').split(',') if c.strip()]
+            new_contexts = []
             new_subcontexts = {}
             if subcontexts_val is not None:
                 for line in subcontexts_val.split('\n'):
                     line = line.strip()
+                    if not line:
+                        continue
                     if ':' in line:
                         ctx_name, subs_str = line.split(':', 1)
                         ctx_name = ctx_name.strip()
                         subs = [s.strip() for s in subs_str.split(',') if s.strip()]
-                        if ctx_name and subs:
-                            if ctx_name in new_subcontexts:
-                                new_subcontexts[ctx_name].extend(subs)
-                            else:
-                                new_subcontexts[ctx_name] = subs
+                        if ctx_name:
+                            if ctx_name not in new_contexts:
+                                new_contexts.append(ctx_name)
+                            if subs:
+                                if ctx_name in new_subcontexts:
+                                    new_subcontexts[ctx_name].extend(subs)
+                                else:
+                                    new_subcontexts[ctx_name] = subs
+                    else:
+                        ctx_name = line.strip()
+                        if ctx_name and ctx_name not in new_contexts:
+                            new_contexts.append(ctx_name)
 
             old_types = ConfigManager.get_node_types()
             old_contexts = ConfigManager.get_contexts()
@@ -350,14 +364,16 @@ def register_settings_callbacks(app):
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-skip', 'n_clicks'),
         State({"type": "migration-dropdown", "index": dash.ALL}, "value"),
-        State({"type": "migration-ctx-dropdown", "index": dash.ALL}, "value"),
-        State({"type": "migration-sub-dropdown", "index": dash.ALL}, "value"),
+        State({"type": "migration-cgc", "index": dash.ALL}, "value"),
+        State({"type": "migration-cgs", "index": dash.ALL}, "value"),
+        State({"type": "migration-sgc", "index": dash.ALL}, "value"),
+        State({"type": "migration-sgs", "index": dash.ALL}, "value"),
         State('migration-mapping-store', 'data'),
         State('pending-settings-store', 'data'),
         prevent_initial_call=True
     )
     def handle_migration(pending_data, apply_clicks, skip_clicks,
-                         type_dropdown_values, ctx_dropdown_values, sub_dropdown_values,
+                         type_dropdown_values, cgc_values, cgs_values, sgc_values, sgs_values,
                          mapping_data, pending_state):
         from layout import build_migration_content
 
@@ -414,46 +430,87 @@ def register_settings_callbacks(app):
                     manager.apply_node_migration(entry['node_name'], entry['field'],
                                                  type_dropdown_values[i], new_subcontexts)
 
-                ctx_sub_entries = mapping_data.get('ctx_sub', []) if isinstance(mapping_data, dict) else []
-                for i, entry in enumerate(ctx_sub_entries):
-                    node_name = entry['node_name']
-                    if entry.get('has_ctx_orphan') and i < len(ctx_dropdown_values):
-                        ctx_val = ctx_dropdown_values[i]
-                        if ctx_val:
-                            manager.apply_node_migration(node_name, 'context', ctx_val, new_subcontexts)
-                    if entry.get('has_sub_orphan') and i < len(sub_dropdown_values):
-                        sub_val = sub_dropdown_values[i]
-                        if sub_val:
-                            manager.apply_node_migration(node_name, 'subcontext', sub_val, new_subcontexts)
+                def _apply_group(groups, ctx_vals, sub_vals):
+                    for i, group in enumerate(groups):
+                        ctx_val = ctx_vals[i] if i < len(ctx_vals) else None
+                        sub_val = sub_vals[i] if i < len(sub_vals) else None
+                        for node_name in group['node_names']:
+                            if ctx_val and ctx_val not in ('__keep__',):
+                                manager.apply_node_migration(node_name, 'context', ctx_val, new_subcontexts)
+                            if sub_val and sub_val not in ('__keep__',):
+                                manager.apply_node_migration(node_name, 'subcontext', sub_val, new_subcontexts)
+
+                ctx_groups = mapping_data.get('ctx_groups', []) if isinstance(mapping_data, dict) else []
+                _apply_group(ctx_groups, cgc_values, cgs_values)
+
+                sub_groups = mapping_data.get('sub_groups', []) if isinstance(mapping_data, dict) else []
+                _apply_group(sub_groups, sgc_values, sgs_values)
 
             return False, [], None
 
         return dash.no_update, dash.no_update, dash.no_update
 
-    # --- Migration: dynamic subcontext filtering ---
+    def _filtered_sub_options(ctx_val, subcontexts_map):
+        if ctx_val and ctx_val not in ('__keep__', '__clear__'):
+            subs = subcontexts_map.get(ctx_val, [])
+        else:
+            subs = [s for ss in subcontexts_map.values() for s in ss]
+        opts = [{"label": s, "value": s} for s in subs]
+        opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
+        default = subs[0] if subs else "__keep__"
+        return opts, default
+
+    # --- Migration: filter subcontext options for context-change groups ---
     @app.callback(
-        Output({"type": "migration-sub-dropdown", "index": dash.ALL}, "options"),
-        Output({"type": "migration-sub-dropdown", "index": dash.ALL}, "value"),
-        Input({"type": "migration-ctx-dropdown", "index": dash.ALL}, "value"),
+        Output({"type": "migration-cgs", "index": dash.ALL}, "options"),
+        Output({"type": "migration-cgs", "index": dash.ALL}, "value"),
+        Input({"type": "migration-cgc", "index": dash.ALL}, "value"),
         State('pending-settings-store', 'data'),
-        prevent_initial_call=True
+        prevent_initial_call=True,
     )
-    def update_migration_subcontext_options(ctx_values, pending_data):
-        if not ctx_values:
+    def filter_cgs_options(cgc_values, pending_data):
+        if not cgc_values:
             return dash.no_update, dash.no_update
+        triggered = ctx.triggered_id
+        if not isinstance(triggered, dict):
+            return [dash.no_update] * len(cgc_values), [dash.no_update] * len(cgc_values)
+        triggered_idx = triggered.get('index')
         subcontexts_map = (pending_data or {}).get('subcontexts', {})
-        new_options_list = []
-        new_values_list = []
-        for ctx_val in ctx_values:
-            if ctx_val and ctx_val != '__clear__':
-                subs = subcontexts_map.get(ctx_val, [])
-            else:
-                subs = [s for ss in subcontexts_map.values() for s in ss]
-            options = [{"label": s, "value": s} for s in subs]
-            options.append({"label": "Clear (set to none)", "value": "__clear__"})
-            new_options_list.append(options)
-            new_values_list.append(subs[0] if subs else "__clear__")
-        return new_options_list, new_values_list
+        new_opts = [dash.no_update] * len(cgc_values)
+        new_vals = [dash.no_update] * len(cgc_values)
+        for pos, inp in enumerate(ctx.inputs_list[0]):
+            if inp.get('id', {}).get('index') == triggered_idx:
+                opts, default = _filtered_sub_options(cgc_values[pos], subcontexts_map)
+                new_opts[pos] = opts
+                new_vals[pos] = default
+                break
+        return new_opts, new_vals
+
+    # --- Migration: filter subcontext options for subcontext-change groups ---
+    @app.callback(
+        Output({"type": "migration-sgs", "index": dash.ALL}, "options"),
+        Output({"type": "migration-sgs", "index": dash.ALL}, "value"),
+        Input({"type": "migration-sgc", "index": dash.ALL}, "value"),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def filter_sgs_options(sgc_values, pending_data):
+        if not sgc_values:
+            return dash.no_update, dash.no_update
+        triggered = ctx.triggered_id
+        if not isinstance(triggered, dict):
+            return [dash.no_update] * len(sgc_values), [dash.no_update] * len(sgc_values)
+        triggered_idx = triggered.get('index')
+        subcontexts_map = (pending_data or {}).get('subcontexts', {})
+        new_opts = [dash.no_update] * len(sgc_values)
+        new_vals = [dash.no_update] * len(sgc_values)
+        for pos, inp in enumerate(ctx.inputs_list[0]):
+            if inp.get('id', {}).get('index') == triggered_idx:
+                opts, default = _filtered_sub_options(sgc_values[pos], subcontexts_map)
+                new_opts[pos] = opts
+                new_vals[pos] = default
+                break
+        return new_opts, new_vals
 
     # --- Settings: Auto-dismiss status message ---
     @app.callback(

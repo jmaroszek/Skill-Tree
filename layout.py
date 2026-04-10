@@ -387,31 +387,33 @@ next_view = html.Div([
 def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_by_context=None):
     """Build dynamic migration modal body from orphan data.
 
-    Type orphans get a single dropdown per node (uses migration-dropdown IDs).
-    Context/subcontext orphans are shown together: each affected node always
-    gets two dropdowns — one for context (migration-ctx-dropdown) and one for
-    subcontext (migration-sub-dropdown) — indexed by node order.  The
-    subcontext options are pre-filtered to match the default context selection;
-    a separate callback keeps them in sync as the user changes context.
+    Type orphans: one dropdown per node, grouped by old value (migration-dropdown IDs).
+    Context orphans: one dropdown per old context value (migration-ctx-group-dropdown IDs).
+    Subcontext orphans: one dropdown per old subcontext value (migration-sub-group-dropdown IDs).
+
+    This grouped design avoids the cross-node state bug (one node's selection affecting
+    another's) and naturally supports bulk renaming (e.g. all "STEM" → "Science").
 
     Args:
         orphans_by_field: {'context': {'OldCtx': [Node, ...]}, 'type': {...}, 'subcontext': {...}}
         new_values_by_field: {'context': [...], 'type': [...], 'subcontext': [...]}
-        subcontexts_by_context: {'CtxA': ['sub1', 'sub2'], ...}  (for pre-filtering)
+        subcontexts_by_context: unused, kept for signature compatibility
 
     Returns:
-        Tuple of (children list for modal body, mapping list).
-        Type entries: {"field": "type", "old_value": ..., "node_name": ...}
-        Context/subcontext entries: {"node_name": ..., "has_ctx_orphan": bool,
-                                      "old_ctx": ..., "has_sub_orphan": bool, "old_sub": ...}
-        indexed by ctx/sub node order (type entries prepended first).
+        Tuple of (children list for modal body, mapping dict).
+        Mapping: {
+            "type": [{"field": "type", "old_value": ..., "node_name": ...}, ...],
+            "ctx_groups": [{"old_value": ..., "node_names": [...]}, ...],
+            "sub_groups": [{"old_value": ..., "node_names": [...]}, ...],
+        }
     """
     children = []
-    type_mapping = []   # entries for type dropdowns
-    ctx_sub_mapping = []  # entries for ctx/sub node rows (one per node)
+    type_mapping = []
+    ctx_groups = []
+    sub_groups = []
     type_idx = 0
 
-    # --- Type changes (single migration-dropdown per node) ---
+    # --- Type changes (one dropdown per node, grouped by old value) ---
     type_orphans = orphans_by_field.get('type', {})
     if type_orphans:
         new_vals = new_values_by_field.get('type', [])
@@ -422,7 +424,7 @@ def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_b
             children.append(dbc.Card([
                 dbc.CardBody([
                     html.Div([
-                        html.Strong(f'"{old_val}"'),
+                        html.Strong(old_val),
                         html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''} affected",
                                   className="text-muted ms-1"),
                     ], className="mb-2"),
@@ -446,84 +448,78 @@ def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_b
                 type_mapping.append({"field": "type", "old_value": old_val, "node_name": n.name})
                 type_idx += 1
 
-    # --- Context & Subcontext changes (always two dropdowns per node) ---
-    ctx_orphans = orphans_by_field.get('context', {})
-    sub_orphans = orphans_by_field.get('subcontext', {})
+    new_ctx_vals = new_values_by_field.get('context', [])
+    subcontexts_map = subcontexts_by_context or {}
 
-    if ctx_orphans or sub_orphans:
-        new_ctx_vals = new_values_by_field.get('context', [])
-        subcontexts_map = subcontexts_by_context or {}
+    ctx_options = [{"label": v, "value": v} for v in new_ctx_vals]
+    ctx_options += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
 
-        ctx_options = [{"label": v, "value": v} for v in new_ctx_vals]
-        ctx_options.append({"label": "Clear (set to none)", "value": "__clear__"})
+    def _sub_options_for(ctx_val):
+        if ctx_val and ctx_val not in ('__keep__', '__clear__'):
+            subs = subcontexts_map.get(ctx_val, [])
+        else:
+            subs = [s for ss in subcontexts_map.values() for s in ss]
+        opts = [{"label": s, "value": s} for s in subs]
+        opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
+        return opts, (subs[0] if subs else "__keep__")
 
-        # Build per-node lookup: node_name -> old orphaned value
-        ctx_node_map: dict = {}
-        for old_val, nodes in ctx_orphans.items():
-            for n in nodes:
-                ctx_node_map[n.name] = old_val
-
-        sub_node_map: dict = {}
-        for old_val, nodes in sub_orphans.items():
-            for n in nodes:
-                sub_node_map[n.name] = old_val
-
-        all_node_names = list(dict.fromkeys(list(ctx_node_map) + list(sub_node_map)))
-
-        children.append(html.H5("Context & Subcontext Changes", className="mt-3 mb-2"))
-
-        header_row = dbc.Row([
-            dbc.Col(html.Small("Node", className="text-muted fw-bold"), width=4),
-            dbc.Col(html.Small("Context", className="text-muted fw-bold"), width=4),
-            dbc.Col(html.Small("Subcontext", className="text-muted fw-bold"), width=4),
-        ], className="mb-1 px-1")
-
-        node_rows = []
-        for node_i, name in enumerate(all_node_names):
-            old_ctx = ctx_node_map.get(name)
-            old_sub = sub_node_map.get(name)
-
-            # Default context = first new ctx val if orphaned, else "__clear__"
-            default_ctx = new_ctx_vals[0] if (old_ctx and new_ctx_vals) else "__clear__"
-
-            # Pre-filter subcontext options to match the default context selection
-            if default_ctx and default_ctx != "__clear__":
-                subs_for_default = subcontexts_map.get(default_ctx, [])
-            else:
-                subs_for_default = [s for ss in subcontexts_map.values() for s in ss]
-            sub_options = [{"label": s, "value": s} for s in subs_for_default]
-            sub_options.append({"label": "Clear (set to none)", "value": "__clear__"})
-            default_sub = subs_for_default[0] if (old_sub and subs_for_default) else "__clear__"
-
-            node_rows.append(dbc.Row([
-                dbc.Col(html.Span(name, className="small", style={"lineHeight": "38px"}), width=4),
+    def _group_rows(orphans, group_list, ctx_dd_type, sub_dd_type, ctx_required):
+        """Build group rows for context or subcontext orphan section."""
+        rows = []
+        for group_i, (old_val, nodes) in enumerate(orphans.items()):
+            node_names = [n.name for n in nodes]
+            preview = ", ".join(node_names[:8]) + (f" +{len(node_names) - 8} more" if len(node_names) > 8 else "")
+            default_ctx = new_ctx_vals[0] if (ctx_required and new_ctx_vals) else "__keep__"
+            init_sub_opts, default_sub = _sub_options_for(default_ctx)
+            if not ctx_required:
+                default_sub = "__keep__"
+                init_sub_opts, _ = _sub_options_for("__keep__")
+            rows.append(dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        html.Strong(old_val),
+                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''}",
+                                   className="text-muted ms-1 small"),
+                    ]),
+                    html.Div(preview, className="text-muted mt-1", style={"fontSize": "0.78rem"}),
+                ], width=4),
                 dbc.Col(dbc.Select(
-                    id={"type": "migration-ctx-dropdown", "index": node_i},
+                    id={"type": ctx_dd_type, "index": group_i},
                     options=ctx_options,  # type: ignore[reportArgumentType]
                     value=default_ctx,
                     size="sm",
-                ), width=4),
+                ), width=4, className="d-flex align-items-center"),
                 dbc.Col(dbc.Select(
-                    id={"type": "migration-sub-dropdown", "index": node_i},
-                    options=sub_options,  # type: ignore[reportArgumentType]
+                    id={"type": sub_dd_type, "index": group_i},
+                    options=init_sub_opts,  # type: ignore[reportArgumentType]
                     value=default_sub,
                     size="sm",
-                ), width=4),
-            ], className="mb-1"))
+                ), width=4, className="d-flex align-items-center"),
+            ], className="mb-2"))
+            group_list.append({"old_value": old_val, "node_names": node_names})
+        return rows
 
-            ctx_sub_mapping.append({
-                "node_name": name,
-                "has_ctx_orphan": bool(old_ctx),
-                "old_ctx": old_ctx,
-                "has_sub_orphan": bool(old_sub),
-                "old_sub": old_sub,
-            })
+    header_row = dbc.Row([
+        dbc.Col(html.Small("", className="text-muted fw-bold"), width=4),
+        dbc.Col(html.Small("Context", className="text-muted fw-bold"), width=4),
+        dbc.Col(html.Small("Subcontext", className="text-muted fw-bold"), width=4),
+    ], className="mb-1 px-1")
 
-        children.append(dbc.Card([
-            dbc.CardBody([header_row] + node_rows)
-        ], className="mb-2"))
+    # --- Context changes ---
+    ctx_orphans = orphans_by_field.get('context', {})
+    if ctx_orphans:
+        children.append(html.H5("Context Changes", className="mt-3 mb-2"))
+        rows = _group_rows(ctx_orphans, ctx_groups, "migration-cgc", "migration-cgs", ctx_required=True)
+        children.append(dbc.Card([dbc.CardBody([header_row] + rows)], className="mb-2"))
 
-    return children, {"type": type_mapping, "ctx_sub": ctx_sub_mapping}
+    # --- Subcontext changes ---
+    sub_orphans = orphans_by_field.get('subcontext', {})
+    if sub_orphans:
+        children.append(html.H5("Subcontext Changes", className="mt-3 mb-2"))
+        rows = _group_rows(sub_orphans, sub_groups, "migration-sgc", "migration-sgs", ctx_required=False)
+        children.append(dbc.Card([dbc.CardBody([header_row] + rows)], className="mb-2"))
+
+    return children, {"type": type_mapping, "ctx_groups": ctx_groups, "sub_groups": sub_groups}
 
 
 migration_modal = dbc.Modal([

@@ -70,13 +70,9 @@ def build_settings_tab_content():
                         # --- Contexts group ---
                         html.Hr(className="my-2"),
                         html.H5("Contexts", className="mt-2 mb-1"),
-                        dbc.Label("Contexts", className="mt-2"),
-                        dbc.Textarea(id="setting-contexts", rows=2, placeholder="e.g. Mind, Body, Social"),
-                        html.Small("Comma-separated list. Order is preserved in drop-downs.", className="text-muted d-block mb-1"),
-
-                        dbc.Label("Subcontexts", className="mt-2"),
-                        dbc.Textarea(id="setting-subcontexts", rows=6, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep"),
-                        html.Small("One context per line. Comma-separated subcontexts after the colon.", className="text-muted d-block mb-1"),
+                        dbc.Label("Contexts & Subcontexts", className="mt-2"),
+                        dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
+                        html.Small("One context per line. Optionally add a colon and comma-separated subcontexts.", className="text-muted d-block mb-1"),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Algorithm", tab_id="tab-algorithm", children=[
