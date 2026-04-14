@@ -15,6 +15,32 @@ from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
 
+def _get_duplicate_stop_words():
+    """Get stop words for duplicate comparison from linter settings."""
+    linter = ConfigManager.get_titlecase_linter()
+    exclusions = linter.get('exclusions', [])
+    if exclusions:
+        return {w.lower() for w in exclusions}
+    # Fallback defaults
+    return {
+        "a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.",
+        "at", "of", "are", "as", "is", "in", "to", "for", "on", "from",
+        "by", "about", "into", "it",
+    }
+
+
+def normalize_name_for_comparison(name):
+    """Strip stop/connector words and lowercase for fuzzy duplicate comparison.
+
+    Uses the linter exclusion list from Settings so the user controls which
+    words are ignored during duplicate detection.
+    """
+    if not name:
+        return ""
+    stop_words = _get_duplicate_stop_words()
+    words = name.lower().split()
+    return " ".join(w for w in words if w not in stop_words)
+
 
 # --- Google Drive Path Helpers ---
 
@@ -108,7 +134,7 @@ def should_open_editor(all_triggered_ids, trigger_id, search_val):
     Checks ALL triggered IDs (not just the primary) so that an edit trigger
     batched with tapNodeData in the same Dash cycle still opens the sidebar.
     """
-    return bool(all_triggered_ids & {'btn-edit-node', 'btn-add', 'edit-trigger-input', 'details-edit-trigger-input'}) or \
+    return bool(all_triggered_ids & {'btn-edit-node', 'edit-trigger-input', 'details-edit-trigger-input'}) or \
            (trigger_id == 'search-node' and bool(search_val))
 
 
@@ -124,6 +150,12 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
     if trigger_id in ('background-click-input', 'btn-add'):
         return None
     if trigger_id == 'search-node' and search_val:
+        if search_val.startswith('alias:'):
+            from graph_manager import GraphManager
+            _mgr = GraphManager()
+            alias_key = search_val[6:]
+            all_aliases = _mgr.get_all_aliases()
+            return all_aliases.get(alias_key, search_val)
         return search_val
     if trigger_id == 'cytoscape-graph' and tapped_node:
         return tapped_node.get('id')
@@ -204,7 +236,7 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                progress_val=None, time_mode='manual'):
+                progress_val=None, time_mode='manual', competence=None):
     """Create or update a node and sync its edges. Returns a status message."""
     from models import Node
 
@@ -224,6 +256,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         website=(website_path or '').strip() or None,
         progress=int(progress_val) if n_type == 'Resource' and progress_val is not None else None,
         time_mode=time_mode,
+        competence=competence or None,
     )
     if manager.get_node(name):
         manager.update_node(node)

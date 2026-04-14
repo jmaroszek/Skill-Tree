@@ -174,7 +174,8 @@ class TestShouldOpenEditor:
         assert should_open_editor({'btn-edit-node'}, 'btn-edit-node', None)
 
     def test_btn_add_alone(self):
-        assert should_open_editor({'btn-add'}, 'btn-add', None)
+        # btn-add is now handled as a toggle in core_engine, not via should_open_editor
+        assert not should_open_editor({'btn-add'}, 'btn-add', None)
 
     def test_search_node_with_value(self):
         assert should_open_editor({'search-node'}, 'search-node', 'MyNode')

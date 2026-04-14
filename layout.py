@@ -39,7 +39,27 @@ sidebar_content = html.Div(
             
             html.H5("General", className="mt-3 mb-1"),
             dbc.Label("Name", className="mt-2"),
-            dbc.Input(id="node-name", type="text"),
+            html.Div([
+                dbc.Input(id="node-name", type="text", style={'flex': 1}),
+                dbc.Button("▾", id="btn-aliases-toggle", color="light", className="ms-1 px-2"),
+            ], className="d-flex"),
+            html.Div(id="node-name-duplicate-warning", children="",
+                     style={"display": "none"}, className="mt-1"),
+            dbc.Collapse(
+                html.Div([
+                    html.Div([
+                        dbc.Label("Aliases", className="mb-0"),
+                        dbc.Button("+", id="btn-alias-add", color="link",
+                                   className="p-0 ms-2 text-decoration-none text-muted",
+                                   title="Add alias",
+                                   style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                    ], className="d-flex align-items-center mt-1 mb-1"),
+                    html.Div(id='aliases-container'),
+                ]),
+                id="collapse-aliases",
+                is_open=False,
+            ),
+            dcc.Store(id='aliases-store', data=['']),
 
             dbc.Label("Type", className="mt-2"),
             dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES]),
@@ -53,6 +73,22 @@ sidebar_content = html.Div(
 
             dbc.Label("Description", className="mt-2"),
             dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
+
+            dbc.Label("Competence", className="mt-2"),
+            dbc.Select(
+                id="node-competence",
+                options=[
+                    {"label": "\u2014", "value": ""},
+                    {"label": "Outsider", "value": "outsider"},
+                    {"label": "Reciter", "value": "reciter"},
+                    {"label": "Processor", "value": "processor"},
+                    {"label": "Thinker", "value": "thinker"},
+                    {"label": "Creator", "value": "creator"},
+                    {"label": "Master", "value": "master"},
+                    {"label": "Innovator", "value": "innovator"},
+                ],
+                value="",
+            ),
 
             html.Div(id="section-priority-rank", style={"display": "none"}, children=[
                 dbc.Label("Priority Rank", className="mt-2"),
@@ -135,6 +171,9 @@ sidebar_content = html.Div(
                         dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
                         dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
                     ]),
+                    html.Div(id="time-validation-error", children="",
+                             style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                             className="mt-1"),
                 ]),
             ]),
             
@@ -186,10 +225,13 @@ sidebar_content = html.Div(
             html.Hr(className="my-2"),
             html.Div([
                 dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
-                dbc.Button("Cancel", id="btn-cancel", color="secondary", className="flex-fill me-2", style={"padding": "6px 0"}),
+                dbc.Button("Clear", id="btn-cancel", color="secondary", className="flex-fill me-2", style={"padding": "6px 0"}),
                 dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
                 dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0"})
             ], className="d-flex mt-4"),
+            dbc.Button("New Node", id="btn-new-node", className="w-100 mt-2",
+                       style={"padding": "8px 0", "backgroundColor": "#6c757d",
+                              "borderColor": "#6c757d", "color": "#fff"}),
             html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
             dcc.Store(id='node-time-unit-prev', data='weeks'),
@@ -604,6 +646,28 @@ unsaved_changes_modal = dbc.Modal([
 ], id="modal-unsaved-changes", size="sm", is_open=False, centered=True)
 
 
+delete_confirm_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
+    dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone."),
+    dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-node-delete-cancel", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill",
+                   style={"backgroundColor": ConfigManager.get_danger_color(),
+                          "borderColor": ConfigManager.get_danger_color()}),
+    ], className="d-flex"),
+], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
+
+
+clear_confirm_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Clear Editor?")),
+    dbc.ModalBody("Are you sure you want to clear this node's data?"),
+    dbc.ModalFooter([
+        dbc.Button("No", id="btn-clear-no", color="danger", className="flex-fill me-2"),
+        dbc.Button("Yes", id="btn-clear-yes", color="success", className="flex-fill"),
+    ], className="d-flex"),
+], id="modal-clear-confirm", size="sm", is_open=False, centered=True)
+
+
 # --- Bottom Panel (Relationships + Description) ---
 
 bottom_panel = html.Div([
@@ -904,11 +968,14 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
+        dcc.Store(id='pending-navigation-store', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         migration_modal,
         error_modal,
         unsaved_changes_modal,
+        delete_confirm_modal,
+        clear_confirm_modal,
 
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),

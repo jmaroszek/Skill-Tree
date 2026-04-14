@@ -96,6 +96,14 @@ def init_db():
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Aliases (
+            alias TEXT PRIMARY KEY,
+            node_name TEXT NOT NULL,
+            FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
+        )
+    ''')
+
     conn.commit()
 
     # --- Migrations ---

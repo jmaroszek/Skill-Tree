@@ -21,6 +21,7 @@ from callback_helpers import (
     render_link_rows, spawn_local_file_picker,
     strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
+    normalize_name_for_comparison,
 )
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,19 @@ def register_callbacks(app):
 
         return lines
 
+    # --- Scroll editor to top on New Node / Add ---
+    app.clientside_callback(
+        """function(n1, n2) {
+            var el = document.getElementById('sidebar-editor-container');
+            if (el) el.scrollTop = 0;
+            return window.dash_clientside.no_update;
+        }""",
+        Output('btn-new-node', 'title'),
+        Input('btn-new-node', 'n_clicks'),
+        Input('btn-add', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+
     # --- Editor Form Population ---
     @app.callback(
         [Output('node-name', 'value'), Output('node-type', 'value'), Output('node-desc', 'value'),
@@ -278,17 +292,31 @@ def register_callbacks(app):
          Output('node-original-name', 'data', allow_duplicate=True),
          Output('search-node', 'value', allow_duplicate=True),
          Output('node-priority-rank', 'value'),
-         Output('node-time-mode', 'value')],
+         Output('node-time-mode', 'value'),
+         Output('node-competence', 'value'),
+         Output('aliases-store', 'data'),
+         Output('pending-navigation-store', 'data'),
+         Output('modal-unsaved-changes', 'is_open', allow_duplicate=True)],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
-         Input('btn-cancel', 'n_clicks'),
+         Input('btn-clear-yes', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks'),
+         Input('btn-unsaved-save', 'n_clicks'),
          Input('search-node', 'value'),
-         Input('background-click-input', 'value')],
-        [State('cytoscape-graph', 'elements')],
+         Input('background-click-input', 'value'),
+         Input('btn-new-node', 'n_clicks')],
+        [State('cytoscape-graph', 'elements'),
+         State('sidebar-editor-container', 'style'),
+         State('node-original-name', 'data'),
+         State('node-name', 'value'), State('node-desc', 'value'),
+         State('node-value', 'value'), State('node-interest', 'value'),
+         State('node-difficulty', 'value'),
+         State('pending-navigation-store', 'data')],
         prevent_initial_call='initial_duplicate'
     )
-    def populate_editor(data, add_clicks, cancel_clicks, discard_clicks, search_val, _bg_click, elements):
+    def populate_editor(data, add_clicks, clear_yes_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks,
+                        elements, ed_style, original_name, cur_name, cur_desc, cur_val, cur_interest, cur_diff,
+                        pending_nav):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
 
@@ -306,23 +334,94 @@ def register_callbacks(app):
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
             "none",  # node-priority-rank
             [],  # node-time-mode
+            "",  # node-competence
+            [''],  # aliases-store
+            None,  # pending-navigation-store
+            False,  # modal-unsaved-changes
         ]
 
-        if trigger_id in ['btn-add', 'btn-cancel', 'btn-unsaved-discard', 'background-click-input']:
+        # Helper: check if editor has unsaved changes
+        def _has_unsaved_changes():
+            if original_name:
+                old_node = manager.get_node(original_name)
+                if old_node:
+                    return any([
+                        (cur_name or "").strip() != (old_node.name or "").strip(),
+                        (cur_desc or "").strip() != (old_node.description or "").strip(),
+                        float(cur_val or 5) != float(old_node.value or 5),
+                        float(cur_interest or 5) != float(old_node.interest or 5),
+                        float(cur_diff or 5) != float(old_node.difficulty or 5),
+                    ])
+            # New node: check if any content has been entered
+            return bool(cur_name and cur_name.strip()) or bool(cur_desc and cur_desc.strip()) or any([
+                cur_val not in (None, 5), cur_interest not in (None, 5), cur_diff not in (None, 5),
+            ])
+
+        if trigger_id == 'btn-new-node':
+            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
+            if editor_open and _has_unsaved_changes():
+                # Show unsaved modal; store 'new-node' as pending action
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+                no_change[35] = '__new_node__'  # pending-navigation-store (special sentinel)
+                no_change[36] = True            # modal-unsaved-changes
+                return no_change
+            # No unsaved changes — clear and reset
+            def_out[30] = None  # search-node value position
             return def_out
+
+        if trigger_id in ['btn-add', 'btn-clear-yes', 'background-click-input']:
+            # Clear search bar on all reset triggers
+            def_out[30] = None  # search-node value position
+            return def_out
+
+        # Handle unsaved-discard / unsaved-save with pending navigation
+        if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
+            if pending_nav:
+                if pending_nav == '__new_node__':
+                    # Discard/save done — reset to blank new-node form
+                    def_out[30] = None  # clear search bar
+                    return def_out
+                # Navigate to the pending node after discarding/saving
+                node = manager.get_node(pending_nav)
+                if node:
+                    data = node.to_dict()
+                    data['id'] = pending_nav
+                    # Fall through to populate logic below with this data
+                else:
+                    return def_out
+            else:
+                return def_out
+
+        # Intercept node tap when editor has unsaved changes
+        if trigger_id == 'cytoscape-graph' and data:
+            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
+            tapped_id = data.get('id')
+            if editor_open and tapped_id and tapped_id != original_name and _has_unsaved_changes():
+                # Store the pending target and show unsaved modal instead of populating
+                # 18 form fields + 5 edge options + 14 remaining = 37 total outputs
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+                no_change[35] = tapped_id  # pending-navigation-store (index 35)
+                no_change[36] = True       # modal-unsaved-changes (index 36)
+                return no_change
 
         name = None
         if trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
                 return def_out
-            node = manager.get_node(search_val)
+            # Resolve alias: prefix to actual node name
+            resolved_name = search_val
+            if search_val.startswith('alias:'):
+                alias_key = search_val[6:]
+                all_aliases = manager.get_all_aliases()
+                resolved_name = all_aliases.get(alias_key, search_val)
+            node = manager.get_node(resolved_name)
             if node:
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*9
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -333,7 +432,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*9
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
 
         edges = manager.get_edges()
 
@@ -380,9 +479,13 @@ def register_callbacks(app):
             # Type-specific fields
             data.get('progress') or 0, friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
-            dash.no_update,  # search-node — don't change; avoids retriggering core_engine
+            name if (ed_style and ed_style.get('transform', '') == 'translateX(0px)') else dash.no_update,  # search-node — update when editor is open
             rank_value,  # node-priority-rank
             time_mode_val,  # node-time-mode
+            data.get('competence') or '',  # node-competence
+            manager.get_aliases(name) or [''],  # aliases-store
+            None,  # pending-navigation-store — clear on successful populate
+            False,  # modal-unsaved-changes — close on successful populate
         ]
 
     # --- Type-adaptive field visibility ---
@@ -445,6 +548,96 @@ def register_callbacks(app):
             return int(result) if result == int(result) else result
         return _reexpress(val_o), _reexpress(val_m), _reexpress(val_p), new_unit
 
+    # --- Time Estimate Validation ---
+    @app.callback(
+        Output('time-validation-error', 'children'),
+        Output('time-validation-error', 'style'),
+        Output('btn-save', 'disabled'),
+        Output('btn-save-close', 'disabled'),
+        Input('node-time-o', 'value'),
+        Input('node-time-m', 'value'),
+        Input('node-time-p', 'value'),
+        prevent_initial_call=True,
+    )
+    def validate_time_estimates(time_o, time_m, time_p):
+        """Enforce Optimistic <= Expected <= Pessimistic and disable Save on violation."""
+        o = float(time_o or 0)
+        m = float(time_m or 0)
+        p = float(time_p or 0)
+        hidden = {"display": "none", "color": "#dc3545", "fontSize": "0.85rem"}
+        visible = {"display": "block", "color": "#dc3545", "fontSize": "0.85rem"}
+
+        # Skip validation when all fields are empty/zero
+        if o == 0 and m == 0 and p == 0:
+            return "", hidden, False, False
+
+        errors = []
+        if o > 0 and m > 0 and o > m:
+            errors.append("Optimistic must be ≤ Expected")
+        if m > 0 and p > 0 and m > p:
+            errors.append("Expected must be ≤ Pessimistic")
+        if o > 0 and p > 0 and o > p:
+            errors.append("Optimistic must be ≤ Pessimistic")
+
+        if errors:
+            return "; ".join(errors), visible, True, True
+        return "", hidden, False, False
+
+    # --- Duplicate Node Detection (fires on blur, no auto-fill) ---
+    @app.callback(
+        Output('node-name-duplicate-warning', 'children'),
+        Output('node-name-duplicate-warning', 'style'),
+        Input('node-name', 'n_blur'),
+        State('node-name', 'value'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+    def check_duplicate_name(_blur, typed_name, original_name):
+        """Check if typed name matches an existing node (exact or fuzzy). Shows a temporary warning."""
+        hidden = {"display": "none"}
+        if not typed_name or not typed_name.strip():
+            return "", hidden
+        typed_stripped = typed_name.strip()
+        # Skip if editing the same node
+        if original_name and typed_stripped == original_name:
+            return "", hidden
+
+        all_nodes = manager.get_all_nodes(include_dormant=True)
+        typed_normalized = normalize_name_for_comparison(typed_stripped)
+
+        matches = []
+        for node in all_nodes:
+            if node.name == original_name:
+                continue
+            if node.name.lower() == typed_stripped.lower():
+                matches.append(node.name)
+            elif typed_normalized and normalize_name_for_comparison(node.name) == typed_normalized:
+                matches.append(node.name)
+
+        if matches:
+            names_str = ", ".join(matches)
+            warning = html.Div(f"Possible duplicate: {names_str}",
+                               style={"color": "#dc3545", "fontSize": "0.85rem"})
+            return warning, {"display": "block"}
+
+        return "", hidden
+
+    # Auto-hide duplicate warning after 3 seconds
+    app.clientside_callback(
+        """function(children) {
+            if (children && children !== '') {
+                setTimeout(function() {
+                    var el = document.getElementById('node-name-duplicate-warning');
+                    if (el) el.style.display = 'none';
+                }, 3000);
+            }
+            return window.dash_clientside.no_update;
+        }""",
+        Output('node-name-duplicate-warning', 'title'),  # dummy output
+        Input('node-name-duplicate-warning', 'children'),
+        prevent_initial_call=True,
+    )
+
     # --- Priority Badge in Node Editor ---
     @app.callback(
         Output('node-priority-badge', 'children'),
@@ -477,8 +670,7 @@ def register_callbacks(app):
                 hard_subtree = manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
                 rel_type = "Hard" if node_name in hard_subtree else "Soft"
                 rel_color = "primary" if rel_type == "Hard" else "info"
-                badges.append(dbc.Badge(f"#{rank} Priority", color="warning", style={"fontSize": "0.75rem"}))
-                badges.append(dbc.Badge(rel_type, color=rel_color, style={"fontSize": "0.75rem"}))
+                badges.append(dbc.Badge(f"{rel_type} #{rank}", color=rel_color, style={"fontSize": "0.75rem"}))
 
         if not badges:
             return [], hidden
@@ -500,9 +692,10 @@ def register_callbacks(app):
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
          Output('node-completion-events-store', 'data'),
-         Output('filter-node-count', 'children')],
+         Output('filter-node-count', 'children'),
+         Output('details-goal-sidebar', 'style', allow_duplicate=True)],
 
-        [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-delete', 'n_clicks'),
+        [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
          Input('search-node', 'value'),
          Input('cytoscape-graph', 'tapNodeData'),
@@ -510,9 +703,9 @@ def register_callbacks(app):
          Input('filter-value', 'value'), Input('filter-interest', 'value'),
          Input('filter-time', 'value'), Input('filter-difficulty', 'value'),
          Input('suggestion-count-store', 'data'),
-         Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'),
+         Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'), Input('btn-new-node', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'), Input('btn-goals-toggle', 'n_clicks'),
-         Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'),
+         Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'), Input('btn-clear-yes', 'n_clicks'),
          Input('btn-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('btn-settings-save', 'n_clicks'),
          Input('modal-migration', 'is_open'),
@@ -548,12 +741,17 @@ def register_callbacks(app):
          State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style'),
          State('node-original-name', 'data'),
          State('node-time-mode', 'value'),
-         State('node-priority-rank', 'value')]
+         State('node-priority-rank', 'value'),
+         State('node-competence', 'value'),
+         State('details-goal-sidebar', 'style'),
+         State('pending-navigation-store', 'data'),
+         State({'type': 'alias-input', 'index': ALL}, 'value')],
+        prevent_initial_call='initial_duplicate'
     )
-    def core_engine(save_clicks, save_close_clicks, delete_clicks, f_context, f_subcontext, f_done, search_val,
+    def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, btn_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, btn_clear_yes, btn_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
@@ -565,7 +763,8 @@ def register_callbacks(app):
                      obs_link_values, drive_link_values, website_link_values,
                      progress_val,
                      current_elements, ed_style, fil_style, original_name,
-                     time_mode_val, priority_rank_val):
+                     time_mode_val, priority_rank_val, competence_val,
+                     goal_sidebar_style, pending_nav_store, alias_values):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -588,15 +787,26 @@ def register_callbacks(app):
 
         # Editor Sidebar State (380px matches sidebar_content width in layout.py)
         next_ed_style = ed_style or {"position": "absolute", "top": "0", "left": "0", "width": "380px", "minWidth": "380px", "height": "100%", "zIndex": 1000, "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "transform 0.3s ease", "transform": "translateX(-380px)", "willChange": "transform", "backgroundColor": "#212529"}
-        if should_open_editor(all_triggered_ids, trigger_id, search_val):
+        if trigger_id == 'btn-add':
+            # Always open the editor
+            next_ed_style['transform'] = "translateX(0px)"
+        elif trigger_id == 'btn-new-node':
+            # Always open the editor (populate_editor handles unsaved-changes modal)
+            next_ed_style['transform'] = "translateX(0px)"
+        elif should_open_editor(all_triggered_ids, trigger_id, search_val):
             next_ed_style['transform'] = "translateX(0px)"
         elif trigger_id == 'btn-goals-toggle':
             next_ed_style['transform'] = "translateX(-380px)"
-        elif trigger_id in ('btn-save', 'btn-save-close', 'btn-cancel', 'btn-delete', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
-            # btn-save keeps the editor open; btn-save-close and unsaved-save close it after saving.
-            # btn-cancel and btn-unsaved-discard close without saving.
+        elif trigger_id == 'btn-save':
+            # Save only — keep editor open, don't change transform
+            next_ed_style['transform'] = "translateX(0px)"
+        elif trigger_id in ('btn-save-close', 'btn-clear-yes', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
+            # btn-save-close and unsaved-save close it after saving.
+            # btn-clear-yes and btn-unsaved-discard close without saving.
             # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
-            if trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not name or not n_type):
+            if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
+                pass  # Keep editor open — pending navigation will load the next node
+            elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not name or not n_type):
                 pass  # Keep sidebar open — validation error shown below
             elif trigger_id == 'btn-close-editor':
                 form_has_content = False
@@ -616,8 +826,16 @@ def register_callbacks(app):
                     ])
                 if not form_has_content:
                     next_ed_style['transform'] = "translateX(-380px)"
-            elif trigger_id not in ('btn-save',):
+            else:
                 next_ed_style['transform'] = "translateX(-380px)"
+
+        # Goal Sidebar Mutex: close goal sidebar when editor opens
+        next_goal_style = dash.no_update
+        if next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
+            # Editor is opening — ensure goal sidebar is closed
+            if goal_sidebar_style and goal_sidebar_style.get('left', '-380px') == '0px':
+                next_goal_style = dict(goal_sidebar_style)
+                next_goal_style['left'] = '-380px'
 
         # Filters Sidebar State (overlay, shared between Canvas + Suggestions tabs)
         next_fil_style = fil_style or {"position": "absolute", "top": "0", "right": "-320px", "width": "320px", "height": "100%", "zIndex": 100, "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "right 0.3s ease", "backgroundColor": "#212529"}
@@ -658,13 +876,13 @@ def register_callbacks(app):
                 ])
                 if form_has_content:
                     msg = "Error: Node name is required."
-                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
                 else:
                     next_ed_style['transform'] = "translateX(-380px)"
-                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             if not n_type:
                 msg = "Error: Node type is required."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             try:
                 # Track if this save marks the node Done (for event completion check)
                 if status_done and "Done" in (status_done or []):
@@ -688,7 +906,12 @@ def register_callbacks(app):
                                   obs_path, drive_path, website_path,
                                   e_needs_h, e_needs_s,
                                   e_supp_h, e_supp_s, e_helps,
-                                  progress_val, time_mode=time_mode)
+                                  progress_val, time_mode=time_mode,
+                                  competence=competence_val)
+
+                # Save aliases
+                clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
+                manager.set_aliases(name, clean_aliases)
 
                 # Update priority goals for Goal nodes
                 if n_type == 'Goal':
@@ -702,10 +925,10 @@ def register_callbacks(app):
                     ConfigManager.set_priority_goals(priority_goals)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             except Exception as e:
                 msg = f"Error: {e}"
-        elif trigger_id == 'btn-delete' and name:
+        elif trigger_id == 'btn-node-delete-confirm' and name:
             try:
                 msg = handle_delete(manager, name)
             except Exception as e:
@@ -737,7 +960,7 @@ def register_callbacks(app):
             except Exception as e:
                 msg = f"Error: {e}"
         # --- Visual Generation ---
-        ui_only_triggers = ('btn-edit-node', 'btn-add', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor')
+        ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor')
         if trigger_id in ui_only_triggers:
             # We bypass full graph recreation and list evaluation
             elements = dash.no_update
@@ -803,7 +1026,11 @@ def register_callbacks(app):
 
             all_nodes = manager.get_all_nodes()
             search_options = node_options(manager.get_all_nodes(include_dormant=True))
-            
+
+            # Append alias entries to search options (use alias: prefix for unique values)
+            for alias, node_name in manager.get_all_aliases().items():
+                search_options.append({'label': f"{alias} \u2192 {node_name}", 'value': f"alias:{alias}"})
+
             # Populate dynamic contexts datalists from DB + Config preserving defined order
             base_ctx = ConfigManager.get_contexts()
             
@@ -869,7 +1096,7 @@ def register_callbacks(app):
                 node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
                 node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
 
-        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, node_count_text
+        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, node_count_text, next_goal_style
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),
@@ -899,6 +1126,30 @@ def register_callbacks(app):
             ])
             return has_content
         return False
+
+    # --- Delete Confirmation Modal ---
+    @app.callback(
+        Output('modal-node-delete-confirm', 'is_open'),
+        [Input('btn-delete', 'n_clicks'),
+         Input('btn-node-delete-cancel', 'n_clicks'),
+         Input('btn-node-delete-confirm', 'n_clicks')],
+        prevent_initial_call=True,
+    )
+    def toggle_delete_modal(_delete, _cancel, _confirm):
+        trigger_id = get_trigger_id()
+        return trigger_id == 'btn-delete'
+
+    # --- Clear Confirmation Modal ---
+    @app.callback(
+        Output('modal-clear-confirm', 'is_open'),
+        [Input('btn-cancel', 'n_clicks'),
+         Input('btn-clear-no', 'n_clicks'),
+         Input('btn-clear-yes', 'n_clicks')],
+        prevent_initial_call=True,
+    )
+    def toggle_clear_modal(_cancel, _no, _yes):
+        trigger_id = get_trigger_id()
+        return trigger_id == 'btn-cancel'
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -973,6 +1224,60 @@ def register_callbacks(app):
     def toggle_subcontext(n, is_open):
         if n: return not is_open
         return is_open
+
+    # --- Aliases Collapse Toggle ---
+    @app.callback(
+        Output("collapse-aliases", "is_open"),
+        Input("btn-aliases-toggle", "n_clicks"),
+        State("collapse-aliases", "is_open"),
+    )
+    def toggle_aliases(n, is_open):
+        if n: return not is_open
+        return is_open
+
+    # --- Aliases Render ---
+    @app.callback(
+        Output('aliases-container', 'children'),
+        Input('aliases-store', 'data'),
+    )
+    def render_aliases(aliases):
+        if not aliases:
+            aliases = ['']
+        rows = []
+        for i, val in enumerate(aliases):
+            rows.append(html.Div([
+                dbc.Input(
+                    id={'type': 'alias-input', 'index': i},
+                    type='text', value=val or '',
+                    placeholder='',
+                    style={'flex': '1'},
+                ),
+                dbc.Button('\u00d7',
+                    id={'type': 'btn-alias-remove', 'index': i},
+                    color='link', className='p-0 ms-1 text-decoration-none text-muted',
+                    style={'fontSize': '1.1rem', 'lineHeight': '1'}),
+            ], className='d-flex align-items-center mb-1'))
+        return rows
+
+    # --- Aliases Add/Remove ---
+    @app.callback(
+        Output('aliases-store', 'data', allow_duplicate=True),
+        [Input('btn-alias-add', 'n_clicks'),
+         Input({'type': 'btn-alias-remove', 'index': ALL}, 'n_clicks')],
+        [State({'type': 'alias-input', 'index': ALL}, 'value'),
+         State('aliases-store', 'data')],
+        prevent_initial_call=True,
+    )
+    def modify_aliases(add_clicks, remove_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        aliases = list(current_values) if current_values else list(store_data or [''])
+        if trigger == 'btn-alias-add':
+            aliases.append('')
+        elif isinstance(trigger, dict) and trigger.get('type') == 'btn-alias-remove':
+            idx = trigger['index']
+            if 0 <= idx < len(aliases) and len(aliases) > 1:
+                aliases.pop(idx)
+        return aliases
 
     # --- Multi-Link Render Callbacks ---
     @app.callback(

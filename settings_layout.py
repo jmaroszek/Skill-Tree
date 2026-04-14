@@ -80,7 +80,7 @@ def build_settings_tab_content():
                         html.H5("Name Linter", className="mt-2 mb-1"),
                         dbc.Checklist(
                             id="setting-linter-enabled",
-                            options=[{"label": "Auto-convert node names to title case on save", "value": "enabled"}],
+                            options=[{"label": "Auto-convert node names and aliases to title case on save", "value": "enabled"}],
                             value=["enabled"],
                             switch=True,
                             className="mb-2",

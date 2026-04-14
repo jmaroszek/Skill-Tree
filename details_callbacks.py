@@ -322,12 +322,12 @@ def register_details_callbacks(app):
             for rank_idx, goal_name in enumerate(priority_goals[:3]):
                 subtree = graph_manager.get_goal_subtree(goal_name)
                 if node_name in subtree:
-                    badges.append(dbc.Badge(f"#{rank_idx+1} Priority",
-                                            color="warning",
+                    hard_subtree = graph_manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
+                    rel_type = "Hard" if node_name in hard_subtree else "Soft"
+                    rel_color = "primary" if rel_type == "Hard" else "info"
+                    badges.append(dbc.Badge(f"{rel_type} #{rank_idx+1}",
+                                            color=rel_color,
                                             style={"fontSize": "0.75rem"}))
-                    badges.append(html.Small(f"(via {goal_name})",
-                                            className="text-muted",
-                                            style={"fontSize": "0.7rem"}))
                     break
 
         ctx_str = node.context or "—"
@@ -525,25 +525,32 @@ def register_details_callbacks(app):
     @app.callback(
         Output("details-goal-sidebar", "style"),
         Output("details-refresh-trigger", "data", allow_duplicate=True),
+        Output("sidebar-editor-container", "style", allow_duplicate=True),
         Input("btn-goals-toggle", "n_clicks"),
         Input("btn-details-goals-close", "n_clicks"),
         Input("btn-add", "n_clicks"),
         State("details-goal-sidebar", "style"),
         State("details-refresh-trigger", "data"),
+        State("sidebar-editor-container", "style"),
         prevent_initial_call=True,
     )
-    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style, refresh_data):
+    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style, refresh_data, editor_style):
         trigger = ctx.triggered_id
         style = dict(current_style) if current_style else {}
         refresh = no_update
+        next_editor_style = no_update
         if trigger == "btn-goals-toggle":
             opening = style.get("left", "-380px") == "-380px"
             style["left"] = "0px" if opening else "-380px"
             if opening:
                 refresh = (refresh_data or 0) + 1
+                # Sidebar mutex: close editor when opening goal sidebar
+                if editor_style and editor_style.get("transform", "") == "translateX(0px)":
+                    next_editor_style = dict(editor_style)
+                    next_editor_style["transform"] = "translateX(-380px)"
         elif trigger in ("btn-details-goals-close", "btn-add"):
             style["left"] = "-380px"
-        return style, refresh
+        return style, refresh, next_editor_style
 
 # --- New Goal from Sidebar "+" Button ---
     @app.callback(

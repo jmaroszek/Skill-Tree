@@ -79,6 +79,8 @@ class GraphManager:
             cursor.execute("UPDATE Events SET trigger_node=? WHERE trigger_node=?", (new_name, old_name))
             # Also update EventNodes mapping table
             cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
+            # Update Aliases table
+            cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
             conn.commit()
             cursor.execute("PRAGMA foreign_keys = ON")
 
@@ -92,6 +94,34 @@ class GraphManager:
             if row:
                 return Node(**dict(row))
             return None
+
+    def get_aliases(self, node_name: str) -> list:
+        """Return all aliases for a node."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT alias FROM Aliases WHERE node_name=?", (node_name,))
+            return [row[0] for row in cursor.fetchall()]
+
+    def set_aliases(self, node_name: str, aliases: list):
+        """Replace all aliases for a node."""
+        from config import ConfigManager
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM Aliases WHERE node_name=?", (node_name,))
+            for alias in aliases:
+                if alias and alias.strip():
+                    clean = ConfigManager.apply_titlecase_linter(alias.strip())
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO Aliases (alias, node_name) VALUES (?, ?)",
+                        (clean, node_name))
+            conn.commit()
+
+    def get_all_aliases(self) -> dict:
+        """Return {alias: node_name} mapping for all aliases."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT alias, node_name FROM Aliases")
+            return {row[0]: row[1] for row in cursor.fetchall()}
 
     def get_all_nodes(self, include_dormant: bool = False) -> List[Node]:
         """Retrieves all nodes. Excludes dormant nodes by default."""
