@@ -138,19 +138,40 @@ def node_options(nodes, exclude=None):
 def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
                   f_time=None, f_difficulty="All", f_node_types=None, f_goal=None):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
+    from config import ConfigManager
     filters = {}
+
+    contexts = []
     if f_context and f_context != "All":
         if isinstance(f_context, list):
-            if f_context:
-                filters['context'] = f_context
+            contexts = f_context
+        elif f_context != "None":
+            contexts = [f_context]
         else:
-            filters['context'] = [f_context] if f_context != "None" else [None]
+            contexts = [None]
+
+    subs = []
     if f_subcontext and f_subcontext != "All":
         if isinstance(f_subcontext, list):
-            if f_subcontext:
-                filters['subcontext'] = f_subcontext
+            subs = f_subcontext
         elif f_subcontext.strip():
-            filters['subcontext'] = [f_subcontext.strip()]
+            subs = [f_subcontext.strip()]
+
+    if contexts and subs:
+        # Selective union: for each context, restrict to the selected subcontexts
+        # that belong to it. If none of the selected subcontexts belong to a context,
+        # include all nodes in that context (no subcontext restriction).
+        sub_map = ConfigManager.get_subcontexts()  # {context: [subcontext, ...]}
+        pairs = []
+        for ctx in contexts:
+            ctx_subs = sub_map.get(ctx, [])
+            matching = [s for s in subs if s in ctx_subs]
+            pairs.append((ctx, matching if matching else None))
+        filters['context_subcontext_union'] = pairs
+    elif contexts:
+        filters['context'] = contexts
+    elif subs:
+        filters['subcontext'] = subs
     if f_node_types:
         if isinstance(f_node_types, list):
             if f_node_types:

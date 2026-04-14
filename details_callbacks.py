@@ -1216,6 +1216,21 @@ def register_details_callbacks(app):
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style
 
+    # --- Details Tab: Node Count in Sidebar ---
+    @app.callback(
+        Output('filter-node-count', 'children', allow_duplicate=True),
+        Input('details-mini-graph', 'elements'),
+        Input('main-tabs', 'active_tab'),
+        prevent_initial_call=True,
+    )
+    def update_details_node_count(elements, active_tab):
+        if active_tab != 'tab-details':
+            return no_update
+        if not elements:
+            return "0 nodes displayed"
+        count = sum(1 for el in elements if 'source' not in el.get('data', {}))
+        return f"{count} node{'s' if count != 1 else ''} displayed"
+
     # --- Details Graph Settings: Apply Layout Parameters ---
     @app.callback(
         Output('details-mini-graph', 'layout'),

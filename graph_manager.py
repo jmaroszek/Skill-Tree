@@ -442,19 +442,30 @@ class GraphManager:
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         result = nodes
         
-        if 'context' in filters:
-            ctx = filters['context']
-            if isinstance(ctx, list):
-                result = [n for n in result if n.context in ctx]
-            else:
-                result = [n for n in result if n.context == ctx]
+        if 'context_subcontext_union' in filters:
+            # Selective union: each pair is (context, subcontexts_or_None).
+            # None means no subcontext restriction for that context.
+            allowed: Set[str] = set()
+            for ctx, subs in filters['context_subcontext_union']:
+                if subs is None:
+                    allowed.update(n.name for n in result if n.context == ctx)
+                else:
+                    allowed.update(n.name for n in result if n.context == ctx and n.subcontext in subs)
+            result = [n for n in result if n.name in allowed]
+        else:
+            if 'context' in filters:
+                ctx = filters['context']
+                if isinstance(ctx, list):
+                    result = [n for n in result if n.context in ctx]
+                else:
+                    result = [n for n in result if n.context == ctx]
 
-        if 'subcontext' in filters:
-            sub = filters['subcontext']
-            if isinstance(sub, list):
-                result = [n for n in result if n.subcontext in sub]
-            else:
-                result = [n for n in result if n.subcontext == sub]
+            if 'subcontext' in filters:
+                sub = filters['subcontext']
+                if isinstance(sub, list):
+                    result = [n for n in result if n.subcontext in sub]
+                else:
+                    result = [n for n in result if n.subcontext == sub]
 
         if 'min_value' in filters:
             result = [n for n in result if n.value >= int(filters['min_value'])]

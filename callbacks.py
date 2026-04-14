@@ -529,7 +529,8 @@ def register_callbacks(app):
          Input('details-refresh-trigger', 'data'),
          Input('background-click-input', 'value'),
          Input('graph-settings-max-depth', 'value'),
-         Input('graph-settings-neighbor-links', 'value')],
+         Input('graph-settings-neighbor-links', 'value'),
+         Input('main-tabs', 'active_tab')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -557,7 +558,7 @@ def register_callbacks(app):
                      active_suggestion_id,
                      f_goal, focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _details_refresh, _bg_click,
-                     gs_max_depth, gs_neighbor_links,
+                     gs_max_depth, gs_neighbor_links, active_tab,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -860,8 +861,13 @@ def register_callbacks(app):
                 except Exception:
                     pass
 
-            node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
-            node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
+            if active_tab in ('tab-settings', 'tab-events'):
+                node_count_text = ""
+            elif active_tab == 'tab-details':
+                node_count_text = dash.no_update  # Owned by update_details_node_count in details_callbacks
+            else:
+                node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
+                node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
 
         return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, node_count_text
 
@@ -944,13 +950,16 @@ def register_callbacks(app):
             return [], []
         contexts = ctx if isinstance(ctx, list) else [ctx]
         all_subs = ConfigManager.get_subcontexts()
-        seen = set()
+        multi_context = len(contexts) > 1
+        seen = set()  # tracks (context, subcontext) pairs to avoid duplicates
         opts = []
         for c in contexts:
             for s in all_subs.get(c, []):
-                if s not in seen:
-                    seen.add(s)
-                    opts.append({"label": s, "value": s})
+                key = (c, s) if multi_context else s
+                if key not in seen:
+                    seen.add(key)
+                    label = f"{c} > {s}" if multi_context else s
+                    opts.append({"label": label, "value": s})
         return opts, []
 
 
