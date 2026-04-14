@@ -11,10 +11,13 @@ if "-sandbox" in sys.argv:
 ENVIRONMENT = config.ENVIRONMENT
 
 import dash
+import dash_cytoscape as cyto
 import webbrowser
 import threading
 import dash_bootstrap_components as dbc
 from layout import build_app_layout
+
+cyto.load_extra_layouts()
 from callbacks import generate_elements, register_callbacks
 from event_callbacks import register_event_callbacks
 from details_callbacks import register_details_callbacks

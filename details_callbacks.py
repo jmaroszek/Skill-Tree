@@ -18,8 +18,35 @@ from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_
 graph_manager = GraphManager()
 
 
+def _apply_max_depth(subtree, selected_node, max_depth, edge_types):
+    """Filter a subtree set to only include nodes within max_depth hops."""
+    if not max_depth or max_depth <= 0:
+        return subtree
+    edges = graph_manager.get_edges()
+    full_set = subtree | {selected_node}
+    adj = {}
+    for e in edges:
+        s, t = e['source'], e['target']
+        if s in full_set and t in full_set and e['type'] in edge_types:
+            adj.setdefault(s, set()).add(t)
+            adj.setdefault(t, set()).add(s)
+    visited = {selected_node}
+    frontier = {selected_node}
+    for _ in range(max_depth):
+        next_frontier = set()
+        for n in frontier:
+            for nb in adj.get(n, set()):
+                if nb not in visited:
+                    visited.add(nb)
+                    next_frontier.add(nb)
+        frontier = next_frontier
+        if not frontier:
+            break
+    return subtree & visited
+
+
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
-                    include_transitive_val=None, global_filters=None):
+                    include_transitive_val=None, global_filters=None, max_depth=0):
     """Shared helper: run the Monte Carlo simulation and return (figure, style, style)."""
     all_nodes = graph_manager.get_all_nodes()
     if global_filters:
@@ -52,6 +79,19 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
                     direct_sources.add(e['target'])
         allowed = direct_sources | {node_name}
         sim_edges = [e for e in edges if e['source'] in allowed and e['target'] in allowed]
+
+    # Apply max depth filter to simulation
+    if max_depth and max_depth > 0:
+        sim_edge_types = [EDGE_NEEDS_HARD]
+        if include_soft:
+            sim_edge_types.append(EDGE_NEEDS_SOFT)
+        if include_helps:
+            sim_edge_types.append(EDGE_HELPS)
+        full_subtree = {n for n in nodes_dict if n != node_name}
+        depth_limited = _apply_max_depth(full_subtree, node_name, max_depth, sim_edge_types)
+        allowed_depth = depth_limited | {node_name}
+        sim_edges = [e for e in sim_edges if e['source'] in allowed_depth and e['target'] in allowed_depth]
+        nodes_dict = {k: v for k, v in nodes_dict.items() if k in allowed_depth}
 
     result = simulate_task_chain(
         target_name=node_name,
@@ -226,6 +266,7 @@ def register_details_callbacks(app):
         State("filter-time", "value"),
         State("filter-difficulty", "value"),
         State("filter-node-type", "value"),
+        State("details-graph-settings-max-depth", "value"),
         prevent_initial_call=True,
     )
     def select_detail_node(node_name, _refresh,
@@ -233,7 +274,7 @@ def register_details_callbacks(app):
                            include_synergies_val,
                            f_context, f_subcontext, f_done,
                            f_value, f_interest, f_time, f_difficulty,
-                           f_node_types):
+                           f_node_types, gs_max_depth):
         if not node_name:
             empty_fig = go.Figure()
             empty_fig.update_layout(template="plotly_dark",
@@ -323,6 +364,10 @@ def register_details_callbacks(app):
 
         subtree = graph_manager.get_goal_subtree(node_name,
                                                   edge_types=tuple(edge_types))
+        # Apply max depth filter
+        depth_val = gs_max_depth or 0
+        subtree = _apply_max_depth(subtree, node_name, depth_val, edge_types)
+
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
 
@@ -345,7 +390,7 @@ def register_details_callbacks(app):
         sim_fig, sim_show, sim_hide = _run_simulation(
             node_name, include_soft_val, include_synergies_val,
             include_transitive_val=include_transitive_val,
-            global_filters=global_filters)
+            global_filters=global_filters, max_depth=depth_val)
 
         return (
             {"display": "none"},
@@ -382,6 +427,7 @@ def register_details_callbacks(app):
         Input("filter-time", "value"),
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
+        Input("details-graph-settings-max-depth", "value"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
@@ -389,7 +435,7 @@ def register_details_callbacks(app):
                                         include_synergies_val,
                                         f_context, f_subcontext, f_done,
                                         f_value, f_interest, f_time, f_difficulty,
-                                        f_node_types, selected_node):
+                                        f_node_types, gs_max_depth, selected_node):
         if not selected_node:
             return no_update
 
@@ -405,6 +451,9 @@ def register_details_callbacks(app):
 
         subtree = graph_manager.get_goal_subtree(selected_node,
                                                   edge_types=tuple(edge_types))
+        # Apply max depth filter
+        subtree = _apply_max_depth(subtree, selected_node, gs_max_depth or 0, edge_types)
+
         subtask_nodes = [graph_manager.get_node(n) for n in subtree]
         subtask_nodes = [n for n in subtask_nodes if n is not None]
 
@@ -438,12 +487,15 @@ def register_details_callbacks(app):
         Input("filter-interest", "value"),
         Input("filter-time", "value"),
         Input("filter-difficulty", "value"),
+        Input("details-graph-settings-max-depth", "value"),
+        Input("details-graph-settings-neighbor-links", "value"),
     )
     def update_details_graph(selected_node, _refresh,
                              include_soft_val, include_transitive_val,
                              include_synergies_val,
                              f_node_types, f_done, f_context, f_subcontext,
-                             f_value, f_interest, f_time, f_difficulty):
+                             f_value, f_interest, f_time, f_difficulty,
+                             gs_max_depth, gs_neighbor_links):
         if not selected_node:
             return []
         global_filters = build_filters(f_context, f_subcontext, f_done,
@@ -451,7 +503,9 @@ def register_details_callbacks(app):
                                        f_node_types)
         return _build_graph_elements(selected_node, include_soft_val,
                                      include_synergies_val, global_filters,
-                                     include_transitive_val=include_transitive_val)
+                                     include_transitive_val=include_transitive_val,
+                                     max_depth=gs_max_depth or 0,
+                                     neighbor_links=gs_neighbor_links if gs_neighbor_links is not None else True)
 
     # --- Clicking a node in the dep graph → select it ---
     @app.callback(
@@ -635,6 +689,7 @@ def register_details_callbacks(app):
         Input("filter-time", "value"),
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
+        Input("details-graph-settings-max-depth", "value"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
@@ -642,7 +697,7 @@ def register_details_callbacks(app):
                                 include_synergies_val,
                                 f_context, f_subcontext, f_done,
                                 f_value, f_interest, f_time, f_difficulty,
-                                f_node_types, node_name):
+                                f_node_types, gs_max_depth, node_name):
         if not node_name:
             return no_update, no_update, no_update
         global_filters = build_filters(f_context, f_subcontext, f_done,
@@ -650,7 +705,8 @@ def register_details_callbacks(app):
                                        f_node_types)
         return _run_simulation(node_name, include_soft_val, include_synergies_val,
                                include_transitive_val=include_transitive_val,
-                               global_filters=global_filters)
+                               global_filters=global_filters,
+                               max_depth=gs_max_depth or 0)
 
     # --- Run Simulation from context menu trigger ---
     @app.callback(
@@ -1148,10 +1204,41 @@ def register_details_callbacks(app):
         graph_manager.delete_node(node_name)
         return False, f"delete-{node_name}"
 
+    # --- Details Graph Settings: Toggle Panel ---
+    @app.callback(
+        Output('details-graph-settings-panel', 'style'),
+        Input('btn-details-graph-settings', 'n_clicks'),
+        State('details-graph-settings-panel', 'style'),
+        prevent_initial_call=True,
+    )
+    def toggle_details_graph_settings(_n, current_style):
+        style = dict(current_style) if current_style else {}
+        style['display'] = 'none' if style.get('display') != 'none' else 'block'
+        return style
+
+    # --- Details Graph Settings: Apply Layout Parameters ---
+    @app.callback(
+        Output('details-mini-graph', 'layout'),
+        Input('details-graph-settings-edge-length', 'value'),
+        Input('details-graph-settings-gravity', 'value'),
+        Input('details-graph-settings-repulsion', 'value'),
+    )
+    def update_details_graph_layout(edge_length, gravity, repulsion):
+        return {
+            'name': 'cose-bilkent',
+            'animate': False,
+            'fit': True,
+            'padding': 20,
+            'idealEdgeLength': edge_length or 100,
+            'nodeRepulsion': repulsion or 4500,
+            'gravity': gravity if gravity is not None else 0.25,
+            'numIter': 2500,
+        }
 
 
 def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,
-                          global_filters=None, include_transitive_val=None):
+                          global_filters=None, include_transitive_val=None,
+                          max_depth=0, neighbor_links=True):
     """Shared helper to build Cytoscape elements for the dependency graph."""
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
@@ -1182,6 +1269,29 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         subtree = subtree & direct
 
     node_names = subtree | {selected_node}
+
+    # --- Max Depth filtering (BFS from selected node) ---
+    if max_depth and max_depth > 0:
+        all_edges = graph_manager.get_edges()
+        adj = {}
+        for e in all_edges:
+            s, t = e['source'], e['target']
+            if s in node_names and t in node_names:
+                adj.setdefault(s, set()).add(t)
+                adj.setdefault(t, set()).add(s)
+        visited = {selected_node}
+        frontier = {selected_node}
+        for _ in range(max_depth):
+            next_frontier = set()
+            for n in frontier:
+                for nb in adj.get(n, set()):
+                    if nb not in visited:
+                        visited.add(nb)
+                        next_frontier.add(nb)
+            frontier = next_frontier
+            if not frontier:
+                break
+        node_names = node_names & visited
 
     colors = ConfigManager.get_node_colors()
     shapes = ConfigManager.get_node_shapes()
@@ -1230,6 +1340,10 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     edges = graph_manager.get_edges()
     for e in edges:
         if e['source'] in filtered_names and e['target'] in filtered_names:
+            # Neighbor links filter: when off, only show edges touching selected node
+            if not neighbor_links:
+                if e['source'] != selected_node and e['target'] != selected_node:
+                    continue
             elements.append({
                 'data': {
                     'id': f"{e['source']}_{e['target']}_{e['type']}",

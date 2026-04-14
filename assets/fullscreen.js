@@ -159,17 +159,46 @@
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            initScrollSensitivity('#cytoscape-graph');
-            initScrollSensitivity('#goal-mini-graph');
-            initScrollSensitivity('#details-mini-graph');
-            initFullscreen();
-            initRightClickPan('#cytoscape-graph');
-            initRightClickPan('#goal-mini-graph');
-            initRightClickPan('#details-mini-graph');
+    // --- Center graph when it becomes visible ---
+    function centerGraph(selector) {
+        var el = document.querySelector(selector);
+        if (!el || !el._cyreg || !el._cyreg.cy) {
+            return;
+        }
+        el._cyreg.cy.resize();
+        el._cyreg.cy.fit(null, 30);
+        el._cyreg.cy.center();
+    }
+
+    // Watch for the canvas tab becoming visible and center the graph.
+    // The Nodes tab isn't the default, so the graph container starts hidden
+    // and cy.fit()/cy.center() won't work until it's displayed.
+    var graphCentered = false;
+    function watchCanvasVisibility() {
+        var container = document.getElementById('canvas-tab-content');
+        if (!container) {
+            setTimeout(watchCanvasVisibility, 300);
+            return;
+        }
+
+        var observer = new MutationObserver(function () {
+            if (container.offsetParent !== null && !graphCentered) {
+                // Container just became visible
+                setTimeout(function () { centerGraph('#cytoscape-graph'); }, 100);
+                setTimeout(function () { centerGraph('#cytoscape-graph'); }, 600);
+                graphCentered = true;
+            }
         });
-    } else {
+        observer.observe(container, { attributes: true, attributeFilter: ['style'] });
+
+        // Also handle case where Nodes tab is the first tab opened
+        if (container.offsetParent !== null) {
+            setTimeout(function () { centerGraph('#cytoscape-graph'); }, 500);
+            graphCentered = true;
+        }
+    }
+
+    function initAll() {
         initScrollSensitivity('#cytoscape-graph');
         initScrollSensitivity('#goal-mini-graph');
         initScrollSensitivity('#details-mini-graph');
@@ -177,5 +206,12 @@
         initRightClickPan('#cytoscape-graph');
         initRightClickPan('#goal-mini-graph');
         initRightClickPan('#details-mini-graph');
+        watchCanvasVisibility();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        initAll();
     }
 })();

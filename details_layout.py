@@ -15,6 +15,52 @@ from models import EDGE_NEEDS_HARD
 from styles import stylesheet
 
 
+def _build_details_graph_settings_panel():
+    """Build the graph settings panel for the details mini-graph."""
+    p = "details-graph-settings"
+    return html.Div([
+        html.Div("Max Depth", className="settings-label"),
+        dcc.Slider(
+            id=f"{p}-max-depth",
+            min=0, max=5, step=1, value=0,
+            marks={0: "All", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
+            updatemode="mouseup",
+        ),
+
+        dbc.Switch(
+            id=f"{p}-neighbor-links",
+            label="Neighbor links",
+            value=True,
+            className="mt-3",
+            style={"fontSize": "0.82rem"},
+        ),
+
+        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+
+        html.Div("Edge Length", className="settings-label"),
+        dcc.Slider(
+            id=f"{p}-edge-length",
+            min=50, max=300, step=10, value=100,
+            updatemode="mouseup",
+        ),
+
+        html.Div("Gravity", className="settings-label"),
+        dcc.Slider(
+            id=f"{p}-gravity",
+            min=0, max=5, step=0.25, value=0.25,
+            updatemode="mouseup",
+        ),
+
+        html.Div("Repulsion", className="settings-label"),
+        dcc.Slider(
+            id=f"{p}-repulsion",
+            min=500, max=20000, step=500, value=4500,
+            updatemode="mouseup",
+        ),
+    ], id=f"{p}-panel", className="graph-settings-panel",
+       style={"display": "none"})
+
+
 def build_details_tab_content():
     """Builds the Details tab UI.
 
@@ -177,7 +223,7 @@ def build_details_tab_content():
             cyto.Cytoscape(
                 id='details-mini-graph',
                 elements=[],
-                layout={'name': 'cose', 'animate': False, 'fit': True, 'padding': 20},
+                layout={'name': 'cose-bilkent', 'animate': False, 'fit': True, 'padding': 20, 'numIter': 2500},
                 style={'width': '100%', 'height': '100%', 'backgroundColor': '#1a1d21',
                        'borderRadius': '0'},
                 stylesheet=stylesheet,
@@ -186,14 +232,15 @@ def build_details_tab_content():
                 boxSelectionEnabled=False,
                 autoungrabify=False,
             ),
-            dbc.Button("⛶", id="btn-details-graph-fullscreen",
-                       color="secondary", size="sm",
-                       className="btn-fullscreen-toggle",
-                       title="Toggle fullscreen",
-                       style={"position": "absolute", "bottom": "12px",
-                              "right": "12px", "zIndex": "10",
-                              "fontSize": "1.15rem", "lineHeight": "1",
-                              "padding": "4px 9px", "opacity": "0.55"}),
+            dbc.Button(html.I(className="bi bi-gear"),
+                       id="btn-details-graph-settings",
+                       color="secondary", size="sm", title="Graph settings",
+                       className="btn-canvas-overlay btn-canvas-top-right"),
+            _build_details_graph_settings_panel(),
+            dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
+                       id="btn-details-graph-fullscreen",
+                       color="secondary", size="sm", title="Toggle fullscreen",
+                       className="btn-canvas-overlay btn-canvas-bottom-right"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
         "flex": "1",

@@ -203,13 +203,63 @@ sidebar_content = html.Div(
 
 # --- Graph View (Canvas only) ---
 
+def _build_graph_settings_panel(prefix="graph-settings"):
+    """Build the graph settings panel controls.
+
+    Args:
+        prefix: ID prefix — 'graph-settings' for main canvas,
+                'details-graph-settings' for details canvas.
+    """
+    return html.Div([
+        html.Div("Max Depth", className="settings-label"),
+        dcc.Slider(
+            id=f"{prefix}-max-depth",
+            min=0, max=5, step=1, value=0,
+            marks={0: "All", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
+            updatemode="mouseup",
+        ),
+
+        dbc.Switch(
+            id=f"{prefix}-neighbor-links",
+            label="Neighbor links",
+            value=True,
+            className="mt-3",
+            style={"fontSize": "0.82rem"},
+        ),
+
+        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+
+        html.Div("Edge Length", className="settings-label"),
+        dcc.Slider(
+            id=f"{prefix}-edge-length",
+            min=50, max=300, step=10, value=100,
+            updatemode="mouseup",
+        ),
+
+        html.Div("Gravity", className="settings-label"),
+        dcc.Slider(
+            id=f"{prefix}-gravity",
+            min=0, max=5, step=0.25, value=0.25,
+            updatemode="mouseup",
+        ),
+
+        html.Div("Repulsion", className="settings-label"),
+        dcc.Slider(
+            id=f"{prefix}-repulsion",
+            min=500, max=20000, step=500, value=4500,
+            updatemode="mouseup",
+        ),
+    ], id=f"{prefix}-panel", className="graph-settings-panel",
+       style={"display": "none"})
+
+
 def create_graph_view(initial_elements):
     """Create the Cytoscape graph canvas with fullscreen toggle button."""
     return html.Div([
         html.Div([
             cyto.Cytoscape(
                 id='cytoscape-graph',
-                layout={'name': 'cose', 'fit': True},
+                layout={'name': 'cose-bilkent', 'fit': True, 'animate': False, 'padding': 30, 'numIter': 2500},
                 style={'width': '100%', 'height': '100%',
                        'backgroundColor': '#1a1d21', 'borderRadius': '8px'},
                 elements=initial_elements,
@@ -219,11 +269,15 @@ def create_graph_view(initial_elements):
                 userPanningEnabled=False,
                 autoungrabify=False
             ),
-            html.Button(
-                "⛶", id="btn-fullscreen",
-                className="btn btn-secondary btn-sm btn-fullscreen-toggle",
-                title="Toggle fullscreen"
-            ),
+            dbc.Button(html.I(className="bi bi-gear"),
+                       id="btn-graph-settings",
+                       color="secondary", size="sm", title="Graph settings",
+                       className="btn-canvas-overlay btn-canvas-top-right"),
+            _build_graph_settings_panel("graph-settings"),
+            dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
+                       id="btn-fullscreen",
+                       color="secondary", size="sm", title="Toggle fullscreen",
+                       className="btn-canvas-overlay btn-canvas-bottom-right"),
         ], id="canvas-container", className="canvas-container h-100", style={"overflow": "hidden", "borderRadius": "8px"}),
     ], className="h-100", style={"overflow": "hidden"})
 
@@ -358,7 +412,7 @@ description_view = html.Div([
 next_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=10),
     html.Div([
-        html.H6("Next", className="text-muted mb-0", style=_section_title_style),
+        html.H6("Suggestions", className="text-muted mb-0", style=_section_title_style),
         dbc.ButtonGroup([
             dbc.Button("−", id="btn-sugg-minus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
@@ -778,7 +832,7 @@ def build_app_layout(initial_elements, env="production"):
                     # Canvas Container
                     html.Div(
                         [create_graph_view(initial_elements)],
-                        className="flex-grow-1 px-3 mt-1",
+                        className="flex-grow-1",
                         style={
                             "minHeight": "200px",
                             "position": "relative",

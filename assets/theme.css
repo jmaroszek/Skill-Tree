@@ -4,21 +4,52 @@
     position: relative;
 }
 
-.btn-fullscreen-toggle {
+/* Shared style for canvas overlay buttons (gear, fullscreen) */
+.btn-canvas-overlay {
     position: absolute;
-    bottom: 12px;
-    right: 12px;
+    right: 16px;
     z-index: 10;
     opacity: 0.55;
-    font-size: 1.15rem;
-    line-height: 1;
-    padding: 4px 9px;
     transition: opacity 0.2s ease;
 }
-
-.btn-fullscreen-toggle:hover {
+.btn-canvas-overlay:hover {
     opacity: 1;
 }
+
+.btn-canvas-top-right {
+    top: 8px;
+}
+
+.btn-canvas-bottom-right {
+    bottom: 12px;
+}
+
+/* Graph Settings Panel */
+.graph-settings-panel {
+    position: absolute;
+    top: 48px;
+    right: 16px;
+    width: 280px;
+    z-index: 20;
+    background-color: #212529;
+    border: 1px solid #495057;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    color: #dee2e6;
+}
+
+.graph-settings-panel .settings-label {
+    font-size: 0.82rem;
+    color: #adb5bd;
+    margin-bottom: 4px;
+    margin-top: 12px;
+}
+
+.graph-settings-panel .settings-label:first-child {
+    margin-top: 0;
+}
+
 
 /* Fullscreen mode */
 .canvas-fullscreen {
@@ -38,12 +69,12 @@
     height: 100vh !important;
 }
 
-.canvas-fullscreen .btn-fullscreen-toggle {
-    bottom: 24px;
-    right: 24px;
+.canvas-fullscreen .btn-canvas-overlay {
     opacity: 0.8;
-    font-size: 1.4rem;
-    padding: 8px 14px;
+    z-index: 10001;
+}
+
+.canvas-fullscreen .graph-settings-panel {
     z-index: 10001;
 }
 

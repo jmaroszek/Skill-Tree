@@ -50,8 +50,16 @@ def _friendly_time_estimates(time_o, time_m, time_p):
 
 
 
-def generate_elements(filters=None, active_node_id=None, community_names=None):
-    """Convert nodes and edges from the database into Cytoscape-compatible element dicts."""
+def generate_elements(filters=None, active_node_id=None, community_names=None,
+                      max_depth=0, neighbor_links=True):
+    """Convert nodes and edges from the database into Cytoscape-compatible element dicts.
+
+    Args:
+        max_depth: 0 = show all nodes; 1-5 = only show nodes within this many
+                   hops of *active_node_id*.  Ignored when no node is active.
+        neighbor_links: When False, hide edges between non-active nodes
+                        (only show edges that touch the active node).
+    """
     if filters is None: filters = {}
     nodes = manager.get_all_nodes()
     filtered_nodes = manager.filter_nodes(nodes, filters)
@@ -60,8 +68,34 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
         filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
 
     valid_names = {n.name for n in filtered_nodes}
-    edges = manager.get_edges()
 
+    # --- Max Depth filtering (BFS from active node) ---
+    if max_depth and max_depth > 0 and active_node_id and active_node_id in valid_names:
+        edges = manager.get_edges()
+        # Build adjacency from edges within the valid set
+        adj = {}
+        for e in edges:
+            s, t = e['source'], e['target']
+            if s in valid_names and t in valid_names:
+                adj.setdefault(s, set()).add(t)
+                adj.setdefault(t, set()).add(s)
+        # BFS
+        visited = {active_node_id}
+        frontier = {active_node_id}
+        for _ in range(max_depth):
+            next_frontier = set()
+            for n in frontier:
+                for nb in adj.get(n, set()):
+                    if nb not in visited:
+                        visited.add(nb)
+                        next_frontier.add(nb)
+            frontier = next_frontier
+            if not frontier:
+                break
+        valid_names = valid_names & visited
+        filtered_nodes = [n for n in filtered_nodes if n.name in valid_names]
+
+    edges = manager.get_edges()
     colors = ConfigManager.get_node_colors()
     shapes = ConfigManager.get_node_shapes()
 
@@ -89,6 +123,10 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
 
     for e in edges:
         if e['source'] in valid_names and e['target'] in valid_names:
+            # Neighbor links filter: when off, only show edges touching active node
+            if not neighbor_links and active_node_id:
+                if e['source'] != active_node_id and e['target'] != active_node_id:
+                    continue
             elements.append({
                 'data': {
                     'id': f"{e['source']}_{e['target']}_{e['type']}",
@@ -489,7 +527,9 @@ def register_callbacks(app):
          Input('toggle-done-trigger-input', 'value'),
          Input('events-refresh-trigger', 'data'),
          Input('details-refresh-trigger', 'data'),
-         Input('background-click-input', 'value')],
+         Input('background-click-input', 'value'),
+         Input('graph-settings-max-depth', 'value'),
+         Input('graph-settings-neighbor-links', 'value')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -517,6 +557,7 @@ def register_callbacks(app):
                      active_suggestion_id,
                      f_goal, focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _details_refresh, _bg_click,
+                     gs_max_depth, gs_neighbor_links,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -749,7 +790,10 @@ def register_callbacks(app):
                 # "All" in orphans mode still means "only orphan nodes", not every node
                 community_names = set().union(*communities)
 
-            elements = generate_elements(filters, active_node_id, community_names=community_names)
+            elements = generate_elements(filters, active_node_id,
+                                        community_names=community_names,
+                                        max_depth=gs_max_depth or 0,
+                                        neighbor_links=gs_neighbor_links if gs_neighbor_links is not None else True)
 
             count = sugg_count if sugg_count else 10
             sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id)
@@ -1137,5 +1181,35 @@ def register_callbacks(app):
         if not node_name:
             return dash.no_update, dash.no_update
         return 'tab-canvas', node_name
+
+    # --- Graph Settings: Toggle Panel ---
+    @app.callback(
+        Output('graph-settings-panel', 'style'),
+        Input('btn-graph-settings', 'n_clicks'),
+        State('graph-settings-panel', 'style'),
+        prevent_initial_call=True,
+    )
+    def toggle_graph_settings(_n, current_style):
+        style = dict(current_style) if current_style else {}
+        style['display'] = 'none' if style.get('display') != 'none' else 'block'
+        return style
+
+    # --- Graph Settings: Apply Layout Parameters ---
+    @app.callback(
+        Output('cytoscape-graph', 'layout'),
+        Input('graph-settings-edge-length', 'value'),
+        Input('graph-settings-gravity', 'value'),
+        Input('graph-settings-repulsion', 'value'),
+    )
+    def update_graph_layout(edge_length, gravity, repulsion):
+        return {
+            'name': 'cose-bilkent',
+            'fit': True,
+            'animate': False,
+            'idealEdgeLength': edge_length or 100,
+            'nodeRepulsion': repulsion or 4500,
+            'gravity': gravity if gravity is not None else 0.25,
+            'numIter': 2500,
+        }
 
 

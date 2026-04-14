@@ -371,7 +371,7 @@ def register_settings_callbacks(app):
             }
             ConfigManager.set_titlecase_linter(new_linter)
 
-            return "Settings saved.", dash.no_update, False, 0
+            return "Settings saved", dash.no_update, False, 0
 
         except Exception:
             logger.exception("Failed to save settings")
