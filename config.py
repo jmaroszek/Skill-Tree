@@ -22,6 +22,7 @@ DEFAULT_NODE_COLORS = {
     'Action': '#fd7e14',
     'Learn': '#0d6efd',
     'Resource': '#9047b8',
+    'Override': '#e83e8c',
 }
 
 DEFAULT_NODE_SHAPES = {
@@ -311,6 +312,41 @@ class ConfigManager:
     @classmethod
     def set_priority_goals(cls, goals: list):
         cls._set_db_value("PRIORITY_GOALS", json.dumps(goals[:3]))
+
+    # --- Manual Priority Override ---
+
+    @classmethod
+    def get_override(cls):
+        val = cls._get_db_value("OVERRIDE")
+        return json.loads(val) if val else {"parent": None, "mode": "hard"}
+
+    @classmethod
+    def set_override(cls, override: dict):
+        cls._set_db_value("OVERRIDE", json.dumps(override))
+
+    @classmethod
+    def clear_override(cls):
+        cls.set_override({"parent": None, "mode": "hard"})
+
+    @classmethod
+    def get_override_node_set(cls, manager) -> set:
+        """Compute the full set of overridden node names from override parent + mode."""
+        from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
+        override = cls.get_override()
+        parent = override.get("parent")
+        if not parent:
+            return set()
+        if not manager.get_node(parent):
+            return set()
+        mode = override.get("mode", "hard")
+        if mode == "node_only":
+            return {parent}
+        elif mode == "hard":
+            return {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_HARD,))
+        elif mode == "soft":
+            return {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_SOFT,))
+        else:  # "all"
+            return {parent} | manager.get_goal_subtree(parent)
 
     @classmethod
     def ensure_action_type(cls):

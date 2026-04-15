@@ -12,7 +12,7 @@ import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from next_callbacks import get_suggestions
+from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
     node_options, build_filters,
@@ -99,18 +99,25 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
     edges = manager.get_edges()
     colors = ConfigManager.get_node_colors()
     shapes = ConfigManager.get_node_shapes()
+    override_set = ConfigManager.get_override_node_set(manager)
+    override_color = colors.get('Override', '#e83e8c')
 
     elements = []
     for node in filtered_nodes:
+        if node.name in override_set:
+            node_color = override_color
+        elif node.status == 'Done':
+            node_color = colors.get('Done', '#198754')
+        elif node.status == 'Blocked':
+            node_color = colors.get('Blocked', '#dc3545')
+        else:
+            node_color = colors.get(node.type, colors.get('Open', '#0d6efd'))
+
         node_data = {
             'data': {
                 'id': node.name,
                 'label': node.name,
-                'color': (
-                    colors.get('Done', '#198754') if node.status == 'Done'
-                    else colors.get('Blocked', '#dc3545') if node.status == 'Blocked'
-                    else colors.get(node.type, colors.get('Open', '#0d6efd'))
-                ),
+                'color': node_color,
                 'shape': shapes.get(node.type, 'rectangle'),
                 **node.to_dict()
             },
@@ -295,7 +302,8 @@ def register_callbacks(app):
          Input('btn-unsaved-save', 'n_clicks'),
          Input('search-node', 'value'),
          Input('background-click-input', 'value'),
-         Input('btn-new-node', 'n_clicks')],
+         Input('btn-new-node', 'n_clicks'),
+         Input('edit-trigger-input', 'value')],
         [State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
@@ -305,7 +313,7 @@ def register_callbacks(app):
          State('pending-navigation-store', 'data')],
         prevent_initial_call='initial_duplicate'
     )
-    def populate_editor(data, add_clicks, clear_yes_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks,
+    def populate_editor(data, add_clicks, clear_yes_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
                         elements, ed_style, original_name, cur_name, cur_desc, cur_val, cur_interest, cur_diff,
                         pending_nav):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
@@ -400,7 +408,17 @@ def register_callbacks(app):
                 return no_change
 
         name = None
-        if trigger_id == 'search-node':
+        if trigger_id == 'edit-trigger-input' and edit_trigger_val:
+            # Context menu Edit: node ID is carried explicitly in the trigger value
+            edit_node_name = edit_trigger_val.split('|')[0]
+            node = manager.get_node(edit_node_name)
+            if node:
+                name = node.name
+                data = node.to_dict()
+                data['id'] = name
+            else:
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+        elif trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
                 return def_out
@@ -474,7 +492,7 @@ def register_callbacks(app):
             # Type-specific fields
             data.get('progress') or 0, friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
-            name if (ed_style and ed_style.get('transform', '') == 'translateX(0px)') else dash.no_update,  # search-node — update when editor is open
+            name if (trigger_id == 'edit-trigger-input' or (ed_style and ed_style.get('transform', '') == 'translateX(0px)')) else dash.no_update,  # search-node — update when editor is open or edit-trigger
             rank_value,  # node-priority-rank
             time_mode_val,  # node-time-mode
             data.get('competence') or '',  # node-competence
@@ -639,33 +657,43 @@ def register_callbacks(app):
         Output('node-priority-badge', 'style'),
         Input('node-name', 'value'),
         Input('node-type', 'value'),
+        Input('override-store', 'data'),
     )
-    def update_node_priority_badge(node_name, node_type):
+    def update_node_priority_badge(node_name, node_type, _override_data):
         hidden = {"display": "none"}
         visible = {"display": "flex", "gap": "4px", "flexWrap": "wrap", "marginBottom": "8px"}
         if not node_name:
             return [], hidden
 
-        priority_goals = ConfigManager.get_priority_goals()
-        if not priority_goals:
-            return [], hidden
-
         badges = []
 
-        if node_type == "Goal" and node_name in priority_goals:
-            rank = priority_goals.index(node_name) + 1
-            badges.append(dbc.Badge(f"#{rank} Priority", color="warning", style={"fontSize": "0.75rem"}))
-        else:
-            # Check if this node is in any priority goal's subtree
-            for rank_idx, goal_name in enumerate(priority_goals[:3]):
-                full_subtree = manager.get_goal_subtree(goal_name)
-                if node_name not in full_subtree:
-                    continue
-                rank = rank_idx + 1
-                hard_subtree = manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
-                rel_type = "Hard" if node_name in hard_subtree else "Soft"
-                rel_color = "primary" if rel_type == "Hard" else "info"
-                badges.append(dbc.Badge(f"{rel_type} #{rank}", color=rel_color, style={"fontSize": "0.75rem"}))
+        # Override badge (always first)
+        override = ConfigManager.get_override()
+        if override.get("parent"):
+            override_set = ConfigManager.get_override_node_set(manager)
+            if node_name in override_set:
+                is_parent = (node_name == override["parent"])
+                override_label = "Override" if is_parent else "Override (Dependent)"
+                _ov_color = ConfigManager.get_node_colors().get('Override', '#e83e8c')
+                badges.append(html.Span(override_label, className="badge",
+                                        style={"fontSize": "0.75rem", "backgroundColor": _ov_color, "color": "#fff"}))
+
+        # Priority goal badges
+        priority_goals = ConfigManager.get_priority_goals()
+        if priority_goals:
+            if node_type == "Goal" and node_name in priority_goals:
+                rank = priority_goals.index(node_name) + 1
+                badges.append(dbc.Badge(f"#{rank} Priority", color="warning", style={"fontSize": "0.75rem"}))
+            else:
+                for rank_idx, goal_name in enumerate(priority_goals[:3]):
+                    full_subtree = manager.get_goal_subtree(goal_name)
+                    if node_name not in full_subtree:
+                        continue
+                    rank = rank_idx + 1
+                    hard_subtree = manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
+                    rel_type = "Hard" if node_name in hard_subtree else "Soft"
+                    rel_color = "primary" if rel_type == "Hard" else "info"
+                    badges.append(dbc.Badge(f"{rel_type} #{rank}", color=rel_color, style={"fontSize": "0.75rem"}))
 
         if not badges:
             return [], hidden
@@ -899,6 +927,11 @@ def register_callbacks(app):
                         name.strip() != original_name.strip() and
                         manager.get_node(original_name.strip())):
                     manager.rename_node(original_name.strip(), name.strip())
+                    # Update override reference on rename
+                    _ov = ConfigManager.get_override()
+                    if _ov.get("parent") == original_name.strip():
+                        _ov["parent"] = name.strip()
+                        ConfigManager.set_override(_ov)
 
                 time_mode = 'inherited' if (time_mode_val and 'inherited' in time_mode_val) else 'manual'
                 msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
@@ -931,6 +964,10 @@ def register_callbacks(app):
         elif trigger_id == 'btn-node-delete-confirm' and name:
             try:
                 msg = handle_delete(manager, name)
+                # Clear override if deleted node was the override parent
+                _ov = ConfigManager.get_override()
+                if _ov.get("parent") == name:
+                    ConfigManager.clear_override()
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-toggle-done-node' and tapped_node:
@@ -978,7 +1015,7 @@ def register_callbacks(app):
             
             # Still format sidebar traversal UI
             count = sugg_count if sugg_count else 10
-            sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id)
+            sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
             effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
             
@@ -1020,7 +1057,7 @@ def register_callbacks(app):
                                         neighbor_links=gs_neighbor_links if gs_neighbor_links is not None else True)
 
             count = sugg_count if sugg_count else 10
-            sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id)
+            sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
             effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
@@ -1491,20 +1528,19 @@ def register_callbacks(app):
             return _open_url_or_path(values[idx])
         return dash.no_update
 
-    # --- Edit/Toggle Done Trigger from Goal Graph ---
+    # --- Edit Trigger: switch to canvas tab ---
     @app.callback(
         Output('main-tabs', 'active_tab', allow_duplicate=True),
-        Output('search-node', 'value', allow_duplicate=True),
         Input('edit-trigger-input', 'value'),
         prevent_initial_call=True,
     )
     def handle_edit_trigger(value):
         if not value:
-            return dash.no_update, dash.no_update
+            return dash.no_update
         node_name = value.split('|')[0]
         if not node_name:
-            return dash.no_update, dash.no_update
-        return 'tab-canvas', node_name
+            return dash.no_update
+        return 'tab-canvas'
 
     # --- Graph Settings: Toggle Panel ---
     @app.callback(
@@ -1526,9 +1562,11 @@ def register_callbacks(app):
         Input('graph-settings-repulsion', 'value'),
         Input('graph-settings-animate', 'value'),
         Input('graph-settings-relayout', 'n_clicks'),
+        Input('btn-sidebar-relayout', 'n_clicks'),
+        prevent_initial_call=True,
     )
-    def update_graph_layout(edge_length, gravity, repulsion, animate, _relayout):
-        randomize = ctx.triggered_id == 'graph-settings-relayout'
+    def update_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _sidebar_relayout):
+        randomize = ctx.triggered_id in ('graph-settings-relayout', 'btn-sidebar-relayout')
         return {
             'name': 'cose-bilkent',
             'fit': True,
@@ -1539,5 +1577,148 @@ def register_callbacks(app):
             'gravity': gravity if gravity is not None else 0.25,
             'numIter': 2500,
         }
+
+    # =====================================================================
+    # Override callbacks
+    # =====================================================================
+
+    @app.callback(
+        Output('override-toggle', 'value'),
+        Input('node-original-name', 'data'),
+        Input('override-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def sync_override_toggle(node_name, _override_data):
+        """Sync override toggle state when the edited node or override state changes."""
+        if not node_name:
+            return []
+        override = ConfigManager.get_override()
+        if not override.get("parent"):
+            return []
+        override_set = ConfigManager.get_override_node_set(manager)
+        return ["on"] if node_name in override_set else []
+
+    @app.callback(
+        Output('popover-override-mode', 'is_open'),
+        Output('modal-override-conflict', 'is_open', allow_duplicate=True),
+        Output('override-conflict-body', 'children'),
+        Output('modal-override-untoggle', 'is_open', allow_duplicate=True),
+        Output('override-untoggle-body', 'children'),
+        Output('override-store', 'data', allow_duplicate=True),
+        Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Input('override-toggle', 'value'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+    def handle_override_toggle(toggle_val, node_name):
+        """Handle override toggle interaction: open popover, show conflicts, or clear."""
+        no_change = (False, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update)
+        if not node_name:
+            return no_change
+
+        toggle_on = bool(toggle_val and "on" in toggle_val)
+        override = ConfigManager.get_override()
+        current_parent = override.get("parent")
+
+        if toggle_on:
+            # Turning ON
+            if current_parent:
+                override_set = ConfigManager.get_override_node_set(manager)
+                if node_name in override_set:
+                    # Node is already in the override set (parent or dep) — sync triggered this
+                    return no_change
+            if current_parent:
+                # Conflict: different override already active
+                body = f'An override is already active for "{current_parent}". Do you want to keep the current override, or apply it to this new set?'
+                return False, True, body, False, dash.no_update, dash.no_update, dash.no_update
+            else:
+                # No existing override: open popover for mode selection
+                return True, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
+        else:
+            # Turning OFF
+            if not current_parent:
+                return no_change
+            if node_name == current_parent:
+                # Direct parent: clear override
+                import time as _time
+                ConfigManager.clear_override()
+                return False, False, dash.no_update, False, dash.no_update, ConfigManager.get_override(), f"override-{_time.time()}"
+            else:
+                # Inherited dep: show untoggle modal
+                override_set = ConfigManager.get_override_node_set(manager)
+                if node_name in override_set:
+                    body = f'This override was inherited from "{current_parent}".'
+                    return False, False, dash.no_update, True, body, dash.no_update, dash.no_update
+                else:
+                    return no_change
+
+    @app.callback(
+        Output('popover-override-mode', 'is_open', allow_duplicate=True),
+        Output('override-store', 'data', allow_duplicate=True),
+        Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Input('btn-override-apply', 'n_clicks'),
+        State('override-mode-radio', 'value'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+    def apply_override(n_clicks, mode, node_name):
+        """Apply override with selected mode from the popover."""
+        if not n_clicks or not node_name:
+            return dash.no_update, dash.no_update, dash.no_update
+        ConfigManager.set_override({"parent": node_name, "mode": mode or "hard"})
+        import time
+        return False, ConfigManager.get_override(), f"override-{time.time()}"
+
+    @app.callback(
+        Output('modal-override-conflict', 'is_open', allow_duplicate=True),
+        Output('override-store', 'data', allow_duplicate=True),
+        Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Input('btn-override-keep', 'n_clicks'),
+        Input('btn-override-replace', 'n_clicks'),
+        State('override-conflict-mode-radio', 'value'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+    def resolve_override_conflict(keep_clicks, replace_clicks, mode, node_name):
+        """Resolve conflict when a new override is attempted while one is active."""
+        import time
+        trigger = get_trigger_id()
+        if trigger == 'btn-override-keep':
+            return False, dash.no_update, dash.no_update
+        elif trigger == 'btn-override-replace' and node_name:
+            ConfigManager.set_override({"parent": node_name, "mode": mode or "hard"})
+            return False, ConfigManager.get_override(), f"override-{time.time()}"
+        return dash.no_update, dash.no_update, dash.no_update
+
+    @app.callback(
+        Output('modal-override-untoggle', 'is_open', allow_duplicate=True),
+        Output('override-store', 'data', allow_duplicate=True),
+        Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Input('btn-override-untoggle-cancel', 'n_clicks'),
+        Input('btn-override-untoggle-all', 'n_clicks'),
+        Input('btn-override-untoggle-hard', 'n_clicks'),
+        Input('btn-override-untoggle-soft', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def resolve_override_untoggle(cancel, untoggle_all, hard_only, soft_only):
+        """Resolve untoggling an inherited override dependency."""
+        import time as _time
+        trigger = get_trigger_id()
+        if trigger == 'btn-override-untoggle-cancel':
+            return False, dash.no_update, dash.no_update
+        elif trigger == 'btn-override-untoggle-all':
+            ConfigManager.clear_override()
+            return False, ConfigManager.get_override(), f"override-{_time.time()}"
+        elif trigger == 'btn-override-untoggle-hard':
+            override = ConfigManager.get_override()
+            override["mode"] = "hard"
+            ConfigManager.set_override(override)
+            return False, ConfigManager.get_override(), f"override-{_time.time()}"
+        elif trigger == 'btn-override-untoggle-soft':
+            override = ConfigManager.get_override()
+            override["mode"] = "soft"
+            ConfigManager.set_override(override)
+            return False, ConfigManager.get_override(), f"override-{_time.time()}"
+        return dash.no_update, dash.no_update, dash.no_update
 
 

@@ -257,6 +257,7 @@ def register_details_callbacks(app):
         Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
         Input("cytoscape-graph", "elements"),
+        Input("override-store", "data"),
         State("details-include-soft-needs", "value"),
         State("details-include-transitive", "value"),
         State("details-include-synergies", "value"),
@@ -271,7 +272,7 @@ def register_details_callbacks(app):
         State("details-graph-settings-max-depth", "value"),
         prevent_initial_call=True,
     )
-    def select_detail_node(node_name, _refresh, _elements,
+    def select_detail_node(node_name, _refresh, _elements, _override_data,
                            include_soft_val, include_transitive_val,
                            include_synergies_val,
                            f_context, f_subcontext, f_done,
@@ -304,6 +305,18 @@ def register_details_callbacks(app):
 
         # Build badges
         badges = []
+
+        # Override badge (always first if present)
+        override = ConfigManager.get_override()
+        if override.get("parent"):
+            override_set = ConfigManager.get_override_node_set(graph_manager)
+            if node_name in override_set:
+                is_parent = (node_name == override["parent"])
+                override_label = "Override" if is_parent else "Override (Dependent)"
+                _ov_color = ConfigManager.get_node_colors().get('Override', '#e83e8c')
+                badges.append(html.Span(override_label, className="badge",
+                                        style={"fontSize": "0.75rem", "backgroundColor": _ov_color, "color": "#fff"}))
+
         if node.type:
             type_colors = {"Learn": "primary", "Action": "warning",
                           "Goal": "warning", "Resource": "info"}
@@ -835,13 +848,15 @@ def register_details_callbacks(app):
         Output("details-add-obsidian-store", "data"),
         Output("details-add-drive-store", "data"),
         Output("details-add-website-store", "data"),
+        # Override reset
+        Output("details-add-override-toggle", "value"),
         Input("btn-details-add-node", "n_clicks"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     def open_add_node_modal(n_clicks, selected_node):
         if not n_clicks:
-            return (no_update,) * 35
+            return (no_update,) * 36
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -876,6 +891,8 @@ def register_details_callbacks(app):
             [], False,
             # Reset external resource stores
             [''], [''], [''],
+            # Override reset
+            False,
         )
 
     # --- Add Node Modal: Toggle mode ---
@@ -1088,6 +1105,9 @@ def register_details_callbacks(app):
         State({'type': 'details-add-obsidian-link', 'index': ALL}, 'value'),
         State({'type': 'details-add-drive-link', 'index': ALL}, 'value'),
         State({'type': 'details-add-website-link', 'index': ALL}, 'value'),
+        # Override
+        State("details-add-override-toggle", "value"),
+        State("details-add-override-mode", "value"),
         prevent_initial_call=True,
     )
     def save_add_node(n_clicks, selected_node, mode,
@@ -1096,7 +1116,8 @@ def register_details_callbacks(app):
                       value, interest, difficulty,
                       time_o, time_m, time_p, time_unit, time_mode_val,
                       needs_hard, needs_soft, supports_hard, supports_soft, helps,
-                      obsidian_vals, drive_vals, website_vals):
+                      obsidian_vals, drive_vals, website_vals,
+                      override_toggle, override_mode):
         from callback_helpers import serialize_links
         if not n_clicks or not selected_node:
             return no_update, no_update, no_update
@@ -1177,7 +1198,24 @@ def register_details_callbacks(app):
                         pass
             except ValueError as e:
                 return no_update, no_update, str(e)
+
+            # Apply override if requested
+            if override_toggle:
+                ConfigManager.set_override({
+                    "parent": name.strip(),
+                    "mode": override_mode or "hard"
+                })
+
             return False, f"add-{name}", ""
+
+    # --- Add Node Modal: Override toggle visibility ---
+    @app.callback(
+        Output("details-add-override-options", "style"),
+        Input("details-add-override-toggle", "value"),
+        prevent_initial_call=True,
+    )
+    def toggle_add_override_options(on):
+        return {"display": "block"} if on else {"display": "none"}
 
     # --- Subtask Remove: Open Modal ---
     @app.callback(

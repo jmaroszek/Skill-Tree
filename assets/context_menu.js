@@ -96,8 +96,9 @@
             if (_menuSource === 'details' && _currentNodeData && _currentNodeData.id) {
                 // On the details tab: open the editor in place without switching tabs
                 _setHiddenInput('details-edit-trigger-input', _currentNodeData.id);
-            } else if (_menuSource === 'goal' && _currentNodeData && _currentNodeData.id) {
-                // On the goals tab: navigate to Nodes tab and open editor
+            } else if (_currentNodeData && _currentNodeData.id) {
+                // Main canvas or goals tab: use edit-trigger-input which carries the
+                // node ID explicitly, avoiding reliance on tapNodeData.
                 _setHiddenInput('edit-trigger-input', _currentNodeData.id);
             } else {
                 _clickDashBtn('btn-edit-node');
@@ -145,41 +146,6 @@ function bindCyEvents() {
                 setTimeout(bindCyEvents, 500);
                 return;
             }
-
-            // --- Double-click to edit ---
-            // Use native dblclick on the container since Cytoscape's dbltap
-            // can be unreliable with boxSelectionEnabled.
-            cyWrapper.addEventListener('dblclick', function (e) {
-                var rect = cyWrapper.getBoundingClientRect();
-                var rendPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                var modelPos = {
-                    x: (rendPos.x - cy.pan().x) / cy.zoom(),
-                    y: (rendPos.y - cy.pan().y) / cy.zoom()
-                };
-
-                // Find the node under the cursor
-                var hitNode = null;
-                cy.nodes().forEach(function (node) {
-                    var bb = node.boundingBox();
-                    if (modelPos.x >= bb.x1 && modelPos.x <= bb.x2 &&
-                        modelPos.y >= bb.y1 && modelPos.y <= bb.y2) {
-                        hitNode = node;
-                    }
-                });
-
-                if (hitNode) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    cy.$('node:selected').unselect();
-                    hitNode.select();
-                    // Use edit-trigger-input (not btn-edit-node) to avoid a
-                    // race condition where tapNodeData from the first click
-                    // and the btn-edit-node click land in the same Dash
-                    // callback cycle, causing the sidebar-open trigger to
-                    // be masked by the earlier tapNodeData trigger.
-                    _setHiddenInput('edit-trigger-input', hitNode.id());
-                }
-            });
 
             // --- Right-click context menu on nodes ---
             cy.on('cxttap', 'node', function (evt) {

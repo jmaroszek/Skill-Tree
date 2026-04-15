@@ -108,6 +108,30 @@ def build_events_tab_content():
             ),
 
             html.Hr(className="my-2"),
+            html.Div([
+                html.H5("Priority Override", className="mb-0"),
+                dbc.Switch(
+                    id="dormant-override-toggle",
+                    label="",
+                    value=False,
+                    style={"fontSize": "0.82rem", "marginBottom": "0"},
+                ),
+            ], className="d-flex justify-content-between align-items-center mt-2 mb-1"),
+            html.Div(id="dormant-override-options", style={"display": "none"}, children=[
+                dbc.RadioItems(
+                    id="dormant-override-mode",
+                    options=[
+                        {"label": "Node Only", "value": "node_only"},
+                        {"label": "Node + Hard Dependencies", "value": "hard"},
+                        {"label": "Node + Soft Dependencies", "value": "soft"},
+                        {"label": "Node + All Dependencies", "value": "all"},
+                    ],
+                    value="hard",
+                    style={"fontSize": "0.85rem"},
+                ),
+            ]),
+
+            html.Hr(className="my-2"),
             html.H5("Ratings", className="mt-2 mb-1"),
             dbc.Label("Value", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-value"),

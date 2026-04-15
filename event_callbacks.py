@@ -492,12 +492,13 @@ def register_event_callbacks(app):
         Output("dormant-obsidian-links-store", "data"),
         Output("dormant-drive-links-store", "data"),
         Output("dormant-website-links-store", "data"),
+        Output("dormant-override-toggle", "value"),
         Input("btn-add-dormant-node", "n_clicks"),
         prevent_initial_call=True,
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 24
+            return (no_update,) * 25
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -511,7 +512,8 @@ def register_event_callbacks(app):
                 node_opts, node_opts, node_opts, node_opts, node_opts,
                 [], [], [], [], [],
                 "", [], False,
-                [''], [''], [''])
+                [''], [''], [''],
+                False)
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -597,6 +599,9 @@ def register_event_callbacks(app):
         State({"type": "dormant-obsidian-link", "index": ALL}, "value"),
         State({"type": "dormant-drive-link", "index": ALL}, "value"),
         State({"type": "dormant-website-link", "index": ALL}, "value"),
+        # Override
+        State("dormant-override-toggle", "value"),
+        State("dormant-override-mode", "value"),
         prevent_initial_call=True,
     )
     def save_dormant_node(n_clicks, selected_event,
@@ -606,7 +611,8 @@ def register_event_callbacks(app):
                           time_mode_val,
                           delay_value, delay_unit,
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
-                          obsidian_vals, drive_vals, website_vals):
+                          obsidian_vals, drive_vals, website_vals,
+                          override_toggle, override_mode):
         _nu7 = (no_update,) * 7
         if not n_clicks:
             return _nu7
@@ -670,6 +676,13 @@ def register_event_callbacks(app):
         graph_manager.sync_edges(name, needs_hard or [], needs_soft or [],
                                  supports_hard or [], supports_soft or [], helps or [])
 
+        # Apply override if requested
+        if override_toggle:
+            ConfigManager.set_override({
+                "parent": name.strip(),
+                "mode": override_mode or "hard"
+            })
+
         event = event_manager.get_event(selected_event)
         event_nodes = event_manager.get_event_nodes(selected_event)
 
@@ -682,6 +695,15 @@ def register_event_callbacks(app):
             event_trigger_style,
             event_status_msg,
         )
+
+    # --- Dormant Node Override toggle visibility ---
+    @app.callback(
+        Output("dormant-override-options", "style"),
+        Input("dormant-override-toggle", "value"),
+        prevent_initial_call=True,
+    )
+    def toggle_dormant_override_options(on):
+        return {"display": "block"} if on else {"display": "none"}
 
     # --- Dormant Node Link Render Callbacks ---
     @app.callback(

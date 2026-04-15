@@ -17,6 +17,7 @@ from styles import stylesheet
 
 def _build_details_graph_settings_panel():
     """Build the graph settings panel for the details mini-graph."""
+    gl = ConfigManager.get_graph_layout_defaults()
     p = "details-graph-settings"
     return html.Div([
         html.Div("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem", "marginBottom": "12px"}),
@@ -48,7 +49,7 @@ def _build_details_graph_settings_panel():
         html.Div("Edge Length", className="settings-label"),
         dcc.Slider(
             id=f"{p}-edge-length",
-            min=50, max=300, step=10, value=100,
+            min=50, max=300, step=10, value=gl.get('edge_length', 100),
             marks={50: "50", 100: "100", 150: "150", 200: "200", 250: "250", 300: "300"},
             updatemode="mouseup",
         ),
@@ -56,7 +57,7 @@ def _build_details_graph_settings_panel():
         html.Div("Gravity", className="settings-label"),
         dcc.Slider(
             id=f"{p}-gravity",
-            min=0, max=5, step=0.25, value=0.25,
+            min=0, max=5, step=0.25, value=gl.get('gravity', 0.25),
             marks={0: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
             updatemode="mouseup",
         ),
@@ -64,7 +65,7 @@ def _build_details_graph_settings_panel():
         html.Div("Repulsion", className="settings-label"),
         dcc.Slider(
             id=f"{p}-repulsion",
-            min=500, max=100000, step=500, value=4500,
+            min=500, max=100000, step=500, value=gl.get('repulsion', 4500),
             marks={500: "500", 25000: "25k", 50000: "50k", 75000: "75k", 100000: "100k"},
             updatemode="mouseup",
         ),
@@ -234,12 +235,19 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     #  DEPENDENCY GRAPH  (teal area: full height, starts at tab bar)      #
     # ------------------------------------------------------------------ #
+    gl = ConfigManager.get_graph_layout_defaults()
     dep_graph = html.Div([
         html.Div([
             cyto.Cytoscape(
                 id='details-mini-graph',
                 elements=[],
-                layout={'name': 'cose-bilkent', 'animate': False, 'fit': True, 'padding': 20, 'numIter': 2500, 'randomize': False},
+                layout={
+                    'name': 'cose-bilkent', 'animate': False, 'fit': True,
+                    'padding': 20, 'numIter': 2500, 'randomize': False,
+                    'idealEdgeLength': gl.get('edge_length', 100),
+                    'nodeRepulsion': gl.get('repulsion', 4500),
+                    'gravity': gl.get('gravity', 0.25),
+                },
                 style={'width': '100%', 'height': '100%', 'backgroundColor': '#1a1d21',
                        'borderRadius': '0'},
                 stylesheet=stylesheet,
@@ -643,6 +651,30 @@ def _build_add_node_modal(ted):
                     ],
                     value="",
                 ),
+
+                html.Hr(className="my-2"),
+                html.Div([
+                    html.H5("Priority Override", className="mb-0"),
+                    dbc.Switch(
+                        id="details-add-override-toggle",
+                        label="",
+                        value=False,
+                        style={"fontSize": "0.82rem", "marginBottom": "0"},
+                    ),
+                ], className="d-flex justify-content-between align-items-center mt-2 mb-1"),
+                html.Div(id="details-add-override-options", style={"display": "none"}, children=[
+                    dbc.RadioItems(
+                        id="details-add-override-mode",
+                        options=[
+                            {"label": "Node Only", "value": "node_only"},
+                            {"label": "Node + Hard Dependencies", "value": "hard"},
+                            {"label": "Node + Soft Dependencies", "value": "soft"},
+                            {"label": "Node + All Dependencies", "value": "all"},
+                        ],
+                        value="hard",
+                        style={"fontSize": "0.85rem"},
+                    ),
+                ]),
 
                 html.Hr(className="my-2"),
                 html.H5("Ratings", className="mt-2 mb-1"),

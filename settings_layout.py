@@ -4,8 +4,33 @@ Layout definitions for the Settings tab.
 
 from dash import html
 import dash_bootstrap_components as dbc
+from config import ConfigManager
 
 _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
+
+
+def _build_graph_layout_defaults_row():
+    gl = ConfigManager.get_graph_layout_defaults()
+    return dbc.Row([
+        dbc.Col([
+            dbc.Label("Edge Length", className="mb-1"),
+            dbc.Input(id="setting-graph-edge-length", type="number",
+                      min=50, max=300, step=10, value=gl.get('edge_length', 100)),
+            html.Small("50 – 300", className="text-muted"),
+        ], width=4),
+        dbc.Col([
+            dbc.Label("Gravity", className="mb-1"),
+            dbc.Input(id="setting-graph-gravity", type="number",
+                      min=0, max=5, step=0.25, value=gl.get('gravity', 0.25)),
+            html.Small("0 – 5", className="text-muted"),
+        ], width=4),
+        dbc.Col([
+            dbc.Label("Repulsion", className="mb-1"),
+            dbc.Input(id="setting-graph-repulsion", type="number",
+                      min=500, max=100000, step=500, value=gl.get('repulsion', 4500)),
+            html.Small("500 – 100,000", className="text-muted"),
+        ], width=4),
+    ])
 
 
 def build_settings_tab_content():
@@ -63,7 +88,7 @@ def build_settings_tab_content():
                                         dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top"),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
-                                html.Small("Color for Done and Blocked.", className="text-muted d-block mb-2"),
+                                html.Small("Color for Done, Blocked, and Override.", className="text-muted d-block mb-2"),
                                 html.Div(id="setting-node-status-colors-container"),
                             ], width=4),
                         ]),
@@ -72,26 +97,7 @@ def build_settings_tab_content():
                         html.Hr(className="my-2"),
                         html.H5("Graph Layout Defaults", className="mt-2 mb-1"),
                         html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
-                        dbc.Row([
-                            dbc.Col([
-                                dbc.Label("Edge Length", className="mb-1"),
-                                dbc.Input(id="setting-graph-edge-length", type="number",
-                                          min=50, max=300, step=10, value=100),
-                                html.Small("50 – 300", className="text-muted"),
-                            ], width=4),
-                            dbc.Col([
-                                dbc.Label("Gravity", className="mb-1"),
-                                dbc.Input(id="setting-graph-gravity", type="number",
-                                          min=0, max=5, step=0.25, value=0.25),
-                                html.Small("0 – 5", className="text-muted"),
-                            ], width=4),
-                            dbc.Col([
-                                dbc.Label("Repulsion", className="mb-1"),
-                                dbc.Input(id="setting-graph-repulsion", type="number",
-                                          min=500, max=100000, step=500, value=4500),
-                                html.Small("500 – 100,000", className="text-muted"),
-                            ], width=4),
-                        ]),
+                        _build_graph_layout_defaults_row(),
 
                         # --- Contexts group ---
                         html.Hr(className="my-2"),

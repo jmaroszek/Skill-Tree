@@ -291,6 +291,11 @@ def handle_group_delete(manager, group_delete_data):
     names = json.loads(raw) if raw else []
     for node_name in names:
         manager.delete_node(node_name)
+    # Clear override if parent was in the deleted set
+    if names:
+        override = ConfigManager.get_override()
+        if override.get("parent") in names:
+            ConfigManager.clear_override()
     return f"Deleted {len(names)} node(s)" if names else ""
 
 
@@ -303,7 +308,7 @@ def _bool_icon(val):
     return html.Span("\u2717", style={"color": "#dc3545"})
 
 
-def format_suggestions_table(suggs, manager, selected_node_id=None):
+def format_suggestions_table(suggs, manager, selected_node_id=None, override_set=None):
     """Render the top-scored nodes as an HTML table with normalized priority scores (0-100)."""
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
@@ -320,12 +325,17 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
     all_nodes = manager.get_all_nodes()
     resource_names = {n.name for n in all_nodes if n.type == 'Resource'}
 
-    table_header = [html.Thead(html.Tr([
+    header_cells = [
         html.Th("Name"), html.Th("Type"), html.Th("Context"), html.Th("Subcontext"),
         html.Th("Priority"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
         html.Th("Hard Unlocks"), html.Th("Soft Unlocks"), html.Th("Synergies"),
         html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive")
-    ]))]
+    ]
+    if override_set:
+        header_cells.append(html.Th("Override"))
+    table_header = [html.Thead(html.Tr(header_cells))]
+
+    override_color = ConfigManager.get_node_colors().get('Override', '#e83e8c') if override_set else None
 
     row_data = []
     for s in suggs:
@@ -343,7 +353,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             if e['type'] == EDGE_HELPS and (e['source'] == s.name or e['target'] == s.name)
         )
 
-        row_data.append(html.Tr([
+        row_cells = [
             html.Td(html.Span(
                 s.name,
                 id={"type": "suggestion-name-link", "index": s.name},
@@ -364,7 +374,15 @@ def format_suggestions_table(suggs, manager, selected_node_id=None):
             html.Td(_bool_icon(has_resource)),
             html.Td(_bool_icon(getattr(s, 'obsidian_path', None))),
             html.Td(_bool_icon(getattr(s, 'google_drive_path', None))),
-        ], id={"type": "suggestion-row", "index": s.name}, className=row_class, style={"cursor": "pointer"}))
+        ]
+        if override_set:
+            row_cells.append(html.Td(_bool_icon(s.name in override_set)))
+
+        row_style = {"cursor": "pointer"}
+        if override_set and s.name in override_set:
+            row_style["borderLeft"] = f"3px solid {override_color}"
+            row_style["backgroundColor"] = "rgba(232, 62, 140, 0.08)"
+        row_data.append(html.Tr(row_cells, id={"type": "suggestion-row", "index": s.name}, className=row_class, style=row_style))
 
     table = dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,
                      style={"width": "fit-content", "minWidth": "50%", "tableLayout": "auto"})

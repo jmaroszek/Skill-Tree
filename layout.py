@@ -108,13 +108,14 @@ sidebar_content = html.Div(
 
             # --- Section: Done toggle + Time Estimates (Learn, Goal, Resource) ---
             html.Div(id="section-done-time", children=[
-                dbc.Checklist(
-                    options=[{"label": "Done", "value": "Done"}],
-                    value=[],
-                    id="node-status-done",
-                    switch=True,
-                    className="mt-3",
-                ),
+                html.Div([
+                    dbc.Checklist(
+                        options=[{"label": "Done", "value": "Done"}],
+                        value=[],
+                        id="node-status-done",
+                        switch=True,
+                    ),
+                ], className="d-flex justify-content-start mt-3"),
             ]),
 
             # --- Section: Resource-specific (progress slider) ---
@@ -147,6 +148,38 @@ sidebar_content = html.Div(
 
             dbc.Label("Effort", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
+
+            dbc.Checklist(
+                options=[{"label": "Override", "value": "on"}],
+                value=[],
+                id="override-toggle",
+                switch=True,
+                className="mt-3 mb-1",
+            ),
+            dbc.Popover(
+                [
+                    dbc.PopoverHeader("Override Mode"),
+                    dbc.PopoverBody([
+                        dbc.RadioItems(
+                            id="override-mode-radio",
+                            options=[
+                                {"label": "Node Only", "value": "node_only"},
+                                {"label": "Node + Hard Dependencies", "value": "hard"},
+                                {"label": "Node + Soft Dependencies", "value": "soft"},
+                                {"label": "Node + All Dependencies", "value": "all"},
+                            ],
+                            value="hard",
+                            className="mb-2",
+                        ),
+                        dbc.Button("Apply", id="btn-override-apply", color="primary",
+                                   size="sm", className="w-100"),
+                    ]),
+                ],
+                id="popover-override-mode",
+                target="override-toggle",
+                is_open=False,
+                placement="bottom",
+            ),
 
             # --- Section: Time Estimates ---
             html.Div(id="section-time-estimates", children=[
@@ -252,6 +285,7 @@ def _build_graph_settings_panel(prefix="graph-settings"):
         prefix: ID prefix — 'graph-settings' for main canvas,
                 'details-graph-settings' for details canvas.
     """
+    gl = ConfigManager.get_graph_layout_defaults()
     return html.Div([
         html.Div("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem", "marginBottom": "12px"}),
         html.Div("Max Depth", className="settings-label"),
@@ -282,7 +316,7 @@ def _build_graph_settings_panel(prefix="graph-settings"):
         html.Div("Edge Length", className="settings-label"),
         dcc.Slider(
             id=f"{prefix}-edge-length",
-            min=50, max=300, step=10, value=100,
+            min=50, max=300, step=10, value=gl.get('edge_length', 100),
             marks={50: "50", 100: "100", 150: "150", 200: "200", 250: "250", 300: "300"},
             updatemode="mouseup",
         ),
@@ -290,7 +324,7 @@ def _build_graph_settings_panel(prefix="graph-settings"):
         html.Div("Gravity", className="settings-label"),
         dcc.Slider(
             id=f"{prefix}-gravity",
-            min=0, max=5, step=0.25, value=0.25,
+            min=0, max=5, step=0.25, value=gl.get('gravity', 0.25),
             marks={0: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
             updatemode="mouseup",
         ),
@@ -298,7 +332,7 @@ def _build_graph_settings_panel(prefix="graph-settings"):
         html.Div("Repulsion", className="settings-label"),
         dcc.Slider(
             id=f"{prefix}-repulsion",
-            min=500, max=100000, step=500, value=4500,
+            min=500, max=100000, step=500, value=gl.get('repulsion', 4500),
             marks={500: "500", 25000: "25k", 50000: "50k", 75000: "75k", 100000: "100k"},
             updatemode="mouseup",
         ),
@@ -313,11 +347,18 @@ def _build_graph_settings_panel(prefix="graph-settings"):
 
 def create_graph_view(initial_elements):
     """Create the Cytoscape graph canvas with fullscreen toggle button."""
+    gl = ConfigManager.get_graph_layout_defaults()
     return html.Div([
         html.Div([
             cyto.Cytoscape(
                 id='cytoscape-graph',
-                layout={'name': 'cose-bilkent', 'fit': True, 'animate': False, 'padding': 30, 'numIter': 2500, 'randomize': False},
+                layout={
+                    'name': 'cose-bilkent', 'fit': True, 'animate': False,
+                    'padding': 30, 'numIter': 2500, 'randomize': True,
+                    'idealEdgeLength': gl.get('edge_length', 100),
+                    'nodeRepulsion': gl.get('repulsion', 4500),
+                    'gravity': gl.get('gravity', 0.25),
+                },
                 style={'width': '100%', 'height': '100%',
                        'backgroundColor': '#1a1d21', 'borderRadius': '8px'},
                 elements=initial_elements,
@@ -433,7 +474,10 @@ filters_content = html.Div([
     ),
 
     html.Hr(className="my-3"),
-    dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="w-100 mb-3"),
+    html.Div([
+        dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
+        dbc.Button("Re-layout", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
+    ], className="d-flex gap-2 mb-3"),
 ], className="px-3 pb-2 pt-0", style={"width": "320px", "minWidth": "320px"})
 
 
@@ -683,6 +727,43 @@ clear_confirm_modal = dbc.Modal([
         dbc.Button("Yes", id="btn-clear-yes", color="success", className="flex-fill"),
     ], className="d-flex"),
 ], id="modal-clear-confirm", size="sm", is_open=False, centered=True)
+
+
+override_conflict_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Override Conflict")),
+    dbc.ModalBody([
+        html.Div(id="override-conflict-body"),
+        html.Hr(className="my-2"),
+        dbc.RadioItems(
+            id="override-conflict-mode-radio",
+            options=[
+                {"label": "Node Only", "value": "node_only"},
+                {"label": "Node + Hard Dependencies", "value": "hard"},
+                {"label": "Node + Soft Dependencies", "value": "soft"},
+                {"label": "Node + All Dependencies", "value": "all"},
+            ],
+            value="hard",
+        ),
+    ]),
+    dbc.ModalFooter([
+        dbc.Button("Keep Current", id="btn-override-keep", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Apply to New", id="btn-override-replace", color="primary", className="flex-fill"),
+    ], className="d-flex"),
+], id="modal-override-conflict", is_open=False, centered=True)
+
+
+override_untoggle_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Override Active")),
+    dbc.ModalBody(id="override-untoggle-body"),
+    dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-override-untoggle-cancel", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Untoggle All", id="btn-override-untoggle-all", color="danger", className="flex-fill me-2",
+                   style={"backgroundColor": ConfigManager.get_danger_color(),
+                          "borderColor": ConfigManager.get_danger_color()}),
+        dbc.Button("Hard Only", id="btn-override-untoggle-hard", color="primary", className="flex-fill me-2"),
+        dbc.Button("Soft Only", id="btn-override-untoggle-soft", color="info", className="flex-fill"),
+    ], className="d-flex"),
+], id="modal-override-untoggle", size="md", is_open=False, centered=True)
 
 
 # --- Bottom Panel (Relationships + Description) ---
@@ -993,7 +1074,10 @@ def build_app_layout(initial_elements, env="production"):
         unsaved_changes_modal,
         delete_confirm_modal,
         clear_confirm_modal,
+        override_conflict_modal,
+        override_untoggle_modal,
 
+        dcc.Store(id='override-store', data={"parent": None, "mode": "hard"}),
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
