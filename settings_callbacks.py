@@ -16,6 +16,15 @@ logger = logging.getLogger(__name__)
 manager = GraphManager()
 
 
+def _clamp(val, lo, hi, default):
+    """Clamp a numeric value to [lo, hi], falling back to default if None."""
+    try:
+        v = float(val) if val is not None else default
+    except (ValueError, TypeError):
+        return default
+    return max(lo, min(hi, v))
+
+
 def register_settings_callbacks(app):
 
     # --- Settings: Load when Settings tab activates ---
@@ -45,12 +54,15 @@ def register_settings_callbacks(app):
         Output('setting-default-time-p', 'value'),
         Output('setting-linter-enabled', 'value'),
         Output('setting-linter-exclusions', 'value'),
+        Output('setting-graph-edge-length', 'value'),
+        Output('setting-graph-gravity', 'value'),
+        Output('setting-graph-repulsion', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 25
+            return (dash.no_update,) * 28
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -131,6 +143,9 @@ def register_settings_callbacks(app):
         linter_enabled_val = ["enabled"] if linter.get('enabled', True) else []
         linter_exclusions_val = ', '.join(linter.get('exclusions', []))
 
+        from config import DEFAULT_GRAPH_LAYOUT
+        gl = ConfigManager.get_graph_layout_defaults()
+
         return (
             hp.get('w_v', 1.0), hp.get('w_i', 1.0),
             hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35),
@@ -152,6 +167,9 @@ def register_settings_callbacks(app):
             ted.get('pessimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic']),
             linter_enabled_val,
             linter_exclusions_val,
+            gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
+            gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
+            gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -224,6 +242,9 @@ def register_settings_callbacks(app):
         State('setting-hp-profile', 'value'),
         State('setting-linter-enabled', 'value'),
         State('setting-linter-exclusions', 'value'),
+        State('setting-graph-edge-length', 'value'),
+        State('setting-graph-gravity', 'value'),
+        State('setting-graph-repulsion', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
@@ -231,7 +252,8 @@ def register_settings_callbacks(app):
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
-                      linter_enabled_val, linter_exclusions_val):
+                      linter_enabled_val, linter_exclusions_val,
+                      gl_edge_length, gl_gravity, gl_repulsion):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -315,10 +337,17 @@ def register_settings_callbacks(app):
                     'enabled': bool(linter_enabled_val and "enabled" in linter_enabled_val),
                     'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
                 }
+                from config import DEFAULT_GRAPH_LAYOUT
+                new_gl = {
+                    'edge_length': _clamp(gl_edge_length, 50, 300, DEFAULT_GRAPH_LAYOUT['edge_length']),
+                    'gravity': _clamp(gl_gravity, 0, 5, DEFAULT_GRAPH_LAYOUT['gravity']),
+                    'repulsion': _clamp(gl_repulsion, 500, 100000, DEFAULT_GRAPH_LAYOUT['repulsion']),
+                }
                 pending = {
                     'hp': new_hp,
                     'ts': new_ts,
                     'ted': new_ted,
+                    'gl': new_gl,
                     'obs_path': obs_path,
                     'gdrive_path': gdrive_path or "",
                     'types': new_types,
@@ -336,10 +365,18 @@ def register_settings_callbacks(app):
                 }
                 return "Migration required \u2014 check the migration dialog.", pending, False, 0
 
+            from config import DEFAULT_GRAPH_LAYOUT
+            new_gl = {
+                'edge_length': float(gl_edge_length) if gl_edge_length is not None else DEFAULT_GRAPH_LAYOUT['edge_length'],
+                'gravity': float(gl_gravity) if gl_gravity is not None else DEFAULT_GRAPH_LAYOUT['gravity'],
+                'repulsion': float(gl_repulsion) if gl_repulsion is not None else DEFAULT_GRAPH_LAYOUT['repulsion'],
+            }
+
             ConfigManager.set_hp_profile(hp_profile or "Custom")
             ConfigManager.set_hyperparams(new_hp)
             ConfigManager.set_time_settings(new_ts)
             ConfigManager.set_time_estimate_defaults(new_ted)
+            ConfigManager.set_graph_layout_defaults(new_gl)
             ConfigManager.set_obsidian_vault(obs_path)
             ConfigManager.set_gdrive_path(gdrive_path or "")
             if new_types:
@@ -462,6 +499,8 @@ def register_settings_callbacks(app):
                     ConfigManager.set_node_colors(pending_colors)
                 if 'linter' in pending_state:
                     ConfigManager.set_titlecase_linter(pending_state['linter'])
+                if 'gl' in pending_state:
+                    ConfigManager.set_graph_layout_defaults(pending_state['gl'])
             except Exception:
                 logger.exception("Failed to save pending settings")
 
@@ -568,6 +607,26 @@ def register_settings_callbacks(app):
         if n > 0:
             return "", True
         return dash.no_update, dash.no_update
+
+    # --- Settings: Apply graph layout defaults to canvas sliders ---
+    @app.callback(
+        Output('graph-settings-edge-length', 'value'),
+        Output('graph-settings-gravity', 'value'),
+        Output('graph-settings-repulsion', 'value'),
+        Output('details-graph-settings-edge-length', 'value'),
+        Output('details-graph-settings-gravity', 'value'),
+        Output('details-graph-settings-repulsion', 'value'),
+        Input('btn-settings-save', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def apply_graph_defaults_to_sliders(n_clicks):
+        if not n_clicks:
+            return (dash.no_update,) * 6
+        gl = ConfigManager.get_graph_layout_defaults()
+        el = gl.get('edge_length', 100)
+        g = gl.get('gravity', 0.25)
+        r = gl.get('repulsion', 4500)
+        return el, g, r, el, g, r
 
     # --- Settings: Restore Default Shapes ---
     @app.callback(

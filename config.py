@@ -42,6 +42,12 @@ DEFAULT_TIME_ESTIMATE_DEFAULTS = {
     'unit': 'weeks',
 }
 
+DEFAULT_GRAPH_LAYOUT = {
+    'edge_length': 100,
+    'gravity': 0.25,
+    'repulsion': 4500,
+}
+
 DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
 
 DEFAULT_TITLECASE_LINTER = {
@@ -152,6 +158,15 @@ class ConfigManager:
     @classmethod
     def set_hyperparams(cls, params: dict):
         cls._set_db_value("HYPERPARAMS", json.dumps(params))
+
+    @classmethod
+    def get_graph_layout_defaults(cls):
+        val = cls._get_db_value("GRAPH_LAYOUT_DEFAULTS")
+        return json.loads(val) if val else DEFAULT_GRAPH_LAYOUT
+
+    @classmethod
+    def set_graph_layout_defaults(cls, params: dict):
+        cls._set_db_value("GRAPH_LAYOUT_DEFAULTS", json.dumps(params))
 
     @classmethod
     def get_time_settings(cls):

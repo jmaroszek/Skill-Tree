@@ -253,6 +253,7 @@ def _build_graph_settings_panel(prefix="graph-settings"):
                 'details-graph-settings' for details canvas.
     """
     return html.Div([
+        html.Div("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem", "marginBottom": "12px"}),
         html.Div("Max Depth", className="settings-label"),
         dcc.Slider(
             id=f"{prefix}-max-depth",
@@ -261,13 +262,20 @@ def _build_graph_settings_panel(prefix="graph-settings"):
             updatemode="mouseup",
         ),
 
-        dbc.Switch(
-            id=f"{prefix}-neighbor-links",
-            label="Neighbor links",
-            value=True,
-            className="mt-3",
-            style={"fontSize": "0.82rem"},
-        ),
+        html.Div([
+            dbc.Switch(
+                id=f"{prefix}-neighbor-links",
+                label="Neighbor links",
+                value=True,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Switch(
+                id=f"{prefix}-animate",
+                label="Animate",
+                value=True,
+                style={"fontSize": "0.82rem"},
+            ),
+        ], className="d-flex gap-3 mt-3"),
 
         html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
 
@@ -275,6 +283,7 @@ def _build_graph_settings_panel(prefix="graph-settings"):
         dcc.Slider(
             id=f"{prefix}-edge-length",
             min=50, max=300, step=10, value=100,
+            marks={50: "50", 100: "100", 150: "150", 200: "200", 250: "250", 300: "300"},
             updatemode="mouseup",
         ),
 
@@ -282,23 +291,19 @@ def _build_graph_settings_panel(prefix="graph-settings"):
         dcc.Slider(
             id=f"{prefix}-gravity",
             min=0, max=5, step=0.25, value=0.25,
+            marks={0: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
             updatemode="mouseup",
         ),
 
         html.Div("Repulsion", className="settings-label"),
         dcc.Slider(
             id=f"{prefix}-repulsion",
-            min=500, max=20000, step=500, value=4500,
+            min=500, max=100000, step=500, value=4500,
+            marks={500: "500", 25000: "25k", 50000: "50k", 75000: "75k", 100000: "100k"},
             updatemode="mouseup",
         ),
-        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
 
-        dbc.Switch(
-            id=f"{prefix}-animate",
-            label="Animate",
-            value=False,
-            style={"fontSize": "0.82rem"},
-        ),
+        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
 
         dbc.Button("Re-layout", id=f"{prefix}-relayout",
                    color="secondary", size="sm", className="w-100 mt-2"),

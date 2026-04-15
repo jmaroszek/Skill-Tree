@@ -68,6 +68,31 @@ def build_settings_tab_content():
                             ], width=4),
                         ]),
 
+                        # --- Graph Layout Defaults group ---
+                        html.Hr(className="my-2"),
+                        html.H5("Graph Layout Defaults", className="mt-2 mb-1"),
+                        html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Edge Length", className="mb-1"),
+                                dbc.Input(id="setting-graph-edge-length", type="number",
+                                          min=50, max=300, step=10, value=100),
+                                html.Small("50 – 300", className="text-muted"),
+                            ], width=4),
+                            dbc.Col([
+                                dbc.Label("Gravity", className="mb-1"),
+                                dbc.Input(id="setting-graph-gravity", type="number",
+                                          min=0, max=5, step=0.25, value=0.25),
+                                html.Small("0 – 5", className="text-muted"),
+                            ], width=4),
+                            dbc.Col([
+                                dbc.Label("Repulsion", className="mb-1"),
+                                dbc.Input(id="setting-graph-repulsion", type="number",
+                                          min=500, max=100000, step=500, value=4500),
+                                html.Small("500 – 100,000", className="text-muted"),
+                            ], width=4),
+                        ]),
+
                         # --- Contexts group ---
                         html.Hr(className="my-2"),
                         html.H5("Contexts", className="mt-2 mb-1"),
