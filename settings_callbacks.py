@@ -382,9 +382,12 @@ def register_settings_callbacks(app):
         Output('modal-migration', 'is_open'),
         Output('migration-modal-body', 'children'),
         Output('migration-mapping-store', 'data'),
+        Output('setting-subcontexts', 'value', allow_duplicate=True),
+        Output('setting-node-types', 'value', allow_duplicate=True),
         Input('pending-settings-store', 'data'),
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-skip', 'n_clicks'),
+        Input('btn-migration-cancel', 'n_clicks'),
         State({"type": "migration-dropdown", "index": dash.ALL}, "value"),
         State({"type": "migration-cgc", "index": dash.ALL}, "value"),
         State({"type": "migration-cgs", "index": dash.ALL}, "value"),
@@ -394,7 +397,7 @@ def register_settings_callbacks(app):
         State('pending-settings-store', 'data'),
         prevent_initial_call=True
     )
-    def handle_migration(pending_data, apply_clicks, skip_clicks,
+    def handle_migration(pending_data, apply_clicks, skip_clicks, cancel_clicks,
                          type_dropdown_values, cgc_values, cgs_values, sgc_values, sgs_values,
                          mapping_data, pending_state):
         from layout import build_migration_content
@@ -413,7 +416,25 @@ def register_settings_callbacks(app):
                     orphans_for_ui[field][old_val] = [type('N', (), {'name': n})() for n in node_names]
 
             children, mapping = build_migration_content(orphans_for_ui, new_values, subcontexts_by_context)
-            return True, children, mapping
+            return True, children, mapping, dash.no_update, dash.no_update
+
+        if trigger_id == 'btn-migration-cancel':
+            # Restore context and type fields from the database
+            old_contexts = ConfigManager.get_contexts()
+            old_subcontexts = ConfigManager.get_subcontexts()
+            sub_lines = []
+            for ctx_name in old_contexts:
+                subs = old_subcontexts.get(ctx_name, [])
+                if subs:
+                    sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
+                else:
+                    sub_lines.append(ctx_name)
+            for ctx_name, subs in old_subcontexts.items():
+                if ctx_name not in old_contexts:
+                    sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
+            restored_sub_val = '\n'.join(sub_lines)
+            restored_types_val = ', '.join(ConfigManager.get_node_types())
+            return False, [], None, restored_sub_val, restored_types_val
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             try:
@@ -470,9 +491,9 @@ def register_settings_callbacks(app):
                 sub_groups = mapping_data.get('sub_groups', []) if isinstance(mapping_data, dict) else []
                 _apply_group(sub_groups, sgc_values, sgs_values)
 
-            return False, [], None
+            return False, [], None, dash.no_update, dash.no_update
 
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):

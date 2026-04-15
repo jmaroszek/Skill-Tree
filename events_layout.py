@@ -416,7 +416,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
 
         # Convert delay_days back to a friendly display
         if delay_days == 0:
-            delay_display = "Immediate"
+            delay_display = "None"
         elif delay_days % 30 == 0 and delay_days >= 30:
             months = delay_days // 30
             delay_display = f"{months} month{'s' if months > 1 else ''}"

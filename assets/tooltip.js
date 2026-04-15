@@ -12,9 +12,14 @@
 (function () {
 
     var hideTimer = null;
+    var showTimer = null;
     var HIDE_DELAY_MS = 300;
+    var SHOW_DELAY_MS = 700;
     var onNode = false;
     var lastHoveredNodeId = null;
+    var delayElapsed = false;
+    var lastMouseX = 0;
+    var lastMouseY = 0;
 
     function initTooltip() {
         var tooltip = document.getElementById('hover-tooltip');
@@ -24,21 +29,28 @@
         }
 
         // --- 1. Follow the cursor ---
-        document.addEventListener('mousemove', function (e) {
-            if (tooltip.style.display === 'none') return;
+        function positionTooltip(mx, my) {
             var offset = 16;
             var tw = tooltip.offsetWidth;
             var th = tooltip.offsetHeight;
-            var x = e.clientX + offset;
-            var y = e.clientY + offset;
-            tooltip.style.left = (x + tw > window.innerWidth  ? e.clientX - tw - offset : x) + 'px';
-            tooltip.style.top  = (y + th > window.innerHeight ? e.clientY - th - offset : y) + 'px';
+            var x = mx + offset;
+            var y = my + offset;
+            tooltip.style.left = (x + tw > window.innerWidth  ? mx - tw - offset : x) + 'px';
+            tooltip.style.top  = (y + th > window.innerHeight ? my - th - offset : y) + 'px';
+        }
+
+        document.addEventListener('mousemove', function (e) {
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            if (tooltip.style.display === 'none') return;
+            positionTooltip(e.clientX, e.clientY);
         });
 
         // --- 2. MutationObserver: show tooltip when Dash populates content ---
         var observer = new MutationObserver(function () {
-            if (onNode && tooltip.innerText.trim().length > 0) {
+            if (onNode && tooltip.innerText.trim().length > 0 && delayElapsed) {
                 clearTimeout(hideTimer);
+                positionTooltip(lastMouseX, lastMouseY);
                 tooltip.style.display = 'block';
             }
         });
@@ -55,6 +67,8 @@
             // Immediately hide when mouse leaves the graph container entirely
             cyWrapper.addEventListener('mouseleave', function () {
                 onNode = false;
+                clearTimeout(showTimer);
+                showTimer = null;
                 clearTimeout(hideTimer);
                 tooltip.style.display = 'none';
             });
@@ -74,24 +88,41 @@
                     return;
                 }
 
-                // Mouse enters a node — show tooltip, cancel any hide timer
+                // Mouse enters a node — schedule tooltip after SHOW_DELAY_MS
                 cy.on('mouseover', 'node', function (evt) {
                     var nodeId = evt.target.id();
                     onNode = true;
+                    delayElapsed = false;
                     clearTimeout(hideTimer);
+                    clearTimeout(showTimer);
 
-                    // If re-hovering the same node, Dash callback won't fire
-                    // since mouseoverNodeData hasn't changed. Show existing content.
-                    if (nodeId === lastHoveredNodeId && tooltip.innerText.trim().length > 0) {
-                        tooltip.style.display = 'block';
+                    // Hide tooltip immediately when moving to a different node
+                    if (nodeId !== lastHoveredNodeId) {
+                        tooltip.style.display = 'none';
                     }
+
+                    showTimer = setTimeout(function () {
+                        showTimer = null;
+                        delayElapsed = true;
+                        if (!onNode) return;
+                        // If re-hovering the same node, Dash callback won't fire
+                        // since mouseoverNodeData hasn't changed. Show existing content.
+                        if (tooltip.innerText.trim().length > 0) {
+                            positionTooltip(lastMouseX, lastMouseY);
+                            tooltip.style.display = 'block';
+                        }
+                        // Otherwise MutationObserver will show it once Dash populates content
+                    }, SHOW_DELAY_MS);
+
                     lastHoveredNodeId = nodeId;
-                    // Content will be populated by Dash callback; MutationObserver shows it
                 });
 
-                // Mouse leaves a node — start the hide countdown
+                // Mouse leaves a node — cancel show timer and start hide countdown
                 cy.on('mouseout', 'node', function () {
                     onNode = false;
+                    delayElapsed = false;
+                    clearTimeout(showTimer);
+                    showTimer = null;
                     clearTimeout(hideTimer);
                     hideTimer = setTimeout(function () {
                         tooltip.style.display = 'none';

@@ -622,6 +622,7 @@ migration_modal = dbc.Modal([
     dbc.ModalHeader(dbc.ModalTitle("Migration Required")),
     dbc.ModalBody(id="migration-modal-body"),
     dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-migration-cancel", color="secondary", className="me-auto"),
         dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
         dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
     ])

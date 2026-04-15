@@ -769,7 +769,7 @@ def register_event_callbacks(app):
 
     # --- Edit Dormant Node ---
     @app.callback(
-        Output("edit-trigger-input", "value"),
+        Output("details-edit-trigger-input", "value"),
         Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
         prevent_initial_call=True,
     )

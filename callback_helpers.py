@@ -454,7 +454,8 @@ def render_link_rows(links, link_type, has_browse=False, has_open=True):
             ))
         if has_open:
             buttons.append(dbc.Button(
-                "\U0001f517", id={"type": f"btn-{prefix}-open", "index": i},
+                html.I(className="bi bi-box-arrow-up-right", style={"fontSize": "0.85rem"}),
+                id={"type": f"btn-{prefix}-open", "index": i},
                 color="secondary", title="Open",
                 className="me-1 d-flex justify-content-center align-items-center p-0",
                 style={"width": "38px"},

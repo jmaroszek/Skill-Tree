@@ -243,11 +243,16 @@ function bindCyEvents() {
                 }
             });
 
-            // --- Ctrl+S to save node editor ---
+            // --- Ctrl+S to save (settings tab or node editor) ---
             document.addEventListener('keydown', function (e) {
                 if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
-                    _clickDashBtn('btn-save');
+                    var activeTab = document.querySelector('#main-tabs .nav-link.active');
+                    if (activeTab && activeTab.textContent.trim() === 'Settings') {
+                        _clickDashBtn('btn-settings-save');
+                    } else {
+                        _clickDashBtn('btn-save');
+                    }
                 }
             });
         }

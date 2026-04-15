@@ -206,12 +206,7 @@ def register_callbacks(app):
 
             status_color = {"Done": "#198754", "Blocked": "#dc3545"}.get(effective_status, "#dee2e6")
 
-            lines = [
-                header,
-                html.Div([html.Strong("Type: "), node_type]),
-                html.Div([html.Strong("Status: "),
-                          html.Span(effective_status, style={"color": status_color})]),
-            ]
+            lines = [header]
 
             if total > 0:
                 bar_color = "#198754" if pct == 100 else "#0d6efd"
@@ -233,10 +228,11 @@ def register_callbacks(app):
             else:
                 lines.append(html.Div("No subtasks yet", style={"color": "#6c757d", "fontStyle": "italic"}))
 
-            if data.get('context'):
-                lines.append(html.Div([html.Strong("Context: "), data.get('context', '')]))
-            if data.get('subcontext'):
-                lines.append(html.Div([html.Strong("Subcontext: "), data.get('subcontext', '')]))
+            ctx_val = data.get('context', '')
+            sub_val = data.get('subcontext', '')
+            if ctx_val or sub_val:
+                subctx_str = f"{ctx_val} > {sub_val}" if ctx_val and sub_val else ctx_val or sub_val
+                lines.append(html.Div(subctx_str, style={"color": "#adb5bd"}))
 
         else:
             final_time = data.get('time', 0)
@@ -244,17 +240,16 @@ def register_callbacks(app):
 
             lines = [
                 header,
-                html.Div([html.Strong("Type: "), node_type]),
-                html.Div([html.Strong("Status: "), data.get('status', '')]),
                 html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
                 html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
                 html.Div([html.Strong("Time: "), time_str]),
             ]
 
-            if data.get('context'):
-                lines.append(html.Div([html.Strong("Context: "), data.get('context', '')]))
-            if data.get('subcontext'):
-                lines.append(html.Div([html.Strong("Subcontext: "), data.get('subcontext', '')]))
+            ctx_val = data.get('context', '')
+            sub_val = data.get('subcontext', '')
+            if ctx_val or sub_val:
+                subctx_str = f"{ctx_val} > {sub_val}" if ctx_val and sub_val else ctx_val or sub_val
+                lines.append(html.Div(subctx_str, style={"color": "#adb5bd"}))
 
         return lines
 
@@ -365,13 +360,17 @@ def register_callbacks(app):
                 no_change[35] = '__new_node__'  # pending-navigation-store (special sentinel)
                 no_change[36] = True            # modal-unsaved-changes
                 return no_change
-            # No unsaved changes — clear and reset
-            def_out[30] = None  # search-node value position
+            # No unsaved changes — clear and reset (don't clear search-node;
+            # that would re-trigger core_engine and overwrite the editor-open state)
             return def_out
 
         if trigger_id in ['btn-add', 'btn-clear-yes', 'background-click-input']:
-            # Clear search bar on all reset triggers
-            def_out[30] = None  # search-node value position
+            # Clear search bar on reset triggers — but NOT for btn-add, because
+            # setting search-node to None re-triggers core_engine via the callback
+            # chain, and the second invocation reads stale editor state and
+            # overwrites the first invocation's "open editor" output.
+            if trigger_id != 'btn-add':
+                def_out[30] = None  # search-node value position
             return def_out
 
         # Handle unsaved-discard / unsaved-save with pending navigation
@@ -793,6 +792,11 @@ def register_callbacks(app):
         elif trigger_id == 'btn-new-node':
             # Always open the editor (populate_editor handles unsaved-changes modal)
             next_ed_style['transform'] = "translateX(0px)"
+        elif trigger_id == 'search-node' and not search_val:
+            # Search bar was cleared (e.g. by populate_editor resetting after btn-add) — don't
+            # touch the editor state. Without this guard, a race condition causes core_engine to
+            # read a stale "closed" ed_style and immediately close an editor that btn-add just opened.
+            next_ed_style = dash.no_update
         elif should_open_editor(all_triggered_ids, trigger_id, search_val):
             next_ed_style['transform'] = "translateX(0px)"
         elif trigger_id == 'btn-goals-toggle':
@@ -831,7 +835,7 @@ def register_callbacks(app):
 
         # Goal Sidebar Mutex: close goal sidebar when editor opens
         next_goal_style = dash.no_update
-        if next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
+        if isinstance(next_ed_style, dict) and next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
             # Editor is opening — ensure goal sidebar is closed
             if goal_sidebar_style and goal_sidebar_style.get('left', '-380px') == '0px':
                 next_goal_style = dict(goal_sidebar_style)
