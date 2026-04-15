@@ -1389,9 +1389,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 'color': (
                     colors.get('Done', '#198754') if node.status == 'Done'
                     else colors.get('Blocked', '#dc3545') if node.status == 'Blocked'
-                    else colors.get('Goal', '#ffc107') if node.type == 'Goal'
-                    else colors.get('Resource', '#9b59b6') if node.type == 'Resource'
-                    else colors.get(node.status, '#6c757d')
+                    else colors.get(node.type, colors.get('Open', '#0d6efd'))
                 ),
                 'shape': shapes.get(node.type, 'ellipse'),
                 'type': node.type,

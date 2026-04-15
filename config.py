@@ -19,6 +19,8 @@ DEFAULT_NODE_COLORS = {
     'Open': '#0d6efd',
     'Done': '#198754',
     'Goal': '#ffc107',
+    'Action': '#fd7e14',
+    'Learn': '#0d6efd',
     'Resource': '#9047b8',
 }
 
@@ -135,7 +137,9 @@ class ConfigManager:
     @classmethod
     def get_node_colors(cls):
         val = cls._get_db_value("NODE_COLORS")
-        return json.loads(val) if val else DEFAULT_NODE_COLORS
+        if val:
+            return {**DEFAULT_NODE_COLORS, **json.loads(val)}
+        return DEFAULT_NODE_COLORS
 
     @classmethod
     def set_node_colors(cls, colors: dict):

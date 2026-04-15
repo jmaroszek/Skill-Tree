@@ -40,20 +40,6 @@ def build_settings_tab_content():
                             ], width=4),
                             dbc.Col([
                                 html.Div([
-                                    dbc.Label("Status Colors", className="mb-0"),
-                                    html.Span([
-                                        dbc.Button(_RESTORE_ICON, id="btn-restore-status-colors",
-                                                   color="link", size="sm",
-                                                   className="ms-1 p-0",
-                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
-                                        dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top"),
-                                    ]),
-                                ], className="d-flex align-items-center mt-2 mb-1"),
-                                html.Small("Color for Open, Blocked, and Done.", className="text-muted d-block mb-2"),
-                                html.Div(id="setting-node-status-colors-container"),
-                            ], width=4),
-                            dbc.Col([
-                                html.Div([
                                     dbc.Label("Type Colors", className="mb-0"),
                                     html.Span([
                                         dbc.Button(_RESTORE_ICON, id="btn-restore-type-colors",
@@ -63,8 +49,22 @@ def build_settings_tab_content():
                                         dbc.Tooltip("Restore defaults", target="btn-restore-type-colors", placement="top"),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
-                                html.Small("Color overrides for Goal and Resource types.", className="text-muted d-block mb-2"),
+                                html.Small("Open color for each node type.", className="text-muted d-block mb-2"),
                                 html.Div(id="setting-node-type-colors-container"),
+                            ], width=4),
+                            dbc.Col([
+                                html.Div([
+                                    dbc.Label("Status Colors", className="mb-0"),
+                                    html.Span([
+                                        dbc.Button(_RESTORE_ICON, id="btn-restore-status-colors",
+                                                   color="link", size="sm",
+                                                   className="ms-1 p-0",
+                                                   style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
+                                        dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top"),
+                                    ]),
+                                ], className="d-flex align-items-center mt-2 mb-1"),
+                                html.Small("Color for Done and Blocked.", className="text-muted d-block mb-2"),
+                                html.Div(id="setting-node-status-colors-container"),
                             ], width=4),
                         ]),
 
@@ -242,7 +242,7 @@ def build_settings_tab_content():
                             delay={"show": 700, "hide": 100}),
             ], style={"position": "absolute", "top": "5px", "right": "12px"}),
             ]),
-        ], style={"maxWidth": "900px", "padding": "0 24px"}),
+        ], style={"maxWidth": "810px", "padding": "0 24px"}),
     ], style={
         "flex": "1",
         "overflowY": "auto",

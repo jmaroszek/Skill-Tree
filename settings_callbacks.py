@@ -126,14 +126,26 @@ def register_settings_callbacks(app):
             ], className="mb-2")
 
         status_color_rows = [
-            _color_row("Open", "Open"),
-            _color_row("Blocked", "Blocked"),
             _color_row("Done", "Done"),
+            _color_row("Blocked", "Blocked"),
         ]
-        type_color_rows = [
-            _color_row("Goal", "Goal"),
-            _color_row("Resource", "Resource"),
-        ]
+        def _type_color_row(key):
+            color_val = colors.get(key, "#6c757d")
+            return dbc.Row([
+                dbc.Col(dbc.Input(
+                    id={"type": "setting-color", "index": key},
+                    type="color",
+                    value=color_val,
+                    style={"height": "38px", "padding": "2px"},
+                ), width=4),
+                dbc.Col(html.Small(
+                    color_val,
+                    className="text-muted d-flex align-items-center",
+                    style={"fontSize": "0.8rem"},
+                ), width=8),
+            ], className="mb-2")
+
+        type_color_rows = [_type_color_row(t) for t in display_types]
 
         ts = ConfigManager.get_time_settings()
         from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
@@ -689,9 +701,8 @@ def register_settings_callbacks(app):
             ], className="mb-2")
 
         return [
-            _color_row("Open", "Open"),
-            _color_row("Blocked", "Blocked"),
             _color_row("Done", "Done"),
+            _color_row("Blocked", "Blocked"),
         ]
 
     # --- Settings: Restore Default Type Colors ---
@@ -705,23 +716,25 @@ def register_settings_callbacks(app):
             return dash.no_update
         from config import DEFAULT_NODE_COLORS
 
-        def _color_row(label, key):
-            return dbc.Row([
-                dbc.Col(dbc.Label(label, className="mb-0"), width=4, className="d-flex align-items-center"),
+        node_types = ConfigManager.get_node_types()
+        display_types = node_types.copy()
+        if "Goal" not in display_types:
+            display_types.append("Goal")
+
+        rows = []
+        for t in display_types:
+            color_val = DEFAULT_NODE_COLORS.get(t, "#6c757d")
+            rows.append(dbc.Row([
                 dbc.Col(dbc.Input(
-                    id={"type": "setting-color", "index": key},
+                    id={"type": "setting-color", "index": t},
                     type="color",
-                    value=DEFAULT_NODE_COLORS.get(key, "#6c757d"),
+                    value=color_val,
                     style={"height": "38px", "padding": "2px"},
                 ), width=4),
                 dbc.Col(html.Small(
-                    DEFAULT_NODE_COLORS.get(key, "#6c757d"),
+                    color_val,
                     className="text-muted d-flex align-items-center",
                     style={"fontSize": "0.8rem"},
-                ), width=4),
-            ], className="mb-2")
-
-        return [
-            _color_row("Goal", "Goal"),
-            _color_row("Resource", "Resource"),
-        ]
+                ), width=8),
+            ], className="mb-2"))
+        return rows
