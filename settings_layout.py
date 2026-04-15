@@ -96,9 +96,8 @@ def build_settings_tab_content():
                         # --- Contexts group ---
                         html.Hr(className="my-2"),
                         html.H5("Contexts", className="mt-2 mb-1"),
-                        dbc.Label("Contexts & Subcontexts", className="mt-2"),
+                        html.Small("One context per line. Optionally add a colon and comma-separated subcontexts. Context names are ignored when checking for duplicate nodes.", className="text-muted d-block mb-1"),
                         dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
-                        html.Small("One context per line. Optionally add a colon and comma-separated subcontexts.", className="text-muted d-block mb-1"),
 
                         # --- Name Linter group ---
                         html.Hr(className="my-2"),
@@ -213,19 +212,21 @@ def build_settings_tab_content():
                                             {"label": "Weeks", "value": "weeks"},
                                             {"label": "Months", "value": "months"},
                                         ]),
-                                    ], width=3),
+                                    ], width=4),
+                                ], className="mb-2"),
+                                dbc.Row([
                                     dbc.Col([
                                         dbc.Label("Optimistic"),
                                         dbc.Input(id="setting-default-time-o", type="number", min=0, step=1),
-                                    ], width=3),
+                                    ], width=4),
                                     dbc.Col([
                                         dbc.Label("Expected"),
                                         dbc.Input(id="setting-default-time-m", type="number", min=0, step=1),
-                                    ], width=3),
+                                    ], width=4),
                                     dbc.Col([
                                         dbc.Label("Pessimistic"),
                                         dbc.Input(id="setting-default-time-p", type="number", min=0, step=1),
-                                    ], width=3),
+                                    ], width=4),
                                 ]),
                             ], width=8),
                         ], className="mt-1"),
