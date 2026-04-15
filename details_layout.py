@@ -57,6 +57,17 @@ def _build_details_graph_settings_panel():
             min=500, max=20000, step=500, value=4500,
             updatemode="mouseup",
         ),
+        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+
+        dbc.Switch(
+            id=f"{p}-animate",
+            label="Animate",
+            value=False,
+            style={"fontSize": "0.82rem"},
+        ),
+
+        dbc.Button("Re-layout", id=f"{p}-relayout",
+                   color="secondary", size="sm", className="w-100 mt-2"),
     ], id=f"{p}-panel", className="graph-settings-panel",
        style={"display": "none"})
 
@@ -223,7 +234,7 @@ def build_details_tab_content():
             cyto.Cytoscape(
                 id='details-mini-graph',
                 elements=[],
-                layout={'name': 'cose-bilkent', 'animate': False, 'fit': True, 'padding': 20, 'numIter': 2500},
+                layout={'name': 'cose-bilkent', 'animate': False, 'fit': True, 'padding': 20, 'numIter': 2500, 'randomize': False},
                 style={'width': '100%', 'height': '100%', 'backgroundColor': '#1a1d21',
                        'borderRadius': '0'},
                 stylesheet=stylesheet,

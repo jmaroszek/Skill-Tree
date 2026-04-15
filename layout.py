@@ -291,6 +291,17 @@ def _build_graph_settings_panel(prefix="graph-settings"):
             min=500, max=20000, step=500, value=4500,
             updatemode="mouseup",
         ),
+        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+
+        dbc.Switch(
+            id=f"{prefix}-animate",
+            label="Animate",
+            value=False,
+            style={"fontSize": "0.82rem"},
+        ),
+
+        dbc.Button("Re-layout", id=f"{prefix}-relayout",
+                   color="secondary", size="sm", className="w-100 mt-2"),
     ], id=f"{prefix}-panel", className="graph-settings-panel",
        style={"display": "none"})
 
@@ -301,7 +312,7 @@ def create_graph_view(initial_elements):
         html.Div([
             cyto.Cytoscape(
                 id='cytoscape-graph',
-                layout={'name': 'cose-bilkent', 'fit': True, 'animate': False, 'padding': 30, 'numIter': 2500},
+                layout={'name': 'cose-bilkent', 'fit': True, 'animate': False, 'padding': 30, 'numIter': 2500, 'randomize': False},
                 style={'width': '100%', 'height': '100%',
                        'backgroundColor': '#1a1d21', 'borderRadius': '8px'},
                 elements=initial_elements,

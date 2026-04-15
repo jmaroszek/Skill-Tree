@@ -1244,12 +1244,16 @@ def register_details_callbacks(app):
         Input('details-graph-settings-edge-length', 'value'),
         Input('details-graph-settings-gravity', 'value'),
         Input('details-graph-settings-repulsion', 'value'),
+        Input('details-graph-settings-animate', 'value'),
+        Input('details-graph-settings-relayout', 'n_clicks'),
     )
-    def update_details_graph_layout(edge_length, gravity, repulsion):
+    def update_details_graph_layout(edge_length, gravity, repulsion, animate, _relayout):
+        randomize = ctx.triggered_id == 'details-graph-settings-relayout'
         return {
             'name': 'cose-bilkent',
-            'animate': False,
+            'animate': bool(animate),
             'fit': True,
+            'randomize': randomize,
             'padding': 20,
             'idealEdgeLength': edge_length or 100,
             'nodeRepulsion': repulsion or 4500,

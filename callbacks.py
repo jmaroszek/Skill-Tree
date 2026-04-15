@@ -1518,12 +1518,16 @@ def register_callbacks(app):
         Input('graph-settings-edge-length', 'value'),
         Input('graph-settings-gravity', 'value'),
         Input('graph-settings-repulsion', 'value'),
+        Input('graph-settings-animate', 'value'),
+        Input('graph-settings-relayout', 'n_clicks'),
     )
-    def update_graph_layout(edge_length, gravity, repulsion):
+    def update_graph_layout(edge_length, gravity, repulsion, animate, _relayout):
+        randomize = ctx.triggered_id == 'graph-settings-relayout'
         return {
             'name': 'cose-bilkent',
             'fit': True,
-            'animate': False,
+            'animate': bool(animate),
+            'randomize': randomize,
             'idealEdgeLength': edge_length or 100,
             'nodeRepulsion': repulsion or 4500,
             'gravity': gravity if gravity is not None else 0.25,

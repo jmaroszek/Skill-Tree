@@ -9,10 +9,6 @@
     position: absolute;
     right: 16px;
     z-index: 10;
-    opacity: 0.55;
-    transition: opacity 0.2s ease;
-}
-.btn-canvas-overlay:hover {
     opacity: 1;
 }
 
@@ -70,7 +66,6 @@
 }
 
 .canvas-fullscreen .btn-canvas-overlay {
-    opacity: 0.8;
     z-index: 10001;
 }
 
