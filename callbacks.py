@@ -880,6 +880,11 @@ def register_callbacks(app):
 
         # When entering focus mode, clear the selected node so only the
         # goal's subtree is highlighted (not a previously-tapped node).
+        # focus_goal may be a dict {"node": str, "subtree": list} or a plain string.
+        focus_subtree_override = None
+        if isinstance(focus_goal, dict):
+            focus_subtree_override = set(focus_goal.get("subtree", []))
+            focus_goal = focus_goal.get("node")
         if trigger_id == 'focus-goal-store' and focus_goal:
             active_node_id = None
 
@@ -1087,8 +1092,11 @@ def register_callbacks(app):
             from layout import stylesheet as base_stylesheet
             active_stylesheet = list(base_stylesheet)
             if focus_goal:
-                focus_subtree = manager.get_goal_subtree(focus_goal)
-                focus_subtree.add(focus_goal)
+                if focus_subtree_override is not None:
+                    focus_subtree = focus_subtree_override
+                else:
+                    focus_subtree = manager.get_goal_subtree(focus_goal)
+                    focus_subtree.add(focus_goal)
                 active_stylesheet.append({
                     'selector': 'node',
                     'style': {'opacity': 0.15}

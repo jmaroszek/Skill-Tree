@@ -11,25 +11,55 @@ _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
 
 def _build_graph_layout_defaults_row():
     gl = ConfigManager.get_graph_layout_defaults()
-    return dbc.Row([
-        dbc.Col([
-            dbc.Label("Edge Length", className="mb-1"),
-            dbc.Input(id="setting-graph-edge-length", type="number",
-                      min=50, max=300, step=10, value=gl.get('edge_length', 100)),
-            html.Small("50 – 300", className="text-muted"),
-        ], width=4),
-        dbc.Col([
-            dbc.Label("Gravity", className="mb-1"),
-            dbc.Input(id="setting-graph-gravity", type="number",
-                      min=0, max=5, step=0.25, value=gl.get('gravity', 0.25)),
-            html.Small("0 – 5", className="text-muted"),
-        ], width=4),
-        dbc.Col([
-            dbc.Label("Repulsion", className="mb-1"),
-            dbc.Input(id="setting-graph-repulsion", type="number",
-                      min=500, max=100000, step=500, value=gl.get('repulsion', 4500)),
-            html.Small("500 – 100,000", className="text-muted"),
-        ], width=4),
+    dgl = ConfigManager.get_details_graph_layout_defaults()
+    return html.Div([
+        # Header row with column labels
+        dbc.Row([
+            dbc.Col(width=2),
+            dbc.Col(dbc.Label("Edge Length", className="mb-1"), width=3),
+            dbc.Col(dbc.Label("Gravity", className="mb-1"), width=3),
+            dbc.Col(dbc.Label("Repulsion", className="mb-1"), width=4),
+        ], className="mb-1"),
+        # Nodes row
+        dbc.Row([
+            dbc.Col(dbc.Label("Nodes", className="mb-0 fw-bold"), width=2,
+                    className="d-flex align-items-center"),
+            dbc.Col([
+                dbc.Input(id="setting-graph-edge-length", type="number",
+                          min=50, max=300, step=10, value=gl.get('edge_length', 100),
+                          placeholder="50 – 300"),
+            ], width=3),
+            dbc.Col([
+                dbc.Input(id="setting-graph-gravity", type="number",
+                          min=0, max=5, step=0.25, value=gl.get('gravity', 0.25),
+                          placeholder="0 – 5"),
+            ], width=3),
+            dbc.Col([
+                dbc.Input(id="setting-graph-repulsion", type="number",
+                          min=500, max=100000, step=500, value=gl.get('repulsion', 4500),
+                          placeholder="500 – 100,000"),
+            ], width=4),
+        ], className="mb-2"),
+        # Details row
+        dbc.Row([
+            dbc.Col(dbc.Label("Details", className="mb-0 fw-bold"), width=2,
+                    className="d-flex align-items-center"),
+            dbc.Col([
+                dbc.Input(id="setting-details-graph-edge-length", type="number",
+                          min=50, max=300, step=10, value=dgl.get('edge_length', 100),
+                          placeholder="50 – 300"),
+            ], width=3),
+            dbc.Col([
+                dbc.Input(id="setting-details-graph-gravity", type="number",
+                          min=0, max=5, step=0.25, value=dgl.get('gravity', 0.25),
+                          placeholder="0 – 5"),
+            ], width=3),
+            dbc.Col([
+                dbc.Input(id="setting-details-graph-repulsion", type="number",
+                          min=500, max=100000, step=500, value=dgl.get('repulsion', 4500),
+                          placeholder="500 – 100,000"),
+            ], width=4),
+        ], className="mb-1"),
     ])
 
 
@@ -95,7 +125,16 @@ def build_settings_tab_content():
 
                         # --- Graph Layout Defaults group ---
                         html.Hr(className="my-2"),
-                        html.H5("Graph Layout Defaults", className="mt-2 mb-1"),
+                        html.Div([
+                            html.H5("Graph Layout Defaults", className="mb-0"),
+                            html.Span([
+                                dbc.Button(_RESTORE_ICON, id="btn-restore-graph-layout",
+                                           color="link", size="sm",
+                                           className="ms-1 p-0",
+                                           style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px", "textDecoration": "none"}),
+                                dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top"),
+                            ]),
+                        ], className="d-flex align-items-center mt-2 mb-1"),
                         html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
                         _build_graph_layout_defaults_row(),
 

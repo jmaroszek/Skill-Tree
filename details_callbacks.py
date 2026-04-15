@@ -755,12 +755,16 @@ def register_details_callbacks(app):
         Output("main-tabs", "active_tab", allow_duplicate=True),
         Input("btn-details-focus", "n_clicks"),
         State("details-selected-node-store", "data"),
+        State("details-mini-graph", "elements"),
         prevent_initial_call=True,
     )
-    def details_focus_canvas(n_clicks, selected_node):
+    def details_focus_canvas(n_clicks, selected_node, mini_graph_elements):
         if not n_clicks or not selected_node:
             return no_update, no_update
-        return selected_node, "tab-canvas"
+        # Extract node IDs from the mini-graph elements (exclude edges)
+        subtree = [el["data"]["id"] for el in (mini_graph_elements or [])
+                   if "source" not in el.get("data", {})]
+        return {"node": selected_node, "subtree": subtree}, "tab-canvas"
 
     # --- Edit Node → Navigate to Nodes Tab + open editor ---
     @app.callback(

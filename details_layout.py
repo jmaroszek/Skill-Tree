@@ -10,14 +10,14 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import Optional, List, Any
-from config import ConfigManager, DEFAULT_TIME_ESTIMATE_DEFAULTS
+from config import ConfigManager, DEFAULT_TIME_ESTIMATE_DEFAULTS, DEFAULT_DETAILS_GRAPH_LAYOUT
 from models import EDGE_NEEDS_HARD
 from styles import stylesheet
 
 
 def _build_details_graph_settings_panel():
     """Build the graph settings panel for the details mini-graph."""
-    gl = ConfigManager.get_graph_layout_defaults()
+    gl = ConfigManager.get_details_graph_layout_defaults()
     p = "details-graph-settings"
     return html.Div([
         html.Div("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem", "marginBottom": "12px"}),
@@ -235,7 +235,7 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     #  DEPENDENCY GRAPH  (teal area: full height, starts at tab bar)      #
     # ------------------------------------------------------------------ #
-    gl = ConfigManager.get_graph_layout_defaults()
+    gl = ConfigManager.get_details_graph_layout_defaults()
     dep_graph = html.Div([
         html.Div([
             cyto.Cytoscape(
