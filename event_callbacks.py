@@ -486,6 +486,9 @@ def register_event_callbacks(app):
         Output("dormant-node-supports-hard", "value"),
         Output("dormant-node-supports-soft", "value"),
         Output("dormant-node-helps", "value"),
+        Output("dormant-node-competence", "value"),
+        Output("dormant-node-time-mode", "value"),
+        Output("collapse-dormant-subcontext", "is_open"),
         Output("dormant-obsidian-links-store", "data"),
         Output("dormant-drive-links-store", "data"),
         Output("dormant-website-links-store", "data"),
@@ -494,17 +497,21 @@ def register_event_callbacks(app):
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 21
+            return (no_update,) * 24
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
+        _ted = ConfigManager.get_time_estimate_defaults()
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
         node_opts = [{"label": n.name, "value": n.name} for n in graph_manager.get_all_nodes()]
 
-        return (True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", "", "hours",
+        return (True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", "",
+                _ted.get('unit', 'weeks'),
                 node_opts, node_opts, node_opts, node_opts, node_opts,
-                [], [], [], [], [], [''], [''], [''])
+                [], [], [], [], [],
+                "", [], False,
+                [''], [''], [''])
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -517,6 +524,29 @@ def register_event_callbacks(app):
             return base
         subs = ConfigManager.get_subcontexts().get(context, [])
         return base + [{"label": s, "value": s} for s in subs]
+
+    # --- Dormant Node Modal: Subcontext Toggle ---
+    @app.callback(
+        Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
+        Input("btn-dormant-subcontext-toggle", "n_clicks"),
+        State("collapse-dormant-subcontext", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_dormant_subcontext(n, is_open):
+        if n:
+            return not is_open
+        return no_update
+
+    # --- Dormant Node Modal: Inherit toggle hides/shows OMP ---
+    @app.callback(
+        Output("dormant-node-time-omp", "style"),
+        Input("dormant-node-time-mode", "value"),
+        prevent_initial_call=True,
+    )
+    def toggle_dormant_time_mode(mode_val):
+        if mode_val and "inherited" in mode_val:
+            return {"display": "none"}
+        return {"display": "block"}
 
     # --- Cancel Dormant Node Modal ---
     @app.callback(
@@ -548,6 +578,7 @@ def register_event_callbacks(app):
         State("dormant-node-context", "value"),
         State("dormant-node-subcontext", "value"),
         State("dormant-node-desc", "value"),
+        State("dormant-node-competence", "value"),
         State("dormant-node-value", "value"),
         State("dormant-node-interest", "value"),
         State("dormant-node-difficulty", "value"),
@@ -555,6 +586,7 @@ def register_event_callbacks(app):
         State("dormant-node-time-m", "value"),
         State("dormant-node-time-p", "value"),
         State("dormant-node-time-unit", "value"),
+        State("dormant-node-time-mode", "value"),
         State("dormant-node-delay-value", "value"),
         State("dormant-node-delay-unit", "value"),
         State("dormant-node-needs-hard", "value"),
@@ -569,8 +601,9 @@ def register_event_callbacks(app):
     )
     def save_dormant_node(n_clicks, selected_event,
                           event_name_val, event_desc_val, event_date_val,
-                          name, node_type, context, subcontext, desc,
+                          name, node_type, context, subcontext, desc, competence,
                           value, interest, difficulty, time_o, time_m, time_p, time_unit,
+                          time_mode_val,
                           delay_value, delay_unit,
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
                           obsidian_vals, drive_vals, website_vals):
@@ -607,6 +640,7 @@ def register_event_callbacks(app):
             delay_days = delay_value
 
         multiplier = ConfigManager.get_time_multiplier(time_unit)
+        t_mode = 'inherited' if (time_mode_val and 'inherited' in time_mode_val) else 'manual'
 
         node = Node(
             name=name,
@@ -621,9 +655,11 @@ def register_event_callbacks(app):
             status="Open",
             context=context or None,
             subcontext=(subcontext or '').strip() or None,
+            competence=competence or None,
             obsidian_path=serialize_links(obsidian_vals) or None,
             google_drive_path=serialize_links(drive_vals) or None,
             website=serialize_links(website_vals) or None,
+            time_mode=t_mode,
         )
 
         try:

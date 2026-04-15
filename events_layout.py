@@ -73,14 +73,42 @@ def build_events_tab_content():
             dbc.Select(id="dormant-node-type", options=[], value="Learn"),
 
             dbc.Label("Context", className="mt-2"),
-            dbc.Select(id="dormant-node-context", options=[{"label": "None", "value": ""}]),
-
-            dbc.Label("Subcontext", className="mt-2"),
-            dbc.Select(id="dormant-node-subcontext", options=[{"label": "None", "value": ""}]),
+            html.Div([
+                dbc.Select(id="dormant-node-context",
+                           options=[{"label": "None", "value": ""}],
+                           style={'flex': 1}),
+                dbc.Button("▾", id="btn-dormant-subcontext-toggle",
+                           color="light", className="ms-1 px-2"),
+            ], className="d-flex"),
+            dbc.Collapse(
+                dbc.Select(id="dormant-node-subcontext",
+                           options=[{"label": "None", "value": ""}],
+                           className="mt-1"),
+                id="collapse-dormant-subcontext", is_open=False,
+            ),
 
             dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="dormant-node-desc"),
+            dbc.Textarea(id="dormant-node-desc",
+                         style={"height": "80px", "resize": "vertical"}),
 
+            dbc.Label("Competence", className="mt-2"),
+            dbc.Select(
+                id="dormant-node-competence",
+                options=[
+                    {"label": "\u2014", "value": ""},
+                    {"label": "Outsider", "value": "outsider"},
+                    {"label": "Reciter", "value": "reciter"},
+                    {"label": "Processor", "value": "processor"},
+                    {"label": "Thinker", "value": "thinker"},
+                    {"label": "Creator", "value": "creator"},
+                    {"label": "Master", "value": "master"},
+                    {"label": "Innovator", "value": "innovator"},
+                ],
+                value="",
+            ),
+
+            html.Hr(className="my-2"),
+            html.H5("Ratings", className="mt-2 mb-1"),
             dbc.Label("Value", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-value"),
 
@@ -90,18 +118,28 @@ def build_events_tab_content():
             dbc.Label("Effort", className="mt-2"),
             dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-difficulty"),
 
+            html.Hr(className="my-2"),
+            html.H5("Time Estimates", className="mt-2 mb-2"),
             html.Div([
-                dbc.Label("Time Estimates", className="mb-0"),
+                dbc.Checklist(
+                    options=[{"label": "Inherit", "value": "inherited"}],
+                    value=[],
+                    id="dormant-node-time-mode",
+                    switch=True,
+                    className="mb-0 flex-grow-1",
+                ),
                 dbc.Select(id="dormant-node-time-unit", options=[
                     {"label": "Hours", "value": "hours"},
                     {"label": "Weeks", "value": "weeks"},
                     {"label": "Months", "value": "months"},
-                ], value=_ted.get('unit', 'hours'), size="sm", style={"width": "100px", "marginLeft": "auto"})
-            ], className="d-flex align-items-center mt-3 mb-1"),
-            dbc.Row([
-                dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=_ted.get('optimistic', 0))]),
-                dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=_ted.get('expected', 0))]),
-                dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=_ted.get('pessimistic', 0))]),
+                ], value=_ted.get('unit', 'weeks'), size="sm", style={"width": "100px"})
+            ], className="d-flex align-items-center mb-2"),
+            html.Div(id="dormant-node-time-omp", children=[
+                dbc.Row([
+                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=_ted.get('optimistic', 0))]),
+                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=_ted.get('expected', 0))]),
+                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=_ted.get('pessimistic', 0))]),
+                ]),
             ]),
 
             html.Hr(className="my-2"),
@@ -141,7 +179,9 @@ def build_events_tab_content():
             html.Div(id='dormant-website-links-container'),
 
             html.Hr(className="my-2"),
-            html.H6("Activation Delay"),
+            html.H5("Activation Delay", className="mt-2 mb-1"),
+            html.Small("How long after the event triggers before this node becomes active.",
+                       className="text-muted d-block mb-2"),
             dbc.Row([
                 dbc.Col([
                     dbc.Input(id="dormant-node-delay-value", type="number", min=0, value=0, placeholder="0"),

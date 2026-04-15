@@ -57,3 +57,5 @@ All UI styling conventions are documented in **[STYLE_GUIDE.md](STYLE_GUIDE.md)*
 ## Testing
 
 Tests use a `temp_database` fixture that creates a temporary SQLite DB per test — never touches production data. Test files mirror the module structure: `test_backend.py`, `test_callbacks.py`, `test_events.py`, `test_helpers.py`, `test_simulation.py`.
+
+**Do NOT visually test the app** (no screenshots, no browser preview tools). The user will handle all manual/visual testing themselves. Only run `pytest` for automated test verification.

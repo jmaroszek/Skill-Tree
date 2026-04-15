@@ -125,6 +125,7 @@ sidebar_content = html.Div(
             ]),
 
             # Numeric inputs (shared by all types)
+            html.Hr(className="my-2"),
             html.Div([
                 html.H5("Ratings", className="mb-0"),
                 html.Button(
@@ -225,13 +226,12 @@ sidebar_content = html.Div(
             html.Hr(className="my-2"),
             html.Div([
                 dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
-                dbc.Button("Clear", id="btn-cancel", color="secondary", className="flex-fill me-2", style={"padding": "6px 0"}),
+                dbc.Button("Clear", id="btn-cancel", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
                 dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
                 dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0"})
             ], className="d-flex mt-4"),
-            dbc.Button("New Node", id="btn-new-node", className="w-100 mt-2",
-                       style={"padding": "8px 0", "backgroundColor": "#6c757d",
-                              "borderColor": "#6c757d", "color": "#fff"}),
+            dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
+                       style={"padding": "8px 0"}),
             html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
             dcc.Store(id='node-time-unit-prev', data='weeks'),
