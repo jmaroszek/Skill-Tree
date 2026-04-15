@@ -1133,7 +1133,7 @@ def register_callbacks(app):
                 except Exception:
                     pass
 
-            if active_tab in ('tab-settings', 'tab-events'):
+            if active_tab in ('tab-settings', 'tab-events', 'tab-analyze'):
                 node_count_text = ""
             elif active_tab == 'tab-details':
                 node_count_text = dash.no_update  # Owned by update_details_node_count in details_callbacks

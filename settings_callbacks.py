@@ -60,12 +60,18 @@ def register_settings_callbacks(app):
         Output('setting-details-graph-edge-length', 'value'),
         Output('setting-details-graph-gravity', 'value'),
         Output('setting-details-graph-repulsion', 'value'),
+        Output('setting-analyze-bottlenecks', 'value'),
+        Output('setting-analyze-goals', 'value'),
+        Output('setting-analyze-risk', 'value'),
+        Output('setting-analyze-time-sinks', 'value'),
+        Output('setting-analyze-deepest', 'value'),
+        Output('setting-analyze-connected', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 31
+            return (dash.no_update,) * 37
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -159,9 +165,10 @@ def register_settings_callbacks(app):
         linter_enabled_val = ["enabled"] if linter.get('enabled', True) else []
         linter_exclusions_val = ', '.join(linter.get('exclusions', []))
 
-        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT
+        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_ANALYZE_LIMITS
         gl = ConfigManager.get_graph_layout_defaults()
         dgl = ConfigManager.get_details_graph_layout_defaults()
+        al = ConfigManager.get_analyze_limits()
 
         return (
             hp.get('w_v', 1.0), hp.get('w_i', 1.0),
@@ -190,6 +197,12 @@ def register_settings_callbacks(app):
             dgl.get('edge_length', DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length']),
             dgl.get('gravity', DEFAULT_DETAILS_GRAPH_LAYOUT['gravity']),
             dgl.get('repulsion', DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion']),
+            al.get('bottlenecks', DEFAULT_ANALYZE_LIMITS['bottlenecks']),
+            al.get('goals', DEFAULT_ANALYZE_LIMITS['goals']),
+            al.get('risk', DEFAULT_ANALYZE_LIMITS['risk']),
+            al.get('time_sinks', DEFAULT_ANALYZE_LIMITS['time_sinks']),
+            al.get('deepest', DEFAULT_ANALYZE_LIMITS['deepest']),
+            al.get('connected', DEFAULT_ANALYZE_LIMITS['connected']),
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -268,6 +281,12 @@ def register_settings_callbacks(app):
         State('setting-details-graph-edge-length', 'value'),
         State('setting-details-graph-gravity', 'value'),
         State('setting-details-graph-repulsion', 'value'),
+        State('setting-analyze-bottlenecks', 'value'),
+        State('setting-analyze-goals', 'value'),
+        State('setting-analyze-risk', 'value'),
+        State('setting-analyze-time-sinks', 'value'),
+        State('setting-analyze-deepest', 'value'),
+        State('setting-analyze-connected', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
@@ -277,7 +296,9 @@ def register_settings_callbacks(app):
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
                       linter_enabled_val, linter_exclusions_val,
                       gl_edge_length, gl_gravity, gl_repulsion,
-                      dgl_edge_length, dgl_gravity, dgl_repulsion):
+                      dgl_edge_length, dgl_gravity, dgl_repulsion,
+                      al_bottlenecks, al_goals, al_risk,
+                      al_time_sinks, al_deepest, al_connected):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -386,6 +407,14 @@ def register_settings_callbacks(app):
                     'shapes': pending_shapes,
                     'colors': pending_colors,
                     'linter': new_linter,
+                    'al': {
+                        'bottlenecks': int(al_bottlenecks) if al_bottlenecks is not None else 25,
+                        'goals': int(al_goals) if al_goals is not None else 75,
+                        'risk': int(al_risk) if al_risk is not None else 25,
+                        'time_sinks': int(al_time_sinks) if al_time_sinks is not None else 10,
+                        'deepest': int(al_deepest) if al_deepest is not None else 10,
+                        'connected': int(al_connected) if al_connected is not None else 10,
+                    },
                     'orphans': orphans,
                     'new_values': {
                         'type': new_types,
@@ -443,6 +472,17 @@ def register_settings_callbacks(app):
                 'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
             }
             ConfigManager.set_titlecase_linter(new_linter)
+
+            from config import DEFAULT_ANALYZE_LIMITS
+            new_al = {
+                'bottlenecks': int(al_bottlenecks) if al_bottlenecks is not None else DEFAULT_ANALYZE_LIMITS['bottlenecks'],
+                'goals': int(al_goals) if al_goals is not None else DEFAULT_ANALYZE_LIMITS['goals'],
+                'risk': int(al_risk) if al_risk is not None else DEFAULT_ANALYZE_LIMITS['risk'],
+                'time_sinks': int(al_time_sinks) if al_time_sinks is not None else DEFAULT_ANALYZE_LIMITS['time_sinks'],
+                'deepest': int(al_deepest) if al_deepest is not None else DEFAULT_ANALYZE_LIMITS['deepest'],
+                'connected': int(al_connected) if al_connected is not None else DEFAULT_ANALYZE_LIMITS['connected'],
+            }
+            ConfigManager.set_analyze_limits(new_al)
 
             return "Settings saved", dash.no_update, False, 0
 
@@ -539,6 +579,8 @@ def register_settings_callbacks(app):
                     ConfigManager.set_graph_layout_defaults(pending_state['gl'])
                 if 'dgl' in pending_state:
                     ConfigManager.set_details_graph_layout_defaults(pending_state['dgl'])
+                if 'al' in pending_state:
+                    ConfigManager.set_analyze_limits(pending_state['al'])
             except Exception:
                 logger.exception("Failed to save pending settings")
 

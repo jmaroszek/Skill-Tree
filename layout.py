@@ -10,6 +10,7 @@ from config import ConfigManager, CANVAS_HEIGHT, DEFAULT_TIME_ESTIMATE_DEFAULTS
 from events_layout import build_events_tab_content
 from details_layout import build_details_tab_content
 from settings_layout import build_settings_tab_content
+from analyze_layout import build_analyze_tab_content
 from styles import stylesheet
 
 # These are only used for the initial render; core_engine refreshes them dynamically.
@@ -962,6 +963,7 @@ def build_app_layout(initial_elements, env="production"):
                 dbc.Tab(label="Nodes", tab_id="tab-canvas"),
                 dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
+                dbc.Tab(label="Analyze", tab_id="tab-analyze"),
                 dbc.Tab(label="Settings", tab_id="tab-settings"),
             ],
             className="px-3 pt-1 justify-content-center",
@@ -1054,6 +1056,14 @@ def build_app_layout(initial_elements, env="production"):
                "position": "absolute", "top": "0", "left": "0"}
     )
 
+    # --- Analyze Tab Content (hidden by default) ---
+    analyze_tab_content = html.Div(
+        id="analyze-tab-content",
+        children=[build_analyze_tab_content()],
+        style={"display": "none", "width": "100%", "height": "100%", "overflow": "auto",
+               "position": "absolute", "top": "0", "left": "0"}
+    )
+
     return html.Div([
         hover_tooltip,
         ratings_popup,
@@ -1090,6 +1100,7 @@ def build_app_layout(initial_elements, env="production"):
             details_tab_content,
             events_tab_content,
             settings_tab_content,
+            analyze_tab_content,
             # --- SHARED NODE EDITOR SIDEBAR (overlay, accessible from any tab) ---
             html.Div(
                 id="sidebar-editor-container",

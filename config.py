@@ -57,6 +57,15 @@ DEFAULT_DETAILS_GRAPH_LAYOUT = {
     'repulsion': 4500,
 }
 
+DEFAULT_ANALYZE_LIMITS = {
+    'bottlenecks': 25,
+    'goals': 75,
+    'risk': 25,
+    'time_sinks': 10,
+    'deepest': 10,
+    'connected': 10,
+}
+
 DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
 
 DEFAULT_TITLECASE_LINTER = {
@@ -187,6 +196,15 @@ class ConfigManager:
     @classmethod
     def set_details_graph_layout_defaults(cls, params: dict):
         cls._set_db_value("DETAILS_GRAPH_LAYOUT_DEFAULTS", json.dumps(params))
+
+    @classmethod
+    def get_analyze_limits(cls):
+        val = cls._get_db_value("ANALYZE_LIMITS")
+        return json.loads(val) if val else DEFAULT_ANALYZE_LIMITS
+
+    @classmethod
+    def set_analyze_limits(cls, params: dict):
+        cls._set_db_value("ANALYZE_LIMITS", json.dumps(params))
 
     @classmethod
     def get_time_settings(cls):

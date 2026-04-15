@@ -4,7 +4,7 @@ Layout definitions for the Settings tab.
 
 from dash import html
 import dash_bootstrap_components as dbc
-from config import ConfigManager
+from config import ConfigManager, DEFAULT_ANALYZE_LIMITS
 
 _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
 
@@ -226,6 +226,47 @@ def build_settings_tab_content():
 
                     ], className="p-2")
                 ]),
+                dbc.Tab(label="Analyze", tab_id="tab-analyze-settings", children=[
+                    html.Div([
+                        html.H5("Visualization Limits", className="mt-2 mb-1"),
+                        html.Small("Maximum items shown in each Analyze tab section.",
+                                   className="text-muted d-block mb-2"),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Bottleneck nodes"),
+                                dbc.Input(id="setting-analyze-bottlenecks", type="number",
+                                          min=5, max=100, step=5),
+                            ], width=4),
+                            dbc.Col([
+                                dbc.Label("Goals"),
+                                dbc.Input(id="setting-analyze-goals", type="number",
+                                          min=5, max=200, step=5),
+                            ], width=4),
+                            dbc.Col([
+                                dbc.Label("Risk nodes"),
+                                dbc.Input(id="setting-analyze-risk", type="number",
+                                          min=5, max=100, step=5),
+                            ], width=4),
+                        ], className="mb-2"),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Time sinks"),
+                                dbc.Input(id="setting-analyze-time-sinks", type="number",
+                                          min=5, max=50, step=5),
+                            ], width=4),
+                            dbc.Col([
+                                dbc.Label("Deepest nodes"),
+                                dbc.Input(id="setting-analyze-deepest", type="number",
+                                          min=5, max=50, step=5),
+                            ], width=4),
+                            dbc.Col([
+                                dbc.Label("Most connected"),
+                                dbc.Input(id="setting-analyze-connected", type="number",
+                                          min=5, max=50, step=5),
+                            ], width=4),
+                        ]),
+                    ], className="p-2")
+                ]),
                 dbc.Tab(label="Me", tab_id="tab-paths", children=[
                     html.Div([
                         # --- Paths group ---
@@ -276,7 +317,7 @@ def build_settings_tab_content():
                             ], width=8),
                         ], className="mt-1"),
                     ], className="p-2")
-                ])
+                ]),
             ]),
             html.Div([
                 html.Span(id="settings-save-status", className="text-success me-2",
