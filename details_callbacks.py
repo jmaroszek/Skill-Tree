@@ -147,8 +147,9 @@ def register_details_callbacks(app):
         Output("details-node-select", "options"),
         Input("main-tabs", "active_tab"),
         Input("details-refresh-trigger", "data"),
+        Input("cytoscape-graph", "elements"),
     )
-    def populate_details_dropdown(active_tab, _refresh):
+    def populate_details_dropdown(active_tab, _refresh, _elements):
         nodes = graph_manager.get_all_nodes()
         return [{"label": n.name, "value": n.name}
                 for n in sorted(nodes, key=lambda n: n.name)]
@@ -255,6 +256,7 @@ def register_details_callbacks(app):
         # Inputs
         Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
+        Input("cytoscape-graph", "elements"),
         State("details-include-soft-needs", "value"),
         State("details-include-transitive", "value"),
         State("details-include-synergies", "value"),
@@ -269,7 +271,7 @@ def register_details_callbacks(app):
         State("details-graph-settings-max-depth", "value"),
         prevent_initial_call=True,
     )
-    def select_detail_node(node_name, _refresh,
+    def select_detail_node(node_name, _refresh, _elements,
                            include_soft_val, include_transitive_val,
                            include_synergies_val,
                            f_context, f_subcontext, f_done,
@@ -476,6 +478,7 @@ def register_details_callbacks(app):
         Output("details-mini-graph", "elements"),
         Input("details-selected-node-store", "data"),
         Input("details-refresh-trigger", "data"),
+        Input("cytoscape-graph", "elements"),
         Input("details-include-soft-needs", "value"),
         Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
@@ -490,7 +493,7 @@ def register_details_callbacks(app):
         Input("details-graph-settings-max-depth", "value"),
         Input("details-graph-settings-neighbor-links", "value"),
     )
-    def update_details_graph(selected_node, _refresh,
+    def update_details_graph(selected_node, _refresh, _elements,
                              include_soft_val, include_transitive_val,
                              include_synergies_val,
                              f_node_types, f_done, f_context, f_subcontext,
@@ -576,12 +579,13 @@ def register_details_callbacks(app):
         Output("details-goal-list-container", "children"),
         Input("main-tabs", "active_tab"),
         Input("details-refresh-trigger", "data"),
+        Input("cytoscape-graph", "elements"),
         Input("details-goal-search", "value"),
         Input("details-goal-sort", "value"),
         Input("details-goal-order-store", "data"),
         State("details-selected-node-store", "data"),
     )
-    def render_goal_list(active_tab, _refresh, search_val, sort_mode, manual_order, selected_node):
+    def render_goal_list(active_tab, _refresh, _elements, search_val, sort_mode, manual_order, selected_node):
 
         all_nodes = graph_manager.get_all_nodes()
         goals = [n for n in all_nodes if n.type == "Goal"]
@@ -1246,9 +1250,12 @@ def register_details_callbacks(app):
         Input('details-graph-settings-repulsion', 'value'),
         Input('details-graph-settings-animate', 'value'),
         Input('details-graph-settings-relayout', 'n_clicks'),
+        Input('details-mini-graph', 'elements'),
     )
-    def update_details_graph_layout(edge_length, gravity, repulsion, animate, _relayout):
-        randomize = ctx.triggered_id == 'details-graph-settings-relayout'
+    def update_details_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _elements):
+        trigger = ctx.triggered_id
+        # Randomize on re-layout click or when elements change (new node selected)
+        randomize = trigger in ('details-graph-settings-relayout', 'details-mini-graph')
         return {
             'name': 'cose-bilkent',
             'animate': bool(animate),

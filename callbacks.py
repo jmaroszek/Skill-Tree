@@ -1165,6 +1165,16 @@ def register_callbacks(app):
         if n > 0: return "", True
         return dash.no_update, dash.no_update
 
+    @app.callback(
+        Output('focus-goal-store', 'data', allow_duplicate=True),
+        Input('btn-clear-focus', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def clear_focus(n_clicks):
+        if n_clicks:
+            return None
+        return dash.no_update
+
 
 
     @app.callback(
