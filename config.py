@@ -66,6 +66,49 @@ DEFAULT_ANALYZE_LIMITS = {
     'connected': 10,
 }
 
+DEFAULT_RATINGS_DEFINITIONS = [
+    {"rating": 1,
+     "value": "None: obligatory; I wouldn't do this if I had the choice. No utility, growth, or payoff.",
+     "interest": "Averse: I dread this task and have to force myself to start. Relieved when the session is over.",
+     "effort": "Unconscious: purely reflexive and automatic. I can do it on autopilot without fatigue."},
+    {"rating": 2,
+     "value": "Fleeting: a small immediate benefit, but the payoff doesn't stick.",
+     "interest": "Reluctant: I don't like this task, but the visceral disgust isn't as sharp as aversion.",
+     "effort": "Simple: a light lift using familiar skills. No new learning, no obstacles."},
+    {"rating": 3,
+     "value": "Minor: slightly improves a small skill, habit, or interest. Limited in scope.",
+     "interest": "Boring: monotonous and tedious. Requires discipline to endure, and I procrastinate on it often.",
+     "effort": "Straightforward: multiple simple steps. I know what I need to do, I just have to do it."},
+    {"rating": 4,
+     "value": "Helpful: a meaningful contribution to something I care about. Worth doing if nothing more pressing is on my plate.",
+     "interest": "Tolerable: I don't want to do it, but it's not actively painful once I start. Momentum carries me through.",
+     "effort": "Moderate: a clear path at the start, but some steps require learning and exertion. Not too challenging."},
+    {"rating": 5,
+     "value": "Solid: a noticeable improvement to something important.",
+     "interest": "Indifferent: no strong feelings either way.",
+     "effort": "Involved: several unknowns that require me to learn and grow. A stretch, but within reach."},
+    {"rating": 6,
+     "value": "Significant: a major boost to a core competency, or a meaningful addition to a general one.",
+     "interest": "Curious: the process holds my attention, provokes genuine thought, and is easy to keep going. Rewarding.",
+     "effort": "Difficult: requires sustained focus and discipline. I'll succeed as long as I stay locked in and push past my comfort zone."},
+    {"rating": 7,
+     "value": "Strategic: a lever. Many future opportunities and compounding benefits depend on it.",
+     "interest": "Excited: I look forward to the project and enjoy working on it, but I don't think about it much outside of work hours.",
+     "effort": "Demanding: considerable overall load. The energy required makes other life areas harder to manage."},
+    {"rating": 8,
+     "value": "Fundamental: essential to a core pillar of my life. Supports my broader identity and stability.",
+     "interest": "Engaged: I frequently choose this over leisure activities, and think about it casually throughout the day.",
+     "effort": "Arduous: needs new approaches and considerable effort. May require cutting back elsewhere."},
+    {"rating": 9,
+     "value": "Transformative: expected to shift my worldview or capabilities entirely.",
+     "interest": "Obsessed: I consistently look forward to it and think about it continually. Working on it is a blast. I'm upset when I have to stop.",
+     "effort": "Daunting: a deep dive into an uncharted, complex landscape. Requires monumental development. Others would think I'm crazy for trying."},
+    {"rating": 10,
+     "value": "Spiritual: calls to my soul. Connected to my life's work, filling me with purpose, meaning, and fulfillment.",
+     "interest": "Flow: the activity is its own reward. I would do it even if there were no external benefit. I love it, plain and simple.",
+     "effort": "Herculean: a massive undertaking bridging multiple difficult domains. Requires immense stamina, adaptability, and sacrifice. Failure is the most probable outcome."},
+]
+
 DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
 
 DEFAULT_TITLECASE_LINTER = {
@@ -205,6 +248,20 @@ class ConfigManager:
     @classmethod
     def set_analyze_limits(cls, params: dict):
         cls._set_db_value("ANALYZE_LIMITS", json.dumps(params))
+
+    @classmethod
+    def get_ratings_definitions(cls):
+        val = cls._get_db_value("RATINGS_DEFINITIONS")
+        if val:
+            try:
+                return json.loads(val)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return [dict(d) for d in DEFAULT_RATINGS_DEFINITIONS]
+
+    @classmethod
+    def set_ratings_definitions(cls, defs: list):
+        cls._set_db_value("RATINGS_DEFINITIONS", json.dumps(defs))
 
     @classmethod
     def get_time_settings(cls):

@@ -2,6 +2,7 @@
     function init() {
         const btn = document.getElementById('btn-ratings-info');
         const closeBtn = document.getElementById('btn-ratings-close');
+        const editBtn = document.getElementById('btn-ratings-edit');
         const popup = document.getElementById('ratings-popup');
         const header = document.getElementById('ratings-popup-header');
         if (!btn || !popup || !header || !closeBtn) return;
@@ -20,6 +21,7 @@
 
         header.addEventListener('mousedown', function (e) {
             if (e.target === closeBtn || closeBtn.contains(e.target)) return;
+            if (editBtn && (e.target === editBtn || editBtn.contains(e.target))) return;
             dragging = true;
             startX = e.clientX;
             startY = e.clientY;

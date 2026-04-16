@@ -7,7 +7,7 @@ import dash
 import os
 import subprocess
 import urllib.parse
-from dash import html, Input, Output, State, ALL, ctx
+from dash import html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
@@ -1728,5 +1728,44 @@ def register_callbacks(app):
             ConfigManager.set_override(override)
             return False, ConfigManager.get_override(), f"override-{_time.time()}"
         return dash.no_update, dash.no_update, dash.no_update
+
+    # --- Ratings Editor ---
+
+    @app.callback(
+        Output("modal-ratings-editor", "is_open"),
+        Output("ratings-editor-body", "children"),
+        Input("btn-ratings-edit", "n_clicks"),
+        Input("btn-ratings-editor-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def toggle_ratings_editor(edit_clicks, cancel_clicks):
+        from layout import build_editor_table
+        if ctx.triggered_id == "btn-ratings-edit":
+            defs = ConfigManager.get_ratings_definitions()
+            return True, build_editor_table(defs)
+        return False, no_update
+
+    @app.callback(
+        Output("ratings-popup-table-body", "children"),
+        Output("modal-ratings-editor", "is_open", allow_duplicate=True),
+        Input("btn-ratings-editor-save", "n_clicks"),
+        State({"type": "ratings-edit-value", "index": ALL}, "value"),
+        State({"type": "ratings-edit-interest", "index": ALL}, "value"),
+        State({"type": "ratings-edit-effort", "index": ALL}, "value"),
+        prevent_initial_call=True,
+    )
+    def save_ratings_definitions(n_clicks, values, interests, efforts):
+        from layout import build_popup_table_rows
+        defs = ConfigManager.get_ratings_definitions()
+        new_defs = []
+        for i, d in enumerate(defs):
+            new_defs.append({
+                "rating": d["rating"],
+                "value": values[i] if i < len(values) else d["value"],
+                "interest": interests[i] if i < len(interests) else d["interest"],
+                "effort": efforts[i] if i < len(efforts) else d["effort"],
+            })
+        ConfigManager.set_ratings_definitions(new_defs)
+        return build_popup_table_rows(new_defs), False
 
 

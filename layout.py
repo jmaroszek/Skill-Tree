@@ -797,49 +797,6 @@ hover_tooltip = html.Div(
 )
 
 
-_RATINGS_DATA = [
-    (1,
-     "None: obligatory; I wouldn't do this if I had the choice; no utility, growth, or short-term benefit.",
-     "Averse: I dread this task and have to force myself to start. I am relieved when the work session is over.",
-     "Unconscious: purely reflexive and automatic. I can do it on autopilot without fatigue."),
-    (2,
-     "Fleeting: provides a small immediate benefit, but the results are unlikely to matter long term.",
-     "Reluctant: I don't like this task, but the visceral disgust isn't as strong as level one.",
-     "Simple: a single-step action using familiar skills. I can complete it in less than a few days with zero roadblocks."),
-    (3,
-     "Minor: slightly improves a minor skill, habit, or interest. Will probably impact my life on the scale of weeks to months.",
-     "Boring: monotonous and tedious. Requires discipline to endure; I am glad when it is over and procrastinate on it often.",
-     "Straightforward: a project composed of multiple simple steps. I know what I need to do, I just have to do it."),
-    (4,
-     "Helpful: a meaningful contribution to something I care about. Definitely worth doing if there are no other pressing tasks.",
-     "Tolerable: I don't want to do it, but it is not actively painful once I start. The momentum carries me through.",
-     "Moderate: there is a clear path at the start, but some steps require learning and exertion — not expected to be too challenging."),
-    (5,
-     "Solid: leads to a noticeable improvement in something important.",
-     "Indifferent: no strong feelings either way.",
-     "Involved: there are several unknowns that require me to learn and grow. Will likely take a bit, but I'm sure I can do it."),
-    (6,
-     "Significant: a huge improvement in a core competency, or a helpful addition to a general competency.",
-     "Curious: the process holds my attention, provokes genuine thought, and is easy to keep going. I find it rewarding.",
-     "Difficult: requires sustained focus and discipline. I will succeed as long as I stay focused and go outside my comfort zone."),
-    (7,
-     "Strategic: important as a lever; I expect many future opportunities or compounding benefits to rest on its completion.",
-     "Excited: I look forward to the project and enjoy working on it, but I don't think about it too much outside of work hours.",
-     "Demanding: considerable overall load. The sheer energy required makes other life areas more challenging to manage."),
-    (8,
-     "Fundamental: essential to a core pillar of my life. This supports my broader identity and long-term stability.",
-     "Engaged: I frequently choose this over leisure activities, and think about it casually throughout the day.",
-     "Arduous: needs new approaches and considerable effort over a long time horizon. May need to temporarily cut back elsewhere."),
-    (9,
-     "Transformative: expected to shift my worldview or capabilities entirely, providing lasting value for many years.",
-     "Obsessed: I consistently look forward to it. Working on it is super fun. I think about it continually. I'm upset when I have to stop.",
-     "Daunting: a deep dive into an uncharted, complex landscape. Requires monumental development. Others would think I'm crazy for trying."),
-    (10,
-     "Spiritual: calls to my soul. Connected to my life's work, filling me with a deep sense of purpose, meaning, and fulfillment.",
-     "Flow: the activity is its own reward. I would do it even if there were no external benefit. I love it, plain and simple.",
-     "Herculean: a massive undertaking bridging multiple difficult domains. The road ahead is exceptionally long and requires immense stamina, adaptability, and sacrifice. Failure is the most probable outcome."),
-]
-
 _cell_style = {
     "padding": "6px 8px",
     "verticalAlign": "top",
@@ -855,14 +812,94 @@ _header_cell_style = {
     "top": "0",
 }
 
+
+def build_popup_table_rows(defs):
+    """Build the ratings popup table rows from a list of definition dicts."""
+    return [
+        html.Tr([
+            html.Td(str(d['rating']), style={
+                **_cell_style, "fontWeight": "700", "color": "#adb5bd",
+                "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+            }),
+            html.Td(d['value'], style={
+                **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+            }),
+            html.Td(d['interest'], style={
+                **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+            }),
+            html.Td(d['effort'], style={
+                **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+            }),
+        ])
+        for i, d in enumerate(defs)
+    ]
+
+
+def build_editor_table(defs):
+    """Build the full editor table (with header) for the ratings editor modal."""
+    return html.Table([
+        html.Thead(html.Tr([
+            html.Th("#", style={**_header_cell_style, "width": "36px"}),
+            html.Th("Value", style=_header_cell_style),
+            html.Th("Interest", style=_header_cell_style),
+            html.Th("Effort", style=_header_cell_style),
+        ])),
+        html.Tbody(build_editor_rows(defs)),
+    ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"})
+
+
+def build_editor_rows(defs):
+    """Build the editor modal rows (textareas) from a list of definition dicts."""
+    from dash import dcc
+    rows = []
+    for d in defs:
+        i = d['rating'] - 1
+        rows.append(html.Tr([
+            html.Td(str(d['rating']), style={
+                **_cell_style, "fontWeight": "700", "color": "#adb5bd",
+                "width": "36px", "textAlign": "center",
+            }),
+            html.Td(dcc.Textarea(
+                id={"type": "ratings-edit-value", "index": i},
+                value=d['value'],
+                style={"width": "100%", "height": "72px", "resize": "vertical",
+                       "backgroundColor": "#2b3035", "color": "#dee2e6",
+                       "border": "1px solid #495057", "borderRadius": "4px",
+                       "padding": "4px", "fontSize": "0.8rem"},
+            ), style=_cell_style),
+            html.Td(dcc.Textarea(
+                id={"type": "ratings-edit-interest", "index": i},
+                value=d['interest'],
+                style={"width": "100%", "height": "72px", "resize": "vertical",
+                       "backgroundColor": "#2b3035", "color": "#dee2e6",
+                       "border": "1px solid #495057", "borderRadius": "4px",
+                       "padding": "4px", "fontSize": "0.8rem"},
+            ), style=_cell_style),
+            html.Td(dcc.Textarea(
+                id={"type": "ratings-edit-effort", "index": i},
+                value=d['effort'],
+                style={"width": "100%", "height": "72px", "resize": "vertical",
+                       "backgroundColor": "#2b3035", "color": "#dee2e6",
+                       "border": "1px solid #495057", "borderRadius": "4px",
+                       "padding": "4px", "fontSize": "0.8rem"},
+            ), style=_cell_style),
+        ]))
+    return rows
+
+
 ratings_popup = html.Div([
     # Draggable header
     html.Div([
         html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
+        html.Button(html.I(className="bi bi-pencil"), id="btn-ratings-edit", style={
+            "background": "none", "border": "none", "color": "#adb5bd",
+            "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
+            "padding": "0 6px", "marginLeft": "auto",
+        }, title="Edit definitions"),
         html.Button("×", id="btn-ratings-close", style={
             "background": "none", "border": "none", "color": "#adb5bd",
             "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
-            "padding": "0", "marginLeft": "auto",
+            "padding": "0",
         }),
     ], id="ratings-popup-header", className="d-flex align-items-center", style={
         "cursor": "move",
@@ -882,16 +919,10 @@ ratings_popup = html.Div([
                 html.Th("Interest", style=_header_cell_style),
                 html.Th("Effort", style=_header_cell_style),
             ])),
-            html.Tbody([
-                html.Tr([
-                    html.Td(str(r), style={**_cell_style, "fontWeight": "700", "color": "#adb5bd",
-                                           "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
-                    html.Td(v, style={**_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
-                    html.Td(it, style={**_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
-                    html.Td(e, style={**_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent"}),
-                ])
-                for i, (r, v, it, e) in enumerate(_RATINGS_DATA)
-            ]),
+            html.Tbody(
+                id="ratings-popup-table-body",
+                children=build_popup_table_rows(ConfigManager.get_ratings_definitions()),
+            ),
         ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
     ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
 ], id="ratings-popup", style={
@@ -912,6 +943,19 @@ ratings_popup = html.Div([
     "resize": "both",
     "overflow": "hidden",
 })
+
+
+ratings_editor_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Edit Ratings Definitions")),
+    dbc.ModalBody(
+        html.Div(id="ratings-editor-body"),
+        style={"maxHeight": "70vh", "overflowY": "auto"},
+    ),
+    dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-ratings-editor-cancel", color="secondary", className="me-auto"),
+        dbc.Button("Save", id="btn-ratings-editor-save", color="primary"),
+    ]),
+], id="modal-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
 def build_app_layout(initial_elements, env="production"):
@@ -1086,6 +1130,7 @@ def build_app_layout(initial_elements, env="production"):
         clear_confirm_modal,
         override_conflict_modal,
         override_untoggle_modal,
+        ratings_editor_modal,
 
         dcc.Store(id='override-store', data={"parent": None, "mode": "hard"}),
         dcc.Store(id='pending-settings-store', data=None),
