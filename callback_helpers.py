@@ -10,7 +10,9 @@ import dash
 from dash import html
 import dash_bootstrap_components as dbc
 from config import ConfigManager
+from collections import defaultdict
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from scoring import build_adjacency as build_scoring_adjacency, total_value
 
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -398,9 +400,387 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     desc_area = html.Div([
         html.H6("Description", className="text-muted mb-2", style=SECTION_TITLE_STYLE),
         html.Div(desc_content, style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
-    ], className="mt-4", style={"maxWidth": "800px"})
+    ], style={"flex": "1", "minWidth": "200px", "maxWidth": "800px"})
 
-    return [table, desc_area]
+    table_row = html.Div([table, desc_area], style={
+        "display": "flex", "alignItems": "flex-start", "gap": "3rem",
+    })
+
+    return [table_row]
+
+
+# --- Next-tab chain visualization helpers ---
+
+_PILL_BG = '#2b3035'
+_PILL_BORDER = '#495057'
+
+
+def _render_chain_pills(chain, node_info=None, chain_id="chain", empty_msg="No chain found."):
+    """Render a list of node names as styled pills with arrow separators.
+
+    Args:
+        chain: List of node names.
+        node_info: Optional dict mapping node name -> {'subtasks': list[str]}.
+            Badge shown on pills with remaining prereqs; click reveals the list.
+        chain_id: Prefix for unique popover target IDs.
+        empty_msg: Shown when chain is empty.
+    """
+    if not chain:
+        return html.P(empty_msg, className="text-muted small")
+
+    items = []
+    for i, name in enumerate(chain):
+        info = node_info.get(name, {}) if node_info else {}
+        subtasks = info.get('subtasks', [])
+
+        pill_style = {
+            "padding": "2px 8px", "borderRadius": "4px",
+            "fontSize": "0.82rem", "whiteSpace": "nowrap",
+            "backgroundColor": _PILL_BG, "border": f"1px solid {_PILL_BORDER}",
+        }
+
+        pill = html.Span(name, style=pill_style)
+
+        if subtasks:
+            badge_id = f"{chain_id}-badge-{i}"
+            badge = html.Span(str(len(subtasks)), id=badge_id, style={
+                "position": "absolute", "top": "-7px", "right": "-7px",
+                "backgroundColor": "#6c757d", "color": "#fff",
+                "borderRadius": "8px", "fontSize": "0.6rem", "fontWeight": "600",
+                "minWidth": "15px", "height": "15px", "lineHeight": "15px",
+                "textAlign": "center", "padding": "0 3px", "cursor": "pointer",
+            })
+            prereq_list = html.Div(
+                [html.Div(s, style={"padding": "1px 0"}) for s in subtasks],
+                style={"maxHeight": "200px", "overflowY": "auto",
+                       "fontSize": "0.8rem", "lineHeight": "1.4"},
+            )
+            popover = dbc.Popover([
+                dbc.PopoverHeader("Hard Needs"),
+                dbc.PopoverBody(prereq_list),
+            ], target=badge_id, trigger="legacy", placement="bottom")
+            wrapper = html.Span([pill, badge, popover], style={
+                "position": "relative", "display": "inline-block",
+            })
+            items.append(wrapper)
+        else:
+            items.append(pill)
+
+        if i < len(chain) - 1:
+            items.append(html.Span(" \u2192 ", className="text-muted",
+                                   style={"fontSize": "0.82rem"}))
+    return html.Div(items, style={
+        "padding": "8px 0", "overflowX": "auto", "whiteSpace": "nowrap",
+        "display": "flex", "alignItems": "center", "gap": "2px",
+        "justifyContent": "flex-start",
+    })
+
+
+def _build_hard_dag(manager):
+    """Build a hard-edge DAG among non-Done nodes. Returns (non_done_names, dag_fwd, dag_rev)."""
+    nodes = manager.get_all_nodes()
+    edges = manager.get_edges()
+    non_done_names = {n.name for n in nodes if n.status != 'Done'}
+
+    dag_fwd = defaultdict(list)   # source -> targets that depend on source
+    dag_rev = defaultdict(list)   # target -> sources (prerequisites of target)
+    for e in edges:
+        s, t = e['source'], e['target']
+        if e['type'] == EDGE_NEEDS_HARD and s in non_done_names and t in non_done_names:
+            dag_fwd[s].append(t)
+            dag_rev[t].append(s)
+
+    return nodes, edges, non_done_names, dag_fwd, dag_rev
+
+
+def _topo_sort(non_done_names, dag_fwd):
+    """Kahn's topological sort on the hard-edge DAG."""
+    in_degree = defaultdict(int)
+    for name in non_done_names:
+        for tgt in dag_fwd.get(name, []):
+            in_degree[tgt] += 1
+
+    queue = [n for n in non_done_names if in_degree[n] == 0]
+    topo = []
+    while queue:
+        node = queue.pop(0)
+        topo.append(node)
+        for nxt in dag_fwd.get(node, []):
+            in_degree[nxt] -= 1
+            if in_degree[nxt] == 0:
+                queue.append(nxt)
+    return topo
+
+
+def _compute_longest_prereq_chain(manager):
+    """Find the longest hard-dependency chain among non-Done nodes."""
+    _nodes, _edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
+    if not non_done_names:
+        return []
+
+    topo = _topo_sort(non_done_names, dag_fwd)
+
+    dist = {n: 0 for n in non_done_names}
+    parent = {n: None for n in non_done_names}
+    for node in topo:
+        for nxt in dag_fwd.get(node, []):
+            if dist[node] + 1 > dist[nxt]:
+                dist[nxt] = dist[node] + 1
+                parent[nxt] = node
+
+    if not dist:
+        return []
+    end = max(dist, key=dist.get)
+    if dist[end] == 0:
+        return []
+
+    chain = []
+    cur = end
+    while cur is not None:
+        chain.append(cur)
+        cur = parent[cur]
+    chain.reverse()
+    return chain
+
+
+def _compute_highest_value_path(manager):
+    """Find the hard-edge chain whose cumulative total_value is maximized."""
+    nodes, edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
+    if not non_done_names:
+        return []
+
+    # Compute total_value for each non-Done node
+    hp = ConfigManager.get_hyperparams()
+    w_v, w_i = hp.get('w_v', 1.0), hp.get('w_i', 1.0)
+    d_H, d_S, d_Syn = hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35)
+    all_nodes_dict = {n.name: n for n in nodes}
+    node_names = set(all_nodes_dict.keys())
+    H_out, S_out, Syn, Hard_in = build_scoring_adjacency(edges, node_names)
+
+    tv = {}
+    for name in non_done_names:
+        tv[name] = total_value(name, set(), all_nodes_dict, H_out, S_out, Syn,
+                               w_v, w_i, d_H, d_S, d_Syn)
+
+    # DP: longest-weight path in DAG
+    topo = _topo_sort(non_done_names, dag_fwd)
+    dp = {n: tv.get(n, 0) for n in non_done_names}
+    parent = {n: None for n in non_done_names}
+    for node in topo:
+        for nxt in dag_fwd.get(node, []):
+            candidate = dp[node] + tv.get(nxt, 0)
+            if candidate > dp[nxt]:
+                dp[nxt] = candidate
+                parent[nxt] = node
+
+    if not dp:
+        return []
+    end = max(dp, key=dp.get)
+    # Only return a chain if it has more than one node
+    if parent[end] is None:
+        return []
+
+    chain = []
+    cur = end
+    while cur is not None:
+        chain.append(cur)
+        cur = parent[cur]
+    chain.reverse()
+    return chain
+
+
+def _compute_unlock_path(manager):
+    """Find the most valuable Blocked node and trace the critical prereq path to unlock it."""
+    nodes, edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
+    blocked = [n for n in nodes if n.status == 'Blocked']
+    if not blocked:
+        return []
+
+    # Score each blocked node
+    hp = ConfigManager.get_hyperparams()
+    w_v, w_i = hp.get('w_v', 1.0), hp.get('w_i', 1.0)
+    d_H, d_S, d_Syn = hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35)
+    all_nodes_dict = {n.name: n for n in nodes}
+    node_names = set(all_nodes_dict.keys())
+    H_out, S_out, Syn, Hard_in = build_scoring_adjacency(edges, node_names)
+
+    best_node = None
+    best_tv = -1
+    for n in blocked:
+        tv = total_value(n.name, set(), all_nodes_dict, H_out, S_out, Syn,
+                         w_v, w_i, d_H, d_S, d_Syn)
+        if tv > best_tv:
+            best_tv = tv
+            best_node = n.name
+
+    if not best_node:
+        return []
+
+    # Trace backward: find longest chain of unsatisfied hard prereqs to the target
+    # dag_fwd[node] = nodes that 'node' depends on (hard)
+    # We want the chain: root_prereq -> ... -> prereq -> best_node
+    # BFS/DP to find longest path ending at best_node within its prereq subgraph
+    # First collect reachable unsatisfied prereqs
+    reachable = set()
+    stack = [best_node]
+    while stack:
+        cur = stack.pop()
+        for dep in dag_fwd.get(cur, []):
+            if dep not in reachable:
+                reachable.add(dep)
+                stack.append(dep)
+
+    if not reachable:
+        return [best_node]
+
+    # Build sub-DAG of reachable prereqs + best_node
+    sub_nodes = reachable | {best_node}
+    sub_fwd = defaultdict(list)
+    for s in sub_nodes:
+        for t in dag_fwd.get(s, []):
+            if t in sub_nodes:
+                sub_fwd[s].append(t)
+
+    # Longest path ending at a root (no further prereqs) starting from best_node
+    # Reverse: find longest path in sub-DAG from any root to best_node
+    sub_rev = defaultdict(list)
+    for s in sub_nodes:
+        for t in sub_fwd.get(s, []):
+            sub_rev[t].append(s)
+
+    # Topo sort on sub_rev direction (reverse edges: prereq -> dependent)
+    in_deg = defaultdict(int)
+    for s in sub_nodes:
+        for t in sub_rev.get(s, []):
+            in_deg[t] += 1
+    queue = [n for n in sub_nodes if in_deg[n] == 0]
+    topo = []
+    while queue:
+        nd = queue.pop(0)
+        topo.append(nd)
+        for nxt in sub_rev.get(nd, []):
+            in_deg[nxt] -= 1
+            if in_deg[nxt] == 0:
+                queue.append(nxt)
+
+    # DP longest path in reversed direction (prereq -> dependent)
+    dist = {n: 0 for n in sub_nodes}
+    parent = {n: None for n in sub_nodes}
+    for nd in topo:
+        for nxt in sub_rev.get(nd, []):
+            if dist[nd] + 1 > dist[nxt]:
+                dist[nxt] = dist[nd] + 1
+                parent[nxt] = nd
+
+    # Reconstruct chain: start from the most actionable prereq, end at blocked target
+    chain = []
+    cur = best_node
+    while cur is not None:
+        chain.append(cur)
+        cur = parent[cur]
+    # chain is already [blocked_target, ..., root_prereq] — keep this order
+    # so the display reads: start here → ... → unlock this
+    return chain
+
+
+def format_next_visualizations(manager):
+    """Compute and render the three chain visualizations for the Next tab."""
+    all_nodes = manager.get_all_nodes()
+    edges = manager.get_edges()
+
+    # Build reverse hard-edge DAG among non-Done nodes for subtask counting
+    # Edge source → target means "source is prerequisite of target"
+    # dag_rev[target] = [sources] = prerequisites of target
+    non_done_names = {n.name for n in all_nodes if n.status != 'Done'}
+    dag_rev = defaultdict(list)
+    for e in edges:
+        if e['type'] == EDGE_NEEDS_HARD:
+            s, t = e['source'], e['target']
+            if s in non_done_names and t in non_done_names:
+                dag_rev[t].append(s)
+
+    # Collect transitive non-Done hard prerequisites per node via BFS
+    _subtask_cache = {}
+    def _get_subtasks(name):
+        if name in _subtask_cache:
+            return _subtask_cache[name]
+        visited = set()
+        stack = list(dag_rev.get(name, []))
+        while stack:
+            cur = stack.pop()
+            if cur in visited:
+                continue
+            visited.add(cur)
+            stack.extend(dag_rev.get(cur, []))
+        _subtask_cache[name] = sorted(visited)
+        return _subtask_cache[name]
+
+    node_status = {n.name: n.status for n in all_nodes}
+    node_info = {
+        n.name: {'subtasks': _get_subtasks(n.name)}
+        for n in all_nodes
+    }
+
+    def _trim_leading_blocked(chain):
+        """Remove leading Blocked nodes so chains start with an actionable node."""
+        for i, name in enumerate(chain):
+            if node_status.get(name) != 'Blocked':
+                return chain[i:]
+        return chain
+
+    sections = [
+        html.H6("Chains", className="text-muted mb-1 mt-4", style=SECTION_TITLE_STYLE),
+        html.P("Dependency paths through your graph, offering perspectives beyond individual task rankings.",
+               className="text-muted small mb-0"),
+    ]
+
+    _sub_style = {"fontSize": "1rem", "fontWeight": "500"}
+    _info_icon_style = {
+        "fontSize": "1rem", "color": "#6c757d", "cursor": "pointer",
+        "marginLeft": "6px",
+    }
+
+    def _sub_header(title, info_id, description):
+        return html.Div([
+            html.H6(title, className="text-muted mb-0 d-inline", style=_sub_style),
+            html.Span(
+                "\u24d8", id=info_id,
+                style=_info_icon_style,
+            ),
+            dbc.Popover(
+                dbc.PopoverBody(description),
+                target=info_id, trigger="click", placement="right",
+            ),
+        ], className="mb-1")
+
+    value_path = _trim_leading_blocked(_compute_highest_value_path(manager))
+    sections.append(html.Div([
+        _sub_header("Highest-Value Dependency Path", "chain-info-value",
+                     "The connected chain of tasks (by hard edges) whose cumulative total value "
+                     "is maximized. Shows which thread of work carries the most value."),
+        _render_chain_pills(value_path, node_info, chain_id="value",
+                            empty_msg="No multi-node dependency paths found."),
+    ], className="mt-3"))
+
+    unlock = _trim_leading_blocked(_compute_unlock_path(manager))
+    sections.append(html.Div([
+        _sub_header("Path to Most Valuable Blocked Task", "chain-info-blocked",
+                     "Identifies the blocked task with the highest total value, then traces "
+                     "the prerequisite chain you need to complete to unblock it."),
+        _render_chain_pills(unlock, node_info, chain_id="blocked",
+                            empty_msg="No blocked nodes found."),
+    ], className="mt-3"))
+
+    longest = _trim_leading_blocked(_compute_longest_prereq_chain(manager))
+    sections.append(html.Div([
+        _sub_header("Longest Prerequisite Chain", "chain-info-longest",
+                     "The longest sequence of hard-dependency steps among incomplete tasks. "
+                     "Shows the critical path bottleneck in your graph."),
+        _render_chain_pills(longest, node_info, chain_id="longest",
+                            empty_msg="No dependency chains found."),
+    ], className="mt-3"))
+
+    return sections
 
 
 def format_traversal_ui(tapped_node, active_node_id, manager):

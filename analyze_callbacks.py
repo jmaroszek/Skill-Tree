@@ -1093,9 +1093,6 @@ def register_analyze_callbacks(app):
                 dbc.Col([_render_dep_charts(dep_data,
                          total_height=max(200, len(bottlenecks) * 28 + 60))], width=6),
             ], className="g-3"),
-            # Row 2: Longest Prerequisite Chain
-            html.H6("Longest Prerequisite Chain", className="text-muted mb-1 mt-3"),
-            _render_longest_chain(dep_data),
             html.Hr(className="my-3"),
 
             # -- Contexts --

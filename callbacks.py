@@ -17,7 +17,7 @@ from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
     node_options, build_filters,
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
-    format_suggestions_table, format_traversal_ui,
+    format_suggestions_table, format_next_visualizations, format_traversal_ui,
     render_link_rows, spawn_local_file_picker,
     strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
@@ -1021,9 +1021,10 @@ def register_callbacks(app):
             # Still format sidebar traversal UI
             count = sugg_count if sugg_count else 10
             sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
+            sugg_ui = sugg_ui + format_next_visualizations(manager)
             effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
-            
+
         else:
             community_method = community_method or "components"
             communities = manager.detect_communities(method=community_method, filters=filters)
@@ -1063,6 +1064,7 @@ def register_callbacks(app):
 
             count = sugg_count if sugg_count else 10
             sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
+            sugg_ui = sugg_ui + format_next_visualizations(manager)
             effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 

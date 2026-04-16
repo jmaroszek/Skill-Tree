@@ -315,8 +315,8 @@ class TestSuggestionsTableOverrideColumn:
         scored = mgr.calculate_priority_scores([mgr.get_node("A")])
         override_set = {"A"}
         result = format_suggestions_table(scored, mgr, override_set=override_set)
-        # result is [dbc.Table, desc_area]; check the table has an Override header
-        table_component = result[0]
+        # result is [flex_row(table, desc)]; table is first child of the flex row
+        table_component = result[0].children[0]
         thead = table_component.children[0]
         header_texts = [th.children for th in thead.children.children if isinstance(th, html.Th)]
         assert "Override" in header_texts
@@ -325,11 +325,8 @@ class TestSuggestionsTableOverrideColumn:
         mgr.add_node(_make_node("A", value=5))
         scored = mgr.calculate_priority_scores([mgr.get_node("A")])
         result = format_suggestions_table(scored, mgr, override_set=None)
-        # result is [dbc.Table, desc_area]; stringify and check no Override header
-        html_str = str(result)
-        # "Override" should not appear as a table header
-        # (it may appear in other contexts like node type, so check specifically)
-        table_component = result[0]
+        # result is [flex_row(table, desc)]; table is first child of the flex row
+        table_component = result[0].children[0]
         thead = table_component.children[0]
         header_texts = [th.children for th in thead.children.children if isinstance(th, html.Th)]
         assert "Override" not in header_texts
@@ -350,8 +347,8 @@ class TestSuggestionsTableOverrideColumn:
         scored = mgr.calculate_priority_scores([mgr.get_node("Styled")])
         override_set = {"Styled"}
         result = format_suggestions_table(scored, mgr, override_set=override_set)
-        # result is [dbc.Table, desc_area]
-        table_component = result[0]
+        # result is [flex_row(table, desc)]; table is first child of the flex row
+        table_component = result[0].children[0]
         tbody = table_component.children[1]
         row = tbody.children[0]
         assert "borderLeft" in row.style
