@@ -598,12 +598,12 @@ def _render_time_distribution(ctx_chart, subctx_chart, top_nodes, risk_data, row
     if risk_data:
         risk_content = _render_risk_chart(risk_data)
         sections.append(html.Div([
-            html.H6("Uncertainty", className="text-muted mb-1 mt-3"),
+            html.H6("Uncertainty", className="text-muted mb-1 mt-4"),
             risk_content,
         ]))
     else:
         sections.append(html.Div([
-            html.H6("Uncertainty", className="text-muted mb-1 mt-3"),
+            html.H6("Uncertainty", className="text-muted mb-1 mt-4"),
             html.P("No nodes with sufficient time estimate data.", className="text-muted small"),
         ]))
 
@@ -792,7 +792,7 @@ def _render_dep_charts(dep_data, total_height=None):
     """
     deepest = dep_data['deepest']
     most_connected = dep_data['most_connected']
-    half_h = (total_height - 90) // 2 if total_height else None  # subtract title + margin space
+    half_h = (total_height - 120) // 2 if total_height else None  # subtract titles + margins + gap
 
     sections = []
     chart_data = [
@@ -1082,13 +1082,6 @@ def register_analyze_callbacks(app):
             _render_time_distribution(ctx_chart, subctx_chart, top_nodes, risk_data, row_height=time_row_height),
             html.Hr(className="my-3"),
 
-            # -- Contexts --
-            html.H5("Contexts", className="mb-1"),
-            html.P("Average ratings by context.",
-                   className="text-muted small"),
-            html.Div([_render_ratings_chart(ratings_data)], style={"maxWidth": "600px"}),
-            html.Hr(className="my-3"),
-
             # -- Graph Structure --
             html.H5("Graph Structure", className="mb-1"),
             html.P("Structural patterns in the graph.",
@@ -1103,4 +1096,11 @@ def register_analyze_callbacks(app):
             # Row 2: Longest Prerequisite Chain
             html.H6("Longest Prerequisite Chain", className="text-muted mb-1 mt-3"),
             _render_longest_chain(dep_data),
+            html.Hr(className="my-3"),
+
+            # -- Contexts --
+            html.H5("Contexts", className="mb-1"),
+            html.P("Average ratings by context.",
+                   className="text-muted small"),
+            html.Div([_render_ratings_chart(ratings_data)], style={"maxWidth": "600px"}),
         ]

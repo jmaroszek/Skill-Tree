@@ -12,9 +12,7 @@ def build_analyze_tab_content():
         id="analyze-content-container",
         children=[
             html.Div([
-                html.H5("Analyze", className="text-muted"),
-                html.P("Switch to this tab to load analytics.",
-                       className="text-muted small"),
+                html.P("Loading...", className="text-muted"),
             ], style={"textAlign": "center", "marginTop": "20%"}),
         ],
         className="px-4 pt-3 pb-4",
