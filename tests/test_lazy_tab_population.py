@@ -5,7 +5,14 @@ import pytest
 from dash import no_update
 from dash.development.base_component import Component
 
+import event_callbacks
 from event_callbacks import register_event_callbacks
+
+
+@pytest.fixture
+def main_tabs_trigger(monkeypatch):
+    """Simulate a user-click callback context: trigger == 'main-tabs'."""
+    monkeypatch.setattr(event_callbacks, "get_trigger_id", lambda: "main-tabs")
 
 
 def _find_component_by_id(root, target_id):
@@ -92,7 +99,7 @@ def test_built_flag_stores_present_and_default_false():
     ("tab-analyze", 3, 8),
     ("tab-settings", 4, 9),
 ])
-def test_populate_tab_content_first_activation_builds_tree(tab_id, out_idx, flag_idx):
+def test_populate_tab_content_first_activation_builds_tree(main_tabs_trigger, tab_id, out_idx, flag_idx):
     fn = _populate_fn()
     result = fn(tab_id, "", False, False, False, False, False)
     assert len(result) == 10
@@ -105,7 +112,7 @@ def test_populate_tab_content_first_activation_builds_tree(tab_id, out_idx, flag
 
 
 @pytest.mark.parametrize("tab_id", ["tab-canvas", "tab-details", "tab-events", "tab-analyze", "tab-settings"])
-def test_populate_tab_content_second_activation_no_update(tab_id):
+def test_populate_tab_content_second_activation_no_update(main_tabs_trigger, tab_id):
     """When the flag is already True, populate returns no_update for that tab."""
     fn = _populate_fn()
     flags = {"tab-canvas": 0, "tab-details": 1, "tab-events": 2, "tab-analyze": 3, "tab-settings": 4}
@@ -115,11 +122,29 @@ def test_populate_tab_content_second_activation_no_update(tab_id):
     assert all(r is no_update for r in result), f"{tab_id} already built -> all no_update; got {result}"
 
 
-def test_populate_tab_content_next_tab_is_noop():
+def test_populate_tab_content_next_tab_is_noop(main_tabs_trigger):
     """Switching to tab-next does not populate anything (Next was built eagerly)."""
     fn = _populate_fn()
     result = fn("tab-next", "", False, False, False, False, False)
     assert all(r is no_update for r in result)
+
+
+def test_user_click_is_not_hijacked_by_stale_prefetch_trigger_value(main_tabs_trigger):
+    """REGRESSION: after prefetch fires, prefetch_trigger keeps its last value.
+    A subsequent user click must still build the clicked tab, not the stale one.
+    """
+    fn = _populate_fn()
+    # Simulate the app state right after prefetch has completed:
+    # - canvas and analyze built (prefetch wrote them)
+    # - prefetch_trigger still holds 'prefetch-analyze' as its latest value
+    # User now clicks Details (main-tabs fired, not prefetch-tab-trigger).
+    result = fn("tab-details", "prefetch-analyze",
+                True, False, False, True, False)  # canvas+analyze built
+    # Details children slot (index 1) must be populated, not ignored.
+    assert result[1] is not no_update, (
+        "stale prefetch_trigger hijacked user click: details never built"
+    )
+    assert result[6] is True, "details-built-flag should flip to True"
 
 
 def test_app_suppress_callback_exceptions_enabled(monkeypatch):

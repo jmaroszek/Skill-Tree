@@ -12,7 +12,7 @@ from typing import Optional, List
 from config import ConfigManager
 from models import Node, Event
 from events_layout import build_event_card, build_dormant_nodes_table, _event_badge, _event_trigger_type
-from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker, strip_gdrive_prefix
+from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker, strip_gdrive_prefix, get_trigger_id
 
 event_manager = EventManager()
 graph_manager = GraphManager()
@@ -152,12 +152,19 @@ def register_event_callbacks(app):
     )
     def populate_tab_content(active_tab, prefetch_trigger, canvas_built, details_built,
                              events_built, analyze_built, settings_built):
-        # Resolve what to build: explicit prefetch values win (user hasn't
-        # necessarily switched tabs yet); otherwise use the active tab.
-        if prefetch_trigger == "prefetch-canvas":
-            target = "tab-canvas"
-        elif prefetch_trigger == "prefetch-analyze":
-            target = "tab-analyze"
+        # Distinguish the two Input triggers: a user clicking a tab fires
+        # main-tabs; the idle prefetch scheduler fires prefetch-tab-trigger.
+        # We must NOT use the prefetch_trigger VALUE to infer intent — it
+        # persists as an Input even after prefetch completes, and would
+        # otherwise hijack every subsequent user tab-click.
+        trigger = get_trigger_id()
+        if trigger == "prefetch-tab-trigger":
+            if prefetch_trigger == "prefetch-canvas":
+                target = "tab-canvas"
+            elif prefetch_trigger == "prefetch-analyze":
+                target = "tab-analyze"
+            else:
+                return tuple([no_update] * 10)
         else:
             target = active_tab
 

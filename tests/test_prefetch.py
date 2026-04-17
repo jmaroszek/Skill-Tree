@@ -4,9 +4,23 @@ import re
 from pathlib import Path
 
 import dash
+import pytest
 from dash import no_update
 
+import event_callbacks
 from event_callbacks import register_event_callbacks
+
+
+@pytest.fixture
+def prefetch_trigger_ctx(monkeypatch):
+    """Simulate a prefetch callback context: trigger == 'prefetch-tab-trigger'."""
+    monkeypatch.setattr(event_callbacks, "get_trigger_id", lambda: "prefetch-tab-trigger")
+
+
+@pytest.fixture
+def main_tabs_trigger_ctx(monkeypatch):
+    """Simulate a user-click callback context: trigger == 'main-tabs'."""
+    monkeypatch.setattr(event_callbacks, "get_trigger_id", lambda: "main-tabs")
 
 
 def _populate_fn():
@@ -22,7 +36,7 @@ def _populate_fn():
     return cb
 
 
-def test_prefetch_canvas_builds_content_without_requiring_tab_switch():
+def test_prefetch_canvas_builds_content_without_requiring_tab_switch(prefetch_trigger_ctx):
     fn = _populate_fn()
     # active_tab is still 'tab-next'; prefetch trigger fires.
     result = fn("tab-next", "prefetch-canvas", False, False, False, False, False)
@@ -33,7 +47,7 @@ def test_prefetch_canvas_builds_content_without_requiring_tab_switch():
         assert result[i] is no_update
 
 
-def test_prefetch_analyze_builds_content_without_requiring_tab_switch():
+def test_prefetch_analyze_builds_content_without_requiring_tab_switch(prefetch_trigger_ctx):
     fn = _populate_fn()
     result = fn("tab-next", "prefetch-analyze", False, False, False, False, False)
     assert result[3] is not no_update
@@ -42,23 +56,23 @@ def test_prefetch_analyze_builds_content_without_requiring_tab_switch():
         assert result[i] is no_update
 
 
-def test_prefetch_is_idempotent_after_user_click():
+def test_prefetch_is_idempotent_after_user_click(prefetch_trigger_ctx):
     fn = _populate_fn()
     # Canvas flag already True (user clicked first)
     result = fn("tab-next", "prefetch-canvas", True, False, False, False, False)
     assert all(r is no_update for r in result)
 
 
-def test_user_click_after_prefetch_is_idempotent():
+def test_user_click_on_prefetched_canvas_is_noop(main_tabs_trigger_ctx):
+    """Prefetch already ran (canvas-built=True); user clicks canvas tab. Tabs-only
+    trigger so the populate callback sees active_tab='tab-canvas'; canvas built-flag
+    is True so it's a no-op (mounted subtree preserved)."""
     fn = _populate_fn()
-    # Prefetch already ran (canvas-built=True); now user actually clicks canvas tab.
-    # populate_tab_content receives active_tab='tab-canvas' and prefetch_trigger still
-    # holds its last sentinel value.
-    result = fn("tab-canvas", "prefetch-canvas", True, False, False, False, False)
+    result = fn("tab-canvas", "prefetch-analyze", True, False, False, True, False)
     assert all(r is no_update for r in result)
 
 
-def test_prefetch_does_not_emit_visibility_change():
+def test_prefetch_does_not_emit_visibility_change(prefetch_trigger_ctx):
     """Prefetch writes only children/flag outputs — never to any style output."""
     fn = _populate_fn()
     result = fn("tab-next", "prefetch-canvas", False, False, False, False, False)
