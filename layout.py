@@ -1148,7 +1148,6 @@ def build_app_layout(env="production"):
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
-        dcc.Input(id='prefetch-tab-trigger', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='pending-navigation-store', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
