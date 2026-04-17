@@ -31,7 +31,7 @@ def _collect_ids(component):
 
 def test_build_app_layout_returns_six_tab_containers():
     from layout import build_app_layout
-    root = build_app_layout(initial_elements=[], env="sandbox")
+    root = build_app_layout(env="sandbox")
     ids = _collect_ids(root)
     for tab_id in (
         "next-tab-content",
@@ -46,7 +46,7 @@ def test_build_app_layout_returns_six_tab_containers():
 
 def test_build_app_layout_has_main_tabs_and_default_next():
     from layout import build_app_layout
-    root = build_app_layout(initial_elements=[], env="sandbox")
+    root = build_app_layout(env="sandbox")
     ids = _collect_ids(root)
     assert "main-tabs" in ids
 
