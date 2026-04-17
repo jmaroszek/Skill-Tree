@@ -94,7 +94,7 @@ def test_built_flag_stores_present_and_default_false():
 ])
 def test_populate_tab_content_first_activation_builds_tree(tab_id, out_idx, flag_idx):
     fn = _populate_fn()
-    result = fn(tab_id, False, False, False, False, False)
+    result = fn(tab_id, "", False, False, False, False, False)
     assert len(result) == 10
     assert result[out_idx] is not no_update, f"{tab_id} children should be populated"
     assert result[flag_idx] is True
@@ -111,14 +111,14 @@ def test_populate_tab_content_second_activation_no_update(tab_id):
     flags = {"tab-canvas": 0, "tab-details": 1, "tab-events": 2, "tab-analyze": 3, "tab-settings": 4}
     flag_vals = [False] * 5
     flag_vals[flags[tab_id]] = True
-    result = fn(tab_id, *flag_vals)
+    result = fn(tab_id, "", *flag_vals)
     assert all(r is no_update for r in result), f"{tab_id} already built -> all no_update; got {result}"
 
 
 def test_populate_tab_content_next_tab_is_noop():
     """Switching to tab-next does not populate anything (Next was built eagerly)."""
     fn = _populate_fn()
-    result = fn("tab-next", False, False, False, False, False)
+    result = fn("tab-next", "", False, False, False, False, False)
     assert all(r is no_update for r in result)
 
 

@@ -122,10 +122,14 @@ def register_event_callbacks(app):
                          "visibility": "visible" if active_tab == "tab-analyze" else "hidden"}
         return next_style, canvas_style, details_style, events_style, settings_style, analyze_style
 
-    # --- Lazy Tab Content Population (Phase B) ---
-    # On first activation of each non-Next tab, build its subtree and flip the
-    # built-flag so subsequent activations return no_update (subtree stays
-    # mounted, preserving Cytoscape instance / scroll / form state).
+    # --- Lazy Tab Content Population (Phase B + Phase C prefetch) ---
+    # Triggered by either (a) user clicks a tab (main-tabs.active_tab) or
+    # (b) the idle-time prefetch scheduler writing "prefetch-canvas" /
+    # "prefetch-analyze" into the hidden prefetch-tab-trigger input.
+    # On first build for a tab, returns the subtree and flips its built-flag;
+    # subsequent calls return no_update so the mounted subtree (Cytoscape
+    # instance, scroll, form state) is preserved.  Prefetch never changes
+    # visibility — toggle_tab_content is keyed solely on active_tab.
     @app.callback(
         Output("canvas-tab-content", "children", allow_duplicate=True),
         Output("details-tab-content", "children", allow_duplicate=True),
@@ -138,6 +142,7 @@ def register_event_callbacks(app):
         Output("analyze-built-flag", "data", allow_duplicate=True),
         Output("settings-built-flag", "data", allow_duplicate=True),
         Input("main-tabs", "active_tab"),
+        Input("prefetch-tab-trigger", "value"),
         State("canvas-built-flag", "data"),
         State("details-built-flag", "data"),
         State("events-built-flag", "data"),
@@ -145,32 +150,53 @@ def register_event_callbacks(app):
         State("settings-built-flag", "data"),
         prevent_initial_call=True,
     )
-    def populate_tab_content(active_tab, canvas_built, details_built, events_built,
-                             analyze_built, settings_built):
-        # Default: emit no_update for all 10 outputs.
+    def populate_tab_content(active_tab, prefetch_trigger, canvas_built, details_built,
+                             events_built, analyze_built, settings_built):
+        # Resolve what to build: explicit prefetch values win (user hasn't
+        # necessarily switched tabs yet); otherwise use the active tab.
+        if prefetch_trigger == "prefetch-canvas":
+            target = "tab-canvas"
+        elif prefetch_trigger == "prefetch-analyze":
+            target = "tab-analyze"
+        else:
+            target = active_tab
+
         out = [no_update] * 10
 
-        if active_tab == "tab-canvas" and not canvas_built:
+        if target == "tab-canvas" and not canvas_built:
             out[0] = _build_canvas_tree()
             out[5] = True
-        elif active_tab == "tab-details" and not details_built:
+        elif target == "tab-details" and not details_built:
             from details_layout import build_details_tab_content
             out[1] = [build_details_tab_content()]
             out[6] = True
-        elif active_tab == "tab-events" and not events_built:
+        elif target == "tab-events" and not events_built:
             from events_layout import build_events_tab_content
             out[2] = [build_events_tab_content()]
             out[7] = True
-        elif active_tab == "tab-analyze" and not analyze_built:
+        elif target == "tab-analyze" and not analyze_built:
             from analyze_layout import build_analyze_tab_content
             out[3] = [build_analyze_tab_content()]
             out[8] = True
-        elif active_tab == "tab-settings" and not settings_built:
+        elif target == "tab-settings" and not settings_built:
             from settings_layout import build_settings_tab_content
             out[4] = [build_settings_tab_content()]
             out[9] = True
 
         return tuple(out)
+
+    # --- Idle Prefetch Scheduler (clientside) ---
+    # On first tick of app-load-interval, schedule two requestIdleCallback
+    # tasks that write sentinels into prefetch-tab-trigger, triggering
+    # populate_tab_content to silently build Nodes and Analyze in the
+    # background.  Returns no_update — the JS writes the input directly
+    # via the native value setter (see assets/prefetch.js).
+    app.clientside_callback(
+        ClientsideFunction(namespace="prefetch", function_name="scheduleIdlePrefetch"),
+        Output("prefetch-tab-trigger", "value", allow_duplicate=True),
+        Input("app-load-interval", "n_intervals"),
+        prevent_initial_call=True,
+    )
 
     # --- Events List Rendering ---
     @app.callback(
