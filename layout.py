@@ -1004,12 +1004,8 @@ ratings_editor_modal = dbc.Modal([
 ], id="modal-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
-def build_app_layout(env="production"):
-    """Assembles the full application layout with pure Flexbox (Push behavior).
-
-    Tab contents other than Next are empty at initial render; populate_tab_content
-    in event_callbacks.py builds them lazily on first activation.
-    """
+def build_app_layout(initial_elements, env="production"):
+    """Assembles the full application layout with pure Flexbox (Push behavior)."""
     
     edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
@@ -1083,18 +1079,49 @@ def build_app_layout(env="production"):
     ], className="d-flex align-items-center",
        style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"})
 
-    # --- Canvas Tab Content (lazy — populated on first activation by populate_tab_content) ---
+    # --- Canvas Tab Content (existing layout, unchanged) ---
     canvas_tab_content = html.Div(
         id="canvas-tab-content",
-        children=[],
+        children=[
+            # --- MAIN CENTER CONTENT ---
+            html.Div(
+                style={
+                    "flex": "1",
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "minWidth": "0",
+                },
+                children=[
+                    # Canvas Container
+                    html.Div(
+                        [create_graph_view(initial_elements)],
+                        className="flex-grow-1",
+                        style={
+                            "minHeight": "200px",
+                            "position": "relative",
+                            "overflow": "hidden"
+                        }
+                    ),
+
+                    # Hidden outputs for bottom-panel callbacks (IDs must remain in DOM)
+                    html.Div([
+                        html.Div(id="traversal-chains-hard"),
+                        html.Div(id="traversal-chains-soft"),
+                        html.Div(id="synergies-list"),
+                        html.Div(id="node-info-description"),
+                    ], style={"display": "none"})
+                ]
+            ),
+
+        ],
         style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
                "position": "absolute", "top": "0", "left": "0"}
     )
 
-    # --- Events Tab Content (lazy) ---
+    # --- Events Tab Content (hidden by default) ---
     events_tab_content = html.Div(
         id="events-tab-content",
-        children=[],
+        children=[build_events_tab_content()],
         style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
                "position": "absolute", "top": "0", "left": "0"}
     )
@@ -1112,26 +1139,26 @@ def build_app_layout(env="production"):
                "visibility": "visible"}
     )
 
-    # --- Details Tab Content (lazy) ---
+    # --- Details Tab Content (hidden by default) ---
     details_tab_content = html.Div(
         id="details-tab-content",
-        children=[],
+        children=[build_details_tab_content()],
         style={"display": "none", "width": "100%", "height": "100%",
                "position": "absolute", "top": "0", "left": "0"}
     )
 
-    # --- Settings Tab Content (lazy) ---
+    # --- Settings Tab Content (hidden by default) ---
     settings_tab_content = html.Div(
         id="settings-tab-content",
-        children=[],
+        children=[build_settings_tab_content()],
         style={"display": "none", "width": "100%", "height": "100%", "overflow": "auto",
                "position": "absolute", "top": "0", "left": "0"}
     )
 
-    # --- Analyze Tab Content (lazy) ---
+    # --- Analyze Tab Content (hidden by default) ---
     analyze_tab_content = html.Div(
         id="analyze-tab-content",
-        children=[],
+        children=[build_analyze_tab_content()],
         style={"display": "none", "width": "100%", "height": "100%", "overflow": "auto",
                "position": "absolute", "top": "0", "left": "0"}
     )
@@ -1176,13 +1203,6 @@ def build_app_layout(env="production"):
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
-
-        # --- Lazy tab-build flags (Phase B: populate_tab_content writes True on first activation) ---
-        dcc.Store(id='canvas-built-flag', data=False),
-        dcc.Store(id='details-built-flag', data=False),
-        dcc.Store(id='events-built-flag', data=False),
-        dcc.Store(id='analyze-built-flag', data=False),
-        dcc.Store(id='settings-built-flag', data=False),
 
         main_tabs,
         # Tab content wrapper — only one tab visible at a time

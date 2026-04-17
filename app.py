@@ -18,7 +18,7 @@ import dash_bootstrap_components as dbc
 from layout import build_app_layout
 
 cyto.load_extra_layouts()
-from callbacks import register_callbacks
+from callbacks import generate_elements, register_callbacks
 from event_callbacks import register_event_callbacks
 from details_callbacks import register_details_callbacks
 from next_callbacks import register_next_callbacks
@@ -39,9 +39,9 @@ ConfigManager.ensure_goal_type()
 app = dash.Dash(__name__, external_stylesheets=[
     dbc.themes.DARKLY,
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
-], suppress_callback_exceptions=True)
+])
 app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
-app.layout = build_app_layout(env=ENVIRONMENT)
+app.layout = build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)
 register_callbacks(app)
 register_event_callbacks(app)
 register_details_callbacks(app)

@@ -58,35 +58,6 @@ def _format_node_counts(activated, scheduled):
     return " — ".join(parts) if parts else "No nodes"
 
 
-def _build_canvas_tree():
-    """Build the full Canvas tab subtree (Cytoscape graph + hidden callback sinks).
-
-    Mirrors the structure that previously lived inline in layout.py:1082-1118.
-    Called lazily by populate_tab_content on first activation so that the
-    generate_elements() DB scan is deferred until the user opens the tab.
-    """
-    from layout import create_graph_view
-    from callbacks import generate_elements
-    return [
-        html.Div(
-            style={"flex": "1", "display": "flex", "flexDirection": "column", "minWidth": "0"},
-            children=[
-                html.Div(
-                    [create_graph_view(generate_elements())],
-                    className="flex-grow-1",
-                    style={"minHeight": "200px", "position": "relative", "overflow": "hidden"},
-                ),
-                html.Div([
-                    html.Div(id="traversal-chains-hard"),
-                    html.Div(id="traversal-chains-soft"),
-                    html.Div(id="synergies-list"),
-                    html.Div(id="node-info-description"),
-                ], style={"display": "none"}),
-            ],
-        ),
-    ]
-
-
 def register_event_callbacks(app):
 
     # --- Tab Visibility Toggle ---
@@ -121,56 +92,6 @@ def register_event_callbacks(app):
                          "display": "block" if active_tab == "tab-analyze" else "none",
                          "visibility": "visible" if active_tab == "tab-analyze" else "hidden"}
         return next_style, canvas_style, details_style, events_style, settings_style, analyze_style
-
-    # --- Lazy Tab Content Population (Phase B) ---
-    # On first activation of each non-Next tab, build its subtree and flip the
-    # built-flag so subsequent activations return no_update (subtree stays
-    # mounted, preserving Cytoscape instance / scroll / form state).
-    @app.callback(
-        Output("canvas-tab-content", "children", allow_duplicate=True),
-        Output("details-tab-content", "children", allow_duplicate=True),
-        Output("events-tab-content", "children", allow_duplicate=True),
-        Output("analyze-tab-content", "children", allow_duplicate=True),
-        Output("settings-tab-content", "children", allow_duplicate=True),
-        Output("canvas-built-flag", "data", allow_duplicate=True),
-        Output("details-built-flag", "data", allow_duplicate=True),
-        Output("events-built-flag", "data", allow_duplicate=True),
-        Output("analyze-built-flag", "data", allow_duplicate=True),
-        Output("settings-built-flag", "data", allow_duplicate=True),
-        Input("main-tabs", "active_tab"),
-        State("canvas-built-flag", "data"),
-        State("details-built-flag", "data"),
-        State("events-built-flag", "data"),
-        State("analyze-built-flag", "data"),
-        State("settings-built-flag", "data"),
-        prevent_initial_call=True,
-    )
-    def populate_tab_content(active_tab, canvas_built, details_built, events_built,
-                             analyze_built, settings_built):
-        # Default: emit no_update for all 10 outputs.
-        out = [no_update] * 10
-
-        if active_tab == "tab-canvas" and not canvas_built:
-            out[0] = _build_canvas_tree()
-            out[5] = True
-        elif active_tab == "tab-details" and not details_built:
-            from details_layout import build_details_tab_content
-            out[1] = [build_details_tab_content()]
-            out[6] = True
-        elif active_tab == "tab-events" and not events_built:
-            from events_layout import build_events_tab_content
-            out[2] = [build_events_tab_content()]
-            out[7] = True
-        elif active_tab == "tab-analyze" and not analyze_built:
-            from analyze_layout import build_analyze_tab_content
-            out[3] = [build_analyze_tab_content()]
-            out[8] = True
-        elif active_tab == "tab-settings" and not settings_built:
-            from settings_layout import build_settings_tab_content
-            out[4] = [build_settings_tab_content()]
-            out[9] = True
-
-        return tuple(out)
 
     # --- Events List Rendering ---
     @app.callback(
