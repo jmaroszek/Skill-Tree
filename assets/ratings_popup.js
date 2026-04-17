@@ -1,4 +1,19 @@
 (function () {
+    // Keep in sync with the inline style declared on #ratings-popup in layout.py.
+    // These are reapplied each time the popup is opened so a prior drag/resize
+    // doesn't persist across reopenings.
+    var DEFAULT_WIDTH = '960px';
+    var DEFAULT_HEIGHT = '710px';
+    var DEFAULT_LEFT = '420px';
+    var DEFAULT_TOP = '120px';
+
+    function resetPopupGeometry(popup) {
+        popup.style.width = DEFAULT_WIDTH;
+        popup.style.height = DEFAULT_HEIGHT;
+        popup.style.left = DEFAULT_LEFT;
+        popup.style.top = DEFAULT_TOP;
+    }
+
     function init() {
         const btn = document.getElementById('btn-ratings-info');
         const closeBtn = document.getElementById('btn-ratings-close');
@@ -9,12 +24,23 @@
 
         btn.addEventListener('click', function (e) {
             e.stopPropagation();
-            popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
+            if (popup.style.display === 'flex') {
+                popup.style.display = 'none';
+            } else {
+                resetPopupGeometry(popup);
+                popup.style.display = 'flex';
+            }
         });
 
         closeBtn.addEventListener('click', function () {
             popup.style.display = 'none';
         });
+
+        if (editBtn) {
+            editBtn.addEventListener('click', function () {
+                popup.style.display = 'none';
+            });
+        }
 
         // Drag via header
         var dragging = false, startX, startY, origLeft, origTop;
