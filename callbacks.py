@@ -684,6 +684,40 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
 
+    # --- "Cancel": re-trigger edit flow for the loaded node to re-populate
+    # the editor from the DB, discarding any unsaved edits. Disabled when
+    # no node is loaded. Suffix + timestamp forces edit-trigger-input to
+    # change value even when clicking Cancel twice on the same node.
+    app.clientside_callback(
+        "function(name) { return !name; }",
+        Output('btn-revert', 'disabled'),
+        Input('node-original-name', 'data'),
+    )
+
+    app.clientside_callback(
+        """function(n_clicks, name) {
+            if (!n_clicks || !name) return window.dash_clientside.no_update;
+            return name + '|revert-' + Date.now();
+        }""",
+        Output('edit-trigger-input', 'value', allow_duplicate=True),
+        Input('btn-revert', 'n_clicks'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        Output('clear-interval', 'disabled', allow_duplicate=True),
+        Output('clear-interval', 'n_intervals', allow_duplicate=True),
+        Input('btn-revert', 'n_clicks'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+    def revert_message(n_clicks, name):
+        if not n_clicks or not name:
+            return dash.no_update, dash.no_update, dash.no_update
+        return "Changes reverted.", False, 0
+
     # --- Priority Badge in Node Editor ---
     @app.callback(
         Output('node-priority-badge', 'children'),
