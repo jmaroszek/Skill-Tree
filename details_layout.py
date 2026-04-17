@@ -10,7 +10,13 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import Optional, List, Any
-from config import ConfigManager, DEFAULT_TIME_ESTIMATE_DEFAULTS, DEFAULT_DETAILS_GRAPH_LAYOUT
+from config import (
+    ConfigManager,
+    DEFAULT_TIME_ESTIMATE_DEFAULTS,
+    DEFAULT_DETAILS_GRAPH_LAYOUT,
+    TOOLTIP_SHOW_DELAY_MS,
+    TOOLTIP_HIDE_DELAY_MS,
+)
 from models import EDGE_NEEDS_HARD
 from styles import stylesheet
 
@@ -35,7 +41,8 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
                        style={"fontSize": "1.1rem", "lineHeight": "1",
                               "color": "#adb5bd", "position": "relative",
                               "top": "0px", "textDecoration": "none"}),
-            dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top"),
+            dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex align-items-center",
            style={"marginBottom": "12px"}),
     ]
@@ -292,13 +299,17 @@ def build_details_tab_content():
             ),
             dbc.Button(html.I(className="bi bi-gear"),
                        id="btn-details-graph-settings",
-                       color="secondary", size="sm", title="Graph settings",
+                       color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-top-right"),
+            dbc.Tooltip("Graph settings", target="btn-details-graph-settings", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _build_details_graph_settings_panel(),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-details-graph-fullscreen",
-                       color="secondary", size="sm", title="Toggle fullscreen",
+                       color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
+            dbc.Tooltip("Toggle fullscreen", target="btn-details-graph-fullscreen", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
         "flex": "1",
@@ -340,8 +351,9 @@ def build_details_tab_content():
                 html.H5("Subtasks", className="mb-0"),
                 dbc.Button("+", id="btn-details-add-node", color="link",
                            className="p-0 ms-2 text-decoration-none text-muted",
-                           title="Add subtask node",
                            style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                dbc.Tooltip("Add subtask node", target="btn-details-add-node", placement="right",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="d-flex align-items-center"),
             html.Div([
                 dbc.Checklist(
@@ -501,7 +513,7 @@ def _build_suggestion_row(node_name, badge_text, badge_color,
     if badge_id and tooltip_text:
         children.append(dbc.Tooltip(
             tooltip_text, target=badge_id, placement="left",
-            delay={"show": 700, "hide": 100},
+            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
         ))
 
     return html.Div(

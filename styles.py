@@ -66,6 +66,15 @@ stylesheet = [
             'line-style': 'solid'
         }
     },
+    {
+        'selector': '.locate-pulse',
+        'style': {
+            'border-width': 8,
+            'border-color': '#ffd000',
+            'border-opacity': 1,
+            'z-index': 9999,
+        }
+    },
 ]
 
 # --- Mini Graph Stylesheet (smaller nodes for embedded views) ---

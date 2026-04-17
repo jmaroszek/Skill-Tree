@@ -4,7 +4,12 @@ Layout definitions for the Settings tab.
 
 from dash import html
 import dash_bootstrap_components as dbc
-from config import ConfigManager, DEFAULT_ANALYZE_LIMITS
+from config import (
+    ConfigManager,
+    DEFAULT_ANALYZE_LIMITS,
+    TOOLTIP_SHOW_DELAY_MS,
+    TOOLTIP_HIDE_DELAY_MS,
+)
 
 _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
 
@@ -108,7 +113,8 @@ def build_settings_tab_content():
                                                    color="link", size="sm",
                                                    className="ms-1 p-0",
                                                    style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
-                                        dbc.Tooltip("Restore defaults", target="btn-restore-shapes", placement="top"),
+                                        dbc.Tooltip("Restore defaults", target="btn-restore-shapes", placement="top",
+                                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
                                 html.Small("Shape for each node type.", className="text-muted d-block mb-2"),
@@ -122,7 +128,8 @@ def build_settings_tab_content():
                                                    color="link", size="sm",
                                                    className="ms-1 p-0",
                                                    style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
-                                        dbc.Tooltip("Restore defaults", target="btn-restore-type-colors", placement="top"),
+                                        dbc.Tooltip("Restore defaults", target="btn-restore-type-colors", placement="top",
+                                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
                                 html.Small("Open color for each node type.", className="text-muted d-block mb-2"),
@@ -136,7 +143,8 @@ def build_settings_tab_content():
                                                    color="link", size="sm",
                                                    className="ms-1 p-0",
                                                    style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
-                                        dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top"),
+                                        dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top",
+                                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                                     ]),
                                 ], className="d-flex align-items-center mt-2 mb-1"),
                                 html.Small("Color for Done, Blocked, and Override.", className="text-muted d-block mb-2"),
@@ -237,7 +245,8 @@ def build_settings_tab_content():
                                            color="link", size="sm",
                                            className="ms-1 p-0",
                                            style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px", "textDecoration": "none"}),
-                                dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top"),
+                                dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top",
+                                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                             ]),
                         ], className="d-flex align-items-center mt-2 mb-1"),
                         html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
@@ -344,7 +353,7 @@ def build_settings_tab_content():
                            color="primary", size="sm",
                            style={"fontSize": "0.95rem", "lineHeight": "1", "padding": "4px 7px"}),
                 dbc.Tooltip("Save settings", target="btn-settings-save", placement="bottom",
-                            delay={"show": 700, "hide": 100}),
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], style={"position": "absolute", "top": "5px", "right": "12px"}),
             ]),
         ], style={"maxWidth": "810px", "padding": "0 24px"}),

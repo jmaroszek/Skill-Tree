@@ -6,7 +6,7 @@ from dash import html, dcc, no_update
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import Optional, List, Any
-from config import ConfigManager
+from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from styles import events_graph_stylesheet
 from details_layout import _build_graph_settings_panel
 
@@ -19,8 +19,9 @@ def build_events_sidebar_content():
                 html.H4("Events", className="mb-0"),
                 dbc.Button("+", id="btn-new-event", color="link",
                            className="p-0 ms-2 text-decoration-none text-muted",
-                           title="New event",
                            style={"fontSize": "1.4rem", "lineHeight": "1"}),
+                dbc.Tooltip("New event", target="btn-new-event", placement="right",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="d-flex align-items-center"),
             html.Span("\u00d7", id="btn-events-sidebar-close",
                        className="fs-3 text-white",
@@ -336,8 +337,9 @@ def build_events_tab_content():
                         html.H5("Dormant Nodes", className="mb-0"),
                         dbc.Button("+", id="btn-add-dormant-node", color="link",
                                    className="p-0 ms-2 text-decoration-none text-muted",
-                                   title="Add dormant node",
                                    style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                        dbc.Tooltip("Add dormant node", target="btn-add-dormant-node", placement="right",
+                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                     ], className="d-flex align-items-center"),
                 ], className="d-flex align-items-center mb-3"),
 
@@ -400,13 +402,17 @@ def build_events_tab_content():
             ),
             dbc.Button(html.I(className="bi bi-gear"),
                        id="btn-events-graph-settings",
-                       color="secondary", size="sm", title="Graph settings",
+                       color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-top-right"),
+            dbc.Tooltip("Graph settings", target="btn-events-graph-settings", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _build_graph_settings_panel("events-graph-settings", include_depth_controls=False),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-events-graph-fullscreen",
-                       color="secondary", size="sm", title="Toggle fullscreen",
+                       color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
+            dbc.Tooltip("Toggle fullscreen", target="btn-events-graph-fullscreen", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="events-detail-graph-container", style={
         "flex": "1 1 0",

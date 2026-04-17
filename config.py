@@ -6,6 +6,11 @@ ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
 CANVAS_HEIGHT = 760  # Default pixel height of the node canvas area
 
+# --- Tooltip timing (industry standard ~700ms) ---
+TOOLTIP_SHOW_DELAY_MS = 700
+TOOLTIP_HIDE_DELAY_MS = 100
+TOOLTIP_NODE_HIDE_DELAY_MS = 300  # Cytoscape node cursor-tooltip lingers slightly longer to avoid flicker
+
 DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]

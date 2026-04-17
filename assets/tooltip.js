@@ -15,6 +15,16 @@
     var showTimer = null;
     var HIDE_DELAY_MS = 300;
     var SHOW_DELAY_MS = 700;
+
+    function readTooltipConfig() {
+        var el = document.getElementById('tooltip-config');
+        if (!el) return;
+        var show = parseInt(el.getAttribute('data-show'), 10);
+        var nodeHide = parseInt(el.getAttribute('data-node-hide'), 10);
+        if (!isNaN(show)) SHOW_DELAY_MS = show;
+        if (!isNaN(nodeHide)) HIDE_DELAY_MS = nodeHide;
+    }
+
     var onNode = false;
     var lastHoveredNodeId = null;
     var delayElapsed = false;
@@ -27,6 +37,7 @@
             setTimeout(initTooltip, 200);
             return;
         }
+        readTooltipConfig();
 
         // --- 1. Follow the cursor ---
         function positionTooltip(mx, my) {

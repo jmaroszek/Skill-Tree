@@ -655,6 +655,35 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
 
+    # --- "Locate on graph": enable/disable based on currently-loaded node ---
+    # `node-original-name` is populated by the editor whenever ANY node is
+    # loaded (via tap, search, details, edit-trigger). `search-node.value` is
+    # only set when the user picks from the dropdown, so it's unreliable here.
+    app.clientside_callback(
+        "function(name) { return !name; }",
+        Output('btn-locate-node', 'disabled'),
+        Input('node-original-name', 'data'),
+    )
+
+    # --- "Locate on graph": switch to Nodes tab + run pulse animation ---
+    # The cose-bilkent layout may still be running when the user clicks, so
+    # the animation helper retries until the node is present on the canvas.
+    app.clientside_callback(
+        """function(n_clicks, selected) {
+            if (!n_clicks || !selected) {
+                return window.dash_clientside.no_update;
+            }
+            if (typeof window.locateNodeOnGraph === 'function') {
+                window.locateNodeOnGraph(selected);
+            }
+            return 'tab-canvas';
+        }""",
+        Output('main-tabs', 'active_tab', allow_duplicate=True),
+        Input('btn-locate-node', 'n_clicks'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+
     # --- Priority Badge in Node Editor ---
     @app.callback(
         Output('node-priority-badge', 'children'),
