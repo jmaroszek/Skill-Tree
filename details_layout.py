@@ -15,12 +15,19 @@ from models import EDGE_NEEDS_HARD
 from styles import stylesheet
 
 
-def _build_details_graph_settings_panel():
-    """Build the graph settings panel for the details mini-graph."""
+def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True):
+    """Build a graph settings panel.
+
+    Used by both the details dependency graph and the events canvas. Set
+    ``include_depth_controls=False`` to hide the Max-Depth/Neighbor-Links
+    controls (they only make sense where a root-relative subtree is being
+    rendered, which the events canvas isn't).
+    """
     gl = ConfigManager.get_details_graph_layout_defaults()
-    p = "details-graph-settings"
+    p = prefix
     reset_btn_id = f"btn-reset-{p}"
-    return html.Div([
+
+    children = [
         html.Div([
             html.Span("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem"}),
             dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
@@ -31,31 +38,37 @@ def _build_details_graph_settings_panel():
             dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top"),
         ], className="d-flex align-items-center",
            style={"marginBottom": "12px"}),
-        html.Div("Max Depth", className="settings-label"),
-        dcc.Slider(
-            id=f"{p}-max-depth",
-            min=0, max=5, step=1, value=0,
-            marks={0: "All", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
-            updatemode="mouseup",
-        ),
+    ]
 
-        html.Div([
-            dbc.Switch(
-                id=f"{p}-neighbor-links",
-                label="Neighbor links",
-                value=True,
-                style={"fontSize": "0.82rem"},
+    if include_depth_controls:
+        children += [
+            html.Div("Max Depth", className="settings-label"),
+            dcc.Slider(
+                id=f"{p}-max-depth",
+                min=0, max=5, step=1, value=0,
+                marks={0: "All", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
+                updatemode="mouseup",
             ),
-            dbc.Switch(
-                id=f"{p}-animate",
-                label="Animate",
-                value=True,
-                style={"fontSize": "0.82rem"},
-            ),
-        ], className="d-flex gap-3 mt-3"),
 
-        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+            html.Div([
+                dbc.Switch(
+                    id=f"{p}-neighbor-links",
+                    label="Neighbor links",
+                    value=True,
+                    style={"fontSize": "0.82rem"},
+                ),
+                dbc.Switch(
+                    id=f"{p}-animate",
+                    label="Animate",
+                    value=True,
+                    style={"fontSize": "0.82rem"},
+                ),
+            ], className="d-flex gap-3 mt-3"),
 
+            html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+        ]
+
+    children += [
         html.Div("Edge Length", className="settings-label"),
         dcc.Slider(
             id=f"{p}-edge-length",
@@ -84,8 +97,15 @@ def _build_details_graph_settings_panel():
 
         dbc.Button("Re-layout", id=f"{p}-relayout",
                    color="secondary", size="sm", className="w-100 mt-2"),
-    ], id=f"{p}-panel", className="graph-settings-panel",
-       style={"display": "none"})
+    ]
+
+    return html.Div(children, id=f"{p}-panel", className="graph-settings-panel",
+                    style={"display": "none"})
+
+
+def _build_details_graph_settings_panel():
+    """Legacy alias used by the details tab."""
+    return _build_graph_settings_panel("details-graph-settings", include_depth_controls=True)
 
 
 def build_details_tab_content():

@@ -4,63 +4,68 @@ Layout definitions for the Events tab.
 
 from dash import html, dcc, no_update
 import dash_bootstrap_components as dbc
+import dash_cytoscape as cyto
 from typing import Optional, List, Any
 from config import ConfigManager
+from styles import events_graph_stylesheet
+from details_layout import _build_graph_settings_panel
+
+
+def build_events_sidebar_content():
+    """Builds the content for the global Events sidebar (event list + controls)."""
+    return html.Div([
+        html.Div([
+            html.Div([
+                html.H4("Events", className="mb-0"),
+                dbc.Button("+", id="btn-new-event", color="link",
+                           className="p-0 ms-2 text-decoration-none text-muted",
+                           title="New event",
+                           style={"fontSize": "1.4rem", "lineHeight": "1"}),
+            ], className="d-flex align-items-center"),
+            html.Span("\u00d7", id="btn-events-sidebar-close",
+                       className="fs-3 text-white",
+                       style={"cursor": "pointer"}),
+        ], className="d-flex justify-content-between align-items-center mb-2 mt-2 px-3"),
+        html.Div([
+            html.Datalist(id="events-search-datalist", children=[]),
+            dbc.Input(
+                id="events-search-input",
+                type="search",
+                placeholder="Search events\u2026",
+                size="sm",
+                className="mb-2",
+                style={"backgroundColor": "#2b3035", "border": "1px solid #495057",
+                       "color": "#dee2e6", "borderRadius": "6px"},
+                **{"list": "events-search-datalist"},
+            ),
+            html.Div([
+                dbc.RadioItems(
+                    id="events-sort-mode",
+                    options=[
+                        {"label": "Manual", "value": "manual"},
+                        {"label": "A\u2013Z", "value": "az"},
+                        {"label": "Z\u2013A", "value": "za"},
+                    ],
+                    value="manual",
+                    inline=True,
+                    style={"fontSize": "0.8rem", "color": "#adb5bd"},
+                ),
+                dbc.Switch(
+                    id="events-hide-triggered-toggle",
+                    label="Hide triggered",
+                    value=True,
+                    style={"fontSize": "0.85rem", "color": "#adb5bd", "marginBottom": "0"},
+                ),
+            ], className="d-flex justify-content-between align-items-center mb-2"),
+        ], style={"padding": "0 12px"}),
+        html.Div(id="events-list-container",
+                 style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
+    ], style={"display": "flex", "flexDirection": "column", "height": "100%"})
 
 
 def build_events_tab_content():
-    """Builds the Events tab UI with a two-panel layout."""
+    """Builds the Events tab UI (right panel only — list is now in the global sidebar)."""
     _ted = ConfigManager.get_time_estimate_defaults()
-
-    # --- Left Panel: Event List ---
-    event_list_panel = html.Div([
-        html.Div([
-            html.H4("Events", className="mb-0"),
-            dbc.Button("+", id="btn-new-event", color="link",
-                       className="p-0 ms-2 text-decoration-none text-muted",
-                       title="New event",
-                       style={"fontSize": "1.2rem", "lineHeight": "1"}),
-        ], className="d-flex align-items-center mb-2 mt-3"),
-        html.Datalist(id="events-search-datalist", children=[]),
-        dbc.Input(
-            id="events-search-input",
-            type="search",
-            placeholder="Search events…",
-            size="sm",
-            className="mb-2",
-            style={"backgroundColor": "#2b3035", "border": "1px solid #495057",
-                   "color": "#dee2e6", "borderRadius": "6px"},
-            **{"list": "events-search-datalist"},
-        ),
-        html.Div([
-            dbc.RadioItems(
-                id="events-sort-mode",
-                options=[
-                    {"label": "Manual", "value": "manual"},
-                    {"label": "A–Z", "value": "az"},
-                    {"label": "Z–A", "value": "za"},
-                ],
-                value="manual",
-                inline=True,
-                style={"fontSize": "0.8rem", "color": "#adb5bd"},
-            ),
-            dbc.Switch(
-                id="events-hide-triggered-toggle",
-                label="Hide triggered",
-                value=True,
-                style={"fontSize": "0.85rem", "color": "#adb5bd", "marginBottom": "0"},
-            ),
-        ], className="d-flex justify-content-between align-items-center mb-2"),
-        html.Div(id="events-list-container", style={"overflowY": "auto", "flex": "1"}),
-    ], style={
-        "width": "350px",
-        "minWidth": "350px",
-        "borderRight": "1px solid #495057",
-        "display": "flex",
-        "flexDirection": "column",
-        "padding": "0 16px",
-        "backgroundColor": "#212529",
-    })
 
     # --- Node Editor Modal for Dormant Nodes ---
     dormant_node_modal = dbc.Modal([
@@ -228,30 +233,25 @@ def build_events_tab_content():
         ]),
     ], id="modal-dormant-node", size="lg", is_open=False, centered=True)
 
-    # --- Node Completion Confirmation Modal ---
-    node_completion_modal = dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Node Completion Trigger")),
-        dbc.ModalBody([
-            html.P(id="node-completion-modal-desc", className="mb-3"),
-            html.Div(id="node-completion-event-list"),
-        ]),
-        dbc.ModalFooter([
-            dbc.Button("Skip", id="btn-node-completion-skip", color="secondary", className="me-auto"),
-            dbc.Button("Trigger Selected", id="btn-node-completion-confirm", color="success"),
-        ]),
-    ], id="modal-node-completion", is_open=False, centered=True)
-
-    # --- Right Panel: Event Detail ---
+    # --- Event Detail (left: fixed natural width, right of it goes to the graph) ---
     event_detail_panel = html.Div([
-        # Shown when no event is selected
+        # Empty state: shown when no event is selected. Gives the user a clear
+        # path to the events sidebar if they haven't opened it yet.
         html.Div(
             id="event-detail-empty",
             children=[
                 html.Div([
-                    html.H5("No Event Selected", className="text-muted mb-2"),
-                    html.P("Select an event from the list or create a new one.", className="text-muted"),
-                ], style={"textAlign": "center", "marginTop": "20vh"})
+                    html.H4("No Event Selected", className="text-muted mb-2"),
+                    html.P("Open the Events sidebar to browse or create one.",
+                           className="text-muted mb-3"),
+                    dbc.Button([
+                        html.I(className="bi bi-calendar-event me-2"),
+                        "Open Events Sidebar",
+                    ], id="btn-open-events-sidebar", color="primary"),
+                ], style={"textAlign": "center", "marginTop": "20vh",
+                          "padding": "0 24px"}),
             ],
+            style={"display": "block"},
         ),
 
         # Event editor (hidden when no event selected)
@@ -344,7 +344,15 @@ def build_events_tab_content():
                 html.Div(id="dormant-nodes-table-container"),
 
                 dbc.Modal([
-                    dbc.ModalBody("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
+                    dbc.ModalBody([
+                        html.P("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
+                        dbc.Switch(
+                            id="manual-override-trigger-toggle",
+                            label="Pin activated nodes to top of Next suggestions",
+                            value=False,
+                            className="mt-2",
+                        ),
+                    ]),
                     dbc.ModalFooter([
                         dbc.Button("Cancel", id="btn-trigger-cancel", color="secondary", className="me-auto"),
                         dbc.Button("Trigger Checked", id="btn-trigger-confirm", color="success", className="me-2"),
@@ -361,25 +369,75 @@ def build_events_tab_content():
             ], style={"maxWidth": "650px"}),
         ]),
     ], style={
-        "flex": "1",
+        "flex": "0 0 698px",
+        "maxWidth": "698px",
         "padding": "0 24px",
         "overflowY": "auto",
+        "boxSizing": "border-box",
+    })
+
+    # --- Right column: event graph visualization. Fills all remaining space. ---
+    gl = ConfigManager.get_events_graph_layout_defaults()
+    event_graph_panel = html.Div([
+        html.Div([
+            cyto.Cytoscape(
+                id="events-detail-graph",
+                elements=[],
+                layout={
+                    'name': 'cose-bilkent', 'animate': False, 'fit': True,
+                    'padding': 20, 'numIter': 2500, 'randomize': False,
+                    'idealEdgeLength': gl.get('edge_length', 100),
+                    'nodeRepulsion': gl.get('repulsion', 4500),
+                    'gravity': gl.get('gravity', 0.25),
+                },
+                stylesheet=events_graph_stylesheet,
+                style={"width": "100%", "height": "100%",
+                       "backgroundColor": "#1a1d21"},
+                userZoomingEnabled=False,
+                userPanningEnabled=False,
+                boxSelectionEnabled=True,
+                autoungrabify=False,
+            ),
+            dbc.Button(html.I(className="bi bi-gear"),
+                       id="btn-events-graph-settings",
+                       color="secondary", size="sm", title="Graph settings",
+                       className="btn-canvas-overlay btn-canvas-top-right"),
+            _build_graph_settings_panel("events-graph-settings", include_depth_controls=False),
+            dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
+                       id="btn-events-graph-fullscreen",
+                       color="secondary", size="sm", title="Toggle fullscreen",
+                       className="btn-canvas-overlay btn-canvas-bottom-right"),
+        ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
+    ], id="events-detail-graph-container", style={
+        "flex": "1 1 0",
+        "minWidth": "0",
+        "display": "flex",
+        "flexDirection": "column",
+        "borderLeft": "1px solid #495057",
     })
 
     return html.Div([
         dcc.Store(id='selected-event-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
-        dcc.Store(id='node-completion-events-store', data=None),
         dcc.Store(id='event-order-store', data=[], storage_type='local'),
         dcc.Interval(id='event-clear-interval', interval=3000, n_intervals=0, disabled=True),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
         dormant_node_modal,
-        node_completion_modal,
-        event_list_panel,
-        event_detail_panel,
+        html.Div([
+            event_detail_panel,
+            event_graph_panel,
+        ], id="events-tab-inner", style={
+            "display": "flex",
+            "flexDirection": "row",
+            "height": "100%",
+            "width": "100%",
+            "marginLeft": "0",
+            "transition": "margin-left 0.3s ease, width 0.3s ease",
+        }),
     ], style={
         "display": "flex",
+        "flexDirection": "row",
         "height": "100%",
         "width": "100%",
     })

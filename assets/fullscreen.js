@@ -121,40 +121,35 @@
         });
     }
 
-    // --- Fullscreen toggle ---
-    function initFullscreen() {
-        var btn = document.getElementById('btn-fullscreen');
-        var container = document.getElementById('canvas-container');
+    // --- Fullscreen toggle (generic, used by every canvas) ---
+    function initCanvasFullscreen(btnId, containerId, cyId) {
+        var btn = document.getElementById(btnId);
+        var container = document.getElementById(containerId);
 
         if (!btn || !container) {
-            setTimeout(initFullscreen, 300);
+            setTimeout(function () { initCanvasFullscreen(btnId, containerId, cyId); }, 300);
             return;
         }
 
-        btn.addEventListener('click', function () {
-            container.classList.toggle('canvas-fullscreen');
-
-            // Force Cytoscape to recalculate its viewport after resize
+        function refit() {
             setTimeout(function () {
-                var cy = container.querySelector('#cytoscape-graph');
+                var cy = document.getElementById(cyId);
                 if (cy && cy._cyreg && cy._cyreg.cy) {
                     cy._cyreg.cy.resize();
                     cy._cyreg.cy.fit();
                 }
             }, 50);
+        }
+
+        btn.addEventListener('click', function () {
+            container.classList.toggle('canvas-fullscreen');
+            refit();
         });
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' && container.classList.contains('canvas-fullscreen')) {
                 container.classList.remove('canvas-fullscreen');
-
-                setTimeout(function () {
-                    var cy = container.querySelector('#cytoscape-graph');
-                    if (cy && cy._cyreg && cy._cyreg.cy) {
-                        cy._cyreg.cy.resize();
-                        cy._cyreg.cy.fit();
-                    }
-                }, 50);
+                refit();
             }
         });
     }
@@ -202,10 +197,14 @@
         initScrollSensitivity('#cytoscape-graph');
         initScrollSensitivity('#goal-mini-graph');
         initScrollSensitivity('#details-mini-graph');
-        initFullscreen();
+        initScrollSensitivity('#events-detail-graph');
+        initCanvasFullscreen('btn-fullscreen', 'canvas-container', 'cytoscape-graph');
+        initCanvasFullscreen('btn-details-graph-fullscreen', 'details-dep-graph-container', 'details-mini-graph');
+        initCanvasFullscreen('btn-events-graph-fullscreen', 'events-detail-graph-container', 'events-detail-graph');
         initRightClickPan('#cytoscape-graph');
         initRightClickPan('#goal-mini-graph');
         initRightClickPan('#details-mini-graph');
+        initRightClickPan('#events-detail-graph');
         watchCanvasVisibility();
     }
 

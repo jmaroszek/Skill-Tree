@@ -12,6 +12,7 @@ _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
 def _build_graph_layout_defaults_row():
     gl = ConfigManager.get_graph_layout_defaults()
     dgl = ConfigManager.get_details_graph_layout_defaults()
+    egl = ConfigManager.get_events_graph_layout_defaults()
     return html.Div([
         # Header row with column labels
         dbc.Row([
@@ -57,6 +58,26 @@ def _build_graph_layout_defaults_row():
             dbc.Col([
                 dbc.Input(id="setting-details-graph-repulsion", type="number",
                           min=500, max=100000, step=500, value=dgl.get('repulsion', 4500),
+                          placeholder="500 – 100,000"),
+            ], width=4),
+        ], className="mb-2"),
+        # Events row
+        dbc.Row([
+            dbc.Col(dbc.Label("Events", className="mb-0 fw-bold"), width=2,
+                    className="d-flex align-items-center"),
+            dbc.Col([
+                dbc.Input(id="setting-events-graph-edge-length", type="number",
+                          min=50, max=300, step=10, value=egl.get('edge_length', 50),
+                          placeholder="50 – 300"),
+            ], width=3),
+            dbc.Col([
+                dbc.Input(id="setting-events-graph-gravity", type="number",
+                          min=0, max=5, step=0.25, value=egl.get('gravity', 0.25),
+                          placeholder="0 – 5"),
+            ], width=3),
+            dbc.Col([
+                dbc.Input(id="setting-events-graph-repulsion", type="number",
+                          min=500, max=100000, step=500, value=egl.get('repulsion', 4500),
                           placeholder="500 – 100,000"),
             ], width=4),
         ], className="mb-1"),
@@ -123,21 +144,6 @@ def build_settings_tab_content():
                             ], width=4),
                         ]),
 
-                        # --- Graph Layout Defaults group ---
-                        html.Hr(className="my-2"),
-                        html.Div([
-                            html.H5("Graph Layout Defaults", className="mb-0"),
-                            html.Span([
-                                dbc.Button(_RESTORE_ICON, id="btn-restore-graph-layout",
-                                           color="link", size="sm",
-                                           className="ms-1 p-0",
-                                           style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px", "textDecoration": "none"}),
-                                dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top"),
-                            ]),
-                        ], className="d-flex align-items-center mt-2 mb-1"),
-                        html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
-                        _build_graph_layout_defaults_row(),
-
                         # --- Contexts group ---
                         html.Hr(className="my-2"),
                         html.H5("Contexts", className="mt-2 mb-1"),
@@ -160,7 +166,7 @@ def build_settings_tab_content():
                         html.Small("Comma-separated words that stay lowercase (except at the start of a name).", className="text-muted d-block mb-1"),
                     ], className="p-2")
                 ]),
-                dbc.Tab(label="Algorithm", tab_id="tab-algorithm", children=[
+                dbc.Tab(label="Algorithms", tab_id="tab-algorithm", children=[
                     html.Div([
                         # --- Priorities section ---
                         html.H5("Priorities", className="mt-2 mb-1"),
@@ -187,14 +193,13 @@ def build_settings_tab_content():
                             ], width=8),
                         ], className="mt-1"),
 
-                        # --- Three-column layout: IV | VP | PC ---
-                        html.Hr(className="my-2"),
-                        # Headings row
+                        # --- Three-column layout: IV | VP | PC (subsections of Priorities) ---
+                        # Headings row — H6 so they read as subsections of the Priorities H5
                         dbc.Row([
-                            dbc.Col(html.H5("Intrinsic Value", className="mt-2 mb-1")),
-                            dbc.Col(html.H5("Value Propagation", className="mt-2 mb-1")),
-                            dbc.Col(html.H5("Perceived Cost", className="mt-2 mb-1")),
-                        ], className="mt-1"),
+                            dbc.Col(html.H6("Intrinsic Value", className="mt-2 mb-1")),
+                            dbc.Col(html.H6("Value Propagation", className="mt-2 mb-1")),
+                            dbc.Col(html.H6("Perceived Cost", className="mt-2 mb-1")),
+                        ], className="mt-2"),
                         # Descriptions row — Bootstrap flex makes all cols equal height
                         dbc.Row([
                             dbc.Col(html.Small("IV = w_v \u00b7 V + w_i \u00b7 I", className="text-muted",
@@ -223,7 +228,20 @@ def build_settings_tab_content():
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
                         ]),
 
-
+                        # --- Graph Layout Defaults group ---
+                        html.Hr(className="my-2"),
+                        html.Div([
+                            html.H5("Graph Layout Defaults", className="mb-0"),
+                            html.Span([
+                                dbc.Button(_RESTORE_ICON, id="btn-restore-graph-layout",
+                                           color="link", size="sm",
+                                           className="ms-1 p-0",
+                                           style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px", "textDecoration": "none"}),
+                                dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top"),
+                            ]),
+                        ], className="d-flex align-items-center mt-2 mb-1"),
+                        html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
+                        _build_graph_layout_defaults_row(),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Analyze", tab_id="tab-analyze-settings", children=[

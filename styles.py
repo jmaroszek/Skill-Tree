@@ -100,3 +100,16 @@ def _build_mini_stylesheet():
 
 mini_stylesheet = _build_mini_stylesheet()
 
+# --- Event graph stylesheet: mini + dormant-node visual distinction ---
+
+events_graph_stylesheet = stylesheet + [
+    {
+        'selector': '.dormant',
+        'style': {
+            'border-width': 2,
+            'border-color': '#0d6efd',
+            'border-style': 'dashed',
+        }
+    },
+]
+

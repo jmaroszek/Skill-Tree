@@ -145,48 +145,11 @@
         initVerticalDrag(vDragLower, subtasks, simSection);
     }
 
-    // --- Fullscreen toggle for details dependency graph ---
-    function initDetailsFullscreen() {
-        var btn = document.getElementById('btn-details-graph-fullscreen');
-        var container = document.getElementById('details-dep-graph-container');
-
-        if (!btn || !container) {
-            setTimeout(initDetailsFullscreen, 300);
-            return;
-        }
-
-        btn.addEventListener('click', function () {
-            container.classList.toggle('canvas-fullscreen');
-            setTimeout(function () {
-                var cyEl = document.getElementById('details-mini-graph');
-                if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                    cyEl._cyreg.cy.resize();
-                    cyEl._cyreg.cy.fit();
-                }
-            }, 50);
-        });
-
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && container.classList.contains('canvas-fullscreen')) {
-                container.classList.remove('canvas-fullscreen');
-                setTimeout(function () {
-                    var cyEl = document.getElementById('details-mini-graph');
-                    if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                        cyEl._cyreg.cy.resize();
-                        cyEl._cyreg.cy.fit();
-                    }
-                }, 50);
-            }
-        });
-    }
+    // Fullscreen toggle is centralized in fullscreen.js (initCanvasFullscreen).
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            initDetailsResizeHandles();
-            initDetailsFullscreen();
-        });
+        document.addEventListener('DOMContentLoaded', initDetailsResizeHandles);
     } else {
         initDetailsResizeHandles();
-        initDetailsFullscreen();
     }
 })();

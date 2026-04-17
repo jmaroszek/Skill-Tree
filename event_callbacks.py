@@ -4,7 +4,7 @@ Callback definitions for the Events tab.
 
 import time
 import dash
-from dash import html, Input, Output, State, ALL, ctx, no_update
+from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
 from graph_manager import GraphManager
 import dash_bootstrap_components as dbc
@@ -18,6 +18,44 @@ event_manager = EventManager()
 graph_manager = GraphManager()
 
 _badge_hidden = {"fontSize": "0.85rem", "display": "none"}
+
+
+def _render_announcements(entries):
+    """Formats pending event notification entries into a readable list for the modal body."""
+    items = []
+    for entry in entries:
+        kind = entry.get("kind")
+        when = entry.get("when", "")
+        event_name = entry.get("event")
+        activated = entry.get("activated") or []
+        scheduled = entry.get("scheduled") or []
+
+        if kind == "date_triggered":
+            summary = html.Strong(f"{event_name} — date-triggered ({when})")
+            detail = _format_node_counts(activated, scheduled)
+        elif kind == "node_triggered":
+            trig = entry.get("trigger_node", "?")
+            summary = html.Strong(f"{event_name} — triggered by completing {trig} ({when})")
+            detail = _format_node_counts(activated, scheduled)
+        elif kind == "delayed_activated":
+            nodes = entry.get("nodes") or []
+            summary = html.Strong(f"{event_name} — delayed nodes activated ({when})")
+            detail = f"Nodes: {', '.join(nodes)}" if nodes else ""
+        else:
+            summary = html.Strong(str(entry))
+            detail = ""
+
+        items.append(html.Li([summary, html.Br(), html.Span(detail, className="text-muted small")] if detail else [summary]))
+    return html.Ul(items, style={"marginBottom": 0})
+
+
+def _format_node_counts(activated, scheduled):
+    parts = []
+    if activated:
+        parts.append(f"{len(activated)} activated: {', '.join(activated)}")
+    if scheduled:
+        parts.append(f"{len(scheduled)} scheduled: {', '.join(scheduled)}")
+    return " — ".join(parts) if parts else "No nodes"
 
 
 def register_event_callbacks(app):
@@ -166,7 +204,8 @@ def register_event_callbacks(app):
         node_style = {"display": "block"} if trigger_type == "node" else {"display": "none"}
         return date_style, node_style
 
-    # 13 outputs for create/select (same set of fields)
+    # Outputs shared by create/select. Last output is `main-tabs.active_tab` so that
+    # selecting/creating an event also switches to the Events tab (works from any tab).
     _DETAIL_OUTPUTS = [
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
@@ -183,6 +222,7 @@ def register_event_callbacks(app):
         Output("event-trigger-date", "value", allow_duplicate=True),
         Output("event-trigger-type", "value", allow_duplicate=True),
         Output("event-trigger-node", "value", allow_duplicate=True),
+        Output("main-tabs", "active_tab", allow_duplicate=True),
     ]
     _N_DETAIL = len(_DETAIL_OUTPUTS)
 
@@ -190,9 +230,10 @@ def register_event_callbacks(app):
     @app.callback(
         *_DETAIL_OUTPUTS,
         Input("btn-new-event", "n_clicks"),
+        State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
-    def create_new_event(n_clicks):
+    def create_new_event(n_clicks, active_tab):
         if not n_clicks:
             return (no_update,) * _N_DETAIL
 
@@ -213,15 +254,17 @@ def register_event_callbacks(app):
             "",                     # trigger date
             "manual",               # trigger type
             None,                   # trigger node
+            "tab-events" if active_tab != "tab-events" else no_update,
         )
 
     # --- Event Selection ---
     @app.callback(
         *_DETAIL_OUTPUTS,
         Input({"type": "event-card", "index": ALL}, "n_clicks"),
+        State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
-    def select_event(n_clicks_list):
+    def select_event(n_clicks_list, active_tab):
         if not any(n_clicks_list):
             return (no_update,) * _N_DETAIL
 
@@ -254,6 +297,7 @@ def register_event_callbacks(app):
             event.trigger_date or "",
             t_type,
             event.trigger_node or None,
+            "tab-events" if active_tab != "tab-events" else no_update,
         )
 
     # --- Save Event ---
@@ -385,9 +429,10 @@ def register_event_callbacks(app):
         State("selected-event-store", "data"),
         State({"type": "dormant-node-select", "index": ALL}, "value"),
         State({"type": "dormant-node-select", "index": ALL}, "id"),
+        State("manual-override-trigger-toggle", "value"),
         prevent_initial_call=True,
     )
-    def trigger_event(checked_clicks, all_clicks, selected_event, checkbox_values, checkbox_ids):
+    def trigger_event(checked_clicks, all_clicks, selected_event, checkbox_values, checkbox_ids, override_toggle):
         triggered = ctx.triggered_id
         if not triggered or not selected_event:
             return (no_update,) * 9
@@ -402,12 +447,20 @@ def register_event_callbacks(app):
             ] if checkbox_ids else []
 
         result = event_manager.trigger_event(selected_event, selected_nodes=selected_nodes)
+
+        if override_toggle:
+            pinned = list(result.get('activated', [])) + list(result.get('scheduled', []))
+            if pinned:
+                ConfigManager.add_event_override_nodes(pinned)
+
         event_nodes = event_manager.get_event_nodes(selected_event)
         msg_parts = []
         if result['activated']:
             msg_parts.append(f"{len(result['activated'])} node(s) activated")
         if result['scheduled']:
             msg_parts.append(f"{len(result['scheduled'])} node(s) scheduled")
+        if override_toggle and (result['activated'] or result['scheduled']):
+            msg_parts.append("pinned to top of Next")
 
         return (
             selected_event,
@@ -419,56 +472,6 @@ def register_event_callbacks(app):
             False,
             "",
         )
-
-    # --- Node Completion Confirmation Modal ---
-    @app.callback(
-        Output("modal-node-completion", "is_open", allow_duplicate=True),
-        Output("node-completion-modal-desc", "children", allow_duplicate=True),
-        Output("node-completion-event-list", "children", allow_duplicate=True),
-        Input("node-completion-events-store", "data"),
-        prevent_initial_call=True,
-    )
-    def show_node_completion_modal(event_names):
-        if not event_names:
-            return False, no_update, no_update
-
-        desc = f"Completing this node triggers {len(event_names)} event(s). Select which to trigger:"
-        event_list = html.Div([
-            dbc.Checkbox(
-                id={"type": "completion-event-select", "index": name},
-                label=name,
-                value=True,
-                className="mb-1",
-            )
-            for name in event_names
-        ])
-        return True, desc, event_list
-
-    @app.callback(
-        Output("modal-node-completion", "is_open", allow_duplicate=True),
-        Output("events-refresh-trigger", "data", allow_duplicate=True),
-        Input("btn-node-completion-confirm", "n_clicks"),
-        Input("btn-node-completion-skip", "n_clicks"),
-        State({"type": "completion-event-select", "index": ALL}, "value"),
-        State({"type": "completion-event-select", "index": ALL}, "id"),
-        prevent_initial_call=True,
-    )
-    def handle_node_completion_confirm(confirm_clicks, skip_clicks, checkbox_values, checkbox_ids):
-        triggered = ctx.triggered_id
-        if triggered == "btn-node-completion-skip" or not confirm_clicks:
-            return False, no_update
-
-        # Trigger selected events
-        import time
-        for cb_id, checked in zip(checkbox_ids, checkbox_values):
-            if checked:
-                event_name = cb_id["index"]
-                try:
-                    event_manager.trigger_event(event_name, selected_nodes=None)
-                except Exception:
-                    pass
-
-        return False, time.time()
 
     # --- Open Dormant Node Modal ---
     @app.callback(
@@ -869,3 +872,187 @@ def register_event_callbacks(app):
             build_dormant_nodes_table(event_nodes, event.status if event else "Pending"),
             f"remove-{node_name}",
         )
+
+    # --- App-load Announcement Modal ---
+    @app.callback(
+        Output("modal-event-announcements", "is_open", allow_duplicate=True),
+        Output("event-announcements-body", "children"),
+        Input("app-load-interval", "n_intervals"),
+        prevent_initial_call=True,
+    )
+    def show_event_announcements_on_load(n_intervals):
+        if not n_intervals:
+            return no_update, no_update
+        entries = ConfigManager.get_pending_event_notifications()
+        if not entries:
+            return False, no_update
+        return True, _render_announcements(entries)
+
+    @app.callback(
+        Output("modal-event-announcements", "is_open", allow_duplicate=True),
+        Input("btn-event-announcements-dismiss", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def dismiss_event_announcements(n_clicks):
+        if not n_clicks:
+            return no_update
+        ConfigManager.clear_pending_event_notifications()
+        return False
+
+    # --- Event Graph: render dormant nodes + immediate neighbors ---
+    @app.callback(
+        Output("events-detail-graph", "elements"),
+        Input("selected-event-store", "data"),
+        Input("events-refresh-trigger", "data"),
+    )
+    def render_event_graph(selected_event, _refresh):
+        if not selected_event:
+            return []
+
+        event_nodes_data = event_manager.get_event_nodes(selected_event)
+        dormant_names = {en['node'].name for en in event_nodes_data}
+        if not dormant_names:
+            return []
+
+        all_edges = graph_manager.get_edges()
+        neighbor_names = set()
+        for e in all_edges:
+            if e['source'] in dormant_names and e['target'] not in dormant_names:
+                neighbor_names.add(e['target'])
+            if e['target'] in dormant_names and e['source'] not in dormant_names:
+                neighbor_names.add(e['source'])
+
+        all_names = dormant_names | neighbor_names
+        node_colors = ConfigManager.get_node_colors()
+        node_shapes = ConfigManager.get_node_shapes()
+
+        elements = []
+        for name in all_names:
+            node = graph_manager.get_node(name)
+            if not node:
+                continue
+            element = {
+                "data": {
+                    "id": name,
+                    "label": name,
+                    "type": node.type,
+                    "color": node_colors.get(node.type, "#6c757d"),
+                    "shape": node_shapes.get(node.type, "rectangle"),
+                },
+            }
+            if name in dormant_names:
+                element["classes"] = "dormant"
+            elements.append(element)
+
+        for e in all_edges:
+            if e['source'] in all_names and e['target'] in all_names:
+                elements.append({
+                    "data": {
+                        "id": f"{e['source']}_{e['target']}_{e['type']}",
+                        "source": e['source'],
+                        "target": e['target'],
+                        "type": e['type'],
+                    },
+                })
+
+        return elements
+
+    # --- Event Graph: single-click populates the editor only if it's already open ---
+    # Why: the user wants tapping a node to re-populate an open editor the way it
+    # does on other canvases, but never to open the editor from a closed state.
+    # Right-click -> Edit (via context_menu.js) remains the explicit open path.
+    @app.callback(
+        Output("details-edit-trigger-input", "value", allow_duplicate=True),
+        Input("events-detail-graph", "tapNodeData"),
+        State("sidebar-editor-container", "style"),
+        prevent_initial_call=True,
+    )
+    def populate_editor_from_event_graph(tap_data, editor_style):
+        if not tap_data or not tap_data.get("id"):
+            return no_update
+        editor_open = bool(editor_style) and editor_style.get("transform", "") == "translateX(0px)"
+        if not editor_open:
+            return no_update
+        return f"{tap_data['id']}|{int(time.time())}"
+
+    # --- Events Graph Settings: Toggle Panel ---
+    @app.callback(
+        Output('events-graph-settings-panel', 'style'),
+        Input('btn-events-graph-settings', 'n_clicks'),
+        State('events-graph-settings-panel', 'style'),
+        prevent_initial_call=True,
+    )
+    def toggle_events_graph_settings(_n, current_style):
+        style = dict(current_style) if current_style else {}
+        style['display'] = 'none' if style.get('display') != 'none' else 'block'
+        return style
+
+    # --- Events Graph Settings: Reset to Stored Defaults ---
+    @app.callback(
+        Output('events-graph-settings-edge-length', 'value', allow_duplicate=True),
+        Output('events-graph-settings-gravity', 'value', allow_duplicate=True),
+        Output('events-graph-settings-repulsion', 'value', allow_duplicate=True),
+        Input('btn-reset-events-graph-settings', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def reset_events_graph_settings(n_clicks):
+        if not n_clicks:
+            return no_update, no_update, no_update
+        gl = ConfigManager.get_events_graph_layout_defaults()
+        return (
+            gl.get('edge_length', 50),
+            gl.get('gravity', 0.25),
+            gl.get('repulsion', 4500),
+        )
+
+    # --- Events Graph Settings: Apply Layout Parameters ---
+    @app.callback(
+        Output('events-detail-graph', 'layout'),
+        Input('events-graph-settings-edge-length', 'value'),
+        Input('events-graph-settings-gravity', 'value'),
+        Input('events-graph-settings-repulsion', 'value'),
+        Input('events-graph-settings-relayout', 'n_clicks'),
+        Input('events-detail-graph', 'elements'),
+    )
+    def update_events_graph_layout(edge_length, gravity, repulsion, _relayout, _elements):
+        trigger = ctx.triggered_id
+        randomize = trigger in ('events-graph-settings-relayout', 'events-detail-graph')
+        return {
+            'name': 'cose-bilkent',
+            'animate': False,
+            'fit': True,
+            'randomize': randomize,
+            'padding': 20,
+            'idealEdgeLength': edge_length or 100,
+            'nodeRepulsion': repulsion or 4500,
+            'gravity': gravity if gravity is not None else 0.25,
+            'numIter': 2500,
+        }
+
+    # --- Events Sidebar Toggle + Tab-Inner Shift (CLIENTSIDE) ---
+    # Prior server-side implementations of this toggle exhibited a persistent
+    # "sidebar won't reopen after close" bug that resisted multiple fixes. Moving
+    # the logic to clientside JS in assets/events_sidebar.js eliminates server-
+    # state sync as a failure mode. The handlers also BASE-merge the style dict
+    # so a corrupted/partial state can't strand the sidebar off-screen.
+    app.clientside_callback(
+        ClientsideFunction(namespace='events', function_name='toggle_sidebar'),
+        Output("events-sidebar-container", "style"),
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Output("sidebar-editor-container", "style", allow_duplicate=True),
+        Output("details-goal-sidebar", "style", allow_duplicate=True),
+        Input("btn-events-sidebar-toggle", "n_clicks"),
+        Input("btn-events-sidebar-close", "n_clicks"),
+        Input("btn-open-events-sidebar", "n_clicks"),
+        State("events-sidebar-container", "style"),
+        State("sidebar-editor-container", "style"),
+        State("details-goal-sidebar", "style"),
+        State("events-refresh-trigger", "data"),
+        prevent_initial_call=True,
+    )
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='events', function_name='adjust_tab_inner'),
+        Output("events-tab-inner", "style"),
+        Input("events-sidebar-container", "style"),
+    )

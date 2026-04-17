@@ -543,31 +543,37 @@ def register_details_callbacks(app):
         Output("details-goal-sidebar", "style"),
         Output("details-refresh-trigger", "data", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
+        Output("events-sidebar-container", "style", allow_duplicate=True),
         Input("btn-goals-toggle", "n_clicks"),
         Input("btn-details-goals-close", "n_clicks"),
         Input("btn-add", "n_clicks"),
         State("details-goal-sidebar", "style"),
         State("details-refresh-trigger", "data"),
         State("sidebar-editor-container", "style"),
+        State("events-sidebar-container", "style"),
         prevent_initial_call=True,
     )
-    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style, refresh_data, editor_style):
+    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style, refresh_data, editor_style, events_style):
         trigger = ctx.triggered_id
         style = dict(current_style) if current_style else {}
         refresh = no_update
         next_editor_style = no_update
+        next_events_style = no_update
         if trigger == "btn-goals-toggle":
             opening = style.get("left", "-380px") == "-380px"
             style["left"] = "0px" if opening else "-380px"
             if opening:
                 refresh = (refresh_data or 0) + 1
-                # Sidebar mutex: close editor when opening goal sidebar
+                # Sidebar mutex: close editor + events sidebar when opening goal sidebar
                 if editor_style and editor_style.get("transform", "") == "translateX(0px)":
                     next_editor_style = dict(editor_style)
                     next_editor_style["transform"] = "translateX(-380px)"
+                if events_style and events_style.get("left", "-380px") == "0px":
+                    next_events_style = dict(events_style)
+                    next_events_style["left"] = "-380px"
         elif trigger in ("btn-details-goals-close", "btn-add"):
             style["left"] = "-380px"
-        return style, refresh, next_editor_style
+        return style, refresh, next_editor_style, next_events_style
 
 # --- New Goal from Sidebar "+" Button ---
     @app.callback(

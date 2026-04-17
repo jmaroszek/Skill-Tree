@@ -303,7 +303,8 @@ def register_callbacks(app):
          Input('search-node', 'value'),
          Input('background-click-input', 'value'),
          Input('btn-new-node', 'n_clicks'),
-         Input('edit-trigger-input', 'value')],
+         Input('edit-trigger-input', 'value'),
+         Input('details-edit-trigger-input', 'value')],
         [State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
@@ -314,6 +315,7 @@ def register_callbacks(app):
         prevent_initial_call='initial_duplicate'
     )
     def populate_editor(data, add_clicks, clear_yes_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
+                        details_edit_trigger_val,
                         elements, ed_style, original_name, cur_name, cur_desc, cur_val, cur_interest, cur_diff,
                         pending_nav):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
@@ -408,16 +410,18 @@ def register_callbacks(app):
                 return no_change
 
         name = None
-        if trigger_id == 'edit-trigger-input' and edit_trigger_val:
-            # Context menu Edit: node ID is carried explicitly in the trigger value
-            edit_node_name = edit_trigger_val.split('|')[0]
-            node = manager.get_node(edit_node_name)
-            if node:
-                name = node.name
-                data = node.to_dict()
-                data['id'] = name
-            else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+        if trigger_id in ('edit-trigger-input', 'details-edit-trigger-input'):
+            # Context menu / dormant-node Edit: node ID carried in the trigger value
+            edit_val = edit_trigger_val if trigger_id == 'edit-trigger-input' else details_edit_trigger_val
+            if edit_val:
+                edit_node_name = edit_val.split('|')[0]
+                node = manager.get_node(edit_node_name)
+                if node:
+                    name = node.name
+                    data = node.to_dict()
+                    data['id'] = name
+                else:
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
         elif trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
@@ -492,7 +496,7 @@ def register_callbacks(app):
             # Type-specific fields
             data.get('progress') or 0, friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
-            name if (trigger_id == 'edit-trigger-input' or (ed_style and ed_style.get('transform', '') == 'translateX(0px)')) else dash.no_update,  # search-node — update when editor is open or edit-trigger
+            name if (trigger_id in ('edit-trigger-input', 'details-edit-trigger-input') or (ed_style and ed_style.get('transform', '') == 'translateX(0px)')) else dash.no_update,  # search-node — update when editor is open or edit-trigger
             rank_value,  # node-priority-rank
             time_mode_val,  # node-time-mode
             data.get('competence') or '',  # node-competence
@@ -714,9 +718,9 @@ def register_callbacks(app):
          Output('filter-goal', 'options'),
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
-         Output('node-completion-events-store', 'data'),
          Output('filter-node-count', 'children'),
-         Output('details-goal-sidebar', 'style', allow_duplicate=True)],
+         Output('details-goal-sidebar', 'style', allow_duplicate=True),
+         Output('events-sidebar-container', 'style', allow_duplicate=True)],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -767,6 +771,7 @@ def register_callbacks(app):
          State('node-priority-rank', 'value'),
          State('node-competence', 'value'),
          State('details-goal-sidebar', 'style'),
+         State('events-sidebar-container', 'style'),
          State('pending-navigation-store', 'data'),
          State({'type': 'alias-input', 'index': ALL}, 'value')],
         prevent_initial_call='initial_duplicate'
@@ -787,7 +792,7 @@ def register_callbacks(app):
                      progress_val,
                      current_elements, ed_style, fil_style, original_name,
                      time_mode_val, priority_rank_val, competence_val,
-                     goal_sidebar_style, pending_nav_store, alias_values):
+                     goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -857,13 +862,17 @@ def register_callbacks(app):
             else:
                 next_ed_style['transform'] = "translateX(-380px)"
 
-        # Goal Sidebar Mutex: close goal sidebar when editor opens
+        # Goal / Events Sidebar Mutex: close them when editor opens
         next_goal_style = dash.no_update
+        next_events_sidebar_style = dash.no_update
         if isinstance(next_ed_style, dict) and next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
             # Editor is opening — ensure goal sidebar is closed
             if goal_sidebar_style and goal_sidebar_style.get('left', '-380px') == '0px':
                 next_goal_style = dict(goal_sidebar_style)
                 next_goal_style['left'] = '-380px'
+            if events_sidebar_style and events_sidebar_style.get('left', '-380px') == '0px':
+                next_events_sidebar_style = dict(events_sidebar_style)
+                next_events_sidebar_style['left'] = '-380px'
 
         # Filters Sidebar State (overlay, shared between Canvas + Suggestions tabs)
         next_fil_style = fil_style or {"position": "absolute", "top": "0", "right": "-320px", "width": "320px", "height": "100%", "zIndex": 100, "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "right 0.3s ease", "backgroundColor": "#212529"}
@@ -1015,7 +1024,6 @@ def register_callbacks(app):
             goal_opts = dash.no_update
             active_stylesheet = dash.no_update
             clear_focus_style = dash.no_update
-            node_completion_events = dash.no_update
             node_count_text = dash.no_update
             
             # Still format sidebar traversal UI
@@ -1125,13 +1133,11 @@ def register_callbacks(app):
 
             clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
 
-            # Check for events triggered by node completion
-            node_completion_events = dash.no_update
+            # Silently auto-trigger events tied to this node's completion.
+            # The user is notified on next app load via the announcement modal.
             if completion_check_node:
                 try:
-                    triggered_events = _event_mgr.get_events_triggered_by_node(completion_check_node)
-                    if triggered_events:
-                        node_completion_events = [e.name for e in triggered_events]
+                    _event_mgr.auto_trigger_by_node_completion(completion_check_node)
                 except Exception:
                     pass
 
@@ -1143,7 +1149,7 @@ def register_callbacks(app):
                 node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
                 node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
 
-        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_completion_events, node_count_text, next_goal_style
+        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_count_text, next_goal_style, next_events_sidebar_style
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),

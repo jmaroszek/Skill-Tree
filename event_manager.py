@@ -256,31 +256,41 @@ class EventManager:
         Returns list of newly activated node names.
         """
         from graph_manager import GraphManager
+        from config import ConfigManager
         gm = GraphManager()
 
         today = date.today().isoformat()
-        activated = []
+        activated: List[str] = []
+        event_nodes_map: Dict[str, List[str]] = {}
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT node_name FROM EventNodes
+                SELECT node_name, event_name FROM EventNodes
                 WHERE activation_date IS NOT NULL AND activation_date <= ? AND activated = 0
             ''', (today,))
-            pending = [row[0] for row in cursor.fetchall()]
+            pending_rows = cursor.fetchall()
 
-            for node_name in pending:
+            for node_name, event_name in pending_rows:
                 cursor.execute("UPDATE Nodes SET dormant=0 WHERE name=?", (node_name,))
                 cursor.execute(
                     "UPDATE EventNodes SET activated=1 WHERE node_name=?", (node_name,)
                 )
                 activated.append(node_name)
+                event_nodes_map.setdefault(event_name, []).append(node_name)
 
             conn.commit()
 
-        # Cascade state updates
         for node_name in activated:
             gm._update_node_state(node_name)
+
+        for event_name, nodes in event_nodes_map.items():
+            ConfigManager.add_pending_event_notification({
+                "kind": "delayed_activated",
+                "event": event_name,
+                "nodes": nodes,
+                "when": today,
+            })
 
         return activated
 
@@ -289,6 +299,8 @@ class EventManager:
 
         Returns list of triggered event names.
         """
+        from config import ConfigManager
+
         today = date.today().isoformat()
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -300,8 +312,44 @@ class EventManager:
 
         triggered = []
         for name in due:
-            self.trigger_event(name)
+            result = self.trigger_event(name)
             triggered.append(name)
+            ConfigManager.add_pending_event_notification({
+                "kind": "date_triggered",
+                "event": name,
+                "activated": result.get('activated', []),
+                "scheduled": result.get('scheduled', []),
+                "when": today,
+            })
+        return triggered
+
+    def auto_trigger_by_node_completion(self, node_name: str) -> List[str]:
+        """Silently auto-triggers every Pending event whose trigger_node matches node_name.
+
+        All dormant nodes of those events are activated (no per-node user selection).
+        Each auto-trigger appends a `node_triggered` notification entry for the app-load modal.
+
+        Returns the list of event names that were triggered.
+        """
+        from config import ConfigManager
+
+        pending = self.get_events_triggered_by_node(node_name)
+        if not pending:
+            return []
+
+        today = date.today().isoformat()
+        triggered: List[str] = []
+        for event in pending:
+            result = self.trigger_event(event.name)
+            triggered.append(event.name)
+            ConfigManager.add_pending_event_notification({
+                "kind": "node_triggered",
+                "event": event.name,
+                "trigger_node": node_name,
+                "activated": result.get('activated', []),
+                "scheduled": result.get('scheduled', []),
+                "when": today,
+            })
         return triggered
 
     # --- Convenience ---

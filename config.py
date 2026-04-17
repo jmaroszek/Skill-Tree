@@ -57,6 +57,12 @@ DEFAULT_DETAILS_GRAPH_LAYOUT = {
     'repulsion': 4500,
 }
 
+DEFAULT_EVENTS_GRAPH_LAYOUT = {
+    'edge_length': 50,
+    'gravity': 0.25,
+    'repulsion': 4500,
+}
+
 DEFAULT_ANALYZE_LIMITS = {
     'bottlenecks': 25,
     'goals': 75,
@@ -241,6 +247,15 @@ class ConfigManager:
         cls._set_db_value("DETAILS_GRAPH_LAYOUT_DEFAULTS", json.dumps(params))
 
     @classmethod
+    def get_events_graph_layout_defaults(cls):
+        val = cls._get_db_value("EVENTS_GRAPH_LAYOUT_DEFAULTS")
+        return json.loads(val) if val else DEFAULT_EVENTS_GRAPH_LAYOUT
+
+    @classmethod
+    def set_events_graph_layout_defaults(cls, params: dict):
+        cls._set_db_value("EVENTS_GRAPH_LAYOUT_DEFAULTS", json.dumps(params))
+
+    @classmethod
     def get_analyze_limits(cls):
         val = cls._get_db_value("ANALYZE_LIMITS")
         return json.loads(val) if val else DEFAULT_ANALYZE_LIMITS
@@ -420,23 +435,74 @@ class ConfigManager:
 
     @classmethod
     def get_override_node_set(cls, manager) -> set:
-        """Compute the full set of overridden node names from override parent + mode."""
+        """Compute the full set of overridden node names from override parent + mode,
+        unioned with any event-override nodes pinned by manual-override event triggers."""
         from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
         override = cls.get_override()
         parent = override.get("parent")
-        if not parent:
-            return set()
-        if not manager.get_node(parent):
-            return set()
-        mode = override.get("mode", "hard")
-        if mode == "node_only":
-            return {parent}
-        elif mode == "hard":
-            return {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_HARD,))
-        elif mode == "soft":
-            return {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_SOFT,))
-        else:  # "all"
-            return {parent} | manager.get_goal_subtree(parent)
+        base: set = set()
+        if parent and manager.get_node(parent):
+            mode = override.get("mode", "hard")
+            if mode == "node_only":
+                base = {parent}
+            elif mode == "hard":
+                base = {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_HARD,))
+            elif mode == "soft":
+                base = {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_SOFT,))
+            else:  # "all"
+                base = {parent} | manager.get_goal_subtree(parent)
+        event_nodes = cls.get_event_override_nodes()
+        if event_nodes:
+            live = set()
+            stale = False
+            for n_name in event_nodes:
+                node = manager.get_node(n_name)
+                if node and node.status != "Done":
+                    live.add(n_name)
+                else:
+                    stale = True
+            if stale:
+                cls.set_event_override_nodes(sorted(live))
+            base = base | live
+        return base
+
+    # --- Event Override Nodes (pinned by manual-override event triggers) ---
+
+    @classmethod
+    def get_event_override_nodes(cls) -> list:
+        val = cls._get_db_value("EVENT_OVERRIDE_NODES")
+        return json.loads(val) if val else []
+
+    @classmethod
+    def set_event_override_nodes(cls, names: list):
+        cls._set_db_value("EVENT_OVERRIDE_NODES", json.dumps(list(names)))
+
+    @classmethod
+    def add_event_override_nodes(cls, names: list):
+        existing = set(cls.get_event_override_nodes())
+        existing.update(names)
+        cls.set_event_override_nodes(sorted(existing))
+
+    @classmethod
+    def clear_event_override_nodes(cls):
+        cls.set_event_override_nodes([])
+
+    # --- Pending Event Notifications (shown on next app load) ---
+
+    @classmethod
+    def get_pending_event_notifications(cls) -> list:
+        val = cls._get_db_value("PENDING_EVENT_NOTIFICATIONS")
+        return json.loads(val) if val else []
+
+    @classmethod
+    def add_pending_event_notification(cls, entry: dict):
+        entries = cls.get_pending_event_notifications()
+        entries.append(entry)
+        cls._set_db_value("PENDING_EVENT_NOTIFICATIONS", json.dumps(entries))
+
+    @classmethod
+    def clear_pending_event_notifications(cls):
+        cls._set_db_value("PENDING_EVENT_NOTIFICATIONS", json.dumps([]))
 
     @classmethod
     def ensure_action_type(cls):

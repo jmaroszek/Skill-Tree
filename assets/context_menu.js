@@ -93,8 +93,8 @@
 
         function triggerEdit() {
             hideMenu();
-            if (_menuSource === 'details' && _currentNodeData && _currentNodeData.id) {
-                // On the details tab: open the editor in place without switching tabs
+            if ((_menuSource === 'details' || _menuSource === 'events') && _currentNodeData && _currentNodeData.id) {
+                // On the details or events tab: open the editor in place without switching tabs
                 _setHiddenInput('details-edit-trigger-input', _currentNodeData.id);
             } else if (_currentNodeData && _currentNodeData.id) {
                 // Main canvas or goals tab: use edit-trigger-input which carries the
@@ -107,7 +107,7 @@
 
         function triggerToggleDone() {
             hideMenu();
-            if ((_menuSource === 'goal' || _menuSource === 'details') && _currentNodeData && _currentNodeData.id) {
+            if ((_menuSource === 'goal' || _menuSource === 'details' || _menuSource === 'events') && _currentNodeData && _currentNodeData.id) {
                 _setHiddenInput('toggle-done-trigger-input', _currentNodeData.id);
             } else {
                 _clickDashBtn('btn-toggle-done-node');
@@ -348,6 +348,49 @@ function bindCyEvents() {
             tryBind();
         }
         bindDetailsGraphEvents();
+
+        // --- Also bind context menu on events graph ---
+        function bindEventsGraphEvents() {
+            var eventsWrapper = document.getElementById('events-detail-graph');
+            if (!eventsWrapper) {
+                setTimeout(bindEventsGraphEvents, 500);
+                return;
+            }
+
+            function getEventsCy() {
+                return (eventsWrapper._cyreg && eventsWrapper._cyreg.cy) ? eventsWrapper._cyreg.cy : null;
+            }
+
+            function tryBind() {
+                var cy = getEventsCy();
+                if (!cy) {
+                    setTimeout(tryBind, 500);
+                    return;
+                }
+
+                cy.on('cxttap', 'node', function (evt) {
+                    evt.originalEvent.preventDefault();
+                    if (!evt.target.selected()) {
+                        cy.$('node:selected').unselect();
+                        evt.target.select();
+                    }
+                    var nodeData = evt.target.data();
+                    var pos = evt.originalEvent;
+                    _menuSource = 'events';
+                    showMenu(pos.clientX, pos.clientY, nodeData);
+                });
+
+                cy.on('tap', function (evt) {
+                    if (evt.target === cy) hideMenu();
+                });
+
+                eventsWrapper.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                });
+            }
+            tryBind();
+        }
+        bindEventsGraphEvents();
     }
 
     if (document.readyState === 'loading') {

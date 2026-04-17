@@ -7,7 +7,7 @@ from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from config import ConfigManager, CANVAS_HEIGHT, DEFAULT_TIME_ESTIMATE_DEFAULTS
-from events_layout import build_events_tab_content
+from events_layout import build_events_tab_content, build_events_sidebar_content
 from details_layout import build_details_tab_content
 from settings_layout import build_settings_tab_content
 from analyze_layout import build_analyze_tab_content
@@ -1001,10 +1001,11 @@ def build_app_layout(initial_elements, env="production"):
 
     # --- Tab Navigation (toolbar: left buttons | centered tabs | right buttons) ---
     main_tabs = html.Div([
-        # LEFT: Goals + New Node (open left-side sidebars)
+        # LEFT: Node Editor + Goals + Events (open left-side sidebars)
         html.Div([
+            dbc.Button(html.I(className="bi bi-node-plus"), id="btn-add", color="secondary", size="sm", className="me-2", title="New Node"),
             dbc.Button(html.I(className="bi bi-star"), id="btn-goals-toggle", color="secondary", size="sm", className="me-2", title="Goals"),
-            dbc.Button(html.I(className="bi bi-node-plus"), id="btn-add", color="secondary", size="sm", title="New Node"),
+            dbc.Button(html.I(className="bi bi-calendar-event"), id="btn-events-sidebar-toggle", color="secondary", size="sm", title="Events"),
         ], className="d-flex align-items-center ps-3",
            style={"flex": "0 0 auto"}),
 
@@ -1141,6 +1142,13 @@ def build_app_layout(initial_elements, env="production"):
         override_conflict_modal,
         override_untoggle_modal,
         ratings_editor_modal,
+        dbc.Modal([
+            dbc.ModalHeader(dbc.ModalTitle("Events Triggered Since Last Launch")),
+            dbc.ModalBody(id="event-announcements-body"),
+            dbc.ModalFooter(dbc.Button("Dismiss", id="btn-event-announcements-dismiss",
+                                       color="primary")),
+        ], id="modal-event-announcements", is_open=False, centered=True, size="lg"),
+        dcc.Interval(id='app-load-interval', interval=500, n_intervals=0, max_intervals=1),
 
         dcc.Store(id='override-store', data={"parent": None, "mode": "hard"}),
         dcc.Store(id='pending-settings-store', data=None),
@@ -1224,6 +1232,26 @@ def build_app_layout(initial_elements, env="production"):
                     html.Div(id="details-goal-list-container",
                              style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
                 ],
+                style={
+                    "position": "absolute",
+                    "top": "0",
+                    "left": "-380px",
+                    "width": "380px",
+                    "height": "100%",
+                    "zIndex": 100,
+                    "overflowX": "hidden",
+                    "overflowY": "auto",
+                    "borderRight": "1px solid #495057",
+                    "transition": "left 0.3s ease",
+                    "backgroundColor": "#212529",
+                    "display": "flex",
+                    "flexDirection": "column",
+                }
+            ),
+            # --- SHARED EVENTS SIDEBAR (overlay, accessible from any tab) ---
+            html.Div(
+                id="events-sidebar-container",
+                children=[build_events_sidebar_content()],
                 style={
                     "position": "absolute",
                     "top": "0",
