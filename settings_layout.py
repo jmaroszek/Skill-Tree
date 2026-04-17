@@ -201,6 +201,9 @@ def build_settings_tab_content():
                             ], width=8),
                         ], className="mt-1"),
 
+                        html.Hr(className="my-3"),
+                        html.Small("Parameters for the scoring algorithm.", className="text-muted d-block mb-2"),
+
                         # --- Three-column layout: IV | VP | PC (subsections of Priorities) ---
                         # Headings row — H6 so they read as subsections of the Priorities H5
                         dbc.Row([
@@ -234,7 +237,7 @@ def build_settings_tab_content():
                             dbc.Col([]),
                             dbc.Col([dbc.Label("Synergy", className="mt-2"), dbc.Input(id="hp-dsyn", type="number", step=0.01)]),
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
-                        ]),
+                        ], className="mb-2"),
 
                         # --- Graph Layout Defaults group ---
                         html.Hr(className="my-2"),
