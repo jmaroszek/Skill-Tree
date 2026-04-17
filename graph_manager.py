@@ -1,4 +1,5 @@
 import sqlite3
+import threading
 import database
 import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
@@ -10,6 +11,13 @@ from typing import List, Dict, Optional, Set
 class GraphManager:
     def __init__(self):
         database.init_db()
+        self._graph_version: int = 0
+        self._community_cache: Dict[tuple, List[Set[str]]] = {}
+        self._cache_lock = threading.Lock()
+
+    def _bump_version(self) -> None:
+        """Invalidate memoization caches. Called by every node/edge mutator."""
+        self._graph_version += 1
 
     def get_connection(self) -> sqlite3.Connection:
         """Returns a new database connection with foreign keys enabled."""
@@ -32,6 +40,7 @@ class GraphManager:
                 conn.commit()
             except sqlite3.IntegrityError:
                 raise ValueError(f"Node with name '{node.name}' already exists.")
+        self._bump_version()
 
     def update_node(self, node: Node):
         """Updates an existing node."""
@@ -52,6 +61,7 @@ class GraphManager:
             ''', data)
             conn.commit()
             self._update_dependent_nodes_state(node.name)
+        self._bump_version()
 
     def delete_node(self, node_name: str):
         """Deletes a node by name."""
@@ -65,6 +75,7 @@ class GraphManager:
             conn.commit()
         for dept in dependents:
             self._update_node_state(dept)
+        self._bump_version()
 
     def rename_node(self, old_name: str, new_name: str):
         """Renames a node, updating all edge and event references atomically."""
@@ -83,6 +94,7 @@ class GraphManager:
             cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
             conn.commit()
             cursor.execute("PRAGMA foreign_keys = ON")
+        self._bump_version()
 
     def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
@@ -151,6 +163,7 @@ class GraphManager:
                     self._update_node_state(target)
             except sqlite3.IntegrityError:
                 pass  # Edge already exists
+        self._bump_version()
 
     def remove_edge(self, source: str, target: str, edge_type: str):
         """Removes a specific edge."""
@@ -160,6 +173,7 @@ class GraphManager:
             conn.commit()
             if edge_type == EDGE_NEEDS_HARD:
                 self._update_node_state(target)
+        self._bump_version()
 
     def get_edges(self) -> List[Dict[str, str]]:
         """Retrieves all edges."""
@@ -784,13 +798,29 @@ class GraphManager:
         else:
             allowed_names = None
 
+        # Cache keyed by (method, sorted allowed names, graph_version). The
+        # version key makes invalidation automatic: any mutator bumps the
+        # version, so subsequent calls miss and recompute.
+        allowed_key = tuple(sorted(allowed_names)) if allowed_names is not None else None
+        cache_key = (method, allowed_key, self._graph_version)
+        with self._cache_lock:
+            cached = self._community_cache.get(cache_key)
+        if cached is not None:
+            return [set(c) for c in cached]
+
         G = self._build_nx_graph(allowed_names=allowed_names)
         if len(G.nodes) == 0:
-            return []
+            result: List[Set[str]] = []
+            with self._cache_lock:
+                self._community_cache[cache_key] = result
+            return result
 
         if method == "orphans":
             # Each isolated node (degree 0 in the filtered graph) is its own "community"
-            return [{node} for node in G.nodes if G.degree(node) == 0]
+            result = [{node} for node in G.nodes if G.degree(node) == 0]
+            with self._cache_lock:
+                self._community_cache[cache_key] = result
+            return [set(c) for c in result]
 
         if method == "louvain":
             communities = []
@@ -805,4 +835,6 @@ class GraphManager:
         else:
             communities = sorted(nx.connected_components(G), key=len, reverse=True)
 
-        return communities
+        with self._cache_lock:
+            self._community_cache[cache_key] = communities
+        return [set(c) for c in communities]

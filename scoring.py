@@ -65,11 +65,26 @@ def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
 def total_value(
     node_name: str, visited: set, all_nodes: dict,
     H_out: dict, S_out: dict, Syn: dict,
-    w_v: float, w_i: float, d_H: float, d_S: float, d_Syn: float
+    w_v: float, w_i: float, d_H: float, d_S: float, d_Syn: float,
+    memo: Optional[dict] = None,
 ) -> float:
-    """Recursively computes Total Value (IV + cascaded Network Value)."""
+    """Recursively computes Total Value (IV + cascaded Network Value).
+
+    `memo` caches results for OUTER calls only (where `visited` is empty at
+    entry). The graph is not a DAG — cycles and bidirectional edges exist —
+    so inner recursive calls are path-dependent (the `visited` set prunes
+    differently depending on where the traversal started) and must never
+    read or write the memo. Outer calls, in contrast, deterministically
+    depend only on (node_name, graph structure, hyperparams) and are safe
+    to cache within a single score_nodes batch.
+    """
     if node_name in visited:
         return 0.0
+    # Outer-call fast path: if a previous outer call for this node cached a
+    # result in this scoring batch, reuse it.
+    if memo is not None and not visited and node_name in memo:
+        return memo[node_name]
+
     node = all_nodes.get(node_name)
     if not node:
         return 0.0
@@ -80,15 +95,19 @@ def total_value(
     nv = 0.0
     for x in H_out.get(node_name, []):
         if x not in visited:
-            nv += d_H * total_value(x, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn)
+            nv += d_H * total_value(x, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
     for y in S_out.get(node_name, []):
         if y not in visited:
-            nv += d_S * total_value(y, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn)
+            nv += d_S * total_value(y, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
     for z in Syn.get(node_name, set()):
         if z not in visited:
-            nv += d_Syn * total_value(z, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn)
+            nv += d_Syn * total_value(z, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
 
-    return iv + nv
+    result = iv + nv
+    # Write-back: only cache when this is an outer call (empty visited at entry).
+    if memo is not None and not visited:
+        memo[node_name] = result
+    return result
 
 
 def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
@@ -124,6 +143,12 @@ def score_nodes(
 
     all_nodes_dict = {n.name: n for n in all_nodes}
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
+
+    # Per-batch memo for outer total_value calls. Reset on every score_nodes
+    # invocation so a graph mutation between calls never serves stale results.
+    # Only outer calls (visited == set()) read/write this; inner recursive
+    # calls are path-dependent on the graph's cycles and must never cache.
+    memo: Dict[str, float] = {}
 
     # Pre-compute per-node boost from ranked priority goals
     # Index 0 = rank 1 (full boost), index 1 = rank 2 (66%), index 2 = rank 3 (33%)
@@ -163,7 +188,7 @@ def score_nodes(
         # (their dependencies already carry their own time costs in scoring)
         t_override = 1.0 if node.time_mode == 'inherited' else None
         cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
-        tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn)
+        tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
         score = round(tv / cost, 2)
 
         # Apply ranked priority goal boost (highest rank wins)
