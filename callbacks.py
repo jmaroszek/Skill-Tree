@@ -1564,6 +1564,28 @@ def register_callbacks(app):
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style
 
+    # --- Graph Settings: Reset to Stored Defaults ---
+    @app.callback(
+        Output('graph-settings-max-depth', 'value', allow_duplicate=True),
+        Output('graph-settings-neighbor-links', 'value', allow_duplicate=True),
+        Output('graph-settings-animate', 'value', allow_duplicate=True),
+        Output('graph-settings-edge-length', 'value', allow_duplicate=True),
+        Output('graph-settings-gravity', 'value', allow_duplicate=True),
+        Output('graph-settings-repulsion', 'value', allow_duplicate=True),
+        Input('btn-reset-graph-settings', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def reset_graph_settings(n_clicks):
+        if not n_clicks:
+            return (dash.no_update,) * 6
+        gl = ConfigManager.get_graph_layout_defaults()
+        return (
+            0, True, True,
+            gl.get('edge_length', 100),
+            gl.get('gravity', 0.25),
+            gl.get('repulsion', 4500),
+        )
+
     # --- Graph Settings: Apply Layout Parameters ---
     @app.callback(
         Output('cytoscape-graph', 'layout'),

@@ -11,7 +11,8 @@ import plotly.graph_objects as go
 from graph_manager import GraphManager
 from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from details_layout import build_details_subtasks_table, build_goal_card
+from details_layout import (build_details_subtasks_table, build_goal_card,
+                             _build_suggestion_row, build_details_suggestions)
 from simulation import simulate_task_chain
 from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_file_picker, build_filters
 
@@ -811,6 +812,75 @@ def register_details_callbacks(app):
             return no_update
         return triggered["index"]
 
+    # --- Empty-state suggestions: override + priority goals + top recs ---
+    @app.callback(
+        Output("details-suggestions-container", "children"),
+        Input("details-refresh-trigger", "data"),
+        Input("cytoscape-graph", "elements"),
+        Input("override-store", "data"),
+        Input("details-selected-node-store", "data"),
+    )
+    def build_empty_state_suggestions(_refresh, _elements, _override_data, _selected):
+        from next_callbacks import get_suggestions
+
+        seen = set()
+
+        override_row = None
+        override_name = ConfigManager.get_override().get("parent")
+        if override_name and graph_manager.get_node(override_name):
+            override_row = _build_suggestion_row(override_name, "Override", "pink")
+            seen.add(override_name)
+
+        goal_rows = []
+        for i, goal_name in enumerate(ConfigManager.get_priority_goals()[:3]):
+            if goal_name in seen or not graph_manager.get_node(goal_name):
+                continue
+            goal_rows.append(_build_suggestion_row(
+                goal_name, f"#{i + 1}", "warning"))
+            seen.add(goal_name)
+
+        rec_nodes = []
+        for n in get_suggestions(filters=None, count=8):
+            if n.name in seen:
+                continue
+            rec_nodes.append(n)
+            seen.add(n.name)
+            if len(rec_nodes) >= 5:
+                break
+
+        max_score = max((getattr(n, "priority_score", 0) for n in rec_nodes),
+                        default=0)
+        rec_rows = []
+        tooltip_text = ("Normalized priority score (0–100) from the priority "
+                        "scoring algorithm.")
+        for i, n in enumerate(rec_nodes):
+            raw = getattr(n, "priority_score", 0)
+            normalized = round((raw / max_score) * 100) if max_score else 0
+            rec_rows.append(_build_suggestion_row(
+                n.name, str(normalized), "info",
+                badge_id=f"details-sugg-rec-badge-{i}",
+                tooltip_text=tooltip_text,
+            ))
+
+        return build_details_suggestions(override_row, goal_rows, rec_rows)
+
+    # --- Suggestion Click → Select that node in Details ---
+    @app.callback(
+        Output("details-node-select", "value", allow_duplicate=True),
+        Input({"type": "details-suggestion-item", "index": ALL}, "n_clicks"),
+        State("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+    def select_suggested_node(n_clicks_list, active_tab):
+        if active_tab != "tab-details":
+            return no_update
+        if not any(n_clicks_list):
+            return no_update
+        triggered = ctx.triggered_id
+        if not triggered:
+            return no_update
+        return triggered["index"]
+
     # --- Add Node Modal: Open ---
     @app.callback(
         Output("modal-details-add-node", "is_open", allow_duplicate=True),
@@ -1306,6 +1376,28 @@ def register_details_callbacks(app):
         style = dict(current_style) if current_style else {}
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style
+
+    # --- Details Graph Settings: Reset to Stored Defaults ---
+    @app.callback(
+        Output('details-graph-settings-max-depth', 'value', allow_duplicate=True),
+        Output('details-graph-settings-neighbor-links', 'value', allow_duplicate=True),
+        Output('details-graph-settings-animate', 'value', allow_duplicate=True),
+        Output('details-graph-settings-edge-length', 'value', allow_duplicate=True),
+        Output('details-graph-settings-gravity', 'value', allow_duplicate=True),
+        Output('details-graph-settings-repulsion', 'value', allow_duplicate=True),
+        Input('btn-reset-details-graph-settings', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def reset_details_graph_settings(n_clicks):
+        if not n_clicks:
+            return (no_update,) * 6
+        gl = ConfigManager.get_details_graph_layout_defaults()
+        return (
+            0, True, True,
+            gl.get('edge_length', 50),
+            gl.get('gravity', 0.25),
+            gl.get('repulsion', 4500),
+        )
 
     # --- Details Tab: Node Count in Sidebar ---
     @app.callback(

@@ -19,8 +19,18 @@ def _build_details_graph_settings_panel():
     """Build the graph settings panel for the details mini-graph."""
     gl = ConfigManager.get_details_graph_layout_defaults()
     p = "details-graph-settings"
+    reset_btn_id = f"btn-reset-{p}"
     return html.Div([
-        html.Div("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem", "marginBottom": "12px"}),
+        html.Div([
+            html.Span("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem"}),
+            dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
+                       className="ms-2 p-0",
+                       style={"fontSize": "1.1rem", "lineHeight": "1",
+                              "color": "#adb5bd", "position": "relative",
+                              "top": "0px", "textDecoration": "none"}),
+            dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top"),
+        ], className="d-flex align-items-center",
+           style={"marginBottom": "12px"}),
         html.Div("Max Depth", className="settings-label"),
         dcc.Slider(
             id=f"{p}-max-depth",
@@ -131,12 +141,16 @@ def build_details_tab_content():
         id="details-empty",
         children=[
             html.Div([
-                html.H6("No Node Selected", className="text-muted mb-1"),
-                html.P("Select a node from the dropdown or goal list.",
+                html.H6("Suggestions", className="text-muted mb-1",
+                        style={"fontWeight": "300", "letterSpacing": "1px"}),
+                html.P("Click one, or search above.",
                        className="text-muted small"),
-            ], style={"textAlign": "center", "marginTop": "30%"}),
+            ], style={"textAlign": "center", "marginTop": "24px",
+                      "marginBottom": "12px"}),
+            html.Div(id="details-suggestions-container",
+                     style={"padding": "0 12px"}),
         ],
-        style={"flex": "1"},
+        style={"flex": "1", "overflowY": "auto"},
     )
 
     # ------------------------------------------------------------------ #
@@ -437,6 +451,79 @@ def _attribute_row(label, value_id):
                   style={"width": "70px", "fontSize": "0.82rem"}),
         html.Span(id=value_id, style={"fontSize": "0.85rem", "fontWeight": "500"}),
     ], className="d-flex align-items-center mb-1")
+
+
+def _build_suggestion_row(node_name, badge_text, badge_color,
+                          badge_id=None, tooltip_text=None):
+    """One clickable suggestion row in the Details empty state.
+
+    Optional badge_id + tooltip_text attach a hover tooltip (0.7s delay) to the
+    badge — used for recommendation score badges.
+    """
+    badge_style = {"fontSize": "0.7rem"}
+    badge_kwargs = {"id": badge_id} if badge_id else {}
+    if badge_color == "pink":
+        badge_style.update({"backgroundColor": "#e83e8c", "color": "#fff"})
+        badge = html.Span(badge_text, className="badge",
+                          style=badge_style, **badge_kwargs)
+    else:
+        badge = dbc.Badge(badge_text, color=badge_color,
+                          style=badge_style, **badge_kwargs)
+
+    children = [
+        html.Span(node_name, style={"fontWeight": "500", "fontSize": "0.9rem",
+                                     "overflow": "hidden",
+                                     "textOverflow": "ellipsis",
+                                     "whiteSpace": "nowrap",
+                                     "flex": "1", "minWidth": "0"}),
+        badge,
+    ]
+    if badge_id and tooltip_text:
+        children.append(dbc.Tooltip(
+            tooltip_text, target=badge_id, placement="left",
+            delay={"show": 700, "hide": 100},
+        ))
+
+    return html.Div(
+        children,
+        id={"type": "details-suggestion-item", "index": node_name},
+        className="d-flex align-items-center justify-content-between",
+        style={
+            "cursor": "pointer",
+            "border": "1px solid #495057",
+            "backgroundColor": "#212529",
+            "borderRadius": "4px",
+            "padding": "8px 12px",
+            "marginBottom": "6px",
+            "gap": "8px",
+        },
+    )
+
+
+def build_details_suggestions(override_row, goal_rows, rec_rows):
+    """Assemble the Details empty-state suggestion list from pre-built rows."""
+    sections = []
+
+    def _section(title, rows):
+        return html.Div([
+            html.H6(title, className="text-muted mb-2",
+                    style={"fontSize": "0.78rem", "fontWeight": "500",
+                           "letterSpacing": "1px", "textTransform": "uppercase",
+                           "marginTop": "12px"}),
+            html.Div(rows),
+        ])
+
+    if override_row is not None:
+        sections.append(_section("Manual Override", [override_row]))
+    if goal_rows:
+        sections.append(_section("Priority Goals", goal_rows))
+    if rec_rows:
+        sections.append(_section("Top Recommendations", rec_rows))
+
+    if not sections:
+        return html.P("No suggestions yet — add priority goals or an override.",
+                      className="text-muted small text-center mt-3")
+    return sections
 
 
 def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,

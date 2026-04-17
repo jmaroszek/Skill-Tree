@@ -287,8 +287,18 @@ def _build_graph_settings_panel(prefix="graph-settings"):
                 'details-graph-settings' for details canvas.
     """
     gl = ConfigManager.get_graph_layout_defaults()
+    reset_btn_id = f"btn-reset-{prefix}"
     return html.Div([
-        html.Div("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem", "marginBottom": "12px"}),
+        html.Div([
+            html.Span("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem"}),
+            dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
+                       className="ms-2 p-0",
+                       style={"fontSize": "1.1rem", "lineHeight": "1",
+                              "color": "#adb5bd", "position": "relative",
+                              "top": "0px", "textDecoration": "none"}),
+            dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top"),
+        ], className="d-flex align-items-center",
+           style={"marginBottom": "12px"}),
         html.Div("Max Depth", className="settings-label"),
         dcc.Slider(
             id=f"{prefix}-max-depth",

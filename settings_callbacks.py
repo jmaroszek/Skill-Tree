@@ -714,12 +714,12 @@ def register_settings_callbacks(app):
 
     # --- Settings: Apply graph layout defaults to canvas sliders ---
     @app.callback(
-        Output('graph-settings-edge-length', 'value'),
-        Output('graph-settings-gravity', 'value'),
-        Output('graph-settings-repulsion', 'value'),
-        Output('details-graph-settings-edge-length', 'value'),
-        Output('details-graph-settings-gravity', 'value'),
-        Output('details-graph-settings-repulsion', 'value'),
+        Output('graph-settings-edge-length', 'value', allow_duplicate=True),
+        Output('graph-settings-gravity', 'value', allow_duplicate=True),
+        Output('graph-settings-repulsion', 'value', allow_duplicate=True),
+        Output('details-graph-settings-edge-length', 'value', allow_duplicate=True),
+        Output('details-graph-settings-gravity', 'value', allow_duplicate=True),
+        Output('details-graph-settings-repulsion', 'value', allow_duplicate=True),
         Input('btn-settings-save', 'n_clicks'),
         prevent_initial_call=True,
     )
