@@ -453,7 +453,7 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -464,7 +464,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
 
         edges = manager.get_edges()
 
