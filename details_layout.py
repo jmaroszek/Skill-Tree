@@ -226,8 +226,13 @@ def build_details_tab_content():
         html.Div([
             dbc.Button("Edit", id="btn-details-edit", color="secondary",
                        size="sm", style={"flex": "1"}),
+            dbc.Tooltip("Open the node editor", target="btn-details-edit", placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button("Focus", id="btn-details-focus", color="secondary",
                        size="sm", className="ms-1", style={"flex": "1"}),
+            dbc.Tooltip("Focus on this node's subtree in the main canvas",
+                        target="btn-details-focus", placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex mt-3"),
 
     ], id="details-node-summary",
@@ -294,7 +299,7 @@ def build_details_tab_content():
                 stylesheet=stylesheet,
                 userZoomingEnabled=False,
                 userPanningEnabled=False,
-                boxSelectionEnabled=False,
+                boxSelectionEnabled=True,
                 autoungrabify=False,
             ),
             dbc.Button(html.I(className="bi bi-gear"),

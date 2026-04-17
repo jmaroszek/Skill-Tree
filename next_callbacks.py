@@ -11,12 +11,16 @@ from callback_helpers import get_trigger_id
 manager = GraphManager()
 
 
-def get_suggestions(filters=None, count=5):
+def get_suggestions(filters=None, count=5, exclude_override=False):
     """Retrieve top-N prioritized nodes based on ROI scoring.
 
     When a manual override is active, uses two-tier sorting:
     Tier 1 (top): overridden nodes, scored among themselves.
     Tier 2 (bottom): normal nodes, scored among themselves.
+
+    If ``exclude_override`` is True, skip the override tier entirely and
+    return only non-override recommendations (useful for the Details tab
+    top-recommendations list, which shouldn't duplicate the override row).
     """
     if filters is None:
         filters = {}
@@ -25,6 +29,12 @@ def get_suggestions(filters=None, count=5):
     priority_goals = ConfigManager.get_priority_goals()
 
     override_set = ConfigManager.get_override_node_set(manager)
+
+    if exclude_override and override_set:
+        filtered_nodes = [n for n in filtered_nodes if n.name not in override_set]
+        scored = manager.calculate_priority_scores(filtered_nodes, priority_goals=priority_goals)
+        valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
+        return valid[:count]
 
     if override_set:
         tier1_nodes = [n for n in filtered_nodes if n.name in override_set]

@@ -773,18 +773,18 @@ def register_details_callbacks(app):
                    if "source" not in el.get("data", {})]
         return {"node": selected_node, "subtree": subtree}, "tab-canvas"
 
-    # --- Edit Node → Navigate to Nodes Tab + open editor ---
+    # --- Edit Node → Open editor overlay (no tab switch) ---
     @app.callback(
-        Output("search-node", "value", allow_duplicate=True),
-        Output("main-tabs", "active_tab", allow_duplicate=True),
+        Output("details-edit-trigger-input", "value", allow_duplicate=True),
         Input("btn-details-edit", "n_clicks"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     def details_edit_node(n_clicks, selected_node):
         if not n_clicks or not selected_node:
-            return no_update, no_update
-        return selected_node, "tab-canvas"
+            return no_update
+        import time
+        return f"{selected_node}|{int(time.time())}"
 
     # --- Context Menu "Details" → Navigate to Details tab with node selected ---
     @app.callback(
@@ -846,7 +846,7 @@ def register_details_callbacks(app):
             seen.add(goal_name)
 
         rec_nodes = []
-        for n in get_suggestions(filters=None, count=8):
+        for n in get_suggestions(filters=None, count=8, exclude_override=True):
             if n.name in seen:
                 continue
             rec_nodes.append(n)
@@ -1512,6 +1512,29 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     all_subtree_nodes = [n for n in all_subtree_nodes if n is not None]
     filtered_subtree = {n.name for n in graph_manager.filter_nodes(all_subtree_nodes, global_filters)}
     filtered_subtree.add(selected_node)
+
+    # Post-filter reachability: drop nodes that are only reachable through a
+    # filtered-out bridge (e.g. a Done node that the Done filter hid). Without
+    # this, such nodes appear as orphaned clusters disconnected from the
+    # selected node in the rendered mini-graph.
+    all_edges_for_reach = graph_manager.get_edges()
+    reach_adj = {}
+    for e in all_edges_for_reach:
+        if e['source'] not in filtered_subtree or e['target'] not in filtered_subtree:
+            continue
+        if e['type'] not in edge_types:
+            continue
+        reach_adj.setdefault(e['source'], set()).add(e['target'])
+        reach_adj.setdefault(e['target'], set()).add(e['source'])
+    reachable = {selected_node}
+    stack = [selected_node]
+    while stack:
+        n = stack.pop()
+        for nb in reach_adj.get(n, ()):
+            if nb not in reachable:
+                reachable.add(nb)
+                stack.append(nb)
+    filtered_subtree = filtered_subtree & reachable
 
     elements = []
     filtered_names = set()
