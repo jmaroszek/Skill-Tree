@@ -1883,4 +1883,39 @@ def register_callbacks(app):
         ConfigManager.set_ratings_definitions(new_defs)
         return build_popup_table_rows(new_defs), False
 
+    # --- Competence Editor ---
+
+    @app.callback(
+        Output("modal-competence-editor", "is_open"),
+        Output("competence-editor-body", "children"),
+        Input("btn-competence-edit", "n_clicks"),
+        Input("btn-competence-editor-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def toggle_competence_editor(edit_clicks, cancel_clicks):
+        from layout import build_competence_editor_table
+        if ctx.triggered_id == "btn-competence-edit":
+            defs = ConfigManager.get_competence_definitions()
+            return True, build_competence_editor_table(defs)
+        return False, no_update
+
+    @app.callback(
+        Output("competence-popup-table-body", "children"),
+        Output("modal-competence-editor", "is_open", allow_duplicate=True),
+        Input("btn-competence-editor-save", "n_clicks"),
+        State({"type": "competence-edit-essence", "index": ALL}, "value"),
+        prevent_initial_call=True,
+    )
+    def save_competence_definitions(n_clicks, essences):
+        from layout import build_competence_popup_table_rows
+        defs = ConfigManager.get_competence_definitions()
+        new_defs = []
+        for i, d in enumerate(defs):
+            new_defs.append({
+                "stage": d["stage"],
+                "essence": essences[i] if i < len(essences) else d["essence"],
+            })
+        ConfigManager.set_competence_definitions(new_defs)
+        return build_competence_popup_table_rows(new_defs), False
+
 

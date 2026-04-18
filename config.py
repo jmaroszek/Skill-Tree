@@ -120,6 +120,23 @@ DEFAULT_RATINGS_DEFINITIONS = [
      "effort": "Herculean: a massive undertaking bridging multiple difficult domains. Requires immense stamina, adaptability, and sacrifice. Failure is the most probable outcome."},
 ]
 
+DEFAULT_COMPETENCE_DEFINITIONS = [
+    {"stage": "Outsider",
+     "essence": "The Outsider does not yet recognize the domain as a domain. Its vocabulary, concepts, and problems lie outside their awareness, leaving them with nothing to apply."},
+    {"stage": "Reciter",
+     "essence": "The Reciter has acquired the vocabulary of the domain without the capability it describes. They can recognize and follow solutions but cannot produce them \u2014 even for standard problems."},
+    {"stage": "Processor",
+     "essence": "The Processor solves familiar problems by retrieving procedures created by others. Execution is reliable within known templates but breaks outside them (because they know the steps without knowing why the steps work)."},
+    {"stage": "Thinker",
+     "essence": "The Thinker derives solutions by Reasoning from First Principles. They understand procedures deeply enough to reconstruct them from scratch and handle novel problems within a familiar domain. But reasoning is entirely conscious \u2014 every step is deliberate and effortful. The work is correct without yet being distinctive."},
+    {"stage": "Creator",
+     "essence": "The Creator has absorbed the fundamentals so deeply that they run below awareness. This is not more knowledge than the Thinker has, but the same knowledge held differently. The freed attention goes to synthesis \u2014 choosing what to make, how it should feel, what is worth pursuing. Taste and personal voice emerge, and the work becomes recognizably theirs."},
+    {"stage": "Master",
+     "essence": "The Master operates at the ceiling of what is possible within an existing paradigm. Where the Creator has taste, the Master has judgment \u2014 a considered view of what is worth doing and why, built up through sustained practice and reflection. Their work addresses problems of genuine significance, and their choices hold up under the scrutiny of the most demanding practitioners in the field."},
+    {"stage": "Innovator",
+     "essence": "The Innovator reframes what the domain is about. Where the Master plays the game excellently, the Innovator changes the game. They identify the unstated assumptions of an existing paradigm and propose new frameworks that reshape what counts as a problem worth solving."},
+]
+
 DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
 
 DEFAULT_TITLECASE_LINTER = {
@@ -282,6 +299,20 @@ class ConfigManager:
     @classmethod
     def set_ratings_definitions(cls, defs: list):
         cls._set_db_value("RATINGS_DEFINITIONS", json.dumps(defs))
+
+    @classmethod
+    def get_competence_definitions(cls):
+        val = cls._get_db_value("COMPETENCE_DEFINITIONS")
+        if val:
+            try:
+                return json.loads(val)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return [dict(d) for d in DEFAULT_COMPETENCE_DEFINITIONS]
+
+    @classmethod
+    def set_competence_definitions(cls, defs: list):
+        cls._set_db_value("COMPETENCE_DEFINITIONS", json.dumps(defs))
 
     @classmethod
     def get_time_settings(cls):
