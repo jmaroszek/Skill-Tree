@@ -74,6 +74,11 @@ def init_db():
             FOREIGN KEY (target) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
+    # Accelerate target-side graph traversal (WHERE target=? AND type=?) used
+    # by cycle detection, reverse adjacency, and status cascades. The PK's
+    # auto-index (source, target, type) already covers source-side queries, so
+    # no separate source-type index is needed.
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_edges_target_type ON Edges(target, type)")
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Events (
             name TEXT PRIMARY KEY,

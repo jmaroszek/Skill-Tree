@@ -29,6 +29,21 @@ logger = logging.getLogger(__name__)
 manager = GraphManager()
 
 
+# core_engine has 23 outputs; this constant + helper let the tab-gating guard
+# return a no_update tuple of the correct arity. test_core_engine_arity verifies
+# that it stays in sync with the actual callback registration.
+_CORE_ENGINE_NUM_OUTPUTS = 23
+
+# Tabs whose own callbacks already refresh their content; switching to them
+# should NOT trigger a graph regen via core_engine.
+_NON_GRAPH_TABS = frozenset({"tab-settings", "tab-events", "tab-analyze"})
+
+
+def _core_engine_noop_tuple():
+    """Return a tuple of dash.no_update matching core_engine's output arity."""
+    return (dash.no_update,) * _CORE_ENGINE_NUM_OUTPUTS
+
+
 def _friendly_time_estimates(time_o, time_m, time_p):
     """Convert stored hour values for display in the node editor.
 
@@ -438,7 +453,7 @@ def register_callbacks(app):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -449,7 +464,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
 
         edges = manager.get_edges()
 
@@ -864,6 +879,13 @@ def register_callbacks(app):
         """
                      
         trigger_id = get_trigger_id()
+
+        # Tab-switch gate: switching to Settings/Events/Analyze doesn't need a
+        # graph regen — those tabs have their own refresh callbacks. Short-circuit
+        # to no_update so we skip the scoring + generate_elements cycle.
+        if trigger_id == 'main-tabs' and active_tab in _NON_GRAPH_TABS:
+            return _core_engine_noop_tuple()
+
         all_triggered_ids = get_all_triggered_ids()
         msg = ""
         completion_check_node = None  # Set when a node transitions to Done
