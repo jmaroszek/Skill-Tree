@@ -288,14 +288,11 @@ sidebar_content = html.Div(
             
             html.Hr(className="my-2"),
             html.Div([
+                dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
                 dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
                 dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
                 dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0"})
             ], className="d-flex mt-4"),
-            html.Div([
-                dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
-                dbc.Button("Clear", id="btn-cancel", className="flex-fill", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
-            ], className="d-flex mt-2"),
             dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
                        style={"padding": "8px 0"}),
             dbc.Tooltip("Discard unsaved changes and revert this node to its last saved state", target="btn-revert", placement="top",
@@ -305,8 +302,6 @@ sidebar_content = html.Div(
             dbc.Tooltip("Save changes and close the node editor", target="btn-save-close", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Tooltip("Delete this node", target="btn-delete", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Tooltip("Wipe all editor fields to start a blank slate", target="btn-cancel", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Tooltip("Create a new node", target="btn-new-node", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
@@ -777,16 +772,6 @@ delete_confirm_modal = dbc.Modal([
                           "borderColor": ConfigManager.get_danger_color()}),
     ], className="d-flex"),
 ], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
-
-
-clear_confirm_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Clear Editor?")),
-    dbc.ModalBody("Are you sure you want to clear this node's data?"),
-    dbc.ModalFooter([
-        dbc.Button("No", id="btn-clear-no", color="danger", className="flex-fill me-2"),
-        dbc.Button("Yes", id="btn-clear-yes", color="success", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-clear-confirm", size="sm", is_open=False, centered=True)
 
 
 override_conflict_modal = dbc.Modal([
@@ -1322,7 +1307,6 @@ def build_app_layout(initial_elements, env="production"):
         error_modal,
         unsaved_changes_modal,
         delete_confirm_modal,
-        clear_confirm_modal,
         override_conflict_modal,
         override_untoggle_modal,
         ratings_editor_modal,

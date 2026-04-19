@@ -338,7 +338,6 @@ def register_callbacks(app):
          Output('modal-unsaved-changes', 'is_open', allow_duplicate=True)],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
-         Input('btn-clear-yes', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'),
          Input('search-node', 'value'),
@@ -355,7 +354,7 @@ def register_callbacks(app):
          State('pending-navigation-store', 'data')],
         prevent_initial_call='initial_duplicate'
     )
-    def populate_editor(data, add_clicks, clear_yes_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
+    def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
                         details_edit_trigger_val,
                         elements, ed_style, original_name, cur_name, cur_desc, cur_val, cur_interest, cur_diff,
                         pending_nav):
@@ -411,7 +410,7 @@ def register_callbacks(app):
             # that would re-trigger core_engine and overwrite the editor-open state)
             return def_out
 
-        if trigger_id in ['btn-add', 'btn-clear-yes', 'background-click-input']:
+        if trigger_id in ['btn-add', 'background-click-input']:
             # Clear search bar on reset triggers — but NOT for btn-add, because
             # setting search-node to None re-triggers core_engine via the callback
             # chain, and the second invocation reads stale editor state and
@@ -836,7 +835,7 @@ def register_callbacks(app):
          Input('suggestion-count-store', 'data'),
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'), Input('btn-new-node', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'), Input('btn-goals-toggle', 'n_clicks'),
-         Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'), Input('btn-clear-yes', 'n_clicks'),
+         Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'),
          Input('btn-settings-save', 'n_clicks'),
          Input('modal-migration', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
@@ -882,7 +881,7 @@ def register_callbacks(app):
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, btn_clear_yes, settings_open, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
@@ -943,9 +942,9 @@ def register_callbacks(app):
         elif trigger_id == 'btn-save':
             # Save only — keep editor open, don't change transform
             next_ed_style['transform'] = "translateX(0px)"
-        elif trigger_id in ('btn-save-close', 'btn-clear-yes', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
+        elif trigger_id in ('btn-save-close', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
             # btn-save-close and unsaved-save close it after saving.
-            # btn-clear-yes and btn-unsaved-discard close without saving.
+            # btn-unsaved-discard closes without saving.
             # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
             if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
                 pass  # Keep editor open — pending navigation will load the next node
@@ -1341,18 +1340,6 @@ def register_callbacks(app):
     def toggle_delete_modal(_delete, _cancel, _confirm):
         trigger_id = get_trigger_id()
         return trigger_id == 'btn-delete'
-
-    # --- Clear Confirmation Modal ---
-    @app.callback(
-        Output('modal-clear-confirm', 'is_open'),
-        [Input('btn-cancel', 'n_clicks'),
-         Input('btn-clear-no', 'n_clicks'),
-         Input('btn-clear-yes', 'n_clicks')],
-        prevent_initial_call=True,
-    )
-    def toggle_clear_modal(_cancel, _no, _yes):
-        trigger_id = get_trigger_id()
-        return trigger_id == 'btn-cancel'
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
