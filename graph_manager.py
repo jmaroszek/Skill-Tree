@@ -19,13 +19,21 @@ _SCORING_RELEVANT_FIELDS = frozenset({
 
 
 class GraphManager:
+    # Versions are class-level because every GraphManager instance in this
+    # codebase (one per callback module) reads the same DB. Per-instance
+    # versions would diverge when instance A mutates the DB but instance B's
+    # cache only checks its own unchanged counter. Versions only ever advance,
+    # so the monotonic contract still holds for cache invalidation.
+    _graph_version: int = 0
+    _scoring_version: int = 0
+
     def __init__(self):
         database.init_db()
-        self._graph_version: int = 0
-        self._scoring_version: int = 0
         self._community_cache: Dict[tuple, List[Set[str]]] = {}
         self._scoring_memo: Dict[str, float] = {}
         self._scoring_memo_key: Optional[tuple] = None
+        # (goal_name, sorted_edge_types_tuple) -> (graph_version, frozenset of reachable nodes)
+        self._goal_subtree_cache: Dict[tuple, tuple] = {}
         self._cache_lock = threading.Lock()
 
     def _bump_version(self, scoring: bool = True) -> None:
@@ -35,9 +43,9 @@ class GraphManager:
         tags, paths) — graph_version still bumps so UI re-renders, but the
         scoring memo stays valid and the next get_suggestions() is near-free.
         """
-        self._graph_version += 1
+        GraphManager._graph_version += 1
         if scoring:
-            self._scoring_version += 1
+            GraphManager._scoring_version += 1
 
     def get_connection(self) -> sqlite3.Connection:
         """Returns a new database connection with foreign keys enabled."""
@@ -394,6 +402,15 @@ class GraphManager:
         if edge_types is None:
             edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
 
+        # Cache lookup: select_detail_node alone calls this 4x per invocation
+        # with overlapping (goal, edge_types) combinations. Without caching
+        # each call re-runs the BFS + DB queries against an unchanged graph.
+        cache_key = (goal_name, tuple(sorted(edge_types)))
+        with self._cache_lock:
+            cached = self._goal_subtree_cache.get(cache_key)
+            if cached is not None and cached[0] == self._graph_version:
+                return set(cached[1])
+
         # Separate directed and bidirectional edge types
         directed_types = tuple(t for t in edge_types if t != EDGE_HELPS)
         include_helps = EDGE_HELPS in edge_types
@@ -459,6 +476,8 @@ class GraphManager:
                         if row[0] not in visited:
                             queue.append(row[0])
 
+        with self._cache_lock:
+            self._goal_subtree_cache[cache_key] = (self._graph_version, frozenset(visited))
         return visited
 
     def get_goal_completion(self, goal_name: str, include_soft: bool = True, include_transitive: bool = True) -> dict:

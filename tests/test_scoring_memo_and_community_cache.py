@@ -158,9 +158,16 @@ def test_detect_communities_cache_invalidated_by_mutation(mutate):
     )
 
 
-def test_graph_version_starts_at_zero():
+def test_graph_version_monotonic_across_instances():
+    """Version is class-level (shared across instances) so every GraphManager
+    reading the same DB sees the same cache-invalidation signal. All we can
+    assert is that mutations advance it."""
     mgr = GraphManager()
-    assert mgr._graph_version == 0
+    before = mgr._graph_version
+    mgr.add_node(_make_node("VersionBumpNode"))
+    mgr2 = GraphManager()
+    assert mgr2._graph_version > before
+    assert mgr2._graph_version == mgr._graph_version
 
 
 def test_community_cache_is_per_instance():
@@ -269,6 +276,63 @@ def test_scoring_memo_invalidated_on_hyperparam_change(monkeypatch):
     monkeypatch.setattr(ConfigManager, "get_hyperparams", classmethod(lambda cls: dict(base, w_v=2.0)))
     mgr.calculate_priority_scores([mgr.get_node("A")])
     assert mgr._scoring_memo_key != first_key, "cache key should advance on hyperparam change"
+
+
+def test_goal_subtree_cache_hit_avoids_db(monkeypatch):
+    """Repeat lookups for the same (goal, edge_types) on an unchanged graph
+    must not re-query the DB — select_detail_node fires this 4x per call."""
+    mgr = GraphManager()
+    mgr.add_node(_make_node("Root", type="Goal"))
+    mgr.add_node(_make_node("A"))
+    mgr.add_node(_make_node("B"))
+    mgr.add_edge("A", "Root", EDGE_NEEDS_HARD)
+    mgr.add_edge("B", "A", EDGE_NEEDS_HARD)
+
+    first = mgr.get_goal_subtree("Root")
+    assert first == {"A", "B"}
+
+    # Instrument get_connection after first call to prove the cache is used.
+    call_count = {"n": 0}
+    orig = mgr.get_connection
+    def _tracked(*a, **kw):
+        call_count["n"] += 1
+        return orig(*a, **kw)
+    monkeypatch.setattr(mgr, "get_connection", _tracked)
+
+    second = mgr.get_goal_subtree("Root")
+    assert second == first
+    assert call_count["n"] == 0, "cache miss: DB queried despite unchanged graph"
+
+
+def test_goal_subtree_cache_invalidated_by_mutation():
+    mgr = GraphManager()
+    mgr.add_node(_make_node("Root", type="Goal"))
+    mgr.add_node(_make_node("A"))
+    mgr.add_edge("A", "Root", EDGE_NEEDS_HARD)
+
+    first = mgr.get_goal_subtree("Root")
+    assert first == {"A"}
+
+    mgr.add_node(_make_node("B"))
+    mgr.add_edge("B", "A", EDGE_NEEDS_HARD)
+
+    second = mgr.get_goal_subtree("Root")
+    assert second == {"A", "B"}, "cache not invalidated after edge addition"
+
+
+def test_goal_subtree_cache_separates_edge_type_combos():
+    """Same goal with different edge_types must not share a cache entry."""
+    mgr = GraphManager()
+    mgr.add_node(_make_node("Root", type="Goal"))
+    mgr.add_node(_make_node("Hard"))
+    mgr.add_node(_make_node("Soft"))
+    mgr.add_edge("Hard", "Root", EDGE_NEEDS_HARD)
+    mgr.add_edge("Soft", "Root", EDGE_NEEDS_SOFT)
+
+    hard_only = mgr.get_goal_subtree("Root", edge_types=(EDGE_NEEDS_HARD,))
+    both = mgr.get_goal_subtree("Root", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT))
+    assert hard_only == {"Hard"}
+    assert both == {"Hard", "Soft"}
 
 
 def test_detect_communities_returns_fresh_objects_not_cache_reference():
