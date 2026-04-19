@@ -1213,8 +1213,15 @@ def register_callbacks(app):
                     'selector': 'edge',
                     'style': {'opacity': 0.08}
                 })
+                # Escape backslashes and double-quotes for use inside a
+                # double-quoted CSS attribute-selector value. Node names like
+                # Read "Meditations" previously broke the selector, which
+                # Cytoscape fell back on as plain `node`, wiping the dim rule.
+                def _css_attr_escape(s: str) -> str:
+                    return s.replace('\\', '\\\\').replace('"', '\\"')
+
                 for node_name in focus_subtree:
-                    safe_id = node_name.replace("'", "\\'")
+                    safe_id = _css_attr_escape(node_name)
                     active_stylesheet.append({
                         'selector': f'node[id = "{safe_id}"]',
                         'style': {'opacity': 1}
@@ -1223,7 +1230,7 @@ def register_callbacks(app):
                 edges = manager.get_edges()
                 for e in edges:
                     if e['source'] in focus_subtree and e['target'] in focus_subtree:
-                        eid = f"{e['source']}_{e['target']}_{e['type']}".replace("'", "\\'")
+                        eid = _css_attr_escape(f"{e['source']}_{e['target']}_{e['type']}")
                         active_stylesheet.append({
                             'selector': f'edge[id = "{eid}"]',
                             'style': {'opacity': 1}
