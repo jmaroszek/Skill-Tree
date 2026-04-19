@@ -10,6 +10,7 @@ import urllib.parse
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
+from event_manager import EventManager
 from config import ConfigManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from next_callbacks import get_suggestions, get_override_set
@@ -27,6 +28,7 @@ from callback_helpers import (
 logger = logging.getLogger(__name__)
 
 manager = GraphManager()
+event_manager = EventManager()
 
 
 # core_engine has 22 outputs; this constant + helper let the tab-gating guard
@@ -116,6 +118,7 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
     shapes = ConfigManager.get_node_shapes()
     override_set = ConfigManager.get_override_node_set(manager)
     override_color = colors.get('Override', '#e83e8c')
+    trigger_names = event_manager.get_trigger_node_names()
 
     elements = []
     for node in filtered_nodes:
@@ -138,6 +141,8 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
             },
             'selected': node.name == active_node_id if active_node_id else False
         }
+        if node.name in trigger_names:
+            node_data['classes'] = 'trigger'
         elements.append(node_data)
 
     for e in edges:

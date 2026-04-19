@@ -467,8 +467,30 @@ def _base_layout(**overrides):
     return layout
 
 
-def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, height=None):
-    """Create a standard horizontal bar chart figure."""
+def _integer_dtick(max_val):
+    """Pick a nice integer tick step aiming for ~5-8 ticks on an axis."""
+    if max_val <= 5:
+        return 1
+    if max_val <= 10:
+        return 2
+    if max_val <= 25:
+        return 5
+    if max_val <= 50:
+        return 10
+    if max_val <= 100:
+        return 20
+    if max_val <= 250:
+        return 50
+    if max_val <= 500:
+        return 100
+    return max(1, round(max_val / 6))
+
+
+def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, height=None, integer_x=False):
+    """Create a standard horizontal bar chart figure.
+
+    integer_x: when True, force integer-only x-axis ticks (for counts, not hours).
+    """
     if not names:
         return None
     color = colors if colors else '#0d6efd'
@@ -492,11 +514,17 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, heig
         hovertext=hover_texts,
         hoverinfo='text' if hover_texts else 'x+y',
     ))
+    xaxis = dict(title=x_title) if x_title else {}
+    if integer_x and values:
+        xaxis['tickmode'] = 'linear'
+        xaxis['tick0'] = 0
+        xaxis['dtick'] = _integer_dtick(max(values))
+        xaxis['tickformat'] = 'd'
     fig.update_layout(**_base_layout(
         height=height,
         margin=dict(l=10, r=20, t=10, b=30),
         yaxis=dict(automargin=True, ticksuffix="  "),
-        xaxis=dict(title=x_title) if x_title else {},
+        xaxis=xaxis,
     ))
     return fig
 
@@ -552,7 +580,7 @@ def _render_bottleneck_chart(data):
     ]
 
     fig = _hbar_chart(names, values, colors=colors, hover_texts=hover,
-                      x_title="Downstream nodes reached")
+                      x_title="Downstream nodes reached", integer_x=True)
     return dcc.Graph(figure=fig, config=_CHART_CFG)
 
 
@@ -806,7 +834,7 @@ def _render_dep_charts(dep_data, total_height=None):
             values = [d[key] for d in items]
             fig = _hbar_chart(names, values, colors=color,
                               x_title="Hard needs" if key == 'prereq_count' else "Connections",
-                              height=half_h)
+                              height=half_h, integer_x=True)
             sections.append(html.H6(label, className=f"text-muted mb-1 {mt}"))
             sections.append(dcc.Graph(figure=fig, config=_CHART_CFG))
         else:

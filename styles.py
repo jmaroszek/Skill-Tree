@@ -2,6 +2,10 @@
 Shared Cytoscape stylesheet definitions for Cytoscape graph components.
 """
 
+# Badge for nodes whose completion triggers an event: a gold lightning bolt in
+# a dark circle. Served from assets/ — Dash exposes this at /assets/ automatically.
+_TRIGGER_BADGE_SVG = "/assets/trigger_badge.svg"
+
 # --- Main Cytoscape Stylesheet ---
 stylesheet = [
     {
@@ -73,6 +77,18 @@ stylesheet = [
             'border-color': '#ffd000',
             'border-opacity': 1,
             'z-index': 9999,
+        }
+    },
+    {
+        'selector': '.trigger',
+        'style': {
+            'background-image': _TRIGGER_BADGE_SVG,
+            'background-fit': 'none',
+            'background-clip': 'none',
+            'background-width': '32%',
+            'background-height': '32%',
+            'background-position-x': '100%',
+            'background-position-y': '0%',
         }
     },
 ]

@@ -9,6 +9,7 @@ from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunc
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from graph_manager import GraphManager
+from event_manager import EventManager
 from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from details_layout import (build_details_subtasks_table, build_goal_card,
@@ -17,6 +18,7 @@ from simulation import simulate_task_chain
 from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_file_picker, build_filters
 
 graph_manager = GraphManager()
+event_manager = EventManager()
 
 
 def _apply_max_depth(subtree, selected_node, max_depth, edge_types):
@@ -1490,6 +1492,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
 
     colors = ConfigManager.get_node_colors()
     shapes = ConfigManager.get_node_shapes()
+    trigger_names = event_manager.get_trigger_node_names()
 
     # Apply global filters to subtree nodes (always include the selected node itself)
     all_subtree_nodes = [graph_manager.get_node(n) for n in node_names if n != selected_node]
@@ -1529,7 +1532,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         if name not in filtered_subtree:
             continue
         filtered_names.add(name)
-        elements.append({
+        element = {
             'data': {
                 'id': node.name,
                 'label': node.name,
@@ -1551,7 +1554,10 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 'time_m': node.time_m,
                 'time_p': node.time_p,
             },
-        })
+        }
+        if name in trigger_names:
+            element['classes'] = 'trigger'
+        elements.append(element)
 
     edges = graph_manager.get_edges()
     for e in edges:
