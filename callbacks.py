@@ -1213,26 +1213,41 @@ def register_callbacks(app):
                     'selector': 'edge',
                     'style': {'opacity': 0.08}
                 })
-                # Escape backslashes and double-quotes for use inside a
-                # double-quoted CSS attribute-selector value. Node names like
-                # Read "Meditations" previously broke the selector, which
-                # Cytoscape fell back on as plain `node`, wiping the dim rule.
-                def _css_attr_escape(s: str) -> str:
-                    return s.replace('\\', '\\\\').replace('"', '\\"')
+                # Build an attribute-selector with a delimiter that doesn't
+                # clash with quote characters in the id. Cytoscape's selector
+                # parser does NOT honor CSS backslash-escape inside string
+                # values, so a name like Read "Meditations" inside double-quote
+                # delimiters silently matches nothing and leaves the node
+                # dimmed. Swap to single-quote delimiters when the id has a
+                # double-quote (and vice versa). Names containing both kinds
+                # are rare; we skip the per-node highlight in that case rather
+                # than emit a broken selector.
+                def _attr_selector(prop, value):
+                    has_dq = '"' in value
+                    has_sq = "'" in value
+                    if has_dq and has_sq:
+                        return None
+                    quote = "'" if has_dq else '"'
+                    return f'[{prop} = {quote}{value}{quote}]'
 
                 for node_name in focus_subtree:
-                    safe_id = _css_attr_escape(node_name)
+                    sel_tail = _attr_selector('id', node_name)
+                    if sel_tail is None:
+                        continue
                     active_stylesheet.append({
-                        'selector': f'node[id = "{safe_id}"]',
+                        'selector': f'node{sel_tail}',
                         'style': {'opacity': 1}
                     })
                 # Highlight edges between focus subtree nodes
                 edges = manager.get_edges()
                 for e in edges:
                     if e['source'] in focus_subtree and e['target'] in focus_subtree:
-                        eid = _css_attr_escape(f"{e['source']}_{e['target']}_{e['type']}")
+                        eid = f"{e['source']}_{e['target']}_{e['type']}"
+                        sel_tail = _attr_selector('id', eid)
+                        if sel_tail is None:
+                            continue
                         active_stylesheet.append({
-                            'selector': f'edge[id = "{eid}"]',
+                            'selector': f'edge{sel_tail}',
                             'style': {'opacity': 1}
                         })
 
