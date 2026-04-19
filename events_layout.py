@@ -438,6 +438,10 @@ def build_events_tab_content():
     return html.Div([
         dcc.Store(id='selected-event-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
+        # UI-only refresh for the events sidebar list. Bumped by events_sidebar.js
+        # on open so render_events_list re-runs — but NOT an input to core_engine,
+        # so opening doesn't block the animation on a graph regen.
+        dcc.Store(id='events-ui-refresh-trigger', data=0),
         dcc.Store(id='event-order-store', data=[], storage_type='local'),
         dcc.Interval(id='event-clear-interval', interval=3000, n_intervals=0, disabled=True),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)

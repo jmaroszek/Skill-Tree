@@ -97,6 +97,7 @@ def register_event_callbacks(app):
     @app.callback(
         Output("events-list-container", "children"),
         Input("events-refresh-trigger", "data"),
+        Input("events-ui-refresh-trigger", "data"),
         Input("main-tabs", "active_tab"),
         Input("event-order-store", "data"),
         Input("events-search-input", "value"),
@@ -104,7 +105,7 @@ def register_event_callbacks(app):
         Input("events-sort-mode", "value"),
         State("selected-event-store", "data"),
     )
-    def render_events_list(refresh_trigger, active_tab, event_order, search_text, hide_triggered, sort_mode, selected_event):
+    def render_events_list(refresh_trigger, ui_refresh, active_tab, event_order, search_text, hide_triggered, sort_mode, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
@@ -1038,7 +1039,7 @@ def register_event_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='events', function_name='toggle_sidebar'),
         Output("events-sidebar-container", "style"),
-        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Output("events-ui-refresh-trigger", "data", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Output("details-goal-sidebar", "style", allow_duplicate=True),
         Input("btn-events-sidebar-toggle", "n_clicks"),
@@ -1047,7 +1048,7 @@ def register_event_callbacks(app):
         State("events-sidebar-container", "style"),
         State("sidebar-editor-container", "style"),
         State("details-goal-sidebar", "style"),
-        State("events-refresh-trigger", "data"),
+        State("events-ui-refresh-trigger", "data"),
         prevent_initial_call=True,
     )
 

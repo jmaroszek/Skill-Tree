@@ -7,7 +7,7 @@ import dash
 import os
 import subprocess
 import urllib.parse
-from dash import html, Input, Output, State, ALL, ctx, no_update
+from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 manager = GraphManager()
 
 
-# core_engine has 23 outputs; this constant + helper let the tab-gating guard
+# core_engine has 22 outputs; this constant + helper let the tab-gating guard
 # return a no_update tuple of the correct arity. test_core_engine_arity verifies
 # that it stays in sync with the actual callback registration.
-_CORE_ENGINE_NUM_OUTPUTS = 23
+_CORE_ENGINE_NUM_OUTPUTS = 22
 
 # Tabs whose own callbacks already refresh their content; switching to them
 # should NOT trigger a graph regen via core_engine.
@@ -793,7 +793,7 @@ def register_callbacks(app):
          Output('synergies-list', 'children'), Output('node-info-description', 'children'),
          Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
          Output('filter-community', 'options'), Output('search-node', 'options'),
-         Output('sidebar-editor-container', 'style'), Output('sidebar-filters-container', 'style'),
+         Output('sidebar-editor-container', 'style'),
          Output('filter-context', 'options'), Output('node-context', 'options'),
          Output('node-type', 'options'),
          Output('filter-node-type', 'options'),
@@ -815,7 +815,6 @@ def register_callbacks(app):
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'), Input('btn-new-node', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'), Input('btn-goals-toggle', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'), Input('btn-clear-yes', 'n_clicks'),
-         Input('btn-filters-toggle', 'n_clicks'), Input('btn-close-filters', 'n_clicks'),
          Input('btn-settings-save', 'n_clicks'),
          Input('modal-migration', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
@@ -847,7 +846,7 @@ def register_callbacks(app):
          State({'type': 'website-link', 'index': ALL}, 'value'),
          State('node-progress', 'value'),
          State('cytoscape-graph', 'elements'),
-         State('sidebar-editor-container', 'style'), State('sidebar-filters-container', 'style'),
+         State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
          State('node-time-mode', 'value'),
          State('node-priority-rank', 'value'),
@@ -861,7 +860,7 @@ def register_callbacks(app):
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, btn_clear_yes, btn_filters, btn_close_fil, settings_open, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, btn_clear_yes, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      f_goal, focus_goal,
@@ -872,7 +871,7 @@ def register_callbacks(app):
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                      obs_link_values, drive_link_values, website_link_values,
                      progress_val,
-                     current_elements, ed_style, fil_style, original_name,
+                     current_elements, ed_style, original_name,
                      time_mode_val, priority_rank_val, competence_val,
                      goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values):
         """Central state callback handling node CRUD, filtering, and UI updates.
@@ -963,13 +962,6 @@ def register_callbacks(app):
                 next_events_sidebar_style = dict(events_sidebar_style)
                 next_events_sidebar_style['left'] = '-380px'
 
-        # Filters Sidebar State (overlay, shared between Canvas + Suggestions tabs)
-        next_fil_style = fil_style or {"position": "absolute", "top": "0", "right": "-320px", "width": "320px", "height": "100%", "zIndex": 100, "overflowX": "hidden", "overflowY": "auto", "borderLeft": "1px solid #495057", "transition": "right 0.3s ease", "backgroundColor": "#212529"}
-        if trigger_id == 'btn-filters-toggle':
-            next_fil_style['right'] = "0px" if next_fil_style.get('right', '-320px') == "-320px" else "-320px"
-        elif trigger_id == 'btn-close-filters':
-            next_fil_style['right'] = "-320px"
-
         # Use whichever edit trigger fired (details tab or main)
         _edit_trigger = details_edit_trigger_data if trigger_id == 'details-edit-trigger-input' else edit_trigger_data
         active_node_id = resolve_active_node_id(
@@ -1007,13 +999,13 @@ def register_callbacks(app):
                 ])
                 if form_has_content:
                     msg = "Error: Node name is required."
-                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
                 else:
                     next_ed_style['transform'] = "translateX(-380px)"
-                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             if not n_type:
                 msg = "Error: Node type is required."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             try:
                 # Track if this save marks the node Done (for event completion check)
                 if status_done and "Done" in (status_done or []):
@@ -1061,7 +1053,7 @@ def register_callbacks(app):
                     ConfigManager.set_priority_goals(priority_goals)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, next_fil_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-node-delete-confirm' and name:
@@ -1100,7 +1092,7 @@ def register_callbacks(app):
             except Exception as e:
                 msg = f"Error: {e}"
         # --- Visual Generation ---
-        ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor')
+        ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
         if trigger_id in ui_only_triggers:
             # We bypass full graph recreation and list evaluation
             elements = dash.no_update
@@ -1238,7 +1230,37 @@ def register_callbacks(app):
                 node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
                 node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
 
-        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, next_fil_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_count_text, next_goal_style, next_events_sidebar_style
+        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_count_text, next_goal_style, next_events_sidebar_style
+
+    # --- Filters Sidebar Toggle (CLIENTSIDE) ---
+    # Handled entirely in the browser via assets/filters_sidebar.js. Previously
+    # this toggle went through core_engine, whose expensive graph-regen branch
+    # delayed the CSS transition by 500ms-2s on each click.
+    app.clientside_callback(
+        ClientsideFunction(namespace='filters', function_name='toggle_sidebar'),
+        Output('sidebar-filters-container', 'style'),
+        Input('btn-filters-toggle', 'n_clicks'),
+        Input('btn-close-filters', 'n_clicks'),
+        State('sidebar-filters-container', 'style'),
+        prevent_initial_call=True,
+    )
+
+    # --- Editor Sidebar Fast-Path (CLIENTSIDE) ---
+    # Starts the open-editor CSS transition immediately on btn-add, in parallel
+    # with core_engine's form-population work. core_engine still sets the same
+    # open-transform value server-side as a safety net. Close/save/new-node
+    # stay server-side because they depend on form state.
+    app.clientside_callback(
+        ClientsideFunction(namespace='editor', function_name='open_on_add'),
+        Output('sidebar-editor-container', 'style', allow_duplicate=True),
+        Output('details-goal-sidebar', 'style', allow_duplicate=True),
+        Output('events-sidebar-container', 'style', allow_duplicate=True),
+        Input('btn-add', 'n_clicks'),
+        State('sidebar-editor-container', 'style'),
+        State('details-goal-sidebar', 'style'),
+        State('events-sidebar-container', 'style'),
+        prevent_initial_call=True,
+    )
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),

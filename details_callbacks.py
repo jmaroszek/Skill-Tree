@@ -5,7 +5,7 @@ Callback definitions for the Details tab.
 import os
 import json as _json
 import dash
-from dash import html, Input, Output, State, ALL, ctx, no_update
+from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from graph_manager import GraphManager
@@ -538,42 +538,25 @@ def register_details_callbacks(app):
             return no_update
         return tap_data.get("id", no_update)
 
-    # --- Goal Sidebar Toggle ---
-    @app.callback(
+    # --- Goal Sidebar Toggle (CLIENTSIDE) ---
+    # Handled in the browser via assets/goals_sidebar.js to eliminate the
+    # server round-trip on open/close. On open it bumps goals-ui-refresh-trigger
+    # (NOT details-refresh-trigger) so only render_goal_list re-runs — core_engine
+    # stays idle, keeping the animation smooth.
+    app.clientside_callback(
+        ClientsideFunction(namespace='goals', function_name='toggle_sidebar'),
         Output("details-goal-sidebar", "style"),
-        Output("details-refresh-trigger", "data", allow_duplicate=True),
+        Output("goals-ui-refresh-trigger", "data", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Output("events-sidebar-container", "style", allow_duplicate=True),
         Input("btn-goals-toggle", "n_clicks"),
         Input("btn-details-goals-close", "n_clicks"),
-        Input("btn-add", "n_clicks"),
         State("details-goal-sidebar", "style"),
-        State("details-refresh-trigger", "data"),
         State("sidebar-editor-container", "style"),
         State("events-sidebar-container", "style"),
+        State("goals-ui-refresh-trigger", "data"),
         prevent_initial_call=True,
     )
-    def toggle_goal_sidebar(open_clicks, close_clicks, add_clicks, current_style, refresh_data, editor_style, events_style):
-        trigger = ctx.triggered_id
-        style = dict(current_style) if current_style else {}
-        refresh = no_update
-        next_editor_style = no_update
-        next_events_style = no_update
-        if trigger == "btn-goals-toggle":
-            opening = style.get("left", "-380px") == "-380px"
-            style["left"] = "0px" if opening else "-380px"
-            if opening:
-                refresh = (refresh_data or 0) + 1
-                # Sidebar mutex: close editor + events sidebar when opening goal sidebar
-                if editor_style and editor_style.get("transform", "") == "translateX(0px)":
-                    next_editor_style = dict(editor_style)
-                    next_editor_style["transform"] = "translateX(-380px)"
-                if events_style and events_style.get("left", "-380px") == "0px":
-                    next_events_style = dict(events_style)
-                    next_events_style["left"] = "-380px"
-        elif trigger in ("btn-details-goals-close", "btn-add"):
-            style["left"] = "-380px"
-        return style, refresh, next_editor_style, next_events_style
 
 # --- New Goal from Sidebar "+" Button ---
     @app.callback(
@@ -599,13 +582,14 @@ def register_details_callbacks(app):
         Output("details-goal-list-container", "children"),
         Input("main-tabs", "active_tab"),
         Input("details-refresh-trigger", "data"),
+        Input("goals-ui-refresh-trigger", "data"),
         Input("cytoscape-graph", "elements"),
         Input("details-goal-search", "value"),
         Input("details-goal-sort", "value"),
         Input("details-goal-order-store", "data"),
         State("details-selected-node-store", "data"),
     )
-    def render_goal_list(active_tab, _refresh, _elements, search_val, sort_mode, manual_order, selected_node):
+    def render_goal_list(active_tab, _refresh, _ui_refresh, _elements, search_val, sort_mode, manual_order, selected_node):
 
         all_nodes = graph_manager.get_all_nodes()
         goals = [n for n in all_nodes if n.type == "Goal"]
