@@ -523,6 +523,17 @@ class ConfigManager:
     def clear_event_override_nodes(cls):
         cls.set_event_override_nodes([])
 
+    @classmethod
+    def has_any_override_active(cls) -> bool:
+        """True if System A parent is set OR System B list is non-empty.
+
+        Used to gate conflict prompts: only ONE override set may be active globally,
+        so any code path that would introduce a new set must check this first.
+        """
+        if cls.get_override().get("parent"):
+            return True
+        return bool(cls.get_event_override_nodes())
+
     # --- Pending Event Notifications (shown on next app load) ---
 
     @classmethod
@@ -539,6 +550,28 @@ class ConfigManager:
     @classmethod
     def clear_pending_event_notifications(cls):
         cls._set_db_value("PENDING_EVENT_NOTIFICATIONS", json.dumps([]))
+
+    @classmethod
+    def set_pending_event_notifications(cls, entries: list):
+        cls._set_db_value("PENDING_EVENT_NOTIFICATIONS", json.dumps(entries))
+
+    @classmethod
+    def pop_next_override_conflict(cls) -> Optional[dict]:
+        """Remove and return the first override_conflict entry, if any."""
+        entries = cls.get_pending_event_notifications()
+        for i, e in enumerate(entries):
+            if e.get("kind") == "override_conflict":
+                remaining = entries[:i] + entries[i+1:]
+                cls.set_pending_event_notifications(remaining)
+                return e
+        return None
+
+    @classmethod
+    def clear_pending_announcements_only(cls):
+        """Remove every informational pending notification, keeping override_conflict entries."""
+        entries = cls.get_pending_event_notifications()
+        kept = [e for e in entries if e.get("kind") == "override_conflict"]
+        cls.set_pending_event_notifications(kept)
 
     @classmethod
     def ensure_action_type(cls):

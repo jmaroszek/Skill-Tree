@@ -1755,34 +1755,40 @@ def register_callbacks(app):
         Output('override-untoggle-body', 'children'),
         Output('override-store', 'data', allow_duplicate=True),
         Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Output('override-conflict-mode-wrapper', 'style', allow_duplicate=True),
         Input('override-toggle', 'value'),
         State('node-original-name', 'data'),
         prevent_initial_call=True,
     )
     def handle_override_toggle(toggle_val, node_name):
         """Handle override toggle interaction: open popover, show conflicts, or clear."""
-        no_change = (False, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update)
+        no_change = (False, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update, dash.no_update)
         if not node_name:
             return no_change
 
         toggle_on = bool(toggle_val and "on" in toggle_val)
         override = ConfigManager.get_override()
         current_parent = override.get("parent")
+        event_pinned = ConfigManager.get_event_override_nodes()
 
         if toggle_on:
             # Turning ON
+            override_set = ConfigManager.get_override_node_set(manager)
+            if node_name in override_set:
+                # Node is already in the override set (parent or dep) — sync triggered this
+                return no_change
             if current_parent:
-                override_set = ConfigManager.get_override_node_set(manager)
-                if node_name in override_set:
-                    # Node is already in the override set (parent or dep) — sync triggered this
-                    return no_change
-            if current_parent:
-                # Conflict: different override already active
+                # Conflict: different main override already active. Radio is meaningful here.
                 body = f'An override is already active for "{current_parent}". Do you want to keep the current override, or apply it to this new set?'
-                return False, True, body, False, dash.no_update, dash.no_update, dash.no_update
-            else:
-                # No existing override: open popover for mode selection
-                return True, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update
+                return False, True, body, False, dash.no_update, dash.no_update, dash.no_update, {}
+            if event_pinned:
+                # Conflict: System B is populated from a prior event trigger. Radio is meaningful.
+                body = (f'An override is currently active on {len(event_pinned)} event-pinned '
+                        f'node(s): {", ".join(event_pinned)}. Do you want to keep the current '
+                        f'override, or apply it to this new set?')
+                return False, True, body, False, dash.no_update, dash.no_update, dash.no_update, {}
+            # No existing override: open popover for mode selection
+            return True, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update, dash.no_update
         else:
             # Turning OFF
             if not current_parent:
@@ -1791,13 +1797,13 @@ def register_callbacks(app):
                 # Direct parent: clear override
                 import time as _time
                 ConfigManager.clear_override()
-                return False, False, dash.no_update, False, dash.no_update, ConfigManager.get_override(), f"override-{_time.time()}"
+                return False, False, dash.no_update, False, dash.no_update, ConfigManager.get_override(), f"override-{_time.time()}", dash.no_update
             else:
                 # Inherited dep: show untoggle modal
                 override_set = ConfigManager.get_override_node_set(manager)
                 if node_name in override_set:
                     body = f'This override was inherited from "{current_parent}".'
-                    return False, False, dash.no_update, True, body, dash.no_update, dash.no_update
+                    return False, False, dash.no_update, True, body, dash.no_update, dash.no_update, dash.no_update
                 else:
                     return no_change
 
@@ -1822,22 +1828,57 @@ def register_callbacks(app):
         Output('modal-override-conflict', 'is_open', allow_duplicate=True),
         Output('override-store', 'data', allow_duplicate=True),
         Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Output('pending-event-override-store', 'data', allow_duplicate=True),
+        Output('override-conflict-body', 'children', allow_duplicate=True),
+        Output('override-conflict-mode-wrapper', 'style', allow_duplicate=True),
         Input('btn-override-keep', 'n_clicks'),
         Input('btn-override-replace', 'n_clicks'),
         State('override-conflict-mode-radio', 'value'),
         State('node-original-name', 'data'),
+        State('pending-event-override-store', 'data'),
         prevent_initial_call=True,
     )
-    def resolve_override_conflict(keep_clicks, replace_clicks, mode, node_name):
-        """Resolve conflict when a new override is attempted while one is active."""
+    def resolve_override_conflict(keep_clicks, replace_clicks, mode, node_name, pending_event):
+        """Resolve conflict when a new override is attempted while one is active.
+
+        Two modes:
+        - Event-batch: pending_event = {"event": ..., "candidates": [...]}. Buttons pin
+          candidates to System B (replace) or leave everything untouched (keep). After
+          resolution, if another override_conflict entry is queued in pending
+          notifications, reopen the modal with its data.
+        - Details-tab (legacy): pending_event is None. Buttons set main override to
+          node_name with chosen mode (replace) or leave untouched (keep).
+        """
         import time
+        from event_callbacks import _format_override_conflict_body
         trigger = get_trigger_id()
+        if pending_event:
+            if trigger == 'btn-override-replace':
+                ConfigManager.clear_override()
+                ConfigManager.clear_event_override_nodes()
+                ConfigManager.add_event_override_nodes(pending_event.get("candidates", []))
+            elif trigger != 'btn-override-keep':
+                return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            # Advance to next queued conflict, if any (also an event-batch entry — keep radio hidden)
+            nxt = ConfigManager.pop_next_override_conflict()
+            if nxt:
+                return (
+                    True,
+                    ConfigManager.get_override(),
+                    f"override-{time.time()}",
+                    {"event": nxt.get("event"), "candidates": nxt.get("candidate_nodes", [])},
+                    _format_override_conflict_body(nxt),
+                    {"display": "none"},
+                )
+            return False, ConfigManager.get_override(), f"override-{time.time()}", None, dash.no_update, dash.no_update
+
         if trigger == 'btn-override-keep':
-            return False, dash.no_update, dash.no_update
+            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
         elif trigger == 'btn-override-replace' and node_name:
+            ConfigManager.clear_event_override_nodes()
             ConfigManager.set_override({"parent": node_name, "mode": mode or "hard"})
-            return False, ConfigManager.get_override(), f"override-{time.time()}"
-        return dash.no_update, dash.no_update, dash.no_update
+            return False, ConfigManager.get_override(), f"override-{time.time()}", dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     @app.callback(
         Output('modal-override-untoggle', 'is_open', allow_duplicate=True),

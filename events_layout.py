@@ -148,6 +148,11 @@ def build_events_tab_content():
                     value="hard",
                     style={"fontSize": "0.85rem"},
                 ),
+                html.Small(
+                    "Applied when this event triggers; you'll be prompted if an override is already active.",
+                    className="text-muted d-block mt-1",
+                    style={"fontSize": "0.75rem"},
+                ),
             ]),
 
             html.Hr(className="my-2"),

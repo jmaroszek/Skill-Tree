@@ -92,16 +92,25 @@ class EventManager:
 
     # --- Event-Node Association ---
 
-    def add_node_to_event(self, event_name: str, node_name: str, delay_days: int = 0):
-        """Associates a node with an event and marks it dormant."""
+    def add_node_to_event(self, event_name: str, node_name: str, delay_days: int = 0,
+                          override_on_trigger: bool = False,
+                          override_mode: Optional[str] = None):
+        """Associates a node with an event and marks it dormant.
+
+        override_on_trigger/override_mode persist the user's intent to apply a
+        priority override when the event later triggers this node.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "UPDATE Nodes SET dormant=1 WHERE name=?", (node_name,)
             )
             cursor.execute(
-                "INSERT INTO EventNodes (event_name, node_name, delay_days) VALUES (?, ?, ?)",
-                (event_name, node_name, delay_days)
+                "INSERT INTO EventNodes (event_name, node_name, delay_days, "
+                "override_on_trigger, override_mode) VALUES (?, ?, ?, ?, ?)",
+                (event_name, node_name, delay_days,
+                 1 if override_on_trigger else 0,
+                 override_mode if override_on_trigger else None)
             )
             conn.commit()
 
@@ -118,12 +127,14 @@ class EventManager:
             conn.commit()
 
     def get_event_nodes(self, event_name: str) -> List[Dict]:
-        """Returns list of {node, delay_days, activation_date, activated} for an event."""
+        """Returns list of {node, delay_days, activation_date, activated,
+        override_on_trigger, override_mode} for an event."""
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT n.*, en.delay_days, en.activation_date, en.activated
+                SELECT n.*, en.delay_days, en.activation_date, en.activated,
+                       en.override_on_trigger, en.override_mode
                 FROM EventNodes en
                 JOIN Nodes n ON en.node_name = n.name
                 WHERE en.event_name=?
@@ -135,12 +146,16 @@ class EventManager:
                 delay_days = row_dict.pop('delay_days')
                 activation_date = row_dict.pop('activation_date')
                 activated = row_dict.pop('activated')
+                override_on_trigger = row_dict.pop('override_on_trigger', 0)
+                override_mode = row_dict.pop('override_mode', None)
                 node = Node(**row_dict)
                 results.append({
                     'node': node,
                     'delay_days': delay_days,
                     'activation_date': activation_date,
                     'activated': activated,
+                    'override_on_trigger': bool(override_on_trigger),
+                    'override_mode': override_mode,
                 })
             return results
 
@@ -197,12 +212,15 @@ class EventManager:
             event_name: The event to trigger.
             selected_nodes: Optional list of node names to activate. If None, activates all.
 
-        Returns dict with 'activated' (immediate) and 'scheduled' (delayed) node names.
+        Returns dict with:
+          'activated'      — immediate node names
+          'scheduled'      — delayed node names
+          'override_intent' — subset of activated+scheduled whose override_on_trigger=1
         """
         from graph_manager import GraphManager
         gm = GraphManager()
 
-        result = {'activated': [], 'scheduled': []}
+        result: Dict[str, list] = {'activated': [], 'scheduled': [], 'override_intent': []}
         today = date.today()
 
         with self.get_connection() as conn:
@@ -215,12 +233,13 @@ class EventManager:
 
             # Get all event nodes
             cursor.execute(
-                "SELECT node_name, delay_days FROM EventNodes WHERE event_name=? AND activated=0",
+                "SELECT node_name, delay_days, override_on_trigger "
+                "FROM EventNodes WHERE event_name=? AND activated=0",
                 (event_name,)
             )
             rows = cursor.fetchall()
 
-            for node_name, delay_days in rows:
+            for node_name, delay_days, override_on_trigger in rows:
                 # Skip if node is not in the selected set
                 if selected_nodes is not None and node_name not in selected_nodes:
                     continue
@@ -241,6 +260,9 @@ class EventManager:
                         (activation_date.isoformat(), event_name, node_name)
                     )
                     result['scheduled'].append(node_name)
+
+                if override_on_trigger:
+                    result['override_intent'].append(node_name)
 
             conn.commit()
 
@@ -321,6 +343,7 @@ class EventManager:
                 "scheduled": result.get('scheduled', []),
                 "when": today,
             })
+            self._apply_or_defer_override_intent(name, result.get('override_intent', []), today)
         return triggered
 
     def auto_trigger_by_node_completion(self, node_name: str) -> List[str]:
@@ -350,15 +373,45 @@ class EventManager:
                 "scheduled": result.get('scheduled', []),
                 "when": today,
             })
+            self._apply_or_defer_override_intent(event.name, result.get('override_intent', []), today)
         return triggered
+
+    def _apply_or_defer_override_intent(self, event_name: str, intent_nodes: List[str], when: str):
+        """On auto-trigger paths (date / node-completion), silently pin the nodes if no
+        override is currently active; otherwise queue a conflict-resolution notification
+        for the user to resolve on next app load.
+        """
+        from config import ConfigManager
+        if not intent_nodes:
+            return
+        if not ConfigManager.has_any_override_active():
+            ConfigManager.add_event_override_nodes(intent_nodes)
+            return
+        # Conflict: describe what's already active so the modal can show it to the user.
+        existing = ConfigManager.get_override()
+        if existing.get("parent"):
+            descriptor = {"kind": "parent", "parent": existing.get("parent"), "mode": existing.get("mode", "hard")}
+        else:
+            descriptor = {"kind": "event_nodes", "nodes": list(ConfigManager.get_event_override_nodes())}
+        ConfigManager.add_pending_event_notification({
+            "kind": "override_conflict",
+            "event": event_name,
+            "current_override_descriptor": descriptor,
+            "candidate_nodes": list(intent_nodes),
+            "when": when,
+        })
 
     # --- Convenience ---
 
-    def create_dormant_node(self, node: Node, event_name: str, delay_days: int = 0):
+    def create_dormant_node(self, node: Node, event_name: str, delay_days: int = 0,
+                            override_on_trigger: bool = False,
+                            override_mode: Optional[str] = None):
         """Creates a node as dormant and associates it with an event."""
         from graph_manager import GraphManager
         gm = GraphManager()
 
         node.dormant = 1
         gm.add_node(node)
-        self.add_node_to_event(event_name, node.name, delay_days)
+        self.add_node_to_event(event_name, node.name, delay_days,
+                               override_on_trigger=override_on_trigger,
+                               override_mode=override_mode)

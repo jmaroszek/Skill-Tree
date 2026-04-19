@@ -194,3 +194,217 @@ class TestNodeCompletionAutoTrigger:
         triggered = em.auto_trigger_by_node_completion("Lonely")
         assert triggered == []
         assert ConfigManager.get_pending_event_notifications() == []
+
+
+# ---------------------------------------------------------------------------
+# Override intent stored on EventNodes
+# ---------------------------------------------------------------------------
+
+class TestOverrideIntentPersistence:
+    def test_add_node_to_event_persists_override_intent(self, em, mgr):
+        mgr.add_node(_node("N"))
+        em.add_event(Event(name="E", description=""))
+        em.add_node_to_event("E", "N", delay_days=0,
+                             override_on_trigger=True, override_mode="soft")
+        rows = em.get_event_nodes("E")
+        assert len(rows) == 1
+        assert rows[0]["override_on_trigger"] is True
+        assert rows[0]["override_mode"] == "soft"
+
+    def test_add_node_to_event_defaults_to_no_override(self, em, mgr):
+        mgr.add_node(_node("N"))
+        em.add_event(Event(name="E", description=""))
+        em.add_node_to_event("E", "N", delay_days=0)
+        rows = em.get_event_nodes("E")
+        assert rows[0]["override_on_trigger"] is False
+        assert rows[0]["override_mode"] is None
+
+    def test_create_dormant_node_persists_override_intent(self, em):
+        em.add_event(Event(name="E", description=""))
+        em.create_dormant_node(_node("Dorm"), "E", delay_days=0,
+                               override_on_trigger=True, override_mode="all")
+        rows = em.get_event_nodes("E")
+        assert rows[0]["node"].name == "Dorm"
+        assert rows[0]["override_on_trigger"] is True
+        assert rows[0]["override_mode"] == "all"
+
+    def test_create_dormant_node_does_not_touch_active_override(self, em, mgr):
+        mgr.add_node(_node("ActiveParent", type="Goal"))
+        ConfigManager.set_override({"parent": "ActiveParent", "mode": "hard"})
+        em.add_event(Event(name="E", description=""))
+        em.create_dormant_node(_node("Dorm"), "E", delay_days=0,
+                               override_on_trigger=True, override_mode="hard")
+        # Active main override must survive creation of a dormant-intent node.
+        assert ConfigManager.get_override().get("parent") == "ActiveParent"
+        assert ConfigManager.get_event_override_nodes() == []
+
+
+# ---------------------------------------------------------------------------
+# has_any_override_active helper
+# ---------------------------------------------------------------------------
+
+class TestHasAnyOverrideActive:
+    def test_false_when_both_empty(self):
+        ConfigManager.clear_override()
+        ConfigManager.clear_event_override_nodes()
+        assert ConfigManager.has_any_override_active() is False
+
+    def test_true_when_system_a_set(self):
+        ConfigManager.clear_event_override_nodes()
+        ConfigManager.set_override({"parent": "X", "mode": "hard"})
+        assert ConfigManager.has_any_override_active() is True
+
+    def test_true_when_system_b_populated(self):
+        ConfigManager.clear_override()
+        ConfigManager.set_event_override_nodes(["A"])
+        assert ConfigManager.has_any_override_active() is True
+
+
+# ---------------------------------------------------------------------------
+# Auto-trigger override intent: apply silently vs defer via notification
+# ---------------------------------------------------------------------------
+
+class TestAutoTriggerOverrideIntent:
+    def test_date_trigger_silently_pins_when_no_override_active(self, em, mgr):
+        mgr.add_node(_node("R"))
+        em.add_event(Event(
+            name="DE", description="",
+            trigger_date=(date.today() - timedelta(days=1)).isoformat(),
+        ))
+        em.add_node_to_event("DE", "R", delay_days=0,
+                             override_on_trigger=True, override_mode="hard")
+
+        ConfigManager.clear_override()
+        ConfigManager.clear_event_override_nodes()
+        ConfigManager.clear_pending_event_notifications()
+
+        em.check_scheduled_triggers()
+        assert "R" in ConfigManager.get_event_override_nodes()
+        conflicts = [e for e in ConfigManager.get_pending_event_notifications()
+                     if e["kind"] == "override_conflict"]
+        assert conflicts == []
+
+    def test_date_trigger_defers_conflict_when_system_a_active(self, em, mgr):
+        mgr.add_node(_node("Existing", type="Goal"))
+        mgr.add_node(_node("R"))
+        em.add_event(Event(
+            name="DE", description="",
+            trigger_date=(date.today() - timedelta(days=1)).isoformat(),
+        ))
+        em.add_node_to_event("DE", "R", delay_days=0,
+                             override_on_trigger=True, override_mode="hard")
+
+        ConfigManager.set_override({"parent": "Existing", "mode": "hard"})
+        ConfigManager.clear_event_override_nodes()
+        ConfigManager.clear_pending_event_notifications()
+
+        em.check_scheduled_triggers()
+        # Override untouched on auto-trigger conflict.
+        assert ConfigManager.get_override().get("parent") == "Existing"
+        assert ConfigManager.get_event_override_nodes() == []
+        # Conflict queued.
+        conflicts = [e for e in ConfigManager.get_pending_event_notifications()
+                     if e["kind"] == "override_conflict"]
+        assert len(conflicts) == 1
+        entry = conflicts[0]
+        assert entry["event"] == "DE"
+        assert entry["candidate_nodes"] == ["R"]
+        assert entry["current_override_descriptor"]["kind"] == "parent"
+        assert entry["current_override_descriptor"]["parent"] == "Existing"
+
+    def test_node_completion_trigger_defers_conflict(self, em, mgr):
+        mgr.add_node(_node("Key"))
+        mgr.add_node(_node("Reward"))
+        em.add_event(Event(name="OnKey", description="", trigger_node="Key"))
+        em.add_node_to_event("OnKey", "Reward", delay_days=0,
+                             override_on_trigger=True, override_mode="hard")
+
+        ConfigManager.clear_override()
+        ConfigManager.set_event_override_nodes(["Something"])
+        ConfigManager.clear_pending_announcements_only()
+
+        em.auto_trigger_by_node_completion("Key")
+        # System B stays as-is — not appended to — since a conflict existed.
+        assert set(ConfigManager.get_event_override_nodes()) == {"Something"}
+        conflicts = [e for e in ConfigManager.get_pending_event_notifications()
+                     if e["kind"] == "override_conflict"]
+        assert len(conflicts) == 1
+        entry = conflicts[0]
+        assert entry["event"] == "OnKey"
+        assert entry["candidate_nodes"] == ["Reward"]
+        assert entry["current_override_descriptor"]["kind"] == "event_nodes"
+        assert entry["current_override_descriptor"]["nodes"] == ["Something"]
+
+    def test_node_completion_trigger_silently_applies_when_no_conflict(self, em, mgr):
+        mgr.add_node(_node("Key"))
+        mgr.add_node(_node("Reward"))
+        em.add_event(Event(name="OnKey", description="", trigger_node="Key"))
+        em.add_node_to_event("OnKey", "Reward", delay_days=0,
+                             override_on_trigger=True, override_mode="hard")
+
+        ConfigManager.clear_override()
+        ConfigManager.clear_event_override_nodes()
+        ConfigManager.clear_pending_event_notifications()
+
+        em.auto_trigger_by_node_completion("Key")
+        assert "Reward" in ConfigManager.get_event_override_nodes()
+        conflicts = [e for e in ConfigManager.get_pending_event_notifications()
+                     if e["kind"] == "override_conflict"]
+        assert conflicts == []
+
+    def test_event_with_no_intent_nodes_never_queues_conflict(self, em, mgr):
+        mgr.add_node(_node("Plain"))
+        em.add_event(Event(
+            name="DE", description="",
+            trigger_date=(date.today() - timedelta(days=1)).isoformat(),
+        ))
+        em.add_node_to_event("DE", "Plain", delay_days=0)  # no override intent
+
+        ConfigManager.set_override({"parent": "X", "mode": "hard"})
+        ConfigManager.clear_pending_event_notifications()
+
+        em.check_scheduled_triggers()
+        conflicts = [e for e in ConfigManager.get_pending_event_notifications()
+                     if e["kind"] == "override_conflict"]
+        assert conflicts == []
+
+
+# ---------------------------------------------------------------------------
+# pop_next_override_conflict / clear_pending_announcements_only helpers
+# ---------------------------------------------------------------------------
+
+class TestConflictQueueHelpers:
+    def test_pop_next_override_conflict_returns_none_when_empty(self):
+        ConfigManager.clear_pending_event_notifications()
+        assert ConfigManager.pop_next_override_conflict() is None
+
+    def test_pop_next_override_conflict_removes_first_match(self):
+        ConfigManager.clear_pending_event_notifications()
+        ConfigManager.add_pending_event_notification({"kind": "date_triggered", "event": "A"})
+        ConfigManager.add_pending_event_notification({
+            "kind": "override_conflict", "event": "B", "candidate_nodes": ["N1"],
+        })
+        ConfigManager.add_pending_event_notification({
+            "kind": "override_conflict", "event": "C", "candidate_nodes": ["N2"],
+        })
+        popped = ConfigManager.pop_next_override_conflict()
+        assert popped["event"] == "B"
+        remaining = ConfigManager.get_pending_event_notifications()
+        assert [e["event"] for e in remaining] == ["A", "C"]
+
+        popped2 = ConfigManager.pop_next_override_conflict()
+        assert popped2["event"] == "C"
+        assert ConfigManager.pop_next_override_conflict() is None
+
+    def test_clear_pending_announcements_only_preserves_conflicts(self):
+        ConfigManager.clear_pending_event_notifications()
+        ConfigManager.add_pending_event_notification({"kind": "date_triggered", "event": "A"})
+        ConfigManager.add_pending_event_notification({
+            "kind": "override_conflict", "event": "B", "candidate_nodes": ["N"],
+        })
+        ConfigManager.add_pending_event_notification({"kind": "node_triggered", "event": "C"})
+        ConfigManager.clear_pending_announcements_only()
+        remaining = ConfigManager.get_pending_event_notifications()
+        assert len(remaining) == 1
+        assert remaining[0]["kind"] == "override_conflict"
+        assert remaining[0]["event"] == "B"

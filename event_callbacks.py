@@ -21,7 +21,11 @@ _badge_hidden = {"fontSize": "0.85rem", "display": "none"}
 
 
 def _render_announcements(entries):
-    """Formats pending event notification entries into a readable list for the modal body."""
+    """Formats pending event notification entries into a readable list for the modal body.
+
+    Only renders informational kinds — override_conflict entries are handled separately
+    via a choice modal, not shown here.
+    """
     items = []
     for entry in entries:
         kind = entry.get("kind")
@@ -42,11 +46,26 @@ def _render_announcements(entries):
             summary = html.Strong(f"{event_name} — delayed nodes activated ({when})")
             detail = f"Nodes: {', '.join(nodes)}" if nodes else ""
         else:
-            summary = html.Strong(str(entry))
-            detail = ""
+            continue  # override_conflict and unknowns are not shown here
 
         items.append(html.Li([summary, html.Br(), html.Span(detail, className="text-muted small")] if detail else [summary]))
     return html.Ul(items, style={"marginBottom": 0})
+
+
+def _format_override_conflict_body(entry):
+    """Builds the conflict-modal body text for a deferred override_conflict entry."""
+    ev = entry.get("event", "?")
+    candidates = entry.get("candidate_nodes") or []
+    desc = entry.get("current_override_descriptor") or {}
+    if desc.get("kind") == "parent":
+        current_desc = f'the node "{desc.get("parent")}"'
+    else:
+        nodes = desc.get("nodes") or []
+        current_desc = f"{len(nodes)} event-pinned node(s): {', '.join(nodes)}"
+    cand_desc = ", ".join(candidates)
+    return (f'Event "{ev}" activated {len(candidates)} node(s) configured for priority '
+            f'override: {cand_desc}. An override is already active for {current_desc}. '
+            f'Only one override can be active at a time — which do you want to keep?')
 
 
 def _format_node_counts(activated, scheduled):
@@ -425,6 +444,11 @@ def register_event_callbacks(app):
         Output("event-save-status", "children", allow_duplicate=True),
         Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
         Output("event-trigger-date", "value", allow_duplicate=True),
+        Output("pending-event-override-store", "data", allow_duplicate=True),
+        Output("modal-override-conflict", "is_open", allow_duplicate=True),
+        Output("override-conflict-body", "children", allow_duplicate=True),
+        Output("override-store", "data", allow_duplicate=True),
+        Output("override-conflict-mode-wrapper", "style", allow_duplicate=True),
         Input("btn-trigger-confirm", "n_clicks"),
         Input("btn-trigger-all-confirm", "n_clicks"),
         State("selected-event-store", "data"),
@@ -436,7 +460,7 @@ def register_event_callbacks(app):
     def trigger_event(checked_clicks, all_clicks, selected_event, checkbox_values, checkbox_ids, override_toggle):
         triggered = ctx.triggered_id
         if not triggered or not selected_event:
-            return (no_update,) * 9
+            return (no_update,) * 14
 
         if triggered == "btn-trigger-all-confirm":
             selected_nodes = None
@@ -449,19 +473,60 @@ def register_event_callbacks(app):
 
         result = event_manager.trigger_event(selected_event, selected_nodes=selected_nodes)
 
-        if override_toggle:
-            pinned = list(result.get('activated', [])) + list(result.get('scheduled', []))
-            if pinned:
-                ConfigManager.add_event_override_nodes(pinned)
+        activated = list(result.get('activated', []))
+        scheduled = list(result.get('scheduled', []))
+        stored_intent = set(result.get('override_intent', []))
+        pin_toggle_on = bool(override_toggle)
+
+        # Candidates = stored intent ∪ (all triggered nodes if user ticked "Pin activated nodes")
+        triggered_set = set(activated) | set(scheduled)
+        if pin_toggle_on:
+            candidates = sorted(triggered_set)
+        else:
+            candidates = sorted(triggered_set & stored_intent)
+
+        override_store_update = no_update
+        pending_store = no_update
+        conflict_open = no_update
+        conflict_body = no_update
+        mode_wrapper_style = no_update
+
+        if candidates:
+            if ConfigManager.has_any_override_active():
+                # Conflict — stash candidates, open modal. No override change yet.
+                existing = ConfigManager.get_override()
+                if existing.get("parent"):
+                    current_desc = f'the node "{existing.get("parent")}"'
+                else:
+                    ev_nodes = ConfigManager.get_event_override_nodes()
+                    current_desc = f"{len(ev_nodes)} event-pinned node(s): {', '.join(ev_nodes)}"
+                cand_desc = ", ".join(candidates)
+                conflict_body = (
+                    f'Event "{selected_event}" activated {len(candidates)} node(s) configured '
+                    f'for priority override: {cand_desc}. An override is already active for '
+                    f'{current_desc}. Only one override can be active at a time — which do '
+                    f'you want to keep?'
+                )
+                pending_store = {"event": selected_event, "candidates": candidates}
+                conflict_open = True
+                # Event-batch resolution ignores mode — hide the radio.
+                mode_wrapper_style = {"display": "none"}
+            else:
+                ConfigManager.clear_override()
+                ConfigManager.add_event_override_nodes(candidates)
+                import time as _t
+                override_store_update = {"parent": None, "mode": "hard", "_t": _t.time()}
 
         event_nodes = event_manager.get_event_nodes(selected_event)
         msg_parts = []
-        if result['activated']:
-            msg_parts.append(f"{len(result['activated'])} node(s) activated")
-        if result['scheduled']:
-            msg_parts.append(f"{len(result['scheduled'])} node(s) scheduled")
-        if override_toggle and (result['activated'] or result['scheduled']):
-            msg_parts.append("pinned to top of Next")
+        if activated:
+            msg_parts.append(f"{len(activated)} node(s) activated")
+        if scheduled:
+            msg_parts.append(f"{len(scheduled)} node(s) scheduled")
+        if candidates and conflict_open is not True:
+            msg_parts.append(f"{len(candidates)} pinned to top of Next")
+        elif candidates and conflict_open is True:
+            msg_parts.append(f"{len(candidates)} override candidate(s) awaiting your choice")
 
         return (
             selected_event,
@@ -472,6 +537,11 @@ def register_event_callbacks(app):
             "Event triggered. " + (", ".join(msg_parts) if msg_parts else "No nodes selected."),
             False,
             "",
+            pending_store,
+            conflict_open,
+            conflict_body,
+            override_store_update,
+            mode_wrapper_style,
         )
 
     # --- Open Dormant Node Modal ---
@@ -677,19 +747,16 @@ def register_event_callbacks(app):
         )
 
         try:
-            event_manager.create_dormant_node(node, selected_event, delay_days=delay_days)
+            event_manager.create_dormant_node(
+                node, selected_event, delay_days=delay_days,
+                override_on_trigger=bool(override_toggle),
+                override_mode=(override_mode or "hard") if override_toggle else None,
+            )
         except ValueError as e:
             return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg
 
         graph_manager.sync_edges(name, needs_hard or [], needs_soft or [],
                                  supports_hard or [], supports_soft or [], helps or [])
-
-        # Apply override if requested
-        if override_toggle:
-            ConfigManager.set_override({
-                "parent": name.strip(),
-                "mode": override_mode or "hard"
-            })
 
         event = event_manager.get_event(selected_event)
         event_nodes = event_manager.get_event_nodes(selected_event)
@@ -878,27 +945,56 @@ def register_event_callbacks(app):
     @app.callback(
         Output("modal-event-announcements", "is_open", allow_duplicate=True),
         Output("event-announcements-body", "children"),
+        Output("modal-override-conflict", "is_open", allow_duplicate=True),
+        Output("override-conflict-body", "children", allow_duplicate=True),
+        Output("pending-event-override-store", "data", allow_duplicate=True),
+        Output("override-conflict-mode-wrapper", "style", allow_duplicate=True),
         Input("app-load-interval", "n_intervals"),
         prevent_initial_call=True,
     )
     def show_event_announcements_on_load(n_intervals):
         if not n_intervals:
-            return no_update, no_update
+            return no_update, no_update, no_update, no_update, no_update, no_update
         entries = ConfigManager.get_pending_event_notifications()
-        if not entries:
-            return False, no_update
-        return True, _render_announcements(entries)
+        info_entries = [e for e in entries if e.get("kind") != "override_conflict"]
+        if info_entries:
+            return True, _render_announcements(info_entries), no_update, no_update, no_update, no_update
+        # No informational entries — jump straight to first override conflict (if any).
+        # Event-batch resolution ignores mode, so hide the radio.
+        first = ConfigManager.pop_next_override_conflict()
+        if first:
+            return (
+                False, no_update,
+                True, _format_override_conflict_body(first),
+                {"event": first.get("event"), "candidates": first.get("candidate_nodes", [])},
+                {"display": "none"},
+            )
+        return False, no_update, no_update, no_update, no_update, no_update
 
     @app.callback(
         Output("modal-event-announcements", "is_open", allow_duplicate=True),
+        Output("modal-override-conflict", "is_open", allow_duplicate=True),
+        Output("override-conflict-body", "children", allow_duplicate=True),
+        Output("pending-event-override-store", "data", allow_duplicate=True),
+        Output("override-conflict-mode-wrapper", "style", allow_duplicate=True),
         Input("btn-event-announcements-dismiss", "n_clicks"),
         prevent_initial_call=True,
     )
     def dismiss_event_announcements(n_clicks):
         if not n_clicks:
-            return no_update
-        ConfigManager.clear_pending_event_notifications()
-        return False
+            return no_update, no_update, no_update, no_update, no_update
+        # Drop informational entries only; override_conflict entries stay queued.
+        ConfigManager.clear_pending_announcements_only()
+        first = ConfigManager.pop_next_override_conflict()
+        if first:
+            return (
+                False,
+                True,
+                _format_override_conflict_body(first),
+                {"event": first.get("event"), "candidates": first.get("candidate_nodes", [])},
+                {"display": "none"},
+            )
+        return False, no_update, no_update, no_update, no_update
 
     # --- Event Graph: render dormant nodes + immediate neighbors ---
     @app.callback(

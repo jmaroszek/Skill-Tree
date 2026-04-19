@@ -793,17 +793,19 @@ override_conflict_modal = dbc.Modal([
     dbc.ModalHeader(dbc.ModalTitle("Override Conflict")),
     dbc.ModalBody([
         html.Div(id="override-conflict-body"),
-        html.Hr(className="my-2"),
-        dbc.RadioItems(
-            id="override-conflict-mode-radio",
-            options=[
-                {"label": "Node Only", "value": "node_only"},
-                {"label": "Node + Hard Dependencies", "value": "hard"},
-                {"label": "Node + Soft Dependencies", "value": "soft"},
-                {"label": "Node + All Dependencies", "value": "all"},
-            ],
-            value="hard",
-        ),
+        html.Div(id="override-conflict-mode-wrapper", children=[
+            html.Hr(className="my-2"),
+            dbc.RadioItems(
+                id="override-conflict-mode-radio",
+                options=[
+                    {"label": "Node Only", "value": "node_only"},
+                    {"label": "Node + Hard Dependencies", "value": "hard"},
+                    {"label": "Node + Soft Dependencies", "value": "soft"},
+                    {"label": "Node + All Dependencies", "value": "all"},
+                ],
+                value="hard",
+            ),
+        ]),
     ]),
     dbc.ModalFooter([
         dbc.Button("Keep Current", id="btn-override-keep", color="secondary", className="flex-fill me-2"),
@@ -1334,6 +1336,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Interval(id='app-load-interval', interval=500, n_intervals=0, max_intervals=1),
 
         dcc.Store(id='override-store', data={"parent": None, "mode": "hard"}),
+        dcc.Store(id='pending-event-override-store', data=None),
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),

@@ -119,6 +119,18 @@ def init_db():
     except Exception:
         pass  # Column already exists
 
+    # Store override intent on dormant nodes so it can be applied at event trigger time.
+    try:
+        cursor.execute("ALTER TABLE EventNodes ADD COLUMN override_on_trigger INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE EventNodes ADD COLUMN override_mode TEXT")
+        conn.commit()
+    except Exception:
+        pass
+
     conn.close()
     _initialized = True
 
