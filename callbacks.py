@@ -189,11 +189,14 @@ def register_callbacks(app):
         Output('hover-tooltip', 'children'),
         Input('cytoscape-graph', 'mouseoverNodeData'),
         Input('details-mini-graph', 'mouseoverNodeData'),
+        Input('events-detail-graph', 'mouseoverNodeData'),
     )
-    def display_hover_data(data, details_data):
+    def display_hover_data(data, details_data, events_data):
         trigger = get_trigger_id()
         if trigger == 'details-mini-graph':
             data = details_data
+        elif trigger == 'events-detail-graph':
+            data = events_data
         if not data: return ""
 
         node_type = data.get('type', '')
@@ -259,6 +262,7 @@ def register_callbacks(app):
             lines = [
                 header,
                 html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
+                html.Div([html.Strong("Interest: "), str(data.get('interest', ''))]),
                 html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
                 html.Div([html.Strong("Time: "), time_str]),
             ]
