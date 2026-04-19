@@ -209,6 +209,51 @@ def test_scoring_memo_invalidated_on_graph_mutation():
     assert mgr._scoring_memo is not first_memo, "memo dict should be replaced"
 
 
+def test_scoring_memo_survives_cosmetic_edit():
+    """Editing non-scoring fields (description, paths, etc.) must NOT
+    invalidate the scoring memo — that's the whole point of the fingerprint.
+    """
+    mgr = GraphManager()
+    mgr.add_node(_make_node("A", value=5, description="original"))
+    mgr.add_node(_make_node("B", value=5))
+    mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)
+
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    first_memo = mgr._scoring_memo
+    first_scoring_key = mgr._scoring_memo_key
+    graph_ver_before = mgr._graph_version
+
+    # Cosmetic edit: description change only. graph_version advances
+    # (so UI re-renders), but scoring_version must NOT advance.
+    cosmetic = _make_node("A", value=5, description="updated")
+    mgr.update_node(cosmetic)
+    assert mgr._graph_version > graph_ver_before, "graph version should still bump for UI"
+
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    assert mgr._scoring_memo is first_memo, (
+        "cosmetic edit wrongly invalidated the scoring memo"
+    )
+    assert mgr._scoring_memo_key == first_scoring_key
+
+
+def test_scoring_memo_invalidated_on_scoring_field_edit():
+    """Editing a scoring-relevant field (value, status, ...) must invalidate."""
+    mgr = GraphManager()
+    mgr.add_node(_make_node("A", value=5))
+
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    first_key = mgr._scoring_memo_key
+
+    # Value change → scoring-relevant.
+    updated = _make_node("A", value=9)
+    mgr.update_node(updated)
+
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    assert mgr._scoring_memo_key != first_key, (
+        "value edit failed to invalidate the scoring memo"
+    )
+
+
 def test_scoring_memo_invalidated_on_hyperparam_change(monkeypatch):
     """Changing hyperparameters must invalidate the scoring memo even when
     the graph is untouched."""

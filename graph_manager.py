@@ -8,18 +8,36 @@ from scoring import score_nodes
 from typing import List, Dict, Optional, Set
 
 
+"""Fields whose mutation changes a node's priority_score. Anything else
+(description, paths, progress, context, aliases, competence) is cosmetic
+for scoring purposes and must not invalidate the scoring memo."""
+_SCORING_RELEVANT_FIELDS = frozenset({
+    'type', 'value', 'interest', 'difficulty',
+    'time_o', 'time_m', 'time_p', 'time_mode',
+    'status', 'dormant',
+})
+
+
 class GraphManager:
     def __init__(self):
         database.init_db()
         self._graph_version: int = 0
+        self._scoring_version: int = 0
         self._community_cache: Dict[tuple, List[Set[str]]] = {}
         self._scoring_memo: Dict[str, float] = {}
         self._scoring_memo_key: Optional[tuple] = None
         self._cache_lock = threading.Lock()
 
-    def _bump_version(self) -> None:
-        """Invalidate memoization caches. Called by every node/edge mutator."""
+    def _bump_version(self, scoring: bool = True) -> None:
+        """Invalidate memoization caches. Called by every node/edge mutator.
+
+        Pass scoring=False for cosmetic-only node edits (e.g. description,
+        tags, paths) — graph_version still bumps so UI re-renders, but the
+        scoring memo stays valid and the next get_suggestions() is near-free.
+        """
         self._graph_version += 1
+        if scoring:
+            self._scoring_version += 1
 
     def get_connection(self) -> sqlite3.Connection:
         """Returns a new database connection with foreign keys enabled."""
@@ -46,6 +64,7 @@ class GraphManager:
 
     def update_node(self, node: Node):
         """Updates an existing node."""
+        prior = self.get_node(node.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             data = node.to_dict()
@@ -63,7 +82,14 @@ class GraphManager:
             ''', data)
             conn.commit()
             self._update_dependent_nodes_state(node.name)
-        self._bump_version()
+        # Skip scoring-cache invalidation if only cosmetic fields changed.
+        # _update_dependent_nodes_state may have touched other nodes' status
+        # (a scoring-relevant field), so it sets _scoring_version directly.
+        scoring_changed = prior is None or any(
+            getattr(prior, f, None) != getattr(node, f, None)
+            for f in _SCORING_RELEVANT_FIELDS
+        )
+        self._bump_version(scoring=scoring_changed)
 
     def delete_node(self, node_name: str):
         """Deletes a node by name."""
@@ -301,14 +327,15 @@ class GraphManager:
     def calculate_priority_scores(self, active_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
         """Delegates scoring to the scoring module.
 
-        Reuses a per-manager total_value memo across calls: a filter toggle
-        or priority-goal change doesn't alter the graph, so the expensive
-        recursive cascade doesn't need re-walking. Invalidated when the graph
-        structure changes (_graph_version bumps) or the hyperparams change.
+        Reuses a per-manager total_value memo across calls: a filter toggle,
+        priority-goal change, or cosmetic edit (description, tags, paths)
+        doesn't alter scoring inputs, so the expensive recursive cascade
+        doesn't need re-walking. Invalidated only when _scoring_version
+        advances (a scoring-relevant node/edge mutation) or hyperparams change.
         """
         hypers = ConfigManager.get_hyperparams()
         hypers_key = tuple(sorted(hypers.items()))
-        cache_key = (self._graph_version, hypers_key)
+        cache_key = (self._scoring_version, hypers_key)
         with self._cache_lock:
             if cache_key != self._scoring_memo_key:
                 self._scoring_memo = {}
