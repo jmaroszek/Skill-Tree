@@ -13,6 +13,8 @@ class GraphManager:
         database.init_db()
         self._graph_version: int = 0
         self._community_cache: Dict[tuple, List[Set[str]]] = {}
+        self._scoring_memo: Dict[str, float] = {}
+        self._scoring_memo_key: Optional[tuple] = None
         self._cache_lock = threading.Lock()
 
     def _bump_version(self) -> None:
@@ -297,11 +299,26 @@ class GraphManager:
     # --- Logic ---
 
     def calculate_priority_scores(self, active_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
-        """Delegates scoring to the scoring module."""
+        """Delegates scoring to the scoring module.
+
+        Reuses a per-manager total_value memo across calls: a filter toggle
+        or priority-goal change doesn't alter the graph, so the expensive
+        recursive cascade doesn't need re-walking. Invalidated when the graph
+        structure changes (_graph_version bumps) or the hyperparams change.
+        """
+        hypers = ConfigManager.get_hyperparams()
+        hypers_key = tuple(sorted(hypers.items()))
+        cache_key = (self._graph_version, hypers_key)
+        with self._cache_lock:
+            if cache_key != self._scoring_memo_key:
+                self._scoring_memo = {}
+                self._scoring_memo_key = cache_key
+            memo = self._scoring_memo
         return score_nodes(
             active_nodes, self.get_all_nodes(),
-            self.get_edges(), ConfigManager.get_hyperparams(),
-            priority_goals=priority_goals
+            self.get_edges(), hypers,
+            priority_goals=priority_goals,
+            external_memo=memo,
         )
 
     def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:

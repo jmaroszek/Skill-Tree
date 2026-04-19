@@ -128,7 +128,8 @@ def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
 def score_nodes(
     active_nodes: List[Node], all_nodes: List[Node],
     edges: List[Dict], hyperparams: dict,
-    priority_goals: Optional[List[str]] = None
+    priority_goals: Optional[List[str]] = None,
+    external_memo: Optional[Dict[str, float]] = None,
 ) -> List[Node]:
     """Scores active nodes by priority (TV / Cost) and returns them sorted descending."""
     w_v = hyperparams.get('w_v', 1.0)
@@ -144,11 +145,13 @@ def score_nodes(
     all_nodes_dict = {n.name: n for n in all_nodes}
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
 
-    # Per-batch memo for outer total_value calls. Reset on every score_nodes
-    # invocation so a graph mutation between calls never serves stale results.
-    # Only outer calls (visited == set()) read/write this; inner recursive
-    # calls are path-dependent on the graph's cycles and must never cache.
-    memo: Dict[str, float] = {}
+    # Outer-call memo for total_value. When external_memo is supplied (by
+    # GraphManager), reuse its cached values across score_nodes invocations
+    # — safe because GraphManager invalidates on _graph_version / hyperparam
+    # changes, which are the only inputs outer total_value depends on.
+    # Direct callers (tests) without a memo get fresh per-call state.
+    # Inner recursive calls are path-dependent on cycles and never cache.
+    memo: Dict[str, float] = external_memo if external_memo is not None else {}
 
     # Pre-compute per-node boost from ranked priority goals
     # Index 0 = rank 1 (full boost), index 1 = rank 2 (66%), index 2 = rank 3 (33%)

@@ -171,6 +171,61 @@ def test_community_cache_is_per_instance():
     assert mgr2._community_cache == {}, "community cache should be per-instance, not module-global"
 
 
+def test_scoring_memo_reused_across_calls_on_same_version():
+    """The GraphManager scoring memo should persist between calls when the
+    graph hasn't mutated and hyperparams haven't changed. This means a filter
+    toggle or priority-goal change doesn't re-walk the total_value cascade.
+    """
+    mgr = GraphManager()
+    mgr.add_node(_make_node("A", value=5))
+    mgr.add_node(_make_node("B", value=5))
+    mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)
+
+    mgr.calculate_priority_scores([mgr.get_node("A"), mgr.get_node("B")])
+    memo_after_first = mgr._scoring_memo
+    assert len(memo_after_first) >= 1, "memo should be populated after scoring"
+
+    # Second call with same graph — same dict instance, same contents.
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    assert mgr._scoring_memo is memo_after_first, (
+        "memo dict should not be replaced when graph version is unchanged"
+    )
+
+
+def test_scoring_memo_invalidated_on_graph_mutation():
+    """Any _bump_version must invalidate the scoring memo."""
+    mgr = GraphManager()
+    mgr.add_node(_make_node("A", value=5))
+    mgr.add_node(_make_node("B", value=5))
+    mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)
+
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    first_memo = mgr._scoring_memo
+    first_key = mgr._scoring_memo_key
+
+    mgr.add_node(_make_node("C", value=3))
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    assert mgr._scoring_memo_key != first_key, "cache key should advance on mutation"
+    assert mgr._scoring_memo is not first_memo, "memo dict should be replaced"
+
+
+def test_scoring_memo_invalidated_on_hyperparam_change(monkeypatch):
+    """Changing hyperparameters must invalidate the scoring memo even when
+    the graph is untouched."""
+    from config import ConfigManager
+    mgr = GraphManager()
+    mgr.add_node(_make_node("A"))
+
+    base = ConfigManager.get_hyperparams()
+    monkeypatch.setattr(ConfigManager, "get_hyperparams", classmethod(lambda cls: dict(base, w_v=1.0)))
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    first_key = mgr._scoring_memo_key
+
+    monkeypatch.setattr(ConfigManager, "get_hyperparams", classmethod(lambda cls: dict(base, w_v=2.0)))
+    mgr.calculate_priority_scores([mgr.get_node("A")])
+    assert mgr._scoring_memo_key != first_key, "cache key should advance on hyperparam change"
+
+
 def test_detect_communities_returns_fresh_objects_not_cache_reference():
     """Callers that mutate returned sets must not affect cached state."""
     mgr = GraphManager()
