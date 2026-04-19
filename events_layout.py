@@ -527,7 +527,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
         ))
     if trigger_node and status != "Triggered":
         children.append(html.Small(
-            f"Node: {trigger_node}",
+            f"Trigger: {trigger_node}",
             className="text-muted d-block",
             style={"fontSize": "0.75rem"}
         ))

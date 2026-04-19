@@ -1022,6 +1022,7 @@ def register_event_callbacks(app):
         all_names = dormant_names | neighbor_names
         node_colors = ConfigManager.get_node_colors()
         node_shapes = ConfigManager.get_node_shapes()
+        trigger_names = event_manager.get_trigger_node_names()
 
         elements = []
         for name in all_names:
@@ -1037,8 +1038,13 @@ def register_event_callbacks(app):
                     "shape": node_shapes.get(node.type, "rectangle"),
                 },
             }
+            classes = []
             if name in dormant_names:
-                element["classes"] = "dormant"
+                classes.append("dormant")
+            if name in trigger_names:
+                classes.append("trigger")
+            if classes:
+                element["classes"] = " ".join(classes)
             elements.append(element)
 
         for e in all_edges:

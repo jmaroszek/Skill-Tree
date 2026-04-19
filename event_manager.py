@@ -194,6 +194,16 @@ class EventManager:
             )
             return [Event(**dict(row)) for row in cursor.fetchall()]
 
+    def get_trigger_node_names(self) -> set:
+        """Returns names of nodes whose completion would trigger a Pending event."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT trigger_node FROM Events "
+                "WHERE status='Pending' AND trigger_node IS NOT NULL"
+            )
+            return {row[0] for row in cursor.fetchall() if row[0]}
+
     def get_events_for_node(self, node_name: str) -> List[str]:
         """Returns list of event names that own this node."""
         with self.get_connection() as conn:
