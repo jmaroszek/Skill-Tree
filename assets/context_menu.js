@@ -148,9 +148,12 @@
             cy.on('cxttap', 'node', function (evt) {
                 evt.originalEvent.preventDefault();
 
-                // Hide tooltip when opening context menu
-                var tooltip = document.getElementById('hover-tooltip');
-                if (tooltip) tooltip.style.display = 'none';
+                // Hide tooltip AND reset its internal flags — otherwise a
+                // queued show-timer or MutationObserver can re-surface the
+                // tooltip behind the menu.
+                if (window.SkillTree && window.SkillTree.tooltip) {
+                    window.SkillTree.tooltip.hide();
+                }
 
                 // Don't clear multi-selection if right-clicking a selected node
                 if (!evt.target.selected()) {
@@ -276,6 +279,9 @@
             function bind(cy) {
                 cy.on('cxttap', 'node', function (evt) {
                     evt.originalEvent.preventDefault();
+                    if (window.SkillTree && window.SkillTree.tooltip) {
+                        window.SkillTree.tooltip.hide();
+                    }
                     if (selectOnRightClick && !evt.target.selected()) {
                         cy.$('node:selected').unselect();
                         evt.target.select();

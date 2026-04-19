@@ -31,6 +31,11 @@
     var lastMouseX = 0;
     var lastMouseY = 0;
 
+    function isContextMenuOpen() {
+        var m = document.getElementById('node-context-menu');
+        return !!(m && m.style.display === 'block');
+    }
+
     function initTooltip() {
         var tooltip = document.getElementById('hover-tooltip');
         if (!tooltip) {
@@ -38,6 +43,21 @@
             return;
         }
         readTooltipConfig();
+
+        // Public API: callers (e.g. context_menu.js on right-click) can force
+        // the tooltip fully hidden AND clear internal flags so it doesn't
+        // auto-resurface from a queued show-timer or MutationObserver.
+        if (!window.SkillTree) window.SkillTree = {};
+        window.SkillTree.tooltip = {
+            hide: function () {
+                clearTimeout(hideTimer); hideTimer = null;
+                clearTimeout(showTimer); showTimer = null;
+                onNode = false;
+                delayElapsed = false;
+                lastHoveredNodeId = null;
+                tooltip.style.display = 'none';
+            },
+        };
 
         // --- 1. Follow the cursor ---
         function positionTooltip(mx, my) {
@@ -59,6 +79,7 @@
 
         // --- 2. MutationObserver: show tooltip when Dash populates content ---
         var observer = new MutationObserver(function () {
+            if (isContextMenuOpen()) return;
             if (onNode && tooltip.innerText.trim().length > 0 && delayElapsed) {
                 clearTimeout(hideTimer);
                 positionTooltip(lastMouseX, lastMouseY);
@@ -89,6 +110,7 @@
                     showTimer = null;
                     delayElapsed = true;
                     if (!onNode) return;
+                    if (isContextMenuOpen()) return;
                     if (tooltip.innerText.trim().length > 0) {
                         positionTooltip(lastMouseX, lastMouseY);
                         tooltip.style.display = 'block';
