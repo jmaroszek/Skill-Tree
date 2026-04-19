@@ -322,6 +322,33 @@ class TestSuggestionsOverrideSorting:
         names = [n.name for n in results]
         assert "DoneNode" not in names
 
+    def test_override_bypasses_filter(self, mgr):
+        """Pinned nodes appear in Next even when a filter would exclude them."""
+        from next_callbacks import get_suggestions
+        mgr.add_node(_make_node("Pinned", value=5, context="Learning"))
+        mgr.add_node(_make_node("Other", value=5, context="Work"))
+        ConfigManager.set_override({"parent": "Pinned", "mode": "node_only"})
+
+        # Filter would exclude the pinned node by context, but override takes precedence.
+        results = get_suggestions(filters={"context": "Work"}, count=5)
+        names = [n.name for n in results]
+        assert "Pinned" in names
+        assert names[0] == "Pinned"
+
+    def test_filter_still_applies_to_tier2(self, mgr):
+        """Non-pinned nodes are still filtered — only the override tier bypasses."""
+        from next_callbacks import get_suggestions
+        mgr.add_node(_make_node("Pinned", value=5, context="Learning"))
+        mgr.add_node(_make_node("WorkA", value=4, context="Work"))
+        mgr.add_node(_make_node("LearnA", value=4, context="Learning"))
+        ConfigManager.set_override({"parent": "Pinned", "mode": "node_only"})
+
+        results = get_suggestions(filters={"context": "Work"}, count=5)
+        names = [n.name for n in results]
+        assert "Pinned" in names  # tier 1 bypasses filter
+        assert "WorkA" in names   # tier 2 matches filter
+        assert "LearnA" not in names  # tier 2 filtered out
+
 
 # ============================================================================
 # format_suggestions_table — override column

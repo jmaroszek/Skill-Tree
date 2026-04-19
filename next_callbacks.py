@@ -37,7 +37,11 @@ def get_suggestions(filters=None, count=5, exclude_override=False):
         return valid[:count]
 
     if override_set:
-        tier1_nodes = [n for n in filtered_nodes if n.name in override_set]
+        # Tier 1 (override) bypasses the user filter: a pin is an explicit
+        # user intent that supersedes passive scope narrowing. Without this,
+        # toggling a context filter can silently drop a pinned node from Next.
+        # Tier 2 still respects the filter — unpinned nodes are scoped normally.
+        tier1_nodes = [n for n in nodes if n.name in override_set]
         tier2_nodes = [n for n in filtered_nodes if n.name not in override_set]
 
         scored_t1 = manager.calculate_priority_scores(tier1_nodes, priority_goals=priority_goals)
