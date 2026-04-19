@@ -59,14 +59,10 @@
             return (cyWrapper._cyreg && cyWrapper._cyreg.cy) ? cyWrapper._cyreg.cy : null;
         }
 
-        var isPanning = false;
-        var lastX = 0;
-        var lastY = 0;
-        var panStartedOnNode = false;
-
         cyWrapper.addEventListener('mousedown', function (e) {
             // Only handle right-click (button 2)
             if (e.button !== 2) return;
+            if (!window.SkillTree || !window.SkillTree.drag) return;
 
             var cy = getCy();
             if (!cy) return;
@@ -83,41 +79,29 @@
                 return modelPos.x >= bb.x1 && modelPos.x <= bb.x2 &&
                        modelPos.y >= bb.y1 && modelPos.y <= bb.y2;
             });
+            if (nearNode) return;
 
-            if (nearNode) {
-                panStartedOnNode = true;
-                return;
-            }
-
-            panStartedOnNode = false;
-            isPanning = true;
-            lastX = e.clientX;
-            lastY = e.clientY;
+            var lastX = e.clientX;
+            var lastY = e.clientY;
             cyWrapper.style.cursor = 'grabbing';
             e.preventDefault();
-        });
 
-        document.addEventListener('mousemove', function (e) {
-            if (!isPanning) return;
-
-            var cy = getCy();
-            if (!cy) return;
-
-            var dx = e.clientX - lastX;
-            var dy = e.clientY - lastY;
-            lastX = e.clientX;
-            lastY = e.clientY;
-
-            cy.panBy({ x: dx, y: dy });
-        });
-
-        document.addEventListener('mouseup', function (e) {
-            if (e.button !== 2) return;
-            if (isPanning) {
-                isPanning = false;
-                cyWrapper.style.cursor = '';
-            }
-            panStartedOnNode = false;
+            window.SkillTree.drag.start({
+                // Cursor is scoped to cyWrapper, not body; don't override body cursor.
+                userSelect: false,
+                onMove: function (ev) {
+                    var c = getCy();
+                    if (!c) return;
+                    var dx = ev.clientX - lastX;
+                    var dy = ev.clientY - lastY;
+                    lastX = ev.clientX;
+                    lastY = ev.clientY;
+                    c.panBy({ x: dx, y: dy });
+                },
+                onEnd: function () {
+                    cyWrapper.style.cursor = '';
+                },
+            });
         });
     }
 

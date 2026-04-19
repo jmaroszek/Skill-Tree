@@ -36,108 +36,71 @@
             });
         });
 
+        function refitDetailsMiniGraph() {
+            var cyEl = document.getElementById('details-mini-graph');
+            if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
+                cyEl._cyreg.cy.resize();
+            }
+        }
+
         // --- Horizontal drag (upper/lower split) ---
-        (function () {
-            var dragging = false;
-            var startY = 0;
-            var startUpperFlex = 0;
-            var startLowerFlex = 0;
+        hDrag.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            if (!window.SkillTree || !window.SkillTree.drag) return;
+            var startY = e.clientY;
+            var cs1 = window.getComputedStyle(upper);
+            var cs2 = window.getComputedStyle(lower);
+            var startUpperFlex = parseFloat(cs1.flexGrow) || 1.5;
+            var startLowerFlex = parseFloat(cs2.flexGrow) || 0.75;
 
-            hDrag.addEventListener('mousedown', function (e) {
-                e.preventDefault();
-                dragging = true;
-                startY = e.clientY;
-                // Read the current flex values
-                var cs1 = window.getComputedStyle(upper);
-                var cs2 = window.getComputedStyle(lower);
-                startUpperFlex = parseFloat(cs1.flexGrow) || 1.5;
-                startLowerFlex = parseFloat(cs2.flexGrow) || 0.75;
-                document.body.style.cursor = 'ns-resize';
-                document.body.style.userSelect = 'none';
+            window.SkillTree.drag.start({
+                cursor: 'ns-resize',
+                onMove: function (ev) {
+                    var parent = upper.parentElement;
+                    if (!parent) return;
+                    var totalHeight = parent.offsetHeight;
+                    if (totalHeight === 0) return;
+                    var delta = ev.clientY - startY;
+                    var totalFlex = startUpperFlex + startLowerFlex;
+                    var flexDelta = (delta / totalHeight) * totalFlex;
+                    var newUpperFlex = Math.max(0.3, startUpperFlex + flexDelta);
+                    var newLowerFlex = Math.max(0.3, startLowerFlex - flexDelta);
+                    upper.style.flex = newUpperFlex + ' 1 0';
+                    lower.style.flex = newLowerFlex + ' 1 0';
+                },
+                onEnd: refitDetailsMiniGraph,
             });
-
-            document.addEventListener('mousemove', function (e) {
-                if (!dragging) return;
-                var parent = upper.parentElement;
-                if (!parent) return;
-                var totalHeight = parent.offsetHeight;
-                if (totalHeight === 0) return;
-
-                var delta = e.clientY - startY;
-                var totalFlex = startUpperFlex + startLowerFlex;
-                var flexDelta = (delta / totalHeight) * totalFlex;
-
-                var newUpperFlex = Math.max(0.3, startUpperFlex + flexDelta);
-                var newLowerFlex = Math.max(0.3, startLowerFlex - flexDelta);
-
-                upper.style.flex = newUpperFlex + ' 1 0';
-                lower.style.flex = newLowerFlex + ' 1 0';
-            });
-
-            document.addEventListener('mouseup', function () {
-                if (!dragging) return;
-                dragging = false;
-                document.body.style.cursor = '';
-                document.body.style.userSelect = '';
-
-                // Tell Cytoscape to recalculate
-                var cyEl = document.getElementById('details-mini-graph');
-                if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                    cyEl._cyreg.cy.resize();
-                }
-            });
-        })();
+        });
 
         // --- Vertical drag helper ---
         function initVerticalDrag(handle, leftEl, rightEl) {
             if (!handle || !leftEl || !rightEl) return;
-
-            var dragging = false;
-            var startX = 0;
-            var startLeftWidth = 0;
-            var startRightWidth = 0;
-
             handle.addEventListener('mousedown', function (e) {
                 e.preventDefault();
-                dragging = true;
-                startX = e.clientX;
-                startLeftWidth = leftEl.offsetWidth;
-                startRightWidth = rightEl.offsetWidth;
-                document.body.style.cursor = 'col-resize';
-                document.body.style.userSelect = 'none';
-            });
+                if (!window.SkillTree || !window.SkillTree.drag) return;
+                var startX = e.clientX;
+                var startLeftWidth = leftEl.offsetWidth;
+                var startRightWidth = rightEl.offsetWidth;
 
-            document.addEventListener('mousemove', function (e) {
-                if (!dragging) return;
-                var delta = e.clientX - startX;
-                var totalWidth = startLeftWidth + startRightWidth;
-                var minWidth = 150;
-
-                var newLeft = Math.max(minWidth, Math.min(totalWidth - minWidth, startLeftWidth + delta));
-                var newRight = totalWidth - newLeft;
-
-                // Use pixel widths and remove flex so sizes stick
-                leftEl.style.flex = 'none';
-                leftEl.style.width = newLeft + 'px';
-                leftEl.style.minWidth = '0';
-                leftEl.style.maxWidth = 'none';
-
-                rightEl.style.flex = 'none';
-                rightEl.style.width = newRight + 'px';
-                rightEl.style.minWidth = '0';
-            });
-
-            document.addEventListener('mouseup', function () {
-                if (!dragging) return;
-                dragging = false;
-                document.body.style.cursor = '';
-                document.body.style.userSelect = '';
-
-                // Tell mini-graph Cytoscape to recalculate
-                var cyEl = document.getElementById('details-mini-graph');
-                if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                    cyEl._cyreg.cy.resize();
-                }
+                window.SkillTree.drag.start({
+                    cursor: 'col-resize',
+                    onMove: function (ev) {
+                        var delta = ev.clientX - startX;
+                        var totalWidth = startLeftWidth + startRightWidth;
+                        var minWidth = 150;
+                        var newLeft = Math.max(minWidth, Math.min(totalWidth - minWidth, startLeftWidth + delta));
+                        var newRight = totalWidth - newLeft;
+                        // Use pixel widths and remove flex so sizes stick
+                        leftEl.style.flex = 'none';
+                        leftEl.style.width = newLeft + 'px';
+                        leftEl.style.minWidth = '0';
+                        leftEl.style.maxWidth = 'none';
+                        rightEl.style.flex = 'none';
+                        rightEl.style.width = newRight + 'px';
+                        rightEl.style.minWidth = '0';
+                    },
+                    onEnd: refitDetailsMiniGraph,
+                });
             });
         }
 

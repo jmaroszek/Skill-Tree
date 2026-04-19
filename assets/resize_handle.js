@@ -27,47 +27,34 @@
         var initialPanelH = handle.parentElement.offsetHeight - otherHeight - TARGET_CANVAS_HEIGHT;
         panel.style.height = Math.max(MIN_PANEL_HEIGHT, initialPanelH) + 'px';
 
-        var dragging = false;
-        var startY = 0;
-        var startHeight = 0;
-        var ticking = false; // Prevents layout thrashing
-
         handle.addEventListener('mousedown', function (e) {
             e.preventDefault();
-            dragging = true;
-            startY = e.clientY;
-            startHeight = panel.offsetHeight;
-            document.body.style.cursor = 'ns-resize';
-            document.body.style.userSelect = 'none';
-        });
+            if (!window.SkillTree || !window.SkillTree.drag) return;
+            var startY = e.clientY;
+            var startHeight = panel.offsetHeight;
+            var ticking = false; // Prevents layout thrashing
 
-        document.addEventListener('mousemove', function (e) {
-            if (!dragging) return;
-
-            // requestAnimationFrame syncs the DOM update to the monitor's refresh rate
-            if (!ticking) {
-                window.requestAnimationFrame(function () {
-                    var delta = startY - e.clientY;
-                    var maxHeight = window.innerHeight * MAX_PANEL_RATIO;
-                    var newHeight = Math.min(maxHeight, Math.max(MIN_PANEL_HEIGHT, startHeight + delta));
-                    panel.style.height = newHeight + 'px';
-                    ticking = false;
-                });
-                ticking = true;
-            }
-        });
-
-        document.addEventListener('mouseup', function () {
-            if (!dragging) return;
-            dragging = false;
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-
-            // Tell Cytoscape to recalculate its viewport
-            var cyEl = document.getElementById('cytoscape-graph');
-            if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                cyEl._cyreg.cy.resize();
-            }
+            window.SkillTree.drag.start({
+                cursor: 'ns-resize',
+                onMove: function (ev) {
+                    if (ticking) return;
+                    window.requestAnimationFrame(function () {
+                        var delta = startY - ev.clientY;
+                        var maxHeight = window.innerHeight * MAX_PANEL_RATIO;
+                        var newHeight = Math.min(maxHeight, Math.max(MIN_PANEL_HEIGHT, startHeight + delta));
+                        panel.style.height = newHeight + 'px';
+                        ticking = false;
+                    });
+                    ticking = true;
+                },
+                onEnd: function () {
+                    // Tell Cytoscape to recalculate its viewport
+                    var cyEl = document.getElementById('cytoscape-graph');
+                    if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
+                        cyEl._cyreg.cy.resize();
+                    }
+                },
+            });
         });
     }
 

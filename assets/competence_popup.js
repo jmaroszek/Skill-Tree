@@ -70,27 +70,22 @@
         if (!popup || !header || header.__dragWired) return;
         header.__dragWired = true;
 
-        var dragging = false, startX, startY, origLeft, origTop;
-
         header.addEventListener('mousedown', function (e) {
             if (closeBtn && (e.target === closeBtn || closeBtn.contains(e.target))) return;
             if (editBtn && (e.target === editBtn || editBtn.contains(e.target))) return;
-            dragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            origLeft = popup.offsetLeft;
-            origTop = popup.offsetTop;
+            if (!window.SkillTree || !window.SkillTree.drag) return;
+            var startX = e.clientX;
+            var startY = e.clientY;
+            var origLeft = popup.offsetLeft;
+            var origTop = popup.offsetTop;
             e.preventDefault();
-        });
 
-        document.addEventListener('mousemove', function (e) {
-            if (!dragging) return;
-            popup.style.left = (origLeft + e.clientX - startX) + 'px';
-            popup.style.top  = (origTop  + e.clientY - startY) + 'px';
-        });
-
-        document.addEventListener('mouseup', function () {
-            dragging = false;
+            window.SkillTree.drag.start({
+                onMove: function (ev) {
+                    popup.style.left = (origLeft + ev.clientX - startX) + 'px';
+                    popup.style.top  = (origTop  + ev.clientY - startY) + 'px';
+                },
+            });
         });
     }
 
