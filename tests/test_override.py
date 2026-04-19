@@ -211,11 +211,6 @@ class TestOverrideCleanupOnRename:
         mgr.add_node(_make_node("OldName"))
         ConfigManager.set_override({"parent": "OldName", "mode": "soft"})
         mgr.rename_node("OldName", "NewName")
-        # Simulate the rename callback's override update
-        ov = ConfigManager.get_override()
-        if ov.get("parent") == "OldName":
-            ov["parent"] = "NewName"
-            ConfigManager.set_override(ov)
         assert ConfigManager.get_override()["parent"] == "NewName"
         assert ConfigManager.get_override()["mode"] == "soft"
 
@@ -224,11 +219,34 @@ class TestOverrideCleanupOnRename:
         mgr.add_node(_make_node("Other"))
         ConfigManager.set_override({"parent": "Override", "mode": "hard"})
         mgr.rename_node("Other", "Renamed")
-        ov = ConfigManager.get_override()
-        if ov.get("parent") == "Other":
-            ov["parent"] = "Renamed"
-            ConfigManager.set_override(ov)
         assert ConfigManager.get_override()["parent"] == "Override"
+
+    def test_rename_event_override_node_updates_list(self, mgr):
+        """Renaming a node pinned by an event-override must update the pin."""
+        mgr.add_node(_make_node("Pinned"))
+        ConfigManager.set_event_override_nodes(["Pinned", "Other"])
+        mgr.rename_node("Pinned", "Renamed")
+        pins = ConfigManager.get_event_override_nodes()
+        assert "Renamed" in pins
+        assert "Pinned" not in pins
+        assert "Other" in pins
+
+    def test_rename_non_pinned_node_preserves_event_override_list(self, mgr):
+        mgr.add_node(_make_node("Pinned"))
+        mgr.add_node(_make_node("Untouched"))
+        ConfigManager.set_event_override_nodes(["Pinned"])
+        mgr.rename_node("Untouched", "Untouched2")
+        assert ConfigManager.get_event_override_nodes() == ["Pinned"]
+
+    def test_rename_node_in_both_override_systems(self, mgr):
+        """A node can (in principle) live in both override systems — rename must hit both."""
+        mgr.add_node(_make_node("Shared"))
+        ConfigManager.set_override({"parent": "Shared", "mode": "hard"})
+        ConfigManager.set_event_override_nodes(["Shared"])
+        mgr.rename_node("Shared", "Moved")
+        assert ConfigManager.get_override()["parent"] == "Moved"
+        assert "Moved" in ConfigManager.get_event_override_nodes()
+        assert "Shared" not in ConfigManager.get_event_override_nodes()
 
 
 # ============================================================================

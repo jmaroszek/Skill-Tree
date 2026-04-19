@@ -524,6 +524,27 @@ class ConfigManager:
         cls.set_event_override_nodes([])
 
     @classmethod
+    def rename_node_references(cls, old_name: str, new_name: str) -> None:
+        """Propagate a node rename to every config entry that stores a node name.
+
+        Called from GraphManager.rename_node so callers don't have to remember
+        which config keys hold names — the failure mode when they forget is a
+        silent drop (lazy cleanup treats the old name as a deleted node).
+        """
+        if not old_name or not new_name or old_name == new_name:
+            return
+
+        override = cls.get_override()
+        if override.get("parent") == old_name:
+            override["parent"] = new_name
+            cls.set_override(override)
+
+        event_nodes = cls.get_event_override_nodes()
+        if old_name in event_nodes:
+            updated = [new_name if n == old_name else n for n in event_nodes]
+            cls.set_event_override_nodes(updated)
+
+    @classmethod
     def has_any_override_active(cls) -> bool:
         """True if System A parent is set OR System B list is non-empty.
 

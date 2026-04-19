@@ -1027,11 +1027,6 @@ def register_callbacks(app):
                         name.strip() != original_name.strip() and
                         manager.get_node(original_name.strip())):
                     manager.rename_node(original_name.strip(), name.strip())
-                    # Update override reference on rename
-                    _ov = ConfigManager.get_override()
-                    if _ov.get("parent") == original_name.strip():
-                        _ov["parent"] = name.strip()
-                        ConfigManager.set_override(_ov)
 
                 time_mode = 'inherited' if (time_mode_val and 'inherited' in time_mode_val) else 'manual'
                 msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,

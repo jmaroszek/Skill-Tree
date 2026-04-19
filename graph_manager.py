@@ -94,6 +94,7 @@ class GraphManager:
             cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
             conn.commit()
             cursor.execute("PRAGMA foreign_keys = ON")
+        ConfigManager.rename_node_references(old_name, new_name)
         self._bump_version()
 
     def get_node(self, name: str) -> Optional[Node]:
