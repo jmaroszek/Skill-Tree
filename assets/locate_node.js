@@ -1,10 +1,11 @@
 /**
  * "Locate on graph" animation helper.
  *
- * Exposes `window.locateNodeOnGraph(nodeName)` which pans/zooms the main
- * Cytoscape canvas to the given node, then runs a size+border pulse for
- * ~1.5 seconds. Invoked by a Dash clientside callback bound to the
- * "Locate on graph" button in the Node Editor.
+ * Exposes `window.locateNodeOnGraph(nodeName, canvasId)` which finds the
+ * given node on a Cytoscape canvas and runs a size+border pulse for
+ * ~1.5 seconds. `canvasId` defaults to the main canvas ('cytoscape-graph');
+ * pass 'details-mini-graph' (or any other Cytoscape wrapper DOM id) to
+ * target an embedded mini-graph instead.
  */
 (function () {
 
@@ -15,8 +16,8 @@
     var PAN_DURATION_MS = 400;
     var MIN_ZOOM = 1.5;
 
-    function getCyInstance() {
-        var wrapper = document.getElementById('cytoscape-graph');
+    function getCyInstance(canvasId) {
+        var wrapper = document.getElementById(canvasId);
         if (!wrapper || !wrapper._cyreg || !wrapper._cyreg.cy) return null;
         return wrapper._cyreg.cy;
     }
@@ -49,27 +50,28 @@
         );
     }
 
-    function tryLocate(nodeName, attempt) {
+    function tryLocate(nodeName, canvasId, attempt) {
         attempt = attempt || 0;
-        var cy = getCyInstance();
+        var cy = getCyInstance(canvasId);
         if (!cy) {
-            if (attempt < 20) setTimeout(function () { tryLocate(nodeName, attempt + 1); }, 100);
+            if (attempt < 20) setTimeout(function () { tryLocate(nodeName, canvasId, attempt + 1); }, 100);
             return;
         }
         var node = cy.getElementById(nodeName);
         if (!node || node.length === 0) {
             // Node may not yet be in the stylesheet-rendered elements (tab
             // just switched). Retry a few times.
-            if (attempt < 20) setTimeout(function () { tryLocate(nodeName, attempt + 1); }, 100);
+            if (attempt < 20) setTimeout(function () { tryLocate(nodeName, canvasId, attempt + 1); }, 100);
             return;
         }
 
         runPulse(node);
     }
 
-    window.locateNodeOnGraph = function (nodeName) {
+    window.locateNodeOnGraph = function (nodeName, canvasId) {
         if (!nodeName) return;
-        // Small delay allows the Nodes-tab switch to mount the canvas first.
-        setTimeout(function () { tryLocate(nodeName, 0); }, 50);
+        canvasId = canvasId || 'cytoscape-graph';
+        // Small delay allows any in-progress tab switch to mount the canvas first.
+        setTimeout(function () { tryLocate(nodeName, canvasId, 0); }, 50);
     };
 })();

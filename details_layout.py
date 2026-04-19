@@ -222,18 +222,26 @@ def build_details_tab_content():
             html.Div(id="details-priority-badge"),
         ]),
 
-        # Action buttons — Edit | Focus
+        # Action buttons — Focus | Locate | Edit
         html.Div([
-            dbc.Button("Edit", id="btn-details-edit", color="secondary",
-                       size="sm", style={"flex": "1"}),
-            dbc.Tooltip("Open the node editor", target="btn-details-edit", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button("Focus", id="btn-details-focus", color="secondary",
-                       size="sm", className="ms-1", style={"flex": "1"}),
-            dbc.Tooltip("Focus on this node's subtree in the main canvas",
+                       size="sm", style={"flex": "1"}),
+            dbc.Tooltip("Open this node's subtree in the main canvas",
                         target="btn-details-focus", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            dbc.Button("Locate", id="btn-details-locate", color="secondary",
+                       size="sm", className="ms-1", style={"flex": "1"}),
+            dbc.Tooltip("Briefly pulse this node in the mini-graph",
+                        target="btn-details-locate", placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            dbc.Button("Edit", id="btn-details-edit", color="secondary",
+                       size="sm", className="ms-1", style={"flex": "1"}),
+            dbc.Tooltip("Open the node editor", target="btn-details-edit", placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex mt-3"),
+
+        # Hidden sink for the Locate clientside callback (Dash requires an Output).
+        html.Div(id="details-locate-dummy", style={"display": "none"}),
 
     ], id="details-node-summary",
        style={"overflowY": "auto"})
