@@ -68,80 +68,74 @@
         observer.observe(tooltip, { childList: true, subtree: true, characterData: true });
 
         // --- 3. Attach to Cytoscape.js instance for precise node events ---
-        function attachCytoEvents(selector) {
-            var cyWrapper = document.querySelector(selector);
-            if (!cyWrapper) {
-                setTimeout(function() { attachCytoEvents(selector); }, 300);
-                return;
-            }
+        // Container-level listener is attached once (survives cy replacement).
+        // cy-level listeners are attached via onCytoReady so they re-bind if
+        // dash-cytoscape ever swaps the underlying cy instance.
+        var _mouseLeaveBound = {};
 
-            // Immediately hide when mouse leaves the graph container entirely
-            cyWrapper.addEventListener('mouseleave', function () {
+        function bindCyHandlers(cy) {
+            cy.on('mouseover', 'node', function (evt) {
+                var nodeId = evt.target.id();
+                onNode = true;
+                delayElapsed = false;
+                clearTimeout(hideTimer);
+                clearTimeout(showTimer);
+
+                if (nodeId !== lastHoveredNodeId) {
+                    tooltip.style.display = 'none';
+                }
+
+                showTimer = setTimeout(function () {
+                    showTimer = null;
+                    delayElapsed = true;
+                    if (!onNode) return;
+                    if (tooltip.innerText.trim().length > 0) {
+                        positionTooltip(lastMouseX, lastMouseY);
+                        tooltip.style.display = 'block';
+                    }
+                }, SHOW_DELAY_MS);
+
+                lastHoveredNodeId = nodeId;
+            });
+
+            cy.on('mouseout', 'node', function () {
                 onNode = false;
+                delayElapsed = false;
                 clearTimeout(showTimer);
                 showTimer = null;
                 clearTimeout(hideTimer);
-                tooltip.style.display = 'none';
+                hideTimer = setTimeout(function () {
+                    tooltip.style.display = 'none';
+                }, HIDE_DELAY_MS);
             });
+        }
 
-            // Access the Cytoscape.js instance (Dash Cytoscape stores it on the DOM element)
-            function getCyInstance() {
-                if (cyWrapper && cyWrapper._cyreg && cyWrapper._cyreg.cy) {
-                    return cyWrapper._cyreg.cy;
-                }
-                return null;
-            }
-
-            function bindCyEvents() {
-                var cy = getCyInstance();
-                if (!cy) {
-                    setTimeout(bindCyEvents, 500);
+        function attachCytoEvents(selector) {
+            // Container-level mouseleave handler — attach once per selector.
+            // The wrapper DOM persists across cy recreation, so this doesn't
+            // need to run inside onCytoReady.
+            if (!_mouseLeaveBound[selector]) {
+                var wrapper = document.querySelector(selector);
+                if (!wrapper) {
+                    setTimeout(function () { attachCytoEvents(selector); }, 300);
                     return;
                 }
-
-                // Mouse enters a node — schedule tooltip after SHOW_DELAY_MS
-                cy.on('mouseover', 'node', function (evt) {
-                    var nodeId = evt.target.id();
-                    onNode = true;
-                    delayElapsed = false;
-                    clearTimeout(hideTimer);
-                    clearTimeout(showTimer);
-
-                    // Hide tooltip immediately when moving to a different node
-                    if (nodeId !== lastHoveredNodeId) {
-                        tooltip.style.display = 'none';
-                    }
-
-                    showTimer = setTimeout(function () {
-                        showTimer = null;
-                        delayElapsed = true;
-                        if (!onNode) return;
-                        // If re-hovering the same node, Dash callback won't fire
-                        // since mouseoverNodeData hasn't changed. Show existing content.
-                        if (tooltip.innerText.trim().length > 0) {
-                            positionTooltip(lastMouseX, lastMouseY);
-                            tooltip.style.display = 'block';
-                        }
-                        // Otherwise MutationObserver will show it once Dash populates content
-                    }, SHOW_DELAY_MS);
-
-                    lastHoveredNodeId = nodeId;
-                });
-
-                // Mouse leaves a node — cancel show timer and start hide countdown
-                cy.on('mouseout', 'node', function () {
+                wrapper.addEventListener('mouseleave', function () {
                     onNode = false;
-                    delayElapsed = false;
                     clearTimeout(showTimer);
                     showTimer = null;
                     clearTimeout(hideTimer);
-                    hideTimer = setTimeout(function () {
-                        tooltip.style.display = 'none';
-                    }, HIDE_DELAY_MS);
+                    tooltip.style.display = 'none';
                 });
+                _mouseLeaveBound[selector] = true;
             }
 
-            bindCyEvents();
+            if (window.SkillTree && window.SkillTree.onCytoReady) {
+                window.SkillTree.onCytoReady(selector, bindCyHandlers);
+            } else {
+                // Helper not loaded yet — retry. Load order isn't guaranteed.
+                setTimeout(function () { attachCytoEvents(selector); }, 100);
+            }
         }
 
         attachCytoEvents('#cytoscape-graph');

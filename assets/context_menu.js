@@ -22,10 +22,6 @@
             return;
         }
 
-        function getCy() {
-            return (cyWrapper._cyreg && cyWrapper._cyreg.cy) ? cyWrapper._cyreg.cy : null;
-        }
-
         function _getFirstLink(pathData) {
             if (!pathData) return null;
             try {
@@ -140,27 +136,28 @@
             }
         }
 
-function bindCyEvents() {
-            var cy = getCy();
-            if (!cy) {
-                setTimeout(bindCyEvents, 500);
-                return;
-            }
+        // Most-recent main-canvas cy, updated on each re-bind. Document-level
+        // handlers (keydown, click, etc.) close over this single variable so
+        // they don't need to be re-registered when dash-cytoscape swaps cy.
+        var _mainCy = null;
+
+        function bindCyEvents(cy) {
+            _mainCy = cy;
 
             // --- Right-click context menu on nodes ---
             cy.on('cxttap', 'node', function (evt) {
                 evt.originalEvent.preventDefault();
-                
+
                 // Hide tooltip when opening context menu
                 var tooltip = document.getElementById('hover-tooltip');
                 if (tooltip) tooltip.style.display = 'none';
-                
+
                 // Don't clear multi-selection if right-clicking a selected node
                 if (!evt.target.selected()) {
                     cy.$('node:selected').unselect();
                     evt.target.select();
                 }
-                
+
                 var nodeData = evt.target.data();
                 var pos = evt.originalEvent;
                 _menuSource = 'main';
@@ -174,53 +171,50 @@ function bindCyEvents() {
                     _setHiddenInput('background-click-input', 'click');
                 }
             });
+        }
 
-            // Prevent browser context menu on cytoscape container
-            cyWrapper.addEventListener('contextmenu', function (e) {
-                e.preventDefault();
-            });
+        // Document-level listeners below are attached ONCE. They reference
+        // _mainCy so they always see the current cy instance without re-
+        // registration on every rebind (previous versions registered a new
+        // keydown handler per bindCyEvents call, which stacked up silently).
 
-            // --- Delete key for group delete ---
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'Delete' || e.key === 'Backspace') {
-                    // Don't intercept if user is typing in an input/textarea
-                    var activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-                    if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
-                        return;
-                    }
+        // --- Delete key for group delete ---
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            if (!_mainCy) return;
+            var activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
+                return;
+            }
+            var selected = _mainCy.$('node:selected');
+            if (selected.length === 0) return;
+            e.preventDefault();
+            var names = [];
+            selected.forEach(function (node) { names.push(node.id()); });
+            if (names.length === 0) return;
+            var confirmMsg = names.length === 1
+                ? 'Delete node "' + names[0] + '"?'
+                : 'Delete ' + names.length + ' selected nodes?';
+            if (confirm(confirmMsg)) {
+                triggerGroupDelete(names);
+            }
+        });
 
-                    var selected = cy.$('node:selected');
-                    if (selected.length > 0) {
-                        e.preventDefault();
-                        var names = [];
-                        selected.forEach(function (node) {
-                            names.push(node.id());
-                        });
-                        
-                        if (names.length > 0) {
-                            var confirmMsg = names.length === 1
-                                ? 'Delete node "' + names[0] + '"?'
-                                : 'Delete ' + names.length + ' selected nodes?';
-                            if (confirm(confirmMsg)) {
-                                triggerGroupDelete(names);
-                            }
-                        }
-                    }
-                }
-            });
+        // --- Ctrl+S to save (settings tab or node editor) ---
+        document.addEventListener('keydown', function (e) {
+            if (!((e.ctrlKey || e.metaKey) && e.key === 's')) return;
+            e.preventDefault();
+            var activeTab = document.querySelector('#main-tabs .nav-link.active');
+            if (activeTab && activeTab.textContent.trim() === 'Settings') {
+                _clickDashBtn('btn-settings-save');
+            } else {
+                _clickDashBtn('btn-save');
+            }
+        });
 
-            // --- Ctrl+S to save (settings tab or node editor) ---
-            document.addEventListener('keydown', function (e) {
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                    e.preventDefault();
-                    var activeTab = document.querySelector('#main-tabs .nav-link.active');
-                    if (activeTab && activeTab.textContent.trim() === 'Settings') {
-                        _clickDashBtn('btn-settings-save');
-                    } else {
-                        _clickDashBtn('btn-save');
-                    }
-                }
-            });
+        // Prevent browser context menu on the main cytoscape container (once).
+        if (cyWrapper) {
+            cyWrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });
         }
 
         document.addEventListener('click', function (e) {
@@ -269,128 +263,53 @@ function bindCyEvents() {
             });
         }
 
-        bindCyEvents();
-
-        // --- Also bind context menu on goal mini graph ---
-        function bindGoalGraphEvents() {
-            var goalWrapper = document.getElementById('goal-mini-graph');
-            if (!goalWrapper) {
-                setTimeout(bindGoalGraphEvents, 500);
+        function bindMiniGraphMenu(selector, sourceName, selectOnRightClick) {
+            // Attach contextmenu-prevent on the wrapper once — wrapper DOM
+            // persists across cy replacement.
+            var wrapper = document.querySelector(selector);
+            if (!wrapper) {
+                setTimeout(function () { bindMiniGraphMenu(selector, sourceName, selectOnRightClick); }, 300);
                 return;
             }
+            wrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
-            function getGoalCy() {
-                return (goalWrapper._cyreg && goalWrapper._cyreg.cy) ? goalWrapper._cyreg.cy : null;
-            }
-
-            function tryBind() {
-                var cy = getGoalCy();
-                if (!cy) {
-                    setTimeout(tryBind, 500);
-                    return;
-                }
-
+            function bind(cy) {
                 cy.on('cxttap', 'node', function (evt) {
                     evt.originalEvent.preventDefault();
-                    var nodeData = evt.target.data();
-                    var pos = evt.originalEvent;
-                    _menuSource = 'goal';
-                    showMenu(pos.clientX, pos.clientY, nodeData);
-                });
-
-                cy.on('tap', function (evt) {
-                    if (evt.target === cy) hideMenu();
-                });
-
-                goalWrapper.addEventListener('contextmenu', function (e) {
-                    e.preventDefault();
-                });
-            }
-            tryBind();
-        }
-        bindGoalGraphEvents();
-
-        // --- Also bind context menu on details mini graph ---
-        function bindDetailsGraphEvents() {
-            var detailsWrapper = document.getElementById('details-mini-graph');
-            if (!detailsWrapper) {
-                setTimeout(bindDetailsGraphEvents, 500);
-                return;
-            }
-
-            function getDetailsCy() {
-                return (detailsWrapper._cyreg && detailsWrapper._cyreg.cy) ? detailsWrapper._cyreg.cy : null;
-            }
-
-            function tryBind() {
-                var cy = getDetailsCy();
-                if (!cy) {
-                    setTimeout(tryBind, 500);
-                    return;
-                }
-
-                cy.on('cxttap', 'node', function (evt) {
-                    evt.originalEvent.preventDefault();
-                    var nodeData = evt.target.data();
-                    var pos = evt.originalEvent;
-                    _menuSource = 'details';
-                    showMenu(pos.clientX, pos.clientY, nodeData);
-                });
-
-                cy.on('tap', function (evt) {
-                    if (evt.target === cy) hideMenu();
-                });
-
-                detailsWrapper.addEventListener('contextmenu', function (e) {
-                    e.preventDefault();
-                });
-            }
-            tryBind();
-        }
-        bindDetailsGraphEvents();
-
-        // --- Also bind context menu on events graph ---
-        function bindEventsGraphEvents() {
-            var eventsWrapper = document.getElementById('events-detail-graph');
-            if (!eventsWrapper) {
-                setTimeout(bindEventsGraphEvents, 500);
-                return;
-            }
-
-            function getEventsCy() {
-                return (eventsWrapper._cyreg && eventsWrapper._cyreg.cy) ? eventsWrapper._cyreg.cy : null;
-            }
-
-            function tryBind() {
-                var cy = getEventsCy();
-                if (!cy) {
-                    setTimeout(tryBind, 500);
-                    return;
-                }
-
-                cy.on('cxttap', 'node', function (evt) {
-                    evt.originalEvent.preventDefault();
-                    if (!evt.target.selected()) {
+                    if (selectOnRightClick && !evt.target.selected()) {
                         cy.$('node:selected').unselect();
                         evt.target.select();
                     }
                     var nodeData = evt.target.data();
                     var pos = evt.originalEvent;
-                    _menuSource = 'events';
+                    _menuSource = sourceName;
                     showMenu(pos.clientX, pos.clientY, nodeData);
                 });
-
                 cy.on('tap', function (evt) {
                     if (evt.target === cy) hideMenu();
                 });
-
-                eventsWrapper.addEventListener('contextmenu', function (e) {
-                    e.preventDefault();
-                });
             }
-            tryBind();
+
+            if (window.SkillTree && window.SkillTree.onCytoReady) {
+                window.SkillTree.onCytoReady(selector, bind);
+            } else {
+                setTimeout(function () { bindMiniGraphMenu(selector, sourceName, selectOnRightClick); }, 100);
+            }
         }
-        bindEventsGraphEvents();
+
+        // Main canvas binds via the same lifecycle hook so its handlers
+        // follow cy replacement. Mini graphs share bindMiniGraphMenu.
+        if (window.SkillTree && window.SkillTree.onCytoReady) {
+            window.SkillTree.onCytoReady('#cytoscape-graph', bindCyEvents);
+        } else {
+            // Rare: helper not yet loaded. Retry the whole init — cyto_lifecycle
+            // is typically loaded alongside us, so this falls through quickly.
+            setTimeout(initContextMenu, 100);
+            return;
+        }
+        bindMiniGraphMenu('#goal-mini-graph', 'goal', false);
+        bindMiniGraphMenu('#details-mini-graph', 'details', false);
+        bindMiniGraphMenu('#events-detail-graph', 'events', true);
     }
 
     if (document.readyState === 'loading') {
