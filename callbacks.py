@@ -170,6 +170,23 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
 def register_callbacks(app):
     """Register all Dash callbacks for the application."""
 
+    # --- Graph Version Bridge ---
+    # Observes cytoscape element changes and updates graph-version-store only
+    # when GraphManager's internal version actually advanced (i.e. a real
+    # node/edge mutation happened). Cosmetic changes (filter, depth, highlight)
+    # regenerate elements without bumping the version, so downstream callbacks
+    # subscribed to graph-version-store skip unnecessary recomputation.
+    @app.callback(
+        Output('graph-version-store', 'data'),
+        Input('cytoscape-graph', 'elements'),
+        State('graph-version-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def sync_graph_version(_elements, current):
+        if manager._graph_version != current:
+            return manager._graph_version
+        return dash.no_update
+
     # --- Clear Filters ---
     @app.callback(
         Output('filter-node-type', 'value'),

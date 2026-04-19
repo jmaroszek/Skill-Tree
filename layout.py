@@ -1339,6 +1339,11 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='pending-event-override-store', data=None),
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
+        # Bumped by the bridge callback only when GraphManager._graph_version
+        # advances (i.e. a real node/edge mutation, not a cosmetic filter change).
+        # Downstream listeners use this instead of cytoscape-graph.elements to
+        # avoid re-firing on cosmetic updates (filter, depth, highlight).
+        dcc.Store(id='graph-version-store', data=0),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
 
         main_tabs,
