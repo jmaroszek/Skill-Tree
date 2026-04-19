@@ -1871,9 +1871,9 @@ def register_callbacks(app):
         trigger = get_trigger_id()
         if pending_event:
             if trigger == 'btn-override-replace':
-                ConfigManager.clear_override()
-                ConfigManager.clear_event_override_nodes()
-                ConfigManager.add_event_override_nodes(pending_event.get("candidates", []))
+                ConfigManager.atomic_set_event_override(
+                    pending_event.get("candidates", []), replace=True
+                )
             elif trigger != 'btn-override-keep':
                 return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
             # Advance to next queued conflict, if any (also an event-batch entry — keep radio hidden)

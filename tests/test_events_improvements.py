@@ -64,6 +64,22 @@ class TestEventOverrideNodes:
         ConfigManager.add_event_override_nodes(["B", "C"])
         assert set(ConfigManager.get_event_override_nodes()) == {"A", "B", "C"}
 
+    def test_atomic_set_event_override_merge(self):
+        """Merge mode unions candidates with existing pins and clears parent in one tx."""
+        ConfigManager.set_override({"parent": "OldParent", "mode": "hard"})
+        ConfigManager.set_event_override_nodes(["A"])
+        ConfigManager.atomic_set_event_override(["B", "C"], replace=False)
+        assert ConfigManager.get_override()["parent"] is None
+        assert set(ConfigManager.get_event_override_nodes()) == {"A", "B", "C"}
+
+    def test_atomic_set_event_override_replace(self):
+        """Replace mode drops existing pins; parent always cleared."""
+        ConfigManager.set_override({"parent": "OldParent", "mode": "soft"})
+        ConfigManager.set_event_override_nodes(["Stale1", "Stale2"])
+        ConfigManager.atomic_set_event_override(["Fresh"], replace=True)
+        assert ConfigManager.get_override()["parent"] is None
+        assert ConfigManager.get_event_override_nodes() == ["Fresh"]
+
     def test_override_set_unions_event_override(self, mgr):
         mgr.add_node(_node("Solo"))
         ConfigManager.set_event_override_nodes(["Solo"])

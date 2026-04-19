@@ -512,8 +512,7 @@ def register_event_callbacks(app):
                 # Event-batch resolution ignores mode — hide the radio.
                 mode_wrapper_style = {"display": "none"}
             else:
-                ConfigManager.clear_override()
-                ConfigManager.add_event_override_nodes(candidates)
+                ConfigManager.atomic_set_event_override(candidates, replace=False)
                 import time as _t
                 override_store_update = {"parent": None, "mode": "hard", "_t": _t.time()}
 

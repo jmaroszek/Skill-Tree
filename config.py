@@ -524,6 +524,41 @@ class ConfigManager:
         cls.set_event_override_nodes([])
 
     @classmethod
+    def atomic_set_event_override(cls, candidates: list, replace: bool = False) -> None:
+        """Atomically clear the parent override and pin event_override_nodes.
+
+        Override parent and event_override_nodes form a single invariant
+        ("what's currently pinned"). Writing them as two separate
+        _set_db_value calls leaves a window where a crash / disk error
+        can produce half-committed state — parent gone but no event pins,
+        or stale pins alongside new ones. This method performs both writes
+        in one DB transaction.
+
+        replace=False: merge candidates with existing pins (union).
+        replace=True: drop existing pins, use only the new candidates.
+        """
+        if replace:
+            new_nodes = sorted(set(candidates))
+        else:
+            existing = set(cls.get_event_override_nodes())
+            existing.update(candidates)
+            new_nodes = sorted(existing)
+
+        cleared_override = json.dumps({"parent": None, "mode": "hard"})
+        new_event_nodes = json.dumps(list(new_nodes))
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)",
+                ("OVERRIDE", cleared_override),
+            )
+            cursor.execute(
+                "INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)",
+                ("EVENT_OVERRIDE_NODES", new_event_nodes),
+            )
+            conn.commit()
+
+    @classmethod
     def rename_node_references(cls, old_name: str, new_name: str) -> None:
         """Propagate a node rename to every config entry that stores a node name.
 
