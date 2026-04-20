@@ -25,6 +25,7 @@ from callback_helpers import (
     strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
     normalize_name_for_comparison,
+    has_editor_unsaved_changes,
 )
 
 logger = logging.getLogger(__name__)
@@ -338,15 +339,35 @@ def register_callbacks(app):
         [State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
-         State('node-name', 'value'), State('node-desc', 'value'),
+         State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
+         State('node-context', 'value'), State('node-subcontext', 'value'),
+         State('node-status-done', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'),
          State('node-difficulty', 'value'),
+         State('node-time-o', 'value'), State('node-time-m', 'value'),
+         State('node-time-p', 'value'), State('node-time-unit', 'value'),
+         State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
+         State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
+         State('edge-helps', 'value'),
+         State({'type': 'obsidian-link', 'index': ALL}, 'value'),
+         State({'type': 'drive-link', 'index': ALL}, 'value'),
+         State({'type': 'website-link', 'index': ALL}, 'value'),
+         State('node-progress', 'value'), State('node-time-mode', 'value'),
+         State('node-priority-rank', 'value'), State('node-competence', 'value'),
+         State({'type': 'alias-input', 'index': ALL}, 'value'),
          State('pending-navigation-store', 'data')],
         prevent_initial_call='initial_duplicate'
     )
     def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
                         details_edit_trigger_val,
-                        elements, ed_style, original_name, cur_name, cur_desc, cur_val, cur_interest, cur_diff,
+                        elements, ed_style, original_name,
+                        cur_name, cur_type, cur_desc, cur_context, cur_subctx, cur_status_done,
+                        cur_val, cur_interest, cur_diff,
+                        cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
+                        cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
+                        cur_obs, cur_drive, cur_website,
+                        cur_progress, cur_time_mode, cur_priority_rank, cur_competence,
+                        cur_aliases,
                         pending_nav):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
@@ -371,22 +392,21 @@ def register_callbacks(app):
             False,  # modal-unsaved-changes
         ]
 
-        # Helper: check if editor has unsaved changes
         def _has_unsaved_changes():
-            if original_name:
-                old_node = manager.get_node(original_name)
-                if old_node:
-                    return any([
-                        (cur_name or "").strip() != (old_node.name or "").strip(),
-                        (cur_desc or "").strip() != (old_node.description or "").strip(),
-                        float(cur_val or 5) != float(old_node.value or 5),
-                        float(cur_interest or 5) != float(old_node.interest or 5),
-                        float(cur_diff or 5) != float(old_node.difficulty or 5),
-                    ])
-            # New node: check if any content has been entered
-            return bool(cur_name and cur_name.strip()) or bool(cur_desc and cur_desc.strip()) or any([
-                cur_val not in (None, 5), cur_interest not in (None, 5), cur_diff not in (None, 5),
-            ])
+            return has_editor_unsaved_changes(
+                manager, original_name,
+                name=cur_name, n_type=cur_type, desc=cur_desc,
+                context=cur_context, subctx=cur_subctx, status_done=cur_status_done,
+                val=cur_val, interest=cur_interest, diff=cur_diff,
+                time_o=cur_time_o, time_m=cur_time_m, time_p=cur_time_p, time_unit=cur_time_unit,
+                e_needs_h=cur_needs_h, e_needs_s=cur_needs_s,
+                e_supp_h=cur_supp_h, e_supp_s=cur_supp_s, e_helps=cur_helps,
+                obs_link_values=cur_obs, drive_link_values=cur_drive,
+                website_link_values=cur_website,
+                progress_val=cur_progress, time_mode_val=cur_time_mode,
+                priority_rank_val=cur_priority_rank, competence_val=cur_competence,
+                alias_values=cur_aliases,
+            )
 
         if trigger_id == 'btn-new-node':
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
@@ -941,21 +961,20 @@ def register_callbacks(app):
             elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not name or not n_type):
                 pass  # Keep sidebar open — validation error shown below
             elif trigger_id == 'btn-close-editor':
-                form_has_content = False
-                if original_name:
-                    old_node = manager.get_node(original_name)
-                    if old_node:
-                        form_has_content = any([
-                            (name or "").strip() != (old_node.name or "").strip(),
-                            (desc or "").strip() != (old_node.description or "").strip(),
-                            float(val or 5) != float(old_node.value or 5),
-                            float(interest or 5) != float(old_node.interest or 5),
-                            float(diff or 5) != float(old_node.difficulty or 5)
-                        ])
-                if not original_name or not manager.get_node(original_name):
-                    form_has_content = bool(name and name.strip()) or bool(desc and desc.strip()) or any([
-                        val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
-                    ])
+                form_has_content = has_editor_unsaved_changes(
+                    manager, original_name,
+                    name=name, n_type=n_type, desc=desc,
+                    context=context, subctx=subctx, status_done=status_done,
+                    val=val, interest=interest, diff=diff,
+                    time_o=time_o, time_m=time_m, time_p=time_p, time_unit=time_unit,
+                    e_needs_h=e_needs_h, e_needs_s=e_needs_s,
+                    e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
+                    obs_link_values=obs_link_values, drive_link_values=drive_link_values,
+                    website_link_values=website_link_values,
+                    progress_val=progress_val, time_mode_val=time_mode_val,
+                    priority_rank_val=priority_rank_val, competence_val=competence_val,
+                    alias_values=alias_values,
+                )
                 if not form_has_content:
                     next_ed_style['transform'] = "translateX(-380px)"
             else:
@@ -1296,28 +1315,49 @@ def register_callbacks(app):
          Input('btn-unsaved-cancel', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks')],
-        [State('node-name', 'value'), State('node-desc', 'value'),
+        [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
+         State('node-context', 'value'), State('node-subcontext', 'value'),
+         State('node-status-done', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'),
-         State('node-difficulty', 'value'), State('node-original-name', 'data')],
+         State('node-difficulty', 'value'),
+         State('node-time-o', 'value'), State('node-time-m', 'value'),
+         State('node-time-p', 'value'), State('node-time-unit', 'value'),
+         State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
+         State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
+         State('edge-helps', 'value'),
+         State({'type': 'obsidian-link', 'index': ALL}, 'value'),
+         State({'type': 'drive-link', 'index': ALL}, 'value'),
+         State({'type': 'website-link', 'index': ALL}, 'value'),
+         State('node-progress', 'value'), State('node-time-mode', 'value'),
+         State('node-priority-rank', 'value'), State('node-competence', 'value'),
+         State({'type': 'alias-input', 'index': ALL}, 'value'),
+         State('node-original-name', 'data')],
         prevent_initial_call=True
     )
-    def toggle_unsaved_modal(_close, _cancel, _save, _discard, name, desc, val, interest, diff, original_name):
-        trigger_id = get_trigger_id()
-        if trigger_id == 'btn-close-editor':
-            if original_name:
-                old_node = manager.get_node(original_name)
-                if old_node:
-                    name_changed = (name or "").strip() != (old_node.name or "").strip()
-                    desc_changed = (desc or "").strip() != (old_node.description or "").strip()
-                    val_changed = float(val or 5) != float(old_node.value or 5)
-                    interest_changed = float(interest or 5) != float(old_node.interest or 5)
-                    diff_changed = float(diff or 5) != float(old_node.difficulty or 5)
-                    return any([name_changed, desc_changed, val_changed, interest_changed, diff_changed])
-            has_content = bool(name and name.strip()) or bool(desc and desc.strip()) or any([
-                val not in (None, 5), interest not in (None, 5), diff not in (None, 5),
-            ])
-            return has_content
-        return False
+    def toggle_unsaved_modal(_close, _cancel, _save, _discard,
+                              name, n_type, desc, context, subctx, status_done,
+                              val, interest, diff,
+                              time_o, time_m, time_p, time_unit,
+                              e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
+                              obs_link_values, drive_link_values, website_link_values,
+                              progress_val, time_mode_val, priority_rank_val, competence_val,
+                              alias_values, original_name):
+        if get_trigger_id() != 'btn-close-editor':
+            return False
+        return has_editor_unsaved_changes(
+            manager, original_name,
+            name=name, n_type=n_type, desc=desc,
+            context=context, subctx=subctx, status_done=status_done,
+            val=val, interest=interest, diff=diff,
+            time_o=time_o, time_m=time_m, time_p=time_p, time_unit=time_unit,
+            e_needs_h=e_needs_h, e_needs_s=e_needs_s,
+            e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
+            obs_link_values=obs_link_values, drive_link_values=drive_link_values,
+            website_link_values=website_link_values,
+            progress_val=progress_val, time_mode_val=time_mode_val,
+            priority_rank_val=priority_rank_val, competence_val=competence_val,
+            alias_values=alias_values,
+        )
 
     # --- Delete Confirmation Modal ---
     @app.callback(

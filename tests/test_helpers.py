@@ -9,7 +9,7 @@ from dash import html
 from callback_helpers import (
     parse_links, serialize_links,
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
-    _bool_icon,
+    _bool_icon, has_editor_unsaved_changes,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -287,3 +287,165 @@ class TestBoolIcon:
     def test_empty_string_returns_cross(self):
         result = _bool_icon("")
         assert result.children == "\u2717"
+
+
+# ============================================================================
+# has_editor_unsaved_changes — X-button close-prompt regression tests
+# ============================================================================
+
+class TestHasEditorUnsavedChanges:
+    """Pin the dirty-state detection behind the Node Editor's X-close prompt.
+
+    Regression: only 5 of the ~25 editable fields were being compared, so
+    changes to edges/links/time/type/context/etc. caused the editor to
+    silently close without prompting to save.
+    """
+
+    @staticmethod
+    def _pristine_form(node):
+        """Build the form-state kwargs that populate_editor would set for ``node``."""
+        from callbacks import _friendly_time_estimates
+        friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
+            node.time_o, node.time_m, node.time_p
+        )
+        return dict(
+            name=node.name, n_type=node.type, desc=node.description,
+            context=node.context or '', subctx=node.subcontext or '',
+            status_done=(['Done'] if node.status == 'Done' else []),
+            val=node.value, interest=node.interest, diff=node.difficulty,
+            time_o=friendly_o, time_m=friendly_m, time_p=friendly_p,
+            time_unit=friendly_unit,
+            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
+            obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
+            progress_val=node.progress or 0,
+            time_mode_val=(['inherited'] if node.time_mode == 'inherited' else []),
+            priority_rank_val='none', competence_val=node.competence or '',
+            alias_values=[''],
+        )
+
+    @staticmethod
+    def _seed(mgr, **overrides):
+        from models import Node
+        defaults = dict(
+            name='Alpha', type='Learn', description='hello', value=5,
+            time_o=40.0, time_m=80.0, time_p=160.0, interest=5, difficulty=5,
+            status='Open', context='Mind',
+        )
+        defaults.update(overrides)
+        node = Node(**defaults)
+        mgr.add_node(node)
+        return node
+
+    def test_pristine_form_is_not_dirty(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        assert not has_editor_unsaved_changes(
+            mgr, node.name, **self._pristine_form(node)
+        )
+
+    def test_edge_change_detected(self):
+        """Adding a prerequisite must count as dirty."""
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        self._seed(mgr, name='Target')
+        node = self._seed(mgr, name='Alpha')
+        form = self._pristine_form(node)
+        form['e_needs_h'] = ['Target']
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_link_change_detected(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['obs_link_values'] = ['notes/alpha.md']
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_time_change_detected(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['time_m'] = (form['time_m'] or 0) + 1
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_context_change_detected(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['context'] = 'Body'
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_type_change_detected(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['n_type'] = 'Action'
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_status_change_detected(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['status_done'] = ['Done']
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_alias_change_detected(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['alias_values'] = ['AlphaAlias']
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_competence_change_detected(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['competence_val'] = 'Expert'
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_description_change_detected(self):
+        """Sanity check: the original 5-field check still works."""
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        node = self._seed(mgr)
+        form = self._pristine_form(node)
+        form['desc'] = 'updated description'
+        assert has_editor_unsaved_changes(mgr, node.name, **form)
+
+    def test_blank_new_node_form_is_not_dirty(self):
+        """Empty new-node form (no original_name) should not prompt."""
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        assert not has_editor_unsaved_changes(
+            mgr, None,
+            name='', n_type='Learn', desc='',
+            context='', subctx='', status_done=[],
+            val=5, interest=5, diff=5,
+            time_o=2, time_m=4, time_p=6, time_unit='weeks',
+            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
+            obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
+            progress_val=0, time_mode_val=[], priority_rank_val='none',
+            competence_val='', alias_values=[''],
+        )
+
+    def test_new_node_with_name_typed_is_dirty(self):
+        from graph_manager import GraphManager
+        mgr = GraphManager()
+        assert has_editor_unsaved_changes(
+            mgr, None,
+            name='Unsaved', n_type='Learn', desc='',
+            context='', subctx='', status_done=[],
+            val=5, interest=5, diff=5,
+            time_o=2, time_m=4, time_p=6, time_unit='weeks',
+            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
+            obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
+            progress_val=0, time_mode_val=[], priority_rank_val='none',
+            competence_val='', alias_values=[''],
+        )
