@@ -124,8 +124,8 @@ def build_details_tab_content():
       │  ┌─────────────────────────┐   │                                  │
       │  │ ☰  [Search ▾] [← ] [→] │   │   Cytoscape dependency graph     │
       │  ├─────────────────────────┤   │                                  │
-      │  │ Node name / details /   │   │                                  │
-      │  │ Edit | Focus | Filters  │   │                                  │
+      │  │ Node name / details /   │   │   (Focus ⌕ overlay, bot-left)    │
+      │  │ Locate | Edit           │   │                                  │
       │  └─────────────────────────┘   │                                  │
       ├─────────────────────────────────┴──────────────────── (h-drag) ───┤
       │  Subtasks table                     │  Simulation chart           │
@@ -222,15 +222,10 @@ def build_details_tab_content():
             html.Div(id="details-priority-badge"),
         ]),
 
-        # Action buttons — Focus | Locate | Edit
+        # Action buttons — Locate | Edit  (Focus lives on the canvas overlay)
         html.Div([
-            dbc.Button("Focus", id="btn-details-focus", color="secondary",
-                       size="sm", style={"flex": "1"}),
-            dbc.Tooltip("Open this node's subtree in the main canvas",
-                        target="btn-details-focus", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button("Locate", id="btn-details-locate", color="secondary",
-                       size="sm", className="ms-1", style={"flex": "1"}),
+                       size="sm", style={"flex": "1"}),
             dbc.Tooltip("Briefly pulse this node in the mini-graph",
                         target="btn-details-locate", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
@@ -317,6 +312,13 @@ def build_details_tab_content():
             dbc.Tooltip("Graph settings", target="btn-details-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _build_details_graph_settings_panel(),
+            dbc.Button(html.I(className="bi bi-search"),
+                       id="btn-details-focus",
+                       color="secondary", size="sm",
+                       className="btn-canvas-bottom-left"),
+            dbc.Tooltip("Open this node's subtree in the main canvas",
+                        target="btn-details-focus", placement="right",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-details-graph-fullscreen",
                        color="secondary", size="sm",

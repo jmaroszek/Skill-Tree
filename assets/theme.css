@@ -20,6 +20,14 @@
     bottom: 12px;
 }
 
+.btn-canvas-bottom-left {
+    position: absolute;
+    left: 16px;
+    bottom: 12px;
+    z-index: 10;
+    opacity: 1;
+}
+
 /* Graph Settings Panel */
 .graph-settings-panel {
     position: absolute;
@@ -179,6 +187,34 @@
 /* --- Filter sidebar dropdown placeholder text --- */
 #sidebar-filters-container [class$="-placeholder"] {
     color: #212529 !important;
+}
+
+/* --- Dash dropdown menus: pin width to anchor (trigger) width --- */
+/* Dash dropdowns use Radix UI, which portals the menu and sets
+   `min-width: max-content` on the popper wrapper — causing the menu to
+   expand to the longest option. Override using Radix's own anchor-width
+   CSS variable so the menu always matches the trigger. */
+[data-radix-popper-content-wrapper]:has(> .dash-dropdown-content) {
+    min-width: var(--radix-popper-anchor-width) !important;
+    max-width: var(--radix-popper-anchor-width) !important;
+}
+.dash-dropdown-content {
+    width: var(--radix-popper-anchor-width) !important;
+    min-width: var(--radix-popper-anchor-width) !important;
+    max-width: var(--radix-popper-anchor-width) !important;
+    box-sizing: border-box !important;
+}
+
+/* Node Editor search: extend the menu past the Locate button next to it. */
+/* Scoped via :has() so only fires when #search-node is the open trigger. */
+body:has(button#search-node[aria-expanded="true"]) [data-radix-popper-content-wrapper]:has(> .dash-dropdown-content) {
+    min-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
+    max-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
+}
+body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
+    width: calc(var(--radix-popper-anchor-width) + 35px) !important;
+    min-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
+    max-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
 }
 
 /* --- Settings modal tab styling --- */
