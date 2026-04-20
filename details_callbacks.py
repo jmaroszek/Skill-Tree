@@ -4,7 +4,6 @@ Callback definitions for the Details tab.
 
 import os
 import json as _json
-import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go

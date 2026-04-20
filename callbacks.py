@@ -3,12 +3,14 @@ Callback definitions for the Skill Tree Dash application.
 """
 
 import logging
-import dash
 import os
 import subprocess
 import urllib.parse
+
+import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
+
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import ConfigManager
@@ -236,18 +238,6 @@ def register_callbacks(app):
             done = completion.get('done', 0)
             pct = completion.get('pct', 0)
             remaining = completion.get('remaining_time', 0)
-
-            if total > 0:
-                if pct == 100:
-                    effective_status = "Done"
-                elif completion.get('is_blocked', False):
-                    effective_status = "Blocked"
-                else:
-                    effective_status = data.get('status', 'Open')
-            else:
-                effective_status = data.get('status', 'Open')
-
-            status_color = {"Done": "#198754", "Blocked": "#dc3545"}.get(effective_status, "#dee2e6")
 
             lines = [header]
 

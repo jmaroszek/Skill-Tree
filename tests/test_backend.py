@@ -10,7 +10,7 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
 from graph_manager import GraphManager
-from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_CONTEXTS, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
+from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
 from scoring import intrinsic_value, perceived_cost, is_eligible, build_adjacency, total_value, score_nodes
 
 
@@ -1425,7 +1425,7 @@ class TestGoalCompletion:
         mgr.add_edge("Prereq", "A", EDGE_NEEDS_HARD)
         mgr.add_edge("A", "Goal", EDGE_NEEDS_HARD)
         # A is blocked because Prereq is Open
-        result = mgr.get_goal_completion("Goal")
+        mgr.get_goal_completion("Goal")
         # The subtree is [Prereq, A]. Prereq is Open, A is Blocked.
         # done + blocked = 0 + 1, total = 2 → not all blocked
         # Only "blocked" if ALL remaining are blocked

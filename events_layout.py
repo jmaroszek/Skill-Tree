@@ -2,10 +2,10 @@
 Layout definitions for the Events tab.
 """
 
-from dash import html, dcc, no_update
+from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
-from typing import Optional, List, Any
+from typing import List, Any
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from styles import events_graph_stylesheet
 from details_layout import _build_graph_settings_panel

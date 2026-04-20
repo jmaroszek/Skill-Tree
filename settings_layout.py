@@ -6,7 +6,6 @@ from dash import html
 import dash_bootstrap_components as dbc
 from config import (
     ConfigManager,
-    DEFAULT_ANALYZE_LIMITS,
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
 )

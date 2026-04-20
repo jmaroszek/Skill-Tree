@@ -1,3 +1,18 @@
+"""
+Configuration and persistent settings.
+
+The module holds:
+  - Global defaults (DEFAULT_*) used when the DB has no stored value.
+  - `ENVIRONMENT` — switched to "sandbox" by app.py when invoked with
+    `-sandbox`; determines which SQLite file database.py opens.
+  - `ConfigManager` — a classmethod-only gateway to the Settings table
+    (a simple key/value JSON store), plus a few semantic helpers
+    (rename propagation, hyperparameter profiles, time formatting).
+
+ConfigManager is effectively a singleton: all state lives in SQLite,
+so a single import is shared across all callback modules.
+"""
+
 import json
 from typing import Optional
 from database import get_connection
@@ -171,6 +186,14 @@ PROFILES = {
 }
 
 class ConfigManager:
+    """Classmethod-only facade over the Settings key/value table.
+
+    Every `get_*` reads from SQLite (falling back to a DEFAULT_* constant
+    on first run) and every `set_*` writes back. No in-process cache —
+    values are round-tripped through the DB on each access, which keeps
+    multiple callback modules consistent without coordination.
+    """
+
     @staticmethod
     def _get_db_value(key: str) -> Optional[str]:
         with get_connection() as conn:

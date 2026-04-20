@@ -1,6 +1,9 @@
 """
 Monte Carlo simulation engine for PERT-based time estimation.
-Uses critical-path analysis across dependency chains.
+
+Samples per-node durations from a PERT-Beta distribution and sums them
+serially across the dependency chain — this assumes one person working
+on one task at a time, not parallel execution.
 """
 
 import numpy as np
@@ -68,12 +71,14 @@ def simulate_task_chain(
     include_helps: bool = False,
     n_simulations: int = 10000,
 ) -> dict:
-    """Critical-path Monte Carlo simulation for a node's dependency chain.
+    """Monte Carlo simulation of total time for a target node's dependency chain.
 
-    BFS backwards from target through dependency edges, then simulates
-    durations and computes the longest path (critical path) for each run.
+    Walks backward from `target_name` via hard (and optionally soft /
+    synergistic) prereq edges, collects every incomplete node along
+    the way, samples each node's duration from its PERT-Beta
+    distribution, and returns a distribution of the serial sum.
 
-    Returns dict with 'samples', 'stats', 'chain_nodes', 'chain_size'.
+    Returns dict with keys 'samples', 'stats', 'chain_nodes', 'chain_size'.
     """
     prereq_hard: Dict[str, List[str]] = {}
     prereq_soft: Dict[str, List[str]] = {}

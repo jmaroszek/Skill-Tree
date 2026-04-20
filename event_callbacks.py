@@ -7,11 +7,9 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
 from graph_manager import GraphManager
-import dash_bootstrap_components as dbc
-from typing import Optional, List
 from config import ConfigManager
 from models import Node, Event
-from events_layout import build_event_card, build_dormant_nodes_table, _event_badge, _event_trigger_type
+from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
 from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker, strip_gdrive_prefix
 
 event_manager = EventManager()
@@ -867,7 +865,6 @@ def register_event_callbacks(app):
                 idx = trigger['index']
                 if not any(browse_clicks):
                     return no_update
-                import os
                 abs_path = spawn_local_file_picker(
                     initial_dir=r"G:\\My Drive",
                     title="Select Google Drive File",

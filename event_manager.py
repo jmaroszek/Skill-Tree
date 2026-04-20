@@ -1,3 +1,13 @@
+"""
+Event + dormant-node persistence and activation logic.
+
+An Event has one of three trigger types — manual (user clicks "trigger"),
+date-based (an ISO date is reached), or node-based (a specific node flips
+to Done). Each Event owns zero or more *dormant* nodes that are not part
+of the live graph until the event fires, at which point they are flipped
+to active (with an optional per-node delay) via check_pending_events().
+"""
+
 import sqlite3
 from datetime import date, timedelta
 import database
@@ -6,6 +16,13 @@ from typing import List, Dict, Optional
 
 
 class EventManager:
+    """Gateway for the Events and EventNodes tables.
+
+    Mirrors the shape of GraphManager but scoped to event-related state.
+    Construction runs database.init_db() defensively so the schema exists
+    regardless of which module is imported first.
+    """
+
     def __init__(self):
         database.init_db()
 

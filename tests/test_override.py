@@ -7,11 +7,10 @@ and override cleanup on node delete/rename/group-delete.
 """
 
 from typing import Any
-import json
 import pytest
 import database
 from dash import html
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from graph_manager import GraphManager
 from config import ConfigManager
 from callback_helpers import handle_delete, handle_group_delete, format_suggestions_table

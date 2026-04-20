@@ -9,7 +9,6 @@ import dash_bootstrap_components as dbc
 from config import (
     ConfigManager,
     CANVAS_HEIGHT,
-    DEFAULT_TIME_ESTIMATE_DEFAULTS,
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     TOOLTIP_NODE_HIDE_DELAY_MS,

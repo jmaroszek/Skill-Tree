@@ -3,13 +3,12 @@ Callback definitions for the Analyze tab.
 Computes and renders aggregate analytics about the graph.
 """
 
-import dash
 from dash import html, dcc, Input, Output, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from collections import defaultdict
 from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import EDGE_NEEDS_HARD
 from config import ConfigManager
 from scoring import intrinsic_value, total_value, build_adjacency as build_scoring_adjacency
 
@@ -761,7 +760,6 @@ def _render_risk_chart(data):
 
     fmt = ConfigManager.format_time_friendly
     # Keep sorted by spread descending (largest spread on left)
-    names = [d['name'] for d in data]
     display_names = [_trunc(d['name']) for d in data]
     optimistic = [d['optimistic'] for d in data]
     spreads = [d['pessimistic'] - d['optimistic'] for d in data]
@@ -900,8 +898,6 @@ def _render_ratings_chart(data):
     # Sort so largest context is at top (data is already sorted by count desc)
     contexts = [d['context'] for d in data]
     display_contexts = [_trunc(d['context']) for d in data]
-    metrics = ['avg_difficulty', 'avg_interest', 'avg_value']
-    metric_labels = ['Difficulty', 'Interest', 'Value']
 
     # Build z-matrix: rows = contexts, cols = metrics
     z = []
@@ -1058,7 +1054,6 @@ def register_analyze_callbacks(app):
 
         nodes = graph_manager.get_all_nodes(include_dormant=False)
         edges = graph_manager.get_edges()
-        node_map = {n.name: n for n in nodes}
 
         if not nodes:
             return html.Div([

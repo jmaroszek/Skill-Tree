@@ -6,16 +6,19 @@ the callback registration files focused on Dash I/O wiring.
 """
 
 import json
+from collections import defaultdict
+
 import dash
 from dash import html
 import dash_bootstrap_components as dbc
+
 from config import ConfigManager
-from collections import defaultdict
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from scoring import build_adjacency as build_scoring_adjacency, total_value
 
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
+
 
 def _get_duplicate_stop_words():
     """Get stop words for duplicate comparison from linter settings."""

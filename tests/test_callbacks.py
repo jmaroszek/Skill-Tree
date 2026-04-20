@@ -8,7 +8,7 @@ global `manager` instance).
 from typing import Any
 import pytest
 import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import Node, EDGE_NEEDS_HARD
 from callbacks import generate_elements, manager
 from callback_helpers import (
     build_filters, node_options, handle_save, handle_delete,
@@ -146,7 +146,7 @@ class TestHandleSave:
     def test_syncs_edges(self):
         manager.add_node(_make_node("A"))
         manager.add_node(_make_node("B", status="Done"))
-        msg = handle_save(manager,
+        handle_save(manager,
             "A", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
             [], "Mind", None, None, None, None,
             ["B"], [], [], [], []  # B is a hard prereq of A

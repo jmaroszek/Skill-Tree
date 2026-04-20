@@ -8,5 +8,6 @@ dependencies:
   - dash_cytoscape
   - dash-bootstrap-components
   - networkx
-  - sqlite
+  - numpy
+  - plotly
   - pytest

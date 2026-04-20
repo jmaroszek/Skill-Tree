@@ -14,7 +14,7 @@ from analyze_callbacks import (
     _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
     _compute_top_time_sinks, _compute_ratings, _compute_goal_comparison,
     _compute_risk, _compute_dependency_structure, _compute_context_coverage,
-    _compute_most_valuable_chain, _get_limits,
+    _compute_most_valuable_chain,
 )
 
 

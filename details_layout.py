@@ -12,12 +12,9 @@ import dash_cytoscape as cyto
 from typing import Optional, List, Any
 from config import (
     ConfigManager,
-    DEFAULT_TIME_ESTIMATE_DEFAULTS,
-    DEFAULT_DETAILS_GRAPH_LAYOUT,
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
 )
-from models import EDGE_NEEDS_HARD
 from styles import stylesheet
 
 

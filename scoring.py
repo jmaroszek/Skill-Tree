@@ -14,7 +14,14 @@ from typing import List, Dict, Tuple, Optional
 
 
 def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dict, dict]:
-    """Builds H_out, S_out, Syn, and Hard_in adjacency structures from edges."""
+    """Build the four adjacency maps the scoring algorithm consumes.
+
+    Returns (H_out, S_out, Syn, Hard_in) where:
+      - H_out[n]   : nodes that depend on n via a hard prerequisite
+      - S_out[n]   : nodes that depend on n via a soft prerequisite
+      - Syn[n]     : nodes synergistic with n (symmetric set)
+      - Hard_in[n] : the hard prerequisites of n (incoming)
+    """
     H_out = {n: [] for n in node_names}
     S_out = {n: [] for n in node_names}
     Syn = {n: set() for n in node_names}

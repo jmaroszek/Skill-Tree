@@ -1,16 +1,25 @@
+"""
+Persistence + in-memory graph operations.
+
+GraphManager is the single gateway between the Dash callbacks and the
+SQLite store. It handles node/edge CRUD, cascade status updates, cycle
+detection, filtering, and priority scoring — and owns the invalidation
+counters that let the higher-level callback caches know when to rebuild.
+"""
+
 import sqlite3
 import threading
 import database
 import networkx as nx
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from config import ConfigManager
 from scoring import score_nodes
 from typing import List, Dict, Optional, Set
 
 
-"""Fields whose mutation changes a node's priority_score. Anything else
-(description, paths, progress, context, aliases, competence) is cosmetic
-for scoring purposes and must not invalidate the scoring memo."""
+# Fields whose mutation changes a node's priority_score. Anything else
+# (description, paths, progress, context, aliases, competence) is cosmetic
+# for scoring purposes and must not invalidate the scoring memo.
 _SCORING_RELEVANT_FIELDS = frozenset({
     'type', 'value', 'interest', 'difficulty',
     'time_o', 'time_m', 'time_p', 'time_mode',
@@ -19,6 +28,13 @@ _SCORING_RELEVANT_FIELDS = frozenset({
 
 
 class GraphManager:
+    """Single gateway for all graph state reads and writes.
+
+    Every callback module constructs its own GraphManager instance, but
+    the underlying SQLite file and the invalidation version counters are
+    shared (class-level) so a mutation in one instance is seen by every
+    other instance's cache.
+    """
     # Versions are class-level because every GraphManager instance in this
     # codebase (one per callback module) reads the same DB. Per-instance
     # versions would diverge when instance A mutates the DB but instance B's

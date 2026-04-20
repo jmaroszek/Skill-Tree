@@ -12,7 +12,6 @@ unwrapped callback directly with trigger contexts that exercise each branch.
 """
 
 import dash
-import pytest
 
 import callbacks
 from callbacks import register_callbacks

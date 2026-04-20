@@ -4,7 +4,6 @@ Locks in current behavior on empty / seeded / filtered / depth-limited graphs so
 later optimizations cannot silently change the rendered element list.
 """
 
-import pytest
 from callbacks import generate_elements
 from graph_manager import GraphManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_HELPS

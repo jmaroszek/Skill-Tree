@@ -5,7 +5,6 @@ Tests pure functions that don't require a database.
 """
 
 import json
-import pytest
 from dash import html
 from callback_helpers import (
     parse_links, serialize_links,

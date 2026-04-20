@@ -1,7 +1,6 @@
 """Smoke test: the app module imports cleanly and registers its callbacks."""
 
 import importlib
-import os
 import sys
 
 import pytest

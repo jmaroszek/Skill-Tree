@@ -1,3 +1,14 @@
+"""Core data models for the Skill Tree.
+
+A `Node` is the fundamental unit — a task, goal, or reference that the
+scoring algorithm can rank. Nodes are related to one another by typed
+edges (see the EDGE_* constants).
+
+An `Event` is an activation gate: zero-or-more dormant nodes can be
+attached to it, and when the event triggers (manually, by date, or when
+a specific node completes) the dormant nodes become active.
+"""
+
 from dataclasses import dataclass, asdict
 from typing import Optional
 import math
@@ -11,8 +22,12 @@ EDGE_RESOURCE = 'Resource'  # Deprecated: migrated to Needs_Soft at startup
 
 @dataclass
 class Node:
-    """
-    Represents a Node in the Skill Tree.
+    """A task, goal, or reference in the graph.
+
+    `name` is the primary key — renaming a node cascades through edges,
+    overrides, goal orderings, and events (see GraphManager.rename_node).
+    `time_mode='inherited'` means a parent node draws its time estimate
+    from its hard prerequisites rather than its own time_o/m/p fields.
     """
     name: str               # Primary key
     type: str               # [Learn, Goal, Action, Resource]
@@ -36,7 +51,6 @@ class Node:
     priority_score: Optional[float] = None
 
     def __post_init__(self):
-        """Coerce and validate field types after construction."""
         self.value = int(self.value) if self.value is not None else 5
         self.time_o = float(self.time_o) if self.time_o else 0.0
         self.time_m = float(self.time_m) if self.time_m else 0.0
@@ -99,15 +113,15 @@ class Node:
         return round((1 - w) * e_arith + w * e_log, 2)
 
     def to_dict(self):
-        """Returns dictionary representation of the node."""
         d = asdict(self)
-        d['time'] = self.time
+        d['time'] = self.time  # include the derived blended PERT estimate
         return d
 
     @classmethod
     def from_dict(cls, data):
-        """Creates a Node instance from a dictionary."""
         data.pop('time', None)
+        # Historical rename: `effort` → `difficulty`. Some old DB rows or
+        # tests still use the legacy key.
         if 'difficulty' not in data and 'effort' in data:
             data['difficulty'] = data.pop('effort')
         return cls(**data)
@@ -115,16 +129,18 @@ class Node:
 
 @dataclass
 class Event:
-    """Represents an Event — an activation gate for dormant nodes."""
+    """An activation gate for a set of dormant nodes.
+
+    An Event has exactly one trigger: manual (user clicks "trigger"),
+    date-based (`trigger_date` elapses), or node-based (`trigger_node`
+    is marked Done). When it fires, every dormant node attached to it
+    flips to active — see event_manager.EventManager.
+    """
     name: str
     description: str = ""
     status: str = "Pending"  # Pending | Triggered
     trigger_date: Optional[str] = None   # ISO date string — used for date-based triggers
     trigger_node: Optional[str] = None   # Node name — used for node-completion triggers
-
-    def __post_init__(self):
-        # Already handled by default values, but ensured here
-        pass
 
     def to_dict(self):
         return asdict(self)
