@@ -1,12 +1,12 @@
 import sqlite3
 from pathlib import Path
 
-DB_FILENAME = "skilltree.db" # can not be moved to config without circular imports
-
 
 def get_db_path() -> str:
     """Returns the absolute path to the SQLite database file."""
-    from config import ENVIRONMENT
+    # Lazy import dodges the circular dependency: config imports
+    # get_connection from this module at load time.
+    from config import ENVIRONMENT, DB_FILENAME
     db_name = DB_FILENAME
     if ENVIRONMENT == "sandbox":
         db_name = "sandbox_" + DB_FILENAME

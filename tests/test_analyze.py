@@ -14,7 +14,6 @@ from analyze_callbacks import (
     _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
     _compute_top_time_sinks, _compute_ratings, _compute_goal_comparison,
     _compute_risk, _compute_dependency_structure, _compute_context_coverage,
-    _compute_most_valuable_chain,
 )
 
 
@@ -403,43 +402,6 @@ class TestComputeContextCoverage:
         ctx_data, _ = _compute_context_coverage(nodes)
         no_ctx = [d for d in ctx_data if d['context'] == 'No Context']
         assert len(no_ctx) == 1
-
-
-# ============================================================================
-# _compute_most_valuable_chain
-# ============================================================================
-
-class TestComputeMostValuableChain:
-    def test_returns_top_5(self, mgr):
-        nodes = [_make_node(f"N{i}", value=i+1) for i in range(10)]
-        _setup_graph(mgr, nodes)
-        edges = mgr.get_edges()
-        result = _compute_most_valuable_chain(nodes, edges)
-        assert len(result) == 5
-
-    def test_value_ordering(self, mgr):
-        nodes = [
-            _make_node("Low", value=1, interest=1),
-            _make_node("High", value=10, interest=10),
-        ]
-        _setup_graph(mgr, nodes)
-        edges = mgr.get_edges()
-        result = _compute_most_valuable_chain(nodes, edges)
-        assert result[0]['name'] == 'High'
-
-    def test_done_excluded(self, mgr):
-        nodes = [
-            _make_node("Done", status="Done", value=10, interest=10),
-            _make_node("Open", status="Open", value=1, interest=1),
-        ]
-        _setup_graph(mgr, nodes)
-        edges = mgr.get_edges()
-        result = _compute_most_valuable_chain(nodes, edges)
-        assert all(r['name'] != 'Done' for r in result)
-
-    def test_empty_graph(self, mgr):
-        result = _compute_most_valuable_chain([], [])
-        assert result == []
 
 
 # ============================================================================

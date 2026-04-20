@@ -28,6 +28,13 @@ TOOLTIP_NODE_HIDE_DELAY_MS = 300  # Cytoscape node cursor-tooltip lingers slight
 
 DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
 
+# Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
+DB_FILENAME = "skilltree.db"
+
+# --- Weekly backup script (backup.py, invoked by Windows Task Scheduler) ---
+BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
+BACKUP_LOG_FILE = r'C:\Users\jonah\Documents\Code\Skill Tree\data\backup_log.txt'
+
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
 DEFAULT_SUBCONTEXTS = {}

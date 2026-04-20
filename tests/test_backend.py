@@ -8,7 +8,7 @@ import math
 from typing import Any
 import pytest
 import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_RESOURCE
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from graph_manager import GraphManager
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
 from scoring import intrinsic_value, perceived_cost, is_eligible, build_adjacency, total_value, score_nodes
@@ -464,12 +464,6 @@ class TestCycleDetection:
         mgr.add_node(_make_node("B"))
         mgr.add_edge("A", "B", EDGE_HELPS)
         mgr.add_edge("B", "A", EDGE_HELPS)  # should not raise
-
-    def test_resource_edge_allows_bidirectional(self, mgr):
-        mgr.add_node(_make_node("A"))
-        mgr.add_node(_make_node("B"))
-        mgr.add_edge("A", "B", EDGE_RESOURCE)
-        mgr.add_edge("B", "A", EDGE_RESOURCE)  # should not raise
 
 
 # ============================================================================

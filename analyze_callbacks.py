@@ -10,7 +10,7 @@ from collections import defaultdict
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD
 from config import ConfigManager
-from scoring import intrinsic_value, total_value, build_adjacency as build_scoring_adjacency
+from scoring import intrinsic_value
 
 graph_manager = GraphManager()
 
@@ -108,26 +108,6 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
 def _compute_top_time_sinks(nodes, limits):
     active = [n for n in nodes if n.status != 'Done']
     return sorted(active, key=lambda n: n.time, reverse=True)[:limits.get('time_sinks', 10)]
-
-
-def _compute_most_valuable_chain(nodes, edges):
-    """Compute the top 5 most valuable non-Done nodes using the scoring algorithm's total_value."""
-    hp = ConfigManager.get_hyperparams()
-    w_v, w_i = hp.get('w_v', 1.0), hp.get('w_i', 1.0)
-    d_H, d_S, d_Syn = hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35)
-
-    all_nodes_dict = {n.name: n for n in nodes}
-    node_names = set(all_nodes_dict.keys())
-    H_out, S_out, Syn, Hard_in = build_scoring_adjacency(edges, node_names)
-
-    non_done = [n for n in nodes if n.status != 'Done']
-    scored = []
-    for n in non_done:
-        tv = total_value(n.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn)
-        scored.append({'name': n.name, 'type': n.type, 'total_value': round(tv, 1)})
-
-    scored.sort(key=lambda x: x['total_value'], reverse=True)
-    return scored[:5]
 
 
 def _get_limits():
@@ -866,29 +846,6 @@ def _render_longest_chain(dep_data):
         })
     else:
         return html.P("No dependency chains found.", className="text-muted small")
-
-
-def _render_most_valuable_chain(mvc_data):
-    """Render top 5 most valuable nodes as pill-and-arrow display with value scores."""
-    if not mvc_data:
-        return html.P("No non-Done nodes found.", className="text-muted small")
-
-    chain_items = []
-    for i, d in enumerate(mvc_data):
-        chain_items.append(html.Span(d['name'], style={
-            "padding": "2px 8px", "borderRadius": "4px",
-            "backgroundColor": _CARD_BG, "border": f"1px solid {_BORDER}",
-            "fontSize": "0.82rem", "whiteSpace": "nowrap",
-        }))
-        if i < len(mvc_data) - 1:
-            chain_items.append(html.Span(" \u2192 ", className="text-muted",
-                                         style={"fontSize": "0.82rem"}))
-    return html.Div(chain_items, style={
-        "padding": "8px 12px", "overflowX": "auto",
-        "whiteSpace": "nowrap", "display": "flex",
-        "alignItems": "center", "gap": "2px",
-        "justifyContent": "flex-start",
-    })
 
 
 def _render_ratings_chart(data):
