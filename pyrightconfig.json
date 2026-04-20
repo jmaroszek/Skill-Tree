@@ -1,0 +1,17 @@
+{
+  "include": ["**/*.py"],
+  "exclude": [
+    ".venv",
+    "**/__pycache__",
+    ".pytest_cache",
+    "data",
+    "images",
+    "assets"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.10",
+
+  "reportArgumentType": "none",
+  "reportCallIssue": "none"
+}

@@ -931,12 +931,13 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
         height = chart_height or max(180, len(names) * 28 + 60)
         fig = _hbar_chart(names, hours, colors=colors, hover_texts=hover,
                           x_title="Hours", height=height)
-        # Override the reversal -- data is already sorted ascending (sparsest at top)
+        # Override the reversal -- data is already sorted ascending (sparsest at top).
+        # Plotly trace attribute types are stricter than runtime; the ignores below are false positives.
         display_names = [_trunc(n) for n in names]
-        fig.data[0].y = display_names
-        fig.data[0].x = hours
-        fig.data[0].marker.color = colors
-        fig.data[0].hovertext = hover
+        fig.data[0].y = display_names  # pyright: ignore[reportOptionalMemberAccess]
+        fig.data[0].x = hours  # pyright: ignore[reportOptionalMemberAccess]
+        fig.data[0].marker.color = colors  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
+        fig.data[0].hovertext = hover  # pyright: ignore[reportOptionalMemberAccess]
 
         sections_ctx.append(html.H6("Hours by Context", className="text-muted mb-1"))
         sections_ctx.append(dcc.Graph(figure=fig, config=_CHART_CFG))
