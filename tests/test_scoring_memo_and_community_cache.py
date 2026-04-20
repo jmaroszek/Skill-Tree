@@ -78,8 +78,15 @@ def test_total_value_memo_parity_on_cyclic_graph():
         )
 
 
-def test_total_value_memo_only_populates_for_outer_calls():
-    """The memo dict must contain only outer-call keys; no inner traversal pollutes it."""
+def test_total_value_memo_populates_full_dag_reach():
+    """DAG-cascade memoization caches every node reached along Hard+Soft edges.
+
+    Under the post-2026-04-20 scoring redesign, the memo is the full DAG
+    cache — inner traversal results ARE persisted (that's the whole point
+    of the speedup). The only constraint is that the cached values are
+    correct and path-independent, which the cycle-unsafe test above
+    already verifies.
+    """
     nodes = [_make_node(n) for n in ("A", "B", "C", "D")]
     edges = [
         {"source": "A", "target": "B", "type": EDGE_NEEDS_HARD},
@@ -87,12 +94,14 @@ def test_total_value_memo_only_populates_for_outer_calls():
         {"source": "C", "target": "D", "type": EDGE_NEEDS_HARD},
     ]
     memo: dict = {}
-    # Only call outer for "A" — inner recursion traverses B, C, D but memo
-    # must remain {"A": ...} only.
-    _call_tv("A", nodes, edges, memo=memo)
-    assert set(memo.keys()) == {"A"}, (
-        f"memo leaked inner results: {memo.keys()}"
-    )
+    tv_a = _call_tv("A", nodes, edges, memo=memo)
+    # All DAG-reachable nodes are now cached.
+    assert set(memo.keys()) == {"A", "B", "C", "D"}
+    # Cached values should match fresh computations for each.
+    for name in ("A", "B", "C", "D"):
+        assert memo[name] == _call_tv(name, nodes, edges, memo=None), (
+            f"cached memo[{name}] != fresh total_value({name})"
+        )
 
 
 def test_total_value_memo_reuse_within_score_nodes_keeps_results_stable():

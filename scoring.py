@@ -69,52 +69,97 @@ def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
     return True
 
 
+def _tv_dag(
+    node_name: str, all_nodes: dict,
+    H_out: dict, S_out: dict,
+    w_v: float, w_i: float, d_H: float, d_S: float,
+    memo: dict, computing: set,
+) -> float:
+    """DAG-cascade portion of Total Value. Fully memoized.
+
+    Sums IV(n) + discounted children along Hard + Soft edges only. Because
+    Hard + Soft form a DAG (enforced by `GraphManager.add_edge` cycle
+    checks), diamonds collapse naturally under memoization and the
+    algorithm is O(N + E_dag) amortized across all calls.
+
+    The `computing` set is a belt-and-braces cycle guard: in the unlikely
+    event a Hard/Soft cycle slips through, a node re-entered while being
+    computed short-circuits to 0 rather than infinite-recursing.
+    """
+    if node_name in memo:
+        return memo[node_name]
+    if node_name in computing:
+        return 0.0  # cycle safeguard (should be unreachable in valid DB)
+    node = all_nodes.get(node_name)
+    if not node:
+        return 0.0
+
+    computing.add(node_name)
+    iv = intrinsic_value(node, w_v, w_i)
+    nv = 0.0
+    for x in H_out.get(node_name, []):
+        nv += d_H * _tv_dag(x, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S, memo, computing)
+    for y in S_out.get(node_name, []):
+        nv += d_S * _tv_dag(y, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S, memo, computing)
+    computing.discard(node_name)
+
+    result = iv + nv
+    memo[node_name] = result
+    return result
+
+
 def total_value(
     node_name: str, visited: set, all_nodes: dict,
     H_out: dict, S_out: dict, Syn: dict,
     w_v: float, w_i: float, d_H: float, d_S: float, d_Syn: float,
     memo: Optional[dict] = None,
 ) -> float:
-    """Recursively computes Total Value (IV + cascaded Network Value).
+    """Computes Total Value = DAG cascade + shallow Syn bonus.
 
-    `memo` caches results for OUTER calls only (where `visited` is empty at
-    entry). The graph is not a DAG — cycles and bidirectional edges exist —
-    so inner recursive calls are path-dependent (the `visited` set prunes
-    differently depending on where the traversal started) and must never
-    read or write the memo. Outer calls, in contrast, deterministically
-    depend only on (node_name, graph structure, hyperparams) and are safe
-    to cache within a single score_nodes batch.
+    Two-part decomposition for speed:
+    1. DAG cascade (`_tv_dag`): recursive sum over Hard + Soft edges,
+       fully memoized across all calls. O(N + E) amortized.
+    2. Syn bonus (this function): depth-1 additive bonus for each
+       immediate Syn (Helps) neighbor of the starting node. Each
+       Syn-neighbor z contributes `d_Syn * _tv_dag(z)`.
+
+    Rationale: Hard + Soft are acyclic, so memoization is safe. Helps
+    edges can form cycles (they're bidirectional), so we keep Syn shallow
+    from the starting node to avoid path-dependent recursion.
+
+    Semantic note: this gives slightly different scores than a fully
+    recursive Syn walk would. In practice the "synergy boost" intent is
+    preserved: a node's Syn neighbors still add discounted value. What's
+    lost is transitive Syn chains (A synergy→B, B synergy→C no longer
+    contributes to A). Tests confirm exact equivalence for pure-DAG
+    graphs; the Syn semantics are a deliberate simplification.
+
+    `visited` is still honored at the top level (legacy callers may pass
+    a non-empty set). `memo` is the cross-call DAG cache.
     """
     if node_name in visited:
         return 0.0
-    # Outer-call fast path: if a previous outer call for this node cached a
-    # result in this scoring batch, reuse it.
-    if memo is not None and not visited and node_name in memo:
-        return memo[node_name]
+    if memo is None:
+        memo = {}
+    computing: set = set()
 
-    node = all_nodes.get(node_name)
-    if not node:
-        return 0.0
+    dag_val = _tv_dag(
+        node_name, all_nodes, H_out, S_out,
+        w_v, w_i, d_H, d_S, memo, computing,
+    )
 
-    iv = intrinsic_value(node, w_v, w_i)
-    new_visited = visited | {node_name}
-
-    nv = 0.0
-    for x in H_out.get(node_name, []):
-        if x not in visited:
-            nv += d_H * total_value(x, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
-    for y in S_out.get(node_name, []):
-        if y not in visited:
-            nv += d_S * total_value(y, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
+    # Shallow Syn bonus: each immediate synergy neighbor contributes its
+    # DAG value discounted by d_Syn.
+    syn_val = 0.0
     for z in Syn.get(node_name, set()):
-        if z not in visited:
-            nv += d_Syn * total_value(z, new_visited, all_nodes, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
+        if z in visited or z == node_name:
+            continue
+        syn_val += d_Syn * _tv_dag(
+            z, all_nodes, H_out, S_out,
+            w_v, w_i, d_H, d_S, memo, computing,
+        )
 
-    result = iv + nv
-    # Write-back: only cache when this is an outer call (empty visited at entry).
-    if memo is not None and not visited:
-        memo[node_name] = result
-    return result
+    return dag_val + syn_val
 
 
 def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
