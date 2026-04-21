@@ -170,7 +170,7 @@ def build_settings_tab_content():
                         dbc.Label("Lowercase exceptions", className="mt-1"),
                         dbc.Textarea(id="setting-linter-exclusions", rows=2,
                                      placeholder="e.g. a, an, the, and, or, of"),
-                        html.Small("Comma-separated words that stay lowercase (except at the start of a name).", className="text-muted d-block mb-1"),
+                        html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Algorithms", tab_id="tab-algorithm", children=[
