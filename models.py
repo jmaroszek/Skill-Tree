@@ -64,6 +64,10 @@ class Node:
         self.dormant = int(self.dormant) if self.dormant is not None else 0
         if self.time_mode not in ('manual', 'inherited'):
             self.time_mode = 'manual'
+        if self.time_mode == 'inherited':
+            self.time_o = 0.0
+            self.time_m = 0.0
+            self.time_p = 0.0
 
     @property
     def time(self) -> float:
@@ -76,6 +80,8 @@ class Node:
 
         Includes fallbacks when only partial estimates are provided.
         """
+        if self.time_mode == 'inherited':
+            return 0.0
         o, m, p = self.time_o, self.time_m, self.time_p
         
         # Fallback 1: Only M is provided

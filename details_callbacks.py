@@ -1568,7 +1568,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 'difficulty': node.difficulty,
                 'context': node.context or '',
                 'subcontext': node.subcontext or '',
-                'time': round(node.time, 1) if node.time else 0,
+                'time': round(graph_manager.get_effective_time(node.name), 1),
                 'time_o': node.time_o,
                 'time_m': node.time_m,
                 'time_p': node.time_p,

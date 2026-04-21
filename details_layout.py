@@ -1092,6 +1092,9 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                 style={"cursor": "not-allowed", "display": "inline-block"},
             )
 
+        _eff = graph_manager.get_effective_time(node.name) if graph_manager else 0.0
+        _time_cell = ConfigManager.format_time_friendly(_eff) if _eff > 0 else "—"
+
         rows.append(html.Tr([
             html.Td(
                 html.Span(node.name, style={"cursor": "pointer"}),
@@ -1118,9 +1121,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(str(node.difficulty),
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(ConfigManager.format_time_friendly(node.time)
-                    if node.time and node.time > 0 else "—",
-                    style={"verticalAlign": "middle", "color": "#6c757d"}),
+            html.Td(_time_cell, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(remove_btn, style={"verticalAlign": "middle"}),
         ]))
 

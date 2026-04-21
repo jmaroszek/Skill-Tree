@@ -491,6 +491,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
         is_selected = (s.name == selected_node_id)
         row_class = "table-active" if is_selected else ""
 
+        eff_time = manager.get_effective_time(s.name)
         unlocks = manager.get_directly_unlocked_nodes_by_type(s.name)
         has_resource = s.type == 'Resource' or any(
             e['source'] in resource_names
@@ -516,7 +517,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             html.Td(str(s.value)),
             html.Td(str(s.interest) if hasattr(s, 'interest') and s.interest is not None else "None"),
             html.Td(str(s.difficulty)),
-            html.Td(ConfigManager.format_time_friendly(s.time) if hasattr(s, 'time') and s.time else "0h"),
+            html.Td(ConfigManager.format_time_friendly(eff_time) if eff_time > 0 else "0h"),
             html.Td(str(len(unlocks['hard']))),
             html.Td(str(len(unlocks['soft']))),
             html.Td(str(synergy_count)),

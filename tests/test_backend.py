@@ -1756,6 +1756,19 @@ class TestTimeModeField:
         updated = mgr.get_node("Node")
         assert updated.time_mode == 'inherited'
 
+    def test_inherited_zeroes_omp_on_construction(self):
+        n = _make_node(time_mode='inherited', time_o=10, time_m=20, time_p=30)
+        assert n.time_o == 0.0 and n.time_m == 0.0 and n.time_p == 0.0
+
+    def test_inherited_time_property_returns_zero(self):
+        n = _make_node(time_mode='inherited', time_o=10, time_m=20, time_p=30)
+        assert n.time == 0.0
+
+    def test_inherited_db_roundtrip_zeroes_omp(self, mgr):
+        mgr.add_node(_make_node("Inh", time_mode='inherited', time_o=7, time_m=14, time_p=21))
+        fetched = mgr.get_node("Inh")
+        assert fetched.time_o == 0.0 and fetched.time_m == 0.0 and fetched.time_p == 0.0
+
 
 # ============================================================================
 # GraphManager — get_effective_time
