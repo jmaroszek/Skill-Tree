@@ -577,3 +577,96 @@ def explain_score(
         'goal_boost': goal_boost_info,
         'contributors': contributors,
     }
+
+
+def shortest_paths_focus_data(
+    source: str,
+    ranked_targets: List[Tuple[int, str]],
+    all_nodes: List[Node],
+    edges: List[Dict],
+) -> Dict:
+    """Shortest Hard/Soft paths from `source` to each target, for focus highlighting.
+
+    Mirrors the edge set used by `explain_score`'s contribution graph:
+    BFS over Hard + Soft edges with a depth-1 Synergy seed from source.
+
+    `ranked_targets` is a list of (rank, target_name) in rank-ascending
+    order (smallest rank = most valuable). Paths are reconstructed per
+    target by walking parent pointers; for nodes and edges that lie on
+    multiple paths, the smallest rank wins (so Path 1's color dominates
+    shared segments).
+
+    Returns a dict with:
+      - 'subtree':       list of node names on any path (sorted for determinism)
+      - 'node_rank':     {name: min_rank}  including source
+      - 'edge_rank':     {(source_name, target_name, edge_type): min_rank}
+      - 'target_labels': {name: '#<rank>'} for each reachable target only
+    """
+    all_nodes_dict = {n.name: n for n in all_nodes}
+    if source not in all_nodes_dict:
+        return {'subtree': [], 'node_rank': {}, 'edge_rank': {},
+                'target_labels': {}}
+
+    H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
+
+    # BFS with parent pointers. parent[child] = (parent_name, edge_type).
+    # source has parent=None (sentinel for "stop walking").
+    parent: Dict[str, Optional[Tuple[str, str]]] = {source: None}
+    queue: List[str] = [source]
+    # Depth-1 synergy seeds — matches explain_score's single-hop Syn bonus.
+    for z in Syn.get(source, set()):
+        if z == source or z in parent:
+            continue
+        parent[z] = (source, EDGE_HELPS)
+        queue.append(z)
+    # BFS over H + S.
+    head = 0
+    while head < len(queue):
+        n = queue[head]
+        head += 1
+        for c in H_out.get(n, []):
+            if c in parent:
+                continue
+            parent[c] = (n, EDGE_NEEDS_HARD)
+            queue.append(c)
+        for c in S_out.get(n, []):
+            if c in parent:
+                continue
+            parent[c] = (n, EDGE_NEEDS_SOFT)
+            queue.append(c)
+
+    node_rank: Dict[str, int] = {}
+    edge_rank: Dict[Tuple[str, str, str], int] = {}
+    target_labels: Dict[str, str] = {}
+
+    # Reconstruct each path. Iterate rank-ascending so min rank wins on
+    # shared segments (Path 1 claims before Path 2, etc.).
+    for rank, target in ranked_targets:
+        if target not in parent:
+            continue  # unreachable target — silently skipped
+        target_labels[target] = f"#{rank}"
+        cur: Optional[str] = target
+        while cur is not None:
+            if cur not in node_rank or rank < node_rank[cur]:
+                node_rank[cur] = rank
+            step = parent[cur]
+            if step is None:
+                break
+            parent_name, etype = step
+            key = (parent_name, cur, etype)
+            if key not in edge_rank or rank < edge_rank[key]:
+                edge_rank[key] = rank
+            cur = parent_name
+
+    # No targets reachable: still include source so the canvas dims
+    # everything else but leaves the starting node lit.
+    if source not in node_rank:
+        node_rank[source] = 1
+
+    subtree = sorted(node_rank.keys())
+    return {
+        'subtree': subtree,
+        'node_rank': node_rank,
+        'edge_rank': edge_rank,
+        'target_labels': target_labels,
+    }

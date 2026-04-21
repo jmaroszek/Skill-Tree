@@ -9,7 +9,8 @@ import math
 import pytest
 
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from scoring import explain_score, total_value, build_adjacency
+from scoring import (explain_score, total_value, build_adjacency,
+                     shortest_paths_focus_data)
 
 
 def _node(name, **kw):
@@ -252,3 +253,115 @@ def test_inherited_time_cost_uses_override():
     assert breakdown['cost']['time_overridden'] is True
     # cost = 1 + 4*2.5 + 1^0.85 * 1.0 = 1 + 10 + 1 = 12
     assert math.isclose(breakdown['cost']['cost'], 12.0, rel_tol=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# shortest_paths_focus_data — path reconstruction for canvas highlighting
+# ---------------------------------------------------------------------------
+
+def test_paths_simple_hard_chain():
+    """S → A → B via Hard. Rank-1 target B. All nodes/edges take rank 1."""
+    nodes = [_node("S"), _node("A"), _node("B")]
+    edges = [
+        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
+        {"source": "A", "target": "B", "type": EDGE_NEEDS_HARD},
+    ]
+    pi = shortest_paths_focus_data("S", [(1, "B")], nodes, edges)
+    assert set(pi['subtree']) == {"S", "A", "B"}
+    assert pi['node_rank'] == {"S": 1, "A": 1, "B": 1}
+    assert pi['edge_rank'] == {
+        ("S", "A", EDGE_NEEDS_HARD): 1,
+        ("A", "B", EDGE_NEEDS_HARD): 1,
+    }
+    assert pi['target_labels'] == {"B": "#1"}
+
+
+def test_paths_diamond_picks_one_representative():
+    """S→A→D and S→B→D — BFS picks the first-enqueued path."""
+    nodes = [_node("S"), _node("A"), _node("B"), _node("D")]
+    edges = [
+        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
+        {"source": "S", "target": "B", "type": EDGE_NEEDS_HARD},
+        {"source": "A", "target": "D", "type": EDGE_NEEDS_HARD},
+        {"source": "B", "target": "D", "type": EDGE_NEEDS_HARD},
+    ]
+    pi = shortest_paths_focus_data("S", [(1, "D")], nodes, edges)
+    assert len(pi['subtree']) == 3
+    assert {"S", "D"}.issubset(set(pi['subtree']))
+    intermediate = (set(pi['subtree']) - {"S", "D"}).pop()
+    assert intermediate in {"A", "B"}
+    assert pi['target_labels'] == {"D": "#1"}
+
+
+def test_paths_synergy_seeded():
+    """S syn→Z, Z→T hard. Path uses the synergy edge from S to Z."""
+    nodes = [_node("S"), _node("Z"), _node("T")]
+    edges = [
+        {"source": "S", "target": "Z", "type": EDGE_HELPS},
+        {"source": "Z", "target": "T", "type": EDGE_NEEDS_HARD},
+    ]
+    pi = shortest_paths_focus_data("S", [(1, "T")], nodes, edges)
+    assert set(pi['subtree']) == {"S", "Z", "T"}
+    assert pi['edge_rank'] == {
+        ("S", "Z", EDGE_HELPS): 1,
+        ("Z", "T", EDGE_NEEDS_HARD): 1,
+    }
+
+
+def test_paths_min_rank_wins_on_shared_prefix():
+    """S→A→B and A→C. Rank 1 = B, rank 2 = C. Shared S, A stay rank 1."""
+    nodes = [_node("S"), _node("A"), _node("B"), _node("C")]
+    edges = [
+        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
+        {"source": "A", "target": "B", "type": EDGE_NEEDS_HARD},
+        {"source": "A", "target": "C", "type": EDGE_NEEDS_HARD},
+    ]
+    pi = shortest_paths_focus_data(
+        "S", [(1, "B"), (2, "C")], nodes, edges,
+    )
+    assert pi['node_rank'] == {"S": 1, "A": 1, "B": 1, "C": 2}
+    assert pi['edge_rank'] == {
+        ("S", "A", EDGE_NEEDS_HARD): 1,
+        ("A", "B", EDGE_NEEDS_HARD): 1,
+        ("A", "C", EDGE_NEEDS_HARD): 2,
+    }
+    assert pi['target_labels'] == {"B": "#1", "C": "#2"}
+
+
+def test_paths_unreachable_target_skipped():
+    """If a target has no path from source, it's silently dropped."""
+    nodes = [_node("S"), _node("A"), _node("X")]
+    edges = [{"source": "S", "target": "A", "type": EDGE_NEEDS_HARD}]
+    pi = shortest_paths_focus_data(
+        "S", [(1, "A"), (2, "X")], nodes, edges,
+    )
+    assert "X" not in pi['target_labels']
+    assert "X" not in pi['node_rank']
+    assert pi['target_labels'] == {"A": "#1"}
+    assert set(pi['subtree']) == {"S", "A"}
+
+
+def test_paths_target_equals_source():
+    """Asking for the source as a target returns the source alone."""
+    nodes = [_node("S")]
+    pi = shortest_paths_focus_data("S", [(1, "S")], nodes, [])
+    assert pi['subtree'] == ["S"]
+    assert pi['node_rank'] == {"S": 1}
+    assert pi['edge_rank'] == {}
+    assert pi['target_labels'] == {"S": "#1"}
+
+
+def test_paths_no_targets_still_lights_source():
+    """Empty targets list → source lit, nothing else."""
+    nodes = [_node("S"), _node("A")]
+    edges = [{"source": "S", "target": "A", "type": EDGE_NEEDS_HARD}]
+    pi = shortest_paths_focus_data("S", [], nodes, edges)
+    assert pi['subtree'] == ["S"]
+    assert pi['target_labels'] == {}
+
+
+def test_paths_missing_source_returns_empty():
+    """Source not in all_nodes → empty return, no crash."""
+    pi = shortest_paths_focus_data("ghost", [(1, "anything")], [], [])
+    assert pi == {'subtree': [], 'node_rank': {},
+                  'edge_rank': {}, 'target_labels': {}}

@@ -1000,10 +1000,13 @@ def register_callbacks(app):
 
         # When entering focus mode, clear the selected node so only the
         # goal's subtree is highlighted (not a previously-tapped node).
-        # focus_goal may be a dict {"node": str, "subtree": list} or a plain string.
+        # focus_goal may be a dict {"node": str, "subtree": list,
+        #   "path_info": {...}} or a plain string.
         focus_subtree_override = None
+        focus_path_info = None
         if isinstance(focus_goal, dict):
             focus_subtree_override = set(focus_goal.get("subtree", []))
+            focus_path_info = focus_goal.get("path_info")
             focus_goal = focus_goal.get("node")
         if trigger_id == 'focus-goal-store' and focus_goal:
             active_node_id = None
@@ -1215,11 +1218,11 @@ def register_callbacks(app):
                     focus_subtree.add(focus_goal)
                 active_stylesheet.append({
                     'selector': 'node',
-                    'style': {'opacity': 0.15}
+                    'style': {'opacity': 0.06, 'z-index': 0}
                 })
                 active_stylesheet.append({
                     'selector': 'edge',
-                    'style': {'opacity': 0.08}
+                    'style': {'opacity': 0.04, 'z-index': 0}
                 })
                 # Build an attribute-selector with a delimiter that doesn't
                 # clash with quote characters in the id. Cytoscape's selector
@@ -1242,9 +1245,19 @@ def register_callbacks(app):
                     sel_tail = _attr_selector('id', node_name)
                     if sel_tail is None:
                         continue
+                    # Pin every opacity sub-channel so nothing downstream
+                    # (node/border/label/background) inherits the dim; z-index
+                    # raises focus nodes above the dimmed layer so overlapping
+                    # neighbors don't peek through concave shapes (stars).
                     active_stylesheet.append({
                         'selector': f'node{sel_tail}',
-                        'style': {'opacity': 1}
+                        'style': {
+                            'opacity': 1,
+                            'background-opacity': 1,
+                            'border-opacity': 1,
+                            'text-opacity': 1,
+                            'z-index': 10,
+                        },
                     })
                 # Highlight edges between focus subtree nodes
                 edges = manager.get_edges()
@@ -1256,7 +1269,64 @@ def register_callbacks(app):
                             continue
                         active_stylesheet.append({
                             'selector': f'edge{sel_tail}',
-                            'style': {'opacity': 1}
+                            'style': {
+                                'opacity': 1,
+                                'line-opacity': 1,
+                                'text-opacity': 1,
+                                'z-index': 5,
+                            },
+                        })
+
+                # Per-path coloring (new focus-paths feature).
+                # Populated only when focus_goal_store carries path_info;
+                # the existing mini-graph Focus button leaves it None.
+                if focus_path_info:
+                    # Saturated hues (Material Design A-accent shades) so
+                    # paths stay punchy against the dimmed background.
+                    PATH_COLORS = {
+                        1: '#ff1744',  # vivid red
+                        2: '#1de9b6',  # bright teal
+                        3: '#d500f9',  # electric purple
+                        4: '#ff6d00',  # deep orange
+                        5: '#f50057',  # hot pink
+                    }
+                    for name, rank in (focus_path_info.get('node_rank') or {}).items():
+                        color = PATH_COLORS.get(int(rank))
+                        if color is None:
+                            continue
+                        sel_tail = _attr_selector('id', name)
+                        if sel_tail is None:
+                            continue
+                        active_stylesheet.append({
+                            'selector': f'node{sel_tail}',
+                            'style': {'border-color': color,
+                                      'border-width': 4},
+                        })
+                    for edge_key, rank in (focus_path_info.get('edge_rank') or {}).items():
+                        parts = edge_key.split('|')
+                        if len(parts) != 3:
+                            continue
+                        src, tgt, etype = parts
+                        color = PATH_COLORS.get(int(rank))
+                        if color is None:
+                            continue
+                        eid = f"{src}_{tgt}_{etype}"
+                        sel_tail = _attr_selector('id', eid)
+                        if sel_tail is None:
+                            continue
+                        active_stylesheet.append({
+                            'selector': f'edge{sel_tail}',
+                            'style': {'line-color': color,
+                                      'target-arrow-color': color,
+                                      'width': 3},
+                        })
+                    for name, badge in (focus_path_info.get('target_labels') or {}).items():
+                        sel_tail = _attr_selector('id', name)
+                        if sel_tail is None:
+                            continue
+                        active_stylesheet.append({
+                            'selector': f'node{sel_tail}',
+                            'style': {'label': f'{badge} {name}'},
                         })
 
             clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}

@@ -17,7 +17,7 @@ from simulation import simulate_task_chain
 from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
                               build_explain_summary, build_explain_chart)
-from scoring import explain_score
+from scoring import explain_score, shortest_paths_focus_data
 
 graph_manager = GraphManager()
 event_manager = EventManager()
@@ -1520,6 +1520,72 @@ def register_details_callbacks(app):
         except (TypeError, ValueError):
             n = 10
         return build_explain_chart(contributors or [], top_n=n)
+
+    @app.callback(
+        [Output("details-explain-focus-feedback", "children"),
+         Output("btn-details-explain-focus", "disabled")],
+        Input("details-explain-focus-count", "value"),
+        prevent_initial_call=True,
+    )
+    def validate_focus_count(val):
+        if val is None:
+            return "", False
+        try:
+            n = int(val)
+        except (TypeError, ValueError):
+            return "", False
+        if n > 5:
+            return "Max is 5", True
+        if n < 1:
+            return "Min is 1", True
+        return "", False
+
+    @app.callback(
+        Output("focus-goal-store", "data", allow_duplicate=True),
+        Output("main-tabs", "active_tab", allow_duplicate=True),
+        Output("modal-details-explain", "is_open", allow_duplicate=True),
+        Input("btn-details-explain-focus", "n_clicks"),
+        [State("details-selected-node-store", "data"),
+         State("details-explain-contrib-store", "data"),
+         State("details-explain-focus-count", "value")],
+        prevent_initial_call=True,
+    )
+    def focus_top_contributor_paths(n_clicks, selected_node, contributors, k):
+        if not n_clicks or not selected_node or not contributors:
+            return no_update, no_update, no_update
+        try:
+            k_int = max(1, min(5, int(k))) if k else 3
+        except (TypeError, ValueError):
+            k_int = 3
+        # Top-K contributors excluding Self; rank by list position.
+        ranked_targets = []
+        for c in contributors:
+            name = c.get('name')
+            if not name or name == selected_node:
+                continue
+            ranked_targets.append((len(ranked_targets) + 1, name))
+            if len(ranked_targets) >= k_int:
+                break
+        pi = shortest_paths_focus_data(
+            selected_node, ranked_targets,
+            graph_manager.get_all_nodes(),
+            graph_manager.get_edges(),
+        )
+        # Serialize edge_rank keys for JSON compatibility in dcc.Store.
+        edge_rank_str = {
+            f"{s}|{t}|{etype}": r
+            for (s, t, etype), r in pi['edge_rank'].items()
+        }
+        return (
+            {"node": selected_node,
+             "subtree": pi['subtree'],
+             "path_info": {
+                 "node_rank": pi['node_rank'],
+                 "edge_rank": edge_rank_str,
+                 "target_labels": pi['target_labels'],
+             }},
+            "tab-canvas", False,
+        )
 
 
 def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,
