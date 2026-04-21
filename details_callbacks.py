@@ -6,6 +6,7 @@ import os
 import json as _json
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
+import numpy as np
 import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
@@ -110,10 +111,17 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
     samples = result['samples']
     stats = result['stats']
 
+    # Pre-bin server-side: shipping 50 bars is ~50x smaller than shipping
+    # 10,000 raw samples for Plotly to bin in the browser.
+    counts, edges = np.histogram(samples, bins=50)
+    centers = (edges[:-1] + edges[1:]) / 2
+    width = edges[1] - edges[0]
+
     fig = go.Figure()
-    fig.add_trace(go.Histogram(
-        x=samples, nbinsx=50,
+    fig.add_trace(go.Bar(
+        x=centers, y=counts, width=width,
         marker_color='#0d6efd', opacity=0.85,
+        hovertemplate='%{x:.1f}h<br>%{y}<extra></extra>',
     ))
 
     for label, val, color in [
@@ -136,6 +144,7 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
         xaxis_title="Hours",
         yaxis_title="Frequency",
         showlegend=False,
+        bargap=0,
     )
 
     return (
@@ -254,10 +263,6 @@ def register_details_callbacks(app):
         Output("details-priority-badge", "children"),
         # Subtasks
         Output("details-subtasks-table-container", "children"),
-        # Simulation — auto-run on node selection
-        Output("details-sim-chart", "figure", allow_duplicate=True),
-        Output("details-sim-results", "style", allow_duplicate=True),
-        Output("details-sim-empty", "style", allow_duplicate=True),
         # Inputs
         Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
@@ -284,10 +289,6 @@ def register_details_callbacks(app):
                            f_value, f_interest, f_time, f_difficulty,
                            f_node_types, gs_max_depth):
         if not node_name:
-            empty_fig = go.Figure()
-            empty_fig.update_layout(template="plotly_dark",
-                                    paper_bgcolor='#1a1d21',
-                                    plot_bgcolor='#1a1d21')
             return (
                 {"display": "block"},
                 {"display": "none"},
@@ -297,12 +298,11 @@ def register_details_callbacks(app):
                 {"display": "none"}, "",
                 html.Div("Select a node to see subtasks.",
                          className="text-muted text-center py-3"),
-                empty_fig, {"display": "none"}, {"display": "block"},
             )
 
         node = graph_manager.get_node(node_name)
         if not node:
-            return (no_update,) * 22
+            return (no_update,) * 19
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
@@ -406,12 +406,6 @@ def register_details_callbacks(app):
             include_transitive=include_transitive,
             include_synergies=include_synergies)
 
-        # Auto-run simulation
-        sim_fig, sim_show, sim_hide = _run_simulation(
-            node_name, include_soft_val, include_synergies_val,
-            include_transitive_val=include_transitive_val,
-            global_filters=global_filters, max_depth=depth_val)
-
         return (
             {"display": "none"},
             {"display": "flex", "flexDirection": "column", "flex": "1",
@@ -430,7 +424,6 @@ def register_details_callbacks(app):
             show_progress, progress_val, progress_text,
             show_priority, priority_badge,
             subtasks_table,
-            sim_fig, sim_show, sim_hide,
         )
 
     # --- Toggle subtask filters ---
@@ -691,12 +684,15 @@ def register_details_callbacks(app):
                 pass
         return no_update
 
-    # --- Re-run simulation when any toggle changes ---
-    # (Node selection auto-run is handled inside select_detail_node)
+    # --- Run simulation on node selection or when any toggle changes ---
+    # Triggered by details-selected-node-store so it runs in parallel with the
+    # graph callback after select_detail_node writes the store — instead of
+    # blocking inside select_detail_node's 19-output batch.
     @app.callback(
         Output("details-sim-chart", "figure", allow_duplicate=True),
         Output("details-sim-results", "style", allow_duplicate=True),
         Output("details-sim-empty", "style", allow_duplicate=True),
+        Input("details-selected-node-store", "data"),
         Input("details-include-soft-needs", "value"),
         Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
@@ -709,16 +705,19 @@ def register_details_callbacks(app):
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
         Input("details-graph-settings-max-depth", "value"),
-        State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
-    def run_details_simulation(include_soft_val, include_transitive_val,
+    def run_details_simulation(node_name, include_soft_val, include_transitive_val,
                                 include_synergies_val,
                                 f_context, f_subcontext, f_done,
                                 f_value, f_interest, f_time, f_difficulty,
-                                f_node_types, gs_max_depth, node_name):
+                                f_node_types, gs_max_depth):
         if not node_name:
-            return no_update, no_update, no_update
+            empty_fig = go.Figure()
+            empty_fig.update_layout(template="plotly_dark",
+                                    paper_bgcolor='#1a1d21',
+                                    plot_bgcolor='#1a1d21')
+            return empty_fig, {"display": "none"}, {"display": "block"}
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types)
@@ -1442,6 +1441,11 @@ def register_details_callbacks(app):
         trigger = ctx.triggered_id
         # Randomize on re-layout click or when elements change (new node selected)
         randomize = trigger in ('details-graph-settings-relayout', 'details-mini-graph')
+        # Scale cose-bilkent iterations with graph size. Small subtrees converge
+        # fast and don't need 2500 iters; large ones still do.
+        node_count = sum(1 for e in (_elements or [])
+                         if 'source' not in e.get('data', {}))
+        num_iter = max(500, min(2500, node_count * 25))
         return {
             'name': 'cose-bilkent',
             'animate': bool(animate),
@@ -1451,7 +1455,7 @@ def register_details_callbacks(app):
             'idealEdgeLength': edge_length or 100,
             'nodeRepulsion': repulsion or 4500,
             'gravity': gravity if gravity is not None else 0.25,
-            'numIter': 2500,
+            'numIter': num_iter,
         }
 
     # --- Explain Score modal ---------------------------------------------

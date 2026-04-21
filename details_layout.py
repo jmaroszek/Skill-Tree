@@ -1049,11 +1049,15 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                                                        edge_types=(EDGE_NEEDS_HARD,))
         synergy_nodes = set()
         if include_synergies:
-            helps_subtree = graph_manager.get_goal_subtree(
-                parent_name, edge_types=(EDGE_HELPS,))
-            soft_subtree = graph_manager.get_goal_subtree(
+            # "Synergy" = nodes pulled in by the Helps seed (direct partner or
+            # one of its Hard/Soft prereqs) that aren't already in the goal's
+            # Hard/Soft subtree.
+            overall_subtree = graph_manager.get_goal_subtree(
+                parent_name,
+                edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS))
+            hard_soft_subtree = graph_manager.get_goal_subtree(
                 parent_name, edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT))
-            synergy_nodes = helps_subtree - soft_subtree - hard_subtree
+            synergy_nodes = overall_subtree - hard_soft_subtree
 
         for node in subtask_nodes:
             if node.name in synergy_nodes:
@@ -1145,28 +1149,30 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         rel = relationship_types.get(node.name, "Hard")
         rel_style = _REL_BADGE_STYLES.get(rel, _REL_BADGE_STYLES["Hard"])
         is_direct = node.name in direct_children
-        btn = dbc.Button(
-            "×",
-            id={"type": "details-subtask-remove", "index": node.name},
-            color="danger",
-            size="sm",
-            disabled=not is_direct,
-            style={
-                "padding": "0 5px",
-                "fontSize": "0.75rem",
-                "lineHeight": "1.4",
-                "opacity": "1" if is_direct else "0.25",
-                "pointerEvents": "auto" if is_direct else "none",
-            },
-        )
         if is_direct:
-            remove_btn = btn
+            btn_id = {"type": "details-subtask-remove", "index": node.name}
+            remove_btn = [
+                dbc.Button(
+                    "×",
+                    id=btn_id,
+                    color="danger",
+                    size="sm",
+                    style={
+                        "padding": "0 5px",
+                        "fontSize": "0.75rem",
+                        "lineHeight": "1.4",
+                    },
+                ),
+                dbc.Tooltip(
+                    "Remove edge or delete node",
+                    target=btn_id,
+                    placement="left",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS,
+                           "hide": TOOLTIP_HIDE_DELAY_MS},
+                ),
+            ]
         else:
-            remove_btn = html.Span(
-                btn,
-                title="Transitive dependency — remove from its parent instead",
-                style={"cursor": "not-allowed", "display": "inline-block"},
-            )
+            remove_btn = None
 
         _eff = graph_manager.get_effective_time(node.name) if graph_manager else 0.0
         _time_cell = ConfigManager.format_time_friendly(_eff) if _eff > 0 else "—"

@@ -36,8 +36,21 @@ BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
 BACKUP_LOG_FILE = r'C:\Users\jonah\Documents\Code\Skill Tree\data\backup_log.txt'
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
-DEFAULT_CONTEXTS = ["Mind", "Body", "Social"]
-DEFAULT_SUBCONTEXTS = {}
+DEFAULT_CONTEXTS = [
+    "Mind", "Body", "Social", "Life",
+    "STEM", "Humanities", "Creation", "Money",
+]
+DEFAULT_SUBCONTEXTS = {
+    "Mind":       ["Sensory", "Rational", "Judgment"],
+    "Body":       ["Stress", "Rhythms", "Exercise", "Nutrition"],
+    "Social":     ["Dating", "Morality", "Influence", "Relationships"],
+    "Life":       ["Fun", "Life Skills", "Productivity", "Satisfaction"],
+    "STEM":       ["Math", "Biology", "Physics", "Computers",
+                   "Chemistry", "Psychology", "Engineering", "Data Science"],
+    "Humanities": ["Art", "History", "Religion", "Literature"],
+    "Creation":   ["Music", "Video", "Writing", "Software"],
+    "Money":      ["Business", "Economics", "Personal Finance"],
+}
 
 DEFAULT_DANGER_COLOR = '#c94c4c' # subtle red
 

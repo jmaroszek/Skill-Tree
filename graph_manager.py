@@ -431,8 +431,11 @@ class GraphManager:
         For directed edge types (Needs_Hard, Needs_Soft), traversal follows
         source → target direction (source is a prerequisite of target).
 
-        For the bidirectional Helps edge type, traversal follows both directions
-        so that synergy partners are discovered.
+        Helps is bidirectional but fires only at the seed step — direct synergy
+        partners of the goal are added, then BFS hops follow only the directed
+        types in ``edge_types``. There is no transitive Helps chaining. This
+        keeps Synergies-on subtrees focused on "direct partners + what you'd
+        need to unlock them" instead of the entire connected neighborhood.
 
         Args:
             goal_name: The goal node to start from.
@@ -468,7 +471,7 @@ class GraphManager:
                 )
                 queue.extend(row[0] for row in cursor.fetchall())
 
-            # Seed with Helps partners of the goal (bidirectional)
+            # Seed with Helps partners of the goal (bidirectional, 1 step only)
             if include_helps:
                 cursor.execute(
                     "SELECT source FROM Edges WHERE target=? AND type=?",
@@ -487,29 +490,13 @@ class GraphManager:
                     continue
                 visited.add(node)
 
-                # Follow directed edges
+                # Only directed edges are followed during BFS — Helps does not
+                # chain past the seed step.
                 if directed_types:
                     placeholders = ','.join('?' for _ in directed_types)
                     cursor.execute(
                         f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
                         (node, *directed_types)
-                    )
-                    for row in cursor.fetchall():
-                        if row[0] not in visited:
-                            queue.append(row[0])
-
-                # Follow Helps edges bidirectionally
-                if include_helps:
-                    cursor.execute(
-                        "SELECT source FROM Edges WHERE target=? AND type=?",
-                        (node, EDGE_HELPS)
-                    )
-                    for row in cursor.fetchall():
-                        if row[0] not in visited:
-                            queue.append(row[0])
-                    cursor.execute(
-                        "SELECT target FROM Edges WHERE source=? AND type=?",
-                        (node, EDGE_HELPS)
                     )
                     for row in cursor.fetchall():
                         if row[0] not in visited:

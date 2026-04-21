@@ -95,9 +95,11 @@ class TestPostFilterReachability:
         )
         assert _node_ids(elements) == {"Selected"}
 
-    def test_done_shown_keeps_full_chain(self, mgr):
-        """Without hide_done, the bridge is visible and the full Helps-linked
-        chain is correctly surfaced."""
+    def test_done_shown_does_not_chain_through_downstream_helps(self, mgr):
+        """Under seed-only Helps semantics, a Helps edge from a downstream
+        Hard prereq (Bridge --Helps-- Orphan1) must NOT cascade into the
+        partner's own prereq tree. Helps only fires at the goal's seed step,
+        and Selected has no direct Helps partners."""
         self._setup_bridge_scenario(mgr)
         elements = _build_graph_elements(
             selected_node="Selected",
@@ -106,9 +108,7 @@ class TestPostFilterReachability:
             global_filters={},
             include_transitive_val=["include"],
         )
-        assert _node_ids(elements) == {
-            "Selected", "Bridge", "Orphan1", "Orphan2", "Orphan3",
-        }
+        assert _node_ids(elements) == {"Selected", "Bridge"}
 
     def test_synergies_off_prunes_helps_leak(self, mgr):
         """Turning off Synergies disables Helps traversal, which independently

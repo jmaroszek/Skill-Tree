@@ -209,6 +209,14 @@ Stage 3's cost grows linearly, Stage 1/2's grows worse than linearly and is domi
 
 A node's status is Open, Blocked, or Done. Done is set manually. Blocked is derived: any node with at least one incomplete hard prerequisite is Blocked. When a node flips to Done (or is added, deleted, or has edges changed), `_update_dependent_nodes_state` walks its hard-downstream dependents and recomputes their status recursively. Each mutation bumps `_graph_version` (for UI invalidation) and, if the change touched a scoring-relevant field, `_scoring_version` (for the priority memo).
 
+### Helps-edge semantics in `get_goal_subtree`
+
+`get_goal_subtree` walks a goal's prerequisite tree over a caller-supplied set of edge types. For the directed types (`Needs_Hard`, `Needs_Soft`) it recurses in the usual way. For `Helps`, traversal is **seed-only**: direct synergy partners of the goal are added (bidirectionally, 1 step), but BFS from those partners only follows directed types. Helps does not chain.
+
+The reason: an earlier version walked `Helps` transitively AND cascaded Hard/Soft from every Helps-reached node. Because `Helps` is bidirectional and the graph is densely synergy-linked, the Details tab's Synergies toggle would pull in most of the graph for well-connected goals (measured: 3 direct partners → 305 nodes for `Problem Solving`). Seed-only keeps Synergies-on focused on "direct partners + what you'd need to unlock them."
+
+The Details tab's relationship column uses set arithmetic to label Synergy nodes: `overall_subtree − hard_soft_subtree`, so a partner's Hard prereq is correctly tagged "Synergy" rather than "Soft" (see [`details_layout.build_details_subtasks_table`](details_layout.py)).
+
 ### PERT time (`models.Node.time`)
 
 The `time` property on a Node blends three estimates (optimistic, most likely, pessimistic) into one number. Low-uncertainty estimates (pessimistic/optimistic ratio ≤ 2) use the classic arithmetic PERT mean `(o + 4m + p) / 6`. High-uncertainty estimates (ratio ≥ 10) use the geometric/log mean. Between those bounds, it smoothly interpolates. There are also fallbacks for when only partial estimates are provided. The result is what shows up everywhere in the UI as "Time."

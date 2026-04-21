@@ -1368,6 +1368,93 @@ class TestGoalSubtree:
         assert subtree == set()
 
 
+class TestGoalSubtreeHelps:
+    """Helps is bidirectional at the seed step only — it does not chain."""
+
+    def test_helps_partner_source_to_goal(self, mgr):
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Partner", "Goal", EDGE_HELPS)
+        subtree = mgr.get_goal_subtree(
+            "Goal", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS))
+        assert "Partner" in subtree
+
+    def test_helps_partner_goal_to_target(self, mgr):
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Goal", "Partner", EDGE_HELPS)
+        subtree = mgr.get_goal_subtree(
+            "Goal", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS))
+        assert "Partner" in subtree
+
+    def test_no_helps_of_helps_chaining(self, mgr):
+        # Goal --Helps-- Partner --Helps-- FarPartner
+        # FarPartner must NOT be pulled in under seed-only semantics.
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_node(_make_node("FarPartner"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Goal", "Partner", EDGE_HELPS)
+        mgr.add_edge("Partner", "FarPartner", EDGE_HELPS)
+        subtree = mgr.get_goal_subtree(
+            "Goal", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS))
+        assert "Partner" in subtree
+        assert "FarPartner" not in subtree
+
+    def test_partner_hard_prereqs_included_with_directed_types(self, mgr):
+        # Goal --Helps-- Partner, and Prereq --Needs_Hard--> Partner.
+        # With HARD+SOFT+HELPS, Prereq should be pulled in via BFS from Partner.
+        mgr.add_node(_make_node("Prereq"))
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Goal", "Partner", EDGE_HELPS)
+        mgr.add_edge("Prereq", "Partner", EDGE_NEEDS_HARD)
+        subtree = mgr.get_goal_subtree(
+            "Goal", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS))
+        assert "Partner" in subtree
+        assert "Prereq" in subtree
+
+    def test_helps_only_returns_direct_partners(self, mgr):
+        # edge_types=(HELPS,) alone = direct partners, nothing else.
+        mgr.add_node(_make_node("Prereq"))
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Goal", "Partner", EDGE_HELPS)
+        mgr.add_edge("Prereq", "Partner", EDGE_NEEDS_HARD)
+        subtree = mgr.get_goal_subtree("Goal", edge_types=(EDGE_HELPS,))
+        assert subtree == {"Partner"}
+
+    def test_hard_soft_only_unaffected_by_helps_edges(self, mgr):
+        # Helps edges in the graph must not leak into a HARD/SOFT-only query.
+        mgr.add_node(_make_node("Prereq"))
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Prereq", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("Goal", "Partner", EDGE_HELPS)
+        subtree = mgr.get_goal_subtree(
+            "Goal", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT))
+        assert subtree == {"Prereq"}
+
+    def test_synergy_label_set_arithmetic(self, mgr):
+        # The synergy_nodes = overall - hard_soft arithmetic used in
+        # details_layout.build_details_subtasks_table must correctly identify
+        # a partner's Hard prereq as Synergy, not Soft.
+        mgr.add_node(_make_node("Prereq"))
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_node(_make_node("Goal", type="Goal"))
+        mgr.add_edge("Goal", "Partner", EDGE_HELPS)
+        mgr.add_edge("Prereq", "Partner", EDGE_NEEDS_HARD)
+
+        overall = mgr.get_goal_subtree(
+            "Goal", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS))
+        hard_soft = mgr.get_goal_subtree(
+            "Goal", edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT))
+        synergy_nodes = overall - hard_soft
+
+        assert "Partner" in synergy_nodes
+        assert "Prereq" in synergy_nodes
+        assert hard_soft == set()
+
+
 # ============================================================================
 # GraphManager — Goal Completion
 # ============================================================================
