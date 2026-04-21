@@ -1382,6 +1382,24 @@ def register_callbacks(app):
         return dash.no_update, dash.no_update
 
     @app.callback(
+        Output('next-perf-stats', 'children', allow_duplicate=True),
+        Input('suggestions-table', 'children'),
+        State('main-tabs', 'active_tab'),
+        prevent_initial_call=True,
+    )
+    def update_next_perf_stats(_sugg_children, active_tab):
+        if active_tab != 'tab-next':
+            return dash.no_update
+        t = GraphManager._last_perf_timings
+        if not t:
+            return dash.no_update
+        # Consume the stashed startup timings — toast renders exactly once
+        # and stays visible until the next app start.
+        GraphManager._last_perf_timings = None
+        return (f"{t['n_nodes']} nodes \u00b7 {t['n_edges']} edges \u00b7 "
+                f"{t['total_ms']:.0f}ms")
+
+    @app.callback(
         Output('focus-goal-store', 'data', allow_duplicate=True),
         Input('btn-clear-focus', 'n_clicks'),
         prevent_initial_call=True,

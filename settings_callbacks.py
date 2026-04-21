@@ -69,12 +69,13 @@ def register_settings_callbacks(app):
         Output('setting-analyze-time-sinks', 'value'),
         Output('setting-analyze-deepest', 'value'),
         Output('setting-analyze-connected', 'value'),
+        Output('setting-show-scoring-perf', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 40
+            return (dash.no_update,) * 41
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -210,6 +211,7 @@ def register_settings_callbacks(app):
             al.get('time_sinks', DEFAULT_ANALYZE_LIMITS['time_sinks']),
             al.get('deepest', DEFAULT_ANALYZE_LIMITS['deepest']),
             al.get('connected', DEFAULT_ANALYZE_LIMITS['connected']),
+            ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -297,6 +299,7 @@ def register_settings_callbacks(app):
         State('setting-analyze-time-sinks', 'value'),
         State('setting-analyze-deepest', 'value'),
         State('setting-analyze-connected', 'value'),
+        State('setting-show-scoring-perf', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
@@ -309,11 +312,18 @@ def register_settings_callbacks(app):
                       dgl_edge_length, dgl_gravity, dgl_repulsion,
                       egl_edge_length, egl_gravity, egl_repulsion,
                       al_bottlenecks, al_goals, al_risk,
-                      al_time_sinks, al_deepest, al_connected):
+                      al_time_sinks, al_deepest, al_connected,
+                      show_scoring_perf_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         try:
+            # Perf-toggle is independent of any migrated setting — persist
+            # it immediately so the user's choice survives regardless of
+            # whether a type/context migration is pending.
+            ConfigManager.set_show_scoring_perf(
+                bool(show_scoring_perf_val and "enabled" in show_scoring_perf_val)
+            )
             new_hp = {
                 'w_v': float(wv), 'w_i': float(wi),
                 'd_H': float(dh), 'd_S': float(ds), 'd_Syn': float(dsyn),
@@ -512,6 +522,57 @@ def register_settings_callbacks(app):
         except Exception:
             logger.exception("Failed to save settings")
             return "Error saving settings.", dash.no_update, False, 0
+
+    # --- Perf profile: on-demand N-run benchmark (always available) ---
+    @app.callback(
+        Output('perf-profile-output', 'children'),
+        Input('btn-run-perf-profile', 'n_clicks'),
+        State('perf-profile-runs', 'value'),
+        prevent_initial_call=True,
+    )
+    def run_perf_profile(n_clicks, n_runs):
+        if not n_clicks:
+            return dash.no_update
+        import statistics
+        import math
+        from scoring import score_nodes
+        N = max(1, int(n_runs or 10))
+        hypers = ConfigManager.get_hyperparams()
+        priority_goals = ConfigManager.get_priority_goals()
+        all_nodes = manager.get_all_nodes()
+        edges = manager.get_edges()
+        active = [n for n in all_nodes if n.status not in ("Done", "Blocked")]
+        runs = []
+        for _ in range(N):
+            _, t = score_nodes(active, all_nodes, edges, hypers,
+                               priority_goals=priority_goals,
+                               external_memo={}, time_phases=True)
+            runs.append(t)
+
+        keys = [("total_ms", "total"), ("adj_ms", "adj"),
+                ("goals_ms", "goals"), ("score_ms", "score"), ("rank_ms", "rank")]
+        header = html.Tr([html.Th(c) for c in
+                          ["phase", "median", "mean", "SD", "95% CI (mean)"]])
+        rows = [header]
+        for k, label in keys:
+            vals = [r[k] for r in runs]
+            med = statistics.median(vals)
+            mean = statistics.fmean(vals)
+            sd = statistics.stdev(vals) if N >= 2 else 0.0
+            half = 1.96 * sd / math.sqrt(N) if N >= 2 else 0.0
+            rows.append(html.Tr([
+                html.Td(label),
+                html.Td(f"{med:.2f} ms"),
+                html.Td(f"{mean:.2f} ms"),
+                html.Td(f"{sd:.2f} ms"),
+                html.Td(f"[{mean - half:.2f}, {mean + half:.2f}] ms"),
+            ]))
+        header_line = html.Div(
+            f"Profile: N={N}, {runs[-1]['n_nodes']} nodes, "
+            f"{runs[-1]['n_edges']} edges (cold memo per run)",
+            className="text-muted mb-1")
+        return [header_line,
+                html.Table(rows, className="table table-sm table-dark table-borderless")]
 
     # --- Migration Modal ---
     @app.callback(

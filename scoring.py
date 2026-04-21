@@ -9,8 +9,9 @@ Each node's priority is: P = eligibility * (TotalValue / PerceivedCost)
 See README.md for full mathematical specification and hyperparameter profiles.
 """
 
+import time
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Union
 
 
 def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dict, dict]:
@@ -182,8 +183,14 @@ def score_nodes(
     edges: List[Dict], hyperparams: dict,
     priority_goals: Optional[List[str]] = None,
     external_memo: Optional[Dict[str, float]] = None,
-) -> List[Node]:
-    """Scores active nodes by priority (TV / Cost) and returns them sorted descending."""
+    time_phases: bool = False,
+) -> Union[List[Node], Tuple[List[Node], Dict[str, float]]]:
+    """Scores active nodes by priority (TV / Cost) and returns them sorted descending.
+
+    When `time_phases` is True, also returns a dict of per-phase timings
+    (adj_ms, goals_ms, score_ms, rank_ms, total_ms, n_nodes, n_edges). The
+    node ordering and priority_score values are identical in both modes.
+    """
     w_v = hyperparams.get('w_v', 1.0)
     w_i = hyperparams.get('w_i', 1.0)
     d_H = hyperparams.get('d_H', 0.6)
@@ -195,7 +202,10 @@ def score_nodes(
     goal_boost = hyperparams.get('goal_boost', 1.5)
 
     all_nodes_dict = {n.name: n for n in all_nodes}
+
+    t0 = time.perf_counter() if time_phases else 0.0
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
+    t1 = time.perf_counter() if time_phases else 0.0
 
     # Outer-call memo for total_value. When external_memo is supplied (by
     # GraphManager), reuse its cached values across score_nodes invocations
@@ -221,6 +231,8 @@ def score_nodes(
                 # Highest rank wins if node appears in multiple goal subtrees
                 if n not in node_to_boost or multiplier > node_to_boost[n]:
                     node_to_boost[n] = multiplier
+
+    t2 = time.perf_counter() if time_phases else 0.0
 
     scored_nodes = []
     for node in active_nodes:
@@ -253,4 +265,21 @@ def score_nodes(
         node.priority_score = score
         scored_nodes.append(node)
 
-    return sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1.0), reverse=True)
+    t3 = time.perf_counter() if time_phases else 0.0
+
+    ranked = sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1.0), reverse=True)
+
+    if not time_phases:
+        return ranked
+
+    t4 = time.perf_counter()
+    timings = {
+        'adj_ms': (t1 - t0) * 1000.0,
+        'goals_ms': (t2 - t1) * 1000.0,
+        'score_ms': (t3 - t2) * 1000.0,
+        'rank_ms': (t4 - t3) * 1000.0,
+        'total_ms': (t4 - t0) * 1000.0,
+        'n_nodes': len(ranked),
+        'n_edges': len(edges),
+    }
+    return ranked, timings

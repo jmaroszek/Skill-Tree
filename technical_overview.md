@@ -160,11 +160,50 @@ score = eligibility * (total_value / perceived_cost)
 
 - **Eligibility** is 1 if every hard prerequisite is Done, else 0. A zero-eligibility node is pushed to the bottom of the list.
 - **Intrinsic value** of a node is `w_v * value + w_i * interest`, with `w_v` and `w_i` configurable hyperparameters.
-- **Total value** is intrinsic value *plus* a recursive discounted sum over everything this node unlocks or synergizes with. A node that sits upstream of ten valuable tasks inherits some of their value, which is why foundational bottleneck tasks rise to the top naturally. The recursion has the discount factors `d_H` (hard edges out), `d_S` (soft edges out), and `d_Syn` (synergies). Cycles are handled by a per-call `visited` set, with an outer-call memo that's safe because only outer calls are deterministic in a graph that isn't strictly a DAG.
+- **Total value** is intrinsic value *plus* a recursive discounted sum over everything this node unlocks or synergizes with. A node that sits upstream of ten valuable tasks inherits some of their value, which is why foundational bottleneck tasks rise to the top naturally. The recursion has the discount factors `d_H` (hard edges out), `d_S` (soft edges out), and `d_Syn` (synergies).
 - **Perceived cost** is `1 + w_e * difficulty + w_t * (time ** beta)`, where `beta < 1` makes the time penalty sub-linear (a 100-hour task is expensive but not 100× worse than a 1-hour task).
 - **Goal boost.** The top three Priority Goals each multiply the scores of everything in their hard-prerequisite subtree — the #1 goal at full strength, #2 at ~66%, #3 at ~33%. Highest-rank boost wins if a node belongs to multiple priority subtrees.
 
 `score_nodes()` composes the above, returning the active-nodes list sorted descending on `priority_score`.
+
+#### A short history of `total_value()`
+
+The Total Value recursion has gone through three stages as the graph grew. Each iteration fixed a performance wall the previous one eventually hit. Let `N` = nodes, `E_D` = Hard + Soft edges (which form a DAG — `graph_manager.add_edge` enforces this), `E_S` = Helps edges (which may form cycles, since Helps is bidirectional), `b` = average DAG branching factor, `d` = max DAG depth.
+
+**Stage 1 — no memoization.** Pure recursive DFS with a per-call `visited` set as the only safeguard against cycles.
+
+- Per outer call (scoring one node): **O(P(n))**, where `P(n)` is the number of distinct directed walks that respect the simple-path constraint imposed by `visited`. In a DAG with uniform branching, `P(n) ≤ b^d` — exponential in depth.
+- `score_nodes` batch of N active nodes: **O(N · b^d)**.
+- Why it was fine for a while: at ~300 nodes with shallow hierarchies and few cross-context edges, the subgraph reachable from any node was small. `b^d` stayed under ~100 and scoring ran in milliseconds.
+
+**Stage 2 — outer-call memoization.** Same recursion, with one addition: the TOP-level call for each node is cached in an `external_memo` dict, keyed by name and invalidated via `_scoring_version` when the graph mutates. Inner recursive calls cannot safely read/write this memo because they're path-dependent (the `visited` set prunes differently depending on where the traversal started).
+
+- First call in a batch: **O(N · b^d)** — no faster than Stage 1, because inside a single `score_nodes` batch each node is an outer call exactly once, so the memo never hits on inner recursion.
+- Re-scoring the same graph (no mutation): **O(N)** lookups — every outer call is a cache hit.
+- Amortized over K re-scorings: **O(N · b^d + K · N)**. Great for "sort the list again" interactions, useless for the batch itself.
+- Why it eventually failed: the production DB grew past ~500 nodes with heavy cross-context edges. Hub nodes like `Science`, `Math`, and `Health` began pulling value-cascades from dozens of sources. A single foundational Learn's outer call recursed through thousands of simple paths, because each "visited-prunes-differently" branch forked independently at every diamond. The scoring callback is synchronous, so the UI froze.
+
+**Stage 3 — DAG memoization + shallow Syn bonus.** Split the recursion by edge type:
+
+1. `_tv_dag(n)`: recurses only over Hard + Soft out-edges. Because Hard+Soft is a DAG, the `visited` set never prunes differently across paths — so results are path-independent and safe to cache **globally**. Memoized across inner and outer calls. Each node is computed exactly once per batch.
+2. `total_value(n)` adds a **depth-1 Syn bonus**: `d_Syn × _tv_dag(z)` for every immediate Helps neighbor `z` of `n`. No recursion through Syn edges — this is the tradeoff that avoids cycle complications without needing `visited` bookkeeping.
+
+- `_tv_dag` amortized across the entire batch: **O(N + E_D)** (each node's computation visits its out-edges once).
+- Syn bonus per outer call: **O(δ_Syn)** where δ_Syn is the node's Helps out-degree. Total: **O(N · δ_Syn̄) = O(E_S)**.
+- `score_nodes` batch: **O(N + E_D + E_S) = O(N + E)**. Linear in graph size.
+- Re-scoring unchanged graph: **O(N)** (memo hits throughout).
+
+**Semantic change in Stage 3.** Stage 1 and 2 computed a deep mixed-edge walk where a synergy neighbor's DAG children's synergy neighbors' DAG children (and so on) all contributed to the score. Stage 3 keeps the DAG-cascade identical but truncates Syn at depth 1. Test suite confirms exact equivalence for pure-DAG graphs. For graphs with Helps edges, scores differ slightly in absolute value but rank ordering is preserved — and the user's stated intent for Helps ("synergistic sibling") maps more cleanly to depth-1 anyway.
+
+**Scaling back of the envelope**, for a graph with properties like the production DB (1.7 edges/node, branching ≈ 2, depth ≈ 8):
+
+| N | Stage 1 / 2 (first-batch) ops | Stage 3 ops | Expected speedup |
+|---|---|---|---|
+| 300 | ~10⁴ | ~10³ | ~10× |
+| 500 | ~10⁵ – 10⁶ (empirically hangs UI) | ~10³ | ~100–1000× |
+| 1000 | ~10⁶ – 10⁷ | ~3·10³ | ~300–3000× |
+
+Stage 3's cost grows linearly, Stage 1/2's grows worse than linearly and is dominated by a constant-factor `b^d` term that inflates as the graph gets more connected. At 487 nodes / 832 edges the actual observed speedup was ~4000× (30 s → 7 ms).
 
 ### Cascade status (`graph_manager._update_node_state`)
 

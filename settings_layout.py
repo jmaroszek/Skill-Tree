@@ -253,6 +253,47 @@ def build_settings_tab_content():
                         ], className="d-flex align-items-center mt-2 mb-1"),
                         html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
                         _build_graph_layout_defaults_row(),
+
+                        # --- Performance group ---
+                        html.Hr(className="my-3"),
+                        html.H5("Performance", className="mt-2 mb-1"),
+
+                        # Startup analysis: timing + log on the first scoring run only
+                        html.H6("Startup Analysis", className="mt-2 mb-1"),
+                        dbc.Checklist(
+                            id="setting-show-scoring-perf",
+                            options=[{"label": "Run on startup", "value": "enabled"}],
+                            value=[],
+                            switch=True,
+                            className="mb-1",
+                            labelStyle={"fontWeight": "normal", "fontSize": "0.9rem"},
+                        ),
+                        html.Small(
+                            "Analyzes the entire graph upon initialization.",
+                            className="text-muted d-block mb-3",
+                        ),
+
+                        # Manual benchmark: always available
+                        html.H6("Manual Benchmark", className="mt-2 mb-1"),
+                        html.Small(
+                            ["Runs scoring ", html.I("n"), " times with a cold memo and "
+                             "reports statistics. Does not append to log."],
+                            className="text-muted d-block mb-2",
+                        ),
+                        dbc.Row([
+                            dbc.Col(dbc.Button("Run Benchmark", id="btn-run-perf-profile",
+                                               color="secondary", size="sm"),
+                                    width="auto", className="pe-2"),
+                            dbc.Col(dbc.Label("Runs:", html_for="perf-profile-runs",
+                                              className="mb-0 mt-1"),
+                                    width="auto", className="pe-1"),
+                            dbc.Col(dbc.Input(id="perf-profile-runs", type="number",
+                                              min=1, max=10000, step=1, value=100,
+                                              size="sm", style={"width": "90px"}),
+                                    width="auto"),
+                        ], className="g-1 align-items-center mb-2"),
+                        html.Div(id="perf-profile-output", className="small mb-2",
+                                 style={"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace"}),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Analyze", tab_id="tab-analyze-settings", children=[

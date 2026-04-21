@@ -42,6 +42,14 @@ class GraphManager:
     # so the monotonic contract still holds for cache invalidation.
     _graph_version: int = 0
     _scoring_version: int = 0
+    # Latest scoring-run timings (dict with adj_ms/goals_ms/score_ms/rank_ms/
+    # total_ms/n_nodes). Written by calculate_priority_scores on the single
+    # startup run; read-and-consumed by the Next-tab perf overlay.
+    _last_perf_timings: Optional[dict] = None
+    # Startup-only gate: timed scoring happens at most once per process. Once
+    # True, subsequent scoring runs skip the timing path even if the setting
+    # is on. Reset across test boundaries by the tmp_perf_log fixture.
+    _startup_perf_recorded: bool = False
 
     def __init__(self):
         database.init_db()
@@ -365,6 +373,21 @@ class GraphManager:
                 self._scoring_memo = {}
                 self._scoring_memo_key = cache_key
             memo = self._scoring_memo
+
+        if ConfigManager.get_show_scoring_perf() and not GraphManager._startup_perf_recorded:
+            from perf import append_perf_log
+            scored, timings = score_nodes(
+                active_nodes, self.get_all_nodes(),
+                self.get_edges(), hypers,
+                priority_goals=priority_goals,
+                external_memo=memo,
+                time_phases=True,
+            )
+            GraphManager._last_perf_timings = timings
+            GraphManager._startup_perf_recorded = True
+            append_perf_log(timings)
+            return scored
+
         return score_nodes(
             active_nodes, self.get_all_nodes(),
             self.get_edges(), hypers,

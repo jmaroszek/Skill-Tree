@@ -166,6 +166,8 @@ DEFAULT_TITLECASE_LINTER = {
     'exclusions': DEFAULT_TITLECASE_EXCLUSIONS,
 }
 
+DEFAULT_SHOW_SCORING_PERF = True
+
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
     'w_i': 1.00,
@@ -695,6 +697,17 @@ class ConfigManager:
     @classmethod
     def set_titlecase_linter(cls, linter: dict):
         cls._set_db_value("TITLECASE_LINTER", json.dumps(linter))
+
+    @classmethod
+    def get_show_scoring_perf(cls) -> bool:
+        val = cls._get_db_value("SHOW_SCORING_PERF")
+        if val is None:
+            return DEFAULT_SHOW_SCORING_PERF
+        return val == "1"
+
+    @classmethod
+    def set_show_scoring_perf(cls, enabled: bool):
+        cls._set_db_value("SHOW_SCORING_PERF", "1" if enabled else "0")
 
     @classmethod
     def apply_titlecase_linter(cls, name: str) -> str:

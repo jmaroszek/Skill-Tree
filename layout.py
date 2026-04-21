@@ -1251,6 +1251,7 @@ def build_app_layout(initial_elements, env="production"):
             html.Div([
                 html.Div([next_view], className="px-4 pt-3 pb-4"),
             ], style={"flex": "1", "overflowY": "auto"}),
+            html.Div(id="next-perf-stats", className="next-perf-overlay"),
         ],
         style={"display": "block", "width": "100%", "height": "100%", "overflow": "auto",
                "position": "absolute", "top": "0", "left": "0", "flexDirection": "column",
