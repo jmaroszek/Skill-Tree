@@ -14,7 +14,10 @@ from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from details_layout import (build_details_subtasks_table, build_goal_card,
                              _build_suggestion_row, build_details_suggestions)
 from simulation import simulate_task_chain
-from callback_helpers import render_link_rows, strip_gdrive_prefix, spawn_local_file_picker, build_filters
+from callback_helpers import (render_link_rows, strip_gdrive_prefix,
+                              spawn_local_file_picker, build_filters,
+                              build_explain_summary, build_explain_chart)
+from scoring import explain_score
 
 graph_manager = GraphManager()
 event_manager = EventManager()
@@ -1450,6 +1453,73 @@ def register_details_callbacks(app):
             'gravity': gravity if gravity is not None else 0.25,
             'numIter': 2500,
         }
+
+    # --- Explain Score modal ---------------------------------------------
+    @app.callback(
+        Output("modal-details-explain", "is_open"),
+        [Input("btn-details-explain", "n_clicks"),
+         Input("btn-details-explain-close", "n_clicks")],
+        State("modal-details-explain", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_explain_modal(_open_clicks, _close_clicks, is_open):
+        return not is_open
+
+    @app.callback(
+        [Output("details-explain-title", "children"),
+         Output("details-explain-summary", "children"),
+         Output("details-explain-contrib-store", "data"),
+         Output("details-explain-count", "value")],
+        [Input("modal-details-explain", "is_open"),
+         Input("details-node-select", "value")],
+        prevent_initial_call=True,
+    )
+    def populate_explain_modal(is_open, node_name):
+        if not is_open or not node_name:
+            return no_update, no_update, no_update, no_update
+        all_nodes = graph_manager.get_all_nodes()
+        priority_goals = ConfigManager.get_priority_goals()
+        breakdown = explain_score(
+            node_name,
+            all_nodes,
+            graph_manager.get_edges(),
+            ConfigManager.get_hyperparams(),
+            priority_goals=priority_goals,
+        )
+        # Match the Next-tab suggestion table: normalize this node's
+        # priority_score against the max across all eligible active nodes.
+        # (see callback_helpers.format_suggestions_table)
+        normalized = None
+        if breakdown and breakdown['eligible'] and breakdown['score'] > 0:
+            scored = graph_manager.calculate_priority_scores(
+                all_nodes, priority_goals=priority_goals,
+            )
+            valid_scores = [n.priority_score for n in scored
+                            if getattr(n, 'priority_score', -1) > 0]
+            if valid_scores:
+                top = max(valid_scores)
+                if top > 0:
+                    normalized = round((breakdown['score'] / top) * 100)
+        title = node_name if breakdown else "Node not found"
+        contributors = breakdown['contributors'] if breakdown else []
+        # Reset count to default only when the modal opens — not when the
+        # user selects a different node while it's already open.
+        count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
+        return (title, build_explain_summary(breakdown, normalized),
+                contributors, count_out)
+
+    @app.callback(
+        Output("details-explain-chart", "figure"),
+        [Input("details-explain-count", "value"),
+         Input("details-explain-contrib-store", "data")],
+        prevent_initial_call=True,
+    )
+    def update_explain_chart(count, contributors):
+        try:
+            n = max(1, int(count)) if count else 10
+        except (TypeError, ValueError):
+            n = 10
+        return build_explain_chart(contributors or [], top_n=n)
 
 
 def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,

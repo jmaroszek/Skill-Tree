@@ -9,8 +9,9 @@ import json
 from collections import defaultdict
 
 import dash
-from dash import html
+from dash import html, dcc
 import dash_bootstrap_components as dbc
+import plotly.graph_objects as go
 
 from config import ConfigManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
@@ -1067,3 +1068,209 @@ if abs_path:
     except Exception as e:
         _logger.error(f"Error launching file picker: {e}")
         return ""
+
+
+# ---------------------------------------------------------------------------
+# Explain Score modal renderer
+# ---------------------------------------------------------------------------
+
+# Maps the `via` field from scoring.explain_score to a bar color.
+_VIA_COLORS = {
+    'Self':    '#6c757d',  # neutral grey — the node itself
+    'Hard':    '#ffc107',  # amber — matches Goal/warning palette
+    'Soft':    '#0d6efd',  # blue — matches Open/primary palette
+    'Synergy': '#9d65c9',  # purple — distinct from the above
+}
+
+
+def _trunc(name: str, max_len: int = 25) -> str:
+    """Truncate long names with an ellipsis; full name goes in hover."""
+    return name if len(name) <= max_len else name[:max_len - 1] + '\u2026'
+
+
+def _explain_summary_table(breakdown: dict, normalized):
+    """Grouped summary table: Value / Cost / Score.
+
+    Every row maps to a field in scoring.explain_score's output. Edge
+    cases: ineligible nodes show '—' for Raw and Normalized and annotate
+    with the block reason; leaf nodes show zero-valued downstream rows in
+    muted style; inherited-time nodes annotate the Cost row; `normalized`
+    may be None (displays '—') when the caller could not determine a
+    normalization base.
+    """
+    comp = breakdown['composition']
+    cost_info = breakdown['cost']
+    boost = breakdown['goal_boost']
+    eligible = breakdown['eligible']
+    downstream = comp['hard_cascade'] + comp['soft_cascade'] + comp['synergy']
+
+    header_style = {
+        "fontWeight": "700",
+        "letterSpacing": "0.06em",
+        "textTransform": "uppercase",
+        "fontSize": "1.05rem",
+        "color": "#ffffff",
+        "backgroundColor": "#212529",
+        "borderTop": "1px solid #495057",
+        "paddingTop": "10px",
+        "paddingBottom": "8px",
+    }
+    total_style = {"fontWeight": "600", "borderTop": "1px solid #495057"}
+    num_style = {"textAlign": "right", "fontVariantNumeric": "tabular-nums",
+                 "whiteSpace": "nowrap"}
+    muted_style = {"color": "#adb5bd", "fontSize": "0.88rem"}
+    muted_num_style = {**num_style, **muted_style}
+    zero_num_style = {**num_style, "color": "#6c757d"}
+
+    def _fmt(v: float) -> str:
+        return f"{v:.2f}"
+
+    def _num_cell(v: float, style=None):
+        s = dict(style) if style else dict(num_style)
+        if abs(v) < 1e-9 and style is not total_style:
+            s = dict(zero_num_style)
+        return html.Td(_fmt(v), style=s)
+
+    rows = []
+
+    # --- Value section ------------------------------------------------
+    rows.append(html.Tr([html.Td("Value", colSpan=2, style=header_style)]))
+    rows.append(html.Tr([html.Td("Intrinsic"), _num_cell(comp['iv'])]))
+    rows.append(html.Tr([html.Td("Downstream"), _num_cell(downstream)]))
+    for label, value in (
+        ("via Hard", comp['hard_cascade']),
+        ("via Soft", comp['soft_cascade']),
+        ("via Synergy", comp['synergy']),
+    ):
+        rows.append(html.Tr([
+            html.Td(label, className="ps-4", style=muted_style),
+            html.Td(_fmt(value),
+                    style=muted_num_style if value > 1e-9 else zero_num_style),
+        ]))
+    rows.append(html.Tr([
+        html.Td("Total", style=total_style),
+        html.Td(_fmt(comp['total_value']), style={**num_style, **total_style}),
+    ]))
+
+    # --- Cost section -------------------------------------------------
+    rows.append(html.Tr([html.Td("Cost", colSpan=2, style=header_style)]))
+    cost_label = [html.Span("Perceived cost")]
+    if cost_info['time_overridden']:
+        cost_label.append(html.Span(" (time inherited)",
+                                    style={**muted_style, "marginLeft": "4px"}))
+    rows.append(html.Tr([
+        html.Td(cost_label),
+        _num_cell(cost_info['cost']),
+    ]))
+
+    # --- Score section ------------------------------------------------
+    rows.append(html.Tr([html.Td("Score", colSpan=2, style=header_style)]))
+    if eligible:
+        raw_label = [html.Span("Raw")]
+        if boost is not None:
+            raw_label.append(html.Span(
+                f" (includes goal boost ×{boost['multiplier']:.3f} · rank #{boost['rank']} · {boost['goal']})",
+                style={**muted_style, "marginLeft": "4px"},
+            ))
+        rows.append(html.Tr([
+            html.Td(raw_label),
+            _num_cell(breakdown['score']),
+        ]))
+        norm_display = f"{normalized}" if normalized is not None else "—"
+        rows.append(html.Tr([
+            html.Td("Normalized"),
+            html.Td(norm_display, style=num_style),
+        ]))
+    else:
+        rows.append(html.Tr([
+            html.Td([html.Span("Raw"),
+                     html.Span(f" (ineligible: {breakdown['block_reason']})",
+                               style={**muted_style, "marginLeft": "4px"})]),
+            html.Td("—", style=num_style),
+        ]))
+        rows.append(html.Tr([
+            html.Td("Normalized"),
+            html.Td("—", style=num_style),
+        ]))
+
+    return dbc.Table(
+        [html.Tbody(rows)],
+        borderless=True, size="sm",
+        className="mb-0",
+        style={"color": "#dee2e6", "marginTop": "4px"},
+    )
+
+
+def _explain_bar_chart(contributors: list, top_n: int):
+    """Horizontal Plotly bar of top-N contributors, colored by `via`.
+
+    Long node names are truncated for the y-axis tick labels (full name
+    preserved in hover); `ticksuffix` adds breathing room between labels
+    and bar starts — both patterns lifted from analyze_callbacks._trunc.
+    """
+    rows = list(reversed(contributors[:top_n]))  # Plotly stacks bottom-up
+    full_names = [r['name'] for r in rows]
+    display_names = [_trunc(n) for n in full_names]
+    vals = [r['contribution'] for r in rows]
+    colors = [_VIA_COLORS.get(r['via'], '#6c757d') for r in rows]
+    bar_texts = [f"{r['contribution']:.2f}" for r in rows]
+    customdata = [
+        [full_names[i], rows[i]['via'], rows[i]['pct_of_tv'],
+         rows[i]['depth'], rows[i]['weight'], rows[i]['iv']]
+        for i in range(len(rows))
+    ]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=vals, y=display_names,
+        orientation='h',
+        marker_color=colors,
+        text=bar_texts,
+        textposition='outside',
+        cliponaxis=False,
+        customdata=customdata,
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "Contribution: %{x:.2f} (%{customdata[2]:.1f}% of total value)<br>"
+            "Via: %{customdata[1]}<br>"
+            "Depth: %{customdata[3]}<br>"
+            "Weight: %{customdata[4]:.3f}<br>"
+            "Intrinsic value: %{customdata[5]:.2f}"
+            "<extra></extra>"
+        ),
+    ))
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor='#1a1d21',
+        plot_bgcolor='#1a1d21',
+        margin=dict(l=10, r=40, t=10, b=40),
+        xaxis_title="Contribution to Total Value",
+        yaxis=dict(automargin=True, ticksuffix="  "),
+        showlegend=False,
+        height=max(260, 30 * len(rows) + 80),
+    )
+    return fig
+
+
+def build_explain_summary(breakdown: dict, normalized=None):
+    """Dash component for the Value/Cost/Score summary table.
+
+    `breakdown` is the dict from scoring.explain_score. `normalized` is
+    the integer 0–100 score the Next tab would show, or None to render
+    as '—'. Returns a single component; the caller slots it into the
+    static modal body in details_layout.
+    """
+    if breakdown is None:
+        return html.Div("Node not found.", className="text-muted",
+                        style={"padding": "16px"})
+    return _explain_summary_table(breakdown, normalized)
+
+
+def build_explain_chart(contributors, top_n: int = 10):
+    """Plotly figure for the Top Contributors bar chart.
+
+    `contributors` is the sorted list from scoring.explain_score (or the
+    serialized copy stored in dcc.Store). Returns a go.Figure; the
+    callback assigns it to the static dcc.Graph's figure prop.
+    """
+    return _explain_bar_chart(contributors or [], top_n)

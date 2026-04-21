@@ -283,3 +283,297 @@ def score_nodes(
         'n_edges': len(edges),
     }
     return ranked, timings
+
+
+def _reachable_topo(start: str, H_out: dict, S_out: dict, Syn: dict) -> List[str]:
+    """Topological order of H/S nodes reachable from `start` plus its Syn seeds.
+
+    Used by explain_score to propagate contribution weights in an order
+    that guarantees each node is processed only after all its H/S
+    predecessors — the DAG property of Hard+Soft makes this well-defined.
+    """
+    seeds = {start} | (Syn.get(start, set()) - {start})
+    reachable = set()
+    stack = list(seeds)
+    while stack:
+        n = stack.pop()
+        if n in reachable:
+            continue
+        reachable.add(n)
+        for c in H_out.get(n, []):
+            if c not in reachable:
+                stack.append(c)
+        for c in S_out.get(n, []):
+            if c not in reachable:
+                stack.append(c)
+
+    in_degree = {n: 0 for n in reachable}
+    for n in reachable:
+        for c in H_out.get(n, []):
+            if c in reachable:
+                in_degree[c] += 1
+        for c in S_out.get(n, []):
+            if c in reachable:
+                in_degree[c] += 1
+
+    queue = [n for n in reachable if in_degree[n] == 0]
+    topo = []
+    while queue:
+        n = queue.pop(0)
+        topo.append(n)
+        for c in H_out.get(n, []):
+            if c in reachable:
+                in_degree[c] -= 1
+                if in_degree[c] == 0:
+                    queue.append(c)
+        for c in S_out.get(n, []):
+            if c in reachable:
+                in_degree[c] -= 1
+                if in_degree[c] == 0:
+                    queue.append(c)
+    return topo
+
+
+def _contribution_weights(
+    start: str, H_out: dict, S_out: dict, Syn: dict,
+    d_H: float, d_S: float, d_Syn: float,
+) -> Dict[str, float]:
+    """Forward-propagate discount weights from `start`.
+
+    Returns {name: W(name)} where W(D) is the sum over all paths
+    (H/S from start, plus syn-seeded + H/S from each syn neighbor)
+    of the product of edge discounts. By linearity of the TV formula,
+    `contribution(D) = W(D) * IV(D)` and the contributions sum to TV(start).
+    """
+    topo = _reachable_topo(start, H_out, S_out, Syn)
+    W: Dict[str, float] = {start: 1.0}
+    for z in Syn.get(start, set()):
+        if z != start:
+            W[z] = W.get(z, 0.0) + d_Syn
+
+    for n in topo:
+        w = W.get(n, 0.0)
+        if w == 0.0:
+            continue
+        for c in H_out.get(n, []):
+            W[c] = W.get(c, 0.0) + w * d_H
+        for c in S_out.get(n, []):
+            W[c] = W.get(c, 0.0) + w * d_S
+    return W
+
+
+def _depth_and_via(start: str, H_out: dict, S_out: dict, Syn: dict,
+                   W: Dict[str, float]) -> Tuple[Dict[str, int], Dict[str, str]]:
+    """BFS over reachable W-keys to assign shortest depth + first-hop type.
+
+    `via` categorizes the first edge taken out of `start` on the shortest
+    path to each node: one of 'Self', 'Hard', 'Soft', 'Synergy'. Ties at
+    equal depth break Hard > Soft > Synergy for display consistency.
+    """
+    reachable = set(W.keys())
+    depth: Dict[str, int] = {start: 0}
+    via: Dict[str, str] = {start: 'Self'}
+
+    # Depth-1 seeds with explicit first-hop type
+    priority = {'Hard': 3, 'Soft': 2, 'Synergy': 1, 'Self': 0}
+
+    def consider(name: str, d: int, v: str) -> None:
+        if name not in depth or d < depth[name]:
+            depth[name] = d
+            via[name] = v
+        elif d == depth[name] and priority[v] > priority.get(via[name], 0):
+            via[name] = v
+
+    for c in H_out.get(start, []):
+        if c in reachable:
+            consider(c, 1, 'Hard')
+    for c in S_out.get(start, []):
+        if c in reachable:
+            consider(c, 1, 'Soft')
+    for c in Syn.get(start, set()):
+        if c in reachable and c != start:
+            consider(c, 1, 'Synergy')
+
+    # BFS onward, propagating `via` from parent
+    queue = [n for n in depth if depth[n] == 1]
+    while queue:
+        n = queue.pop(0)
+        d_next = depth[n] + 1
+        v = via[n]
+        for edge_list in (H_out.get(n, []), S_out.get(n, [])):
+            for c in edge_list:
+                if c not in reachable:
+                    continue
+                if c not in depth or d_next < depth[c]:
+                    depth[c] = d_next
+                    via[c] = v
+                    queue.append(c)
+                elif d_next == depth[c] and priority[v] > priority.get(via[c], 0):
+                    via[c] = v
+    return depth, via
+
+
+def explain_score(
+    node_name: str,
+    all_nodes: List[Node],
+    edges: List[Dict],
+    hyperparams: dict,
+    priority_goals: Optional[List[str]] = None,
+) -> Optional[Dict]:
+    """Decomposes a node's priority score into its constituent parts.
+
+    Returns a dict describing intrinsic value, perceived cost, the
+    breakdown of TotalValue by edge type (hard/soft/synergy cascades), a
+    goal-boost entry if applicable, and a list of top contributors —
+    every descendant whose IV propagates into this node's TV, sorted by
+    contribution.
+
+    Handles ineligible, Done, Blocked, and Goal nodes gracefully: the
+    breakdown is still computed but `eligible=False` and `block_reason`
+    is set.
+
+    Returns None if the node is not in `all_nodes`.
+    """
+    w_v = hyperparams.get('w_v', 1.0)
+    w_i = hyperparams.get('w_i', 1.0)
+    d_H = hyperparams.get('d_H', 0.6)
+    d_S = hyperparams.get('d_S', 0.25)
+    d_Syn = hyperparams.get('d_Syn', 0.35)
+    w_e = hyperparams.get('w_e', 2.5)
+    w_t = hyperparams.get('w_t', 1.0)
+    beta = hyperparams.get('beta', 0.85)
+    goal_boost = hyperparams.get('goal_boost', 1.5)
+
+    all_nodes_dict = {n.name: n for n in all_nodes}
+    node = all_nodes_dict.get(node_name)
+    if node is None:
+        return None
+
+    H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
+
+    iv = intrinsic_value(node, w_v, w_i)
+    time_overridden = (node.time_mode == 'inherited')
+    t_override = 1.0 if time_overridden else None
+    cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
+
+    # Contribution weights + per-node metadata
+    W = _contribution_weights(node_name, H_out, S_out, Syn, d_H, d_S, d_Syn)
+    depth, via = _depth_and_via(node_name, H_out, S_out, Syn, W)
+
+    contributors = []
+    hard_cascade = 0.0
+    soft_cascade = 0.0
+    synergy_cascade = 0.0
+    total_value_sum = 0.0
+    for name, weight in W.items():
+        other = all_nodes_dict.get(name)
+        if other is None:
+            continue
+        iv_n = intrinsic_value(other, w_v, w_i)
+        contribution = weight * iv_n
+        total_value_sum += contribution
+        v = via.get(name, 'Self')
+        if name == node_name:
+            pass  # intrinsic, tracked separately
+        elif v == 'Hard':
+            hard_cascade += contribution
+        elif v == 'Soft':
+            soft_cascade += contribution
+        elif v == 'Synergy':
+            synergy_cascade += contribution
+        contributors.append({
+            'name': name,
+            'depth': depth.get(name, 0),
+            'via': v,
+            'iv': iv_n,
+            'weight': weight,
+            'contribution': contribution,
+        })
+
+    # Percentages (guard against TV=0)
+    tv_for_pct = total_value_sum if total_value_sum > 0 else 1.0
+    for c in contributors:
+        c['pct_of_tv'] = 100.0 * c['contribution'] / tv_for_pct
+
+    contributors.sort(key=lambda c: c['contribution'], reverse=True)
+
+    # Goal boost
+    goal_boost_info = None
+    if priority_goals:
+        rank_multipliers = [
+            goal_boost,
+            1 + (goal_boost - 1) * 0.66,
+            1 + (goal_boost - 1) * 0.33,
+        ]
+        best = None  # (multiplier, goal_name, rank)
+        for rank_idx, g in enumerate(priority_goals[:3]):
+            multiplier = rank_multipliers[rank_idx]
+            subtree = _get_goal_subtree_from_adjacency(g, Hard_in)
+            if node_name in subtree and (best is None or multiplier > best[0]):
+                best = (multiplier, g, rank_idx + 1)
+        if best is not None:
+            goal_boost_info = {
+                'multiplier': best[0], 'goal': best[1], 'rank': best[2],
+            }
+
+    # Eligibility / block reason
+    eligible = True
+    block_reason: Optional[str] = None
+    if node.type == 'Goal':
+        eligible = False
+        block_reason = "Goals are not ranked"
+    elif node.status == 'Done':
+        eligible = False
+        block_reason = "Done"
+    elif node.status == 'Blocked':
+        eligible = False
+        block_reason = "Blocked"
+    else:
+        missing = [
+            req for req in Hard_in.get(node_name, [])
+            if all_nodes_dict.get(req) is None
+            or all_nodes_dict[req].status != 'Done'
+        ]
+        if missing:
+            eligible = False
+            block_reason = "Missing prereqs: " + ", ".join(sorted(missing))
+
+    raw_score = total_value_sum / cost if cost > 0 else 0.0
+    if eligible:
+        score = round(raw_score, 2)
+        if goal_boost_info is not None:
+            score = round(score * goal_boost_info['multiplier'], 2)
+    else:
+        score = -1.0
+
+    return {
+        'node': node_name,
+        'score': score,
+        'raw_score': raw_score,
+        'eligible': eligible,
+        'block_reason': block_reason,
+        'hyperparams': {
+            'w_v': w_v, 'w_i': w_i, 'w_e': w_e, 'w_t': w_t, 'beta': beta,
+            'd_H': d_H, 'd_S': d_S, 'd_Syn': d_Syn, 'goal_boost': goal_boost,
+        },
+        'intrinsic': {
+            'value': node.value,
+            'interest': node.interest,
+            'iv': iv,
+        },
+        'cost': {
+            'difficulty': node.difficulty,
+            'time': 1.0 if time_overridden else node.time,
+            'time_overridden': time_overridden,
+            'cost': cost,
+        },
+        'composition': {
+            'iv': iv,
+            'hard_cascade': hard_cascade,
+            'soft_cascade': soft_cascade,
+            'synergy': synergy_cascade,
+            'total_value': total_value_sum,
+        },
+        'goal_boost': goal_boost_info,
+        'contributors': contributors,
+    }

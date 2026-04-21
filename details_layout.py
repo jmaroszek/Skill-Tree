@@ -219,16 +219,21 @@ def build_details_tab_content():
             html.Div(id="details-priority-badge"),
         ]),
 
-        # Action buttons — Locate | Edit  (Focus lives on the canvas overlay)
+        # Action buttons — Edit | Explain | Locate  (Focus lives on the canvas overlay)
         html.Div([
-            dbc.Button("Locate", id="btn-details-locate", color="secondary",
+            dbc.Button("Edit", id="btn-details-edit", color="secondary",
                        size="sm", style={"flex": "1"}),
+            dbc.Tooltip("Open the node editor", target="btn-details-edit", placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            dbc.Button("Explain", id="btn-details-explain", color="secondary",
+                       size="sm", className="ms-1", style={"flex": "1"}),
+            dbc.Tooltip("Show where this node's priority score comes from",
+                        target="btn-details-explain", placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            dbc.Button("Locate", id="btn-details-locate", color="secondary",
+                       size="sm", className="ms-1", style={"flex": "1"}),
             dbc.Tooltip("Briefly pulse this node in the mini-graph",
                         target="btn-details-locate", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Button("Edit", id="btn-details-edit", color="secondary",
-                       size="sm", className="ms-1", style={"flex": "1"}),
-            dbc.Tooltip("Open the node editor", target="btn-details-edit", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex mt-3"),
 
@@ -455,6 +460,49 @@ def build_details_tab_content():
         ]),
     ], id="modal-details-subtask-remove", is_open=False, centered=True)
 
+    explain_legend_items = []
+    for label, color in (('Self', '#6c757d'), ('Hard', '#ffc107'),
+                         ('Soft', '#0d6efd'), ('Synergy', '#9d65c9')):
+        explain_legend_items.append(html.Span([
+            html.Span("\u25A0 ", style={"color": color}),
+            html.Span(label, style={"color": "#adb5bd"}),
+        ], className="me-3"))
+
+    explain_modal = dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle(id="details-explain-title")),
+        dbc.ModalBody([
+            html.Div(id="details-explain-summary"),
+            html.Hr(className="my-3"),
+            html.Div([
+                html.H5("Top Contributors", className="mt-2 mb-1"),
+                html.Div([
+                    html.Span("Show", style={"color": "#adb5bd",
+                                              "fontSize": "0.85rem",
+                                              "marginRight": "6px"}),
+                    dbc.Input(id="details-explain-count",
+                              type="number", min=1, max=100, step=1, value=10,
+                              size="sm", debounce=True,
+                              style={"width": "42px",
+                                     "height": "22px",
+                                     "padding": "0 4px",
+                                     "fontSize": "0.8rem",
+                                     "lineHeight": "1",
+                                     "textAlign": "center"}),
+                ], className="d-flex align-items-center"),
+            ], className="d-flex justify-content-between align-items-center"),
+            dcc.Store(id="details-explain-contrib-store"),
+            dcc.Graph(id="details-explain-chart",
+                      config={"displayModeBar": False}),
+            html.Div(explain_legend_items,
+                     style={"fontSize": "0.78rem", "textAlign": "right"}),
+        ]),
+        dbc.ModalFooter(
+            dbc.Button("Close", id="btn-details-explain-close",
+                       color="secondary", className="ms-auto"),
+        ),
+    ], id="modal-details-explain", size="lg", is_open=False,
+       centered=True, scrollable=True)
+
     return html.Div([
         dcc.Store(id='details-selected-node-store', data=None),
         dcc.Store(id='details-refresh-trigger', data=0),
@@ -474,6 +522,7 @@ def build_details_tab_content():
                   style={'display': 'none'}),
         subtask_remove_modal,
         add_node_modal,
+        explain_modal,
 
         # Main content: upper (left panel + canvas) + lower (subtasks + sim)
         html.Div([
