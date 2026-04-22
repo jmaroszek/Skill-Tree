@@ -715,24 +715,57 @@ def register_callbacks(app):
         Input('node-original-name', 'data'),
     )
 
-    # --- "Locate on graph": switch to Nodes tab + run pulse animation ---
-    # The cose-bilkent layout may still be running when the user clicks, so
-    # the animation helper retries until the node is present on the canvas.
-    app.clientside_callback(
-        """function(n_clicks, selected) {
-            if (!n_clicks || !selected) {
-                return window.dash_clientside.no_update;
-            }
-            if (typeof window.locateNodeOnGraph === 'function') {
-                window.locateNodeOnGraph(selected);
-            }
-            return 'tab-canvas';
-        }""",
+    # --- "Locate on graph": dormant-aware gateway ---
+    # Dormant nodes aren't on the canvas — clicking locate would pulse nothing.
+    # Show an inline message under the search bar instead and skip the tab switch.
+    @app.callback(
+        Output('locate-message', 'children'),
+        Output('locate-clear-interval', 'disabled'),
+        Output('locate-clear-interval', 'n_intervals'),
         Output('main-tabs', 'active_tab', allow_duplicate=True),
+        Output('locate-animate-trigger', 'data'),
         Input('btn-locate-node', 'n_clicks'),
         State('node-original-name', 'data'),
         prevent_initial_call=True,
     )
+    def handle_locate_click(n_clicks, name):
+        if not n_clicks or not name:
+            return (dash.no_update,) * 5
+        node = manager.get_node(name)
+        if not node:
+            return (dash.no_update,) * 5
+        if node.dormant:
+            msg = f"'{name}' is dormant — its event must be triggered before it appears on the graph."
+            return msg, False, 0, dash.no_update, dash.no_update
+        return "", True, 0, 'tab-canvas', n_clicks
+
+    # Run the pulse animation once the gateway has cleared the dormant check.
+    # The cose-bilkent layout may still be running, so locateNodeOnGraph retries
+    # until the node is present on the canvas.
+    app.clientside_callback(
+        """function(trigger, name) {
+            if (!trigger || !name) return window.dash_clientside.no_update;
+            if (typeof window.locateNodeOnGraph === 'function') {
+                window.locateNodeOnGraph(name);
+            }
+            return window.dash_clientside.no_update;
+        }""",
+        Output('locate-message', 'title'),  # dummy/no-op output
+        Input('locate-animate-trigger', 'data'),
+        State('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+
+    @app.callback(
+        Output('locate-message', 'children', allow_duplicate=True),
+        Output('locate-clear-interval', 'disabled', allow_duplicate=True),
+        Input('locate-clear-interval', 'n_intervals'),
+        prevent_initial_call=True,
+    )
+    def clear_locate_message(n):
+        if n > 0:
+            return "", True
+        return dash.no_update, dash.no_update
 
     # --- "Cancel": re-trigger edit flow for the loaded node to re-populate
     # the editor from the DB, discarding any unsaved edits. Disabled when

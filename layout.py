@@ -51,6 +51,9 @@ sidebar_content = html.Div(
             dbc.Tooltip("Locate node on graph",
                         target="btn-locate-node", placement="right",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            html.Div(id="locate-message", className="text-warning small mt-1"),
+            dcc.Interval(id='locate-clear-interval', interval=4000, n_intervals=0, disabled=True),
+            dcc.Store(id='locate-animate-trigger', data=None),
 
             html.H5("General", className="mt-3 mb-1"),
             dbc.Label("Name", className="mt-2"),
