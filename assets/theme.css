@@ -20,6 +20,16 @@
     bottom: 12px;
 }
 
+.btn-canvas-bottom-right-mid {
+    bottom: 12px;
+    right: 56px;
+}
+
+.btn-canvas-bottom-right-far {
+    bottom: 12px;
+    right: 96px;
+}
+
 .btn-canvas-bottom-left {
     position: absolute;
     left: 16px;
@@ -44,7 +54,7 @@
 /* Graph Settings Panel */
 .graph-settings-panel {
     position: absolute;
-    top: 48px;
+    bottom: 56px;
     right: 16px;
     width: 280px;
     z-index: 20;

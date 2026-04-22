@@ -424,7 +424,7 @@ def create_graph_view(initial_elements):
             dbc.Button(html.I(className="bi bi-gear"),
                        id="btn-graph-settings",
                        color="secondary", size="sm",
-                       className="btn-canvas-overlay btn-canvas-top-right"),
+                       className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             dbc.Tooltip("Graph settings", target="btn-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _build_graph_settings_panel("graph-settings"),
