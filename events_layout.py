@@ -70,7 +70,7 @@ def build_events_tab_content():
 
     # --- Node Editor Modal for Dormant Nodes ---
     dormant_node_modal = dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Add Dormant Node")),
+        dbc.ModalHeader(dbc.ModalTitle("Add Dormant Node", id="modal-dormant-node-title")),
         dbc.ModalBody([
             dbc.Label("Name"),
             dbc.Input(id="dormant-node-name", type="text"),
@@ -442,6 +442,7 @@ def build_events_tab_content():
 
     return html.Div([
         dcc.Store(id='selected-event-store', data=None),
+        dcc.Store(id='editing-dormant-node-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
         # UI-only refresh for the events sidebar list. Bumped by events_sidebar.js
         # on open so render_events_list re-runs — but NOT an input to core_engine,
@@ -548,6 +549,19 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
            "transition": "border-color 0.2s, background-color 0.2s",
            "padding": "10px 14px",
        })
+
+
+def _delay_days_to_form(delay_days: int) -> tuple[int, str]:
+    """Invert a delay_days integer back to the (value, unit) pair used by
+    the Dormant Node modal's delay input. Mirrors save_dormant_node's
+    forward arithmetic: months × 30, weeks × 7, else days."""
+    if delay_days == 0:
+        return 0, "days"
+    if delay_days % 30 == 0 and delay_days >= 30:
+        return delay_days // 30, "months"
+    if delay_days % 7 == 0 and delay_days >= 7:
+        return delay_days // 7, "weeks"
+    return delay_days, "days"
 
 
 def build_dormant_nodes_table(event_nodes, event_status):

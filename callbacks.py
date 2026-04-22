@@ -466,6 +466,11 @@ def register_callbacks(app):
             if edit_val:
                 edit_node_name = edit_val.split('|')[0]
                 node = manager.get_node(edit_node_name)
+                if node and node.dormant:
+                    # Dormant nodes have their own editor (Events-tab dormant modal).
+                    # Defense-in-depth: if any code path forwards a dormant name here,
+                    # don't load it into the generic sidebar.
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
                 if node:
                     name = node.name
                     data = node.to_dict()
@@ -483,6 +488,8 @@ def register_callbacks(app):
                 all_aliases = manager.get_all_aliases()
                 resolved_name = all_aliases.get(alias_key, search_val)
             node = manager.get_node(resolved_name)
+            if node and node.dormant:
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
             if node:
                 name = node.name
                 data = node.to_dict()

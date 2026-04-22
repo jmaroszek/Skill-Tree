@@ -840,13 +840,18 @@ def register_details_callbacks(app):
 
         override_row = None
         override_name = ConfigManager.get_override().get("parent")
-        if override_name and graph_manager.get_node(override_name):
-            override_row = _build_suggestion_row(override_name, "Override", "pink")
-            seen.add(override_name)
+        if override_name:
+            override_node = graph_manager.get_node(override_name)
+            if override_node and not override_node.dormant:
+                override_row = _build_suggestion_row(override_name, "Override", "pink")
+                seen.add(override_name)
 
         goal_rows = []
         for i, goal_name in enumerate(ConfigManager.get_priority_goals()[:3]):
-            if goal_name in seen or not graph_manager.get_node(goal_name):
+            if goal_name in seen:
+                continue
+            goal_node = graph_manager.get_node(goal_name)
+            if not goal_node or goal_node.dormant:
                 continue
             goal_rows.append(_build_suggestion_row(
                 goal_name, f"#{i + 1}", "warning"))

@@ -442,3 +442,37 @@ class EventManager:
         self.add_node_to_event(event_name, node.name, delay_days,
                                override_on_trigger=override_on_trigger,
                                override_mode=override_mode)
+
+    def update_dormant_node(self, event_name: str, old_node_name: str, node: Node,
+                            delay_days: int = 0,
+                            override_on_trigger: bool = False,
+                            override_mode: Optional[str] = None):
+        """Update an existing dormant node's content + EventNodes row in place.
+
+        Edges are NOT handled here — the caller runs graph_manager.sync_edges
+        afterward, matching the create path's convention.
+        """
+        from graph_manager import GraphManager
+        gm = GraphManager()
+
+        if node.name != old_node_name:
+            gm.rename_node(old_node_name, node.name)
+
+        node.dormant = 1
+        gm.update_node(node)
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE EventNodes SET delay_days=?, override_on_trigger=?, "
+                "override_mode=? WHERE event_name=? AND node_name=?",
+                (delay_days,
+                 1 if override_on_trigger else 0,
+                 override_mode if override_on_trigger else None,
+                 event_name, node.name)
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(
+                    f"Dormant node '{old_node_name}' not found in event '{event_name}'."
+                )
+            conn.commit()

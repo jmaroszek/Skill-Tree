@@ -544,36 +544,48 @@ def register_event_callbacks(app):
     # --- Open Dormant Node Modal ---
     @app.callback(
         Output("modal-dormant-node", "is_open", allow_duplicate=True),
-        Output("dormant-node-type", "options"),
-        Output("dormant-node-context", "options"),
+        Output("dormant-node-type", "options", allow_duplicate=True),
+        Output("dormant-node-context", "options", allow_duplicate=True),
         Output("dormant-node-subcontext", "options", allow_duplicate=True),
-        Output("dormant-node-name", "value"),
-        Output("dormant-node-desc", "value"),
+        Output("dormant-node-name", "value", allow_duplicate=True),
+        Output("dormant-node-desc", "value", allow_duplicate=True),
         Output("dormant-node-save-status", "children", allow_duplicate=True),
-        Output("dormant-node-time-unit", "value"),
-        Output("dormant-node-needs-hard", "options"),
-        Output("dormant-node-needs-soft", "options"),
-        Output("dormant-node-supports-hard", "options"),
-        Output("dormant-node-supports-soft", "options"),
-        Output("dormant-node-helps", "options"),
-        Output("dormant-node-needs-hard", "value"),
-        Output("dormant-node-needs-soft", "value"),
-        Output("dormant-node-supports-hard", "value"),
-        Output("dormant-node-supports-soft", "value"),
-        Output("dormant-node-helps", "value"),
-        Output("dormant-node-competence", "value"),
-        Output("dormant-node-time-mode", "value"),
-        Output("collapse-dormant-subcontext", "is_open"),
-        Output("dormant-obsidian-links-store", "data"),
-        Output("dormant-drive-links-store", "data"),
-        Output("dormant-website-links-store", "data"),
-        Output("dormant-override-toggle", "value"),
+        Output("dormant-node-time-unit", "value", allow_duplicate=True),
+        Output("dormant-node-needs-hard", "options", allow_duplicate=True),
+        Output("dormant-node-needs-soft", "options", allow_duplicate=True),
+        Output("dormant-node-supports-hard", "options", allow_duplicate=True),
+        Output("dormant-node-supports-soft", "options", allow_duplicate=True),
+        Output("dormant-node-helps", "options", allow_duplicate=True),
+        Output("dormant-node-needs-hard", "value", allow_duplicate=True),
+        Output("dormant-node-needs-soft", "value", allow_duplicate=True),
+        Output("dormant-node-supports-hard", "value", allow_duplicate=True),
+        Output("dormant-node-supports-soft", "value", allow_duplicate=True),
+        Output("dormant-node-helps", "value", allow_duplicate=True),
+        Output("dormant-node-competence", "value", allow_duplicate=True),
+        Output("dormant-node-time-mode", "value", allow_duplicate=True),
+        Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
+        Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
+        Output("dormant-drive-links-store", "data", allow_duplicate=True),
+        Output("dormant-website-links-store", "data", allow_duplicate=True),
+        Output("dormant-override-toggle", "value", allow_duplicate=True),
+        Output("dormant-node-value", "value", allow_duplicate=True),
+        Output("dormant-node-interest", "value", allow_duplicate=True),
+        Output("dormant-node-difficulty", "value", allow_duplicate=True),
+        Output("dormant-node-time-o", "value", allow_duplicate=True),
+        Output("dormant-node-time-m", "value", allow_duplicate=True),
+        Output("dormant-node-time-p", "value", allow_duplicate=True),
+        Output("dormant-node-delay-value", "value", allow_duplicate=True),
+        Output("dormant-node-delay-unit", "value", allow_duplicate=True),
+        Output("dormant-override-mode", "value", allow_duplicate=True),
+        Output("editing-dormant-node-store", "data", allow_duplicate=True),
+        Output("modal-dormant-node-title", "children", allow_duplicate=True),
+        Output("btn-dormant-node-save", "children", allow_duplicate=True),
         Input("btn-add-dormant-node", "n_clicks"),
         prevent_initial_call=True,
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 25
+            return (no_update,) * 37
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -588,7 +600,13 @@ def register_event_callbacks(app):
                 [], [], [], [], [],
                 "", [], False,
                 [''], [''], [''],
-                False)
+                False,
+                5, 5, 5,
+                _ted.get('optimistic', 2),
+                _ted.get('expected', 4),
+                _ted.get('pessimistic', 6),
+                0, "days", "hard",
+                None, "Add Dormant Node", "Add Node")
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -628,13 +646,14 @@ def register_event_callbacks(app):
     # --- Cancel Dormant Node Modal ---
     @app.callback(
         Output("modal-dormant-node", "is_open", allow_duplicate=True),
+        Output("editing-dormant-node-store", "data", allow_duplicate=True),
         Input("btn-dormant-node-cancel", "n_clicks"),
         prevent_initial_call=True,
     )
     def close_dormant_node_modal(n_clicks):
         if n_clicks:
-            return False
-        return no_update
+            return False, None
+        return no_update, no_update
 
     # --- Save Dormant Node ---
     @app.callback(
@@ -645,6 +664,7 @@ def register_event_callbacks(app):
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("event-trigger-section", "style", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
+        Output("editing-dormant-node-store", "data", allow_duplicate=True),
         Input("btn-dormant-node-save", "n_clicks"),
         State("selected-event-store", "data"),
         State("event-name", "value"),
@@ -677,6 +697,7 @@ def register_event_callbacks(app):
         # Override
         State("dormant-override-toggle", "value"),
         State("dormant-override-mode", "value"),
+        State("editing-dormant-node-store", "data"),
         prevent_initial_call=True,
     )
     def save_dormant_node(n_clicks, selected_event,
@@ -687,29 +708,36 @@ def register_event_callbacks(app):
                           delay_value, delay_unit,
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
                           obsidian_vals, drive_vals, website_vals,
-                          override_toggle, override_mode):
-        _nu7 = (no_update,) * 7
+                          override_toggle, override_mode,
+                          editing_original_name):
+        _nu8 = (no_update,) * 8
         if not n_clicks:
-            return _nu7
+            return _nu8
 
         if not name or not name.strip():
-            return no_update, "Node name is required.", no_update, no_update, no_update, no_update, no_update
+            return no_update, "Node name is required.", no_update, no_update, no_update, no_update, no_update, no_update
 
+        is_edit = bool(editing_original_name)
         event_status_msg = no_update
         event_trigger_style = no_update
-        if not selected_event:
-            ev_name = (event_name_val or "").strip()
-            if not ev_name:
-                return no_update, "Enter an event name first, then add nodes.", no_update, no_update, no_update, no_update, no_update
-            ev_desc = (event_desc_val or "").strip()
-            ev_date = event_date_val or None
-            try:
-                event_manager.add_event(Event(name=ev_name, description=ev_desc, trigger_date=ev_date))
-            except ValueError as e:
-                return no_update, str(e), no_update, no_update, no_update, no_update, no_update
-            selected_event = ev_name
-            event_status_msg = "Event auto-saved."
-            event_trigger_style = {"display": "flex", "alignItems": "center"}
+
+        if is_edit:
+            if not selected_event:
+                return no_update, "Internal error: no event context for edit.", no_update, no_update, no_update, no_update, no_update, no_update
+        else:
+            if not selected_event:
+                ev_name = (event_name_val or "").strip()
+                if not ev_name:
+                    return no_update, "Enter an event name first, then add nodes.", no_update, no_update, no_update, no_update, no_update, no_update
+                ev_desc = (event_desc_val or "").strip()
+                ev_date = event_date_val or None
+                try:
+                    event_manager.add_event(Event(name=ev_name, description=ev_desc, trigger_date=ev_date))
+                except ValueError as e:
+                    return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
+                selected_event = ev_name
+                event_status_msg = "Event auto-saved."
+                event_trigger_style = {"display": "flex", "alignItems": "center"}
 
         name = name.strip()
         delay_value = int(delay_value or 0)
@@ -743,16 +771,27 @@ def register_event_callbacks(app):
             time_mode=t_mode,
         )
 
-        try:
-            event_manager.create_dormant_node(
-                node, selected_event, delay_days=delay_days,
-                override_on_trigger=bool(override_toggle),
-                override_mode=(override_mode or "hard") if override_toggle else None,
-            )
-        except ValueError as e:
-            return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg
+        if is_edit:
+            try:
+                event_manager.update_dormant_node(
+                    selected_event, editing_original_name, node,
+                    delay_days=delay_days,
+                    override_on_trigger=bool(override_toggle),
+                    override_mode=(override_mode or "hard") if override_toggle else None,
+                )
+            except ValueError as e:
+                return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
+        else:
+            try:
+                event_manager.create_dormant_node(
+                    node, selected_event, delay_days=delay_days,
+                    override_on_trigger=bool(override_toggle),
+                    override_mode=(override_mode or "hard") if override_toggle else None,
+                )
+            except ValueError as e:
+                return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg, no_update
 
-        graph_manager.sync_edges(name, needs_hard or [], needs_soft or [],
+        graph_manager.sync_edges(node.name, needs_hard or [], needs_soft or [],
                                  supports_hard or [], supports_soft or [], helps or [])
 
         event = event_manager.get_event(selected_event)
@@ -762,10 +801,11 @@ def register_event_callbacks(app):
             False,
             "",
             build_dormant_nodes_table(event_nodes, event.status if event else "Pending"),
-            f"add-node-{name}",
+            f"{'edit' if is_edit else 'add'}-node-{node.name}",
             selected_event,
             event_trigger_style,
             event_status_msg,
+            None,
         )
 
     # --- Dormant Node Override toggle visibility ---
@@ -896,19 +936,163 @@ def register_event_callbacks(app):
                 links.pop(idx)
         return links
 
-    # --- Edit Dormant Node ---
+    # --- Edit Dormant Node → Open Dormant Node modal pre-filled ---
     @app.callback(
-        Output("details-edit-trigger-input", "value"),
+        Output("modal-dormant-node", "is_open", allow_duplicate=True),
+        Output("editing-dormant-node-store", "data", allow_duplicate=True),
+        Output("modal-dormant-node-title", "children", allow_duplicate=True),
+        Output("btn-dormant-node-save", "children", allow_duplicate=True),
+        Output("dormant-node-name", "value", allow_duplicate=True),
+        Output("dormant-node-type", "value", allow_duplicate=True),
+        Output("dormant-node-type", "options", allow_duplicate=True),
+        Output("dormant-node-context", "value", allow_duplicate=True),
+        Output("dormant-node-context", "options", allow_duplicate=True),
+        Output("dormant-node-subcontext", "value", allow_duplicate=True),
+        Output("dormant-node-subcontext", "options", allow_duplicate=True),
+        Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
+        Output("dormant-node-desc", "value", allow_duplicate=True),
+        Output("dormant-node-competence", "value", allow_duplicate=True),
+        Output("dormant-node-value", "value", allow_duplicate=True),
+        Output("dormant-node-interest", "value", allow_duplicate=True),
+        Output("dormant-node-difficulty", "value", allow_duplicate=True),
+        Output("dormant-node-time-o", "value", allow_duplicate=True),
+        Output("dormant-node-time-m", "value", allow_duplicate=True),
+        Output("dormant-node-time-p", "value", allow_duplicate=True),
+        Output("dormant-node-time-unit", "value", allow_duplicate=True),
+        Output("dormant-node-time-mode", "value", allow_duplicate=True),
+        Output("dormant-node-delay-value", "value", allow_duplicate=True),
+        Output("dormant-node-delay-unit", "value", allow_duplicate=True),
+        Output("dormant-node-needs-hard", "value", allow_duplicate=True),
+        Output("dormant-node-needs-hard", "options", allow_duplicate=True),
+        Output("dormant-node-needs-soft", "value", allow_duplicate=True),
+        Output("dormant-node-needs-soft", "options", allow_duplicate=True),
+        Output("dormant-node-supports-hard", "value", allow_duplicate=True),
+        Output("dormant-node-supports-hard", "options", allow_duplicate=True),
+        Output("dormant-node-supports-soft", "value", allow_duplicate=True),
+        Output("dormant-node-supports-soft", "options", allow_duplicate=True),
+        Output("dormant-node-helps", "value", allow_duplicate=True),
+        Output("dormant-node-helps", "options", allow_duplicate=True),
+        Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
+        Output("dormant-drive-links-store", "data", allow_duplicate=True),
+        Output("dormant-website-links-store", "data", allow_duplicate=True),
+        Output("dormant-override-toggle", "value", allow_duplicate=True),
+        Output("dormant-override-mode", "value", allow_duplicate=True),
+        Output("dormant-node-save-status", "children", allow_duplicate=True),
         Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
+        State("selected-event-store", "data"),
         prevent_initial_call=True,
     )
-    def edit_dormant_node(n_clicks_list):
-        if not any(n_clicks_list):
-            return no_update
+    def open_dormant_node_modal_for_edit(n_clicks_list, selected_event):
+        _N = 40
+        if not any(n_clicks_list) or not selected_event:
+            return (no_update,) * _N
         triggered = ctx.triggered_id
         if not triggered:
-            return no_update
-        return f"{triggered['index']}|{int(time.time())}"
+            return (no_update,) * _N
+
+        node_name = triggered["index"]
+
+        # Locate EventNodes row for this node within the selected event.
+        matching = None
+        for en in event_manager.get_event_nodes(selected_event):
+            if en['node'].name == node_name:
+                matching = en
+                break
+        if not matching:
+            return (no_update,) * _N
+
+        node = matching['node']
+        delay_days = matching['delay_days'] or 0
+        override_on_trigger = bool(matching['override_on_trigger'])
+        override_mode_val = matching['override_mode'] or "hard"
+
+        # Derive edge buckets for this node (same mapping as callbacks.populate_editor).
+        from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+        from callback_helpers import parse_links
+        from callbacks import _friendly_time_estimates
+
+        edges = graph_manager.get_edges()
+        needs_hard_v = [e['source'] for e in edges if e['target'] == node_name and e['type'] == EDGE_NEEDS_HARD]
+        needs_soft_v = [e['source'] for e in edges if e['target'] == node_name and e['type'] == EDGE_NEEDS_SOFT]
+        supp_hard_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_NEEDS_HARD]
+        supp_soft_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_NEEDS_SOFT]
+        helps_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_HELPS]
+
+        # Dropdown options — edit mode includes dormant nodes (excluding self) so
+        # dormant→dormant edges round-trip correctly.
+        node_opts = [{"label": n.name, "value": n.name}
+                     for n in graph_manager.get_all_nodes(include_dormant=True)
+                     if n.name != node_name]
+
+        # Type / context / subcontext options
+        types = ConfigManager.get_node_types()
+        contexts = ConfigManager.get_contexts()
+        type_opts = [{"label": t, "value": t} for t in types]
+        ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
+        subctx_opts = [{"label": "None", "value": ""}]
+        if node.context:
+            subs = ConfigManager.get_subcontexts().get(node.context, [])
+            subctx_opts += [{"label": s, "value": s} for s in subs]
+
+        # Time fields: convert stored hours back to friendly unit.
+        friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
+            node.time_o, node.time_m, node.time_p
+        )
+        time_mode_val = ["inherited"] if node.time_mode == 'inherited' else []
+
+        # Delay: invert to form fields via the shared helper.
+        from events_layout import _delay_days_to_form
+        delay_val, delay_unit = _delay_days_to_form(delay_days)
+
+        # Link stores
+        obs_links = parse_links(node.obsidian_path)
+        drive_links = parse_links(node.google_drive_path)
+        website_links = parse_links(node.website)
+
+        subcollapse_open = bool(node.subcontext)
+
+        return (
+            True,                              # modal is_open
+            node_name,                         # editing-dormant-node-store (original name)
+            "Edit Dormant Node",               # title
+            "Save",                            # save button text
+            node.name,                         # name
+            node.type or "Learn",              # type value
+            type_opts,                         # type options
+            node.context or "",                # context value
+            ctx_opts,                          # context options
+            node.subcontext or "",             # subcontext value
+            subctx_opts,                       # subcontext options
+            subcollapse_open,                  # collapse-dormant-subcontext is_open
+            node.description or "",            # desc
+            node.competence or "",             # competence
+            node.value or 5,                   # value
+            node.interest or 5,                # interest
+            node.difficulty or 5,              # difficulty
+            friendly_o,                        # time-o
+            friendly_m,                        # time-m
+            friendly_p,                        # time-p
+            friendly_unit,                     # time-unit
+            time_mode_val,                     # time-mode
+            delay_val,                         # delay-value
+            delay_unit,                        # delay-unit
+            needs_hard_v,                      # needs-hard value
+            node_opts,                         # needs-hard options
+            needs_soft_v,                      # needs-soft value
+            node_opts,                         # needs-soft options
+            supp_hard_v,                       # supports-hard value
+            node_opts,                         # supports-hard options
+            supp_soft_v,                       # supports-soft value
+            node_opts,                         # supports-soft options
+            helps_v,                           # helps value
+            node_opts,                         # helps options
+            obs_links,                         # obsidian store
+            drive_links,                       # drive store
+            website_links,                     # website store
+            override_on_trigger,               # override toggle
+            override_mode_val,                 # override mode
+            "",                                # save-status
+        )
 
     # --- Remove Dormant Node ---
     @app.callback(
