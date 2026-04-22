@@ -408,7 +408,11 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         time_mode=time_mode,
         competence=competence or None,
     )
-    if manager.get_node(name):
+    existing = manager.get_node(name)
+    if existing:
+        # Preserve fields that aren't represented in the editor form, otherwise
+        # update_node would overwrite them with the Node dataclass defaults.
+        node.dormant = existing.dormant
         manager.update_node(node)
         msg = f"Updated node '{name}'"
     else:

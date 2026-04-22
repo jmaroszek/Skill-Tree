@@ -213,6 +213,27 @@ class TestEventNodeAssociation:
         assert len(event_nodes) == 1
         assert event_nodes[0]['delay_days'] == 7
 
+    def test_handle_save_preserves_dormant(self, em, mgr):
+        # Regression: editing a dormant node via the modal save flow used to
+        # reset Nodes.dormant to 0 because handle_save's form-built Node
+        # defaulted dormant=0 and update_node wrote that over the stored value.
+        from callback_helpers import handle_save
+
+        em.add_event(Event(name="E1"))
+        em.create_dormant_node(_make_node("N1", description="orig"), "E1")
+        assert mgr.get_node("N1").dormant == 1
+
+        handle_save(
+            mgr, "N1", "Learn", "edited", 5, 1.0, 2.0, 4.0, 5, 5,
+            status_done=[], context="Mind", subctx=None,
+            obs_path="", drive_path="", website_path="",
+            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
+        )
+
+        after = mgr.get_node("N1")
+        assert after.description == "edited"
+        assert after.dormant == 1, "dormant flag must round-trip through edit/save"
+
 
 # ============================================================================
 # Event Activation
