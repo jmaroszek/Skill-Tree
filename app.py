@@ -36,6 +36,13 @@ except Exception:
 
 ConfigManager.ensure_action_type()
 ConfigManager.ensure_goal_type()
+
+# Safety-net: repair any drift between stored node.status and what the cascade
+# would derive from current Needs_Hard edges. Covers cases where a mutation
+# path bypassed _update_node_state (e.g. add_edge IntegrityError, direct SQL).
+from graph_manager import GraphManager
+GraphManager().recompute_all_statuses()
+
 app = dash.Dash(__name__, external_stylesheets=[
     dbc.themes.DARKLY,
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",

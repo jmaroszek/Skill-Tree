@@ -618,6 +618,51 @@ class TestStateManagement:
         # _update_node_state re-reads from DB where status is now "Blocked", so it becomes "Open"
         assert mgr.get_node("B").status == "Open"
 
+    def test_recompute_all_statuses_repairs_drift(self, mgr):
+        """Raw-SQL edge insertion bypasses the cascade, leaving the target stuck
+        at Open. recompute_all_statuses must repair it."""
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Open"))
+        with mgr.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)",
+                ("A", "B", EDGE_NEEDS_HARD),
+            )
+            conn.commit()
+        assert mgr.get_node("B").status == "Open"
+        changed = mgr.recompute_all_statuses()
+        assert changed == 1
+        assert mgr.get_node("B").status == "Blocked"
+
+    def test_recompute_all_statuses_noop_when_consistent(self, mgr):
+        """On a clean graph where statuses already match the cascade, recompute
+        should report zero changes."""
+        mgr.add_node(_make_node("A", status="Open"))
+        mgr.add_node(_make_node("B", status="Open"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        assert mgr.get_node("B").status == "Blocked"
+        assert mgr.recompute_all_statuses() == 0
+
+    def test_recompute_all_statuses_skips_goals_and_done(self, mgr):
+        """Goals keep their manual status; Done nodes stay Done even if prereqs
+        would otherwise force Blocked."""
+        mgr.add_node(_make_node("Prereq", status="Open"))
+        mgr.add_node(_make_node("GoalNode", type="Goal", status="Open"))
+        mgr.add_node(_make_node("DoneNode", status="Done"))
+        with mgr.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)",
+                ("Prereq", "GoalNode", EDGE_NEEDS_HARD),
+            )
+            conn.execute(
+                "INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)",
+                ("Prereq", "DoneNode", EDGE_NEEDS_HARD),
+            )
+            conn.commit()
+        mgr.recompute_all_statuses()
+        assert mgr.get_node("GoalNode").status == "Open"
+        assert mgr.get_node("DoneNode").status == "Done"
+
 
 # ============================================================================
 # Sync Edges

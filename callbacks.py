@@ -940,7 +940,8 @@ def register_callbacks(app):
          Input('graph-settings-neighbor-links', 'value'),
          Input('main-tabs', 'active_tab'),
          Input('graph-settings-relayout', 'n_clicks'),
-         Input('btn-sidebar-relayout', 'n_clicks')],
+         Input('btn-sidebar-relayout', 'n_clicks'),
+         Input('btn-recompute-statuses', 'n_clicks')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -973,7 +974,7 @@ def register_callbacks(app):
                      active_suggestion_id,
                      f_goal, focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _details_refresh, _bg_click,
-                     gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout,
+                     gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout, _recompute_statuses,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -989,6 +990,12 @@ def register_callbacks(app):
         """
                      
         trigger_id = get_trigger_id()
+
+        # Manual status-drift repair: user clicked "Recompute Statuses" in the
+        # graph settings panel. Runs before generate_elements so the refreshed
+        # graph reflects any newly corrected Blocked/Open flips.
+        if trigger_id == 'btn-recompute-statuses':
+            manager.recompute_all_statuses()
 
         # Tab-switch gate: switching to Settings/Events/Analyze doesn't need a
         # graph regen — those tabs have their own refresh callbacks. Short-circuit

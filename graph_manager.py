@@ -354,6 +354,27 @@ class GraphManager:
         for dept in dependents:
             self._update_node_state(dept)
 
+    def recompute_all_statuses(self) -> int:
+        """Walk every non-Goal, non-Done node and re-derive its Blocked/Open status.
+
+        Safety net for any case where the incremental cascade (_update_node_state
+        called from add_edge / sync_edges / update_node) was bypassed and left a
+        node's status column stale. Returns the number of nodes whose status
+        actually changed.
+        """
+        changed = 0
+        for node in self.get_all_nodes(include_dormant=True):
+            if node.type == 'Goal' or node.status == 'Done':
+                continue
+            before = node.status
+            self._update_node_state(node.name)
+            after_node = self.get_node(node.name)
+            if after_node and after_node.status != before:
+                changed += 1
+        if changed:
+            self._bump_version()
+        return changed
+
     # --- Logic ---
 
     def calculate_priority_scores(self, active_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:

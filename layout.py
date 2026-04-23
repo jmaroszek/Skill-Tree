@@ -396,6 +396,11 @@ def _build_graph_settings_panel(prefix="graph-settings"):
 
         dbc.Button("Re-layout", id=f"{prefix}-relayout",
                    color="secondary", size="sm", className="w-100 mt-2"),
+        *(
+            [dbc.Button("Recompute Statuses", id="btn-recompute-statuses",
+                        color="secondary", size="sm", className="w-100 mt-2")]
+            if prefix == "graph-settings" else []
+        ),
     ], id=f"{prefix}-panel", className="graph-settings-panel",
        style={"display": "none"})
 
