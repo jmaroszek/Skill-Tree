@@ -257,7 +257,6 @@ For a target node, BFS walks backward through the dependency graph (hard by defa
 | `competence` | Optional[str] | Seven-level skill tier (`Outsider` → `Innovator`). |
 | `context` / `subcontext` | Optional[str] | Life area and sub-area (Health → Exercise, etc.). |
 | `obsidian_path` / `google_drive_path` / `website` | Optional[str] | Legacy single-link fields. Multi-link data now lives in Dash stores. |
-| `progress` | Optional[int] | 0-100, only meaningful for `Resource` nodes. |
 | `dormant` | int | `1` while attached to a pending event; `0` once active. |
 | `priority_score` | Optional[float] | Populated by `scoring.score_nodes()`; not persisted. |
 | `time` | float (`@property`) | Computed blended PERT estimate. Not a stored field. |

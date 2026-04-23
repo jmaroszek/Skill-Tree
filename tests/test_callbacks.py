@@ -410,7 +410,7 @@ class TestHandleSaveTimeMode:
         """Saving with time_mode='inherited' stores it in the DB."""
         handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
-                     [], [], [], [], [], None, time_mode='inherited')
+                     [], [], [], [], [], time_mode='inherited')
         node = manager.get_node("Node")
         assert node.time_mode == 'inherited'
 
@@ -418,19 +418,19 @@ class TestHandleSaveTimeMode:
         """Changing time_mode from manual to inherited on update persists."""
         handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
-                     [], [], [], [], [], None, time_mode='manual')
+                     [], [], [], [], [], time_mode='manual')
         assert manager.get_node("Node").time_mode == 'manual'
 
         handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
                      [], None, None, None, None, None,
-                     [], [], [], [], [], None, time_mode='inherited')
+                     [], [], [], [], [], time_mode='inherited')
         assert manager.get_node("Node").time_mode == 'inherited'
 
     def test_goal_node_with_inherited_time(self):
         """Goal nodes can use inherited time mode."""
         handle_save(manager,"MyGoal", "Goal", "a goal", 5, 0, 0, 0, 5, 5,
                      [], None, None, None, None, None,
-                     [], [], [], [], [], None, time_mode='inherited')
+                     [], [], [], [], [], time_mode='inherited')
         node = manager.get_node("MyGoal")
         assert node.type == "Goal"
         assert node.time_mode == 'inherited'

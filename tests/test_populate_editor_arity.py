@@ -1,7 +1,7 @@
 """Regression tests for the populate_editor callback output arity.
 
-populate_editor declares 37 Outputs. Every return path must produce exactly
-37 items. Two paths previously returned 36 and caused a
+populate_editor declares 36 Outputs. Every return path must produce exactly
+36 items. Two paths previously returned 36 (when the arity was 37) and caused a
 dash._grouping.SchemaLengthValidationError → HTTP 500 whenever they fired:
 
 - the search-node path when the searched name does not resolve to a node
@@ -33,7 +33,7 @@ def _populate_editor_fn():
     return cb
 
 
-POPULATE_EDITOR_NUM_OUTPUTS = 37
+POPULATE_EDITOR_NUM_OUTPUTS = 36
 
 
 def _make_state_args():
@@ -44,10 +44,10 @@ def _make_state_args():
     cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
     cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
     cur_obs, cur_drive, cur_website,
-    cur_progress, cur_time_mode, cur_priority_rank, cur_competence,
+    cur_time_mode, cur_priority_rank, cur_competence,
     cur_aliases, pending_nav.
     """
-    return [None] * 30
+    return [None] * 29
 
 
 def _call_with_trigger(monkeypatch, trigger_id, inputs):
@@ -58,7 +58,7 @@ def _call_with_trigger(monkeypatch, trigger_id, inputs):
     return fn(*args)
 
 
-def test_populate_editor_search_unknown_node_returns_37_items(monkeypatch):
+def test_populate_editor_search_unknown_node_returns_36_items(monkeypatch):
     """search-node path where resolved_name does not match any DB node."""
     # Inputs in order: tapNodeData, btn-add, btn-unsaved-discard,
     # btn-unsaved-save, search-node, background-click-input, btn-new-node,
@@ -70,7 +70,7 @@ def test_populate_editor_search_unknown_node_returns_37_items(monkeypatch):
     )
 
 
-def test_populate_editor_fall_through_returns_37_items(monkeypatch):
+def test_populate_editor_fall_through_returns_36_items(monkeypatch):
     """Fall-through 'if not name or not data' path — no trigger, no data."""
     inputs = [None] * 9  # no cytoscape tap, no search, no trigger value
     result = _call_with_trigger(monkeypatch, "", inputs)
@@ -79,15 +79,15 @@ def test_populate_editor_fall_through_returns_37_items(monkeypatch):
     )
 
 
-def test_populate_editor_btn_add_path_returns_37_items(monkeypatch):
+def test_populate_editor_btn_add_path_returns_36_items(monkeypatch):
     """btn-add path hits the def_out branch."""
     inputs = [None, 1, None, None, None, None, None, None, None]
     result = _call_with_trigger(monkeypatch, "btn-add", inputs)
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
 
 
-def test_populate_editor_successful_lookup_returns_37_items(monkeypatch):
-    """Seed a node, search for it, and verify the happy path returns 37 items."""
+def test_populate_editor_successful_lookup_returns_36_items(monkeypatch):
+    """Seed a node, search for it, and verify the happy path returns 36 items."""
     mgr = GraphManager()
     mgr.add_node(Node(
         name="TestNode", type="Learn", description="", value=5,
@@ -99,8 +99,8 @@ def test_populate_editor_successful_lookup_returns_37_items(monkeypatch):
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
 
 
-def test_populate_editor_all_return_paths_use_14_not_13(monkeypatch):
-    """Static guard: the string literals in callbacks.py should never have *13
+def test_populate_editor_all_return_paths_use_13_not_14(monkeypatch):
+    """Static guard: the string literals in callbacks.py should never have *14
     suffix for populate_editor's no_update + options tuple pattern."""
     from pathlib import Path
     src = (Path(__file__).parent.parent / "callbacks.py").read_text(encoding="utf-8")
@@ -109,6 +109,6 @@ def test_populate_editor_all_return_paths_use_14_not_13(monkeypatch):
     # Find the next function def at the same indentation (4 spaces) — stops at the next @app.callback or def
     marker_end = src.index("\n    # --- Type-adaptive field visibility ---", marker_start)
     body = src[marker_start:marker_end]
-    assert "[dash.no_update]*13" not in body and "[dash.no_update] * 13" not in body, (
-        "populate_editor contains a return path with 13 trailing no_updates; should be 14 to match the 37-output schema"
+    assert "[dash.no_update]*14" not in body and "[dash.no_update] * 14" not in body, (
+        "populate_editor contains a return path with 14 trailing no_updates; should be 13 to match the 36-output schema"
     )

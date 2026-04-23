@@ -362,15 +362,15 @@ def register_details_callbacks(app):
         progress_text = ""
         if node.type == "Goal":
             completion = graph_manager.get_goal_completion(
-                node_name, include_soft=include_soft,
-                include_transitive=include_transitive)
+                node_name, include_soft=False,
+                include_transitive=True)
             if completion["total"] > 0:
                 show_progress = {"display": "block", "marginBottom": "8px"}
                 progress_val = completion["pct"]
                 remaining = ConfigManager.format_time_friendly(
                     completion["remaining_time"])
                 progress_text = (f"{completion['done']}/{completion['total']} "
-                                f"subtasks · {remaining} remaining")
+                                f"hard subtasks · {remaining} remaining")
 
         show_priority = {"display": "none"}
         priority_badge = ""
@@ -483,6 +483,21 @@ def register_details_callbacks(app):
             parent_name=selected_node, include_soft=include_soft,
             include_transitive=include_transitive,
             include_synergies=include_synergies)
+
+    # --- Sync "Hide Done" toggle with sidebar filter ---
+    @app.callback(
+        Output("details-hide-done", "value"),
+        Output("filter-done", "value", allow_duplicate=True),
+        Input("details-hide-done", "value"),
+        Input("filter-done", "value"),
+        prevent_initial_call=True,
+    )
+    def sync_hide_done(details_val, filter_val):
+        if (details_val or []) == (filter_val or []):
+            return no_update, no_update
+        if ctx.triggered_id == "details-hide-done":
+            return no_update, details_val
+        return filter_val, no_update
 
     # --- Dependency Graph ---
     @app.callback(
@@ -604,7 +619,7 @@ def register_details_callbacks(app):
         priority_goals = ConfigManager.get_priority_goals()
         completion_cache = {}
         for g in goals:
-            completion_cache[g.name] = graph_manager.get_goal_completion(g.name)
+            completion_cache[g.name] = graph_manager.get_goal_completion(g.name, include_soft=False)
 
         sort_mode = sort_mode or "manual"
         is_manual = sort_mode == "manual"

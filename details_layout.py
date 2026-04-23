@@ -392,6 +392,13 @@ def build_details_tab_content():
                     options=[{"label": "Synergies", "value": "include"}],
                     value=["include"],
                     switch=True,
+                    style={"fontSize": "0.82rem"},
+                ),
+                dbc.Checklist(
+                    id="details-hide-done",
+                    options=[{"label": "Hide Done", "value": "hide_done"}],
+                    value=["hide_done"],
+                    switch=True,
                     style={"fontSize": "0.82rem", "marginRight": "12px"},
                 ),
             ], className="d-flex gap-3"),
@@ -703,7 +710,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     # Stats line
     if total > 0:
-        stats_text = f"{done}/{total} subtasks \u00b7 {pct}% \u00b7 {formatted_time}"
+        stats_text = f"{done}/{total} hard subtasks \u00b7 {pct}% \u00b7 {formatted_time}"
     else:
         stats_text = "No subtasks yet"
 

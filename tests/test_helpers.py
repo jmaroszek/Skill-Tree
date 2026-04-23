@@ -317,7 +317,6 @@ class TestHasEditorUnsavedChanges:
             time_unit=friendly_unit,
             e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
             obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
-            progress_val=node.progress or 0,
             time_mode_val=(['inherited'] if node.time_mode == 'inherited' else []),
             priority_rank_val='none', competence_val=node.competence or '',
             alias_values=[''],
@@ -431,7 +430,7 @@ class TestHasEditorUnsavedChanges:
             time_o=2, time_m=4, time_p=6, time_unit='weeks',
             e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
             obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
-            progress_val=0, time_mode_val=[], priority_rank_val='none',
+            time_mode_val=[], priority_rank_val='none',
             competence_val='', alias_values=[''],
         )
 
@@ -446,6 +445,6 @@ class TestHasEditorUnsavedChanges:
             time_o=2, time_m=4, time_p=6, time_unit='weeks',
             e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
             obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
-            progress_val=0, time_mode_val=[], priority_rank_val='none',
+            time_mode_val=[], priority_rank_val='none',
             competence_val='', alias_values=[''],
         )

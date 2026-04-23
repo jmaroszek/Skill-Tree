@@ -43,7 +43,6 @@ class Node:
     subcontext: Optional[str] = None
     obsidian_path: Optional[str] = None
     google_drive_path: Optional[str] = None
-    progress: Optional[int] = None           # 0-100
     website: Optional[str] = None
     dormant: int = 0
     time_mode: str = 'manual'  # 'manual' or 'inherited'
@@ -59,8 +58,6 @@ class Node:
         self.value = max(1, min(10, self.value))
         self.interest = max(1, min(10, self.interest))
         self.difficulty = max(1, min(10, self.difficulty))
-        if self.progress is not None:
-            self.progress = max(0, min(100, int(self.progress)))
         self.dormant = int(self.dormant) if self.dormant is not None else 0
         if self.time_mode not in ('manual', 'inherited'):
             self.time_mode = 'manual'

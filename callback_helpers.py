@@ -244,7 +244,7 @@ _EDITOR_NEW_NODE_DEFAULTS = {
     'context': '', 'subctx': '', 'done': False,
     'val': 5, 'interest': 5, 'diff': 5,
     'time_o': 2, 'time_m': 4, 'time_p': 6, 'time_unit': 'weeks',
-    'progress': 0, 'time_mode_inherited': False,
+    'time_mode_inherited': False,
     'priority_rank': 'none', 'competence': '',
 }
 
@@ -265,7 +265,7 @@ def has_editor_unsaved_changes(
     time_o, time_m, time_p, time_unit,
     e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
     obs_link_values, drive_link_values, website_link_values,
-    progress_val, time_mode_val, priority_rank_val, competence_val,
+    time_mode_val, priority_rank_val, competence_val,
     alias_values,
 ):
     """Check whether the node editor's form state differs from the last saved state.
@@ -317,7 +317,6 @@ def has_editor_unsaved_changes(
             float(time_m or 0) != d['time_m'] or
             float(time_p or 0) != d['time_p'] or
             (time_unit or d['time_unit']) != d['time_unit'] or
-            int(progress_val or 0) != d['progress'] or
             form_time_mode_inherited != d['time_mode_inherited'] or
             form_priority_rank != d['priority_rank'] or
             _norm_str(competence_val) != d['competence'] or
@@ -358,6 +357,12 @@ def has_editor_unsaved_changes(
     db_t_m = round(float(old_node.time_m or 0) / multiplier, 2)
     db_t_p = round(float(old_node.time_p or 0) / multiplier, 2)
 
+    # Type-specific fields: `priority_rank` only applies to Goal nodes, so
+    # comparing it otherwise would pick up leftover form state from a
+    # previously-edited Goal and produce a false "dirty" flag.
+    current_type = n_type or old_node.type
+    priority_matches = (current_type != 'Goal') or (form_priority_rank == db_priority_rank)
+
     return (
         _norm_str(name) != _norm_str(old_node.name) or
         (n_type or '') != (old_node.type or '') or
@@ -373,9 +378,8 @@ def has_editor_unsaved_changes(
         form_supp_h != db_supp_h or form_supp_s != db_supp_s or
         form_helps != db_helps or
         form_obs != db_obs or form_drive != db_drive or form_website != db_website or
-        int(progress_val or 0) != int(old_node.progress or 0) or
         form_time_mode_inherited != (old_node.time_mode == 'inherited') or
-        form_priority_rank != db_priority_rank or
+        not priority_matches or
         _norm_str(competence_val) != _norm_str(old_node.competence) or
         form_aliases != db_aliases
     )
@@ -386,15 +390,11 @@ def has_editor_unsaved_changes(
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                progress_val=None, time_mode='manual', competence=None):
+                time_mode='manual', competence=None):
     """Create or update a node and sync its edges. Returns a status message."""
     from models import Node
 
     target_status = "Done" if (status_done and "Done" in status_done) else "Open"
-
-    # Auto-set progress to 100% when resource is marked Done
-    if n_type == 'Resource' and target_status == 'Done':
-        progress_val = 100
 
     node = Node(
         name=name, type=n_type, description=desc or "",
@@ -404,7 +404,6 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         obsidian_path=(obs_path or '').strip() or None,
         google_drive_path=(drive_path or '').strip() or None,
         website=(website_path or '').strip() or None,
-        progress=int(progress_val) if n_type == 'Resource' and progress_val is not None else None,
         time_mode=time_mode,
         competence=competence or None,
     )

@@ -51,7 +51,6 @@ def init_db():
             status TEXT NOT NULL,
             obsidian_path TEXT,
             google_drive_path TEXT,
-            progress INTEGER DEFAULT 0,
             website TEXT,
             dormant INTEGER NOT NULL DEFAULT 0
         )
@@ -127,6 +126,15 @@ def init_db():
         pass
     try:
         cursor.execute("ALTER TABLE EventNodes ADD COLUMN override_mode TEXT")
+        conn.commit()
+    except Exception:
+        pass
+
+    # Drop the deprecated Resource-completion `progress` column. DROP COLUMN
+    # requires SQLite 3.35+; if unsupported or already removed, the except
+    # swallows the error so startup doesn't fail on older builds.
+    try:
+        cursor.execute("ALTER TABLE Nodes DROP COLUMN progress")
         conn.commit()
     except Exception:
         pass

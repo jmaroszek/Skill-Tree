@@ -1177,14 +1177,6 @@ class TestNodeMigration:
         mgr.apply_migration('context', {"OldCtx": "__clear__"})
         assert mgr.get_node("A").context is None
 
-
-    def test_apply_migration_type_clears_resource_fields(self, mgr):
-        mgr.add_node(_make_node("A", type="Resource", progress=50))
-        mgr.apply_migration('type', {"Resource": "Goal"})
-        node = mgr.get_node("A")
-        assert node.type == "Goal"
-        assert node.progress is None
-
     def test_apply_migration_context_clears_invalid_subcontexts(self, mgr):
         mgr.add_node(_make_node("A", context="Mind", subcontext="Rational"))
         new_subs = {"Body": ["Stress", "Sleep"]}

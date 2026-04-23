@@ -366,7 +366,10 @@ def _run_real_db_differential(monkeypatch, tmp_path, db_name: str):
     target = tmp_path / "real_copy.db"
     shutil.copy(src, target)
     monkeypatch.setattr(database, "get_db_path", lambda: str(target))
-    database._initialized = True
+    # Allow init_db to run on the copy so any schema migrations (e.g. drop
+    # deprecated `progress` column) apply before GraphManager reads nodes.
+    database._initialized = False
+    database.init_db()
 
     mgr = GraphManager()
     all_nodes = mgr.get_all_nodes()

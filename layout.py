@@ -149,13 +149,6 @@ sidebar_content = html.Div(
                 ], className="d-flex justify-content-start mt-3"),
             ]),
 
-            # --- Section: Resource-specific (progress slider) ---
-            html.Div(id="section-resource", style={"display": "none"}, children=[
-                dbc.Label("Progress", className="mt-2"),
-                dcc.Slider(min=0, max=100, step=1, value=0, id="node-progress",
-                           marks={0: "0%", 25: "25%", 50: "50%", 75: "75%", 100: "100%"}),
-            ]),
-
             # Numeric inputs (shared by all types)
             html.Hr(className="my-2"),
             html.Div([
@@ -754,14 +747,19 @@ error_modal = dbc.Modal([
 
 
 unsaved_changes_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes")),
-    dbc.ModalBody("You have unsaved changes. What would you like to do?"),
+    # close_button=False removes the header X so the modal can only be resolved
+    # via one of the three footer actions. backdrop="static" + keyboard=False
+    # block backdrop-click and Esc dismissals; Bootstrap auto-plays its built-in
+    # "shake" animation on the modal when the static backdrop is clicked.
+    dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes"), close_button=False),
+    dbc.ModalBody("You have unsaved changes. Please choose an action to continue."),
     dbc.ModalFooter([
-        dbc.Button("Keep Editing", id="btn-unsaved-cancel", color="secondary", className="flex-fill me-2"),
         dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="flex-fill me-2"),
-        dbc.Button("Save & Close", id="btn-unsaved-save", color="success", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-unsaved-changes", size="sm", is_open=False, centered=True)
+        dbc.Button("Edit", id="btn-unsaved-cancel", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Save", id="btn-unsaved-save", color="success", className="flex-fill"),
+    ], className="d-flex flex-nowrap"),
+], id="modal-unsaved-changes", size="sm", is_open=False, centered=True,
+   backdrop="static", keyboard=False)
 
 
 delete_confirm_modal = dbc.Modal([

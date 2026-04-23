@@ -202,7 +202,7 @@ def register_callbacks(app):
         Output('filter-interest', 'value'),
         Output('filter-difficulty', 'value'),
         Output('filter-time', 'value'),
-        Output('filter-done', 'value'),
+        Output('filter-done', 'value', allow_duplicate=True),
         Input('btn-clear-filters', 'n_clicks'),
         prevent_initial_call=True,
     )
@@ -234,7 +234,7 @@ def register_callbacks(app):
         )
 
         if node_type == 'Goal':
-            completion = manager.get_goal_completion(node_id)
+            completion = manager.get_goal_completion(node_id, include_soft=False)
             total = completion.get('total', 0)
             done = completion.get('done', 0)
             pct = completion.get('pct', 0)
@@ -246,7 +246,7 @@ def register_callbacks(app):
                 bar_color = "#198754" if pct == 100 else "#0d6efd"
                 lines += [
                     html.Hr(style={"margin": "6px 0", "borderColor": "#495057"}),
-                    html.Div([html.Strong("Progress: "), f"{done}/{total} subtasks ({pct}%)"]),
+                    html.Div([html.Strong("Progress: "), f"{done}/{total} hard subtasks ({pct}%)"]),
                     html.Div(
                         html.Div(style={
                             "width": f"{pct}%", "height": "6px",
@@ -303,7 +303,7 @@ def register_callbacks(app):
 
     # --- Editor Form Population ---
     @app.callback(
-        [Output('node-name', 'value'), Output('node-type', 'value'), Output('node-desc', 'value'),
+        [Output('node-name', 'value', allow_duplicate=True), Output('node-type', 'value'), Output('node-desc', 'value'),
          Output('node-context', 'value'), Output('node-subcontext', 'value'),
          Output('node-value', 'value'), Output('node-interest', 'value'), Output('node-difficulty', 'value'),
          Output('node-time-o', 'value'), Output('node-time-m', 'value'), Output('node-time-p', 'value'),
@@ -317,7 +317,7 @@ def register_callbacks(app):
          Output('obsidian-links-store', 'data'), Output('drive-links-store', 'data'),
          Output('website-links-store', 'data'),
          # Type-specific outputs
-         Output('node-progress', 'value'), Output('node-time-unit', 'value'),
+         Output('node-time-unit', 'value'),
          Output('node-time-unit-prev', 'data', allow_duplicate=True),
          Output('node-original-name', 'data', allow_duplicate=True),
          Output('search-node', 'value', allow_duplicate=True),
@@ -352,7 +352,7 @@ def register_callbacks(app):
          State({'type': 'obsidian-link', 'index': ALL}, 'value'),
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
-         State('node-progress', 'value'), State('node-time-mode', 'value'),
+         State('node-time-mode', 'value'),
          State('node-priority-rank', 'value'), State('node-competence', 'value'),
          State({'type': 'alias-input', 'index': ALL}, 'value'),
          State('pending-navigation-store', 'data')],
@@ -366,7 +366,7 @@ def register_callbacks(app):
                         cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
                         cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
                         cur_obs, cur_drive, cur_website,
-                        cur_progress, cur_time_mode, cur_priority_rank, cur_competence,
+                        cur_time_mode, cur_priority_rank, cur_competence,
                         cur_aliases,
                         pending_nav):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
@@ -381,7 +381,7 @@ def register_callbacks(app):
             options, options, options, options, options,
             [''], [''], [''],
             # Type-specific defaults
-            0, "weeks", "weeks",
+            "weeks", "weeks",
             None,  # node-original-name
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
             "none",  # node-priority-rank
@@ -403,7 +403,7 @@ def register_callbacks(app):
                 e_supp_h=cur_supp_h, e_supp_s=cur_supp_s, e_helps=cur_helps,
                 obs_link_values=cur_obs, drive_link_values=cur_drive,
                 website_link_values=cur_website,
-                progress_val=cur_progress, time_mode_val=cur_time_mode,
+                time_mode_val=cur_time_mode,
                 priority_rank_val=cur_priority_rank, competence_val=cur_competence,
                 alias_values=cur_aliases,
             )
@@ -412,29 +412,39 @@ def register_callbacks(app):
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
                 # Show unsaved modal; store 'new-node' as pending action
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
-                no_change[35] = '__new_node__'  # pending-navigation-store (special sentinel)
-                no_change[36] = True            # modal-unsaved-changes
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                no_change[34] = '__new_node__'  # pending-navigation-store (special sentinel)
+                no_change[35] = True            # modal-unsaved-changes
                 return no_change
             # No unsaved changes — clear and reset (don't clear search-node;
             # that would re-trigger core_engine and overwrite the editor-open state)
             return def_out
 
         if trigger_id in ['btn-add', 'background-click-input']:
+            # Intercept background click when the editor is open with unsaved
+            # changes — show the save/discard modal instead of silently clobbering.
+            if trigger_id == 'background-click-input':
+                editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
+                if editor_open and _has_unsaved_changes():
+                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                    no_change[34] = '__background__'  # pending-navigation-store sentinel
+                    no_change[35] = True              # modal-unsaved-changes
+                    return no_change
             # Clear search bar on reset triggers — but NOT for btn-add, because
             # setting search-node to None re-triggers core_engine via the callback
             # chain, and the second invocation reads stale editor state and
             # overwrites the first invocation's "open editor" output.
             if trigger_id != 'btn-add':
-                def_out[30] = None  # search-node value position
+                def_out[29] = None  # search-node value position
             return def_out
 
         # Handle unsaved-discard / unsaved-save with pending navigation
         if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
             if pending_nav:
-                if pending_nav == '__new_node__':
-                    # Discard/save done — reset to blank new-node form
-                    def_out[30] = None  # clear search bar
+                if pending_nav in ('__new_node__', '__background__'):
+                    # Discard/save done — reset form. __new_node__ leaves the editor
+                    # open on a blank form; __background__ closes it (core_engine).
+                    def_out[29] = None  # clear search bar
                     return def_out
                 # Navigate to the pending node after discarding/saving
                 node = manager.get_node(pending_nav)
@@ -453,10 +463,10 @@ def register_callbacks(app):
             tapped_id = data.get('id')
             if editor_open and tapped_id and tapped_id != original_name and _has_unsaved_changes():
                 # Store the pending target and show unsaved modal instead of populating
-                # 18 form fields + 5 edge options + 14 remaining = 37 total outputs
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
-                no_change[35] = tapped_id  # pending-navigation-store (index 35)
-                no_change[36] = True       # modal-unsaved-changes (index 36)
+                # 18 form fields + 5 edge options + 13 remaining = 36 total outputs
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                no_change[34] = tapped_id  # pending-navigation-store (index 34)
+                no_change[35] = True       # modal-unsaved-changes (index 35)
                 return no_change
 
         name = None
@@ -470,13 +480,13 @@ def register_callbacks(app):
                     # Dormant nodes have their own editor (Events-tab dormant modal).
                     # Defense-in-depth: if any code path forwards a dormant name here,
                     # don't load it into the generic sidebar.
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
                 if node:
                     name = node.name
                     data = node.to_dict()
                     data['id'] = name
                 else:
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
         elif trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
@@ -489,13 +499,13 @@ def register_callbacks(app):
                 resolved_name = all_aliases.get(alias_key, search_val)
             node = manager.get_node(resolved_name)
             if node and node.dormant:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
             if node:
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -506,7 +516,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
 
         edges = manager.get_edges()
 
@@ -551,7 +561,7 @@ def register_callbacks(app):
             parse_links(data.get('google_drive_path', '')),
             parse_links(data.get('website', '')),
             # Type-specific fields
-            data.get('progress') or 0, friendly_unit, friendly_unit,
+            friendly_unit, friendly_unit,
             name,  # node-original-name — track what was loaded
             name if (trigger_id in ('edit-trigger-input', 'details-edit-trigger-input') or (ed_style and ed_style.get('transform', '') == 'translateX(0px)')) else dash.no_update,  # search-node — update when editor is open or edit-trigger
             rank_value,  # node-priority-rank
@@ -562,23 +572,44 @@ def register_callbacks(app):
             False,  # modal-unsaved-changes — close on successful populate
         ]
 
+    # --- Post-save sync of original_name / name ---
+    # After a Save (no close), the form still holds whatever the user typed but
+    # the DB now holds the *linted* / renamed version. Without this sync,
+    # has_editor_unsaved_changes would see "original_name" still pointing at
+    # the pre-save identity (or None for a brand-new node) and flag the form as
+    # dirty — producing spurious unsaved-changes modals on the next background
+    # click. Re-reading the DB by the form's current name confirms the save
+    # succeeded before touching state.
+    @app.callback(
+        [Output('node-original-name', 'data', allow_duplicate=True),
+         Output('node-name', 'value', allow_duplicate=True)],
+        [Input('btn-save', 'n_clicks'),
+         Input('btn-save-close', 'n_clicks')],
+        [State('node-name', 'value')],
+        prevent_initial_call=True,
+    )
+    def sync_original_name_after_save(_save_clicks, _save_close_clicks, cur_name):
+        if not cur_name or not cur_name.strip():
+            return dash.no_update, dash.no_update
+        linted = ConfigManager.apply_titlecase_linter(cur_name.strip())
+        if not manager.get_node(linted):
+            return dash.no_update, dash.no_update
+        return linted, linted
+
     # --- Type-adaptive field visibility ---
     @app.callback(
         [Output('section-done-time', 'style'),
          Output('section-time-estimates', 'style'),
-         Output('section-resource', 'style'),
          Output('section-priority-rank', 'style')],
         Input('node-type', 'value')
     )
     def toggle_type_fields(node_type):
         show = {}
         hide = {'display': 'none'}
-        if node_type == 'Resource':
-            return show, show, hide, hide
-        elif node_type == 'Goal':
-            return show, show, hide, show  # Show time estimates (for time_mode toggle) + priority rank
-        else:  # Learn, Action
-            return show, show, hide, hide
+        if node_type == 'Goal':
+            return show, show, show  # Show time estimates (for time_mode toggle) + priority rank
+        else:  # Learn, Action, Resource
+            return show, show, hide
 
     # --- Toggle O/M/P fields based on time_mode ---
     @app.callback(
@@ -915,7 +946,6 @@ def register_callbacks(app):
          State({'type': 'obsidian-link', 'index': ALL}, 'value'),
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
-         State('node-progress', 'value'),
          State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
@@ -941,7 +971,6 @@ def register_callbacks(app):
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                      obs_link_values, drive_link_values, website_link_values,
-                     progress_val,
                      current_elements, ed_style, original_name,
                      time_mode_val, priority_rank_val, competence_val,
                      goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values):
@@ -996,7 +1025,10 @@ def register_callbacks(app):
             # btn-save-close and unsaved-save close it after saving.
             # btn-unsaved-discard closes without saving.
             # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
-            if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
+            if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store == '__background__':
+                # User dismissed via canvas click — close the editor after save/discard.
+                next_ed_style['transform'] = "translateX(-380px)"
+            elif trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
                 pass  # Keep editor open — pending navigation will load the next node
             elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not name or not n_type):
                 pass  # Keep sidebar open — validation error shown below
@@ -1011,7 +1043,7 @@ def register_callbacks(app):
                     e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
                     obs_link_values=obs_link_values, drive_link_values=drive_link_values,
                     website_link_values=website_link_values,
-                    progress_val=progress_val, time_mode_val=time_mode_val,
+                    time_mode_val=time_mode_val,
                     priority_rank_val=priority_rank_val, competence_val=competence_val,
                     alias_values=alias_values,
                 )
@@ -1102,7 +1134,7 @@ def register_callbacks(app):
                                   obs_path, drive_path, website_path,
                                   e_needs_h, e_needs_s,
                                   e_supp_h, e_supp_s, e_helps,
-                                  progress_val, time_mode=time_mode,
+                                  time_mode=time_mode,
                                   competence=competence_val)
 
                 # Save aliases
@@ -1438,7 +1470,7 @@ def register_callbacks(app):
          State({'type': 'obsidian-link', 'index': ALL}, 'value'),
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
-         State('node-progress', 'value'), State('node-time-mode', 'value'),
+         State('node-time-mode', 'value'),
          State('node-priority-rank', 'value'), State('node-competence', 'value'),
          State({'type': 'alias-input', 'index': ALL}, 'value'),
          State('node-original-name', 'data')],
@@ -1450,7 +1482,7 @@ def register_callbacks(app):
                               time_o, time_m, time_p, time_unit,
                               e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                               obs_link_values, drive_link_values, website_link_values,
-                              progress_val, time_mode_val, priority_rank_val, competence_val,
+                              time_mode_val, priority_rank_val, competence_val,
                               alias_values, original_name):
         if get_trigger_id() != 'btn-close-editor':
             return False
@@ -1464,7 +1496,7 @@ def register_callbacks(app):
             e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
             obs_link_values=obs_link_values, drive_link_values=drive_link_values,
             website_link_values=website_link_values,
-            progress_val=progress_val, time_mode_val=time_mode_val,
+            time_mode_val=time_mode_val,
             priority_rank_val=priority_rank_val, competence_val=competence_val,
             alias_values=alias_values,
         )

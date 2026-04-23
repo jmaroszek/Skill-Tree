@@ -143,11 +143,12 @@ def _rank_goals(goals, priority_goals, hp):
     return [g for g, _ in scored]
 
 
-def _compute_goal_comparison(nodes, hard_rev, all_rev, limits):
+def _compute_goal_comparison(nodes, hard_rev, limits):
     """Compute goal stats and pairwise overlap using in-memory adjacency.
 
     Ranks goals by intrinsic value (from scoring algorithm) boosted by priority rank,
-    then caps to keep visualizations readable.
+    then caps to keep visualizations readable. Both progress and overlap are computed
+    over hard prerequisites only.
     """
     all_goals = [n for n in nodes if n.type == 'Goal']
     node_map = {n.name: n for n in nodes}
@@ -160,15 +161,15 @@ def _compute_goal_comparison(nodes, hard_rev, all_rev, limits):
     total_goal_count = len(all_goals)
 
     def _get_subtree(goal_name):
-        """BFS backward through hard+soft prerequisite edges."""
+        """BFS backward through hard prerequisite edges only."""
         visited = set()
-        queue = list(all_rev.get(goal_name, []))
+        queue = list(hard_rev.get(goal_name, []))
         while queue:
             current = queue.pop()
             if current in visited:
                 continue
             visited.add(current)
-            for prev_node in all_rev.get(current, []):
+            for prev_node in hard_rev.get(current, []):
                 if prev_node not in visited:
                     queue.append(prev_node)
         return visited
@@ -641,7 +642,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     remaining_pcts = [100 - g['pct'] for g in sorted_goals]
     hover_done = [
         f"<b>{g['name']}</b><br>"
-        f"Done: {g['done']} / {g['total']} ({g['pct']}%)<br>"
+        f"Done: {g['done']} / {g['total']} hard ({g['pct']}%)<br>"
         f"Remaining: {fmt(g['remaining'])}<br>"
         f"Blocked: {g['blocked']}"
         + (f"<br>Priority #{g['priority_rank']}" if g['priority_rank'] else "")
@@ -668,6 +669,11 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
         xaxis=dict(title="Completion %", range=[0, 100]),
     ))
     sections_left.append(html.H6("Completion", className="text-muted mb-1"))
+    sections_left.append(html.Small(
+        "Hard prerequisites only",
+        className="text-muted d-block mb-2",
+        style={"fontSize": "0.75rem"},
+    ))
     sections_left.append(dcc.Graph(figure=fig, config=_CHART_CFG))
 
     # --- Shared Prerequisites Heatmap ---
@@ -722,10 +728,21 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
         ))
 
         sections_right.append(html.H6("Shared Prerequisites", className="text-muted mb-1"))
+        sections_right.append(html.Small(
+            "Hard prerequisites only",
+            className="text-muted d-block mb-2",
+            style={"fontSize": "0.75rem"},
+        ))
         sections_right.append(dcc.Graph(figure=hm_fig, config=_CHART_CFG))
 
     # If no overlap data, show a message in the right column
     if not sections_right:
+        sections_right.append(html.H6("Shared Prerequisites", className="text-muted mb-1"))
+        sections_right.append(html.Small(
+            "Hard prerequisites only",
+            className="text-muted d-block mb-2",
+            style={"fontSize": "0.75rem"},
+        ))
         sections_right.append(html.P("No shared prerequisites between goals.", className="text-muted small"))
 
     return dbc.Row([
@@ -1027,7 +1044,7 @@ def register_analyze_callbacks(app):
         bottlenecks = _compute_bottlenecks(nodes, hard_fwd, limits)
         top_nodes = _compute_top_time_sinks(nodes, limits)
         ratings_data = _compute_ratings(nodes)
-        goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, hard_rev, all_rev, limits)
+        goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, hard_rev, limits)
         risk_data = _compute_risk(nodes, limits)
         dep_data = _compute_dependency_structure(nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits)
         ctx_coverage, subctx_coverage = _compute_context_coverage(nodes)

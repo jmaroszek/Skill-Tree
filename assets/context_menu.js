@@ -103,7 +103,10 @@
 
         function triggerToggleDone() {
             hideMenu();
-            if ((_menuSource === 'goal' || _menuSource === 'details' || _menuSource === 'events') && _currentNodeData && _currentNodeData.id) {
+            // Always prefer the explicit-ID trigger: on the main canvas a right-click
+            // does not update cytoscape's tapNodeData, so btn-toggle-done-node would
+            // act on whichever node was last left-clicked (not the one right-clicked).
+            if (_currentNodeData && _currentNodeData.id) {
                 _setHiddenInput('toggle-done-trigger-input', _currentNodeData.id);
             } else {
                 _clickDashBtn('btn-toggle-done-node');

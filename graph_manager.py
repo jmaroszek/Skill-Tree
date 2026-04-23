@@ -18,7 +18,7 @@ from typing import List, Dict, Optional, Set
 
 
 # Fields whose mutation changes a node's priority_score. Anything else
-# (description, paths, progress, context, aliases, competence) is cosmetic
+# (description, paths, context, aliases, competence) is cosmetic
 # for scoring purposes and must not invalidate the scoring memo.
 _SCORING_RELEVANT_FIELDS = frozenset({
     'type', 'value', 'interest', 'difficulty',
@@ -86,8 +86,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, progress, website, dormant, time_mode)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :progress, :website, :dormant, :time_mode)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -108,7 +108,7 @@ class GraphManager:
                     interest=:interest, difficulty=:difficulty, competence=:competence,
                     context=:context, subcontext=:subcontext, status=:status,
                     obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
-                    progress=:progress, website=:website,
+                    website=:website,
                     dormant=:dormant, time_mode=:time_mode
                 WHERE name=:name
             ''', data)
@@ -758,14 +758,6 @@ class GraphManager:
                 if new_val == '__clear__':
                     new_val = None
 
-                if field == 'type' and new_val is not None:
-                    # Clear type-specific fields when changing away from Resource
-                    cursor.execute("SELECT name, type FROM Nodes WHERE type=?", (old_val,))
-                    rows = cursor.fetchall()
-                    for name, old_type in rows:
-                        if old_type == 'Resource' and new_val != 'Resource':
-                            cursor.execute("UPDATE Nodes SET progress=NULL WHERE name=?", (name,))
-
                 # Apply the remap
                 cursor.execute(f"UPDATE Nodes SET [{field}]=? WHERE [{field}]=?", (new_val, old_val))
 
@@ -800,12 +792,6 @@ class GraphManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             actual_val = None if new_val == '__clear__' else new_val
-
-            if field == 'type' and actual_val is not None:
-                cursor.execute("SELECT type FROM Nodes WHERE name=?", (node_name,))
-                row = cursor.fetchone()
-                if row and row[0] == 'Resource' and actual_val != 'Resource':
-                    cursor.execute("UPDATE Nodes SET progress=NULL WHERE name=?", (node_name,))
 
             cursor.execute(f"UPDATE Nodes SET [{field}]=? WHERE name=?", (actual_val, node_name))
 

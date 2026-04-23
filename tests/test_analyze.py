@@ -232,9 +232,9 @@ class TestComputeGoalComparison:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, _, _, all_rev = _build_adjacency(edges)
+        _, hard_rev, _, all_rev = _build_adjacency(edges)
         goal_rows, overlap_rows, total = _compute_goal_comparison(
-            nodes, None, all_rev, {'goals': 25})
+            nodes, hard_rev, {'goals': 25})
         assert total == 1
         assert goal_rows[0]['done'] == 1
         assert goal_rows[0]['total'] == 2
@@ -245,9 +245,9 @@ class TestComputeGoalComparison:
         _setup_graph(mgr, goals)
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, _, _, all_rev = _build_adjacency(edges)
+        _, hard_rev, _, all_rev = _build_adjacency(edges)
         goal_rows, _, total = _compute_goal_comparison(
-            nodes, None, all_rev, {'goals': 3})
+            nodes, hard_rev, {'goals': 3})
         assert total == 10
         assert len(goal_rows) == 3
 
@@ -262,9 +262,9 @@ class TestComputeGoalComparison:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, _, _, all_rev = _build_adjacency(edges)
+        _, hard_rev, _, all_rev = _build_adjacency(edges)
         _, overlap_rows, _ = _compute_goal_comparison(
-            nodes, None, all_rev, {'goals': 25})
+            nodes, hard_rev, {'goals': 25})
         assert len(overlap_rows) == 1
         assert overlap_rows[0]['shared'] == 1
 

@@ -338,8 +338,7 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
 
 #section-done-time,
 #section-time-estimates,
-#section-habit,
-#section-resource {
+#section-habit {
     transition: opacity 0.25s ease, max-height 0.3s ease;
     overflow: hidden;
 }
