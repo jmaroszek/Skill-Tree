@@ -1655,6 +1655,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         subtree = subtree & direct
 
     node_names = subtree | {selected_node}
+    depth_by_name = {}
 
     # --- Max Depth filtering (BFS from selected node) ---
     if max_depth and max_depth > 0:
@@ -1666,13 +1667,15 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 adj.setdefault(s, set()).add(t)
                 adj.setdefault(t, set()).add(s)
         visited = {selected_node}
+        depth_by_name = {selected_node: 0}
         frontier = {selected_node}
-        for _ in range(max_depth):
+        for d in range(max_depth):
             next_frontier = set()
             for n in frontier:
                 for nb in adj.get(n, set()):
                     if nb not in visited:
                         visited.add(nb)
+                        depth_by_name[nb] = d + 1
                         next_frontier.add(nb)
             frontier = next_frontier
             if not frontier:
@@ -1751,10 +1754,16 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     edges = graph_manager.get_edges()
     for e in edges:
         if e['source'] in filtered_names and e['target'] in filtered_names:
-            # Neighbor links filter: when off, only show edges touching selected node
+            # Neighbor links filter: when off, hide peer edges between same-BFS-depth
+            # nodes so the local subtree stays legible (Obsidian local-graph style).
+            # When no BFS ran (max_depth == 0), fall back to "edges touching selected node".
             if not neighbor_links:
-                if e['source'] != selected_node and e['target'] != selected_node:
-                    continue
+                if depth_by_name:
+                    if depth_by_name.get(e['source']) == depth_by_name.get(e['target']):
+                        continue
+                else:
+                    if e['source'] != selected_node and e['target'] != selected_node:
+                        continue
             elements.append({
                 'data': {
                     'id': f"{e['source']}_{e['target']}_{e['type']}",

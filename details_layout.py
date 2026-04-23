@@ -42,15 +42,24 @@ def _freeze_indicator(indicator_id: str):
     )
 
 
-def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True):
-    """Build a graph settings panel.
+def build_graph_settings_panel(
+    prefix: str,
+    *,
+    include_depth_controls: bool = True,
+    defaults_getter=ConfigManager.get_graph_layout_defaults,
+):
+    """Build a graph settings panel. Single source of truth for all three canvases
+    (Nodes / Details / Events).
 
-    Used by both the details dependency graph and the events canvas. Set
-    ``include_depth_controls=False`` to hide the Max-Depth/Neighbor-Links
-    controls (they only make sense where a root-relative subtree is being
-    rendered, which the events canvas isn't).
+    Callers pass the slider `defaults_getter` explicitly to select between
+    `get_graph_layout_defaults` (main canvas) and
+    `get_details_graph_layout_defaults` (details/events). Set
+    ``include_depth_controls=False`` to hide the Max-Depth and Neighbors/Smooth
+    toggles (they only make sense where a root-relative subtree is being
+    rendered, which the events canvas isn't) — a standalone Freeze switch
+    replaces the toggle row in that mode.
     """
-    gl = ConfigManager.get_details_graph_layout_defaults()
+    gl = defaults_getter()
     p = prefix
     reset_btn_id = f"btn-reset-{p}"
 
@@ -79,7 +88,7 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
                 value=False,
                 style={"fontSize": "0.82rem"},
             ),
-            dbc.Tooltip("Pause graph updates on save. Use Re-layout to refresh manually.",
+            dbc.Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
                         target=f"{p}-freeze-rerender", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
@@ -97,6 +106,12 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
 
             html.Div([
                 dbc.Switch(
+                    id=f"{p}-neighbor-links",
+                    label="Neighbors",
+                    value=True,
+                    style={"fontSize": "0.82rem"},
+                ),
+                dbc.Switch(
                     id=f"{p}-animate",
                     label="Smooth",
                     value=True,
@@ -108,14 +123,8 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
                     value=False,
                     style={"fontSize": "0.82rem"},
                 ),
-                dbc.Switch(
-                    id=f"{p}-neighbor-links",
-                    label="Neighbors",
-                    value=True,
-                    style={"fontSize": "0.82rem"},
-                ),
             ], className="d-flex gap-2 mt-3"),
-            dbc.Tooltip("Pause graph updates on save. Use Re-layout to refresh manually.",
+            dbc.Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
                         target=f"{p}-freeze-rerender", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
 
@@ -151,17 +160,15 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
     children += [
         html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
 
-        dbc.Button("Re-layout", id=f"{p}-relayout",
+        dbc.Button("Settle", id=f"{p}-relayout",
                    color="secondary", size="sm", className="w-100 mt-2"),
+        dbc.Tooltip("Re-run layout physics to untangle nodes",
+                    target=f"{p}-relayout", placement="top",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
     ]
 
     return html.Div(children, id=f"{p}-panel", className="graph-settings-panel",
                     style={"display": "none"})
-
-
-def _build_details_graph_settings_panel():
-    """Legacy alias used by the details tab."""
-    return _build_graph_settings_panel("details-graph-settings", include_depth_controls=True)
 
 
 def build_details_tab_content():
@@ -366,7 +373,10 @@ def build_details_tab_content():
             dbc.Tooltip("Graph settings", target="btn-details-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _freeze_indicator("details-freeze-indicator"),
-            _build_details_graph_settings_panel(),
+            build_graph_settings_panel(
+                "details-graph-settings",
+                defaults_getter=ConfigManager.get_details_graph_layout_defaults,
+            ),
             dbc.Button(html.I(className="bi bi-search"),
                        id="btn-details-focus",
                        color="secondary", size="sm",

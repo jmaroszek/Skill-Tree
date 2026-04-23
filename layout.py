@@ -14,7 +14,7 @@ from config import (
     TOOLTIP_NODE_HIDE_DELAY_MS,
 )
 from events_layout import build_events_tab_content, build_events_sidebar_content
-from details_layout import build_details_tab_content, _freeze_indicator
+from details_layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
 from settings_layout import build_settings_tab_content
 from analyze_layout import build_analyze_tab_content
 from styles import stylesheet
@@ -313,96 +313,6 @@ sidebar_content = html.Div(
 
 # --- Graph View (Canvas only) ---
 
-def _build_graph_settings_panel(prefix="graph-settings"):
-    """Build the graph settings panel controls.
-
-    Args:
-        prefix: ID prefix — 'graph-settings' for main canvas,
-                'details-graph-settings' for details canvas.
-    """
-    gl = ConfigManager.get_graph_layout_defaults()
-    reset_btn_id = f"btn-reset-{prefix}"
-    return html.Div([
-        html.Div([
-            html.Span("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem"}),
-            dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
-                       className="ms-2 p-0",
-                       style={"fontSize": "1.1rem", "lineHeight": "1",
-                              "color": "#adb5bd", "position": "relative",
-                              "top": "0px", "textDecoration": "none"}),
-            dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-        ], className="d-flex align-items-center",
-           style={"marginBottom": "12px"}),
-        html.Div("Max Depth", className="settings-label"),
-        dcc.Slider(
-            id=f"{prefix}-max-depth",
-            min=0, max=5, step=1, value=0,
-            marks={0: "All", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
-            updatemode="mouseup",
-        ),
-
-        html.Div([
-            dbc.Switch(
-                id=f"{prefix}-neighbor-links",
-                label="Neighbors",
-                value=True,
-                style={"fontSize": "0.82rem"},
-            ),
-            dbc.Switch(
-                id=f"{prefix}-animate",
-                label="Smooth",
-                value=True,
-                style={"fontSize": "0.82rem"},
-            ),
-            dbc.Switch(
-                id=f"{prefix}-freeze-rerender",
-                label="Freeze",
-                value=False,
-                style={"fontSize": "0.82rem"},
-            ),
-        ], className="d-flex gap-2 mt-3"),
-        dbc.Tooltip("Pause graph updates on save. Use Re-layout to refresh manually.",
-                    target=f"{prefix}-freeze-rerender", placement="left",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-
-        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
-
-        html.Div("Edge Length", className="settings-label"),
-        dcc.Slider(
-            id=f"{prefix}-edge-length",
-            min=50, max=300, step=10, value=gl.get('edge_length', 100),
-            marks={50: "50", 100: "100", 150: "150", 200: "200", 250: "250", 300: "300"},
-            updatemode="mouseup",
-        ),
-
-        html.Div("Gravity", className="settings-label"),
-        dcc.Slider(
-            id=f"{prefix}-gravity",
-            min=0, max=5, step=0.25, value=gl.get('gravity', 0.25),
-            marks={0: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
-            updatemode="mouseup",
-        ),
-
-        html.Div("Repulsion", className="settings-label"),
-        dcc.Slider(
-            id=f"{prefix}-repulsion",
-            min=500, max=100000, step=500, value=gl.get('repulsion', 4500),
-            marks={500: "500", 25000: "25k", 50000: "50k", 75000: "75k", 100000: "100k"},
-            updatemode="mouseup",
-        ),
-
-        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
-
-        dbc.Button("Settle", id=f"{prefix}-relayout",
-                   color="secondary", size="sm", className="w-100 mt-2"),
-        dbc.Tooltip("Re-run layout physics to untangle nodes",
-                    target=f"{prefix}-relayout", placement="top",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-    ], id=f"{prefix}-panel", className="graph-settings-panel",
-       style={"display": "none"})
-
-
 def create_graph_view(initial_elements):
     """Create the Cytoscape graph canvas with fullscreen toggle button."""
     gl = ConfigManager.get_graph_layout_defaults()
@@ -433,7 +343,10 @@ def create_graph_view(initial_elements):
             dbc.Tooltip("Graph settings", target="btn-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _freeze_indicator("freeze-indicator"),
-            _build_graph_settings_panel("graph-settings"),
+            build_graph_settings_panel(
+                "graph-settings",
+                defaults_getter=ConfigManager.get_graph_layout_defaults,
+            ),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-fullscreen",
                        color="secondary", size="sm",

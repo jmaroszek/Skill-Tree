@@ -89,6 +89,7 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
         filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
 
     valid_names = {n.name for n in filtered_nodes}
+    depth_by_name = {}
 
     # --- Max Depth filtering (BFS from active node) ---
     if max_depth and max_depth > 0 and active_node_id and active_node_id in valid_names:
@@ -100,15 +101,17 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
             if s in valid_names and t in valid_names:
                 adj.setdefault(s, set()).add(t)
                 adj.setdefault(t, set()).add(s)
-        # BFS
+        # BFS — retain per-node depth so the neighbor_links filter can use it
         visited = {active_node_id}
+        depth_by_name = {active_node_id: 0}
         frontier = {active_node_id}
-        for _ in range(max_depth):
+        for d in range(max_depth):
             next_frontier = set()
             for n in frontier:
                 for nb in adj.get(n, set()):
                     if nb not in visited:
                         visited.add(nb)
+                        depth_by_name[nb] = d + 1
                         next_frontier.add(nb)
             frontier = next_frontier
             if not frontier:
@@ -150,10 +153,16 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
 
     for e in edges:
         if e['source'] in valid_names and e['target'] in valid_names:
-            # Neighbor links filter: when off, only show edges touching active node
+            # Neighbor links filter: when off, hide peer edges between same-BFS-depth
+            # nodes so the local subtree stays legible (Obsidian local-graph style).
+            # When no BFS ran (max_depth == 0), fall back to "edges touching active node".
             if not neighbor_links and active_node_id:
-                if e['source'] != active_node_id and e['target'] != active_node_id:
-                    continue
+                if depth_by_name:
+                    if depth_by_name.get(e['source']) == depth_by_name.get(e['target']):
+                        continue
+                else:
+                    if e['source'] != active_node_id and e['target'] != active_node_id:
+                        continue
             elements.append({
                 'data': {
                     'id': f"{e['source']}_{e['target']}_{e['type']}",

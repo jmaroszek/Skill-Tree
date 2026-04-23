@@ -8,7 +8,7 @@ import dash_cytoscape as cyto
 from typing import List, Any
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from styles import events_graph_stylesheet
-from details_layout import _build_graph_settings_panel, _freeze_indicator
+from details_layout import build_graph_settings_panel, _freeze_indicator
 
 
 def build_events_sidebar_content():
@@ -425,7 +425,11 @@ def build_events_tab_content():
             dbc.Tooltip("Graph settings", target="btn-events-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _freeze_indicator("events-freeze-indicator"),
-            _build_graph_settings_panel("events-graph-settings", include_depth_controls=False),
+            build_graph_settings_panel(
+                "events-graph-settings",
+                include_depth_controls=False,
+                defaults_getter=ConfigManager.get_details_graph_layout_defaults,
+            ),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-events-graph-fullscreen",
                        color="secondary", size="sm",
