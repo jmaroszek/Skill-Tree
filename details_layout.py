@@ -18,6 +18,30 @@ from config import (
 from styles import stylesheet
 
 
+def _freeze_indicator(indicator_id: str):
+    """Snowflake overlay shown on a canvas while its freeze toggle is on.
+
+    Hidden by default; a clientside callback flips display + keeps the style
+    in sync with the freeze-rerender store. Centered horizontally with the
+    tab bar's Filters button (`right: 19px` with a 1.6rem icon).
+    """
+    return html.I(
+        className="bi bi-snow",
+        id=indicator_id,
+        style={
+            "display": "none",
+            "position": "absolute",
+            "top": "12px",
+            "right": "19px",
+            "fontSize": "1.6rem",
+            "color": "#7ec8e3",
+            "textShadow": "0 0 6px rgba(126, 200, 227, 0.5)",
+            "pointerEvents": "none",
+            "zIndex": 10,
+        },
+    )
+
+
 def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True):
     """Build a graph settings panel.
 
@@ -44,6 +68,23 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
            style={"marginBottom": "12px"}),
     ]
 
+    # Panels without the top toggle row (e.g. events) still need a Freeze
+    # switch; render it standalone right under the title so it sits in the
+    # same visual zone as the toggles row on other panels.
+    if not include_depth_controls:
+        children += [
+            dbc.Switch(
+                id=f"{p}-freeze-rerender",
+                label="Freeze",
+                value=False,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Tooltip("Pause graph updates on save. Use Re-layout to refresh manually.",
+                        target=f"{p}-freeze-rerender", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+        ]
+
     if include_depth_controls:
         children += [
             html.Div("Max Depth", className="settings-label"),
@@ -56,18 +97,27 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
 
             html.Div([
                 dbc.Switch(
-                    id=f"{p}-neighbor-links",
-                    label="Neighbor links",
+                    id=f"{p}-animate",
+                    label="Smooth",
                     value=True,
                     style={"fontSize": "0.82rem"},
                 ),
                 dbc.Switch(
-                    id=f"{p}-animate",
-                    label="Animate",
+                    id=f"{p}-freeze-rerender",
+                    label="Freeze",
+                    value=False,
+                    style={"fontSize": "0.82rem"},
+                ),
+                dbc.Switch(
+                    id=f"{p}-neighbor-links",
+                    label="Neighbors",
                     value=True,
                     style={"fontSize": "0.82rem"},
                 ),
-            ], className="d-flex gap-3 mt-3"),
+            ], className="d-flex gap-2 mt-3"),
+            dbc.Tooltip("Pause graph updates on save. Use Re-layout to refresh manually.",
+                        target=f"{p}-freeze-rerender", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
 
             html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
         ]
@@ -96,7 +146,9 @@ def _build_graph_settings_panel(prefix: str, include_depth_controls: bool = True
             marks={500: "500", 25000: "25k", 50000: "50k", 75000: "75k", 100000: "100k"},
             updatemode="mouseup",
         ),
+    ]
 
+    children += [
         html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
 
         dbc.Button("Re-layout", id=f"{p}-relayout",
@@ -313,6 +365,7 @@ def build_details_tab_content():
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             dbc.Tooltip("Graph settings", target="btn-details-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            _freeze_indicator("details-freeze-indicator"),
             _build_details_graph_settings_panel(),
             dbc.Button(html.I(className="bi bi-search"),
                        id="btn-details-focus",

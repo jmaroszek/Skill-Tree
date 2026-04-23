@@ -500,8 +500,11 @@ def register_details_callbacks(app):
         return filter_val, no_update
 
     # --- Dependency Graph ---
+    # Outputs to details-elements-pending-store; a clientside callback in
+    # callbacks.py applies freeze bypass (direct cy mutation during freeze)
+    # or forwards to details-mini-graph.elements normally.
     @app.callback(
-        Output("details-mini-graph", "elements"),
+        Output("details-elements-pending-store", "data"),
         Input("details-selected-node-store", "data"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
@@ -1418,18 +1421,20 @@ def register_details_callbacks(app):
         Output('details-graph-settings-edge-length', 'value', allow_duplicate=True),
         Output('details-graph-settings-gravity', 'value', allow_duplicate=True),
         Output('details-graph-settings-repulsion', 'value', allow_duplicate=True),
+        Output('details-graph-settings-freeze-rerender', 'value', allow_duplicate=True),
         Input('btn-reset-details-graph-settings', 'n_clicks'),
         prevent_initial_call=True,
     )
     def reset_details_graph_settings(n_clicks):
         if not n_clicks:
-            return (no_update,) * 6
+            return (no_update,) * 7
         gl = ConfigManager.get_details_graph_layout_defaults()
         return (
             0, True, True,
             gl.get('edge_length', 50),
             gl.get('gravity', 0.25),
             gl.get('repulsion', 4500),
+            False,
         )
 
     # --- Details Tab: Node Count in Sidebar ---
@@ -1456,9 +1461,14 @@ def register_details_callbacks(app):
         Input('details-graph-settings-animate', 'value'),
         Input('details-graph-settings-relayout', 'n_clicks'),
         Input('details-mini-graph', 'elements'),
+        State('details-freeze-rerender-store', 'data'),
     )
-    def update_details_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _elements):
+    def update_details_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _elements, freeze_on):
         trigger = ctx.triggered_id
+        # While frozen, suppress layout prop updates (sliders/element changes)
+        # EXCEPT explicit re-layout clicks — those are allowed by the JS guard.
+        if freeze_on and trigger != 'details-graph-settings-relayout':
+            return no_update
         # Randomize on re-layout click or when elements change (new node selected)
         randomize = trigger in ('details-graph-settings-relayout', 'details-mini-graph')
         # Scale cose-bilkent iterations with graph size. Small subtrees converge

@@ -125,15 +125,17 @@
         }
         
         // --- Group Delete via Delete key ---
-        function triggerGroupDelete(nodeNames) {
-            // Write selected node names as JSON into the hidden Dash input
-            var input = document.getElementById('group-delete-input');
+        // Writes to the request input, which a Dash callback picks up to
+        // open the native-style confirm modal. The modal's "Delete" button
+        // then forwards the names to `group-delete-input` for the real delete.
+        function requestGroupDelete(nodeNames) {
+            var input = document.getElementById('group-delete-request-input');
             if (input) {
                 // Use React's native value setter to ensure Dash picks up the change
                 var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                     window.HTMLInputElement.prototype, 'value'
                 ).set;
-                // Add timestamp to ensure value is always "new" even if deleting same nodes
+                // Timestamp forces a fresh value even when the names repeat
                 nativeInputValueSetter.call(input, JSON.stringify(nodeNames) + '|' + Date.now());
                 input.dispatchEvent(new Event('input', { bubbles: true }));
             }
@@ -198,12 +200,7 @@
             var names = [];
             selected.forEach(function (node) { names.push(node.id()); });
             if (names.length === 0) return;
-            var confirmMsg = names.length === 1
-                ? 'Delete node "' + names[0] + '"?'
-                : 'Delete ' + names.length + ' selected nodes?';
-            if (confirm(confirmMsg)) {
-                triggerGroupDelete(names);
-            }
+            requestGroupDelete(names);
         });
 
         // --- Ctrl+S to save (settings tab or node editor) ---
@@ -262,9 +259,7 @@
             deleteItem.addEventListener('click', function () {
                 hideMenu();
                 if (_currentNodeData && _currentNodeData.id) {
-                    if (confirm('Delete node "' + _currentNodeData.id + '"?')) {
-                        triggerGroupDelete([_currentNodeData.id]);
-                    }
+                    requestGroupDelete([_currentNodeData.id]);
                 }
             });
         }

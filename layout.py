@@ -14,7 +14,7 @@ from config import (
     TOOLTIP_NODE_HIDE_DELAY_MS,
 )
 from events_layout import build_events_tab_content, build_events_sidebar_content
-from details_layout import build_details_tab_content
+from details_layout import build_details_tab_content, _freeze_indicator
 from settings_layout import build_settings_tab_content
 from analyze_layout import build_analyze_tab_content
 from styles import stylesheet
@@ -344,18 +344,27 @@ def _build_graph_settings_panel(prefix="graph-settings"):
 
         html.Div([
             dbc.Switch(
-                id=f"{prefix}-neighbor-links",
-                label="Neighbor links",
+                id=f"{prefix}-animate",
+                label="Smooth",
                 value=True,
                 style={"fontSize": "0.82rem"},
             ),
             dbc.Switch(
-                id=f"{prefix}-animate",
-                label="Animate",
+                id=f"{prefix}-freeze-rerender",
+                label="Freeze",
+                value=False,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Switch(
+                id=f"{prefix}-neighbor-links",
+                label="Neighbors",
                 value=True,
                 style={"fontSize": "0.82rem"},
             ),
-        ], className="d-flex gap-3 mt-3"),
+        ], className="d-flex gap-2 mt-3"),
+        dbc.Tooltip("Pause graph updates on save. Use Re-layout to refresh manually.",
+                    target=f"{prefix}-freeze-rerender", placement="left",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
 
         html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
 
@@ -420,6 +429,7 @@ def create_graph_view(initial_elements):
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             dbc.Tooltip("Graph settings", target="btn-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            _freeze_indicator("freeze-indicator"),
             _build_graph_settings_panel("graph-settings"),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-fullscreen",
@@ -772,6 +782,21 @@ delete_confirm_modal = dbc.Modal([
                           "borderColor": ConfigManager.get_danger_color()}),
     ], className="d-flex"),
 ], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
+
+
+# Used by the canvas context menu and Delete-key hotkey — handles one or many
+# nodes. Distinct from the node-editor delete flow above, which always targets
+# the single node currently open in the editor.
+group_delete_confirm_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
+    dbc.ModalBody(id="group-delete-confirm-body"),
+    dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-group-delete-cancel", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Delete", id="btn-group-delete-confirm", color="danger", className="flex-fill",
+                   style={"backgroundColor": ConfigManager.get_danger_color(),
+                          "borderColor": ConfigManager.get_danger_color()}),
+    ], className="d-flex"),
+], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)
 
 
 override_conflict_modal = dbc.Modal([
@@ -1293,6 +1318,8 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='group-delete-request-input', type='text', value='', style={'display': 'none'}),
+        dcc.Store(id='group-delete-pending-store', data=None),
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
@@ -1308,6 +1335,7 @@ def build_app_layout(initial_elements, env="production"):
         error_modal,
         unsaved_changes_modal,
         delete_confirm_modal,
+        group_delete_confirm_modal,
         override_conflict_modal,
         override_untoggle_modal,
         ratings_editor_modal,
@@ -1324,6 +1352,17 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='pending-event-override-store', data=None),
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
+        dcc.Store(id='freeze-rerender-store', data=False),
+        # Intermediate hop for cytoscape elements — core_engine writes here,
+        # a clientside callback either applies the delta directly to the cy
+        # instance (during freeze) or forwards it to cytoscape-graph.elements
+        # (normal operation). See assets/freeze_positions.js. Details and
+        # Events tabs each have their own pending store + freeze store.
+        dcc.Store(id='elements-pending-store', data=None),
+        dcc.Store(id='details-elements-pending-store', data=None),
+        dcc.Store(id='events-elements-pending-store', data=None),
+        dcc.Store(id='details-freeze-rerender-store', data=False),
+        dcc.Store(id='events-freeze-rerender-store', data=False),
         # Bumped by the bridge callback only when GraphManager._graph_version
         # advances (i.e. a real node/edge mutation, not a cosmetic filter change).
         # Downstream listeners use this instead of cytoscape-graph.elements to

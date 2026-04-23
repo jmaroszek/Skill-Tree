@@ -888,8 +888,13 @@ def register_callbacks(app):
         return badges, visible
 
     # --- Core State: Save, Delete, Render ---
+    # NOTE: elements output goes to `elements-pending-store`, not directly to
+    # `cytoscape-graph.elements`. A clientside callback reads the pending
+    # store and, when freeze is on, injects pinned positions into each
+    # node's data before pushing to Cytoscape. That's what keeps node
+    # positions from drifting on save during bulk-edit freeze mode.
     @app.callback(
-        [Output('cytoscape-graph', 'elements'), Output('save-output', 'children'),
+        [Output('elements-pending-store', 'data'), Output('save-output', 'children'),
          Output('suggestions-table', 'children'),
          Output('traversal-chains-hard', 'children'), Output('traversal-chains-soft', 'children'),
          Output('synergies-list', 'children'), Output('node-info-description', 'children'),
@@ -933,7 +938,9 @@ def register_callbacks(app):
          Input('background-click-input', 'value'),
          Input('graph-settings-max-depth', 'value'),
          Input('graph-settings-neighbor-links', 'value'),
-         Input('main-tabs', 'active_tab')],
+         Input('main-tabs', 'active_tab'),
+         Input('graph-settings-relayout', 'n_clicks'),
+         Input('btn-sidebar-relayout', 'n_clicks')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -966,7 +973,7 @@ def register_callbacks(app):
                      active_suggestion_id,
                      f_goal, focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _details_refresh, _bg_click,
-                     gs_max_depth, gs_neighbor_links, active_tab,
+                     gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -1104,13 +1111,13 @@ def register_callbacks(app):
                 ])
                 if form_has_content:
                     msg = "Error: Node name is required."
-                    return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                    return dash.no_update, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
                 else:
                     next_ed_style['transform'] = "translateX(-380px)"
-                    return current_elements, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                    return dash.no_update, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             if not n_type:
                 msg = "Error: Node type is required."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                return dash.no_update, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             try:
                 # Track if this save marks the node Done (for event completion check)
                 if status_done and "Done" in (status_done or []):
@@ -1153,7 +1160,7 @@ def register_callbacks(app):
                     ConfigManager.set_priority_goals(priority_goals)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return current_elements, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                return dash.no_update, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-node-delete-confirm' and name:
@@ -1419,7 +1426,7 @@ def register_callbacks(app):
                 node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
                 node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
 
-        return elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_count_text, next_goal_style, next_events_sidebar_style
+        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_count_text, next_goal_style, next_events_sidebar_style)
 
     # --- Filters Sidebar Toggle (CLIENTSIDE) ---
     # Handled entirely in the browser via assets/filters_sidebar.js. Previously
@@ -1512,6 +1519,51 @@ def register_callbacks(app):
     def toggle_delete_modal(_delete, _cancel, _confirm):
         trigger_id = get_trigger_id()
         return trigger_id == 'btn-delete'
+
+    # --- Group Delete Confirmation Modal (context menu + Delete key) ---
+    @app.callback(
+        Output('modal-group-delete-confirm', 'is_open'),
+        Output('group-delete-pending-store', 'data'),
+        Output('group-delete-confirm-body', 'children'),
+        Input('group-delete-request-input', 'value'),
+        Input('btn-group-delete-cancel', 'n_clicks'),
+        Input('btn-group-delete-confirm', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def toggle_group_delete_modal(request_value, _cancel, _confirm):
+        import json as _json
+        trigger_id = get_trigger_id()
+        if trigger_id == 'group-delete-request-input':
+            if not request_value:
+                return dash.no_update, dash.no_update, dash.no_update
+            raw = request_value.split('|')[0]
+            try:
+                names = _json.loads(raw) if raw else []
+            except Exception:
+                return dash.no_update, dash.no_update, dash.no_update
+            if not names:
+                return dash.no_update, dash.no_update, dash.no_update
+            if len(names) == 1:
+                body = f'Are you sure you want to delete "{names[0]}"? This action cannot be undone.'
+            else:
+                body = f'Are you sure you want to delete these {len(names)} nodes? This action cannot be undone.'
+            return True, names, body
+        # Cancel or Confirm both close the modal. The confirm path writes to
+        # group-delete-input in a separate callback below.
+        return False, dash.no_update, dash.no_update
+
+    @app.callback(
+        Output('group-delete-input', 'value'),
+        Input('btn-group-delete-confirm', 'n_clicks'),
+        State('group-delete-pending-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def perform_group_delete(n_clicks, names):
+        import json as _json
+        import time as _time
+        if not n_clicks or not names:
+            return dash.no_update
+        return _json.dumps(names) + '|' + str(_time.time())
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -1905,19 +1957,140 @@ def register_callbacks(app):
         Output('graph-settings-edge-length', 'value', allow_duplicate=True),
         Output('graph-settings-gravity', 'value', allow_duplicate=True),
         Output('graph-settings-repulsion', 'value', allow_duplicate=True),
+        Output('graph-settings-freeze-rerender', 'value', allow_duplicate=True),
         Input('btn-reset-graph-settings', 'n_clicks'),
         prevent_initial_call=True,
     )
     def reset_graph_settings(n_clicks):
         if not n_clicks:
-            return (dash.no_update,) * 6
+            return (dash.no_update,) * 7
         gl = ConfigManager.get_graph_layout_defaults()
         return (
             0, True, True,
             gl.get('edge_length', 100),
             gl.get('gravity', 0.25),
             gl.get('repulsion', 4500),
+            False,
         )
+
+    # --- Freeze feature: per-canvas clientside wiring ---
+    # Each Cytoscape canvas (main / details / events) gets four parameterized
+    # clientside callbacks: pending-store → elements bypass, switch → store
+    # sync (also flips the JS frozen flag so the freeze-off refresh doesn't
+    # race it), snowflake/class-name indicator, and a Re-layout button hook
+    # that lets one layout through the JS guard while freeze is on.
+    def _register_freeze_callbacks(canvas_id, switch_id, store_id, pending_id,
+                                   cytoscape_id, indicator_id, container_id,
+                                   relayout_inputs):
+        """Wire the four freeze clientside callbacks for one canvas."""
+        js_canvas = repr(canvas_id)  # JS-safe quoted string literal
+
+        # Bypass: pending-store -> cytoscape.elements.
+        app.clientside_callback(
+            """
+            function(pending) {
+                if (pending === null || pending === undefined) {
+                    return window.dash_clientside.no_update;
+                }
+                var st = window.SkillTree;
+                if (st && st.isFrozen && st.isFrozen(__CANVAS__) && st.applyDelta) {
+                    st.applyDelta(__CANVAS__, pending);
+                    return window.dash_clientside.no_update;
+                }
+                return pending;
+            }
+            """.replace('__CANVAS__', js_canvas),
+            Output(cytoscape_id, 'elements'),
+            Input(pending_id, 'data'),
+            prevent_initial_call=True,
+        )
+
+        # Switch -> store sync (also flips JS frozen flag synchronously).
+        app.clientside_callback(
+            """
+            function(value) {
+                var v = Boolean(value);
+                if (window.SkillTree && window.SkillTree.setFreezeActive) {
+                    window.SkillTree.setFreezeActive(__CANVAS__, v);
+                }
+                return v;
+            }
+            """.replace('__CANVAS__', js_canvas),
+            Output(store_id, 'data'),
+            Input(switch_id, 'value'),
+            prevent_initial_call=True,
+        )
+
+        # Indicator: snowflake style + container class.
+        app.clientside_callback(
+            """
+            function(frozen, currentClass) {
+                var baseStyle = {
+                    position: "absolute", top: "12px", right: "19px",
+                    fontSize: "1.6rem", color: "#7ec8e3",
+                    textShadow: "0 0 6px rgba(126, 200, 227, 0.5)",
+                    pointerEvents: "none", zIndex: 10,
+                };
+                var classes = (currentClass || "").split(/\\s+/).filter(function(c) {
+                    return c && c !== "cyto-frozen";
+                });
+                if (frozen) classes.push("cyto-frozen");
+                baseStyle.display = frozen ? "block" : "none";
+                return [baseStyle, classes.join(" ")];
+            }
+            """,
+            Output(indicator_id, 'style'),
+            Output(container_id, 'className'),
+            Input(store_id, 'data'),
+            State(container_id, 'className'),
+        )
+
+        # Re-layout button hook: lets one incoming layout bypass the JS
+        # freeze guard. Outputs to the indicator's `title` as a dummy.
+        app.clientside_callback(
+            """
+            function() {
+                if (window.SkillTree && window.SkillTree.allowOneLayout) {
+                    window.SkillTree.allowOneLayout(__CANVAS__);
+                }
+                return window.dash_clientside.no_update;
+            }
+            """.replace('__CANVAS__', js_canvas),
+            Output(indicator_id, 'title'),
+            *[Input(inp_id, 'n_clicks') for inp_id in relayout_inputs],
+            prevent_initial_call=True,
+        )
+
+    _register_freeze_callbacks(
+        canvas_id='main',
+        switch_id='graph-settings-freeze-rerender',
+        store_id='freeze-rerender-store',
+        pending_id='elements-pending-store',
+        cytoscape_id='cytoscape-graph',
+        indicator_id='freeze-indicator',
+        container_id='canvas-container',
+        relayout_inputs=['graph-settings-relayout', 'btn-sidebar-relayout'],
+    )
+    _register_freeze_callbacks(
+        canvas_id='details',
+        switch_id='details-graph-settings-freeze-rerender',
+        store_id='details-freeze-rerender-store',
+        pending_id='details-elements-pending-store',
+        cytoscape_id='details-mini-graph',
+        indicator_id='details-freeze-indicator',
+        container_id='details-dep-graph-container',
+        relayout_inputs=['details-graph-settings-relayout'],
+    )
+    _register_freeze_callbacks(
+        canvas_id='events',
+        switch_id='events-graph-settings-freeze-rerender',
+        store_id='events-freeze-rerender-store',
+        pending_id='events-elements-pending-store',
+        cytoscape_id='events-detail-graph',
+        indicator_id='events-freeze-indicator',
+        container_id='events-detail-graph-container',
+        relayout_inputs=['events-graph-settings-relayout'],
+    )
 
     # --- Graph Settings: Apply Layout Parameters ---
     @app.callback(
@@ -1928,10 +2101,22 @@ def register_callbacks(app):
         Input('graph-settings-animate', 'value'),
         Input('graph-settings-relayout', 'n_clicks'),
         Input('btn-sidebar-relayout', 'n_clicks'),
+        Input('freeze-rerender-store', 'data'),
         prevent_initial_call=True,
     )
-    def update_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _sidebar_relayout):
-        randomize = ctx.triggered_id in ('graph-settings-relayout', 'btn-sidebar-relayout')
+    def update_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _sidebar_relayout, freeze_on):
+        trig = ctx.triggered_id
+        relayout_triggers = ('graph-settings-relayout', 'btn-sidebar-relayout')
+        # Freeze toggle fired: run layout only on the off-transition (refresh).
+        # On the on-transition we stay put so the user's current positions hold.
+        if trig == 'freeze-rerender-store' and freeze_on:
+            return dash.no_update
+        # While frozen, slider changes are deferred — they'll apply on the next
+        # freeze-off transition. But relayout clicks still force a refresh
+        # (user's explicit "update now" action).
+        if freeze_on and trig != 'freeze-rerender-store' and trig not in relayout_triggers:
+            return dash.no_update
+        randomize = trig in relayout_triggers
         return {
             'name': 'cose-bilkent',
             'fit': True,

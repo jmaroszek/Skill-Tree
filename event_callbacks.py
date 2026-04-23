@@ -1177,8 +1177,10 @@ def register_event_callbacks(app):
         return False, no_update, no_update, no_update, no_update
 
     # --- Event Graph: render dormant nodes + immediate neighbors ---
+    # Outputs to events-elements-pending-store; freeze bypass applied by a
+    # clientside callback in callbacks.py.
     @app.callback(
-        Output("events-detail-graph", "elements"),
+        Output("events-elements-pending-store", "data"),
         Input("selected-event-store", "data"),
         Input("events-refresh-trigger", "data"),
     )
@@ -1275,17 +1277,19 @@ def register_event_callbacks(app):
         Output('events-graph-settings-edge-length', 'value', allow_duplicate=True),
         Output('events-graph-settings-gravity', 'value', allow_duplicate=True),
         Output('events-graph-settings-repulsion', 'value', allow_duplicate=True),
+        Output('events-graph-settings-freeze-rerender', 'value', allow_duplicate=True),
         Input('btn-reset-events-graph-settings', 'n_clicks'),
         prevent_initial_call=True,
     )
     def reset_events_graph_settings(n_clicks):
         if not n_clicks:
-            return no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update
         gl = ConfigManager.get_events_graph_layout_defaults()
         return (
             gl.get('edge_length', 50),
             gl.get('gravity', 0.25),
             gl.get('repulsion', 4500),
+            False,
         )
 
     # --- Events Graph Settings: Apply Layout Parameters ---
@@ -1296,9 +1300,12 @@ def register_event_callbacks(app):
         Input('events-graph-settings-repulsion', 'value'),
         Input('events-graph-settings-relayout', 'n_clicks'),
         Input('events-detail-graph', 'elements'),
+        State('events-freeze-rerender-store', 'data'),
     )
-    def update_events_graph_layout(edge_length, gravity, repulsion, _relayout, _elements):
+    def update_events_graph_layout(edge_length, gravity, repulsion, _relayout, _elements, freeze_on):
         trigger = ctx.triggered_id
+        if freeze_on and trigger != 'events-graph-settings-relayout':
+            return no_update
         randomize = trigger in ('events-graph-settings-relayout', 'events-detail-graph')
         return {
             'name': 'cose-bilkent',

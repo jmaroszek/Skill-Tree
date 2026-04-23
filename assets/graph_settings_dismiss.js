@@ -17,7 +17,6 @@
             const btn = document.getElementById(btnId);
             if (btn && btn.contains(e.target)) continue;
             if (!btn) continue;
-            console.log('[graph-settings-dismiss] outside click → closing', panelId);
             btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
         }
     }
@@ -25,5 +24,4 @@
     // Use mousedown (capture) to run before any stopPropagation from child handlers
     // (e.g. Cytoscape's canvas event layer).
     document.addEventListener('mousedown', handleOutsideClick, true);
-    console.log('[graph-settings-dismiss] listener installed');
 })();

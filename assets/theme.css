@@ -125,6 +125,14 @@
     box-shadow: 0 6px 32px rgba(0, 0, 0, 0.55);
 }
 
+.canvas-container.cyto-frozen #cytoscape-graph,
+.cyto-frozen #details-mini-graph,
+.cyto-frozen #events-detail-graph {
+    box-shadow: inset 0 0 0 2px rgba(126, 200, 227, 0.6),
+                0 4px 24px rgba(0, 0, 0, 0.4);
+    transition: box-shadow 200ms ease;
+}
+
 /* --- Tab Styling --- */
 
 .nav-tabs {
