@@ -54,7 +54,7 @@ def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "main-tabs")
     # core_engine accepts positional args from Inputs + States; supply Nones and
     # let the guard fire before any of them are used.
-    args = [None] * 73
+    args = [None] * 72
     # active_tab sits at positional index 38 (see core_engine signature; total 71 args)
     args[38] = tab
     result = cb(*args)
@@ -69,7 +69,7 @@ def test_core_engine_runs_on_graph_tabs(monkeypatch, tab):
     """Graph-facing tabs (Next, Nodes, Details) must NOT short-circuit."""
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "main-tabs")
-    args = [None] * 73
+    args = [None] * 72
     args[38] = tab
     # The rest of core_engine can fail downstream on None args — we only need
     # to verify the guard does NOT trigger. Catch the downstream exception and
@@ -88,7 +88,7 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     """Data-mutation triggers (save, toggle-done) must run regardless of active_tab."""
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-save")
-    args = [None] * 73
+    args = [None] * 72
     args[38] = "tab-settings"  # even though tab is non-graph, trigger is not main-tabs
     try:
         result = cb(*args)

@@ -344,6 +344,12 @@ def _build_graph_settings_panel(prefix="graph-settings"):
 
         html.Div([
             dbc.Switch(
+                id=f"{prefix}-neighbor-links",
+                label="Neighbors",
+                value=True,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Switch(
                 id=f"{prefix}-animate",
                 label="Smooth",
                 value=True,
@@ -353,12 +359,6 @@ def _build_graph_settings_panel(prefix="graph-settings"):
                 id=f"{prefix}-freeze-rerender",
                 label="Freeze",
                 value=False,
-                style={"fontSize": "0.82rem"},
-            ),
-            dbc.Switch(
-                id=f"{prefix}-neighbor-links",
-                label="Neighbors",
-                value=True,
                 style={"fontSize": "0.82rem"},
             ),
         ], className="d-flex gap-2 mt-3"),
@@ -394,13 +394,11 @@ def _build_graph_settings_panel(prefix="graph-settings"):
 
         html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
 
-        dbc.Button("Re-layout", id=f"{prefix}-relayout",
+        dbc.Button("Settle", id=f"{prefix}-relayout",
                    color="secondary", size="sm", className="w-100 mt-2"),
-        *(
-            [dbc.Button("Recompute Statuses", id="btn-recompute-statuses",
-                        color="secondary", size="sm", className="w-100 mt-2")]
-            if prefix == "graph-settings" else []
-        ),
+        dbc.Tooltip("Re-run layout physics to untangle nodes",
+                    target=f"{prefix}-relayout", placement="top",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
     ], id=f"{prefix}-panel", className="graph-settings-panel",
        style={"display": "none"})
 
