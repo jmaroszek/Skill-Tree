@@ -345,9 +345,10 @@ def register_callbacks(app):
         Output('filter-time', 'value'),
         Output('filter-done', 'value', allow_duplicate=True),
         Input('btn-clear-filters', 'n_clicks'),
+        Input('btn-details-focus', 'n_clicks'),
         prevent_initial_call=True,
     )
-    def clear_filters(_):
+    def clear_filters(_clear_clicks, _focus_clicks):
         return [], [], [], [], 'components', 'All', 1, 1, 10, None, ['hide_done']
 
     # --- Tooltip Formatting ---
