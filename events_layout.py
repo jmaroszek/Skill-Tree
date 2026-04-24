@@ -457,6 +457,8 @@ def build_events_tab_content():
         dcc.Interval(id='event-clear-interval', interval=3000, n_intervals=0, disabled=True),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
+        # Hidden input: context-menu Edit on a dormant node routes here (set by context_menu.js)
+        dcc.Input(id='dormant-edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dormant_node_modal,
         html.Div([
             event_detail_panel,

@@ -2,6 +2,7 @@ import logging
 import sys
 import os
 import ctypes
+import uuid
 
 # Set environment before importing modules that read config.ENVIRONMENT (e.g. database.py)
 import config
@@ -79,7 +80,13 @@ def open_obsidian_route():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+SERVER_BOOT_ID = uuid.uuid4().hex
+
+@app.server.route('/_server_boot_id')
+def _server_boot_id():
+    return SERVER_BOOT_ID
+
 if __name__ == '__main__':
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         threading.Timer(0.5, webbrowser.open, args=["http://127.0.0.1:8050"]).start()
-    app.run(debug=True, dev_tools_ui=False)
+    app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False)

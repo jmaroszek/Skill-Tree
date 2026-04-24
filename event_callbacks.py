@@ -979,18 +979,25 @@ def register_event_callbacks(app):
         Output("dormant-override-mode", "value", allow_duplicate=True),
         Output("dormant-node-save-status", "children", allow_duplicate=True),
         Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
+        Input("dormant-edit-trigger-input", "value"),
         State("selected-event-store", "data"),
         prevent_initial_call=True,
     )
-    def open_dormant_node_modal_for_edit(n_clicks_list, selected_event):
+    def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
         _N = 40
-        if not any(n_clicks_list) or not selected_event:
+        if not selected_event:
             return (no_update,) * _N
         triggered = ctx.triggered_id
-        if not triggered:
-            return (no_update,) * _N
-
-        node_name = triggered["index"]
+        if triggered == "dormant-edit-trigger-input":
+            # Context-menu Edit on a dormant node in the events canvas.
+            # JS appends "|<timestamp>" to force a fresh value on repeat clicks.
+            if not edit_trigger_val:
+                return (no_update,) * _N
+            node_name = edit_trigger_val.split("|")[0]
+        else:
+            if not any(n_clicks_list) or not triggered:
+                return (no_update,) * _N
+            node_name = triggered["index"]
 
         # Locate EventNodes row for this node within the selected event.
         matching = None
@@ -1218,6 +1225,7 @@ def register_event_callbacks(app):
                     "type": node.type,
                     "color": node_colors.get(node.type, "#6c757d"),
                     "shape": node_shapes.get(node.type, "rectangle"),
+                    "dormant": 1 if name in dormant_names else 0,
                 },
             }
             classes = []
