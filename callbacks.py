@@ -1884,15 +1884,11 @@ def register_callbacks(app):
         contexts = ctx if isinstance(ctx, list) else [ctx]
         all_subs = ConfigManager.get_subcontexts()
         multi_context = len(contexts) > 1
-        seen = set()  # tracks (context, subcontext) pairs to avoid duplicates
         opts = []
         for c in contexts:
             for s in all_subs.get(c, []):
-                key = (c, s) if multi_context else s
-                if key not in seen:
-                    seen.add(key)
-                    label = f"{c} > {s}" if multi_context else s
-                    opts.append({"label": label, "value": s})
+                label = f"{c} > {s}" if multi_context else s
+                opts.append({"label": label, "value": f"{c}::{s}"})
         return opts, []
 
 

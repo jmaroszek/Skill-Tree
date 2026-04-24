@@ -176,7 +176,6 @@ def node_options(nodes, exclude=None):
 def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
                   f_time=None, f_difficulty="All", f_node_types=None, f_goal=None):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
-    from config import ConfigManager
     filters = {}
 
     contexts = []
@@ -188,28 +187,42 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
         else:
             contexts = [None]
 
-    subs = []
+    # Subcontext dropdown values are encoded as "ctx::sub" composites by
+    # update_filter_subcontexts so the (value -> context) mapping is explicit.
+    # Plain strings (legacy state / test fixtures that haven't adopted composites)
+    # are accepted as context-agnostic subcontext names.
+    ctx_to_subs: dict = {}
+    plain_subs: list = []
     if f_subcontext and f_subcontext != "All":
-        if isinstance(f_subcontext, list):
-            subs = f_subcontext
-        elif f_subcontext.strip():
-            subs = [f_subcontext.strip()]
+        values = f_subcontext if isinstance(f_subcontext, list) else [f_subcontext]
+        for v in values:
+            if not v or not isinstance(v, str):
+                continue
+            v = v.strip()
+            if not v:
+                continue
+            if "::" in v:
+                c, s = v.split("::", 1)
+                ctx_to_subs.setdefault(c, []).append(s)
+            else:
+                plain_subs.append(v)
 
-    if contexts and subs:
-        # Selective union: for each context, restrict to the selected subcontexts
-        # that belong to it. If none of the selected subcontexts belong to a context,
-        # include all nodes in that context (no subcontext restriction).
-        sub_map = ConfigManager.get_subcontexts()  # {context: [subcontext, ...]}
-        pairs = []
-        for ctx in contexts:
-            ctx_subs = sub_map.get(ctx, [])
-            matching = [s for s in subs if s in ctx_subs]
-            pairs.append((ctx, matching if matching else None))
+    if contexts and ctx_to_subs:
+        # Selective union: for each selected context, use the subcontexts the user
+        # explicitly tagged to that context. Contexts with no selection fall back
+        # to "include all nodes of that context" (per UX introduced in 58b4866:
+        # "show all Mind, but only specific STEM").
+        pairs = [(c, ctx_to_subs.get(c) or None) for c in contexts]
         filters['context_subcontext_union'] = pairs
+    elif contexts and plain_subs:
+        # Legacy path: plain subcontext names with contexts selected — apply the
+        # bare list against every selected context (pre-composite behavior).
+        filters['context_subcontext_union'] = [(c, plain_subs) for c in contexts]
     elif contexts:
         filters['context'] = contexts
-    elif subs:
-        filters['subcontext'] = subs
+    elif ctx_to_subs or plain_subs:
+        flat = [s for subs in ctx_to_subs.values() for s in subs] + plain_subs
+        filters['subcontext'] = flat
     if f_node_types:
         if isinstance(f_node_types, list):
             if f_node_types:

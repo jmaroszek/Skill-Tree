@@ -97,6 +97,43 @@ class TestBuildFilters:
         result = build_filters("All", "All", [])
         assert "subcontext" not in result
 
+    def test_composite_subcontext_multi_context_multi_sub(self):
+        # Regression: each composite "ctx::sub" value must be routed to its own
+        # context. Previously bare "Rational" values forced a reverse-lookup via
+        # ConfigManager which could silently drop an entry and fall back to
+        # "show all nodes of that context" for Mind.
+        result = build_filters(
+            ["Mind", "STEM"],
+            ["Mind::Rational", "STEM::Math", "STEM::Data Science"],
+            [],
+        )
+        assert result == {
+            "context_subcontext_union": [
+                ("Mind", ["Rational"]),
+                ("STEM", ["Math", "Data Science"]),
+            ]
+        }
+
+    def test_composite_subcontext_selective_union_fallback(self):
+        # Mind has no subs in the selection → falls back to None (show all Mind).
+        result = build_filters(["Mind", "STEM"], ["STEM::Math"], [])
+        assert result == {
+            "context_subcontext_union": [("Mind", None), ("STEM", ["Math"])]
+        }
+
+    def test_composite_subcontext_without_context_flattens(self):
+        # No context selected → flatten to a plain subcontext filter (name-only).
+        result = build_filters(
+            [], ["Mind::Rational", "STEM::Math"], []
+        )
+        assert result == {"subcontext": ["Rational", "Math"]}
+
+    def test_legacy_plain_subcontext_with_context(self):
+        # Legacy state (plain subcontext names, no "::") — apply the list to
+        # every selected context.
+        result = build_filters(["Mind"], ["Rational"], [])
+        assert result == {"context_subcontext_union": [("Mind", ["Rational"])]}
+
 
 # ============================================================================
 # node_options
