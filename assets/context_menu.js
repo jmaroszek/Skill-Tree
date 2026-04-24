@@ -110,11 +110,20 @@
             // Always prefer the explicit-ID trigger: on the main canvas a right-click
             // does not update cytoscape's tapNodeData, so btn-toggle-done-node would
             // act on whichever node was last left-clicked (not the one right-clicked).
-            if (_currentNodeData && _currentNodeData.id) {
-                _setHiddenInput('toggle-done-trigger-input', _currentNodeData.id);
-            } else {
+            if (!_currentNodeData || !_currentNodeData.id) {
                 _clickDashBtn('btn-toggle-done-node');
+                return;
             }
+            var clickedId = _currentNodeData.id;
+            var selectedIds = [];
+            if (_mainCy) {
+                _mainCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
+            }
+            // Bulk mode only when right-clicking within an existing multi-selection.
+            var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
+                ? selectedIds
+                : [clickedId];
+            _setHiddenInput('toggle-done-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 
         function openInObsidian(path) {

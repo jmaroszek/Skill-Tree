@@ -2,6 +2,7 @@
 Callback definitions for the Skill Tree Dash application.
 """
 
+import json
 import logging
 import os
 import subprocess
@@ -1402,14 +1403,32 @@ def register_callbacks(app):
                 msg = f"Error: {e}"
         elif trigger_id == 'toggle-done-trigger-input' and toggle_done_trigger_data:
             try:
-                node_name = toggle_done_trigger_data.split('|')[0]
-                node = manager.get_node(node_name)
-                if node:
-                    if node.status != "Done":
-                        completion_check_node = node_name
-                    node.status = "Open" if node.status == "Done" else "Done"
-                    manager.update_node(node)
-                    msg = f"Toggled status of '{node.name}' to {node.status}"
+                raw = toggle_done_trigger_data.split('|')[0]
+                try:
+                    parsed = json.loads(raw)
+                    node_names = parsed if isinstance(parsed, list) else [raw]
+                except (ValueError, json.JSONDecodeError):
+                    node_names = [raw]
+
+                nodes = [n for n in (manager.get_node(nm) for nm in node_names) if n]
+                if nodes:
+                    any_not_done = any(n.status != "Done" for n in nodes)
+                    new_status = "Done" if any_not_done else "Open"
+
+                    flipped = 0
+                    for node in nodes:
+                        if node.status != new_status:
+                            node.status = new_status
+                            manager.update_node(node)
+                            flipped += 1
+
+                    if len(nodes) == 1 and new_status == "Done" and flipped == 1:
+                        completion_check_node = nodes[0].name
+
+                    if len(nodes) == 1:
+                        msg = f"Toggled status of '{nodes[0].name}' to {new_status}"
+                    else:
+                        msg = f"Set {flipped} node(s) to {new_status}"
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'group-delete-input' and group_delete_data:
