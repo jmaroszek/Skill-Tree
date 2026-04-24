@@ -11,6 +11,7 @@ from callback_helpers import (
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
     _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
+    snapshot_from_form_state,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -493,4 +494,166 @@ class TestIsFormDirtyVsSnapshot:
         assert snap['e_needs_h'] == ['Active Prereq']
         # Form State (also missing the dormant prereq) — not dirty.
         form = self._form_from_snapshot(snap)
+        assert not is_form_dirty_vs_snapshot(snap, form)
+
+
+# ============================================================================
+# snapshot_from_form_state — post-save pristine snapshot built directly from
+# form State rather than a DB round-trip. This is the bug-fix path for the
+# persistent "unsaved changes" false-positive after save: the DB round-trip
+# through build_editor_snapshot re-applied _friendly_time_estimates, which
+# could pick a different time_unit than the user had selected, causing the
+# next dirty check to fire.
+# ============================================================================
+
+class TestSnapshotFromFormState:
+    """Post-save snapshot must equal the form that was just saved, so the
+    immediate post-save dirty check returns False regardless of any DB-side
+    display transforms that would diverge on a round-trip."""
+
+    @staticmethod
+    def _form(**overrides):
+        """A fully-populated form dict matching the snapshot schema."""
+        base = {
+            'name': 'Alpha',
+            'n_type': 'Learn',
+            'desc': 'hello',
+            'context': 'Mind', 'subctx': '',
+            'status_done': [],
+            'val': 5, 'interest': 5, 'diff': 5,
+            'time_o': 40, 'time_m': 80, 'time_p': 160,
+            'time_unit': 'hours',
+            'e_needs_h': [], 'e_needs_s': [],
+            'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
+            'obs_links': [''], 'drive_links': [''], 'website_links': [''],
+            'time_mode': [],
+            'priority_rank': 'none',
+            'competence': '',
+            'aliases': [''],
+        }
+        base.update(overrides)
+        return base
+
+    def test_snapshot_matches_form_not_dirty(self):
+        """Core invariant: a snapshot built from form values, with the same
+        name/aliases, yields a dirty-check of False against that form."""
+        form = self._form()
+        snap = snapshot_from_form_state(form, form['name'], form['aliases'])
+        assert not is_form_dirty_vs_snapshot(snap, form)
+
+    def test_time_unit_drift_does_not_trip_dirty_check(self):
+        """Regression: the primary observed false-positive. User types time
+        values in 'hours'; on save, a DB round-trip through
+        _friendly_time_estimates could pick 'weeks' from large hour values,
+        diverging both time_unit and time_o/m/p. Snapshotting form State
+        directly preserves the user's selected unit."""
+        # 500/600/700 hours — _friendly_time_estimates would pick 'weeks'.
+        form = self._form(time_o=500, time_m=600, time_p=700, time_unit='hours')
+        snap = snapshot_from_form_state(form, form['name'], form['aliases'])
+        # Snapshot must preserve the form's 'hours' unit and raw hour values.
+        assert snap['time_unit'] == 'hours'
+        assert snap['time_o'] == 500
+        assert snap['time_m'] == 600
+        assert snap['time_p'] == 700
+        assert not is_form_dirty_vs_snapshot(snap, form)
+
+    def test_linted_name_in_snapshot_not_dirty_vs_linted_form(self):
+        """The title-case linter rewrites 'lowercase node' -> 'Lowercase Node'
+        on save, and sync_original_name_after_save pushes the linted name
+        back into the form. The snapshot must hold the linted name too —
+        otherwise form-post-lint vs snapshot-pre-lint would fire dirty."""
+        pre_lint_form = self._form(name='lowercase node')
+        snap = snapshot_from_form_state(
+            pre_lint_form, 'Lowercase Node', pre_lint_form['aliases']
+        )
+        # After Dash applies the callback's output, the form's node-name value
+        # is 'Lowercase Node' — matching the snapshot.
+        post_lint_form = dict(pre_lint_form)
+        post_lint_form['name'] = 'Lowercase Node'
+        assert not is_form_dirty_vs_snapshot(snap, post_lint_form)
+
+    def test_linted_aliases_in_snapshot_not_dirty_vs_linted_form(self):
+        """Aliases get title-case-linted by manager.set_aliases on save, and
+        the aliases-store output rewrites the form's alias inputs. Snapshot
+        must match the post-lint form."""
+        pre_lint_form = self._form(aliases=['alpha alias'])
+        snap = snapshot_from_form_state(
+            pre_lint_form, pre_lint_form['name'], ['Alpha Alias']
+        )
+        post_lint_form = dict(pre_lint_form)
+        post_lint_form['aliases'] = ['Alpha Alias']
+        assert not is_form_dirty_vs_snapshot(snap, post_lint_form)
+
+    def test_gdrive_full_path_in_form_not_dirty(self):
+        """Regression: the user may have typed a full GDrive-prefixed path,
+        which handle_save strips before writing to DB. build_editor_snapshot
+        read back as stripped; form still held full path -> dirty.
+        snapshot_from_form_state stores what the form holds, so no drift."""
+        form = self._form(drive_links=['C:/GDrive/SkillTree/foo.pdf'])
+        snap = snapshot_from_form_state(form, form['name'], form['aliases'])
+        assert snap['drive_links'] == ['C:/GDrive/SkillTree/foo.pdf']
+        assert not is_form_dirty_vs_snapshot(snap, form)
+
+    def test_new_node_after_save_has_real_snapshot(self):
+        """Brand-new node save: form holds the typed values; snapshot must
+        carry those values (not fall back to NEW_NODE_SNAPSHOT)."""
+        form = self._form(
+            name='Fresh Node', desc='just typed',
+            val=7, interest=8, diff=3,
+            time_o=1, time_m=2, time_p=3, time_unit='days',
+            aliases=['Fresh'],
+        )
+        snap = snapshot_from_form_state(form, form['name'], form['aliases'])
+        assert snap['name'] == 'Fresh Node'
+        assert snap['desc'] == 'just typed'
+        assert snap['val'] == 7
+        assert snap['time_unit'] == 'days'
+        assert snap['aliases'] == ['Fresh']
+        assert not is_form_dirty_vs_snapshot(snap, form)
+
+    def test_empty_optional_fields_default_sensibly(self):
+        """A form with None in optional fields should produce a snapshot
+        with the same sensible defaults the dirty check uses."""
+        form = self._form(
+            desc=None, context=None, subctx=None, competence=None,
+            obs_links=None, drive_links=None, website_links=None,
+            aliases=None, status_done=None, time_mode=None,
+        )
+        snap = snapshot_from_form_state(
+            form,
+            form['name'],
+            None,  # mirrors manager.get_aliases returning empty -> [''] fallback
+        )
+        # Defaults match the expectations of is_form_dirty_vs_snapshot.
+        assert snap['desc'] == ''
+        assert snap['aliases'] == ['']
+        assert snap['obs_links'] == ['']
+        assert snap['status_done'] == []
+        assert snap['time_mode'] == []
+        # Reconstitute the form the way Dash would (with the defaults the
+        # input components emit) and confirm not dirty.
+        form_for_check = dict(form)
+        form_for_check.update({
+            'desc': '', 'context': '', 'subctx': '', 'competence': '',
+            'obs_links': [''], 'drive_links': [''], 'website_links': [''],
+            'aliases': [''], 'status_done': [], 'time_mode': [],
+        })
+        assert not is_form_dirty_vs_snapshot(snap, form_for_check)
+
+    def test_user_edit_after_save_is_dirty(self):
+        """Sanity: if the user edits anything after save, the dirty check must
+        still fire. The fix must not make 'always clean'."""
+        form = self._form()
+        snap = snapshot_from_form_state(form, form['name'], form['aliases'])
+        edited = dict(form)
+        edited['desc'] = 'now edited'
+        assert is_form_dirty_vs_snapshot(snap, edited)
+
+    def test_dormant_prereq_filtering_inherited_from_form(self):
+        """populate_editor filters dormant-endpoint edges out of the form's
+        State values. Since snapshot_from_form_state copies form verbatim,
+        it inherits the dormant-filter for free — no explicit filter needed."""
+        form = self._form(e_needs_h=['Active Prereq'])
+        snap = snapshot_from_form_state(form, form['name'], form['aliases'])
+        assert snap['e_needs_h'] == ['Active Prereq']
         assert not is_form_dirty_vs_snapshot(snap, form)

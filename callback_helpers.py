@@ -355,6 +355,47 @@ def build_editor_snapshot(manager, node_name):
     }
 
 
+def snapshot_from_form_state(form_values, linted_name, linted_aliases):
+    """Build a pristine snapshot directly from the form State just saved.
+
+    Unlike build_editor_snapshot (DB round-trip + display transforms),
+    this snapshots what the form actually holds — so the post-save dirty
+    check can't trip on heuristic drift (e.g. _friendly_time_estimates
+    picking a different time_unit from DB hours than the user selected).
+
+    linted_name / linted_aliases are the only values the app legitimately
+    rewrites in the form after save (via the title-case linter). Pass them
+    in so the snapshot agrees with the form's post-save rewritten state.
+    """
+    return {
+        'name': linted_name,
+        'n_type': form_values.get('n_type'),
+        'desc': form_values.get('desc') or '',
+        'context': form_values.get('context') or '',
+        'subctx': form_values.get('subctx') or '',
+        'status_done': form_values.get('status_done') or [],
+        'val': form_values.get('val', 5),
+        'interest': form_values.get('interest', 5),
+        'diff': form_values.get('diff', 5),
+        'time_o': form_values.get('time_o'),
+        'time_m': form_values.get('time_m'),
+        'time_p': form_values.get('time_p'),
+        'time_unit': form_values.get('time_unit'),
+        'e_needs_h': form_values.get('e_needs_h') or [],
+        'e_needs_s': form_values.get('e_needs_s') or [],
+        'e_supp_h': form_values.get('e_supp_h') or [],
+        'e_supp_s': form_values.get('e_supp_s') or [],
+        'e_helps': form_values.get('e_helps') or [],
+        'obs_links': form_values.get('obs_links') or [''],
+        'drive_links': form_values.get('drive_links') or [''],
+        'website_links': form_values.get('website_links') or [''],
+        'time_mode': form_values.get('time_mode') or [],
+        'priority_rank': form_values.get('priority_rank') or 'none',
+        'competence': form_values.get('competence') or '',
+        'aliases': linted_aliases or [''],
+    }
+
+
 def is_form_dirty_vs_snapshot(snapshot, form_values):
     """Compare current editor form State to the pristine snapshot.
 

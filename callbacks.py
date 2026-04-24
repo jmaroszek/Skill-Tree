@@ -26,6 +26,7 @@ from callback_helpers import (
     should_open_editor, resolve_active_node_id,
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
+    snapshot_from_form_state,
 )
 
 logger = logging.getLogger(__name__)
@@ -753,23 +754,65 @@ def register_callbacks(app):
          Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
         [Input('btn-save', 'n_clicks'),
          Input('btn-save-close', 'n_clicks')],
-        [State('node-name', 'value')],
+        [State('node-name', 'value'),
+         State('node-type', 'value'),
+         State('node-desc', 'value'),
+         State('node-context', 'value'), State('node-subcontext', 'value'),
+         State('node-status-done', 'value'),
+         State('node-value', 'value'), State('node-interest', 'value'),
+         State('node-difficulty', 'value'),
+         State('node-time-o', 'value'), State('node-time-m', 'value'),
+         State('node-time-p', 'value'), State('node-time-unit', 'value'),
+         State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
+         State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
+         State('edge-helps', 'value'),
+         State({'type': 'obsidian-link', 'index': ALL}, 'value'),
+         State({'type': 'drive-link', 'index': ALL}, 'value'),
+         State({'type': 'website-link', 'index': ALL}, 'value'),
+         State('node-time-mode', 'value'),
+         State('node-priority-rank', 'value'),
+         State('node-competence', 'value')],
         prevent_initial_call=True,
     )
-    def sync_original_name_after_save(_save_clicks, _save_close_clicks, cur_name):
+    def sync_original_name_after_save(_save_clicks, _save_close_clicks,
+                                      cur_name, cur_type, cur_desc,
+                                      cur_context, cur_subctx, cur_status_done,
+                                      cur_val, cur_interest, cur_diff,
+                                      cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
+                                      cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
+                                      cur_obs, cur_drive, cur_website,
+                                      cur_time_mode, cur_priority_rank, cur_competence):
         if not cur_name or not cur_name.strip():
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         linted = ConfigManager.apply_titlecase_linter(cur_name.strip())
         if not manager.get_node(linted):
+            # Save failed to persist — leave state alone rather than stomping
+            # a stale snapshot on top of a non-existent node.
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        # Refresh the pristine snapshot from the just-saved DB state so that
-        # post-save dirty checks don't trip on linter rewrites of name/aliases.
-        # The aliases-store also needs to be re-emitted with the linted DB
-        # values so the dynamic alias-input fields re-render with the linted
-        # text — otherwise the form holds the user-typed lowercase alias while
-        # the DB holds the linted version, and the dirty check fires.
-        snapshot = build_editor_snapshot(manager, linted)
-        linted_aliases = (snapshot or {}).get('aliases', [''])
+        # Build the post-save snapshot directly from what the form holds, not
+        # from a DB round-trip. A DB-derived snapshot (via build_editor_snapshot)
+        # re-applies display transforms — most notably _friendly_time_estimates,
+        # which picks its unit from max DB-hours and can diverge from the unit
+        # the user had selected. Snapshotting the form State guarantees the
+        # immediate post-save dirty check sees the form as clean, since the
+        # snapshot mirrors the form byte-for-byte (with only name and aliases
+        # overridden by their linted versions — the two values the save
+        # pipeline legitimately rewrites in the form).
+        linted_aliases = manager.get_aliases(linted) or ['']
+        form_values = {
+            'n_type': cur_type, 'desc': cur_desc,
+            'context': cur_context, 'subctx': cur_subctx,
+            'status_done': cur_status_done,
+            'val': cur_val, 'interest': cur_interest, 'diff': cur_diff,
+            'time_o': cur_time_o, 'time_m': cur_time_m, 'time_p': cur_time_p,
+            'time_unit': cur_time_unit,
+            'e_needs_h': cur_needs_h, 'e_needs_s': cur_needs_s,
+            'e_supp_h': cur_supp_h, 'e_supp_s': cur_supp_s, 'e_helps': cur_helps,
+            'obs_links': cur_obs, 'drive_links': cur_drive, 'website_links': cur_website,
+            'time_mode': cur_time_mode,
+            'priority_rank': cur_priority_rank, 'competence': cur_competence,
+        }
+        snapshot = snapshot_from_form_state(form_values, linted, linted_aliases)
         return linted, linted, linted_aliases, snapshot
 
     # --- Type-adaptive field visibility ---
