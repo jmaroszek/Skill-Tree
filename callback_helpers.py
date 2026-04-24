@@ -760,102 +760,8 @@ def _compute_highest_value_path(manager):
     return chain
 
 
-def _compute_unlock_path(manager):
-    """Find the most valuable Blocked node and trace the critical prereq path to unlock it."""
-    nodes, edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
-    blocked = [n for n in nodes if n.status == 'Blocked']
-    if not blocked:
-        return []
-
-    # Score each blocked node
-    hp = ConfigManager.get_hyperparams()
-    w_v, w_i = hp.get('w_v', 1.0), hp.get('w_i', 1.0)
-    d_H, d_S, d_Syn = hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35)
-    all_nodes_dict = {n.name: n for n in nodes}
-    node_names = set(all_nodes_dict.keys())
-    H_out, S_out, Syn, Hard_in = build_scoring_adjacency(edges, node_names)
-
-    best_node = None
-    best_tv = -1
-    for n in blocked:
-        tv = total_value(n.name, set(), all_nodes_dict, H_out, S_out, Syn,
-                         w_v, w_i, d_H, d_S, d_Syn)
-        if tv > best_tv:
-            best_tv = tv
-            best_node = n.name
-
-    if not best_node:
-        return []
-
-    # Trace backward: find longest chain of unsatisfied hard prereqs to the target
-    # dag_fwd[node] = nodes that 'node' depends on (hard)
-    # We want the chain: root_prereq -> ... -> prereq -> best_node
-    # BFS/DP to find longest path ending at best_node within its prereq subgraph
-    # First collect reachable unsatisfied prereqs
-    reachable = set()
-    stack = [best_node]
-    while stack:
-        cur = stack.pop()
-        for dep in dag_fwd.get(cur, []):
-            if dep not in reachable:
-                reachable.add(dep)
-                stack.append(dep)
-
-    if not reachable:
-        return [best_node]
-
-    # Build sub-DAG of reachable prereqs + best_node
-    sub_nodes = reachable | {best_node}
-    sub_fwd = defaultdict(list)
-    for s in sub_nodes:
-        for t in dag_fwd.get(s, []):
-            if t in sub_nodes:
-                sub_fwd[s].append(t)
-
-    # Longest path ending at a root (no further prereqs) starting from best_node
-    # Reverse: find longest path in sub-DAG from any root to best_node
-    sub_rev = defaultdict(list)
-    for s in sub_nodes:
-        for t in sub_fwd.get(s, []):
-            sub_rev[t].append(s)
-
-    # Topo sort on sub_rev direction (reverse edges: prereq -> dependent)
-    in_deg = defaultdict(int)
-    for s in sub_nodes:
-        for t in sub_rev.get(s, []):
-            in_deg[t] += 1
-    queue = [n for n in sub_nodes if in_deg[n] == 0]
-    topo = []
-    while queue:
-        nd = queue.pop(0)
-        topo.append(nd)
-        for nxt in sub_rev.get(nd, []):
-            in_deg[nxt] -= 1
-            if in_deg[nxt] == 0:
-                queue.append(nxt)
-
-    # DP longest path in reversed direction (prereq -> dependent)
-    dist = {n: 0 for n in sub_nodes}
-    parent = {n: None for n in sub_nodes}
-    for nd in topo:
-        for nxt in sub_rev.get(nd, []):
-            if dist[nd] + 1 > dist[nxt]:
-                dist[nxt] = dist[nd] + 1
-                parent[nxt] = nd
-
-    # Reconstruct chain: start from the most actionable prereq, end at blocked target
-    chain = []
-    cur = best_node
-    while cur is not None:
-        chain.append(cur)
-        cur = parent[cur]
-    # chain is already [blocked_target, ..., root_prereq] — keep this order
-    # so the display reads: start here → ... → unlock this
-    return chain
-
-
 def format_next_visualizations(manager):
-    """Compute and render the three chain visualizations for the Next tab."""
+    """Compute and render the chain visualizations for the Next tab."""
     all_nodes = manager.get_all_nodes()
     edges = manager.get_edges()
 
@@ -931,15 +837,6 @@ def format_next_visualizations(manager):
                      "is maximized. Shows which thread of work carries the most value."),
         _render_chain_pills(value_path, node_info, chain_id="value",
                             empty_msg="No multi-node dependency paths found."),
-    ], className="mt-3"))
-
-    unlock = _trim_leading_blocked(_compute_unlock_path(manager))
-    sections.append(html.Div([
-        _sub_header("Path to Most Valuable Blocked Task", "chain-info-blocked",
-                     "Identifies the blocked task with the highest total value, then traces "
-                     "the prerequisite chain you need to complete to unblock it."),
-        _render_chain_pills(unlock, node_info, chain_id="blocked",
-                            empty_msg="No blocked nodes found."),
     ], className="mt-3"))
 
     longest = _trim_leading_blocked(_compute_longest_prereq_chain(manager))
