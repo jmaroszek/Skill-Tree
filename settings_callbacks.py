@@ -9,7 +9,7 @@ import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
 from typing import Tuple, Any
-from callback_helpers import get_trigger_id
+from callback_helpers import get_trigger_id, build_context_weight_rows
 
 logger = logging.getLogger(__name__)
 
@@ -164,17 +164,7 @@ def register_settings_callbacks(app):
 
         type_color_rows = [_type_color_row(t) for t in display_types]
 
-        weight_rows = []
-        for ctx_name in contexts:
-            weight_rows.append(dbc.Row([
-                dbc.Col(dbc.Label(ctx_name, className="mb-0"), width=4,
-                        className="d-flex align-items-center"),
-                dbc.Col(dbc.Input(
-                    id={"type": "setting-context-weight", "index": ctx_name},
-                    type="number", min=0, max=10, step=0.1,
-                    value=float(ctx_weights.get(ctx_name, 1.0)),
-                ), width=4),
-            ], className="mb-2"))
+        weight_rows = build_context_weight_rows(contexts, ctx_weights)
 
         ts = ConfigManager.get_time_settings()
         from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
@@ -282,6 +272,7 @@ def register_settings_callbacks(app):
         Output('pending-settings-store', 'data'),
         Output('settings-clear-interval', 'disabled'),
         Output('settings-clear-interval', 'n_intervals'),
+        Output('setting-context-weights-container', 'children', allow_duplicate=True),
         Input('btn-settings-save', 'n_clicks'),
         State('hp-wv', 'value'), State('hp-wi', 'value'),
         State('hp-dh', 'value'), State('hp-ds', 'value'), State('hp-dsyn', 'value'),
@@ -339,7 +330,7 @@ def register_settings_callbacks(app):
                       al_time_sinks, al_deepest, al_connected,
                       show_scoring_perf_val):
         if not n_clicks:
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         try:
             # Perf-toggle is independent of any migrated setting — persist
@@ -483,7 +474,7 @@ def register_settings_callbacks(app):
                         'subcontext': new_sub_flat,
                     }
                 }
-                return "Migration required \u2014 check the migration dialog.", pending, False, 0
+                return "Migration required \u2014 check the migration dialog.", pending, False, 0, dash.no_update
 
             from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
             new_gl = {
@@ -555,11 +546,15 @@ def register_settings_callbacks(app):
             }
             ConfigManager.set_analyze_limits(new_al)
 
-            return "Settings saved", dash.no_update, False, 0
+            saved_contexts = new_contexts if new_contexts else ConfigManager.get_contexts()
+            refreshed_weight_rows = build_context_weight_rows(
+                saved_contexts, ConfigManager.get_context_weights()
+            )
+            return "Settings saved", dash.no_update, False, 0, refreshed_weight_rows
 
         except Exception:
             logger.exception("Failed to save settings")
-            return "Error saving settings.", dash.no_update, False, 0
+            return "Error saving settings.", dash.no_update, False, 0, dash.no_update
 
     # --- Perf profile: on-demand N-run benchmark (always available) ---
     @app.callback(

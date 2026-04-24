@@ -185,7 +185,7 @@ def build_settings_tab_content():
                         html.Div(id="setting-context-weights-container"),
                     ], className="p-2")
                 ]),
-                dbc.Tab(label="Algorithms", tab_id="tab-algorithm", children=[
+                dbc.Tab(label="Scoring", tab_id="tab-scoring", children=[
                     html.Div([
                         # --- Priorities section ---
                         html.H5("Priorities", className="mt-2 mb-1"),
@@ -199,21 +199,7 @@ def build_settings_tab_content():
                                     {"label": "Custom", "value": "Custom"}
                                 ], value="Default"),
                             ], width=4),
-                            dbc.Col([
-                                dbc.Label("Goal Boost"),
-                                html.Div([
-                                    dbc.Input(id="hp-goal-boost", type="number", step=0.1,
-                                              style={"maxWidth": "120px", "flexShrink": "0"}),
-                                    html.Small(
-                                        "Multiplier applied to nodes in a priority goal's subtree. "
-                                        "Rank #1 gets the full boost, #2 gets 66%, #3 gets 33%.",
-                                        className="text-muted ms-3"),
-                                ], className="d-flex align-items-center"),
-                            ], width=8),
                         ], className="mt-1"),
-
-                        html.Hr(className="my-3"),
-                        html.Small("Parameters for the scoring algorithm.", className="text-muted d-block mb-2"),
 
                         # --- Three-column layout: IV | VP | PC (subsections of Priorities) ---
                         # Headings row — H6 so they read as subsections of the Priorities H5
@@ -250,40 +236,45 @@ def build_settings_tab_content():
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
                         ], className="mb-2"),
 
-                        # --- Context Density row ---
+                        # --- Multipliers section ---
                         html.Hr(className="my-3"),
-                        html.H6("Context Density", className="mt-2 mb-1"),
+                        html.H5("Multipliers", className="mt-2 mb-1"),
+
+                        html.H6("Goal Boost", className="mt-2 mb-1"),
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Exponent (\u03b1)", className="mt-1"),
-                                dbc.Input(id="hp-alpha", type="number",
-                                          min=0, max=1.5, step=0.05),
-                            ], width=4),
+                                dbc.Input(id="hp-goal-boost", type="number", step=0.1),
+                            ], width=2),
                             dbc.Col([
                                 html.Small(
-                                    "Normalizes scores by (context, subcontext) bucket size: "
-                                    "score \u00d7 1 / n^\u03b1. 0 disables. 0.3 (Default profile) "
-                                    "compensates mildly; 1.0 fully cancels size bias. "
-                                    "Higher values penalize larger buckets more.",
-                                    className="text-muted d-block mt-4"),
-                            ], width=8),
+                                    "Multiplier applied to nodes in a priority goal's subtree. "
+                                    "Rank #1 gets the full boost, #2 gets 66%, #3 gets 33%.",
+                                    className="text-muted d-block"),
+                            ], width=10),
                         ], className="mb-2"),
 
-                        # --- Graph Layout Defaults group ---
-                        html.Hr(className="my-2"),
-                        html.Div([
-                            html.H5("Graph Layout Defaults", className="mb-0"),
-                            html.Span([
-                                dbc.Button(_RESTORE_ICON, id="btn-restore-graph-layout",
-                                           color="link", size="sm",
-                                           className="ms-1 p-0",
-                                           style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px", "textDecoration": "none"}),
-                                dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top",
-                                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                            ]),
-                        ], className="d-flex align-items-center mt-2 mb-1"),
-                        html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
-                        _build_graph_layout_defaults_row(),
+                        html.H6("Context Density", className="mt-3 mb-1"),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Input(id="hp-alpha", type="number",
+                                          min=0, max=1.5, step=0.05),
+                            ], width=2),
+                            dbc.Col([
+                                html.Small(
+                                    "Normalizes scores by (context, subcontext) bucket size "
+                                    "(score \u00d7 1 / n^\u03b1). Higher values penalize larger "
+                                    "buckets more. Range: 0 disables; 0.3 (Default profile) "
+                                    "compensates mildly; 1.0 fully cancels size bias.",
+                                    className="text-muted d-block"),
+                            ], width=10),
+                        ], className="mb-2"),
+
+                        html.Hr(className="my-3"),
+                        html.Small(
+                            "Context priority weights also affect scoring \u2014 set them in the Contexts tab.",
+                            className="text-muted d-block mt-2 mb-2",
+                            style={"fontStyle": "italic"},
+                        ),
 
                         # --- Performance group ---
                         html.Hr(className="my-3"),
@@ -327,8 +318,25 @@ def build_settings_tab_content():
                                  style={"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace"}),
                     ], className="p-2")
                 ]),
-                dbc.Tab(label="Analyze", tab_id="tab-analyze-settings", children=[
+                dbc.Tab(label="Visuals", tab_id="tab-visuals", children=[
                     html.Div([
+                        # --- Graph Layout Defaults group ---
+                        html.Div([
+                            html.H5("Graph Layout Defaults", className="mb-0"),
+                            html.Span([
+                                dbc.Button(_RESTORE_ICON, id="btn-restore-graph-layout",
+                                           color="link", size="sm",
+                                           className="ms-1 p-0",
+                                           style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px", "textDecoration": "none"}),
+                                dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top",
+                                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                            ]),
+                        ], className="d-flex align-items-center mt-2 mb-1"),
+                        html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
+                        _build_graph_layout_defaults_row(),
+
+                        # --- Visualization Limits group ---
+                        html.Hr(className="my-3"),
                         html.H5("Visualization Limits", className="mt-2 mb-1"),
                         html.Small("Maximum items shown in each Analyze tab section.",
                                    className="text-muted d-block mb-2"),
@@ -368,7 +376,7 @@ def build_settings_tab_content():
                         ]),
                     ], className="p-2")
                 ]),
-                dbc.Tab(label="Me", tab_id="tab-paths", children=[
+                dbc.Tab(label="Personal", tab_id="tab-personal", children=[
                     html.Div([
                         # --- Paths group ---
                         html.H5("Paths", className="mt-2 mb-1"),

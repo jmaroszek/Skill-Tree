@@ -21,6 +21,22 @@ from scoring import build_adjacency as build_scoring_adjacency, total_value
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
 
 
+def build_context_weight_rows(contexts, ctx_weights):
+    """Build the per-context weight input rows for the Contexts settings tab."""
+    rows = []
+    for ctx_name in contexts:
+        rows.append(dbc.Row([
+            dbc.Col(dbc.Label(ctx_name, className="mb-0"), width=4,
+                    className="d-flex align-items-center"),
+            dbc.Col(dbc.Input(
+                id={"type": "setting-context-weight", "index": ctx_name},
+                type="number", min=0, max=10, step=0.1,
+                value=float(ctx_weights.get(ctx_name, 1.0)),
+            ), width=4),
+        ], className="mb-2"))
+    return rows
+
+
 def _get_duplicate_stop_words():
     """Get stop words for duplicate comparison from linter settings."""
     linter = ConfigManager.get_titlecase_linter()
