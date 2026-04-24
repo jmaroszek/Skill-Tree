@@ -1923,7 +1923,8 @@ def register_callbacks(app):
 
     # --- Aliases Add/Remove ---
     @app.callback(
-        Output('aliases-store', 'data', allow_duplicate=True),
+        [Output('aliases-store', 'data', allow_duplicate=True),
+         Output('collapse-aliases', 'is_open', allow_duplicate=True)],
         [Input('btn-alias-add', 'n_clicks'),
          Input({'type': 'btn-alias-remove', 'index': ALL}, 'n_clicks')],
         [State({'type': 'alias-input', 'index': ALL}, 'value'),
@@ -1933,13 +1934,16 @@ def register_callbacks(app):
     def modify_aliases(add_clicks, remove_clicks, current_values, store_data):
         trigger = ctx.triggered_id
         aliases = list(current_values) if current_values else list(store_data or [''])
+        collapse_update = dash.no_update
         if trigger == 'btn-alias-add':
             aliases.append('')
         elif isinstance(trigger, dict) and trigger.get('type') == 'btn-alias-remove':
             idx = trigger['index']
-            if 0 <= idx < len(aliases) and len(aliases) > 1:
+            if 0 <= idx < len(aliases):
                 aliases.pop(idx)
-        return aliases
+                if not aliases:
+                    collapse_update = False
+        return aliases, collapse_update
 
     # --- Multi-Link Render Callbacks ---
     @app.callback(
