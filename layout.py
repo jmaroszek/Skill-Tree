@@ -78,6 +78,7 @@ sidebar_content = html.Div(
                 is_open=False,
             ),
             dcc.Store(id='aliases-store', data=['']),
+            dcc.Store(id='editor-pristine-snapshot', data=None),
 
             dbc.Label("Type", className="mt-2"),
             dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES]),

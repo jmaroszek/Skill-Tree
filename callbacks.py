@@ -25,7 +25,7 @@ from callback_helpers import (
     strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
     normalize_name_for_comparison,
-    has_editor_unsaved_changes,
+    build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
 )
 
 logger = logging.getLogger(__name__)
@@ -132,27 +132,26 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
         elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not form_state.get('name') or not form_state.get('n_type')):
             pass  # Keep sidebar open — validation error shown below
         elif trigger_id == 'btn-close-editor':
-            form_has_content = has_editor_unsaved_changes(
-                manager, form_state.get('original_name'),
-                name=form_state.get('name'), n_type=form_state.get('n_type'),
-                desc=form_state.get('desc'),
-                context=form_state.get('context'), subctx=form_state.get('subctx'),
-                status_done=form_state.get('status_done'),
-                val=form_state.get('val'), interest=form_state.get('interest'),
-                diff=form_state.get('diff'),
-                time_o=form_state.get('time_o'), time_m=form_state.get('time_m'),
-                time_p=form_state.get('time_p'), time_unit=form_state.get('time_unit'),
-                e_needs_h=form_state.get('e_needs_h'), e_needs_s=form_state.get('e_needs_s'),
-                e_supp_h=form_state.get('e_supp_h'), e_supp_s=form_state.get('e_supp_s'),
-                e_helps=form_state.get('e_helps'),
-                obs_link_values=form_state.get('obs_link_values'),
-                drive_link_values=form_state.get('drive_link_values'),
-                website_link_values=form_state.get('website_link_values'),
-                time_mode_val=form_state.get('time_mode_val'),
-                priority_rank_val=form_state.get('priority_rank_val'),
-                competence_val=form_state.get('competence_val'),
-                alias_values=form_state.get('alias_values'),
-            )
+            form_has_content = is_form_dirty_vs_snapshot(form_state.get('pristine_snapshot'), {
+                'name': form_state.get('name'), 'n_type': form_state.get('n_type'),
+                'desc': form_state.get('desc'),
+                'context': form_state.get('context'), 'subctx': form_state.get('subctx'),
+                'status_done': form_state.get('status_done'),
+                'val': form_state.get('val'), 'interest': form_state.get('interest'),
+                'diff': form_state.get('diff'),
+                'time_o': form_state.get('time_o'), 'time_m': form_state.get('time_m'),
+                'time_p': form_state.get('time_p'), 'time_unit': form_state.get('time_unit'),
+                'e_needs_h': form_state.get('e_needs_h'), 'e_needs_s': form_state.get('e_needs_s'),
+                'e_supp_h': form_state.get('e_supp_h'), 'e_supp_s': form_state.get('e_supp_s'),
+                'e_helps': form_state.get('e_helps'),
+                'obs_links': form_state.get('obs_link_values'),
+                'drive_links': form_state.get('drive_link_values'),
+                'website_links': form_state.get('website_link_values'),
+                'time_mode': form_state.get('time_mode_val'),
+                'priority_rank': form_state.get('priority_rank_val'),
+                'competence': form_state.get('competence_val'),
+                'aliases': form_state.get('alias_values'),
+            })
             if not form_has_content:
                 next_ed_style['transform'] = "translateX(-380px)"
         else:
@@ -467,7 +466,8 @@ def register_callbacks(app):
          Output('node-competence', 'value'),
          Output('aliases-store', 'data'),
          Output('pending-navigation-store', 'data'),
-         Output('modal-unsaved-changes', 'is_open', allow_duplicate=True)],
+         Output('modal-unsaved-changes', 'is_open', allow_duplicate=True),
+         Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks'),
@@ -496,7 +496,8 @@ def register_callbacks(app):
          State('node-time-mode', 'value'),
          State('node-priority-rank', 'value'), State('node-competence', 'value'),
          State({'type': 'alias-input', 'index': ALL}, 'value'),
-         State('pending-navigation-store', 'data')],
+         State('pending-navigation-store', 'data'),
+         State('editor-pristine-snapshot', 'data')],
         prevent_initial_call='initial_duplicate'
     )
     def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
@@ -509,7 +510,7 @@ def register_callbacks(app):
                         cur_obs, cur_drive, cur_website,
                         cur_time_mode, cur_priority_rank, cur_competence,
                         cur_aliases,
-                        pending_nav):
+                        pending_nav, pristine_snapshot):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
 
@@ -531,29 +532,31 @@ def register_callbacks(app):
             [''],  # aliases-store
             None,  # pending-navigation-store
             False,  # modal-unsaved-changes
+            NEW_NODE_SNAPSHOT,  # editor-pristine-snapshot
         ]
 
         def _has_unsaved_changes():
-            return has_editor_unsaved_changes(
-                manager, original_name,
-                name=cur_name, n_type=cur_type, desc=cur_desc,
-                context=cur_context, subctx=cur_subctx, status_done=cur_status_done,
-                val=cur_val, interest=cur_interest, diff=cur_diff,
-                time_o=cur_time_o, time_m=cur_time_m, time_p=cur_time_p, time_unit=cur_time_unit,
-                e_needs_h=cur_needs_h, e_needs_s=cur_needs_s,
-                e_supp_h=cur_supp_h, e_supp_s=cur_supp_s, e_helps=cur_helps,
-                obs_link_values=cur_obs, drive_link_values=cur_drive,
-                website_link_values=cur_website,
-                time_mode_val=cur_time_mode,
-                priority_rank_val=cur_priority_rank, competence_val=cur_competence,
-                alias_values=cur_aliases,
-            )
+            return is_form_dirty_vs_snapshot(pristine_snapshot, {
+                'name': cur_name, 'n_type': cur_type, 'desc': cur_desc,
+                'context': cur_context, 'subctx': cur_subctx,
+                'status_done': cur_status_done,
+                'val': cur_val, 'interest': cur_interest, 'diff': cur_diff,
+                'time_o': cur_time_o, 'time_m': cur_time_m, 'time_p': cur_time_p,
+                'time_unit': cur_time_unit,
+                'e_needs_h': cur_needs_h, 'e_needs_s': cur_needs_s,
+                'e_supp_h': cur_supp_h, 'e_supp_s': cur_supp_s, 'e_helps': cur_helps,
+                'obs_links': cur_obs, 'drive_links': cur_drive,
+                'website_links': cur_website,
+                'time_mode': cur_time_mode,
+                'priority_rank': cur_priority_rank, 'competence': cur_competence,
+                'aliases': cur_aliases,
+            })
 
         if trigger_id == 'btn-new-node':
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
                 # Show unsaved modal; store 'new-node' as pending action
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
                 no_change[34] = '__new_node__'  # pending-navigation-store (special sentinel)
                 no_change[35] = True            # modal-unsaved-changes
                 return no_change
@@ -567,7 +570,7 @@ def register_callbacks(app):
             if trigger_id == 'background-click-input':
                 editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
                 if editor_open and _has_unsaved_changes():
-                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
                     no_change[34] = '__background__'  # pending-navigation-store sentinel
                     no_change[35] = True              # modal-unsaved-changes
                     return no_change
@@ -605,7 +608,7 @@ def register_callbacks(app):
             if editor_open and tapped_id and tapped_id != original_name and _has_unsaved_changes():
                 # Store the pending target and show unsaved modal instead of populating
                 # 18 form fields + 5 edge options + 13 remaining = 36 total outputs
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
                 no_change[34] = tapped_id  # pending-navigation-store (index 34)
                 no_change[35] = True       # modal-unsaved-changes (index 35)
                 return no_change
@@ -621,13 +624,13 @@ def register_callbacks(app):
                     # Dormant nodes have their own editor (Events-tab dormant modal).
                     # Defense-in-depth: if any code path forwards a dormant name here,
                     # don't load it into the generic sidebar.
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
                 if node:
                     name = node.name
                     data = node.to_dict()
                     data['id'] = name
                 else:
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
         elif trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
@@ -640,13 +643,13 @@ def register_callbacks(app):
                 resolved_name = all_aliases.get(alias_key, search_val)
             node = manager.get_node(resolved_name)
             if node and node.dormant:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
             if node:
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -657,7 +660,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*13
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
 
         edges = manager.get_edges()
 
@@ -711,6 +714,7 @@ def register_callbacks(app):
             manager.get_aliases(name) or [''],  # aliases-store
             None,  # pending-navigation-store — clear on successful populate
             False,  # modal-unsaved-changes — close on successful populate
+            build_editor_snapshot(manager, name),  # editor-pristine-snapshot
         ]
 
     # --- Post-save sync of original_name / name ---
@@ -723,7 +727,9 @@ def register_callbacks(app):
     # succeeded before touching state.
     @app.callback(
         [Output('node-original-name', 'data', allow_duplicate=True),
-         Output('node-name', 'value', allow_duplicate=True)],
+         Output('node-name', 'value', allow_duplicate=True),
+         Output('aliases-store', 'data', allow_duplicate=True),
+         Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
         [Input('btn-save', 'n_clicks'),
          Input('btn-save-close', 'n_clicks')],
         [State('node-name', 'value')],
@@ -731,11 +737,19 @@ def register_callbacks(app):
     )
     def sync_original_name_after_save(_save_clicks, _save_close_clicks, cur_name):
         if not cur_name or not cur_name.strip():
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         linted = ConfigManager.apply_titlecase_linter(cur_name.strip())
         if not manager.get_node(linted):
-            return dash.no_update, dash.no_update
-        return linted, linted
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        # Refresh the pristine snapshot from the just-saved DB state so that
+        # post-save dirty checks don't trip on linter rewrites of name/aliases.
+        # The aliases-store also needs to be re-emitted with the linted DB
+        # values so the dynamic alias-input fields re-render with the linted
+        # text — otherwise the form holds the user-typed lowercase alias while
+        # the DB holds the linted version, and the dirty check fires.
+        snapshot = build_editor_snapshot(manager, linted)
+        linted_aliases = (snapshot or {}).get('aliases', [''])
+        return linted, linted, linted_aliases, snapshot
 
     # --- Type-adaptive field visibility ---
     @app.callback(
@@ -1103,7 +1117,8 @@ def register_callbacks(app):
          State('details-goal-sidebar', 'style'),
          State('events-sidebar-container', 'style'),
          State('pending-navigation-store', 'data'),
-         State({'type': 'alias-input', 'index': ALL}, 'value')],
+         State({'type': 'alias-input', 'index': ALL}, 'value'),
+         State('editor-pristine-snapshot', 'data')],
         prevent_initial_call='initial_duplicate'
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, search_val,
@@ -1121,7 +1136,8 @@ def register_callbacks(app):
                      obs_link_values, drive_link_values, website_link_values,
                      current_elements, ed_style, original_name,
                      time_mode_val, priority_rank_val, competence_val,
-                     goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values):
+                     goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values,
+                     pristine_snapshot):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -1163,6 +1179,7 @@ def register_callbacks(app):
                 'priority_rank_val': priority_rank_val,
                 'competence_val': competence_val,
                 'alias_values': alias_values,
+                'pristine_snapshot': pristine_snapshot,
             }
             ed, goal, events = _compute_sidebar_styles(
                 trigger_id, all_triggered_ids, search_val,
@@ -1617,7 +1634,8 @@ def register_callbacks(app):
          State('node-time-mode', 'value'),
          State('node-priority-rank', 'value'), State('node-competence', 'value'),
          State({'type': 'alias-input', 'index': ALL}, 'value'),
-         State('node-original-name', 'data')],
+         State('node-original-name', 'data'),
+         State('editor-pristine-snapshot', 'data')],
         prevent_initial_call=True
     )
     def toggle_unsaved_modal(_close, _cancel, _save, _discard,
@@ -1627,23 +1645,24 @@ def register_callbacks(app):
                               e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                               obs_link_values, drive_link_values, website_link_values,
                               time_mode_val, priority_rank_val, competence_val,
-                              alias_values, original_name):
+                              alias_values, original_name, pristine_snapshot):
         if get_trigger_id() != 'btn-close-editor':
             return False
-        return has_editor_unsaved_changes(
-            manager, original_name,
-            name=name, n_type=n_type, desc=desc,
-            context=context, subctx=subctx, status_done=status_done,
-            val=val, interest=interest, diff=diff,
-            time_o=time_o, time_m=time_m, time_p=time_p, time_unit=time_unit,
-            e_needs_h=e_needs_h, e_needs_s=e_needs_s,
-            e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
-            obs_link_values=obs_link_values, drive_link_values=drive_link_values,
-            website_link_values=website_link_values,
-            time_mode_val=time_mode_val,
-            priority_rank_val=priority_rank_val, competence_val=competence_val,
-            alias_values=alias_values,
-        )
+        return is_form_dirty_vs_snapshot(pristine_snapshot, {
+            'name': name, 'n_type': n_type, 'desc': desc,
+            'context': context, 'subctx': subctx,
+            'status_done': status_done,
+            'val': val, 'interest': interest, 'diff': diff,
+            'time_o': time_o, 'time_m': time_m, 'time_p': time_p,
+            'time_unit': time_unit,
+            'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
+            'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
+            'obs_links': obs_link_values, 'drive_links': drive_link_values,
+            'website_links': website_link_values,
+            'time_mode': time_mode_val,
+            'priority_rank': priority_rank_val, 'competence': competence_val,
+            'aliases': alias_values,
+        })
 
     # --- Delete Confirmation Modal ---
     @app.callback(

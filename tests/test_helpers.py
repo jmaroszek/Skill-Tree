@@ -9,7 +9,8 @@ from dash import html
 from callback_helpers import (
     parse_links, serialize_links,
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
-    _bool_icon, has_editor_unsaved_changes,
+    _bool_icon,
+    build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -290,37 +291,18 @@ class TestBoolIcon:
 
 
 # ============================================================================
-# has_editor_unsaved_changes — X-button close-prompt regression tests
+# is_form_dirty_vs_snapshot — X-button close-prompt regression tests
 # ============================================================================
 
-class TestHasEditorUnsavedChanges:
+class TestIsFormDirtyVsSnapshot:
     """Pin the dirty-state detection behind the Node Editor's X-close prompt.
 
-    Regression: only 5 of the ~25 editable fields were being compared, so
-    changes to edges/links/time/type/context/etc. caused the editor to
-    silently close without prompting to save.
+    Snapshot-based design: populate_editor stores a pristine snapshot of the
+    form values it just wrote; the dirty check compares current form State to
+    that snapshot. This eliminates false-positives from display transformations
+    (e.g. strip_gdrive_prefix on Drive paths) and from the title-case linter
+    rewriting names/aliases on save.
     """
-
-    @staticmethod
-    def _pristine_form(node):
-        """Build the form-state kwargs that populate_editor would set for ``node``."""
-        from callbacks import _friendly_time_estimates
-        friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
-            node.time_o, node.time_m, node.time_p
-        )
-        return dict(
-            name=node.name, n_type=node.type, desc=node.description,
-            context=node.context or '', subctx=node.subcontext or '',
-            status_done=(['Done'] if node.status == 'Done' else []),
-            val=node.value, interest=node.interest, diff=node.difficulty,
-            time_o=friendly_o, time_m=friendly_m, time_p=friendly_p,
-            time_unit=friendly_unit,
-            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
-            obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
-            time_mode_val=(['inherited'] if node.time_mode == 'inherited' else []),
-            priority_rank_val='none', competence_val=node.competence or '',
-            alias_values=[''],
-        )
 
     @staticmethod
     def _seed(mgr, **overrides):
@@ -335,13 +317,17 @@ class TestHasEditorUnsavedChanges:
         mgr.add_node(node)
         return node
 
+    @staticmethod
+    def _form_from_snapshot(snapshot):
+        """The form values that exactly mirror a freshly-populated snapshot."""
+        return dict(snapshot)
+
     def test_pristine_form_is_not_dirty(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        assert not has_editor_unsaved_changes(
-            mgr, node.name, **self._pristine_form(node)
-        )
+        snap = build_editor_snapshot(mgr, node.name)
+        assert not is_form_dirty_vs_snapshot(snap, self._form_from_snapshot(snap))
 
     def test_edge_change_detected(self):
         """Adding a prerequisite must count as dirty."""
@@ -349,102 +335,139 @@ class TestHasEditorUnsavedChanges:
         mgr = GraphManager()
         self._seed(mgr, name='Target')
         node = self._seed(mgr, name='Alpha')
-        form = self._pristine_form(node)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
         form['e_needs_h'] = ['Target']
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_link_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
-        form['obs_link_values'] = ['notes/alpha.md']
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
+        form['obs_links'] = ['notes/alpha.md']
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_time_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
         form['time_m'] = (form['time_m'] or 0) + 1
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_context_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
         form['context'] = 'Body'
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_type_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
         form['n_type'] = 'Action'
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_status_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
         form['status_done'] = ['Done']
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_alias_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
-        form['alias_values'] = ['AlphaAlias']
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
+        form['aliases'] = ['AlphaAlias']
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_competence_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
-        form['competence_val'] = 'Expert'
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
+        form['competence'] = 'Expert'
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_description_change_detected(self):
-        """Sanity check: the original 5-field check still works."""
         from graph_manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
-        form = self._pristine_form(node)
+        snap = build_editor_snapshot(mgr, node.name)
+        form = self._form_from_snapshot(snap)
         form['desc'] = 'updated description'
-        assert has_editor_unsaved_changes(mgr, node.name, **form)
+        assert is_form_dirty_vs_snapshot(snap, form)
+
+    def test_snapshot_none_returns_not_dirty(self):
+        """No baseline snapshot — can't be dirty regardless of form values."""
+        assert not is_form_dirty_vs_snapshot(None, {
+            'name': 'Anything', 'desc': 'whatever',
+            'obs_links': ['a', 'b'], 'aliases': ['X'],
+        })
 
     def test_blank_new_node_form_is_not_dirty(self):
-        """Empty new-node form (no original_name) should not prompt."""
-        from graph_manager import GraphManager
-        mgr = GraphManager()
-        assert not has_editor_unsaved_changes(
-            mgr, None,
-            name='', n_type='Learn', desc='',
-            context='', subctx='', status_done=[],
-            val=5, interest=5, diff=5,
-            time_o=2, time_m=4, time_p=6, time_unit='weeks',
-            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
-            obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
-            time_mode_val=[], priority_rank_val='none',
-            competence_val='', alias_values=[''],
+        """Empty new-node form against NEW_NODE_SNAPSHOT should not prompt."""
+        assert not is_form_dirty_vs_snapshot(
+            NEW_NODE_SNAPSHOT, dict(NEW_NODE_SNAPSHOT)
         )
 
     def test_new_node_with_name_typed_is_dirty(self):
+        form = dict(NEW_NODE_SNAPSHOT)
+        form['name'] = 'Unsaved'
+        assert is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, form)
+
+    def test_gdrive_prefix_does_not_cause_false_positive(self):
+        """Regression: render_drive_links strips the GDrive prefix for display,
+        so the form's State value is the stripped path. The snapshot must store
+        the stripped form too — otherwise every node with a Drive path under
+        the configured root would falsely flag as dirty."""
+        from graph_manager import GraphManager
+        from config import ConfigManager
+        mgr = GraphManager()
+        # Configure a Drive root and seed a node whose path lives under it.
+        prefix = 'C:/GDrive/SkillTree/'
+        ConfigManager.set_gdrive_path(prefix)
+        try:
+            full_path = prefix + 'foo.pdf'
+            node = self._seed(
+                mgr, name='WithDrive',
+                google_drive_path=json.dumps([full_path]),
+            )
+            snap = build_editor_snapshot(mgr, node.name)
+            # The snapshot must hold the *stripped* path — what the input shows.
+            assert snap['drive_links'] == ['foo.pdf']
+            # Form State (post-render) also holds the stripped path. Not dirty.
+            form = self._form_from_snapshot(snap)
+            assert not is_form_dirty_vs_snapshot(snap, form)
+        finally:
+            ConfigManager.set_gdrive_path('')
+
+    def test_post_save_alias_lint_does_not_cause_false_positive(self):
+        """Regression: set_aliases title-case-lints aliases on save. After the
+        post-save snapshot refresh, a form holding the linted alias must not
+        flag as dirty."""
         from graph_manager import GraphManager
         mgr = GraphManager()
-        assert has_editor_unsaved_changes(
-            mgr, None,
-            name='Unsaved', n_type='Learn', desc='',
-            context='', subctx='', status_done=[],
-            val=5, interest=5, diff=5,
-            time_o=2, time_m=4, time_p=6, time_unit='weeks',
-            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
-            obs_link_values=[''], drive_link_values=[''], website_link_values=[''],
-            time_mode_val=[], priority_rank_val='none',
-            competence_val='', alias_values=[''],
-        )
+        node = self._seed(mgr)
+        # Save aliases through the manager — which applies the linter.
+        mgr.set_aliases(node.name, ['alpha alias'])
+        # Snapshot refreshed from DB now holds the *linted* alias.
+        snap = build_editor_snapshot(mgr, node.name)
+        assert snap['aliases'] == ['Alpha Alias']
+        # Form holds the linted alias too (input was re-rendered from the store).
+        form = self._form_from_snapshot(snap)
+        assert not is_form_dirty_vs_snapshot(snap, form)

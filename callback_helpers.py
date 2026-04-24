@@ -237,16 +237,7 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     return filters
 
 
-# --- Editor Dirty-State Check ---
-
-_EDITOR_NEW_NODE_DEFAULTS = {
-    'name': '', 'n_type': 'Learn', 'desc': '',
-    'context': '', 'subctx': '', 'done': False,
-    'val': 5, 'interest': 5, 'diff': 5,
-    'time_o': 2, 'time_m': 4, 'time_p': 6, 'time_unit': 'weeks',
-    'time_mode_inherited': False,
-    'priority_rank': 'none', 'competence': '',
-}
+# --- Editor Dirty-State Check (snapshot-based) ---
 
 
 def _norm_str(s):
@@ -258,131 +249,147 @@ def _norm_list(lst):
     return sorted([v for v in (lst or []) if v])
 
 
-def has_editor_unsaved_changes(
-    manager, original_name,
-    name, n_type, desc, context, subctx, status_done,
-    val, interest, diff,
-    time_o, time_m, time_p, time_unit,
-    e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-    obs_link_values, drive_link_values, website_link_values,
-    time_mode_val, priority_rank_val, competence_val,
-    alias_values,
-):
-    """Check whether the node editor's form state differs from the last saved state.
+# Pristine snapshot for the new-node form — mirrors the def_out defaults
+# emitted by populate_editor when the user clicks "+ New Node".
+NEW_NODE_SNAPSHOT = {
+    'name': '', 'n_type': 'Learn', 'desc': '',
+    'context': '', 'subctx': '',
+    'status_done': [],
+    'val': 5, 'interest': 5, 'diff': 5,
+    'time_o': 2, 'time_m': 4, 'time_p': 6, 'time_unit': 'weeks',
+    'e_needs_h': [], 'e_needs_s': [],
+    'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
+    'obs_links': [''], 'drive_links': [''], 'website_links': [''],
+    'time_mode': [],
+    'priority_rank': 'none', 'competence': '',
+    'aliases': [''],
+}
 
-    If ``original_name`` resolves to a DB node, compares form state vs DB (covers
-    every editable field: scalars, edges, links, aliases, priority rank, and
-    time values after converting back to hours). Otherwise treats it as a
-    new-node form and compares against the blank-form defaults.
+
+def build_editor_snapshot(manager, node_name):
+    """Build a snapshot of the editor form state for an existing node.
+
+    The snapshot dict mirrors exactly what populate_editor writes into the form
+    fields, *including* any post-display transformations (e.g. Drive paths after
+    strip_gdrive_prefix). The dirty check compares form State against this
+    snapshot so display transformations don't produce false-positives.
+
+    Returns None if the node doesn't exist.
     """
-    form_done = 'Done' in (status_done or [])
-    form_time_mode_inherited = 'inherited' in (time_mode_val or [])
-    form_priority_rank = priority_rank_val or 'none'
+    # Local import — _friendly_time_estimates lives in callbacks.py which
+    # imports from this module, so we defer to avoid a circular import.
+    from callbacks import _friendly_time_estimates
 
-    # Compare time in the form's current display unit to avoid false positives
-    # from the 2-decimal rounding in _friendly_time_estimates: a DB value like
-    # 63 hours rendered as 1.58 weeks cannot round-trip back to 63.0 exactly.
-    form_unit = time_unit or 'hours'
-    multiplier = ConfigManager.get_time_multiplier(form_unit) or 1.0
-    form_t_o = round(float(time_o or 0), 2)
-    form_t_m = round(float(time_m or 0), 2)
-    form_t_p = round(float(time_p or 0), 2)
+    node = manager.get_node(node_name) if node_name else None
+    if node is None:
+        return None
 
-    form_needs_h = _norm_list(e_needs_h)
-    form_needs_s = _norm_list(e_needs_s)
-    form_supp_h = _norm_list(e_supp_h)
-    form_supp_s = _norm_list(e_supp_s)
-    form_helps = _norm_list(e_helps)
-    form_obs = _norm_list(obs_link_values)
-    form_drive = _norm_list(drive_link_values)
-    form_website = _norm_list(website_link_values)
-    form_aliases = _norm_list(alias_values)
-
-    old_node = manager.get_node(original_name) if original_name else None
-
-    if old_node is None:
-        # New-node form: any deviation from the blank defaults is "dirty".
-        d = _EDITOR_NEW_NODE_DEFAULTS
-        return (
-            _norm_str(name) != d['name'] or
-            (n_type or d['n_type']) != d['n_type'] or
-            _norm_str(desc) != d['desc'] or
-            _norm_str(context) != d['context'] or
-            _norm_str(subctx) != d['subctx'] or
-            form_done != d['done'] or
-            int(val or d['val']) != d['val'] or
-            int(interest or d['interest']) != d['interest'] or
-            int(diff or d['diff']) != d['diff'] or
-            float(time_o or 0) != d['time_o'] or
-            float(time_m or 0) != d['time_m'] or
-            float(time_p or 0) != d['time_p'] or
-            (time_unit or d['time_unit']) != d['time_unit'] or
-            form_time_mode_inherited != d['time_mode_inherited'] or
-            form_priority_rank != d['priority_rank'] or
-            _norm_str(competence_val) != d['competence'] or
-            bool(form_needs_h) or bool(form_needs_s) or
-            bool(form_supp_h) or bool(form_supp_s) or bool(form_helps) or
-            bool(form_obs) or bool(form_drive) or bool(form_website) or
-            bool(form_aliases)
-        )
-
-    # Existing-node form: compare against DB state.
     edges = manager.get_edges()
-    db_needs_h = sorted({e['source'] for e in edges
-                         if e['target'] == original_name and e['type'] == EDGE_NEEDS_HARD})
-    db_needs_s = sorted({e['source'] for e in edges
-                         if e['target'] == original_name and e['type'] == EDGE_NEEDS_SOFT})
-    db_supp_h = sorted({e['target'] for e in edges
-                        if e['source'] == original_name and e['type'] == EDGE_NEEDS_HARD})
-    db_supp_s = sorted({e['target'] for e in edges
-                        if e['source'] == original_name and e['type'] == EDGE_NEEDS_SOFT})
-    db_helps_set = {e['target'] for e in edges
-                    if e['source'] == original_name and e['type'] == EDGE_HELPS}
-    db_helps_set |= {e['source'] for e in edges
-                     if e['target'] == original_name and e['type'] == EDGE_HELPS}
-    db_helps = sorted(db_helps_set)
+    needs_h = sorted({e['source'] for e in edges
+                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_HARD})
+    needs_s = sorted({e['source'] for e in edges
+                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_SOFT})
+    supp_h = sorted({e['target'] for e in edges
+                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_HARD})
+    supp_s = sorted({e['target'] for e in edges
+                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_SOFT})
+    helps_set = {e['target'] for e in edges
+                 if e['source'] == node_name and e['type'] == EDGE_HELPS}
+    helps_set |= {e['source'] for e in edges
+                  if e['target'] == node_name and e['type'] == EDGE_HELPS}
+    helps = sorted(helps_set)
 
     priority_goals = ConfigManager.get_priority_goals()
-    if old_node.type == 'Goal' and old_node.name in priority_goals:
-        db_priority_rank = str(priority_goals.index(old_node.name) + 1)
+    if node.type == 'Goal' and node.name in priority_goals:
+        priority_rank = str(priority_goals.index(node.name) + 1)
     else:
-        db_priority_rank = 'none'
+        priority_rank = 'none'
 
-    db_aliases = _norm_list(manager.get_aliases(original_name))
-    db_obs = _norm_list(parse_links(old_node.obsidian_path))
-    db_drive = _norm_list(parse_links(old_node.google_drive_path))
-    db_website = _norm_list(parse_links(old_node.website))
-
-    db_t_o = round(float(old_node.time_o or 0) / multiplier, 2)
-    db_t_m = round(float(old_node.time_m or 0) / multiplier, 2)
-    db_t_p = round(float(old_node.time_p or 0) / multiplier, 2)
-
-    # Type-specific fields: `priority_rank` only applies to Goal nodes, so
-    # comparing it otherwise would pick up leftover form state from a
-    # previously-edited Goal and produce a false "dirty" flag.
-    current_type = n_type or old_node.type
-    priority_matches = (current_type != 'Goal') or (form_priority_rank == db_priority_rank)
-
-    return (
-        _norm_str(name) != _norm_str(old_node.name) or
-        (n_type or '') != (old_node.type or '') or
-        _norm_str(desc) != _norm_str(old_node.description) or
-        _norm_str(context) != _norm_str(old_node.context) or
-        _norm_str(subctx) != _norm_str(old_node.subcontext) or
-        form_done != (old_node.status == 'Done') or
-        int(val or 5) != int(old_node.value or 5) or
-        int(interest or 5) != int(old_node.interest or 5) or
-        int(diff or 5) != int(old_node.difficulty or 5) or
-        form_t_o != db_t_o or form_t_m != db_t_m or form_t_p != db_t_p or
-        form_needs_h != db_needs_h or form_needs_s != db_needs_s or
-        form_supp_h != db_supp_h or form_supp_s != db_supp_s or
-        form_helps != db_helps or
-        form_obs != db_obs or form_drive != db_drive or form_website != db_website or
-        form_time_mode_inherited != (old_node.time_mode == 'inherited') or
-        not priority_matches or
-        _norm_str(competence_val) != _norm_str(old_node.competence) or
-        form_aliases != db_aliases
+    friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
+        node.time_o, node.time_m, node.time_p
     )
+
+    aliases = manager.get_aliases(node_name) or ['']
+
+    return {
+        'name': node.name,
+        'n_type': node.type,
+        'desc': node.description or '',
+        'context': node.context or '',
+        'subctx': node.subcontext or '',
+        'status_done': ['Done'] if node.status == 'Done' else [],
+        'val': node.value or 5,
+        'interest': node.interest or 5,
+        'diff': node.difficulty or 5,
+        'time_o': friendly_o,
+        'time_m': friendly_m,
+        'time_p': friendly_p,
+        'time_unit': friendly_unit,
+        'e_needs_h': needs_h,
+        'e_needs_s': needs_s,
+        'e_supp_h': supp_h,
+        'e_supp_s': supp_s,
+        'e_helps': helps,
+        # Drive paths are stripped of the configured GDrive root prefix in
+        # render_drive_links before display, so the form's State value is the
+        # stripped form. Snapshot must match.
+        'obs_links': parse_links(node.obsidian_path),
+        'drive_links': strip_gdrive_prefix(parse_links(node.google_drive_path)),
+        'website_links': parse_links(node.website),
+        'time_mode': ['inherited'] if node.time_mode == 'inherited' else [],
+        'priority_rank': priority_rank,
+        'competence': node.competence or '',
+        'aliases': aliases,
+    }
+
+
+def is_form_dirty_vs_snapshot(snapshot, form_values):
+    """Compare current editor form State to the pristine snapshot.
+
+    snapshot:    dict from build_editor_snapshot / NEW_NODE_SNAPSHOT, or None.
+    form_values: dict of current State values keyed the same as the snapshot.
+
+    Returns False if snapshot is None — no baseline means we can't tell, and
+    treating as not-dirty lets the X button always close in that edge case.
+    """
+    if snapshot is None:
+        return False
+
+    # Scalar string fields — strip whitespace before comparing.
+    for k in ('name', 'desc', 'context', 'subctx', 'competence'):
+        if _norm_str(form_values.get(k)) != _norm_str(snapshot.get(k)):
+            return True
+
+    # Type / time_unit / priority_rank — direct equality with empty-coercion.
+    if (form_values.get('n_type') or '') != (snapshot.get('n_type') or ''):
+        return True
+    if (form_values.get('time_unit') or '') != (snapshot.get('time_unit') or ''):
+        return True
+    if (form_values.get('priority_rank') or 'none') != (snapshot.get('priority_rank') or 'none'):
+        return True
+
+    # Integer fields with a default-of-5 convention.
+    for k in ('val', 'interest', 'diff'):
+        if int(form_values.get(k) or 5) != int(snapshot.get(k) or 5):
+            return True
+
+    # Time fields — compare with 2-decimal rounding to match form display.
+    for k in ('time_o', 'time_m', 'time_p'):
+        if round(float(form_values.get(k) or 0), 2) != round(float(snapshot.get(k) or 0), 2):
+            return True
+
+    # Checkbox-list fields — set comparison.
+    for k in ('status_done', 'time_mode'):
+        if set(form_values.get(k) or []) != set(snapshot.get(k) or []):
+            return True
+
+    # Multi-value list fields — drop empties, sort, compare.
+    for k in ('e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps',
+              'obs_links', 'drive_links', 'website_links', 'aliases'):
+        if _norm_list(form_values.get(k)) != _norm_list(snapshot.get(k)):
+            return True
+
+    return False
 
 
 # --- Node CRUD Helpers ---
