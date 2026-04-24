@@ -96,6 +96,44 @@ def test_populate_editor_successful_lookup_returns_37_items(monkeypatch):
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
 
 
+def test_populate_editor_filters_dormant_prereqs_from_edge_values(monkeypatch):
+    """Regression: dcc.Dropdown silently filters its initial value to entries
+    in `options` (which exclude dormant nodes), but on subsequent value updates
+    it does NOT re-filter — so re-opening the same node would inflate the form
+    State to include dormant items, breaking the X-close dirty check.
+    populate_editor must write the already-filtered value to keep State stable
+    across opens."""
+    from models import EDGE_NEEDS_HARD
+    mgr = GraphManager()
+    mgr.add_node(Node(
+        name="ActivePrereq", type="Learn", description="", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind",
+    ))
+    mgr.add_node(Node(
+        name="DormantPrereq", type="Action", description="", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind", dormant=1,
+    ))
+    mgr.add_node(Node(
+        name="TargetGoal", type="Goal", description="", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind",
+    ))
+    mgr.add_edge("ActivePrereq", "TargetGoal", EDGE_NEEDS_HARD)
+    mgr.add_edge("DormantPrereq", "TargetGoal", EDGE_NEEDS_HARD)
+    # Open the editor for TargetGoal via the edit-trigger path.
+    # Inputs: tap, btn-add, discard, save, search, bg, new-node, edit-trigger, details-edit-trigger
+    inputs = [None, None, None, None, None, None, None, "TargetGoal|123", None]
+    result = _call_with_trigger(monkeypatch, "edit-trigger-input", inputs)
+    # Output index 13 is `edge-needs-hard.value` (see Output declaration order).
+    needs_hard_value = result[13]
+    assert "ActivePrereq" in needs_hard_value
+    assert "DormantPrereq" not in needs_hard_value, (
+        f"populate_editor leaked a dormant prereq into the dropdown value: {needs_hard_value}"
+    )
+
+
 def test_populate_editor_all_return_paths_use_14_not_15(monkeypatch):
     """Static guard: the string literals in callbacks.py should never have *15
     suffix for populate_editor's no_update + options tuple pattern.

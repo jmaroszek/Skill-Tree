@@ -471,3 +471,26 @@ class TestIsFormDirtyVsSnapshot:
         # Form holds the linted alias too (input was re-rendered from the store).
         form = self._form_from_snapshot(snap)
         assert not is_form_dirty_vs_snapshot(snap, form)
+
+    def test_dormant_prereq_does_not_cause_false_positive(self):
+        """Regression: edge dropdowns get options from non-dormant nodes only.
+        dcc.Dropdown silently filters its value to entries in options, so a
+        prereq edge to a dormant node is invisible to the form's State. The
+        snapshot must apply the same filter, otherwise the dirty check fires
+        on every X-close for any node that has a dormant prerequisite."""
+        from graph_manager import GraphManager
+        from models import EDGE_NEEDS_HARD
+        mgr = GraphManager()
+        target = self._seed(mgr, name='Target Goal', type='Goal')
+        # Active prereq — visible in dropdown, will appear in form State.
+        active = self._seed(mgr, name='Active Prereq', type='Learn')
+        # Dormant prereq — excluded from dropdown options, dropped from form State.
+        dormant = self._seed(mgr, name='Dormant Prereq', type='Action', dormant=1)
+        mgr.add_edge(active.name, target.name, EDGE_NEEDS_HARD)
+        mgr.add_edge(dormant.name, target.name, EDGE_NEEDS_HARD)
+        snap = build_editor_snapshot(mgr, target.name)
+        # Snapshot must include only the active prereq, mirroring the dropdown.
+        assert snap['e_needs_h'] == ['Active Prereq']
+        # Form State (also missing the dormant prereq) — not dirty.
+        form = self._form_from_snapshot(snap)
+        assert not is_form_dirty_vs_snapshot(snap, form)
