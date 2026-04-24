@@ -200,12 +200,23 @@ def score_nodes(
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
     goal_boost = hyperparams.get('goal_boost', 1.5)
+    alpha = hyperparams.get('alpha', 0.0)
+    context_weights = hyperparams.get('context_weights', {}) or {}
 
     all_nodes_dict = {n.name: n for n in all_nodes}
 
     t0 = time.perf_counter() if time_phases else 0.0
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
     t1 = time.perf_counter() if time_phases else 0.0
+
+    # Per-bucket active counts for density normalization. Goal/Done/Blocked
+    # nodes don't compete for top-N slots, so they don't dilute the budget.
+    n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
+    for n in active_nodes:
+        if n.type == 'Goal' or n.status in ('Done', 'Blocked'):
+            continue
+        key = (n.context, n.subcontext)
+        n_active_map[key] = n_active_map.get(key, 0) + 1
 
     # Outer-call memo for total_value. When external_memo is supplied (by
     # GraphManager), reuse its cached values across score_nodes invocations
@@ -261,6 +272,15 @@ def score_nodes(
         # Apply ranked priority goal boost (highest rank wins)
         if node.name in node_to_boost:
             score = round(score * node_to_boost[node.name], 2)
+
+        # Context-aware adjustments (post-TV/cost). Weight applies at the
+        # parent-context level only; density normalizes by (context,
+        # subcontext) bucket size. Both default to no-op (1.0).
+        weight = context_weights.get(node.context, 1.0) if node.context else 1.0
+        n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
+        density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
+        if weight != 1.0 or density_mult != 1.0:
+            score = round(score * weight * density_mult, 2)
 
         node.priority_score = score
         scored_nodes.append(node)
@@ -443,6 +463,8 @@ def explain_score(
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
     goal_boost = hyperparams.get('goal_boost', 1.5)
+    alpha = hyperparams.get('alpha', 0.0)
+    context_weights = hyperparams.get('context_weights', {}) or {}
 
     all_nodes_dict = {n.name: n for n in all_nodes}
     node = all_nodes_dict.get(node_name)
@@ -450,6 +472,14 @@ def explain_score(
         return None
 
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
+
+    # Bucket counts match score_nodes: exclude Goal/Done/Blocked from density.
+    n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
+    for n_ in all_nodes:
+        if n_.type == 'Goal' or n_.status in ('Done', 'Blocked'):
+            continue
+        key = (n_.context, n_.subcontext)
+        n_active_map[key] = n_active_map.get(key, 0) + 1
 
     iv = intrinsic_value(node, w_v, w_i)
     time_overridden = (node.time_mode == 'inherited')
@@ -539,10 +569,19 @@ def explain_score(
             block_reason = "Missing prereqs: " + ", ".join(sorted(missing))
 
     raw_score = total_value_sum / cost if cost > 0 else 0.0
+
+    # Context-aware adjustments (mirrors score_nodes).
+    ctx_weight = context_weights.get(node.context, 1.0) if node.context else 1.0
+    n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
+    density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
+    combined_ctx_mult = ctx_weight * density_mult
+
     if eligible:
         score = round(raw_score, 2)
         if goal_boost_info is not None:
             score = round(score * goal_boost_info['multiplier'], 2)
+        if combined_ctx_mult != 1.0:
+            score = round(score * combined_ctx_mult, 2)
     else:
         score = -1.0
 
@@ -555,6 +594,7 @@ def explain_score(
         'hyperparams': {
             'w_v': w_v, 'w_i': w_i, 'w_e': w_e, 'w_t': w_t, 'beta': beta,
             'd_H': d_H, 'd_S': d_S, 'd_Syn': d_Syn, 'goal_boost': goal_boost,
+            'alpha': alpha,
         },
         'intrinsic': {
             'value': node.value,
@@ -575,6 +615,13 @@ def explain_score(
             'total_value': total_value_sum,
         },
         'goal_boost': goal_boost_info,
+        'context_adjustment': {
+            'weight': ctx_weight,
+            'n_bucket': n_bucket,
+            'alpha': alpha,
+            'density_mult': density_mult,
+            'combined_multiplier': combined_ctx_mult,
+        },
         'contributors': contributors,
     }
 

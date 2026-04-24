@@ -151,12 +151,6 @@ def build_settings_tab_content():
                             ], width=4),
                         ]),
 
-                        # --- Contexts group ---
-                        html.Hr(className="my-2"),
-                        html.H5("Contexts", className="mt-2 mb-1"),
-                        html.Small("One context per line. Optionally add a colon and comma-separated subcontexts. Context names are ignored when checking for duplicate nodes.", className="text-muted d-block mb-1"),
-                        dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
-
                         # --- Name Linter group ---
                         html.Hr(className="my-2"),
                         html.H5("Name Linter", className="mt-2 mb-1"),
@@ -171,6 +165,24 @@ def build_settings_tab_content():
                         dbc.Textarea(id="setting-linter-exclusions", rows=2,
                                      placeholder="e.g. a, an, the, and, or, of"),
                         html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
+                    ], className="p-2")
+                ]),
+                dbc.Tab(label="Contexts", tab_id="tab-contexts", children=[
+                    html.Div([
+                        # --- Context definitions ---
+                        html.H5("Definitions", className="mt-2 mb-1"),
+                        html.Small("One context per line. Optionally add a colon and comma-separated subcontexts. Context names are ignored when checking for duplicate nodes.", className="text-muted d-block mb-1"),
+                        dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
+
+                        # --- Priority weights ---
+                        html.Hr(className="my-3"),
+                        html.H5("Priority Weights", className="mt-2 mb-1"),
+                        html.Small(
+                            "Relative importance per context. 1.0 = baseline. "
+                            "Doubling a weight doubles that context's priority scores relative to others. "
+                            "Applies at the parent-context level — subcontexts inherit their parent's weight.",
+                            className="text-muted d-block mb-2"),
+                        html.Div(id="setting-context-weights-container"),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Algorithms", tab_id="tab-algorithm", children=[
@@ -236,6 +248,25 @@ def build_settings_tab_content():
                             dbc.Col([]),
                             dbc.Col([dbc.Label("Synergy", className="mt-2"), dbc.Input(id="hp-dsyn", type="number", step=0.01)]),
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
+                        ], className="mb-2"),
+
+                        # --- Context Density row ---
+                        html.Hr(className="my-3"),
+                        html.H6("Context Density", className="mt-2 mb-1"),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Exponent (\u03b1)", className="mt-1"),
+                                dbc.Input(id="hp-alpha", type="number",
+                                          min=0, max=1.5, step=0.05),
+                            ], width=4),
+                            dbc.Col([
+                                html.Small(
+                                    "Normalizes scores by (context, subcontext) bucket size: "
+                                    "score \u00d7 1 / n^\u03b1. 0 disables. 0.3 (Default profile) "
+                                    "compensates mildly; 1.0 fully cancels size bias. "
+                                    "Higher values penalize larger buckets more.",
+                                    className="text-muted d-block mt-4"),
+                            ], width=8),
                         ], className="mb-2"),
 
                         # --- Graph Layout Defaults group ---

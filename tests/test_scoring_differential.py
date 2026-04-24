@@ -66,6 +66,8 @@ def _baseline_score_nodes(
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
     goal_boost = hyperparams.get('goal_boost', 1.5)
+    alpha = hyperparams.get('alpha', 0.0)
+    context_weights = hyperparams.get('context_weights', {}) or {}
 
     all_nodes_dict = {n.name: n for n in all_nodes}
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
@@ -83,6 +85,13 @@ def _baseline_score_nodes(
             for n in subtree:
                 if n not in node_to_boost or multiplier > node_to_boost[n]:
                     node_to_boost[n] = multiplier
+
+    n_active_map = {}
+    for n in active_nodes:
+        if n.type == 'Goal' or n.status in ('Done', 'Blocked'):
+            continue
+        key = (n.context, n.subcontext)
+        n_active_map[key] = n_active_map.get(key, 0) + 1
 
     scored_nodes = []
     for node in active_nodes:
@@ -107,6 +116,11 @@ def _baseline_score_nodes(
         score = round(tv / cost, 2)
         if node.name in node_to_boost:
             score = round(score * node_to_boost[node.name], 2)
+        weight = context_weights.get(node.context, 1.0) if node.context else 1.0
+        n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
+        density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
+        if weight != 1.0 or density_mult != 1.0:
+            score = round(score * weight * density_mult, 2)
         node.priority_score = score
         scored_nodes.append(node)
 

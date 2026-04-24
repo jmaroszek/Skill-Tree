@@ -11,7 +11,7 @@ from callback_helpers import (
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
     _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
-    snapshot_from_form_state,
+    snapshot_from_form_state, build_explain_summary,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -657,3 +657,117 @@ class TestSnapshotFromFormState:
         snap = snapshot_from_form_state(form, form['name'], form['aliases'])
         assert snap['e_needs_h'] == ['Active Prereq']
         assert not is_form_dirty_vs_snapshot(snap, form)
+
+
+# ============================================================================
+# build_explain_summary — Adjustments section rendering
+# ============================================================================
+
+def _minimal_breakdown(**overrides):
+    """Build the minimal dict shape that _explain_summary_table consumes."""
+    bd = {
+        'node': 'X',
+        'score': 1.23,
+        'raw_score': 1.23,
+        'eligible': True,
+        'block_reason': None,
+        'intrinsic': {'value': 5, 'interest': 5, 'iv': 10.0},
+        'cost': {'difficulty': 5, 'time': 2.0, 'time_overridden': False, 'cost': 15.5},
+        'composition': {
+            'iv': 10.0,
+            'hard_cascade': 2.0,
+            'soft_cascade': 0.5,
+            'synergy': 0.0,
+            'total_value': 12.5,
+        },
+        'goal_boost': None,
+        'context_adjustment': {
+            'weight': 1.0, 'n_bucket': 1, 'alpha': 0.0,
+            'density_mult': 1.0, 'combined_multiplier': 1.0,
+        },
+        'contributors': [],
+    }
+    bd.update(overrides)
+    return bd
+
+
+def _render_text(component):
+    """Flatten a Dash component tree into a string for substring assertions."""
+    if component is None:
+        return ""
+    if isinstance(component, str):
+        return component
+    if isinstance(component, list):
+        return " ".join(_render_text(c) for c in component)
+    children = getattr(component, 'children', None)
+    return _render_text(children) if children is not None else ""
+
+
+class TestExplainSummaryAdjustments:
+    def test_no_adjustments_section_when_all_trivial(self):
+        """With weight=1, density=1, no goal boost: no Adjustments header."""
+        table = build_explain_summary(_minimal_breakdown(), normalized=80)
+        text = _render_text(table)
+        assert "Adjustments" not in text
+        assert "Density" not in text
+        assert "Context Weight" not in text
+
+    def test_density_only_renders_row(self):
+        bd = _minimal_breakdown(context_adjustment={
+            'weight': 1.0, 'n_bucket': 17, 'alpha': 0.3,
+            'density_mult': 0.432, 'combined_multiplier': 0.432,
+        })
+        table = build_explain_summary(bd, normalized=50)
+        text = _render_text(table)
+        assert "Adjustments" in text
+        assert "Density" in text
+        assert "n=17" in text
+        assert "\u03b1=0.30" in text
+        assert "Context Weight" not in text
+        assert "Goal Boost" not in text
+
+    def test_weight_only_renders_row(self):
+        bd = _minimal_breakdown(context_adjustment={
+            'weight': 2.0, 'n_bucket': 5, 'alpha': 0.0,
+            'density_mult': 1.0, 'combined_multiplier': 2.0,
+        })
+        table = build_explain_summary(bd, normalized=50)
+        text = _render_text(table)
+        assert "Context Weight" in text
+        assert "\u00d72.000" in text
+        assert "Density" not in text
+
+    def test_goal_boost_and_context_both_render(self):
+        bd = _minimal_breakdown(
+            goal_boost={'multiplier': 1.5, 'goal': 'Health', 'rank': 1},
+            context_adjustment={
+                'weight': 2.0, 'n_bucket': 17, 'alpha': 0.3,
+                'density_mult': 0.432, 'combined_multiplier': 1.296,
+            },
+        )
+        table = build_explain_summary(bd, normalized=50)
+        text = _render_text(table)
+        assert "Goal Boost" in text
+        assert "rank #1" in text
+        assert "Health" in text
+        assert "Context Weight" in text
+        assert "Density" in text
+        assert "Combined" in text
+
+    def test_raw_annotation_updated_when_adjustments_present(self):
+        """When Adjustments section shows, Raw row gets the short summary."""
+        bd = _minimal_breakdown(context_adjustment={
+            'weight': 2.0, 'n_bucket': 1, 'alpha': 0.0,
+            'density_mult': 1.0, 'combined_multiplier': 2.0,
+        })
+        table = build_explain_summary(bd, normalized=50)
+        text = _render_text(table)
+        # Old inline annotation should not appear any more
+        assert "includes goal boost" not in text
+        assert "all adjustments applied" in text
+
+    def test_ineligible_still_shows_block_reason(self):
+        bd = _minimal_breakdown(eligible=False, block_reason="Blocked")
+        table = build_explain_summary(bd, normalized=None)
+        text = _render_text(table)
+        assert "Blocked" in text

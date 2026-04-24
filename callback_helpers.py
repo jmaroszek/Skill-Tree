@@ -1136,13 +1136,54 @@ def _explain_summary_table(breakdown: dict, normalized):
         _num_cell(cost_info['cost']),
     ]))
 
+    # --- Adjustments section (shown only if any multiplier is non-trivial) --
+    ctx_adj = breakdown.get('context_adjustment') or {}
+    ctx_weight = ctx_adj.get('weight', 1.0)
+    density_mult = ctx_adj.get('density_mult', 1.0)
+    n_bucket = ctx_adj.get('n_bucket', 1)
+    alpha_val = ctx_adj.get('alpha', 0.0)
+    has_boost = boost is not None
+    has_weight = abs(ctx_weight - 1.0) > 1e-9
+    has_density = abs(density_mult - 1.0) > 1e-9
+    has_any_adjustment = has_boost or has_weight or has_density
+
+    if has_any_adjustment:
+        rows.append(html.Tr([html.Td("Adjustments", colSpan=2, style=header_style)]))
+        combined = 1.0
+        if has_boost:
+            rows.append(html.Tr([
+                html.Td([html.Span("Goal Boost"),
+                         html.Span(f" (rank #{boost['rank']} · {boost['goal']})",
+                                   style={**muted_style, "marginLeft": "4px"})]),
+                html.Td(f"\u00d7{boost['multiplier']:.3f}", style=num_style),
+            ]))
+            combined *= boost['multiplier']
+        if has_weight:
+            rows.append(html.Tr([
+                html.Td("Context Weight"),
+                html.Td(f"\u00d7{ctx_weight:.3f}", style=num_style),
+            ]))
+            combined *= ctx_weight
+        if has_density:
+            rows.append(html.Tr([
+                html.Td([html.Span("Density"),
+                         html.Span(f" (n={n_bucket}, \u03b1={alpha_val:.2f})",
+                                   style={**muted_style, "marginLeft": "4px"})]),
+                html.Td(f"\u00d7{density_mult:.3f}", style=num_style),
+            ]))
+            combined *= density_mult
+        rows.append(html.Tr([
+            html.Td("Combined", style=total_style),
+            html.Td(f"\u00d7{combined:.3f}", style={**num_style, **total_style}),
+        ]))
+
     # --- Score section ------------------------------------------------
     rows.append(html.Tr([html.Td("Score", colSpan=2, style=header_style)]))
     if eligible:
         raw_label = [html.Span("Raw")]
-        if boost is not None:
+        if has_any_adjustment:
             raw_label.append(html.Span(
-                f" (includes goal boost ×{boost['multiplier']:.3f} · rank #{boost['rank']} · {boost['goal']})",
+                " (all adjustments applied)",
                 style={**muted_style, "marginLeft": "4px"},
             ))
         rows.append(html.Tr([

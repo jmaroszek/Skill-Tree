@@ -406,10 +406,15 @@ class GraphManager:
         priority-goal change, or cosmetic edit (description, tags, paths)
         doesn't alter scoring inputs, so the expensive recursive cascade
         doesn't need re-walking. Invalidated only when _scoring_version
-        advances (a scoring-relevant node/edge mutation) or hyperparams change.
+        advances (a scoring-relevant node/edge mutation) or a TV-affecting
+        hyperparam changes. Cost params (w_e, w_t, beta), goal_boost, and the
+        context-adjustment params (alpha, context_weights) don't affect the
+        cached TV cascade, so they are excluded from the key.
         """
         hypers = ConfigManager.get_hyperparams()
-        hypers_key = tuple(sorted(hypers.items()))
+        hypers['context_weights'] = ConfigManager.get_context_weights()
+        TV_AFFECTING_KEYS = ('w_v', 'w_i', 'd_H', 'd_S', 'd_Syn')
+        hypers_key = tuple((k, hypers.get(k)) for k in TV_AFFECTING_KEYS)
         cache_key = (self._scoring_version, hypers_key)
         with self._cache_lock:
             if cache_key != self._scoring_memo_key:

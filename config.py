@@ -191,6 +191,7 @@ DEFAULT_HYPERPARAMS = {
     'w_t': 1.00,
     'beta': 0.85,
     'goal_boost': 1.50,
+    'alpha': 0.30,
 }
 
 PROFILES = {
@@ -198,12 +199,12 @@ PROFILES = {
     'Curious': {
         'w_v': 1.00, 'w_i': 1.50, 'd_H': 0.75, 'd_S': 0.35,
         'd_Syn': 0.50, 'w_e': 1.00, 'w_t': 2.50, 'beta': 0.50,
-        'goal_boost': 1.50,
+        'goal_boost': 1.50, 'alpha': 0.40,
     },
     'Industrious': {
         'w_v': 1.50, 'w_i': 1.00, 'd_H': 0.50, 'd_S': 0.15,
         'd_Syn': 0.25, 'w_e': 4.00, 'w_t': 3.00, 'beta': 0.70,
-        'goal_boost': 2.00,
+        'goal_boost': 2.00, 'alpha': 0.20,
     }
 }
 
@@ -239,6 +240,15 @@ class ConfigManager:
     @classmethod
     def set_node_types(cls, types: list):
         cls._set_db_value("NODE_TYPES", json.dumps(types))
+
+    @classmethod
+    def get_context_weights(cls) -> dict:
+        val = cls._get_db_value("CONTEXT_WEIGHTS")
+        return json.loads(val) if val else {}
+
+    @classmethod
+    def set_context_weights(cls, weights: dict):
+        cls._set_db_value("CONTEXT_WEIGHTS", json.dumps(weights))
 
     @classmethod
     def get_contexts(cls):

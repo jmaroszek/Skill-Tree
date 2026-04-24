@@ -155,7 +155,11 @@ Tracing what happens from `python app.py -sandbox` to the moment you can click a
 Every eligible active node is scored by:
 
 ```
-score = eligibility * (total_value / perceived_cost)
+score = eligibility
+        * (total_value / perceived_cost)
+        * goal_boost_if_applicable
+        * context_weight(n.context)
+        * (1 / n_active[(n.context, n.subcontext)] ** alpha)
 ```
 
 - **Eligibility** is 1 if every hard prerequisite is Done, else 0. A zero-eligibility node is pushed to the bottom of the list.
@@ -163,6 +167,10 @@ score = eligibility * (total_value / perceived_cost)
 - **Total value** is intrinsic value *plus* a recursive discounted sum over everything this node unlocks or synergizes with. A node that sits upstream of ten valuable tasks inherits some of their value, which is why foundational bottleneck tasks rise to the top naturally. The recursion has the discount factors `d_H` (hard edges out), `d_S` (soft edges out), and `d_Syn` (synergies).
 - **Perceived cost** is `1 + w_e * difficulty + w_t * (time ** beta)`, where `beta < 1` makes the time penalty sub-linear (a 100-hour task is expensive but not 100× worse than a 1-hour task).
 - **Goal boost.** The top three Priority Goals each multiply the scores of everything in their hard-prerequisite subtree — the #1 goal at full strength, #2 at ~66%, #3 at ~33%. Highest-rank boost wins if a node belongs to multiple priority subtrees.
+- **Context weight.** User-assigned per parent context; defaults to 1.0. Subcontexts inherit their parent's weight. Lets the user state cross-context importance explicitly ("Health > abstract math") even before decomposing those areas. Persisted under the `CONTEXT_WEIGHTS` Settings key.
+- **Density normalization.** `1 / n_active[(context, subcontext)] ** alpha`, where `n_active` counts active (not Done, not Blocked, not type=Goal) nodes in the target's `(context, subcontext)` bucket. The `alpha` hyperparameter tunes strength: 0 disables, 0.5 compensates moderately, 1.0 fully cancels size bias. Motivation: without this, a heavily decomposed context crowds top-N recommendations regardless of its cross-context importance, because the cascade sums contributions without normalizing for granularity. Per-profile defaults: Default 0.3, Curious 0.4, Industrious 0.2 — all deliberately conservative so the user feels the effect but can dial up/down.
+
+Both context weight and density multipliers apply **after** TV/cost — the cascade itself and its memoization are untouched.
 
 `score_nodes()` composes the above, returning the active-nodes list sorted descending on `priority_score`.
 
@@ -204,6 +212,8 @@ The Total Value recursion has gone through three stages as the graph grew. Each 
 | 1000 | ~10⁶ – 10⁷ | ~3·10³ | ~300–3000× |
 
 Stage 3's cost grows linearly, Stage 1/2's grows worse than linearly and is dominated by a constant-factor `b^d` term that inflates as the graph gets more connected. At 487 nodes / 832 edges the actual observed speedup was ~4000× (30 s → 7 ms).
+
+**Memo invalidation is narrow.** `GraphManager.calculate_priority_scores` caches the per-node TV memo across calls and invalidates it only when (a) the graph mutates (`_scoring_version` bumps) or (b) a *TV-affecting* hyperparameter changes. The cache key includes only `w_v, w_i, d_H, d_S, d_Syn` — the parameters that actually feed into `total_value`. Everything else (`w_e, w_t, beta, goal_boost, alpha, context_weights`) is either a cost term or a post-score multiplier, so changing any of them re-ranks cheaply without re-walking the cascade. This is what lets the user tune density normalization or adjust context weights in the Settings tab without paying the first-batch cost.
 
 ### Cascade status (`graph_manager._update_node_state`)
 

@@ -38,6 +38,7 @@ def register_settings_callbacks(app):
         Output('hp-wt', 'value'),
         Output('hp-beta', 'value'),
         Output('hp-goal-boost', 'value'),
+        Output('hp-alpha', 'value'),
         Output('setting-node-types', 'value'),
         Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
@@ -46,6 +47,7 @@ def register_settings_callbacks(app):
         Output('setting-node-shapes-container', 'children'),
         Output('setting-node-status-colors-container', 'children'),
         Output('setting-node-type-colors-container', 'children'),
+        Output('setting-context-weights-container', 'children'),
         Output('setting-hpw', 'value'),
         Output('setting-hpm', 'value'),
         Output('setting-default-time-unit', 'value'),
@@ -75,12 +77,13 @@ def register_settings_callbacks(app):
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 41
+            return (dash.no_update,) * 43
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
         subcontexts = ConfigManager.get_subcontexts()
+        ctx_weights = ConfigManager.get_context_weights()
         obs_path = ConfigManager.get_obsidian_vault()
         gdrive_path = ConfigManager.get_gdrive_path()
         profile = ConfigManager.get_hp_profile()
@@ -161,6 +164,18 @@ def register_settings_callbacks(app):
 
         type_color_rows = [_type_color_row(t) for t in display_types]
 
+        weight_rows = []
+        for ctx_name in contexts:
+            weight_rows.append(dbc.Row([
+                dbc.Col(dbc.Label(ctx_name, className="mb-0"), width=4,
+                        className="d-flex align-items-center"),
+                dbc.Col(dbc.Input(
+                    id={"type": "setting-context-weight", "index": ctx_name},
+                    type="number", min=0, max=10, step=0.1,
+                    value=float(ctx_weights.get(ctx_name, 1.0)),
+                ), width=4),
+            ], className="mb-2"))
+
         ts = ConfigManager.get_time_settings()
         from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
         ted = ConfigManager.get_time_estimate_defaults()
@@ -180,6 +195,7 @@ def register_settings_callbacks(app):
             hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35),
             hp.get('w_e', 2.5), hp.get('w_t', 1.0), hp.get('beta', 0.85),
             hp.get('goal_boost', 1.5),
+            hp.get('alpha', 0.3),
             ', '.join(node_types),
             sub_val,
             profile,
@@ -188,6 +204,7 @@ def register_settings_callbacks(app):
             shape_rows,
             status_color_rows,
             type_color_rows,
+            weight_rows,
             ts.get('hours_per_week', 40),
             ts.get('hours_per_month', 160),
             ted.get('unit', DEFAULT_TIME_ESTIMATE_DEFAULTS['unit']),
@@ -225,6 +242,7 @@ def register_settings_callbacks(app):
         Output('hp-wt', 'value', allow_duplicate=True),
         Output('hp-beta', 'value', allow_duplicate=True),
         Output('hp-goal-boost', 'value', allow_duplicate=True),
+        Output('hp-alpha', 'value', allow_duplicate=True),
         Input('setting-hp-profile', 'value'),
         prevent_initial_call=True,
     )
@@ -233,8 +251,9 @@ def register_settings_callbacks(app):
         if profile_val in PROFILES:
             p = PROFILES[profile_val]
             return (p['w_v'], p['w_i'], p['d_H'], p['d_S'], p['d_Syn'],
-                    p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5))
-        return (dash.no_update,) * 9
+                    p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5),
+                    p.get('alpha', 0.3))
+        return (dash.no_update,) * 10
 
     # --- Settings: Sync Time Estimates ---
     @app.callback(
@@ -268,6 +287,7 @@ def register_settings_callbacks(app):
         State('hp-dh', 'value'), State('hp-ds', 'value'), State('hp-dsyn', 'value'),
         State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
         State('hp-goal-boost', 'value'),
+        State('hp-alpha', 'value'),
         State('setting-node-types', 'value'),
         State('setting-subcontexts', 'value'),
         State('setting-obsidian-path', 'value'),
@@ -276,6 +296,8 @@ def register_settings_callbacks(app):
         State({"type": "setting-shape", "index": ALL}, "id"),
         State({"type": "setting-color", "index": ALL}, "value"),
         State({"type": "setting-color", "index": ALL}, "id"),
+        State({"type": "setting-context-weight", "index": ALL}, "value"),
+        State({"type": "setting-context-weight", "index": ALL}, "id"),
         State('setting-hpw', 'value'), State('setting-hpm', 'value'),
         State('setting-default-time-unit', 'value'),
         State('setting-default-time-o', 'value'),
@@ -303,8 +325,10 @@ def register_settings_callbacks(app):
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn, we, wt, beta, goal_boost,
+                      alpha,
                       n_types_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
+                      ctx_weight_values, ctx_weight_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
                       linter_enabled_val, linter_exclusions_val,
@@ -329,7 +353,16 @@ def register_settings_callbacks(app):
                 'd_H': float(dh), 'd_S': float(ds), 'd_Syn': float(dsyn),
                 'w_e': float(we), 'w_t': float(wt), 'beta': float(beta),
                 'goal_boost': float(goal_boost) if goal_boost is not None else 1.5,
+                'alpha': _clamp(alpha, 0.0, 1.5, 0.3),
             }
+
+            new_ctx_weights: dict = {}
+            if ctx_weight_ids and ctx_weight_values:
+                for wid, wval in zip(ctx_weight_ids, ctx_weight_values):
+                    name = wid.get("index")
+                    if not name:
+                        continue
+                    new_ctx_weights[name] = _clamp(wval, 0.0, 10.0, 1.0)
 
             new_ts = {
                 'hours_per_week': float(hpw) if hpw is not None else 40,
@@ -431,6 +464,7 @@ def register_settings_callbacks(app):
                     'types': new_types,
                     'contexts': new_contexts,
                     'subcontexts': new_subcontexts,
+                    'context_weights': new_ctx_weights,
                     'shapes': pending_shapes,
                     'colors': pending_colors,
                     'linter': new_linter,
@@ -483,6 +517,10 @@ def register_settings_callbacks(app):
             if new_contexts:
                 ConfigManager.set_contexts(new_contexts)
             ConfigManager.set_subcontexts(new_subcontexts)
+            # Persist only weights for contexts that still exist post-save.
+            ConfigManager.set_context_weights(
+                {k: v for k, v in new_ctx_weights.items() if k in (new_contexts or [])}
+            )
 
             if shape_ids and shape_values:
                 new_shapes = {}
@@ -538,6 +576,7 @@ def register_settings_callbacks(app):
         from scoring import score_nodes
         N = max(1, int(n_runs or 10))
         hypers = ConfigManager.get_hyperparams()
+        hypers['context_weights'] = ConfigManager.get_context_weights()
         priority_goals = ConfigManager.get_priority_goals()
         all_nodes = manager.get_all_nodes()
         edges = manager.get_edges()
@@ -650,6 +689,11 @@ def register_settings_callbacks(app):
                 if new_contexts:
                     ConfigManager.set_contexts(new_contexts)
                 ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
+                pending_weights = pending_state.get('context_weights', {}) or {}
+                ConfigManager.set_context_weights(
+                    {k: v for k, v in pending_weights.items()
+                     if k in (new_contexts or [])}
+                )
 
                 pending_shapes = pending_state.get('shapes', {})
                 if pending_shapes:

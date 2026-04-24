@@ -1513,11 +1513,13 @@ def register_details_callbacks(app):
             return no_update, no_update, no_update, no_update
         all_nodes = graph_manager.get_all_nodes()
         priority_goals = ConfigManager.get_priority_goals()
+        hypers = ConfigManager.get_hyperparams()
+        hypers['context_weights'] = ConfigManager.get_context_weights()
         breakdown = explain_score(
             node_name,
             all_nodes,
             graph_manager.get_edges(),
-            ConfigManager.get_hyperparams(),
+            hypers,
             priority_goals=priority_goals,
         )
         # Match the Next-tab suggestion table: normalize this node's
