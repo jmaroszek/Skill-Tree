@@ -254,10 +254,32 @@ class GraphManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Clear existing edges for this node
-            cursor.execute("DELETE FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')", (node_name,))
-            cursor.execute("DELETE FROM Edges WHERE source=? AND type IN ('Needs_Hard', 'Needs_Soft')", (node_name,))
-            cursor.execute("DELETE FROM Edges WHERE (target=? OR source=?) AND type='Helps'", (node_name, node_name))
+            # Clear existing edges whose other endpoint is non-dormant. The
+            # editor's edge dropdowns hide dormant nodes, so callers always
+            # pass `needs_*` / `supports_*` / `helps` lists with dormant
+            # entries already filtered out. Deleting dormant edges here would
+            # silently drop them (the INSERT loop below can't re-add them
+            # because they're not in the input lists), corrupting the graph
+            # on every save of a node that has dormant relationships.
+            cursor.execute(
+                """DELETE FROM Edges
+                   WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')
+                     AND source IN (SELECT name FROM Nodes WHERE dormant = 0)""",
+                (node_name,),
+            )
+            cursor.execute(
+                """DELETE FROM Edges
+                   WHERE source=? AND type IN ('Needs_Hard', 'Needs_Soft')
+                     AND target IN (SELECT name FROM Nodes WHERE dormant = 0)""",
+                (node_name,),
+            )
+            cursor.execute(
+                """DELETE FROM Edges
+                   WHERE type = 'Helps'
+                     AND ((target = ? AND source IN (SELECT name FROM Nodes WHERE dormant = 0))
+                       OR (source = ? AND target IN (SELECT name FROM Nodes WHERE dormant = 0)))""",
+                (node_name, node_name),
+            )
 
             def _insert_edge(src, trgt, etype):
                 if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) and self._will_create_cycle(src, trgt):
