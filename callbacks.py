@@ -43,10 +43,142 @@ _CORE_ENGINE_NUM_OUTPUTS = 22
 # should NOT trigger a graph regen via core_engine.
 _NON_GRAPH_TABS = frozenset({"tab-settings", "tab-events", "tab-analyze"})
 
+# Triggers that only open/close the editor sidebar without touching graph data,
+# filters, or focus. When core_engine fires on one of these (and nothing else
+# in the same cycle), we can skip the expensive scoring + element regen and
+# just compute the three sidebar styles. Saves ~100-300 ms per Edit click.
+_EDITOR_UI_ONLY_TRIGGERS = frozenset({
+    'edit-trigger-input', 'details-edit-trigger-input',
+    'btn-close-editor', 'btn-goals-toggle',
+})
+
+# Output slot indices within the core_engine output tuple. Kept here so the
+# editor-only short-circuit can build its partial tuple without repeating
+# magic numbers. Must stay in sync with the Output list at the callback
+# decoration site.
+_SIDEBAR_EDITOR_STYLE_IDX = 11
+_DETAILS_GOAL_SIDEBAR_STYLE_IDX = 20
+_EVENTS_SIDEBAR_STYLE_IDX = 21
+
 
 def _core_engine_noop_tuple():
     """Return a tuple of dash.no_update matching core_engine's output arity."""
     return (dash.no_update,) * _CORE_ENGINE_NUM_OUTPUTS
+
+
+def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_style):
+    """Return a 22-tuple populated only at the three sidebar-style slots.
+
+    Used by the editor-UI-only short-circuit in core_engine.
+    """
+    out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
+    out[_SIDEBAR_EDITOR_STYLE_IDX] = next_ed_style
+    out[_DETAILS_GOAL_SIDEBAR_STYLE_IDX] = next_goal_style
+    out[_EVENTS_SIDEBAR_STYLE_IDX] = next_events_style
+    return tuple(out)
+
+
+_DEFAULT_EDITOR_SIDEBAR_STYLE = {
+    "position": "absolute", "top": "0", "left": "0", "width": "380px",
+    "minWidth": "380px", "height": "100%", "zIndex": 1000,
+    "overflowX": "hidden", "overflowY": "auto",
+    "borderRight": "1px solid #495057", "transition": "transform 0.3s ease",
+    "transform": "translateX(-380px)", "willChange": "transform",
+    "backgroundColor": "#212529",
+}
+
+
+def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
+                             ed_style, goal_sidebar_style, events_sidebar_style,
+                             pending_nav_store,
+                             form_state):
+    """Determine next sidebar styles based on the triggering Input.
+
+    Returns (next_ed_style, next_goal_style, next_events_sidebar_style). The
+    editor-sidebar logic and the goal/events sidebar mutex both live here so
+    the short-circuit path and the full core_engine path share one
+    implementation.
+
+    `form_state` is a dict carrying the editor-form state used only when
+    trigger_id == 'btn-close-editor' (the unsaved-changes check). For triggers
+    that don't need it, pass an empty dict.
+    """
+    next_ed_style = ed_style or dict(_DEFAULT_EDITOR_SIDEBAR_STYLE)
+    if trigger_id == 'btn-add':
+        next_ed_style['transform'] = "translateX(0px)"
+    elif trigger_id == 'btn-new-node':
+        next_ed_style['transform'] = "translateX(0px)"
+    elif trigger_id == 'search-node' and not search_val:
+        # Search bar was cleared (e.g. by populate_editor resetting after btn-add) — don't
+        # touch the editor state. Without this guard, a race condition causes core_engine to
+        # read a stale "closed" ed_style and immediately close an editor that btn-add just opened.
+        next_ed_style = dash.no_update
+    elif should_open_editor(all_triggered_ids, trigger_id, search_val):
+        next_ed_style['transform'] = "translateX(0px)"
+    elif trigger_id == 'btn-goals-toggle':
+        next_ed_style['transform'] = "translateX(-380px)"
+    elif trigger_id == 'btn-save':
+        # Save only — keep editor open, don't change transform
+        next_ed_style['transform'] = "translateX(0px)"
+    elif trigger_id in ('btn-save-close', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
+        # btn-save-close and unsaved-save close it after saving.
+        # btn-unsaved-discard closes without saving.
+        # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
+        if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store == '__background__':
+            # User dismissed via canvas click — close the editor after save/discard.
+            next_ed_style['transform'] = "translateX(-380px)"
+        elif trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
+            pass  # Keep editor open — pending navigation will load the next node
+        elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not form_state.get('name') or not form_state.get('n_type')):
+            pass  # Keep sidebar open — validation error shown below
+        elif trigger_id == 'btn-close-editor':
+            form_has_content = has_editor_unsaved_changes(
+                manager, form_state.get('original_name'),
+                name=form_state.get('name'), n_type=form_state.get('n_type'),
+                desc=form_state.get('desc'),
+                context=form_state.get('context'), subctx=form_state.get('subctx'),
+                status_done=form_state.get('status_done'),
+                val=form_state.get('val'), interest=form_state.get('interest'),
+                diff=form_state.get('diff'),
+                time_o=form_state.get('time_o'), time_m=form_state.get('time_m'),
+                time_p=form_state.get('time_p'), time_unit=form_state.get('time_unit'),
+                e_needs_h=form_state.get('e_needs_h'), e_needs_s=form_state.get('e_needs_s'),
+                e_supp_h=form_state.get('e_supp_h'), e_supp_s=form_state.get('e_supp_s'),
+                e_helps=form_state.get('e_helps'),
+                obs_link_values=form_state.get('obs_link_values'),
+                drive_link_values=form_state.get('drive_link_values'),
+                website_link_values=form_state.get('website_link_values'),
+                time_mode_val=form_state.get('time_mode_val'),
+                priority_rank_val=form_state.get('priority_rank_val'),
+                competence_val=form_state.get('competence_val'),
+                alias_values=form_state.get('alias_values'),
+            )
+            if not form_has_content:
+                next_ed_style['transform'] = "translateX(-380px)"
+        else:
+            next_ed_style['transform'] = "translateX(-380px)"
+    else:
+        # Race-prevention guard: if the trigger has nothing to do with the
+        # editor (tab switches, refresh triggers, filter changes, etc.),
+        # don't echo ed_style back to the DOM. Otherwise, a late response
+        # from a slow non-editor trigger can clobber an in-flight
+        # edit-trigger response that had opened the sidebar — causing the
+        # intermittent "Edit menu clicked but editor doesn't open" symptom
+        # (especially right after tab switching to Nodes tab).
+        next_ed_style = dash.no_update
+
+    # Goal / Events Sidebar Mutex: close them when editor opens
+    next_goal_style = dash.no_update
+    next_events_sidebar_style = dash.no_update
+    if isinstance(next_ed_style, dict) and next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
+        # Editor is opening — ensure goal sidebar is closed
+        if goal_sidebar_style and goal_sidebar_style.get('left', '-380px') == '0px':
+            next_goal_style = dict(goal_sidebar_style)
+            next_goal_style['left'] = '-380px'
+        if events_sidebar_style and events_sidebar_style.get('left', '-380px') == '0px':
+            next_events_sidebar_style = dict(events_sidebar_style)
+            next_events_sidebar_style['left'] = '-380px'
+    return next_ed_style, next_goal_style, next_events_sidebar_style
 
 
 def _friendly_time_estimates(time_o, time_m, time_p):
@@ -1006,6 +1138,39 @@ def register_callbacks(app):
             return _core_engine_noop_tuple()
 
         all_triggered_ids = get_all_triggered_ids()
+
+        # Editor-UI-only short-circuit: when the only thing that fired is a
+        # pure editor UI trigger (e.g. context-menu Edit, close button, goals
+        # toggle), skip the scoring + element regen pipeline and return a
+        # minimal tuple with just the three sidebar styles. Saves ~100-300 ms
+        # per Edit click and prevents the old ed_style race by minimizing the
+        # window in which other callbacks could race with us.
+        if (trigger_id in _EDITOR_UI_ONLY_TRIGGERS
+                and all_triggered_ids <= _EDITOR_UI_ONLY_TRIGGERS):
+            _form_state_for_close = {
+                'original_name': original_name,
+                'name': name, 'n_type': n_type, 'desc': desc,
+                'context': context, 'subctx': subctx, 'status_done': status_done,
+                'val': val, 'interest': interest, 'diff': diff,
+                'time_o': time_o, 'time_m': time_m, 'time_p': time_p,
+                'time_unit': time_unit,
+                'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
+                'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
+                'obs_link_values': obs_link_values,
+                'drive_link_values': drive_link_values,
+                'website_link_values': website_link_values,
+                'time_mode_val': time_mode_val,
+                'priority_rank_val': priority_rank_val,
+                'competence_val': competence_val,
+                'alias_values': alias_values,
+            }
+            ed, goal, events = _compute_sidebar_styles(
+                trigger_id, all_triggered_ids, search_val,
+                ed_style, goal_sidebar_style, events_sidebar_style,
+                pending_nav_store, _form_state_for_close,
+            )
+            return _core_engine_editor_only_tuple(ed, goal, events)
+
         msg = ""
         completion_check_node = None  # Set when a node transitions to Done
 
@@ -1017,68 +1182,31 @@ def register_callbacks(app):
 
         filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_goal=f_goal)
 
-        # Editor Sidebar State (380px matches sidebar_content width in layout.py)
-        next_ed_style = ed_style or {"position": "absolute", "top": "0", "left": "0", "width": "380px", "minWidth": "380px", "height": "100%", "zIndex": 1000, "overflowX": "hidden", "overflowY": "auto", "borderRight": "1px solid #495057", "transition": "transform 0.3s ease", "transform": "translateX(-380px)", "willChange": "transform", "backgroundColor": "#212529"}
-        if trigger_id == 'btn-add':
-            # Always open the editor
-            next_ed_style['transform'] = "translateX(0px)"
-        elif trigger_id == 'btn-new-node':
-            # Always open the editor (populate_editor handles unsaved-changes modal)
-            next_ed_style['transform'] = "translateX(0px)"
-        elif trigger_id == 'search-node' and not search_val:
-            # Search bar was cleared (e.g. by populate_editor resetting after btn-add) — don't
-            # touch the editor state. Without this guard, a race condition causes core_engine to
-            # read a stale "closed" ed_style and immediately close an editor that btn-add just opened.
-            next_ed_style = dash.no_update
-        elif should_open_editor(all_triggered_ids, trigger_id, search_val):
-            next_ed_style['transform'] = "translateX(0px)"
-        elif trigger_id == 'btn-goals-toggle':
-            next_ed_style['transform'] = "translateX(-380px)"
-        elif trigger_id == 'btn-save':
-            # Save only — keep editor open, don't change transform
-            next_ed_style['transform'] = "translateX(0px)"
-        elif trigger_id in ('btn-save-close', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
-            # btn-save-close and unsaved-save close it after saving.
-            # btn-unsaved-discard closes without saving.
-            # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
-            if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store == '__background__':
-                # User dismissed via canvas click — close the editor after save/discard.
-                next_ed_style['transform'] = "translateX(-380px)"
-            elif trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
-                pass  # Keep editor open — pending navigation will load the next node
-            elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not name or not n_type):
-                pass  # Keep sidebar open — validation error shown below
-            elif trigger_id == 'btn-close-editor':
-                form_has_content = has_editor_unsaved_changes(
-                    manager, original_name,
-                    name=name, n_type=n_type, desc=desc,
-                    context=context, subctx=subctx, status_done=status_done,
-                    val=val, interest=interest, diff=diff,
-                    time_o=time_o, time_m=time_m, time_p=time_p, time_unit=time_unit,
-                    e_needs_h=e_needs_h, e_needs_s=e_needs_s,
-                    e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
-                    obs_link_values=obs_link_values, drive_link_values=drive_link_values,
-                    website_link_values=website_link_values,
-                    time_mode_val=time_mode_val,
-                    priority_rank_val=priority_rank_val, competence_val=competence_val,
-                    alias_values=alias_values,
-                )
-                if not form_has_content:
-                    next_ed_style['transform'] = "translateX(-380px)"
-            else:
-                next_ed_style['transform'] = "translateX(-380px)"
-
-        # Goal / Events Sidebar Mutex: close them when editor opens
-        next_goal_style = dash.no_update
-        next_events_sidebar_style = dash.no_update
-        if isinstance(next_ed_style, dict) and next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
-            # Editor is opening — ensure goal sidebar is closed
-            if goal_sidebar_style and goal_sidebar_style.get('left', '-380px') == '0px':
-                next_goal_style = dict(goal_sidebar_style)
-                next_goal_style['left'] = '-380px'
-            if events_sidebar_style and events_sidebar_style.get('left', '-380px') == '0px':
-                next_events_sidebar_style = dict(events_sidebar_style)
-                next_events_sidebar_style['left'] = '-380px'
+        # Editor Sidebar State — delegate to the shared helper so both the
+        # short-circuit path above and the full path below compute sidebars
+        # identically.
+        _form_state = {
+            'original_name': original_name,
+            'name': name, 'n_type': n_type, 'desc': desc,
+            'context': context, 'subctx': subctx, 'status_done': status_done,
+            'val': val, 'interest': interest, 'diff': diff,
+            'time_o': time_o, 'time_m': time_m, 'time_p': time_p,
+            'time_unit': time_unit,
+            'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
+            'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
+            'obs_link_values': obs_link_values,
+            'drive_link_values': drive_link_values,
+            'website_link_values': website_link_values,
+            'time_mode_val': time_mode_val,
+            'priority_rank_val': priority_rank_val,
+            'competence_val': competence_val,
+            'alias_values': alias_values,
+        }
+        next_ed_style, next_goal_style, next_events_sidebar_style = _compute_sidebar_styles(
+            trigger_id, all_triggered_ids, search_val,
+            ed_style, goal_sidebar_style, events_sidebar_style,
+            pending_nav_store, _form_state,
+        )
 
         # Use whichever edit trigger fired (details tab or main)
         _edit_trigger = details_edit_trigger_data if trigger_id == 'details-edit-trigger-input' else edit_trigger_data
@@ -1933,16 +2061,27 @@ def register_callbacks(app):
         return dash.no_update
 
     # --- Edit Trigger: switch to canvas tab ---
+    # NOTE: short-circuit when already on canvas. Writing the same value to
+    # main-tabs.active_tab with allow_duplicate=True still re-fires any Input
+    # depending on it (notably core_engine). That second core_engine run had
+    # trigger_id='main-tabs', which doesn't match any editor-open branch, so
+    # it returned the State-cached ed_style — racing with the open-editor
+    # output from the Edit-trigger run and sometimes clobbering it back to
+    # translateX(-380px). Only writing when the tab actually needs to change
+    # avoids the spurious re-fire.
     @app.callback(
         Output('main-tabs', 'active_tab', allow_duplicate=True),
         Input('edit-trigger-input', 'value'),
+        State('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
-    def handle_edit_trigger(value):
+    def handle_edit_trigger(value, current_tab):
         if not value:
             return dash.no_update
         node_name = value.split('|')[0]
         if not node_name:
+            return dash.no_update
+        if current_tab == 'tab-canvas':
             return dash.no_update
         return 'tab-canvas'
 

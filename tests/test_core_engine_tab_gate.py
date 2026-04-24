@@ -9,7 +9,16 @@ import dash
 import pytest
 
 import callbacks
-from callbacks import _CORE_ENGINE_NUM_OUTPUTS, _NON_GRAPH_TABS, _core_engine_noop_tuple
+from callbacks import (
+    _CORE_ENGINE_NUM_OUTPUTS,
+    _NON_GRAPH_TABS,
+    _EDITOR_UI_ONLY_TRIGGERS,
+    _SIDEBAR_EDITOR_STYLE_IDX,
+    _DETAILS_GOAL_SIDEBAR_STYLE_IDX,
+    _EVENTS_SIDEBAR_STYLE_IDX,
+    _core_engine_noop_tuple,
+    _core_engine_editor_only_tuple,
+)
 
 
 def _core_engine_fn():
@@ -95,3 +104,106 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     except Exception:
         return  # guard didn't short-circuit; body ran and failed on None args — expected
     assert not all(r is dash.no_update for r in result)
+
+
+# ---------------------------------------------------------------------------
+# Editor-UI-only short-circuit: edit-trigger-input / details-edit-trigger-input
+# / btn-close-editor / btn-goals-toggle alone should skip the expensive path
+# and return only the three sidebar-style slots populated.
+# ---------------------------------------------------------------------------
+
+
+def test_editor_ui_only_triggers_set_content():
+    assert _EDITOR_UI_ONLY_TRIGGERS == frozenset({
+        'edit-trigger-input', 'details-edit-trigger-input',
+        'btn-close-editor', 'btn-goals-toggle',
+    })
+
+
+def test_editor_only_tuple_arity_and_slots():
+    """_core_engine_editor_only_tuple fills only the three sidebar slots."""
+    t = _core_engine_editor_only_tuple("ed", "goal", "events")
+    assert len(t) == _CORE_ENGINE_NUM_OUTPUTS
+    assert t[_SIDEBAR_EDITOR_STYLE_IDX] == "ed"
+    assert t[_DETAILS_GOAL_SIDEBAR_STYLE_IDX] == "goal"
+    assert t[_EVENTS_SIDEBAR_STYLE_IDX] == "events"
+    # Every other slot is no_update
+    for i, slot in enumerate(t):
+        if i in (_SIDEBAR_EDITOR_STYLE_IDX, _DETAILS_GOAL_SIDEBAR_STYLE_IDX, _EVENTS_SIDEBAR_STYLE_IDX):
+            continue
+        assert slot is dash.no_update, f"slot {i} should be no_update"
+
+
+@pytest.mark.parametrize("trigger", ['edit-trigger-input', 'details-edit-trigger-input'])
+def test_edit_trigger_short_circuits_and_opens_editor(monkeypatch, trigger):
+    """An Edit trigger alone short-circuits and opens the sidebar (translateX(0px))."""
+    cb, _ = _core_engine_fn()
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({trigger}))
+    args = [None] * 72
+    # edit_trigger_data / details_edit_trigger_data positional indexes: 32, 33
+    args[32] = "NodeX|123"
+    args[33] = "NodeX|123"
+    result = cb(*args)
+    assert len(result) == _CORE_ENGINE_NUM_OUTPUTS
+    ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
+    assert isinstance(ed, dict), f"ed_style should be a dict, got {type(ed)}"
+    assert ed.get('transform') == 'translateX(0px)', f"editor should open, got {ed}"
+    # Every non-sidebar slot is no_update — scoring + elements did NOT run.
+    for i, slot in enumerate(result):
+        if i in (_SIDEBAR_EDITOR_STYLE_IDX, _DETAILS_GOAL_SIDEBAR_STYLE_IDX, _EVENTS_SIDEBAR_STYLE_IDX):
+            continue
+        assert slot is dash.no_update, f"slot {i} should be no_update when short-circuiting on {trigger}"
+
+
+def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
+    """btn-goals-toggle alone short-circuits and closes the editor (translateX(-380px))."""
+    cb, _ = _core_engine_fn()
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-goals-toggle")
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({"btn-goals-toggle"}))
+    args = [None] * 72
+    result = cb(*args)
+    ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
+    assert isinstance(ed, dict)
+    assert ed.get('transform') == 'translateX(-380px)'
+
+
+def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch):
+    """btn-close-editor alone short-circuits; closes the editor when form has no content."""
+    cb, _ = _core_engine_fn()
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-close-editor")
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({"btn-close-editor"}))
+    # Stub out the unsaved-changes check — a blank form, no pending nav.
+    monkeypatch.setattr(callbacks, "has_editor_unsaved_changes", lambda *a, **kw: False)
+    args = [None] * 72
+    result = cb(*args)
+    ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
+    assert isinstance(ed, dict)
+    assert ed.get('transform') == 'translateX(-380px)'
+
+
+def test_edit_trigger_batched_with_other_input_does_not_short_circuit(monkeypatch):
+    """If edit-trigger-input fires batched with a non-editor Input, the full path must run."""
+    cb, _ = _core_engine_fn()
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "edit-trigger-input")
+    # Simulate batched fire: edit-trigger AND search-node both triggered.
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids",
+                         lambda: frozenset({"edit-trigger-input", "search-node"}))
+    args = [None] * 72
+    args[32] = "NodeX|123"
+    try:
+        result = cb(*args)
+    except Exception:
+        return  # full path entered and failed on None args downstream — proves no short-circuit
+    # If it did return, it must NOT be the minimal editor-only tuple shape:
+    # at least one output beyond the three sidebar slots must have been computed
+    # (i.e. not no_update). Otherwise we'd know the short-circuit mistakenly fired.
+    non_sidebar_updates = [
+        i for i, v in enumerate(result)
+        if i not in (_SIDEBAR_EDITOR_STYLE_IDX, _DETAILS_GOAL_SIDEBAR_STYLE_IDX, _EVENTS_SIDEBAR_STYLE_IDX)
+        and v is not dash.no_update
+    ]
+    assert non_sidebar_updates, (
+        "batched edit-trigger+search-node should have run the full path and updated "
+        "non-sidebar outputs; short-circuit fired incorrectly"
+    )
