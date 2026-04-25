@@ -128,7 +128,7 @@ class TestComputeBottlenecks:
             {'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD},
             {'source': 'B', 'target': 'C', 'type': EDGE_NEEDS_HARD},
         ]
-        hard_fwd, _, _, _ = _build_adjacency(edges)
+        hard_fwd, _, _, _, _ = _build_adjacency(edges)
         limits = {'bottlenecks': 25}
         result = _compute_bottlenecks(nodes, hard_fwd, limits)
 
@@ -143,7 +143,7 @@ class TestComputeBottlenecks:
             _make_node("B", status="Open"),
         ]
         edges = [{'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD}]
-        hard_fwd, _, _, _ = _build_adjacency(edges)
+        hard_fwd, _, _, _, _ = _build_adjacency(edges)
         result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
         # A is Done, so it shouldn't appear; B has no outgoing
         assert len(result) == 0
@@ -151,7 +151,7 @@ class TestComputeBottlenecks:
     def test_respects_limit(self):
         nodes = [_make_node(f"N{i}", status="Open") for i in range(10)]
         edges = [{'source': f'N{i}', 'target': f'N{i+1}', 'type': EDGE_NEEDS_HARD} for i in range(9)]
-        hard_fwd, _, _, _ = _build_adjacency(edges)
+        hard_fwd, _, _, _, _ = _build_adjacency(edges)
         result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 3})
         assert len(result) == 3
 
@@ -232,9 +232,9 @@ class TestComputeGoalComparison:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, hard_rev, _, all_rev = _build_adjacency(edges)
+        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         goal_rows, overlap_rows, total = _compute_goal_comparison(
-            nodes, hard_rev, {'goals': 25})
+            nodes, hard_rev, prereq_rev, {'goals': 25})
         assert total == 1
         assert goal_rows[0]['done'] == 1
         assert goal_rows[0]['total'] == 2
@@ -245,9 +245,9 @@ class TestComputeGoalComparison:
         _setup_graph(mgr, goals)
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, hard_rev, _, all_rev = _build_adjacency(edges)
+        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         goal_rows, _, total = _compute_goal_comparison(
-            nodes, hard_rev, {'goals': 3})
+            nodes, hard_rev, prereq_rev, {'goals': 3})
         assert total == 10
         assert len(goal_rows) == 3
 
@@ -262,11 +262,52 @@ class TestComputeGoalComparison:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, hard_rev, _, all_rev = _build_adjacency(edges)
+        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         _, overlap_rows, _ = _compute_goal_comparison(
-            nodes, hard_rev, {'goals': 25})
+            nodes, hard_rev, prereq_rev, {'goals': 25})
         assert len(overlap_rows) == 1
         assert overlap_rows[0]['shared'] == 1
+
+    def test_overlap_includes_soft_prereqs(self, mgr):
+        """Shared overlap should count nodes connected by Needs_Soft, not just Needs_Hard."""
+        _setup_graph(mgr, [
+            _make_node("GoalA", type="Goal"),
+            _make_node("GoalB", type="Goal"),
+            _make_node("HardShared", status="Open"),
+            _make_node("SoftShared", status="Open"),
+        ], [
+            ("HardShared", "GoalA", EDGE_NEEDS_HARD),
+            ("HardShared", "GoalB", EDGE_NEEDS_HARD),
+            ("SoftShared", "GoalA", EDGE_NEEDS_SOFT),
+            ("SoftShared", "GoalB", EDGE_NEEDS_SOFT),
+        ])
+        nodes = mgr.get_all_nodes()
+        edges = mgr.get_edges()
+        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
+        goal_rows, overlap_rows, _ = _compute_goal_comparison(
+            nodes, hard_rev, prereq_rev, {'goals': 25})
+        # Overlap counts both hard- and soft-shared prereqs
+        assert overlap_rows[0]['shared'] == 2
+        # But completion stats stay hard-only: each goal's total is just HardShared
+        for row in goal_rows:
+            assert row['total'] == 1
+
+    def test_overlap_excludes_helps_edges(self, mgr):
+        """Helps (synergy) edges should not contribute to shared overlap."""
+        _setup_graph(mgr, [
+            _make_node("GoalA", type="Goal"),
+            _make_node("GoalB", type="Goal"),
+            _make_node("HelpsBoth", status="Open"),
+        ], [
+            ("HelpsBoth", "GoalA", EDGE_HELPS),
+            ("HelpsBoth", "GoalB", EDGE_HELPS),
+        ])
+        nodes = mgr.get_all_nodes()
+        edges = mgr.get_edges()
+        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
+        _, overlap_rows, _ = _compute_goal_comparison(
+            nodes, hard_rev, prereq_rev, {'goals': 25})
+        assert overlap_rows == []
 
 
 # ============================================================================
@@ -310,7 +351,7 @@ class TestComputeDependencyStructure:
             {'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD},
             {'source': 'B', 'target': 'C', 'type': EDGE_NEEDS_HARD},
         ]
-        hard_fwd, hard_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, _, all_fwd, all_rev = _build_adjacency(edges)
         limits = {'deepest': 10, 'connected': 10}
         result = _compute_dependency_structure(
             nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits)
@@ -328,7 +369,7 @@ class TestComputeDependencyStructure:
             {'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD},
             {'source': 'B', 'target': 'C', 'type': EDGE_NEEDS_HARD},
         ]
-        hard_fwd, hard_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, _, all_fwd, all_rev = _build_adjacency(edges)
         limits = {'deepest': 10, 'connected': 10}
         result = _compute_dependency_structure(
             nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits)
@@ -346,7 +387,7 @@ class TestComputeDependencyStructure:
             {'source': 'B', 'target': 'C', 'type': EDGE_NEEDS_HARD},
             {'source': 'B', 'target': 'D', 'type': EDGE_NEEDS_SOFT},
         ]
-        hard_fwd, hard_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, _, all_fwd, all_rev = _build_adjacency(edges)
         limits = {'deepest': 10, 'connected': 10}
         result = _compute_dependency_structure(
             nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits)
@@ -431,9 +472,11 @@ class TestComputeContextCoverage:
 class TestBuildAdjacency:
     def test_hard_edges(self):
         edges = [{'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD}]
-        hard_fwd, hard_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency(edges)
         assert 'B' in hard_fwd['A']
         assert 'A' in hard_rev['B']
+        # Hard edges feed into prereq_rev as well
+        assert 'A' in prereq_rev['B']
 
     def test_all_edge_types(self):
         edges = [
@@ -441,13 +484,26 @@ class TestBuildAdjacency:
             {'source': 'C', 'target': 'D', 'type': EDGE_NEEDS_SOFT},
             {'source': 'E', 'target': 'F', 'type': EDGE_HELPS},
         ]
-        hard_fwd, hard_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency(edges)
         assert 'B' in hard_fwd['A']
         assert 'D' in all_fwd['C']
         assert 'F' in all_fwd['E']
         # Soft and Helps should NOT be in hard adjacency
         assert 'D' not in hard_fwd.get('C', [])
 
+    def test_prereq_rev_includes_hard_and_soft(self):
+        """prereq_rev must include both Needs_Hard and Needs_Soft, but not Helps."""
+        edges = [
+            {'source': 'H', 'target': 'X', 'type': EDGE_NEEDS_HARD},
+            {'source': 'S', 'target': 'X', 'type': EDGE_NEEDS_SOFT},
+            {'source': 'P', 'target': 'X', 'type': EDGE_HELPS},
+        ]
+        _, _, prereq_rev, _, _ = _build_adjacency(edges)
+        assert 'H' in prereq_rev['X']
+        assert 'S' in prereq_rev['X']
+        assert 'P' not in prereq_rev['X']
+
     def test_empty_edges(self):
-        hard_fwd, hard_rev, all_fwd, all_rev = _build_adjacency([])
+        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency([])
         assert len(hard_fwd) == 0
+        assert len(prereq_rev) == 0

@@ -8,7 +8,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from collections import defaultdict
 from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from config import ConfigManager
 from scoring import intrinsic_value
 
@@ -20,6 +20,21 @@ def _trunc(name, max_len=25):
     return name if len(name) <= max_len else name[:max_len - 1] + '\u2026'
 
 
+def _label_axis(full_names):
+    """Axis-dict fragment that displays truncated labels for full categorical names.
+
+    Plotly treats duplicate categorical axis values as a single category and overlays
+    their bars; passing full (unique) names as the axis values and using tickvals /
+    ticktext to override the displayed labels keeps each entry distinct while still
+    showing a truncated label.
+    """
+    return dict(
+        tickmode='array',
+        tickvals=list(full_names),
+        ticktext=[_trunc(n) for n in full_names],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Adjacency helpers
 # ---------------------------------------------------------------------------
@@ -28,13 +43,15 @@ def _build_adjacency(edges):
     """Build in-memory forward and reverse adjacency maps from edge list.
 
     Returns:
-        hard_fwd:  source -> [targets]  for Needs_Hard edges
-        hard_rev:  target -> [sources]  for Needs_Hard edges (prerequisites)
-        all_fwd:   source -> [targets]  for all edge types
-        all_rev:   target -> [sources]  for all edge types
+        hard_fwd:    source -> [targets]  for Needs_Hard edges
+        hard_rev:    target -> [sources]  for Needs_Hard edges (hard prerequisites)
+        prereq_rev:  target -> [sources]  for Needs_Hard + Needs_Soft edges (all prerequisites)
+        all_fwd:     source -> [targets]  for all edge types
+        all_rev:     target -> [sources]  for all edge types
     """
     hard_fwd = defaultdict(list)
     hard_rev = defaultdict(list)
+    prereq_rev = defaultdict(list)
     all_fwd = defaultdict(list)
     all_rev = defaultdict(list)
     for e in edges:
@@ -44,7 +61,10 @@ def _build_adjacency(edges):
         if etype == EDGE_NEEDS_HARD:
             hard_fwd[s].append(t)
             hard_rev[t].append(s)
-    return hard_fwd, hard_rev, all_fwd, all_rev
+            prereq_rev[t].append(s)
+        elif etype == EDGE_NEEDS_SOFT:
+            prereq_rev[t].append(s)
+    return hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev
 
 
 # ---------------------------------------------------------------------------
@@ -143,12 +163,13 @@ def _rank_goals(goals, priority_goals, hp):
     return [g for g, _ in scored]
 
 
-def _compute_goal_comparison(nodes, hard_rev, limits):
+def _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits):
     """Compute goal stats and pairwise overlap using in-memory adjacency.
 
     Ranks goals by intrinsic value (from scoring algorithm) boosted by priority rank,
-    then caps to keep visualizations readable. Both progress and overlap are computed
-    over hard prerequisites only.
+    then caps to keep visualizations readable. Progress is computed over hard
+    prerequisites only (those gate completion); pairwise overlap is computed over
+    hard + soft prerequisites (the full body of prep work shared between goals).
     """
     all_goals = [n for n in nodes if n.type == 'Goal']
     node_map = {n.name: n for n in nodes}
@@ -160,26 +181,26 @@ def _compute_goal_comparison(nodes, hard_rev, limits):
     goals = ranked[:limits.get('goals', 75)]
     total_goal_count = len(all_goals)
 
-    def _get_subtree(goal_name):
-        """BFS backward through hard prerequisite edges only."""
+    def _walk_back(goal_name, adjacency):
+        """BFS backward through the given reverse adjacency map."""
         visited = set()
-        queue = list(hard_rev.get(goal_name, []))
+        queue = list(adjacency.get(goal_name, []))
         while queue:
             current = queue.pop()
             if current in visited:
                 continue
             visited.add(current)
-            for prev_node in hard_rev.get(current, []):
+            for prev_node in adjacency.get(current, []):
                 if prev_node not in visited:
                     queue.append(prev_node)
         return visited
 
     goal_rows = []
-    subtrees = {}
+    prereq_subtrees = {}
     for g in goals:
-        subtree = _get_subtree(g.name)
-        subtrees[g.name] = subtree
-        sub_nodes = [node_map[name] for name in subtree if name in node_map]
+        # Hard subtree drives completion stats (hard prereqs gate the goal).
+        hard_subtree = _walk_back(g.name, hard_rev)
+        sub_nodes = [node_map[name] for name in hard_subtree if name in node_map]
         total = len(sub_nodes)
         done = sum(1 for n in sub_nodes if n.status == 'Done')
         blocked = sum(1 for n in sub_nodes if n.status == 'Blocked')
@@ -195,15 +216,17 @@ def _compute_goal_comparison(nodes, hard_rev, limits):
             'blocked': blocked,
             'priority_rank': priority_rank,
         })
+        # Hard + soft subtree drives shared-prerequisite overlap.
+        prereq_subtrees[g.name] = _walk_back(g.name, prereq_rev)
     goal_rows.sort(key=lambda r: r['pct'])
 
-    # Pairwise overlap (only among top goals)
+    # Pairwise overlap (only among top goals) — uses combined hard + soft prereqs
     overlap_rows = []
     goal_names = [g.name for g in goals]
     for i in range(len(goal_names)):
         for j in range(i + 1, len(goal_names)):
             a, b = goal_names[i], goal_names[j]
-            sa, sb = subtrees.get(a, set()), subtrees.get(b, set())
+            sa, sb = prereq_subtrees.get(a, set()), prereq_subtrees.get(b, set())
             shared = sa & sb
             union = sa | sb
             if shared:
@@ -477,11 +500,8 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, heig
     if not names:
         return None
     color = colors if colors else '#0d6efd'
-    # Truncate names for display, keep originals for hover
-    display_names = [_trunc(n) for n in names]
     # Reverse so largest is at top (Plotly draws bottom-up)
     names = list(reversed(names))
-    display_names = list(reversed(display_names))
     values = list(reversed(values))
     if isinstance(color, list):
         color = list(reversed(color))
@@ -492,7 +512,7 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, heig
         height = max(180, len(names) * 28 + 60)
 
     fig = go.Figure(go.Bar(
-        y=display_names, x=values, orientation='h',
+        y=names, x=values, orientation='h',
         marker_color=color, opacity=0.9,
         hovertext=hover_texts,
         hoverinfo='text' if hover_texts else 'x+y',
@@ -506,7 +526,7 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, heig
     fig.update_layout(**_base_layout(
         height=height,
         margin=dict(l=10, r=20, t=10, b=30),
-        yaxis=dict(automargin=True, ticksuffix="  "),
+        yaxis=dict(automargin=True, ticksuffix="  ", **_label_axis(names)),
         xaxis=xaxis,
     ))
     return fig
@@ -633,14 +653,13 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     # --- Shared y-axis order (used by both charts) ---
     # goal_rows is sorted by pct ascending; we want least complete at top
     y_order = [g['name'] for g in goal_rows]  # bottom-to-top in Plotly
-    display_y_order = [_trunc(n) for n in y_order]
     n_goals = len(y_order)
     shared_height = max(300, n_goals * 32 + 80)
     shared_margin = dict(l=10, r=20, t=30, b=30)
 
     # --- Completion bar chart (stacked: done + remaining) ---
     sorted_goals = list(reversed(goal_rows))  # reversed for Plotly bottom-up drawing
-    display_names = [_trunc(g['name']) for g in sorted_goals]
+    bar_names = [g['name'] for g in sorted_goals]
     done_pcts = [g['pct'] for g in sorted_goals]
     remaining_pcts = [100 - g['pct'] for g in sorted_goals]
     hover_done = [
@@ -655,12 +674,12 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        y=display_names, x=done_pcts, orientation='h',
+        y=bar_names, x=done_pcts, orientation='h',
         marker_color='#198754', opacity=0.9, name='Done',
         hovertext=hover_done, hoverinfo='text',
     ))
     fig.add_trace(go.Bar(
-        y=display_names, x=remaining_pcts, orientation='h',
+        y=bar_names, x=remaining_pcts, orientation='h',
         marker_color='#495057', opacity=0.6, name='Remaining',
         hovertext=hover_rem, hoverinfo='text',
     ))
@@ -668,7 +687,8 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
         barmode='stack', height=shared_height,
         margin=shared_margin,
         yaxis=dict(automargin=True, ticksuffix="  ",
-                   categoryorder='array', categoryarray=display_y_order),
+                   categoryorder='array', categoryarray=bar_names,
+                   **_label_axis(bar_names)),
         xaxis=dict(title="Completion %", range=[0, 100]),
     ))
     sections_left.append(html.H6("Completion", className="text-muted mb-1"))
@@ -682,7 +702,6 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     # --- Shared Prerequisites Heatmap ---
     if overlap_rows and len(goal_names_ordered) > 1:
         gnames = goal_names_ordered
-        display_gnames = [_trunc(n) for n in gnames]
         n = len(gnames)
         idx = {name: i for i, name in enumerate(gnames)}
         # Build symmetric matrix
@@ -717,7 +736,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
                 reordered_hover.append([''] * n)
 
         hm_fig = go.Figure(go.Heatmap(
-            z=reordered_matrix, x=display_gnames, y=display_y_order,
+            z=reordered_matrix, x=gnames, y=y_order,
             colorscale=[[0, _BG], [0.25, '#162d50'], [0.5, '#1a5276'], [0.75, '#2185d0'], [1, '#54b8ff']],
             hovertext=reordered_hover, hoverinfo='text',
             showscale=False,
@@ -725,14 +744,16 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
         hm_fig.update_layout(**_base_layout(
             height=shared_height,
             margin=shared_margin,
-            xaxis=dict(automargin=True, tickangle=-45, side='bottom'),
+            xaxis=dict(automargin=True, tickangle=-45, side='bottom',
+                       **_label_axis(gnames)),
             yaxis=dict(automargin=True, ticksuffix="  ",
-                       categoryorder='array', categoryarray=display_y_order),
+                       categoryorder='array', categoryarray=y_order,
+                       **_label_axis(y_order)),
         ))
 
         sections_right.append(html.H6("Shared Prerequisites", className="text-muted mb-1"))
         sections_right.append(html.Small(
-            "Hard prerequisites only",
+            "Hard + soft prerequisites",
             className="text-muted d-block mb-2",
             style={"fontSize": "0.75rem"},
         ))
@@ -742,7 +763,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     if not sections_right:
         sections_right.append(html.H6("Shared Prerequisites", className="text-muted mb-1"))
         sections_right.append(html.Small(
-            "Hard prerequisites only",
+            "Hard + soft prerequisites",
             className="text-muted d-block mb-2",
             style={"fontSize": "0.75rem"},
         ))
@@ -760,7 +781,7 @@ def _render_risk_chart(data):
 
     fmt = ConfigManager.format_time_friendly
     # Keep sorted by spread descending (largest spread on left)
-    display_names = [_trunc(d['name']) for d in data]
+    full_names = [d['name'] for d in data]
     optimistic = [d['optimistic'] for d in data]
     spreads = [d['pessimistic'] - d['optimistic'] for d in data]
     expected = [d['expected'] for d in data]
@@ -777,26 +798,28 @@ def _render_risk_chart(data):
     fig = go.Figure()
     # Invisible base bar (pushes the visible bar up)
     fig.add_trace(go.Bar(
-        x=display_names, y=optimistic, orientation='v',
+        x=full_names, y=optimistic, orientation='v',
         marker_color='rgba(0,0,0,0)', marker_line_width=0, showlegend=False,
         hoverinfo='skip',
     ))
     # Visible range bar (optimistic to pessimistic)
     fig.add_trace(go.Bar(
-        x=display_names, y=spreads, orientation='v',
+        x=full_names, y=spreads, orientation='v',
         marker_color='#dc3545', opacity=0.7,
         hovertext=hover, hoverinfo='text',
     ))
     # Expected value markers
     fig.add_trace(go.Scatter(
-        x=display_names, y=expected, mode='markers',
+        x=full_names, y=expected, mode='markers',
         marker=dict(color='#ffc107', size=8, symbol='diamond'),
         hoverinfo='skip',
     ))
     fig.update_layout(**_base_layout(
         barmode='stack', height=350,
         margin=dict(l=40, r=10, t=10, b=10),
-        xaxis=dict(automargin=True, tickangle=-45),
+        xaxis=dict(automargin=True, tickangle=-45,
+                   categoryorder='array', categoryarray=full_names,
+                   **_label_axis(full_names)),
         yaxis=dict(title="Hours"),
     ))
     # Add a legend note
@@ -874,7 +897,6 @@ def _render_ratings_chart(data):
 
     # Sort so largest context is at top (data is already sorted by count desc)
     contexts = [d['context'] for d in data]
-    display_contexts = [_trunc(d['context']) for d in data]
 
     # Build z-matrix: rows = contexts, cols = metrics
     z = []
@@ -896,7 +918,7 @@ def _render_ratings_chart(data):
     fig = go.Figure(go.Heatmap(
         z=z,
         x=['Value', 'Interest', 'Difficulty'],
-        y=display_contexts,
+        y=contexts,
         colorscale=[[0, '#1a1d21'], [0.25, '#162d50'], [0.5, '#1a5276'],
                     [0.75, '#2185d0'], [1.0, '#54b8ff']],
         hovertext=hover, hoverinfo='text',
@@ -907,7 +929,7 @@ def _render_ratings_chart(data):
     fig.update_layout(**_base_layout(
         height=height,
         margin=dict(l=10, r=20, t=10, b=30),
-        yaxis=dict(automargin=True, ticksuffix="  "),
+        yaxis=dict(automargin=True, ticksuffix="  ", **_label_axis(contexts)),
         xaxis=dict(side='bottom'),
     ))
     return html.Div([
@@ -956,11 +978,11 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
                           x_title="Hours", height=height)
         # Override the reversal -- data is already sorted ascending (sparsest at top).
         # Plotly trace attribute types are stricter than runtime; the ignores below are false positives.
-        display_names = [_trunc(n) for n in names]
-        fig.data[0].y = display_names  # pyright: ignore[reportOptionalMemberAccess]
+        fig.data[0].y = names  # pyright: ignore[reportOptionalMemberAccess]
         fig.data[0].x = hours  # pyright: ignore[reportOptionalMemberAccess]
         fig.data[0].marker.color = colors  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
         fig.data[0].hovertext = hover  # pyright: ignore[reportOptionalMemberAccess]
+        fig.update_yaxes(**_label_axis(names))
 
         sections_ctx.append(html.H6("Hours by Context", className="text-muted mb-1"))
         sections_ctx.append(dcc.Graph(figure=fig, config=_CHART_CFG))
@@ -969,7 +991,6 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
         # Sort descending for vertical display (largest on left)
         sorted_sub = sorted(subctx_data, key=lambda d: d['time'], reverse=True)
         names = [d['label'] for d in sorted_sub]
-        display_names = [_trunc(n) for n in names]
         hours = [d['time'] for d in sorted_sub]
         colors = [_coverage_color_hours(d['time']) for d in sorted_sub]
         hover = [
@@ -981,14 +1002,16 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
             for d in sorted_sub
         ]
         fig = go.Figure(go.Bar(
-            x=display_names, y=hours, orientation='v',
+            x=names, y=hours, orientation='v',
             marker_color=colors, opacity=0.9,
             hovertext=hover, hoverinfo='text',
         ))
         fig.update_layout(**_base_layout(
             height=350,
             margin=dict(l=40, r=10, t=10, b=10),
-            xaxis=dict(automargin=True, tickangle=-45),
+            xaxis=dict(automargin=True, tickangle=-45,
+                       categoryorder='array', categoryarray=names,
+                       **_label_axis(names)),
             yaxis=dict(title="Hours"),
         ))
 
@@ -1042,7 +1065,7 @@ def register_analyze_callbacks(app):
                 html.P("No nodes in the graph yet.", className="text-muted small"),
             ], style={"textAlign": "center", "marginTop": "20%"})
 
-        hard_fwd, hard_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency(edges)
 
         # Compute all sections
         limits = _get_limits()
@@ -1050,7 +1073,7 @@ def register_analyze_callbacks(app):
         bottlenecks = _compute_bottlenecks(nodes, hard_fwd, limits)
         top_nodes = _compute_top_time_sinks(nodes, limits)
         ratings_data = _compute_ratings(nodes)
-        goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, hard_rev, limits)
+        goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits)
         risk_data = _compute_risk(nodes, limits)
         dep_data = _compute_dependency_structure(nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits)
         ctx_coverage, subctx_coverage = _compute_context_coverage(nodes)
