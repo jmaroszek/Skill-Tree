@@ -403,6 +403,26 @@ class TestComputeContextCoverage:
         no_ctx = [d for d in ctx_data if d['context'] == 'No Context']
         assert len(no_ctx) == 1
 
+    def test_weight_included_from_settings(self, mgr):
+        """Each ctx_data row includes its context's weight (default 1.0)."""
+        ConfigManager.set_contexts(["Mind", "Body"])
+        ConfigManager.set_context_weights({"Mind": 2.5})
+        nodes = [
+            _make_node("A", context="Mind"),
+            _make_node("B", context="Body"),
+        ]
+        ctx_data, _ = _compute_context_coverage(nodes)
+        by_ctx = {d['context']: d for d in ctx_data}
+        assert by_ctx['Mind']['weight'] == 2.5
+        assert by_ctx['Body']['weight'] == 1.0
+
+    def test_no_context_bucket_gets_default_weight(self, mgr):
+        ConfigManager.set_contexts(["Mind"])
+        nodes = [_make_node("A", context=None)]
+        ctx_data, _ = _compute_context_coverage(nodes)
+        no_ctx = next(d for d in ctx_data if d['context'] == 'No Context')
+        assert no_ctx['weight'] == 1.0
+
 
 # ============================================================================
 # _build_adjacency

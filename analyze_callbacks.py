@@ -278,6 +278,7 @@ def _compute_context_coverage(nodes):
     """Compare configured contexts/subcontexts against actual node assignments."""
     configured_contexts = ConfigManager.get_contexts()
     configured_subcontexts = ConfigManager.get_subcontexts()
+    weights = ConfigManager.get_context_weights()
     active = [n for n in nodes if n.status != 'Done']
 
     # Context coverage
@@ -299,6 +300,7 @@ def _compute_context_coverage(nodes):
             'time': d['time'],
             'avg_value': round(sum(d['values']) / c, 1) if c else 0,
             'avg_interest': round(sum(d['interests']) / c, 1) if c else 0,
+            'weight': float(weights.get(ctx, 1.0)),
         })
     # Add "No Context" if any nodes lack one
     if 'No Context' in ctx_counts:
@@ -310,6 +312,7 @@ def _compute_context_coverage(nodes):
             'time': d['time'],
             'avg_value': round(sum(d['values']) / c, 1) if c else 0,
             'avg_interest': round(sum(d['interests']) / c, 1) if c else 0,
+            'weight': 1.0,
         })
     ctx_data.sort(key=lambda r: r['time'])
 
@@ -937,12 +940,15 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
         colors = [_coverage_color_hours(d['time']) for d in ctx_data]
         hover = [
             f"<b>{d['context']}</b><br>"
+            f"Weight: \u00d7{d['weight']:.2f}<br>"
             f"Time: {fmt(d['time'])}<br>"
             f"Nodes: {d['count']}<br>"
             f"Avg value: {d['avg_value']}<br>"
             f"Avg interest: {d['avg_interest']}"
             if d['count'] > 0 else
-            f"<b>{d['context']}</b><br>No nodes assigned"
+            f"<b>{d['context']}</b><br>"
+            f"Weight: \u00d7{d['weight']:.2f}<br>"
+            f"No nodes assigned"
             for d in ctx_data
         ]
         height = chart_height or max(180, len(names) * 28 + 60)

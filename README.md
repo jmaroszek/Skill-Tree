@@ -52,7 +52,16 @@ Each row is a task. The columns tell you everything at a glance: its name, its t
 
 **[SCREENSHOT: close-up of a single row in the top-recommendations table, with columns labeled.]**
 
-The checkmark/x columns (Obsidian, Drive, Override) show at a glance whether a node has an external note, a linked file, or is currently being manually overridden. Clicking the priority score opens a popup that shows exactly how the algorithm arrived at that number.
+The checkmark/x columns (Obsidian, Drive, Override) show at a glance whether a node has an external note, a linked file, or is currently being manually overridden. Clicking the priority score opens a popup that shows exactly how the algorithm arrived at that number — including any adjustments from the two levers below.
+
+### Shaping the ranking across contexts
+
+Two settings in the **Settings** tab shape how contexts interact with the ranking, both applied after a task's raw score is computed:
+
+- **Context weights** (*Settings → Contexts → Priority Weights*) let you say "Health matters more than abstract math" even before you've decomposed those areas. Each context gets a weight; 1.0 is baseline, 2.0 doubles that context's scores relative to others, 0.5 halves them.
+- **Density normalization** (*Settings → Algorithms → Context Density Exponent α*) counteracts the bias where a heavily-decomposed context would otherwise crowd out a sparser one just because it has more nodes competing for top-N slots. Default α = 0.3 compensates mildly; 0 disables it, 1.0 fully cancels size bias. Each profile ships with a sensible α starting point — tune to taste.
+
+When either lever is active, the explain-score popup surfaces an **Adjustments** section that breaks the final score down multiplier by multiplier. The math is documented in full in [`technical_overview.md`](technical_overview.md).
 
 ### Filters
 

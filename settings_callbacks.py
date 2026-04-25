@@ -25,6 +25,42 @@ def _clamp(val, lo, hi, default):
     return max(lo, min(hi, v))
 
 
+def _migrate_context_weights(old_weights: dict, pending_weights: dict,
+                             new_contexts: list, rename_map: dict) -> dict:
+    """Resolve context weights after a save that renamed/merged/removed contexts.
+
+    Rules:
+      1. Context present in new_contexts  → keep its weight from pending_weights.
+      2. Context renamed (old → new) via the migration dialog:
+         - If the target's current weight in `final_weights` is the default
+           (1.0) and the source's old weight is non-default, carry the source's
+           weight to the target (the "I renamed Health → Body" case).
+         - Otherwise the target's weight wins (the "I'm folding Health into
+           an existing weighted Body context" case).
+      3. Context removed with no rename target: weight dropped.
+
+    Args:
+        old_weights: weights as persisted in the DB before this save.
+        pending_weights: weights from the current UI form state.
+        new_contexts: the post-save context list.
+        rename_map: {old_name: new_name} from the user's migration dropdown
+            selections. Empty for skip / no-migration flows.
+
+    Returns: the dict to persist via set_context_weights.
+    """
+    final_weights = {
+        c: pending_weights[c] for c in new_contexts if c in pending_weights
+    }
+    for old_name, new_name in rename_map.items():
+        if new_name not in new_contexts:
+            continue
+        target_w = final_weights.get(new_name, 1.0)
+        source_w = old_weights.get(old_name, 1.0)
+        if abs(target_w - 1.0) < 1e-9 and abs(source_w - 1.0) >= 1e-9:
+            final_weights[new_name] = source_w
+    return final_weights
+
+
 def register_settings_callbacks(app):
 
     # --- Settings: Load when Settings tab activates ---
@@ -505,13 +541,15 @@ def register_settings_callbacks(app):
             if new_types:
                 ConfigManager.set_node_types(new_types)
                 ConfigManager.sync_shapes_to_types(new_types)
+            old_weights = ConfigManager.get_context_weights()
             if new_contexts:
                 ConfigManager.set_contexts(new_contexts)
             ConfigManager.set_subcontexts(new_subcontexts)
-            # Persist only weights for contexts that still exist post-save.
-            ConfigManager.set_context_weights(
-                {k: v for k, v in new_ctx_weights.items() if k in (new_contexts or [])}
-            )
+            # No orphans here means no rename dialog was needed — just drop
+            # weights for contexts the user removed outright.
+            ConfigManager.set_context_weights(_migrate_context_weights(
+                old_weights, new_ctx_weights, new_contexts or [], {},
+            ))
 
             if shape_ids and shape_values:
                 new_shapes = {}
@@ -681,14 +719,26 @@ def register_settings_callbacks(app):
                     ConfigManager.set_node_types(new_types)
                     ConfigManager.sync_shapes_to_types(new_types)
                 new_contexts = pending_state.get('contexts', [])
+                # Snapshot persisted weights BEFORE set_contexts/set_context_weights
+                # so weight migration can consult pre-save state for rule-2 (rename).
+                old_weights = ConfigManager.get_context_weights()
                 if new_contexts:
                     ConfigManager.set_contexts(new_contexts)
                 ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
                 pending_weights = pending_state.get('context_weights', {}) or {}
-                ConfigManager.set_context_weights(
-                    {k: v for k, v in pending_weights.items()
-                     if k in (new_contexts or [])}
-                )
+                # Only honor the rename map when the user clicked Apply; Skip
+                # means "don't migrate", so filter-only (empty rename_map).
+                rename_map: dict = {}
+                if trigger_id == 'btn-migration-apply' and isinstance(mapping_data, dict):
+                    ctx_groups = mapping_data.get('ctx_groups', [])
+                    for i, group in enumerate(ctx_groups):
+                        old_name = group.get('old_value')
+                        new_name = cgc_values[i] if i < len(cgc_values) else None
+                        if old_name and new_name and new_name not in ('__keep__', '__clear__'):
+                            rename_map[old_name] = new_name
+                ConfigManager.set_context_weights(_migrate_context_weights(
+                    old_weights, pending_weights, new_contexts or [], rename_map,
+                ))
 
                 pending_shapes = pending_state.get('shapes', {})
                 if pending_shapes:

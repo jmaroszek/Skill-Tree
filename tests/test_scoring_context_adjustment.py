@@ -310,6 +310,88 @@ def test_memo_survives_context_weights_change(temp_database):
         "Memo was invalidated by context_weights change"
 
 
+# ---------------------------------------------------------------------------
+# Weight migration helper — rename / merge / skip scenarios
+# ---------------------------------------------------------------------------
+
+class TestMigrateContextWeights:
+    """Covers _migrate_context_weights: the pure helper that resolves weights
+    after contexts are renamed, merged, or removed via the migration dialog."""
+
+    def _call(self, old_weights, pending_weights, new_contexts, rename_map):
+        from settings_callbacks import _migrate_context_weights
+        return _migrate_context_weights(
+            old_weights, pending_weights, new_contexts, rename_map,
+        )
+
+    def test_rename_carries_weight(self):
+        """Health → Body, where Body was not previously weighted.
+
+        Source weight carries to target name."""
+        out = self._call(
+            old_weights={"Health": 2.0},
+            pending_weights={"Health": 2.0, "Body": 1.0},
+            new_contexts=["Body"],
+            rename_map={"Health": "Body"},
+        )
+        assert out == {"Body": 2.0}
+
+    def test_merge_respects_existing_target_weight(self):
+        """Health → Body, where Body already has a non-default weight.
+
+        Target's explicit weight wins; source's weight is discarded."""
+        out = self._call(
+            old_weights={"Health": 2.0, "Body": 3.0},
+            pending_weights={"Health": 2.0, "Body": 3.0},
+            new_contexts=["Body"],
+            rename_map={"Health": "Body"},
+        )
+        assert out == {"Body": 3.0}
+
+    def test_merge_into_default_target_carries_source(self):
+        """Health → Body, where Body's weight is the default 1.0.
+
+        User hasn't deliberately weighted the target, so source wins."""
+        out = self._call(
+            old_weights={"Health": 2.0, "Body": 1.0},
+            pending_weights={"Health": 2.0, "Body": 1.0},
+            new_contexts=["Body"],
+            rename_map={"Health": "Body"},
+        )
+        assert out == {"Body": 2.0}
+
+    def test_skip_drops_weights_for_removed_contexts(self):
+        """Empty rename_map (skip or no-migration path) → filter only."""
+        out = self._call(
+            old_weights={"Health": 2.0, "Body": 1.0},
+            pending_weights={"Health": 2.0, "Body": 1.0},
+            new_contexts=["Body"],
+            rename_map={},
+        )
+        assert out == {"Body": 1.0}
+
+    def test_untouched_context_keeps_weight(self):
+        """Context present in both old and new contexts retains its weight."""
+        out = self._call(
+            old_weights={"Mind": 3.0},
+            pending_weights={"Mind": 3.0},
+            new_contexts=["Mind"],
+            rename_map={},
+        )
+        assert out == {"Mind": 3.0}
+
+    def test_rename_target_missing_from_new_contexts_is_ignored(self):
+        """Defensive: if the rename target somehow isn't in new_contexts,
+        the rename is a no-op (shouldn't happen in practice)."""
+        out = self._call(
+            old_weights={"Health": 2.0},
+            pending_weights={"Health": 2.0},
+            new_contexts=["Mind"],  # neither Health nor Body
+            rename_map={"Health": "Body"},
+        )
+        assert out == {}
+
+
 def test_adjustment_applies_after_tv_over_cost():
     """Post-score multipliers scale the final score, not TV/cost inputs."""
     # Chain A -Hard-> B so TV(A) includes B's contribution.
