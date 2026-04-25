@@ -404,7 +404,8 @@ def build_events_tab_content():
                 id="events-detail-graph",
                 elements=[],
                 layout={
-                    'name': 'cose-bilkent', 'animate': False, 'fit': True,
+                    'name': 'fcose', 'quality': 'proof',
+                    'animate': False, 'fit': True,
                     'padding': 20, 'numIter': 2500, 'randomize': False,
                     'idealEdgeLength': gl.get('edge_length', 100),
                     'nodeRepulsion': gl.get('repulsion', 4500),

@@ -1471,13 +1471,14 @@ def register_details_callbacks(app):
             return no_update
         # Randomize on re-layout click or when elements change (new node selected)
         randomize = trigger in ('details-graph-settings-relayout', 'details-mini-graph')
-        # Scale cose-bilkent iterations with graph size. Small subtrees converge
+        # Scale fcose iterations with graph size. Small subtrees converge
         # fast and don't need 2500 iters; large ones still do.
         node_count = sum(1 for e in (_elements or [])
                          if 'source' not in e.get('data', {}))
         num_iter = max(500, min(2500, node_count * 25))
         return {
-            'name': 'cose-bilkent',
+            'name': 'fcose',
+            'quality': 'proof',
             'animate': bool(animate),
             'fit': True,
             'randomize': randomize,

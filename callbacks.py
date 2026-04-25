@@ -999,7 +999,7 @@ def register_callbacks(app):
         return "", True, 0, 'tab-canvas', n_clicks
 
     # Run the pulse animation once the gateway has cleared the dormant check.
-    # The cose-bilkent layout may still be running, so locateNodeOnGraph retries
+    # The fcose layout may still be running, so locateNodeOnGraph retries
     # until the node is present on the canvas.
     app.clientside_callback(
         """function(trigger, name) {
@@ -2369,7 +2369,8 @@ def register_callbacks(app):
             return dash.no_update
         randomize = trig in relayout_triggers
         return {
-            'name': 'cose-bilkent',
+            'name': 'fcose',
+            'quality': 'proof',
             'fit': True,
             'animate': bool(animate),
             'randomize': randomize,

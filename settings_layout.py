@@ -332,7 +332,7 @@ def build_settings_tab_content():
                                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                             ]),
                         ], className="d-flex align-items-center mt-2 mb-1"),
-                        html.Small("Default parameters for the cose-bilkent layout algorithm.", className="text-muted d-block mb-2"),
+                        html.Small("Default parameters for the fcose layout algorithm.", className="text-muted d-block mb-2"),
                         _build_graph_layout_defaults_row(),
 
                         # --- Visualization Limits group ---

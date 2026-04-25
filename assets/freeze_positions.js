@@ -214,11 +214,12 @@
         if (state.frozen && !prev) {
             captureAll(state, cy);
         } else if (!state.frozen && prev) {
-            // Freeze just turned off — deterministic cose-bilkent refresh.
+            // Freeze just turned off — deterministic fcose refresh.
             requestAnimationFrame(function () {
                 try {
                     cy.layout({
-                        name: 'cose-bilkent',
+                        name: 'fcose',
+                        quality: 'proof',
                         fit: true,
                         animate: true,
                         randomize: false,

@@ -322,7 +322,8 @@ def create_graph_view(initial_elements):
             cyto.Cytoscape(
                 id='cytoscape-graph',
                 layout={
-                    'name': 'cose-bilkent', 'fit': True, 'animate': False,
+                    'name': 'fcose', 'quality': 'proof',
+                    'fit': True, 'animate': False,
                     'padding': 30, 'numIter': 2500, 'randomize': True,
                     'idealEdgeLength': gl.get('edge_length', 100),
                     'nodeRepulsion': gl.get('repulsion', 4500),

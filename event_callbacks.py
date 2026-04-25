@@ -1316,7 +1316,8 @@ def register_event_callbacks(app):
             return no_update
         randomize = trigger in ('events-graph-settings-relayout', 'events-detail-graph')
         return {
-            'name': 'cose-bilkent',
+            'name': 'fcose',
+            'quality': 'proof',
             'animate': False,
             'fit': True,
             'randomize': randomize,
