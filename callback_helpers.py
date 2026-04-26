@@ -748,37 +748,6 @@ def _topo_sort(non_done_names, dag_fwd):
     return topo
 
 
-def _compute_longest_prereq_chain(manager):
-    """Find the longest hard-dependency chain among non-Done nodes."""
-    _nodes, _edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
-    if not non_done_names:
-        return []
-
-    topo = _topo_sort(non_done_names, dag_fwd)
-
-    dist = {n: 0 for n in non_done_names}
-    parent = {n: None for n in non_done_names}
-    for node in topo:
-        for nxt in dag_fwd.get(node, []):
-            if dist[node] + 1 > dist[nxt]:
-                dist[nxt] = dist[node] + 1
-                parent[nxt] = node
-
-    if not dist:
-        return []
-    end = max(dist, key=dist.get)
-    if dist[end] == 0:
-        return []
-
-    chain = []
-    cur = end
-    while cur is not None:
-        chain.append(cur)
-        cur = parent[cur]
-    chain.reverse()
-    return chain
-
-
 def _compute_highest_value_path(manager):
     """Find the hard-edge chain whose cumulative total_value is maximized."""
     nodes, edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
@@ -825,8 +794,8 @@ def _compute_highest_value_path(manager):
     return chain
 
 
-def format_next_visualizations(manager):
-    """Compute and render the chain visualizations for the Next tab."""
+def format_value_chain_section(manager):
+    """Render the highest-value dependency chain subsection."""
     all_nodes = manager.get_all_nodes()
     edges = manager.get_edges()
 
@@ -870,50 +839,32 @@ def format_next_visualizations(manager):
                 return chain[i:]
         return chain
 
-    sections = [
-        html.H6("Chains", className="text-muted mb-1 mt-4", style=SECTION_TITLE_STYLE),
-        html.P("Dependency paths through your graph, offering perspectives beyond individual task rankings.",
-               className="text-muted small mb-0"),
-    ]
+    value_path = _trim_leading_blocked(_compute_highest_value_path(manager))
 
-    _sub_style = {"fontSize": "1rem", "fontWeight": "500"}
-    _info_icon_style = {
+    sub_style = {"fontSize": "1rem", "fontWeight": "500"}
+    info_icon_style = {
         "fontSize": "1rem", "color": "#6c757d", "cursor": "pointer",
         "marginLeft": "6px",
     }
 
-    def _sub_header(title, info_id, description):
-        return html.Div([
-            html.H6(title, className="text-muted mb-0 d-inline", style=_sub_style),
-            html.Span(
-                "\u24d8", id=info_id,
-                style=_info_icon_style,
-            ),
-            dbc.Popover(
-                dbc.PopoverBody(description),
-                target=info_id, trigger="click", placement="right",
-            ),
-        ], className="mb-1")
-
-    value_path = _trim_leading_blocked(_compute_highest_value_path(manager))
-    sections.append(html.Div([
-        _sub_header("Highest-Value Dependency Path", "chain-info-value",
-                     "The connected chain of tasks (by hard edges) whose cumulative total value "
-                     "is maximized. Shows which thread of work carries the most value."),
-        _render_chain_pills(value_path, node_info, chain_id="value",
-                            empty_msg="No multi-node dependency paths found."),
-    ], className="mt-3"))
-
-    longest = _trim_leading_blocked(_compute_longest_prereq_chain(manager))
-    sections.append(html.Div([
-        _sub_header("Longest Prerequisite Chain", "chain-info-longest",
-                     "The longest sequence of hard-dependency steps among incomplete tasks. "
-                     "Shows the critical path bottleneck in your graph."),
-        _render_chain_pills(longest, node_info, chain_id="longest",
-                            empty_msg="No dependency chains found."),
-    ], className="mt-3"))
-
-    return sections
+    return [
+        html.Div([
+            html.Div([
+                html.H6("Highest-Value Dependency Path",
+                        className="text-muted mb-0 d-inline", style=sub_style),
+                html.Span("\u24d8", id="chain-info-value", style=info_icon_style),
+                dbc.Popover(
+                    dbc.PopoverBody(
+                        "The connected chain of tasks (by hard edges) whose cumulative total value "
+                        "is maximized. Shows which thread of work carries the most value."
+                    ),
+                    target="chain-info-value", trigger="click", placement="right",
+                ),
+            ], className="mb-1"),
+            _render_chain_pills(value_path, node_info, chain_id="value",
+                                empty_msg="No multi-node dependency paths found."),
+        ], className="mt-3"),
+    ]
 
 
 def format_traversal_ui(tapped_node, active_node_id, manager):

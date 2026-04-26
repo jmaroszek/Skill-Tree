@@ -11,6 +11,7 @@ from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from config import ConfigManager
 from scoring import intrinsic_value
+from callback_helpers import format_value_chain_section
 
 graph_manager = GraphManager()
 
@@ -1127,4 +1128,11 @@ def register_analyze_callbacks(app):
             html.P("Average ratings by context.",
                    className="text-muted small"),
             html.Div([_render_ratings_chart(ratings_data)], style={"maxWidth": "600px"}),
+            html.Hr(className="my-3"),
+
+            # -- Chains --
+            html.H5("Chains", className="mb-1"),
+            html.P("Dependency paths through your graph, offering perspectives beyond individual task rankings.",
+                   className="text-muted small"),
+            *format_value_chain_section(graph_manager),
         ]
