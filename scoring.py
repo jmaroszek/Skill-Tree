@@ -262,9 +262,12 @@ def score_nodes(
             scored_nodes.append(node)
             continue
 
-        # For inherited-time nodes, use minimal time to avoid double-counting
-        # (their dependencies already carry their own time costs in scoring)
-        t_override = 1.0 if node.time_mode == 'inherited' else None
+        # Inherited-time nodes are pure containers — their dependencies
+        # are scored independently with their own time costs, so the
+        # marginal time of "checking off the container" is 0. The base
+        # `1.0 +` in perceived_cost still keeps the denominator positive,
+        # and difficulty (if rated) still contributes.
+        t_override = 0.0 if node.time_mode == 'inherited' else None
         cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
         score = round(tv / cost, 2)
@@ -483,7 +486,7 @@ def explain_score(
 
     iv = intrinsic_value(node, w_v, w_i)
     time_overridden = (node.time_mode == 'inherited')
-    t_override = 1.0 if time_overridden else None
+    t_override = 0.0 if time_overridden else None
     cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
 
     # Contribution weights + per-node metadata
@@ -603,7 +606,7 @@ def explain_score(
         },
         'cost': {
             'difficulty': node.difficulty,
-            'time': 1.0 if time_overridden else node.time,
+            'time': 0.0 if time_overridden else node.time,
             'time_overridden': time_overridden,
             'cost': cost,
         },

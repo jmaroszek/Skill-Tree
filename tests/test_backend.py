@@ -2008,9 +2008,9 @@ class TestPerceivedCostTimeOverride:
 # ============================================================================
 
 class TestScoringInheritedTimeMode:
-    def test_inherited_node_uses_minimal_time_in_cost(self, mgr):
-        """A non-Goal node with time_mode='inherited' should use minimal time in scoring
-        to prevent double-counting with its dependencies."""
+    def test_inherited_node_uses_zero_time_in_cost(self, mgr):
+        """A non-Goal node with time_mode='inherited' is a container — scoring
+        substitutes time=0 to avoid double-counting its dependencies' costs."""
         mgr.add_node(_make_node("Dep", value=5, interest=5, time_o=10, time_m=10, time_p=10))
         mgr.add_node(_make_node("Container", value=5, interest=5, time_o=10, time_m=10, time_p=10,
                                 time_mode='inherited'))
@@ -2024,7 +2024,7 @@ class TestScoringInheritedTimeMode:
                              edges, {})
         manual_score = next(n for n in scored if n.name == "Manual").priority_score
         inherited_score = next(n for n in scored if n.name == "Inherited").priority_score
-        # Inherited should score higher because its time cost is minimal (1.0 vs 10.0)
+        # Inherited should score higher because its time cost is 0 vs the manual node's PERT-blended ~10.
         assert inherited_score > manual_score
 
     def test_manual_node_still_uses_full_time(self, mgr):
@@ -2036,6 +2036,37 @@ class TestScoringInheritedTimeMode:
         iv = intrinsic_value(node, 1.0, 1.0)
         expected_score = round(iv / cost, 2)
         assert scored[0].priority_score == expected_score
+
+    def test_inherited_cost_arithmetic(self, mgr):
+        """Pin the exact cost formula for inherited nodes: 1 + w_e*difficulty + 0.
+
+        Locks in the contract that the time term contributes nothing for
+        containers — protects against an accidental revert to a non-zero override.
+        """
+        node = _make_node("C", value=5, interest=5, difficulty=4,
+                          time_o=10, time_m=10, time_p=10, time_mode='inherited')
+        scored = score_nodes([node], [node], [], {})
+        # cost = 1 + 2.5 * 4 + 1.0 * (0 ** 0.85) = 11.0
+        # iv = 1.0 * 5 + 1.0 * 5 = 10.0
+        # score = round(10.0 / 11.0, 2) = 0.91
+        assert scored[0].priority_score == 0.91
+
+    def test_chained_inherited_nodes_no_phantom_cost(self, mgr):
+        """A chain of inherited nodes shouldn't accumulate phantom 1.0 costs.
+
+        With the old t_override=1.0, each inherited node added a phantom unit
+        to its denominator. With t_override=0.0, the cost is purely from the
+        base + difficulty contribution, so identical-difficulty chains have
+        identical per-node costs.
+        """
+        a = _make_node("A", value=5, interest=5, difficulty=3, time_mode='inherited')
+        b = _make_node("B", value=5, interest=5, difficulty=3, time_mode='inherited')
+        c = _make_node("C", value=5, interest=5, difficulty=3, time_mode='inherited')
+        scored = score_nodes([a, b, c], [a, b, c], [], {})
+        # All three have the same intrinsic value, same difficulty, same
+        # (zero) time contribution, no edges → identical scores.
+        scores = [n.priority_score for n in scored]
+        assert scores[0] == scores[1] == scores[2]
 
 
 # ============================================================================

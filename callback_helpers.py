@@ -1140,7 +1140,7 @@ def _explain_summary_table(breakdown: dict, normalized):
     rows.append(html.Tr([html.Td("Cost", colSpan=2, style=header_style)]))
     cost_label = [html.Span("Perceived cost")]
     if cost_info['time_overridden']:
-        cost_label.append(html.Span(" (time inherited)",
+        cost_label.append(html.Span(" (container — inherited time treated as 0)",
                                     style={**muted_style, "marginLeft": "4px"}))
     rows.append(html.Tr([
         html.Td(cost_label),
