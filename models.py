@@ -61,10 +61,11 @@ class Node:
         self.dormant = int(self.dormant) if self.dormant is not None else 0
         if self.time_mode not in ('manual', 'inherited'):
             self.time_mode = 'manual'
-        if self.time_mode == 'inherited':
-            self.time_o = 0.0
-            self.time_m = 0.0
-            self.time_p = 0.0
+        # Note: time_o/m/p are NOT zeroed when time_mode='inherited'. The
+        # `time` property short-circuits to 0 for inherited mode regardless,
+        # so the stored values are inert at read time — and preserving them
+        # means a user who toggles inherited→manual gets their original
+        # estimates back instead of losing them silently.
 
     @property
     def time(self) -> float:

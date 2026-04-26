@@ -287,6 +287,20 @@ class TestSimulateTaskChain:
         # Should be ~2h (just A), not 3h (A + 1h default for Goal)
         assert result['stats']['mean'] == pytest.approx(2.0, abs=0.1)
 
+    def test_inherited_node_skipped_even_with_nonzero_omp(self):
+        """An inherited-mode node is a container — its preserved o/m/p must
+        not contribute time to the simulation. Guards against regressions
+        from when models.__post_init__ stopped zeroing those fields."""
+        nodes = {
+            "A": _make_node("A", time_o=2, time_m=2, time_p=2),
+            "Container": _make_node("Container", type="Goal", time_mode='inherited',
+                                    time_o=99, time_m=99, time_p=99),
+        }
+        edges = [{"source": "A", "target": "Container", "type": "Needs_Hard"}]
+        result = simulate_task_chain("Container", nodes, edges, n_simulations=500)
+        # ~2h from A only; Container's 99h is invisible because it's inherited.
+        assert result['stats']['mean'] == pytest.approx(2.0, abs=0.1)
+
     def test_no_edges_single_node_only(self):
         nodes = {
             "A": _make_node("A"),

@@ -145,8 +145,16 @@ def simulate_task_chain(
     for name in incomplete:
         node = nodes_dict.get(name)
         if node:
-            # Goal nodes with no time estimates contribute zero time (they're containers)
-            if node.type == 'Goal' and node.time_o == 0 and node.time_m == 0 and node.time_p == 0:
+            # Container nodes contribute zero time — their constituents are
+            # already in the chain and sample independently. Two flavors:
+            #   - explicit inherited mode (any node type)
+            #   - implicit "Goal with no time estimate set" (legacy heuristic)
+            is_container = (
+                node.time_mode == 'inherited'
+                or (node.type == 'Goal' and node.time_o == 0
+                    and node.time_m == 0 and node.time_p == 0)
+            )
+            if is_container:
                 task_samples[name] = np.zeros(n_simulations)
             else:
                 task_samples[name] = _sample_node(node, n_simulations)

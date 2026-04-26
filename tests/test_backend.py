@@ -1916,18 +1916,43 @@ class TestTimeModeField:
         updated = mgr.get_node("Node")
         assert updated.time_mode == 'inherited'
 
-    def test_inherited_zeroes_omp_on_construction(self):
+    def test_inherited_preserves_omp_on_construction(self):
+        # Preserved so a user who toggles inherited→manual gets their original
+        # three-point estimate back. The .time property still returns 0 in
+        # inherited mode, so the values are inert at read time.
         n = _make_node(time_mode='inherited', time_o=10, time_m=20, time_p=30)
-        assert n.time_o == 0.0 and n.time_m == 0.0 and n.time_p == 0.0
+        assert n.time_o == 10.0 and n.time_m == 20.0 and n.time_p == 30.0
 
     def test_inherited_time_property_returns_zero(self):
         n = _make_node(time_mode='inherited', time_o=10, time_m=20, time_p=30)
         assert n.time == 0.0
 
-    def test_inherited_db_roundtrip_zeroes_omp(self, mgr):
+    def test_inherited_db_roundtrip_preserves_omp(self, mgr):
         mgr.add_node(_make_node("Inh", time_mode='inherited', time_o=7, time_m=14, time_p=21))
         fetched = mgr.get_node("Inh")
-        assert fetched.time_o == 0.0 and fetched.time_m == 0.0 and fetched.time_p == 0.0
+        assert fetched.time_o == 7.0 and fetched.time_m == 14.0 and fetched.time_p == 21.0
+        # And the property still reads as 0 — preservation is purely for the
+        # round-trip when the user toggles back to manual.
+        assert fetched.time == 0.0
+
+    def test_toggle_inherited_to_manual_restores_estimates(self, mgr):
+        """User adds a node with manual estimates, toggles to inherited, then
+        back to manual — their original o/m/p must still be there."""
+        mgr.add_node(_make_node("Toggle", time_mode='manual',
+                                time_o=2, time_m=4, time_p=8))
+        # Toggle to inherited (preserving o/m/p in the form).
+        node = mgr.get_node("Toggle")
+        node.time_mode = 'inherited'
+        mgr.update_node(node)
+        # Toggle back to manual.
+        node = mgr.get_node("Toggle")
+        node.time_mode = 'manual'
+        mgr.update_node(node)
+        final = mgr.get_node("Toggle")
+        assert final.time_mode == 'manual'
+        assert final.time_o == 2.0 and final.time_m == 4.0 and final.time_p == 8.0
+        # And the .time property now blends them as expected.
+        assert final.time > 0.0
 
 
 # ============================================================================
