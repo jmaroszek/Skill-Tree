@@ -129,6 +129,106 @@ def test_done_and_blocked_excluded_from_density_count():
 
 
 # ---------------------------------------------------------------------------
+# Density normalization — uncategorized (context=None) exemption
+#
+# Nodes with context=None aren't a meaningful conceptual bucket — they're
+# pending categorization. Pre-fix, ALL of them shared one (None, None) bucket
+# and penalized each other under alpha. Now they bucket independently.
+#
+# Crucially: (context, None) is NOT exempt — that's "broad area" semantics
+# which IS a meaningful bucket. Only context=None is exempted.
+# ---------------------------------------------------------------------------
+
+def test_uncategorized_nodes_dont_penalize_each_other():
+    """Two context=None nodes score as if each were alone in its bucket."""
+    nodes = [
+        _node("U1", context=None),
+        _node("U2", context=None),
+    ]
+    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
+    scored = score_nodes(nodes, nodes, [], hp)
+    # Density normalization is exempt → density_mult = 1.0 for both → identical scores.
+    s1 = next(n.priority_score for n in scored if n.name == "U1")
+    s2 = next(n.priority_score for n in scored if n.name == "U2")
+    # And both should equal the score they'd get if they were the only node.
+    solo_scored = score_nodes([_node("U1", context=None)], [_node("U1", context=None)], [], hp)
+    solo = solo_scored[0].priority_score
+    assert s1 == s2 == solo
+
+
+def test_uncategorized_score_independent_of_pile_size():
+    """Adding more uncategorized nodes doesn't shift any of their scores."""
+    base = [_node("Pinned", context=None)]
+    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
+
+    score_alone = score_nodes(base, base, [], hp)[0].priority_score
+
+    crowd = base + [_node(f"Other{i}", context=None) for i in range(10)]
+    pinned_in_crowd = next(
+        n.priority_score for n in score_nodes(crowd, crowd, [], hp)
+        if n.name == "Pinned"
+    )
+    assert pinned_in_crowd == score_alone
+
+
+def test_broad_area_subcontext_none_still_buckets():
+    """(context, None) is a legit "broad area" bucket — nodes there DO compete.
+
+    Per user convention: subcontext=None means "applies broadly to the parent
+    context, not a specific subarea." Density normalization should treat this
+    as a real bucket so broad-area siblings normalize against each other.
+    """
+    nodes = [
+        _node(f"Broad{i}", value=10, interest=10, context="Life", subcontext=None)
+        for i in range(4)
+    ] + [_node("Solo", value=10, interest=10, context="Mind")]
+    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
+    scored = score_nodes(nodes, nodes, [], hp)
+    broad = next(n.priority_score for n in scored if n.name == "Broad0")
+    solo = next(n.priority_score for n in scored if n.name == "Solo")
+    # Life/None has 4 nodes (mult 1/4); Mind/None has 1 (mult 1/1). Solo scores 4x.
+    assert abs(solo / broad - 4.0) < 0.1
+
+
+def test_uncategorized_unaffected_by_categorized_pile():
+    """An uncategorized node isn't penalized by a large categorized bucket either."""
+    nodes = [_node("U", context=None)] + [
+        _node(f"L{i}", context="Life") for i in range(10)
+    ]
+    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
+    scored = score_nodes(nodes, nodes, [], hp)
+    u = next(n.priority_score for n in scored if n.name == "U")
+    # Same node, scored alone — should match.
+    solo = score_nodes([_node("U", context=None)], [_node("U", context=None)], [], hp)[0].priority_score
+    assert u == solo
+
+
+def test_explain_score_reports_n_bucket_1_for_uncategorized():
+    """The explain-score popup's context_adjustment.n_bucket should read 1
+    for an uncategorized node, regardless of how many other uncategorized
+    nodes exist — self-documents the exemption to the user."""
+    nodes = [
+        _node("Target", context=None),
+        _node("Other1", context=None),
+        _node("Other2", context=None),
+    ]
+    hp = {**BASE_HYPERS, 'alpha': 0.5, 'context_weights': {}}
+    breakdown = explain_score("Target", nodes, [], hp)
+    assert breakdown['context_adjustment']['n_bucket'] == 1
+    assert breakdown['context_adjustment']['density_mult'] == 1.0
+
+
+def test_explain_score_reports_actual_n_bucket_for_broad_area():
+    """And for a broad-area (context, None) node, n_bucket reflects the count."""
+    nodes = [
+        _node(f"Broad{i}", context="Life", subcontext=None) for i in range(3)
+    ]
+    hp = {**BASE_HYPERS, 'alpha': 0.5, 'context_weights': {}}
+    breakdown = explain_score("Broad0", nodes, [], hp)
+    assert breakdown['context_adjustment']['n_bucket'] == 3
+
+
+# ---------------------------------------------------------------------------
 # Context weights
 # ---------------------------------------------------------------------------
 

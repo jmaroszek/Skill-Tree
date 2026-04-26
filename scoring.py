@@ -211,9 +211,16 @@ def score_nodes(
 
     # Per-bucket active counts for density normalization. Goal/Done/Blocked
     # nodes don't compete for top-N slots, so they don't dilute the budget.
+    # Nodes with no context are exempt — they're "uncategorized" and aren't
+    # a meaningful bucket; lumping them together would suppress an entire
+    # inbox of pending categorization. Note: (context, None) IS a meaningful
+    # bucket — it means "broad area, not a specific subarea" — so subcontext
+    # being None doesn't disqualify a node from bucketing.
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n in active_nodes:
         if n.type == 'Goal' or n.status in ('Done', 'Blocked'):
+            continue
+        if n.context is None:
             continue
         key = (n.context, n.subcontext)
         n_active_map[key] = n_active_map.get(key, 0) + 1
@@ -476,10 +483,13 @@ def explain_score(
 
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
 
-    # Bucket counts match score_nodes: exclude Goal/Done/Blocked from density.
+    # Bucket counts match score_nodes: exclude Goal/Done/Blocked AND
+    # uncategorized (context=None) from density. See score_nodes for rationale.
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n_ in all_nodes:
         if n_.type == 'Goal' or n_.status in ('Done', 'Blocked'):
+            continue
+        if n_.context is None:
             continue
         key = (n_.context, n_.subcontext)
         n_active_map[key] = n_active_map.get(key, 0) + 1

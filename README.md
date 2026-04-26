@@ -59,7 +59,7 @@ The checkmark/x columns (Obsidian, Drive, Override) show at a glance whether a n
 Two settings in the **Settings** tab shape how contexts interact with the ranking, both applied after a task's raw score is computed:
 
 - **Context weights** (*Settings → Contexts → Priority Weights*) let you say "Health matters more than abstract math" even before you've decomposed those areas. Each context gets a weight; 1.0 is baseline, 2.0 doubles that context's scores relative to others, 0.5 halves them.
-- **Density normalization** (*Settings → Algorithms → Context Density Exponent α*) counteracts the bias where a heavily-decomposed context would otherwise crowd out a sparser one just because it has more nodes competing for top-N slots. Default α = 0.3 compensates mildly; 0 disables it, 1.0 fully cancels size bias. Each profile ships with a sensible α starting point — tune to taste.
+- **Density normalization** (*Settings → Algorithms → Context Density Exponent α*) counteracts the bias where a heavily-decomposed context would otherwise crowd out a sparser one just because it has more nodes competing for top-N slots. Default α = 0.3 compensates mildly; 0 disables it, 1.0 fully cancels size bias. Each profile ships with a sensible α starting point — tune to taste. Uncategorized nodes (no context set) are exempt — they don't share a bucket and don't penalize each other.
 
 When either lever is active, the explain-score popup surfaces an **Adjustments** section that breaks the final score down multiplier by multiplier. The math is documented in full in [`technical_overview.md`](technical_overview.md).
 
