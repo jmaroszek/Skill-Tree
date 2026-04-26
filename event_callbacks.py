@@ -43,6 +43,13 @@ def _render_announcements(entries):
             nodes = entry.get("nodes") or []
             summary = html.Strong(f"{event_name} — delayed nodes activated ({when})")
             detail = f"Nodes: {', '.join(nodes)}" if nodes else ""
+        elif kind == "trigger_node_deleted":
+            deleted = entry.get("deleted_node", "?")
+            events = entry.get("events") or []
+            evs = ", ".join(events) if events else "(none)"
+            summary = html.Strong(f"Trigger node deleted: {deleted} ({when})")
+            detail = (f"Affected event(s): {evs}. These events were waiting on "
+                      f'"{deleted}" to be marked Done. They are now manual-trigger only.')
         else:
             continue  # override_conflict and unknowns are not shown here
 

@@ -1386,10 +1386,6 @@ def register_callbacks(app):
         elif trigger_id == 'btn-node-delete-confirm' and name:
             try:
                 msg = handle_delete(manager, name)
-                # Clear override if deleted node was the override parent
-                _ov = ConfigManager.get_override()
-                if _ov.get("parent") == name:
-                    ConfigManager.clear_override()
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-toggle-done-node' and tapped_node:

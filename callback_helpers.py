@@ -533,11 +533,6 @@ def handle_group_delete(manager, group_delete_data):
     names = json.loads(raw) if raw else []
     for node_name in names:
         manager.delete_node(node_name)
-    # Clear override if parent was in the deleted set
-    if names:
-        override = ConfigManager.get_override()
-        if override.get("parent") in names:
-            ConfigManager.clear_override()
     return f"Deleted {len(names)} node(s)" if names else ""
 
 

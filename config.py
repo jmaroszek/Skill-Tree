@@ -634,6 +634,49 @@ class ConfigManager:
             updated = [new_name if n == old_name else n for n in event_nodes]
             cls.set_event_override_nodes(updated)
 
+        pg = cls.get_priority_goals()
+        if old_name in pg:
+            cls.set_priority_goals([new_name if g == old_name else g for g in pg])
+
+    @classmethod
+    def delete_node_references(cls, name: str) -> None:
+        """Prune every config entry that stores a node name.
+
+        Symmetric to `rename_node_references`. Called from
+        GraphManager.delete_node so callers don't each have to remember which
+        config keys hold names. Without this, deletes leave dangling
+        references that fail silently (priority_goals waste a rank slot,
+        override boost applies to nothing, etc.).
+        """
+        if not name:
+            return
+
+        pg = cls.get_priority_goals()
+        if name in pg:
+            cls.set_priority_goals([g for g in pg if g != name])
+
+        if cls.get_override().get("parent") == name:
+            cls.clear_override()
+
+        eon = cls.get_event_override_nodes()
+        if name in eon:
+            cls.set_event_override_nodes([n for n in eon if n != name])
+
+    @classmethod
+    def clear_override_if_parent(cls, name: str) -> bool:
+        """Clear the override iff `name` is the current System A parent.
+
+        Returns True if cleared. Used by GraphManager.update_node when a node
+        flips to Done so the boost stops applying to its (now-irrelevant)
+        dependents.
+        """
+        if not name:
+            return False
+        if cls.get_override().get("parent") == name:
+            cls.clear_override()
+            return True
+        return False
+
     @classmethod
     def has_any_override_active(cls) -> bool:
         """True if System A parent is set OR System B list is non-empty.

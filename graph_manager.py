@@ -122,19 +122,57 @@ class GraphManager:
             for f in _SCORING_RELEVANT_FIELDS
         )
         self._bump_version(scoring=scoring_changed)
+        # If this update flipped the node to Done and it was the System A
+        # override parent, clear the override — the boost on its dependents
+        # is no longer meaningful. Done is only ever set here (the cascade
+        # in _update_dependent_nodes_state only flips Blocked/Open).
+        if node.status == 'Done':
+            ConfigManager.clear_override_if_parent(node.name)
 
     def delete_node(self, node_name: str):
-        """Deletes a node by name."""
+        """Deletes a node by name.
+
+        Cleans up references that aren't FK-cascaded:
+          - `Events.trigger_node` is plain TEXT (no FK) — NULLed in-place so
+            those events demote to manual-trigger instead of orphaning their
+            dormant nodes forever. Affected event names are queued as a
+            one-shot announcement so the user sees the demotion.
+          - Config-side references (priority_goals, override.parent,
+            event_override_nodes) — delegated to
+            ConfigManager.delete_node_references, mirroring how
+            rename_node delegates to rename_node_references.
+        """
+        from datetime import date
         with self.get_connection() as conn:
             cursor = conn.cursor()
             # Find dependents before deleting edges so we can recalculate their state
             cursor.execute("SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'", (node_name,))
             dependents = [row[0] for row in cursor.fetchall()]
+            # Snapshot affected events before NULLing trigger_node so the
+            # notification can name them.
+            cursor.execute(
+                "SELECT name FROM Events WHERE trigger_node=? AND status='Pending'",
+                (node_name,),
+            )
+            affected_events = [row[0] for row in cursor.fetchall()]
+            if affected_events:
+                cursor.execute(
+                    "UPDATE Events SET trigger_node=NULL WHERE trigger_node=?",
+                    (node_name,),
+                )
             cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (node_name, node_name))
             cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
             conn.commit()
         for dept in dependents:
             self._update_node_state(dept)
+        if affected_events:
+            ConfigManager.add_pending_event_notification({
+                "kind": "trigger_node_deleted",
+                "events": affected_events,
+                "deleted_node": node_name,
+                "when": date.today().isoformat(),
+            })
+        ConfigManager.delete_node_references(node_name)
         self._bump_version()
 
     def rename_node(self, old_name: str, new_name: str):
