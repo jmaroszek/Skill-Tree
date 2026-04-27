@@ -10,7 +10,7 @@ import numpy as np
 import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import ConfigManager, badge_style
+from config import (ConfigManager, badge_style)
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from details_layout import (build_details_subtasks_table, build_goal_card,
                              _build_suggestion_row, build_details_suggestions)
@@ -309,7 +309,7 @@ def register_details_callbacks(app):
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
 
         # Build badges. Order: Override → Status → Priority → Type → RelPriority.
-        # Goal type tile is suppressed when a #N Priority tile is shown
+        # Goal type tile is suppressed when a Priority N tile is shown
         # (the Priority tile already implies "this is a Goal").
         badges = []
         priority_goals = ConfigManager.get_priority_goals()
@@ -329,28 +329,28 @@ def register_details_callbacks(app):
         badges.append(html.Span(node.status, className="badge",
                                 style=badge_style(node.status)))
 
-        # 3. Priority (#N Priority for priority Goals)
+        # 3. Priority (Priority N for priority Goals)
         if is_priority_goal:
             rank = priority_goals.index(node_name) + 1
-            badges.append(html.Span(f"#{rank} Priority", className="badge",
+            badges.append(html.Span(f"Priority {rank}", className="badge",
                                     style=badge_style('Priority')))
 
-        # 4. Type (skip Goal when #N Priority already rendered above)
+        # 4. Type (skip Goal when Priority N already rendered above)
         if node.type and not is_priority_goal:
             badges.append(html.Span(node.type, className="badge",
                                     style=badge_style(node.type)))
 
-        # 5. Relationship Priority (Hard/Soft #N for non-priority nodes in a priority Goal's subtree)
+        # 5. Relationship Priority (Hard/Soft N for non-priority nodes in a priority Goal's subtree)
         if not is_priority_goal:
             for rank_idx, goal_name in enumerate(priority_goals[:3]):
                 subtree = graph_manager.get_goal_subtree(goal_name)
                 if node_name in subtree:
                     hard_subtree = graph_manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
                     rel_type = "Hard" if node_name in hard_subtree else "Soft"
-                    badge_key = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
-                    badges.append(html.Span(f"{rel_type} #{rank_idx+1}",
+                    palette_name = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
+                    badges.append(html.Span(f"{rel_type} {rank_idx+1}",
                                             className="badge",
-                                            style=badge_style(badge_key)))
+                                            style=badge_style(palette_name)))
                     break
 
         ctx_str = node.context or "—"
@@ -875,7 +875,7 @@ def register_details_callbacks(app):
             if not goal_node or goal_node.dormant:
                 continue
             goal_rows.append(_build_suggestion_row(
-                goal_name, f"#{i + 1}", "warning"))
+                goal_name, str(i + 1), "warning"))
             seen.add(goal_name)
 
         rec_nodes = []

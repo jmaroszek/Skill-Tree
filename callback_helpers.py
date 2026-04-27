@@ -1061,16 +1061,16 @@ if abs_path:
 # ---------------------------------------------------------------------------
 
 # Maps the `via` field from scoring.explain_score to a bar color.
-# Cool & quiet palette. Hard borrows the Darkly --bs-primary value
-# (#375a7f) so it matches the Open status badge exactly; Soft is a
-# neutral slate; Synergy is a desaturated cool tone (categorically
-# different, but quiet); Self is a warm sand off the cool axis entirely
-# so it can't be confused with Soft.
+# Cool & quiet palette. Hard is a darker rugged blue (matches subtasks-
+# table Hard and the HardRelPri badge in the node-info stack); Soft
+# neutral slate; Synergy cyan-teal (categorically different — mutual,
+# multiplicative reinforcement, not a weaker prereq). Self is a warm
+# sand off the cool axis entirely so it can't be confused with Soft.
 _VIA_COLORS = {
     'Self':    '#7a6e62',  # warm sand — the node itself, off the edge axis
-    'Hard':    '#375a7f',  # Darkly --bs-primary (must-have, matches Open)
-    'Soft':    '#52606e',  # muted slate (should-have)
-    'Synergy': '#4d6c75',  # quiet cool (mutual, multiplicative)
+    'Hard':    '#375a7f',  # darker rugged blue (must-have)
+    'Soft':    '#6c7682',  # neutral slate (should-have)
+    'Synergy': '#5a8088',  # cyan-teal (mutual, multiplicative — categorically different)
 }
 
 

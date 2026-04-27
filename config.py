@@ -81,15 +81,15 @@ DEFAULT_NODE_SHAPES = {
 # Each entry is (background, text).
 BADGE_PALETTE = {
     'Override':   ('#c4528c', '#ffffff'),  # was #e83e8c
-    'Goal':       ('#e6b020', '#212529'),  # type tile, settings literal muted
-    'Priority':   ('#e6b020', '#212529'),  # #N Priority — same as Goal; suppresses Goal type when shown
+    'Goal':       ('#f39c12', '#ffffff'),  # type tile — Darkly --bs-warning (matches empty-state ranking list)
+    'Priority':   ('#f39c12', '#ffffff'),  # Priority N — same as Goal; suppresses Goal type when shown
     'Action':     ('#d97120', '#ffffff'),  # was #fd7e14
     'Learn':      ('#2c70d6', '#ffffff'),  # was #0d6efd
     'Resource':   ('#7c4d9c', '#ffffff'),  # was #9047b8
-    'Open':       ('#375a7f', '#ffffff'),  # Darkly --bs-primary, unchanged
+    'Open':       ('#5677a6', '#ffffff'),  # lighter friendly blue (swapped with HardRelPri)
     'Done':       ('#1a9d78', '#ffffff'),  # was #00bc8c
     'Blocked':    ('#b35353', '#ffffff'),  # was #c94c4c
-    'HardRelPri': ('#2c4870', '#cfdaea'),  # tweaked from subtasks Hard #375a7f
+    'HardRelPri': ('#375a7f', '#d6e0ee'),  # darker rugged blue (swapped with Open) — matches subtasks Hard
     'SoftRelPri': ('#52606e', '#d0d6dc'),  # matches subtasks Soft
 }
 
@@ -102,6 +102,40 @@ def badge_style(name: str, font_size: str = "0.75rem") -> dict:
     """
     bg, fg = BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
     return {"backgroundColor": bg, "color": fg, "fontSize": font_size}
+
+
+# Info-strip rendering: a single rounded container holding multiple
+# colored segments side-by-side, separated by subtle vertical dividers.
+# Used by the Node Editor priority strip + the Details info pane stack.
+# Reads as one compact metadata bar instead of a row of buttons.
+INFO_STRIP_CONTAINER_STYLE = {
+    "display": "inline-flex",
+    "borderRadius": "4px",
+    "overflow": "hidden",
+    "alignItems": "center",
+    "marginBottom": "8px",
+}
+
+
+def info_strip_segment_style(name: str, is_first: bool = False) -> dict:
+    """Style dict for one segment of the connected info-strip.
+
+    `name` should be a key in `BADGE_PALETTE`. `is_first=True` skips the
+    left divider so the first segment isn't preceded by a vertical line.
+    """
+    bg, fg = BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
+    style = {
+        "backgroundColor": bg,
+        "color": fg,
+        "padding": "2px 9px",
+        "fontSize": "0.7rem",
+        "fontWeight": "600",
+        "lineHeight": "1.4",
+        "whiteSpace": "nowrap",
+    }
+    if not is_first:
+        style["borderLeft"] = "1px solid rgba(255, 255, 255, 0.18)"
+    return style
 
 DEFAULT_TIME_SETTINGS = {
     'hours_per_week': 20,

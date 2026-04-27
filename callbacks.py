@@ -14,7 +14,7 @@ import dash_bootstrap_components as dbc
 
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import ConfigManager, badge_style
+from config import (ConfigManager, badge_style)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
@@ -1088,12 +1088,12 @@ def register_callbacks(app):
                 badges.append(html.Span(override_label, className="badge",
                                         style=badge_style('Override')))
 
-        # Priority — #N Priority for priority Goals; Hard/Soft #N for non-priority nodes in a priority subtree.
+        # Priority — Priority N for priority Goals; Hard/Soft N for non-priority nodes in a priority subtree.
         priority_goals = ConfigManager.get_priority_goals()
         if priority_goals:
             if node_type == "Goal" and node_name in priority_goals:
                 rank = priority_goals.index(node_name) + 1
-                badges.append(html.Span(f"#{rank} Priority", className="badge",
+                badges.append(html.Span(f"Priority {rank}", className="badge",
                                         style=badge_style('Priority')))
             else:
                 for rank_idx, goal_name in enumerate(priority_goals[:3]):
@@ -1103,9 +1103,9 @@ def register_callbacks(app):
                     rank = rank_idx + 1
                     hard_subtree = manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
                     rel_type = "Hard" if node_name in hard_subtree else "Soft"
-                    badge_key = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
-                    badges.append(html.Span(f"{rel_type} #{rank}", className="badge",
-                                            style=badge_style(badge_key)))
+                    palette_name = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
+                    badges.append(html.Span(f"{rel_type} {rank}", className="badge",
+                                            style=badge_style(palette_name)))
 
         if not badges:
             return [], hidden

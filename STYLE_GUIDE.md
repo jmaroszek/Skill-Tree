@@ -42,15 +42,15 @@ sync.**
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
 | Override     | `#c4528c` | `#ffffff` | Manual override; rare but loud. Always first in stack.    |
-| Goal         | `#e6b020` | `#212529` | Type tile. Suppressed when a `#N Priority` tile is shown. |
-| Priority     | `#e6b020` | `#212529` | `#N Priority` for priority Goals. Same hue as Goal.       |
+| Goal         | `#f39c12` | `#ffffff` | Type tile — Darkly `--bs-warning` (matches the empty-state ranking list). Suppressed when a `Priority N` tile is shown. |
+| Priority     | `#f39c12` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
 | Action       | `#d97120` | `#ffffff` | Type tile.                                                |
 | Learn        | `#2c70d6` | `#ffffff` | Type tile.                                                |
 | Resource     | `#7c4d9c` | `#ffffff` | Type tile.                                                |
-| Open         | `#375a7f` | `#ffffff` | Status tile. Equals Darkly `--bs-primary` (unchanged).    |
+| Open         | `#5677a6` | `#ffffff` | Status tile — lighter, friendlier blue.                   |
 | Done         | `#1a9d78` | `#ffffff` | Status tile.                                              |
 | Blocked      | `#b35353` | `#ffffff` | Status tile.                                              |
-| HardRelPri   | `#2c4870` | `#cfdaea` | `Hard #N` for non-Goal nodes in a priority Goal subtree.  |
+| HardRelPri   | `#375a7f` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches subtasks-table Hard. |
 | SoftRelPri   | `#52606e` | `#d0d6dc` | `Soft #N`. Matches subtasks-table Soft tile.              |
 
 **Render order** in the Details info pane:
@@ -67,15 +67,17 @@ Override → Priority/RelPriority.
 
 ### Subtasks-table edge palette
 
-Used by the `_REL_BADGE_STYLES` map for the relationship column. The
-Hard tile shares a value with the Open status badge intentionally —
-"blue means Hard or Open" is the intended app-wide rule.
+Used by the `_REL_BADGE_STYLES` map for the relationship column. All
+three tiles sit at similar lightness, distinguished only by hue. Hard
+matches the `Hard #N` priority badge (`HardRelPri` above) so the same
+blue means the same thing across the app — a node related to a priority
+goal via a Hard edge.
 
 | Edge type | Background | Text      | Notes                                                     |
 |-----------|-----------|-----------|-----------------------------------------------------------|
-| Hard      | `#375a7f` | `#d6e0ee` | Equals Darkly `--bs-primary` and the Open status badge.   |
-| Soft      | `#52606e` | `#d0d6dc` | Neutral slate.                                            |
-| Synergy   | `#4d6c75` | `#cfdde0` | Quiet cool (categorically different from Hard/Soft).      |
+| Hard      | `#375a7f` | `#d6e0ee` | Darker rugged blue. Same value as the `HardRelPri` badge. |
+| Soft      | `#6c7682` | `#dde0e5` | Neutral slate.                                            |
+| Synergy   | `#5a8088` | `#d8e6e9` | Cyan-teal — categorically different from Hard/Soft.       |
 
 The explain-modal contributors chart and legend use the same edge palette
 plus a `Self` tile (`#7a6e62` warm sand) for the node itself.

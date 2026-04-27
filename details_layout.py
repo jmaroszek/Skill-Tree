@@ -246,7 +246,8 @@ def build_details_tab_content():
                        "overflow": "hidden", "textOverflow": "ellipsis",
                        "whiteSpace": "nowrap"}),
         # Badges row: type, status, priority
-        html.Div(id="details-node-badges", className="d-flex gap-1 flex-wrap mb-2"),
+        html.Div(id="details-node-badges",
+                 className="d-flex gap-1 flex-wrap mb-2"),
 
         # Description
         html.Div(id="details-node-description",
@@ -538,7 +539,7 @@ def build_details_tab_content():
 
     explain_legend_items = []
     for label, color in (('Self', '#7a6e62'), ('Hard', '#375a7f'),
-                         ('Soft', '#52606e'), ('Synergy', '#4d6c75')):
+                         ('Soft', '#6c7682'), ('Synergy', '#5a8088')):
         explain_legend_items.append(html.Span([
             html.Span("\u25A0 ", style={"color": color}),
             html.Span(label, style={"color": "#adb5bd"}),
@@ -653,10 +654,12 @@ def _build_suggestion_row(node_name, badge_text, badge_color,
     Optional badge_id + tooltip_text attach a hover tooltip (0.7s delay) to the
     badge — used for recommendation score badges.
     """
-    badge_style = {"fontSize": "0.7rem"}
+    # Force white text everywhere for visual consistency — overrides
+    # Bootstrap's default dark-on-yellow for warning badges.
+    badge_style = {"fontSize": "0.7rem", "color": "#ffffff"}
     badge_kwargs = {"id": badge_id} if badge_id else {}
     if badge_color == "pink":
-        badge_style.update({"backgroundColor": "#e83e8c", "color": "#fff"})
+        badge_style.update({"backgroundColor": "#e83e8c"})
         badge = html.Span(badge_text, className="badge",
                           style=badge_style, **badge_kwargs)
     else:
@@ -761,8 +764,8 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
                 html.H6(name, className="mb-0", style={"fontWeight": "500"}),
             ], className="d-flex align-items-center"),
             html.Div([
-                html.Span(f"#{priority_rank}", className="badge",
-                          style=badge_style('Priority', font_size="0.7rem")) if priority_rank is not None else None,
+                dbc.Badge(str(priority_rank), color="warning",
+                          style={"fontSize": "0.7rem", "color": "#ffffff"}) if priority_rank is not None else None,
                 html.Span(effective_status,
                           className="badge ms-1" if priority_rank is not None else "badge",
                           style={**badge_style(effective_status, font_size="0.7rem"),
@@ -1203,15 +1206,15 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         ),
     )
 
-    # Cool & quiet palette. Hard borrows the Darkly --bs-primary value
-    # (#375a7f) so it reads as identical to the Open status badge sitting
-    # next to it — same blue rather than "almost the same blue." Soft is a
-    # neutral slate, Synergy is a desaturated cool tone (categorically
-    # different but quiet). Matches _VIA_COLORS in the explain modal.
+    # Cool & quiet palette. Hard is a darker rugged blue (matches the
+    # HardRelPri badge in the node-info stack so the same hue means the
+    # same thing app-wide); Soft a neutral slate; Synergy a cyan-teal
+    # (categorically different from the Hard/Soft necessity axis).
+    # Matches _VIA_COLORS in the explain modal.
     _REL_BADGE_STYLES = {
         "Hard":    {"backgroundColor": "#375a7f", "color": "#d6e0ee"},
-        "Soft":    {"backgroundColor": "#52606e", "color": "#d0d6dc"},
-        "Synergy": {"backgroundColor": "#4d6c75", "color": "#cfdde0"},
+        "Soft":    {"backgroundColor": "#6c7682", "color": "#dde0e5"},
+        "Synergy": {"backgroundColor": "#5a8088", "color": "#d8e6e9"},
     }
 
     rows = []
