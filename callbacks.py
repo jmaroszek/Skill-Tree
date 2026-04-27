@@ -14,7 +14,7 @@ import dash_bootstrap_components as dbc
 
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import ConfigManager
+from config import ConfigManager, badge_style
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
@@ -1074,25 +1074,27 @@ def register_callbacks(app):
         if not node_name:
             return [], hidden
 
+        # Order: Override → Priority/RelPriority. Status + Type are handled
+        # by other inputs in the editor, so they don't appear in this strip.
         badges = []
 
-        # Override badge (always first)
+        # Override (always first if active)
         override = ConfigManager.get_override()
         if override.get("parent"):
             override_set = ConfigManager.get_override_node_set(manager)
             if node_name in override_set:
                 is_parent = (node_name == override["parent"])
                 override_label = "Override" if is_parent else "Override (Dependent)"
-                _ov_color = ConfigManager.get_node_colors().get('Override', '#e83e8c')
                 badges.append(html.Span(override_label, className="badge",
-                                        style={"fontSize": "0.75rem", "backgroundColor": _ov_color, "color": "#fff"}))
+                                        style=badge_style('Override')))
 
-        # Priority goal badges
+        # Priority — #N Priority for priority Goals; Hard/Soft #N for non-priority nodes in a priority subtree.
         priority_goals = ConfigManager.get_priority_goals()
         if priority_goals:
             if node_type == "Goal" and node_name in priority_goals:
                 rank = priority_goals.index(node_name) + 1
-                badges.append(dbc.Badge(f"#{rank} Priority", color="warning", style={"fontSize": "0.75rem"}))
+                badges.append(html.Span(f"#{rank} Priority", className="badge",
+                                        style=badge_style('Priority')))
             else:
                 for rank_idx, goal_name in enumerate(priority_goals[:3]):
                     full_subtree = manager.get_goal_subtree(goal_name)
@@ -1101,8 +1103,9 @@ def register_callbacks(app):
                     rank = rank_idx + 1
                     hard_subtree = manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
                     rel_type = "Hard" if node_name in hard_subtree else "Soft"
-                    rel_color = "primary" if rel_type == "Hard" else "info"
-                    badges.append(dbc.Badge(f"{rel_type} #{rank}", color=rel_color, style={"fontSize": "0.75rem"}))
+                    badge_key = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
+                    badges.append(html.Span(f"{rel_type} #{rank}", className="badge",
+                                            style=badge_style(badge_key)))
 
         if not badges:
             return [], hidden

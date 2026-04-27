@@ -14,6 +14,7 @@ from config import (
     ConfigManager,
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
+    badge_style,
 )
 from styles import stylesheet
 
@@ -495,11 +496,14 @@ def build_details_tab_content():
                        style={"marginTop": "40px"}),
             ]),
         ]),
-        html.Div(id="details-sim-results", style={"display": "none"}, children=[
+        html.Div(id="details-sim-results",
+                 style={"display": "none", "flex": "1", "minHeight": "0"},
+                 children=[
             dcc.Graph(
                 id="details-sim-chart",
                 config={"displayModeBar": False},
-                style={"height": "350px"},
+                responsive=True,
+                style={"height": "100%", "minHeight": "350px"},
             ),
         ]),
     ], id="details-sim-section",
@@ -533,8 +537,8 @@ def build_details_tab_content():
     ], id="modal-details-subtask-remove", is_open=False, centered=True)
 
     explain_legend_items = []
-    for label, color in (('Self', '#5a6065'), ('Hard', '#2c4870'),
-                         ('Soft', '#52606e'), ('Synergy', '#3d8a96')):
+    for label, color in (('Self', '#7a6e62'), ('Hard', '#375a7f'),
+                         ('Soft', '#52606e'), ('Synergy', '#4d6c75')):
         explain_legend_items.append(html.Span([
             html.Span("\u25A0 ", style={"color": color}),
             html.Span(label, style={"color": "#adb5bd"}),
@@ -570,13 +574,10 @@ def build_details_tab_content():
         ]),
         dbc.ModalFooter([
             dbc.InputGroup([
-                dbc.InputGroupText("Top", style={
-                    "fontSize": "0.85rem",
-                    "height": "31px",
-                    "padding": "0 10px",
-                    "display": "flex",
-                    "alignItems": "center",
-                }),
+                dbc.Button("Focus top",
+                           id="btn-details-explain-focus",
+                           color="primary", size="sm",
+                           style={"height": "31px"}),
                 dbc.Input(id="details-explain-focus-count",
                           type="number", step=1, value=3,
                           debounce=True,
@@ -586,10 +587,6 @@ def build_details_tab_content():
                                  "fontSize": "0.85rem",
                                  "padding": "0",
                                  "border": "1px solid #495057"}),
-                dbc.Button("Focus on Canvas",
-                           id="btn-details-explain-focus",
-                           color="primary", size="sm",
-                           style={"height": "31px"}),
             ], style={"width": "auto"}),
             html.Span(id="details-explain-focus-feedback",
                       style={"color": "#dc3545",
@@ -740,7 +737,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     else:
         effective_status = "Open"
 
-    status_color = {"Done": "success", "Blocked": "danger", "Open": "primary"}.get(effective_status, "primary")
+    # status badge uses centralized BADGE_PALETTE (constructed inline below)
 
     # Hidden up/down buttons (kept for Dash pattern-matching callback registration)
     _hidden = {"display": "none"}
@@ -764,10 +761,12 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
                 html.H6(name, className="mb-0", style={"fontWeight": "500"}),
             ], className="d-flex align-items-center"),
             html.Div([
-                dbc.Badge(f"#{priority_rank}", color="warning",
-                          style={"fontSize": "0.7rem"}) if priority_rank is not None else None,
-                dbc.Badge(effective_status, color=status_color, className="ms-1" if priority_rank is not None else "",
-                          style={"fontSize": "0.7rem", "width": "62px", "textAlign": "center",
+                html.Span(f"#{priority_rank}", className="badge",
+                          style=badge_style('Priority', font_size="0.7rem")) if priority_rank is not None else None,
+                html.Span(effective_status,
+                          className="badge ms-1" if priority_rank is not None else "badge",
+                          style={**badge_style(effective_status, font_size="0.7rem"),
+                                 "width": "62px", "textAlign": "center",
                                  "display": "inline-block"}),
             ], className="d-flex align-items-center ms-2 gap-1"),
         ], className="d-flex align-items-center justify-content-between mb-1"),
@@ -1204,20 +1203,21 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         ),
     )
 
-    # Cool B palette — Hard/Soft sit in the same cool family (necessity
-    # gradient), Synergy in a distinct teal (categorically different
-    # relationship, not a weaker prereq). Matches _VIA_COLORS in the
-    # explain modal so the same hue means the same thing app-wide.
+    # Cool & quiet palette. Hard borrows the Darkly --bs-primary value
+    # (#375a7f) so it reads as identical to the Open status badge sitting
+    # next to it — same blue rather than "almost the same blue." Soft is a
+    # neutral slate, Synergy is a desaturated cool tone (categorically
+    # different but quiet). Matches _VIA_COLORS in the explain modal.
     _REL_BADGE_STYLES = {
-        "Hard":    {"backgroundColor": "#2c4870", "color": "#d3e0ee"},
+        "Hard":    {"backgroundColor": "#375a7f", "color": "#d6e0ee"},
         "Soft":    {"backgroundColor": "#52606e", "color": "#d0d6dc"},
-        "Synergy": {"backgroundColor": "#3d8a96", "color": "#d8eef3"},
+        "Synergy": {"backgroundColor": "#4d6c75", "color": "#cfdde0"},
     }
 
     rows = []
     for node in subtask_nodes:
-        status_color = {"Done": "success", "Blocked": "danger",
-                        "Open": "primary"}.get(node.status, "secondary")
+        # Status badge uses the centralized BADGE_PALETTE so the muted
+        # Done/Blocked values match the Details info pane.
         rel = relationship_types.get(node.name, "Hard")
         rel_style = _REL_BADGE_STYLES.get(rel, _REL_BADGE_STYLES["Hard"])
         is_direct = node.name in direct_children
@@ -1247,12 +1247,13 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
 
         rows.append(html.Tr([
             html.Td(
-                html.Span(node.name, style={"cursor": "pointer"}),
+                html.Span(node.name, title="Open in Details tab",
+                          style={"cursor": "pointer"}),
                 id={"type": "details-subtask-name", "index": node.name},
                 style={"verticalAlign": "middle"},
             ),
-            html.Td(dbc.Badge(node.status, color=status_color,
-                              style={"fontSize": "0.7rem"}),
+            html.Td(html.Span(node.status, className="badge",
+                              style=badge_style(node.status, font_size="0.7rem")),
                     style={"verticalAlign": "middle"}),
             html.Td(html.Span(rel, className="badge",
                               style={**rel_style, "fontSize": "0.7rem",

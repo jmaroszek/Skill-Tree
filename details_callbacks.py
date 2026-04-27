@@ -10,7 +10,7 @@ import numpy as np
 import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import ConfigManager
+from config import ConfigManager, badge_style
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from details_layout import (build_details_subtasks_table, build_goal_card,
                              _build_suggestion_row, build_details_suggestions)
@@ -149,7 +149,7 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
 
     return (
         fig,
-        {"display": "flex", "flexDirection": "column", "flex": "1"},
+        {"display": "flex", "flexDirection": "column", "flex": "1", "minHeight": "0"},
         {"display": "none"},
     )
 
@@ -308,46 +308,49 @@ def register_details_callbacks(app):
         include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
 
-        # Build badges
+        # Build badges. Order: Override → Status → Priority → Type → RelPriority.
+        # Goal type tile is suppressed when a #N Priority tile is shown
+        # (the Priority tile already implies "this is a Goal").
         badges = []
+        priority_goals = ConfigManager.get_priority_goals()
+        is_priority_goal = node_name in priority_goals
 
-        # Override badge (always first if present)
+        # 1. Override (always first if active)
         override = ConfigManager.get_override()
         if override.get("parent"):
             override_set = ConfigManager.get_override_node_set(graph_manager)
             if node_name in override_set:
                 is_parent = (node_name == override["parent"])
                 override_label = "Override" if is_parent else "Override (Dependent)"
-                _ov_color = ConfigManager.get_node_colors().get('Override', '#e83e8c')
                 badges.append(html.Span(override_label, className="badge",
-                                        style={"fontSize": "0.75rem", "backgroundColor": _ov_color, "color": "#fff"}))
+                                        style=badge_style('Override')))
 
-        if node.type:
-            type_colors = {"Learn": "primary", "Action": "warning",
-                          "Goal": "warning", "Resource": "info"}
-            badges.append(dbc.Badge(node.type,
-                                    color=type_colors.get(node.type, "secondary"),
-                                    style={"fontSize": "0.75rem"}))
-        status_colors = {"Done": "success", "Blocked": "danger", "Open": "primary"}
-        badges.append(dbc.Badge(node.status,
-                                color=status_colors.get(node.status, "secondary"),
-                                style={"fontSize": "0.75rem"}))
+        # 2. Status (always)
+        badges.append(html.Span(node.status, className="badge",
+                                style=badge_style(node.status)))
 
-        priority_goals = ConfigManager.get_priority_goals()
-        if node_name in priority_goals:
+        # 3. Priority (#N Priority for priority Goals)
+        if is_priority_goal:
             rank = priority_goals.index(node_name) + 1
-            badges.append(dbc.Badge(f"#{rank} Priority", color="warning",
-                                    style={"fontSize": "0.75rem"}))
-        else:
+            badges.append(html.Span(f"#{rank} Priority", className="badge",
+                                    style=badge_style('Priority')))
+
+        # 4. Type (skip Goal when #N Priority already rendered above)
+        if node.type and not is_priority_goal:
+            badges.append(html.Span(node.type, className="badge",
+                                    style=badge_style(node.type)))
+
+        # 5. Relationship Priority (Hard/Soft #N for non-priority nodes in a priority Goal's subtree)
+        if not is_priority_goal:
             for rank_idx, goal_name in enumerate(priority_goals[:3]):
                 subtree = graph_manager.get_goal_subtree(goal_name)
                 if node_name in subtree:
                     hard_subtree = graph_manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
                     rel_type = "Hard" if node_name in hard_subtree else "Soft"
-                    rel_color = "primary" if rel_type == "Hard" else "info"
-                    badges.append(dbc.Badge(f"{rel_type} #{rank_idx+1}",
-                                            color=rel_color,
-                                            style={"fontSize": "0.75rem"}))
+                    badge_key = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
+                    badges.append(html.Span(f"{rel_type} #{rank_idx+1}",
+                                            className="badge",
+                                            style=badge_style(badge_key)))
                     break
 
         ctx_str = node.context or "—"

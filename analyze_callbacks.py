@@ -565,7 +565,7 @@ def _render_overview(metrics):
     }, className="mb-3")
 
 
-def _render_bottleneck_chart(data):
+def _render_bottleneck_chart(data, height=None):
     if not data:
         return html.P("No bottleneck nodes found.", className="text-muted small")
 
@@ -583,7 +583,8 @@ def _render_bottleneck_chart(data):
     ]
 
     fig = _hbar_chart(names, values, colors=colors, hover_texts=hover,
-                      x_title="Downstream nodes reached", integer_x=True)
+                      x_title="Downstream nodes reached", integer_x=True,
+                      height=height)
     return dcc.Graph(figure=fig, config=_CHART_CFG)
 
 
@@ -837,11 +838,14 @@ def _render_risk_chart(data):
 def _render_dep_charts(dep_data, total_height=None):
     """Render deepest nodes + most connected bar charts stacked vertically.
 
-    If total_height is given, each chart gets roughly half to align with the bottleneck column.
+    If total_height is given, each chart gets roughly half so the combined
+    column matches the bottleneck column on the left. The 40px subtracted
+    accounts for one extra H6 (≈24px, mb-1) and the mt-3 gap (≈16px) the
+    right column carries vs. the left.
     """
     deepest = dep_data['deepest']
     most_connected = dep_data['most_connected']
-    half_h = (total_height - 120) // 2 if total_height else None  # subtract titles + margins + gap
+    half_h = (total_height - 40) // 2 if total_height else None
 
     sections = []
     chart_data = [
@@ -1083,6 +1087,8 @@ def register_analyze_callbacks(app):
             max(180, len(top_nodes) * 28 + 60),
         )
         ctx_chart, subctx_chart = _render_context_coverage(ctx_coverage, subctx_coverage, chart_height=time_row_height)
+        # Shared height for the Bottleneck row so left + right columns match
+        bottleneck_row_height = max(180, len(bottlenecks) * 28 + 60)
 
         # Goal names for heatmap axis ordering
         goal_names_ordered = [g['name'] for g in goal_rows]
@@ -1109,12 +1115,12 @@ def register_analyze_callbacks(app):
 
             # -- Graph Structure --
             html.H5("Graph Structure", className="mb-1"),
-            # Row 1: Bottleneck + Deepest/Connected (matched heights)
+            # Row 1: Bottleneck + Deepest/Connected (matched heights via
+            # shared bottleneck_row_height computed above).
             dbc.Row([
                 dbc.Col([html.H6("Bottleneck Analysis", className="text-muted mb-1"),
-                         _render_bottleneck_chart(bottlenecks)], width=6),
-                dbc.Col([_render_dep_charts(dep_data,
-                         total_height=max(200, len(bottlenecks) * 28 + 60))], width=6),
+                         _render_bottleneck_chart(bottlenecks, height=bottleneck_row_height)], width=6),
+                dbc.Col([_render_dep_charts(dep_data, total_height=bottleneck_row_height)], width=6),
             ], className="g-3"),
             html.Hr(className="my-3"),
 

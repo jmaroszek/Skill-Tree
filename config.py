@@ -70,8 +70,38 @@ DEFAULT_NODE_SHAPES = {
     'Action': 'triangle',
     'Goal': 'star',
     'Resource': 'pentagon',
-    
+
 }
+
+# Tile/badge palette for the Node Editor priority strip and the Details
+# info-pane stack. All colors are slightly muted from their canvas /
+# Bootstrap-Darkly equivalents so the strip sits alongside the cool/quiet
+# subtasks-table tiles without feeling loud. STYLE_GUIDE.md is the
+# human-readable source of truth — keep it in sync when changing values.
+# Each entry is (background, text).
+BADGE_PALETTE = {
+    'Override':   ('#c4528c', '#ffffff'),  # was #e83e8c
+    'Goal':       ('#e6b020', '#212529'),  # type tile, settings literal muted
+    'Priority':   ('#e6b020', '#212529'),  # #N Priority — same as Goal; suppresses Goal type when shown
+    'Action':     ('#d97120', '#ffffff'),  # was #fd7e14
+    'Learn':      ('#2c70d6', '#ffffff'),  # was #0d6efd
+    'Resource':   ('#7c4d9c', '#ffffff'),  # was #9047b8
+    'Open':       ('#375a7f', '#ffffff'),  # Darkly --bs-primary, unchanged
+    'Done':       ('#1a9d78', '#ffffff'),  # was #00bc8c
+    'Blocked':    ('#b35353', '#ffffff'),  # was #c94c4c
+    'HardRelPri': ('#2c4870', '#cfdaea'),  # tweaked from subtasks Hard #375a7f
+    'SoftRelPri': ('#52606e', '#d0d6dc'),  # matches subtasks Soft
+}
+
+
+def badge_style(name: str, font_size: str = "0.75rem") -> dict:
+    """Return an inline-style dict for a node-info badge with the given name.
+
+    `name` should be a key in `BADGE_PALETTE` (e.g. 'Open', 'Goal',
+    'HardRelPri'). Unknown names fall back to a neutral gray.
+    """
+    bg, fg = BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
+    return {"backgroundColor": bg, "color": fg, "fontSize": font_size}
 
 DEFAULT_TIME_SETTINGS = {
     'hours_per_week': 20,

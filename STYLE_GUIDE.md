@@ -29,14 +29,56 @@ Bootstrap DARKLY theme via `dash-bootstrap-components`.
 | text-white   | `#fff`    | Node labels, headings    |
 | text-soft    | `#adb5bd` | Subtle indicators        |
 
-### Status (via ConfigManager + Bootstrap)
-| Name    | Bootstrap `color=` | Hex       |
-|---------|--------------------|-----------|
-| Open    | `primary`          | `#0d6efd` |
-| Done    | `success`          | `#198754` |
-| Blocked | `danger`           | `#dc3545` |
-| Goal    | `warning`          | `#ffc107` |
-| Danger  | (custom)           | `#c94c4c` |
+### Node-info badge palette (slightly muted)
+
+The Node Editor priority strip and the Details info pane share a single
+palette (`config.BADGE_PALETTE`, accessed via `config.badge_style(name)`).
+All values are slightly muted from their canvas / Bootstrap-Darkly
+equivalents so the strip sits alongside the cool/quiet subtasks-table
+edge tiles without feeling loud. **This file is the human-readable source
+of truth — keep `config.BADGE_PALETTE` and the documentation here in
+sync.**
+
+| Tile         | Background | Text      | Notes                                                     |
+|--------------|-----------|-----------|-----------------------------------------------------------|
+| Override     | `#c4528c` | `#ffffff` | Manual override; rare but loud. Always first in stack.    |
+| Goal         | `#e6b020` | `#212529` | Type tile. Suppressed when a `#N Priority` tile is shown. |
+| Priority     | `#e6b020` | `#212529` | `#N Priority` for priority Goals. Same hue as Goal.       |
+| Action       | `#d97120` | `#ffffff` | Type tile.                                                |
+| Learn        | `#2c70d6` | `#ffffff` | Type tile.                                                |
+| Resource     | `#7c4d9c` | `#ffffff` | Type tile.                                                |
+| Open         | `#375a7f` | `#ffffff` | Status tile. Equals Darkly `--bs-primary` (unchanged).    |
+| Done         | `#1a9d78` | `#ffffff` | Status tile.                                              |
+| Blocked      | `#b35353` | `#ffffff` | Status tile.                                              |
+| HardRelPri   | `#2c4870` | `#cfdaea` | `Hard #N` for non-Goal nodes in a priority Goal subtree.  |
+| SoftRelPri   | `#52606e` | `#d0d6dc` | `Soft #N`. Matches subtasks-table Soft tile.              |
+
+**Render order** in the Details info pane:
+
+1. Override (always first if active)
+2. Status (always)
+3. Priority (`#N Priority` for priority Goals; suppresses the Goal type tile)
+4. Type (skipped when the node is a priority Goal)
+5. Relationship Priority (`Hard #N` / `Soft #N` for non-Goal nodes in a priority subtree)
+
+**Render order** in the Node Editor priority strip is the same minus
+Status and Type (those are handled by other inputs in the editor):
+Override → Priority/RelPriority.
+
+### Subtasks-table edge palette
+
+Used by the `_REL_BADGE_STYLES` map for the relationship column. The
+Hard tile shares a value with the Open status badge intentionally —
+"blue means Hard or Open" is the intended app-wide rule.
+
+| Edge type | Background | Text      | Notes                                                     |
+|-----------|-----------|-----------|-----------------------------------------------------------|
+| Hard      | `#375a7f` | `#d6e0ee` | Equals Darkly `--bs-primary` and the Open status badge.   |
+| Soft      | `#52606e` | `#d0d6dc` | Neutral slate.                                            |
+| Synergy   | `#4d6c75` | `#cfdde0` | Quiet cool (categorically different from Hard/Soft).      |
+
+The explain-modal contributors chart and legend use the same edge palette
+plus a `Self` tile (`#7a6e62` warm sand) for the node itself.
 
 ### Selection (Cytoscape)
 | Token           | Hex       |
@@ -150,9 +192,25 @@ style={
 
 ## Badges
 
+Use `config.badge_style(name)` rather than `dbc.Badge(color=...)` so badges
+pick up the centralized BADGE_PALETTE instead of stock Bootstrap colors.
+The helper returns an inline-style dict with background, foreground, and
+font size pre-set.
+
 ```python
-dbc.Badge("Status", color="success", style={"fontSize": "0.7rem", "width": "62px", "textAlign": "center"})
+from config import badge_style
+
+# Standard size (0.75rem) — Node Editor + Details info-pane stack
+html.Span(node.status, className="badge", style=badge_style(node.status))
+
+# Compact size (0.7rem) — subtasks-table cells, goal cards
+html.Span(rel, className="badge",
+          style=badge_style('HardRelPri', font_size="0.7rem"))
 ```
+
+Valid names: `Override`, `Goal`, `Priority`, `Action`, `Learn`, `Resource`,
+`Open`, `Done`, `Blocked`, `HardRelPri`, `SoftRelPri`. Unknown names fall
+back to a neutral gray.
 
 ## Tooltips (hover)
 
