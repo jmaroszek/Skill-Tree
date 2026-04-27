@@ -15,7 +15,12 @@ import plotly.graph_objects as go
 
 from config import ConfigManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from scoring import build_adjacency as build_scoring_adjacency, total_value
+from scoring import (
+    build_adjacency as build_scoring_adjacency,
+    total_value,
+    perceived_cost,
+    _get_goal_subtree_from_adjacency,
+)
 
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -642,7 +647,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
         "display": "flex", "alignItems": "flex-start", "gap": "3rem",
     })
 
-    return [table_row]
+    return [table_row, *format_value_chain_section(manager)]
 
 
 # --- Next-tab chain visualization helpers ---
@@ -748,32 +753,77 @@ def _topo_sort(non_done_names, dag_fwd):
     return topo
 
 
-def _compute_highest_value_path(manager):
-    """Find the hard-edge chain whose cumulative total_value is maximized."""
+def _compute_highest_priority_path(manager):
+    """Find the hard-edge chain whose cumulative priority score is maximized.
+
+    Mirrors the full scoring formula from `score_nodes` (TV / cost, goal boost,
+    context weight, density normalization) but skips the eligibility gate so
+    Blocked nodes contribute their would-be priority to chain weight. Goals
+    score 0 — they're terminal endpoints, not work.
+    """
     nodes, edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
     if not non_done_names:
         return []
 
-    # Compute total_value for each non-Done node
     hp = ConfigManager.get_hyperparams()
     w_v, w_i = hp.get('w_v', 1.0), hp.get('w_i', 1.0)
     d_H, d_S, d_Syn = hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35)
+    w_e, w_t, beta = hp.get('w_e', 2.5), hp.get('w_t', 1.0), hp.get('beta', 0.85)
+    goal_boost = hp.get('goal_boost', 1.5)
+    alpha = hp.get('alpha', 0.0)
+    context_weights = ConfigManager.get_context_weights() or {}
+
     all_nodes_dict = {n.name: n for n in nodes}
-    node_names = set(all_nodes_dict.keys())
-    H_out, S_out, Syn, Hard_in = build_scoring_adjacency(edges, node_names)
+    H_out, S_out, Syn, Hard_in = build_scoring_adjacency(edges, set(all_nodes_dict.keys()))
 
-    tv = {}
+    n_active_map = {}
+    for n in nodes:
+        if n.type == 'Goal' or n.status in ('Done', 'Blocked'):
+            continue
+        if n.context is None:
+            continue
+        key = (n.context, n.subcontext)
+        n_active_map[key] = n_active_map.get(key, 0) + 1
+
+    rank_multipliers = [
+        goal_boost,
+        1 + (goal_boost - 1) * 0.66,
+        1 + (goal_boost - 1) * 0.33,
+    ]
+    priority_goals = ConfigManager.get_priority_goals()
+    node_to_boost = {}
+    if priority_goals:
+        for rank_idx, g in enumerate(priority_goals[:3]):
+            multiplier = rank_multipliers[rank_idx]
+            subtree = _get_goal_subtree_from_adjacency(g, Hard_in)
+            for n_name in subtree:
+                if n_name not in node_to_boost or multiplier > node_to_boost[n_name]:
+                    node_to_boost[n_name] = multiplier
+
+    score_map = {}
     for name in non_done_names:
-        tv[name] = total_value(name, set(), all_nodes_dict, H_out, S_out, Syn,
-                               w_v, w_i, d_H, d_S, d_Syn)
+        node = all_nodes_dict.get(name)
+        if not node or node.type == 'Goal':
+            score_map[name] = 0.0
+            continue
+        t_override = 0.0 if node.time_mode == 'inherited' else None
+        cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
+        tv = total_value(name, set(), all_nodes_dict, H_out, S_out, Syn,
+                         w_v, w_i, d_H, d_S, d_Syn)
+        score = tv / cost
+        if name in node_to_boost:
+            score *= node_to_boost[name]
+        weight = context_weights.get(node.context, 1.0) if node.context else 1.0
+        n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
+        density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
+        score_map[name] = score * weight * density_mult
 
-    # DP: longest-weight path in DAG
     topo = _topo_sort(non_done_names, dag_fwd)
-    dp = {n: tv.get(n, 0) for n in non_done_names}
+    dp = {n: score_map.get(n, 0) for n in non_done_names}
     parent = {n: None for n in non_done_names}
     for node in topo:
         for nxt in dag_fwd.get(node, []):
-            candidate = dp[node] + tv.get(nxt, 0)
+            candidate = dp[node] + score_map.get(nxt, 0)
             if candidate > dp[nxt]:
                 dp[nxt] = candidate
                 parent[nxt] = node
@@ -781,7 +831,6 @@ def _compute_highest_value_path(manager):
     if not dp:
         return []
     end = max(dp, key=dp.get)
-    # Only return a chain if it has more than one node
     if parent[end] is None:
         return []
 
@@ -839,7 +888,7 @@ def format_value_chain_section(manager):
                 return chain[i:]
         return chain
 
-    value_path = _trim_leading_blocked(_compute_highest_value_path(manager))
+    value_path = _trim_leading_blocked(_compute_highest_priority_path(manager))
 
     sub_style = {"fontSize": "1rem", "fontWeight": "500"}
     info_icon_style = {
@@ -850,13 +899,13 @@ def format_value_chain_section(manager):
     return [
         html.Div([
             html.Div([
-                html.H6("Highest-Value Dependency Path",
+                html.H6("Highest-Priority Dependency Path",
                         className="text-muted mb-0 d-inline", style=sub_style),
                 html.Span("\u24d8", id="chain-info-value", style=info_icon_style),
                 dbc.Popover(
                     dbc.PopoverBody(
-                        "The connected chain of tasks (by hard edges) whose cumulative total value "
-                        "is maximized. Shows which thread of work carries the most value."
+                        "The connected chain of tasks (by hard edges) whose cumulative priority "
+                        "score is maximized."
                     ),
                     target="chain-info-value", trigger="click", placement="right",
                 ),

@@ -211,11 +211,10 @@ def score_nodes(
 
     # Per-bucket active counts for density normalization. Goal/Done/Blocked
     # nodes don't compete for top-N slots, so they don't dilute the budget.
-    # Nodes with no context are exempt — they're "uncategorized" and aren't
-    # a meaningful bucket; lumping them together would suppress an entire
-    # inbox of pending categorization. Note: (context, None) IS a meaningful
-    # bucket — it means "broad area, not a specific subarea" — so subcontext
-    # being None doesn't disqualify a node from bucketing.
+    # (context, None) IS a meaningful bucket — it means "broad area, not a
+    # specific subarea" — so subcontext being None doesn't disqualify.
+    # context=None is rejected at add_node; defensively skip if any legacy
+    # row slipped through.
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n in active_nodes:
         if n.type == 'Goal' or n.status in ('Done', 'Blocked'):

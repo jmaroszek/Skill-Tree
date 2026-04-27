@@ -1,16 +1,30 @@
 import sqlite3
 from pathlib import Path
+from typing import Optional
+
+
+# Snapshot of the resolved DB path on first call. Reading config.ENVIRONMENT
+# on every call risks splitting a single process between sandbox and prod if
+# the env var is ever mutated mid-run (test fixtures, REPL re-imports, etc.).
+# Caching guarantees a process commits to one DB for its lifetime. Tests that
+# need a different path monkeypatch get_db_path itself (see conftest), which
+# bypasses this cache entirely.
+_db_path_cache: Optional[str] = None
 
 
 def get_db_path() -> str:
     """Returns the absolute path to the SQLite database file."""
+    global _db_path_cache
+    if _db_path_cache is not None:
+        return _db_path_cache
     # Lazy import dodges the circular dependency: config imports
     # get_connection from this module at load time.
     from config import ENVIRONMENT, DB_FILENAME
     db_name = DB_FILENAME
     if ENVIRONMENT == "sandbox":
         db_name = "sandbox_" + DB_FILENAME
-    return str(Path(__file__).parent / "data" / db_name)
+    _db_path_cache = str(Path(__file__).parent / "data" / db_name)
+    return _db_path_cache
 
 
 def get_connection() -> sqlite3.Connection:

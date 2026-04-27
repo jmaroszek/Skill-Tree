@@ -337,7 +337,7 @@ class TestSaveRoundTrip:
         """Exact time_o/m/p values round-trip through add → get_node."""
         handle_save(manager,
             "TimedNode", "Learn", "", 5, 40.0, 80.0, 160.0, 5, 5,
-            [], None, None, None, None, None,
+            [], "Mind", None, None, None, None,
             [], [], [], [], []
         )
         node = manager.get_node("TimedNode")
@@ -352,7 +352,7 @@ class TestSaveRoundTrip:
         to save but the DB retained the original values."""
         handle_save(manager,
             "Node", "Learn", "", 5, 16.0, 32.0, 64.0, 5, 5,
-            [], None, None, None, None, None,
+            [], "Mind", None, None, None, None,
             [], [], [], [], []
         )
         assert manager.get_node("Node").time_p == 64.0
@@ -360,7 +360,7 @@ class TestSaveRoundTrip:
         # Simulate the user changing pessimistic from 64 to 80 and saving
         handle_save(manager,
             "Node", "Learn", "", 5, 16.0, 32.0, 80.0, 5, 5,
-            [], None, None, None, None, None,
+            [], "Mind", None, None, None, None,
             [], [], [], [], []
         )
         node = manager.get_node("Node")
@@ -392,9 +392,9 @@ class TestSaveRoundTrip:
         """Two successive saves with different values — the second must win.
         Guards against any caching or no-op update path."""
         handle_save(manager,"N", "Learn", "v1", 3, 1.0, 2.0, 4.0, 3, 3,
-                     [], None, None, None, None, None, [], [], [], [], [])
+                     [], "Mind", None, None, None, None, [], [], [], [], [])
         handle_save(manager,"N", "Learn", "v2", 8, 5.0, 10.0, 20.0, 8, 8,
-                     [], None, None, None, None, None, [], [], [], [], [])
+                     [], "Mind", None, None, None, None, [], [], [], [], [])
         node = manager.get_node("N")
         assert node.description == "v2"
         assert node.value == 8
@@ -411,7 +411,7 @@ class TestSaveRoundTrip:
 
         # First save: C is a hard prereq
         handle_save(manager,"Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
-                     [], None, None, None, None, None,
+                     [], "Mind", None, None, None, None,
                      ["C"], [], [], [], [])
         edges = manager.get_edges()
         hard_prereqs = [e['source'] for e in edges
@@ -420,7 +420,7 @@ class TestSaveRoundTrip:
 
         # Second save: user removes C and adds A, B
         handle_save(manager,"Target", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
-                     [], None, None, None, None, None,
+                     [], "Mind", None, None, None, None,
                      ["A", "B"], [], [], [], [])
         edges = manager.get_edges()
         hard_prereqs = sorted(e['source'] for e in edges
@@ -438,7 +438,7 @@ class TestHandleSaveTimeMode:
     def test_default_time_mode_is_manual(self):
         """Saving without explicit time_mode defaults to 'manual'."""
         handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
-                     [], None, None, None, None, None,
+                     [], "Mind", None, None, None, None,
                      [], [], [], [], [])
         node = manager.get_node("Node")
         assert node.time_mode == 'manual'
@@ -446,7 +446,7 @@ class TestHandleSaveTimeMode:
     def test_inherited_time_mode_persisted(self):
         """Saving with time_mode='inherited' stores it in the DB."""
         handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
-                     [], None, None, None, None, None,
+                     [], "Mind", None, None, None, None,
                      [], [], [], [], [], time_mode='inherited')
         node = manager.get_node("Node")
         assert node.time_mode == 'inherited'
@@ -454,19 +454,19 @@ class TestHandleSaveTimeMode:
     def test_time_mode_updated_on_save(self):
         """Changing time_mode from manual to inherited on update persists."""
         handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
-                     [], None, None, None, None, None,
+                     [], "Mind", None, None, None, None,
                      [], [], [], [], [], time_mode='manual')
         assert manager.get_node("Node").time_mode == 'manual'
 
         handle_save(manager,"Node", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
-                     [], None, None, None, None, None,
+                     [], "Mind", None, None, None, None,
                      [], [], [], [], [], time_mode='inherited')
         assert manager.get_node("Node").time_mode == 'inherited'
 
     def test_goal_node_with_inherited_time(self):
         """Goal nodes can use inherited time mode."""
         handle_save(manager,"MyGoal", "Goal", "a goal", 5, 0, 0, 0, 5, 5,
-                     [], None, None, None, None, None,
+                     [], "Mind", None, None, None, None,
                      [], [], [], [], [], time_mode='inherited')
         node = manager.get_node("MyGoal")
         assert node.type == "Goal"
@@ -496,7 +496,7 @@ class TestGoalNodeCreation:
         manager.add_node(_make_node("Task2"))
         handle_save(manager,
             "MyGoal", "Goal", "", 5, 0, 0, 0, 5, 5,
-            [], None, None, None, None, None,
+            [], "Mind", None, None, None, None,
             ["Task1", "Task2"], [], [], [], []
         )
         edges = manager.get_edges()

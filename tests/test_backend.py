@@ -194,6 +194,19 @@ class TestNodeCRUD:
         assert result.value == 9
         assert result.obsidian_path == "notes/a.md"
 
+    def test_add_node_rejects_none_context(self, mgr):
+        with pytest.raises(ValueError, match="must have a context"):
+            mgr.add_node(_make_node("NoCtx", context=None))
+
+    def test_add_node_rejects_empty_context(self, mgr):
+        with pytest.raises(ValueError, match="must have a context"):
+            mgr.add_node(_make_node("EmptyCtx", context=""))
+
+    def test_update_node_rejects_none_context(self, mgr):
+        mgr.add_node(_make_node("A"))
+        with pytest.raises(ValueError, match="must have a context"):
+            mgr.update_node(_make_node("A", context=None))
+
 
 # ============================================================================
 # Node Rename (delete old + re-add under new name)
@@ -413,12 +426,32 @@ class TestEdgeOperations:
         mgr.remove_edge("A", "B", EDGE_NEEDS_HARD)
         assert len(mgr.get_edges()) == 0
 
-    def test_multiple_edge_types_coexist(self, mgr):
+    def test_pair_conflict_rejected(self, mgr):
+        """Fix 6: only one edge type allowed per unordered pair."""
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
         mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        # Same direction, different type — caught by pair-conflict check.
+        with pytest.raises(ValueError, match="already exists"):
+            mgr.add_edge("A", "B", EDGE_HELPS)
+        # Opposite direction Hard/Soft is rejected as a cycle, before
+        # reaching the pair-conflict check; either way the new row is denied.
+        with pytest.raises(ValueError, match="cycle|already exists"):
+            mgr.add_edge("B", "A", EDGE_NEEDS_SOFT)
+        assert len(mgr.get_edges()) == 1
+
+    def test_helps_canonicalization_collapses_reverse_insert(self, mgr):
+        """Fix 6: (A,B,Helps) and (B,A,Helps) are the same fact — only one row."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_edge("B", "A", EDGE_HELPS)
         mgr.add_edge("A", "B", EDGE_HELPS)
-        assert len(mgr.get_edges()) == 2
+        edges = mgr.get_edges()
+        assert len(edges) == 1
+        # Canonical form: lexically-sorted endpoints
+        assert edges[0]['source'] == "A"
+        assert edges[0]['target'] == "B"
+        assert edges[0]['type'] == EDGE_HELPS
 
     def test_remove_nonexistent_edge_no_error(self, mgr):
         mgr.add_node(_make_node("A"))
@@ -433,8 +466,15 @@ class TestEdgeOperations:
 class TestCycleDetection:
     def test_self_loop_rejected(self, mgr):
         mgr.add_node(_make_node("A"))
-        with pytest.raises(ValueError, match="cycle"):
+        with pytest.raises(ValueError, match="[Ss]elf-loop"):
             mgr.add_edge("A", "A", EDGE_NEEDS_HARD)
+
+    def test_self_loop_rejected_for_all_edge_types(self, mgr):
+        """Fix 3: self-loops rejected on Hard, Soft, AND Helps."""
+        mgr.add_node(_make_node("A"))
+        for etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS):
+            with pytest.raises(ValueError, match="[Ss]elf-loop"):
+                mgr.add_edge("A", "A", etype)
 
     def test_simple_cycle_rejected(self, mgr):
         mgr.add_node(_make_node("A", status="Done"))
@@ -740,17 +780,16 @@ class TestSyncEdges:
         assert edges[0]['target'] == "B"
         assert edges[0]['type'] == EDGE_NEEDS_HARD
 
-    def test_sync_skips_cyclic_edges(self, mgr):
+    def test_sync_rejects_pair_conflict_in_form(self, mgr):
+        """Fix 6: declaring the same pair in two different edge buckets raises
+        a clear error before any DB mutation. Replaces the old behavior where
+        a (B needs A, B supports A) form would silently skip the cycle-creating
+        edge — now caught earlier as a pair conflict at form-validation time."""
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
         mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-        # Sync B: B needs A (re-creates A→B), and B supports A (would create B→A — a cycle)
-        mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=["A"], supports_soft=[], helps=[])
-        edges = [e for e in mgr.get_edges() if e['type'] == EDGE_NEEDS_HARD]
-        # A→B should exist (from needs_hard), but B→A should be skipped (cycle)
-        assert len(edges) == 1
-        assert edges[0]['source'] == "A"
-        assert edges[0]['target'] == "B"
+        with pytest.raises(ValueError, match="[Oo]nly one edge type"):
+            mgr.sync_edges("B", needs_hard=["A"], needs_soft=[], supports_hard=["A"], supports_soft=[], helps=[])
 
     def test_sync_with_none_args(self, mgr):
         mgr.add_node(_make_node("A"))

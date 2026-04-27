@@ -146,7 +146,9 @@ def test_detect_communities_cache_hit_avoids_nx_call(monkeypatch):
 
 @pytest.mark.parametrize("mutate", [
     lambda m: m.add_node(_make_node("NewNode")),
-    lambda m: m.add_edge("A", "B", EDGE_NEEDS_SOFT),
+    # Add an edge to a previously edge-less pair so we don't conflict with
+    # the seed (A→B Hard) under the one-edge-per-pair rule (Fix 6).
+    lambda m: (m.add_node(_make_node("C")), m.add_edge("A", "C", EDGE_NEEDS_SOFT)),
     lambda m: m.remove_edge("A", "B", EDGE_NEEDS_HARD),
     lambda m: m.delete_node("B"),
     lambda m: m.update_node(_make_node("A", description="updated")),

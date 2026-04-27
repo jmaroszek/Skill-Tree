@@ -598,7 +598,7 @@ def register_event_callbacks(app):
         contexts = ConfigManager.get_contexts()
         _ted = ConfigManager.get_time_estimate_defaults()
         type_opts = [{"label": t, "value": t} for t in types]
-        ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
+        ctx_opts = [{"label": c, "value": c} for c in contexts]
         node_opts = [{"label": n.name, "value": n.name} for n in graph_manager.get_all_nodes()]
 
         return (True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", "",
@@ -1042,7 +1042,7 @@ def register_event_callbacks(app):
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
         type_opts = [{"label": t, "value": t} for t in types]
-        ctx_opts = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in contexts]
+        ctx_opts = [{"label": c, "value": c} for c in contexts]
         subctx_opts = [{"label": "None", "value": ""}]
         if node.context:
             subs = ConfigManager.get_subcontexts().get(node.context, [])

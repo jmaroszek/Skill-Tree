@@ -85,7 +85,7 @@ sidebar_content = html.Div(
 
             dbc.Label("Context", className="mt-2"),
             html.Div([
-                dbc.Select(id="node-context", options=[{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in CONTEXTS], value="", style={'flex': 1}),  # type: ignore[reportArgumentType]
+                dbc.Select(id="node-context", options=[{"label": c, "value": c} for c in CONTEXTS], value="", style={'flex': 1}),  # type: ignore[reportArgumentType]
                 dbc.Button("▾", id="btn-subcontext-toggle", color="light", className="ms-1 px-2")
             ], className="d-flex"),
             dbc.Collapse(dbc.Select(id="node-subcontext", options=[], className="mt-1"), id="collapse-subcontext", is_open=False),

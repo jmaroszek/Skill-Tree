@@ -1024,3 +1024,19 @@ def register_settings_callbacks(app):
                 ), width=8),
             ], className="mb-2"))
         return rows
+
+    @app.callback(
+        Output('repair-graph-state-status', 'children'),
+        Input('btn-repair-graph-state', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def repair_graph_state(n_clicks):
+        """Manual lever for `recompute_all_statuses` — same logic that runs
+        at app startup ([app.py](app.py)). Reports how many nodes' Blocked/Open
+        status was repaired so the user can tell whether drift was present."""
+        if not n_clicks:
+            return dash.no_update
+        changed = manager.recompute_all_statuses()
+        if changed == 0:
+            return "Graph state already consistent."
+        return f"Repaired {changed} node{'s' if changed != 1 else ''}."

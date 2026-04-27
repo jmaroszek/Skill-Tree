@@ -1506,7 +1506,7 @@ def register_callbacks(app):
             # Populate dynamic contexts datalists from DB + Config preserving defined order
             base_ctx = ConfigManager.get_contexts()
             
-            ctx_list = [{"label": "None", "value": ""}] + [{"label": c, "value": c} for c in base_ctx]
+            ctx_list = [{"label": c, "value": c} for c in base_ctx]
             f_ctx_list = [{"label": c, "value": c} for c in base_ctx]
 
             base_types = ConfigManager.get_node_types()

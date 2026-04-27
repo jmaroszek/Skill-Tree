@@ -507,3 +507,58 @@ class TestBuildAdjacency:
         hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency([])
         assert len(hard_fwd) == 0
         assert len(prereq_rev) == 0
+
+
+# ============================================================================
+# _compute_highest_priority_path — uses ROI not raw TV (Fix 1)
+# ============================================================================
+
+class TestHighestPriorityPath:
+    def test_picks_low_cost_chain_over_high_TV_high_cost_chain(self, mgr):
+        """Two parallel chains: a 3-node low-difficulty chain vs. a 2-node
+        very-high-difficulty/value chain. Old TV-only DP would pick the
+        2-node chain (higher cumulative TV); the new priority DP must pick
+        the 3-node chain (higher cumulative ROI)."""
+        from callback_helpers import _compute_highest_priority_path
+
+        _setup_graph(mgr, [
+            _make_node("A", value=5, interest=5, difficulty=1),
+            _make_node("B", value=5, interest=5, difficulty=1),
+            _make_node("C", value=5, interest=5, difficulty=1),
+            _make_node("D", value=10, interest=10, difficulty=10),
+            _make_node("E", value=10, interest=10, difficulty=10),
+        ], edges=[
+            ("A", "B", EDGE_NEEDS_HARD),
+            ("B", "C", EDGE_NEEDS_HARD),
+            ("D", "E", EDGE_NEEDS_HARD),
+        ])
+
+        path = _compute_highest_priority_path(mgr)
+        assert path == ["A", "B", "C"], (
+            f"Priority DP must pick the cheap 3-node chain, got {path!r}. "
+            "If this picks ['D','E'], the chain is still using raw TV (Fix 1 regression)."
+        )
+
+    def test_empty_graph_returns_empty_list(self, mgr):
+        from callback_helpers import _compute_highest_priority_path
+        assert _compute_highest_priority_path(mgr) == []
+
+    def test_single_node_no_chain(self, mgr):
+        """A graph with a single non-Done node has no multi-node chain."""
+        from callback_helpers import _compute_highest_priority_path
+        _setup_graph(mgr, [_make_node("Solo")])
+        assert _compute_highest_priority_path(mgr) == []
+
+    def test_done_nodes_excluded_from_chain(self, mgr):
+        """Done nodes are not part of the non-Done DAG, so chain stops at them."""
+        from callback_helpers import _compute_highest_priority_path
+        _setup_graph(mgr, [
+            _make_node("A", status="Done"),
+            _make_node("B"),
+            _make_node("C"),
+        ], edges=[
+            ("A", "B", EDGE_NEEDS_HARD),
+            ("B", "C", EDGE_NEEDS_HARD),
+        ])
+        path = _compute_highest_priority_path(mgr)
+        assert "A" not in path

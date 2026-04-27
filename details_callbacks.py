@@ -971,8 +971,7 @@ def register_details_callbacks(app):
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
         type_opts = [{"label": t, "value": t} for t in types]
-        ctx_opts = [{"label": "None", "value": ""}] + \
-                   [{"label": c, "value": c} for c in contexts]
+        ctx_opts = [{"label": c, "value": c} for c in contexts]
 
         all_nodes = graph_manager.get_all_nodes()
         subtree = graph_manager.get_goal_subtree(selected_node) if selected_node else set()

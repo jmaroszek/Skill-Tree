@@ -81,7 +81,7 @@ def build_events_tab_content():
             dbc.Label("Context", className="mt-2"),
             html.Div([
                 dbc.Select(id="dormant-node-context",
-                           options=[{"label": "None", "value": ""}],
+                           options=[],
                            style={'flex': 1}),
                 dbc.Button("▾", id="btn-dormant-subcontext-toggle",
                            color="light", className="ms-1 px-2"),

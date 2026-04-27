@@ -19,14 +19,13 @@ def _make_node(name, **kw):
 
 
 def _seed_graph():
-    """5 nodes + 4 edges including a bidirectional (Helps) pair to exercise cycles."""
+    """5 nodes + 3 edges. Helps is canonicalized to one row per pair (Fix 6)."""
     mgr = GraphManager()
     for n in ("A", "B", "C", "D", "E"):
         mgr.add_node(_make_node(n))
     mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
     mgr.add_edge("B", "C", EDGE_NEEDS_HARD)
     mgr.add_edge("C", "D", EDGE_HELPS)
-    mgr.add_edge("D", "C", EDGE_HELPS)  # bidirectional pair with C
     return mgr
 
 
@@ -62,16 +61,16 @@ def test_generate_elements_node_and_edge_counts():
     nodes = [e for e in elements if "source" not in e.get("data", {})]
     edges = [e for e in elements if "source" in e.get("data", {})]
     assert len(nodes) == 5
-    assert len(edges) == 4
+    assert len(edges) == 3
 
 
-def test_generate_elements_includes_bidirectional_edges():
+def test_generate_elements_includes_helps_edge():
+    """Helps edges render with one canonical row per pair (Fix 6)."""
     _seed_graph()
     elements = generate_elements()
     edge_pairs = {(e["data"]["source"], e["data"]["target"], e["data"]["type"])
                   for e in elements if "source" in e.get("data", {})}
     assert ("C", "D", EDGE_HELPS) in edge_pairs
-    assert ("D", "C", EDGE_HELPS) in edge_pairs
 
 
 def test_generate_elements_filters_by_context():

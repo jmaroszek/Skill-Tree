@@ -14,7 +14,7 @@ import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from config import ConfigManager
 from scoring import score_nodes
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Tuple
 
 
 # Fields whose mutation changes a node's priority_score. Anything else
@@ -79,6 +79,11 @@ class GraphManager:
 
     def add_node(self, node: Node):
         """Add a new node to the database."""
+        if not node.context:
+            raise ValueError(
+                f"Node '{node.name}' must have a context. "
+                "Uncategorized nodes are no longer permitted."
+            )
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -96,6 +101,11 @@ class GraphManager:
 
     def update_node(self, node: Node):
         """Updates an existing node."""
+        if not node.context:
+            raise ValueError(
+                f"Node '{node.name}' must have a context. "
+                "Uncategorized nodes are no longer permitted."
+            )
         prior = self.get_node(node.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -247,21 +257,61 @@ class GraphManager:
 
     # --- Edge Operations ---
 
+    @staticmethod
+    def _canonicalize_edge(source: str, target: str, edge_type: str) -> Tuple[str, str]:
+        """Helps is bidirectional: (A,B,Helps) and (B,A,Helps) describe the
+        same fact (verified in scoring.build_adjacency, which mirrors Syn for
+        either row). Canonicalize so only one row per pair can exist by
+        sorting endpoints lexically. Hard/Soft direction is meaningful and
+        kept as-is.
+        """
+        if edge_type == EDGE_HELPS and source > target:
+            return target, source
+        return source, target
+
+    def _check_pair_conflict(self, cursor, source: str, target: str, edge_type: str) -> None:
+        """Raise if any other edge already exists between this unordered pair.
+
+        Only one edge type is permitted per {A, B} — Hard, Soft, and Helps
+        are mutually exclusive. A duplicate of the exact same row is a no-op
+        (handled separately by sqlite3.IntegrityError in the INSERT).
+        """
+        cursor.execute(
+            "SELECT source, target, type FROM Edges "
+            "WHERE (source=? AND target=?) OR (source=? AND target=?)",
+            (source, target, target, source),
+        )
+        for ex_src, ex_tgt, ex_type in cursor.fetchall():
+            if ex_src == source and ex_tgt == target and ex_type == edge_type:
+                continue  # exact duplicate — INSERT will be a no-op via PK
+            raise ValueError(
+                f"An edge already exists between '{source}' and '{target}' "
+                f"({ex_src} -> {ex_tgt}, type={ex_type}). "
+                "Only one edge type is allowed per pair of nodes."
+            )
+
     def add_edge(self, source: str, target: str, edge_type: str):
-        """Adds an edge to the DB, ensuring no cycle if Needs_Hard or Needs_Soft edge."""
+        """Adds an edge to the DB, ensuring no self-loop, no cycle, and no
+        conflicting edge type already on this pair."""
+        if source == target:
+            raise ValueError("Self-loop edges are not allowed.")
+
+        source, target = self._canonicalize_edge(source, target, edge_type)
+
         if edge_type in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
             if self._will_create_cycle(source, target):
                 raise ValueError(f"Adding edge {source} -> {target} creates a cycle.")
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            self._check_pair_conflict(cursor, source, target, edge_type)
             try:
                 cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
                 conn.commit()
                 if edge_type == EDGE_NEEDS_HARD:
                     self._update_node_state(target)
             except sqlite3.IntegrityError:
-                pass  # Edge already exists
+                pass  # Exact duplicate row — silently no-op
         self._bump_version()
 
     def remove_edge(self, source: str, target: str, edge_type: str):
@@ -288,6 +338,33 @@ class GraphManager:
         supports_hard = supports_hard or []
         supports_soft = supports_soft or []
         helps = helps or []
+
+        # Validate the form upfront: each pair {node_name, other} can carry
+        # at most one edge type across all five buckets. Catches conflicts
+        # before any DB mutation so the user sees a single clear error
+        # instead of a partial save.
+        pair_to_bucket: Dict[frozenset, str] = {}
+        bucket_pairs = [
+            ('needs_hard', needs_hard),
+            ('needs_soft', needs_soft),
+            ('supports_hard', supports_hard),
+            ('supports_soft', supports_soft),
+            ('helps', helps),
+        ]
+        for bucket_name, others in bucket_pairs:
+            for other in others:
+                if other == node_name:
+                    raise ValueError(
+                        f"Self-loop edge on '{node_name}' (in {bucket_name}) is not allowed."
+                    )
+                pair = frozenset({node_name, other})
+                prior = pair_to_bucket.get(pair)
+                if prior is not None and prior != bucket_name:
+                    raise ValueError(
+                        f"Edge between '{node_name}' and '{other}' declared in both "
+                        f"'{prior}' and '{bucket_name}'. Only one edge type is allowed per pair."
+                    )
+                pair_to_bucket[pair] = bucket_name
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -320,7 +397,17 @@ class GraphManager:
             )
 
             def _insert_edge(src, trgt, etype):
+                src, trgt = self._canonicalize_edge(src, trgt, etype)
                 if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) and self._will_create_cycle(src, trgt):
+                    return
+                # Pair-conflict against surviving (dormant-anchored) edges
+                # — silently skip rather than raise, since the form-level
+                # validation above already caught intra-form conflicts and
+                # this would only fire on edges to dormant nodes the user
+                # can't see.
+                try:
+                    self._check_pair_conflict(cursor, src, trgt, etype)
+                except ValueError:
                     return
                 try:
                     cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)", (src, trgt, etype))
@@ -377,6 +464,14 @@ class GraphManager:
         return p_node.status == 'Done'
 
     def _update_node_state(self, node_name: str):
+        # Done is intentionally sticky on transitive dependents: when an
+        # upstream prereq is un-Done (Done → Open), the cascade walks
+        # downstream and re-evaluates each dependent here, but a Done
+        # dependent stays Done. Done reflects user-asserted completion that
+        # shouldn't auto-revert just because a prereq was re-opened. This
+        # can leave the graph in an asymmetric state (Done node with un-Done
+        # prereq); use ConfigManager → Settings → Personal → "Repair graph
+        # state" if you want every non-Done node re-derived.
         node = self.get_node(node_name)
         if not node or node.status == "Done":
             return
