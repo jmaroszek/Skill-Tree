@@ -9,6 +9,14 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 - **Do not visually test the app.** The user handles all manual / browser QA themselves. Only run `pytest` for verification.
 - **Port is 8050.**
 
+## Edge-type semantics
+
+The three real edge types are *not* a single "strength" gradient — `Helps` is on a different axis from `Needs_Hard`/`Needs_Soft`. Treat them as:
+
+- **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop).
+- **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
+- **`Helps`** (Synergy) — *mutual multiplicative reinforcement*, not a lesser Soft. Doing both is significantly more valuable than the sum of doing each alone (e.g., concepts that blend unusually well). Bidirectional, non-transitive (no chains). Synergy contributes via two paths: a small **pair bonus** `d_Syn_pair * tv(partner)` pre-completion, and a **multiplicative kick on intrinsic value** `iv * (1 + d_Syn_mul * count_done_partners)` once partners are Done. Multiplier applies to intrinsic only — not to the cascade or the pair bonus. See [`scoring.py`](scoring.py)'s `total_value` for the implementation.
+
 ## Where to look
 
 Don't duplicate these in this file — they're the source of truth for their respective topics:

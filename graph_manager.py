@@ -546,7 +546,7 @@ class GraphManager:
         """
         hypers = ConfigManager.get_hyperparams()
         hypers['context_weights'] = ConfigManager.get_context_weights()
-        TV_AFFECTING_KEYS = ('w_v', 'w_i', 'd_H', 'd_S', 'd_Syn')
+        TV_AFFECTING_KEYS = ('w_v', 'w_i', 'd_H', 'd_S', 'd_Syn_pair', 'd_Syn_mul')
         hypers_key = tuple((k, hypers.get(k)) for k in TV_AFFECTING_KEYS)
         cache_key = (self._scoring_version, hypers_key)
         with self._cache_lock:

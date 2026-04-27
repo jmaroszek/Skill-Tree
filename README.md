@@ -156,6 +156,16 @@ Working top to bottom:
 
 **[SCREENSHOT: the relationships section showing several nodes linked as hard prerequisites.]**
 
+#### What the three edge types actually mean
+
+These three relationship types aren't just "stronger" and "weaker" versions of the same idea — they encode genuinely different kinds of connections, and the scoring algorithm treats each one differently. Worth understanding before you draw a lot of arrows.
+
+- **Hard** — a *must-do* prerequisite. The knowledge from A is required for B, or A is just the order that makes most sense to do things in. *Example: algebra has to come before calculus; an introductory book before a reference text.* Hard edges are the only ones that gate eligibility — a node with an incomplete hard prereq is automatically Blocked. The scoring algorithm propagates value strongly through Hard edges (and transitively, so a node sitting upstream of a long Hard chain inherits real weight).
+- **Soft** — *helpful, but not required*. Provides value to the dependent task; you could complete the dependent without it and probably do okay on intuition alone. *Example: learning UX design before setting up a website.* Soft edges propagate value too, but with a smaller per-hop discount than Hard. The Curious profile leans into Soft edges; Industrious leans away from them, since Industrious is built around the critical path.
+- **Supports / Synergy** — *mutual multiplicative reinforcement*, not a weaker prereq. Two nodes that, done together, are significantly more valuable than the sum of their parts. *Example: Zen and Taoism — learning more about either one deepens your understanding of the other.* Synergy is bidirectional and lateral; it does *not* sit on the same "necessity" axis as Hard and Soft. The scoring algorithm reflects this with two distinct effects: a small **pair bonus** that co-promotes synergy partners into joint consideration before either is started, and a larger **completion multiplier** that boosts a node's intrinsic value once a synergy partner is Done. (More on the multiplier in Settings → Scoring.)
+
+The visual treatment in the subtasks table mirrors this: Hard and Soft sit in the same cool-blue family with different intensities (necessity gradient), while Synergy lands in a distinct teal because it's a categorically different relationship.
+
 - **Obsidian / Google Drive / Website.** Add rows to link external notes and files. Each row has a small browse button to pick a file and an open button to launch it.
 - **Override.** A toggle that lets you manually force a priority boost on this node. Useful when the algorithm's ranking doesn't match your gut on a given day.
 
@@ -298,7 +308,8 @@ The custom inputs include:
 - **Effort penalty** — how much harder tasks get deprioritized.
 - **Hard prerequisite boost** — how much a node's priority inherits from things that depend on it via hard edges.
 - **Soft prerequisite boost** — same but for soft edges.
-- **Synergy boost** — same but for mutually-boosting pairs.
+- **Synergy Pair Bonus** — a small extra weight applied to synergy partners regardless of completion state. Co-promotes synergy pairs so they tend to surface together in the ranking before any work starts. Keep this small — typical values 0.05–0.15.
+- **Synergy Multiplier** — the multiplicative kick applied to a node's intrinsic value once a synergy partner is Done. Each Done partner adds this much to the multiplier (e.g. 0.40 means one Done partner makes the node 40% more valuable; two Done partners makes it 80% more valuable). This is what captures the "doing both is more than the sum of the parts" intent.
 - **Goal boost** — how much extra nudge a Priority Goal gets.
 - **Time estimate weight** — how heavily the time estimate affects cost.
 - **Time mode** — how the three PERT numbers blend.

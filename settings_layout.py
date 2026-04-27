@@ -235,8 +235,9 @@ def build_settings_tab_content():
                         dbc.Row([
                             dbc.Col(html.Small("IV = w_v \u00b7 V + w_i \u00b7 I", className="text-muted",
                                                style={"fontFamily": "monospace"})),
-                            dbc.Col(html.Small("Retention factor per edge type (0\u20131). Higher = more value flows through.",
-                                               className="text-muted")),
+                            dbc.Col(html.Small(
+                                "Hard/Soft = retention per edge type. Synergy is split: Pair Bonus = co-promotion before completion; Multiplier = kick on intrinsic when a partner is Done.",
+                                className="text-muted")),
                             dbc.Col(html.Small("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2", className="text-muted",
                                                style={"fontFamily": "monospace"})),
                         ], className="mb-2"),
@@ -252,10 +253,15 @@ def build_settings_tab_content():
                             dbc.Col([dbc.Label("Soft Need", className="mt-2"), dbc.Input(id="hp-ds", type="number", step=0.01)]),
                             dbc.Col([dbc.Label("Time Weight", className="mt-2"), dbc.Input(id="hp-wt", type="number", step=0.1)]),
                         ]),
-                        # Row 3 (IV column empty)
+                        # Row 3 (IV column empty; VP carries the two synergy params stacked)
                         dbc.Row([
                             dbc.Col([]),
-                            dbc.Col([dbc.Label("Synergy", className="mt-2"), dbc.Input(id="hp-dsyn", type="number", step=0.01)]),
+                            dbc.Col([
+                                dbc.Label("Synergy Pair Bonus", className="mt-2"),
+                                dbc.Input(id="hp-dsyn-pair", type="number", step=0.01),
+                                dbc.Label("Synergy Multiplier", className="mt-2"),
+                                dbc.Input(id="hp-dsyn-mul", type="number", step=0.05),
+                            ]),
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
                         ], className="mb-2"),
 

@@ -38,7 +38,8 @@ def _node(name, **kw):
 
 BASE_HYPERS = {
     'w_v': 1.0, 'w_i': 1.0,
-    'd_H': 0.6, 'd_S': 0.25, 'd_Syn': 0.35,
+    'd_H': 0.6, 'd_S': 0.25,
+    'd_Syn_pair': 0.10, 'd_Syn_mul': 0.40,
     'w_e': 2.5, 'w_t': 1.0, 'beta': 0.85,
     'goal_boost': 1.5,
 }

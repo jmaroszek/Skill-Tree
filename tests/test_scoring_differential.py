@@ -61,7 +61,8 @@ def _baseline_score_nodes(
     w_i = hyperparams.get('w_i', 1.0)
     d_H = hyperparams.get('d_H', 0.6)
     d_S = hyperparams.get('d_S', 0.25)
-    d_Syn = hyperparams.get('d_Syn', 0.35)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -112,7 +113,7 @@ def _baseline_score_nodes(
         cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
         # CRITICAL: memo=None — replicates pre-Phase-E behavior.
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn,
-                         w_v, w_i, d_H, d_S, d_Syn, memo=None)
+                         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None)
         score = round(tv / cost, 2)
         if node.name in node_to_boost:
             score = round(score * node_to_boost[node.name], 2)
@@ -203,7 +204,8 @@ def _scores_equal(a: List[Node], b: List[Node]) -> bool:
     return amap == bmap
 
 
-HYPERS = {'w_v': 1.0, 'w_i': 1.0, 'd_H': 0.6, 'd_S': 0.25, 'd_Syn': 0.35}
+HYPERS = {'w_v': 1.0, 'w_i': 1.0, 'd_H': 0.6, 'd_S': 0.25,
+          'd_Syn_pair': 0.10, 'd_Syn_mul': 0.40}
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +216,8 @@ def _tv_both(node_name, nodes, edges):
     all_nodes_dict = {n.name: n for n in nodes}
     H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
     args = (all_nodes_dict, H_out, S_out, Syn,
-            HYPERS['w_v'], HYPERS['w_i'], HYPERS['d_H'], HYPERS['d_S'], HYPERS['d_Syn'])
+            HYPERS['w_v'], HYPERS['w_i'], HYPERS['d_H'], HYPERS['d_S'],
+            HYPERS['d_Syn_pair'], HYPERS['d_Syn_mul'])
     no_memo = total_value(node_name, set(), *args, memo=None)
     fresh_memo = {}
     with_memo = total_value(node_name, set(), *args, memo=fresh_memo)
@@ -325,7 +328,8 @@ def test_score_nodes_with_priority_goals(seed):
 @pytest.mark.parametrize("seed", list(range(5)))
 def test_score_nodes_with_custom_hyperparams(seed):
     hypers = {
-        'w_v': 2.0, 'w_i': 0.5, 'd_H': 0.8, 'd_S': 0.1, 'd_Syn': 0.5,
+        'w_v': 2.0, 'w_i': 0.5, 'd_H': 0.8, 'd_S': 0.1,
+        'd_Syn_pair': 0.20, 'd_Syn_mul': 0.50,
         'w_e': 1.5, 'w_t': 1.2, 'beta': 0.7, 'goal_boost': 2.0,
     }
     nodes, edges = _random_graph(seed, n_nodes=12, edge_density=0.08)

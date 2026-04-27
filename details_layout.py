@@ -533,8 +533,8 @@ def build_details_tab_content():
     ], id="modal-details-subtask-remove", is_open=False, centered=True)
 
     explain_legend_items = []
-    for label, color in (('Self', '#6c757d'), ('Hard', '#ffc107'),
-                         ('Soft', '#0d6efd'), ('Synergy', '#9d65c9')):
+    for label, color in (('Self', '#5a6065'), ('Hard', '#2c4870'),
+                         ('Soft', '#52606e'), ('Synergy', '#3d8a96')):
         explain_legend_items.append(html.Span([
             html.Span("\u25A0 ", style={"color": color}),
             html.Span(label, style={"color": "#adb5bd"}),
@@ -1204,14 +1204,14 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         ),
     )
 
-    # Muted, desaturated blue palette for relationship badges:
-    #   Hard    = deep steel blue
-    #   Soft    = dusty slate blue
-    #   Synergy = pale ice blue
+    # Cool B palette — Hard/Soft sit in the same cool family (necessity
+    # gradient), Synergy in a distinct teal (categorically different
+    # relationship, not a weaker prereq). Matches _VIA_COLORS in the
+    # explain modal so the same hue means the same thing app-wide.
     _REL_BADGE_STYLES = {
-        "Hard": {"backgroundColor": "#3a5f8c", "color": "#d6e4f0"},
-        "Soft": {"backgroundColor": "#5a6f80", "color": "#d0dae3"},
-        "Synergy": {"backgroundColor": "#6e8fa8", "color": "#e8f0f6"},
+        "Hard":    {"backgroundColor": "#2c4870", "color": "#d3e0ee"},
+        "Soft":    {"backgroundColor": "#52606e", "color": "#d0d6dc"},
+        "Synergy": {"backgroundColor": "#3d8a96", "color": "#d8eef3"},
     }
 
     rows = []

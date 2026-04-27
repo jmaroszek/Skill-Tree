@@ -21,7 +21,8 @@ def _make_node(name, **kw):
     return Node(**defaults)
 
 
-HYPERS = {'w_v': 1.0, 'w_i': 1.0, 'd_H': 0.6, 'd_S': 0.25, 'd_Syn': 0.35}
+HYPERS = {'w_v': 1.0, 'w_i': 1.0, 'd_H': 0.6, 'd_S': 0.25,
+          'd_Syn_pair': 0.10, 'd_Syn_mul': 0.40}
 
 
 def _tv_args(nodes, edges):
@@ -34,7 +35,8 @@ def _call_tv(name, nodes, edges, memo=None):
     all_nodes_dict, H_out, S_out, Syn = _tv_args(nodes, edges)
     return total_value(
         name, set(), all_nodes_dict, H_out, S_out, Syn,
-        HYPERS['w_v'], HYPERS['w_i'], HYPERS['d_H'], HYPERS['d_S'], HYPERS['d_Syn'],
+        HYPERS['w_v'], HYPERS['w_i'], HYPERS['d_H'], HYPERS['d_S'],
+        HYPERS['d_Syn_pair'], HYPERS['d_Syn_mul'],
         memo,
     )
 
