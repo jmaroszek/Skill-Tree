@@ -30,12 +30,12 @@ sidebar_content = html.Div(
         html.Div([
             html.H4("Node Editor"),
             html.Span("×", id="btn-close-editor", className="fs-3 text-white float-end", style={"cursor": "pointer"})
-        ], className="d-flex justify-content-between align-items-center mb-3 mt-2"),
+        ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
         dbc.Form([
             html.Div(id="node-priority-badge", children=[],
                      className="d-flex gap-1 flex-wrap mb-2",
                      style={"display": "none"}),
-            html.H5("Search", className="mt-2 mb-1"),
+            html.H5("Search", className="mt-0 mb-1"),
             html.Div([
                 html.Div(dcc.Dropdown(
                     id="search-node",
@@ -355,6 +355,7 @@ def create_graph_view(initial_elements):
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
             dbc.Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
         ], id="canvas-container", className="canvas-container h-100", style={"overflow": "hidden", "borderRadius": "8px"}),
     ], className="h-100", style={"overflow": "hidden"})
 
@@ -367,8 +368,6 @@ filters_content = html.Div([
         html.H4("Filters"),
         html.Span("×", id="btn-close-filters", className="fs-3 text-white float-end", style={"cursor": "pointer"})
     ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
-
-    html.Div(id="filter-node-count", className="text-muted small mb-2"),
 
     html.H5("General", className="mt-2 mb-1"),
     dbc.Label("Node Type", className="mt-2"),

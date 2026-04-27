@@ -36,10 +36,10 @@ manager = GraphManager()
 event_manager = EventManager()
 
 
-# core_engine has 22 outputs; this constant + helper let the tab-gating guard
+# core_engine has 21 outputs; this constant + helper let the tab-gating guard
 # return a no_update tuple of the correct arity. test_core_engine_arity verifies
 # that it stays in sync with the actual callback registration.
-_CORE_ENGINE_NUM_OUTPUTS = 22
+_CORE_ENGINE_NUM_OUTPUTS = 21
 
 # Tabs whose own callbacks already refresh their content; switching to them
 # should NOT trigger a graph regen via core_engine.
@@ -59,8 +59,8 @@ _EDITOR_UI_ONLY_TRIGGERS = frozenset({
 # magic numbers. Must stay in sync with the Output list at the callback
 # decoration site.
 _SIDEBAR_EDITOR_STYLE_IDX = 11
-_DETAILS_GOAL_SIDEBAR_STYLE_IDX = 20
-_EVENTS_SIDEBAR_STYLE_IDX = 21
+_DETAILS_GOAL_SIDEBAR_STYLE_IDX = 19
+_EVENTS_SIDEBAR_STYLE_IDX = 20
 
 
 def _core_engine_noop_tuple():
@@ -1128,7 +1128,6 @@ def register_callbacks(app):
          Output('filter-goal', 'options'),
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
-         Output('filter-node-count', 'children'),
          Output('details-goal-sidebar', 'style', allow_duplicate=True),
          Output('events-sidebar-container', 'style', allow_duplicate=True)],
 
@@ -1446,8 +1445,7 @@ def register_callbacks(app):
             goal_opts = dash.no_update
             active_stylesheet = dash.no_update
             clear_focus_style = dash.no_update
-            node_count_text = dash.no_update
-            
+
             # Still format sidebar traversal UI
             count = sugg_count if sugg_count else 10
             sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
@@ -1650,15 +1648,7 @@ def register_callbacks(app):
                 except Exception:
                     pass
 
-            if active_tab in ('tab-settings', 'tab-events', 'tab-analyze'):
-                node_count_text = ""
-            elif active_tab == 'tab-details':
-                node_count_text = dash.no_update  # Owned by update_details_node_count in details_callbacks
-            else:
-                node_count = sum(1 for el in elements if 'source' not in el.get('data', {}))
-                node_count_text = f"{node_count} node{'s' if node_count != 1 else ''} displayed"
-
-        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, node_count_text, next_goal_style, next_events_sidebar_style)
+        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style)
 
     # --- Filters Sidebar Toggle (CLIENTSIDE) ---
     # Handled entirely in the browser via assets/filters_sidebar.js. Previously
@@ -1826,6 +1816,14 @@ def register_callbacks(app):
         GraphManager._last_perf_timings = None
         return (f"{t['n_nodes']} nodes \u00b7 {t['n_edges']} edges \u00b7 "
                 f"{t['total_ms']:.0f}ms")
+
+    @app.callback(
+        Output('canvas-node-count', 'children'),
+        Input('cytoscape-graph', 'elements'),
+    )
+    def update_canvas_node_count(elements):
+        n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
+        return f"{n} node{'s' if n != 1 else ''}"
 
     @app.callback(
         Output('focus-goal-store', 'data', allow_duplicate=True),

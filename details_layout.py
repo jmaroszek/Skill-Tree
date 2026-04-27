@@ -391,6 +391,7 @@ def build_details_tab_content():
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
             dbc.Tooltip("Toggle fullscreen", target="btn-details-graph-fullscreen", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            html.Div(id="details-canvas-node-count", className="canvas-stats-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
         "flex": "1",
@@ -1226,13 +1227,9 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                 dbc.Button(
                     "×",
                     id=btn_id,
-                    color="danger",
-                    size="sm",
-                    style={
-                        "padding": "0 5px",
-                        "fontSize": "0.75rem",
-                        "lineHeight": "1.4",
-                    },
+                    color="link",
+                    className="p-0 text-decoration-none text-muted",
+                    style={"fontSize": "1.1rem", "lineHeight": "1"},
                 ),
                 dbc.Tooltip(
                     "Remove edge or delete node",

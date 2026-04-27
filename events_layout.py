@@ -437,6 +437,7 @@ def build_events_tab_content():
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
             dbc.Tooltip("Toggle fullscreen", target="btn-events-graph-fullscreen", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            html.Div(id="events-canvas-node-count", className="canvas-stats-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="events-detail-graph-container", style={
         "flex": "1 1 0",

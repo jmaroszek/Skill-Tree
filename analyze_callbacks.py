@@ -1104,15 +1104,11 @@ def register_analyze_callbacks(app):
 
             # -- Time --
             html.H5("Time", className="mb-1"),
-            html.P("Where remaining time is concentrated and where estimates are uncertain.",
-                   className="text-muted small"),
             _render_time_distribution(ctx_chart, subctx_chart, top_nodes, risk_data, row_height=time_row_height),
             html.Hr(className="my-3"),
 
             # -- Graph Structure --
             html.H5("Graph Structure", className="mb-1"),
-            html.P("Structural patterns in the graph.",
-                   className="text-muted small"),
             # Row 1: Bottleneck + Deepest/Connected (matched heights)
             dbc.Row([
                 dbc.Col([html.H6("Bottleneck Analysis", className="text-muted mb-1"),
@@ -1124,7 +1120,5 @@ def register_analyze_callbacks(app):
 
             # -- Contexts --
             html.H5("Contexts", className="mb-1"),
-            html.P("Average ratings by context.",
-                   className="text-muted small"),
             html.Div([_render_ratings_chart(ratings_data)], style={"maxWidth": "600px"}),
         ]

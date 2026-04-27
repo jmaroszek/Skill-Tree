@@ -222,6 +222,8 @@ def build_settings_tab_content():
                             ], width=4),
                         ], className="mt-1"),
 
+                        html.Hr(className="my-3"),
+
                         # --- Three-column layout: IV | VP | PC (subsections of Priorities) ---
                         # Headings row — H6 so they read as subsections of the Priorities H5
                         dbc.Row([

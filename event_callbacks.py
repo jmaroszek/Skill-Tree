@@ -1275,6 +1275,15 @@ def register_event_callbacks(app):
             return no_update
         return f"{tap_data['id']}|{int(time.time())}"
 
+    # --- Events Tab: Node Count Canvas Overlay ---
+    @app.callback(
+        Output('events-canvas-node-count', 'children'),
+        Input('events-detail-graph', 'elements'),
+    )
+    def update_events_node_count(elements):
+        n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
+        return f"{n} node{'s' if n != 1 else ''}"
+
     # --- Events Graph Settings: Toggle Panel ---
     @app.callback(
         Output('events-graph-settings-panel', 'style'),
