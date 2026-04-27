@@ -1161,7 +1161,7 @@ class TestScoringFunctions:
         H_out = {"A": []}
         S_out = {"A": []}
         Syn = {"A": set()}
-        tv = total_value("A", set(), nodes, H_out, S_out, Syn, 1.0, 1.0, 0.6, 0.25, 0.35)
+        tv = total_value("A", set(), nodes, H_out, S_out, Syn, 1.0, 1.0, 0.6, 0.25, 0.10, 0.40)
         assert tv == intrinsic_value(node, 1.0, 1.0)
 
     def test_total_value_with_hard_dependent(self):
@@ -1172,7 +1172,7 @@ class TestScoringFunctions:
         S_out = {"A": [], "B": []}
         Syn = {"A": set(), "B": set()}
         d_H = 0.6
-        tv_a = total_value("A", set(), nodes, H_out, S_out, Syn, 1.0, 1.0, d_H, 0.25, 0.35)
+        tv_a = total_value("A", set(), nodes, H_out, S_out, Syn, 1.0, 1.0, d_H, 0.25, 0.10, 0.40)
         iv_a = intrinsic_value(a, 1.0, 1.0)
         iv_b = intrinsic_value(b, 1.0, 1.0)
         assert tv_a == pytest.approx(iv_a + d_H * iv_b)
@@ -1186,7 +1186,7 @@ class TestScoringFunctions:
         S_out = {"A": [], "B": []}
         Syn = {"A": set(), "B": set()}
         # Should not hang — visited set prevents infinite recursion
-        tv = total_value("A", set(), nodes, H_out, S_out, Syn, 1.0, 1.0, 0.6, 0.25, 0.35)
+        tv = total_value("A", set(), nodes, H_out, S_out, Syn, 1.0, 1.0, 0.6, 0.25, 0.10, 0.40)
         assert tv > 0
 
 

@@ -767,7 +767,9 @@ def _compute_highest_priority_path(manager):
 
     hp = ConfigManager.get_hyperparams()
     w_v, w_i = hp.get('w_v', 1.0), hp.get('w_i', 1.0)
-    d_H, d_S, d_Syn = hp.get('d_H', 0.6), hp.get('d_S', 0.25), hp.get('d_Syn', 0.35)
+    d_H, d_S = hp.get('d_H', 0.6), hp.get('d_S', 0.25)
+    d_Syn_pair = hp.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hp.get('d_Syn_mul', 0.40)
     w_e, w_t, beta = hp.get('w_e', 2.5), hp.get('w_t', 1.0), hp.get('beta', 0.85)
     goal_boost = hp.get('goal_boost', 1.5)
     alpha = hp.get('alpha', 0.0)
@@ -809,7 +811,7 @@ def _compute_highest_priority_path(manager):
         t_override = 0.0 if node.time_mode == 'inherited' else None
         cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
         tv = total_value(name, set(), all_nodes_dict, H_out, S_out, Syn,
-                         w_v, w_i, d_H, d_S, d_Syn)
+                         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul)
         score = tv / cost
         if name in node_to_boost:
             score *= node_to_boost[name]
@@ -1059,11 +1061,14 @@ if abs_path:
 # ---------------------------------------------------------------------------
 
 # Maps the `via` field from scoring.explain_score to a bar color.
+# Cool B palette: Hard/Soft sit in the same cool family (necessity gradient
+# between them); Synergy lands in a distinct teal because synergy is a
+# categorically different relationship, not a weaker prereq.
 _VIA_COLORS = {
-    'Self':    '#6c757d',  # neutral grey — the node itself
-    'Hard':    '#ffc107',  # amber — matches Goal/warning palette
-    'Soft':    '#0d6efd',  # blue — matches Open/primary palette
-    'Synergy': '#9d65c9',  # purple — distinct from the above
+    'Self':    '#5a6065',  # neutral slate
+    'Hard':    '#2c4870',  # deep steel blue (must-have)
+    'Soft':    '#52606e',  # muted slate (should-have)
+    'Synergy': '#3d8a96',  # cyan-teal (mutual, multiplicative)
 }
 
 
@@ -1120,11 +1125,26 @@ def _explain_summary_table(breakdown: dict, normalized):
     # --- Value section ------------------------------------------------
     rows.append(html.Tr([html.Td("Value", colSpan=2, style=header_style)]))
     rows.append(html.Tr([html.Td("Intrinsic"), _num_cell(comp['iv'])]))
+
+    # Synergy multiplier on intrinsic — kicks in only when at least one
+    # synergy partner is Done. Hidden when inactive (multiplier == 1.0)
+    # to keep the table tight.
+    iv_multiplier = comp.get('iv_multiplier', 1.0)
+    iv_mult_contribution = comp.get('iv_multiplier_contribution', 0.0)
+    if iv_multiplier > 1.0 + 1e-9:
+        done_count = comp.get('done_synergy_count', 0)
+        partner_word = "partner" if done_count == 1 else "partners"
+        label = f"Synergy multiplier (×{iv_multiplier:.2f}, {done_count} Done {partner_word})"
+        rows.append(html.Tr([
+            html.Td(label),
+            _num_cell(iv_mult_contribution),
+        ]))
+
     rows.append(html.Tr([html.Td("Downstream"), _num_cell(downstream)]))
     for label, value in (
         ("via Hard", comp['hard_cascade']),
         ("via Soft", comp['soft_cascade']),
-        ("via Synergy", comp['synergy']),
+        ("via Synergy (pair bonus)", comp['synergy']),
     ):
         rows.append(html.Tr([
             html.Td(label, className="ps-4", style=muted_style),

@@ -186,7 +186,8 @@ DEFAULT_HYPERPARAMS = {
     'w_i': 1.00,
     'd_H': 0.60,
     'd_S': 0.25,
-    'd_Syn': 0.35,
+    'd_Syn_pair': 0.10,
+    'd_Syn_mul': 0.40,
     'w_e': 2.50,
     'w_t': 1.00,
     'beta': 0.85,
@@ -198,12 +199,14 @@ PROFILES = {
     'Default': DEFAULT_HYPERPARAMS,
     'Curious': {
         'w_v': 1.00, 'w_i': 1.50, 'd_H': 0.75, 'd_S': 0.35,
-        'd_Syn': 0.50, 'w_e': 1.00, 'w_t': 2.50, 'beta': 0.50,
+        'd_Syn_pair': 0.15, 'd_Syn_mul': 0.60,
+        'w_e': 1.00, 'w_t': 2.50, 'beta': 0.50,
         'goal_boost': 1.50, 'alpha': 0.40,
     },
     'Industrious': {
         'w_v': 1.50, 'w_i': 1.00, 'd_H': 0.50, 'd_S': 0.15,
-        'd_Syn': 0.25, 'w_e': 4.00, 'w_t': 3.00, 'beta': 0.70,
+        'd_Syn_pair': 0.05, 'd_Syn_mul': 0.25,
+        'w_e': 4.00, 'w_t': 3.00, 'beta': 0.70,
         'goal_boost': 2.00, 'alpha': 0.20,
     }
 }

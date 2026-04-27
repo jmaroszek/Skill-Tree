@@ -164,7 +164,7 @@ score = eligibility
 
 - **Eligibility** is 1 if every hard prerequisite is Done, else 0. A zero-eligibility node is pushed to the bottom of the list.
 - **Intrinsic value** of a node is `w_v * value + w_i * interest`, with `w_v` and `w_i` configurable hyperparameters.
-- **Total value** is intrinsic value *plus* a recursive discounted sum over everything this node unlocks or synergizes with. A node that sits upstream of ten valuable tasks inherits some of their value, which is why foundational bottleneck tasks rise to the top naturally. The recursion has the discount factors `d_H` (hard edges out), `d_S` (soft edges out), and `d_Syn` (synergies).
+- **Total value** is intrinsic value *plus* a recursive discounted sum over Hard/Soft prereqs (the DAG cascade), plus an M3 hybrid synergy contribution. The synergy contribution has two parts: a small **additive pair bonus** `d_Syn_pair × tv(partner)` summed over immediate synergy neighbors regardless of their state, and a **multiplicative kick on intrinsic value** that fires when a synergy partner is Done — `intrinsic × (1 + d_Syn_mul × count_done_partners)`. The multiplier applies to *intrinsic only*, not to the cascade. Two new hyperparameters (`d_Syn_pair` ≈ 0.10, `d_Syn_mul` ≈ 0.40 in the Default profile) replace the single old `d_Syn`. The asymmetry encodes the semantic distinction: synergy is a *categorically different* relationship from Hard/Soft (mutual reinforcement, not directional dependency), so it doesn't sit on the same "necessity" axis.
 - **Perceived cost** is `1 + w_e * difficulty + w_t * (time ** beta)`, where `beta < 1` makes the time penalty sub-linear (a 100-hour task is expensive but not 100× worse than a 1-hour task).
 - **Goal boost.** The top three Priority Goals each multiply the scores of everything in their hard-prerequisite subtree — the #1 goal at full strength, #2 at ~66%, #3 at ~33%. Highest-rank boost wins if a node belongs to multiple priority subtrees.
 - **Context weight.** User-assigned per parent context; defaults to 1.0. Subcontexts inherit their parent's weight. Lets the user state cross-context importance explicitly ("Health > abstract math") even before decomposing those areas. Persisted under the `CONTEXT_WEIGHTS` Settings key.
@@ -194,14 +194,16 @@ The Total Value recursion has gone through three stages as the graph grew. Each 
 **Stage 3 — DAG memoization + shallow Syn bonus.** Split the recursion by edge type:
 
 1. `_tv_dag(n)`: recurses only over Hard + Soft out-edges. Because Hard+Soft is a DAG, the `visited` set never prunes differently across paths — so results are path-independent and safe to cache **globally**. Memoized across inner and outer calls. Each node is computed exactly once per batch.
-2. `total_value(n)` adds a **depth-1 Syn bonus**: `d_Syn × _tv_dag(z)` for every immediate Helps neighbor `z` of `n`. No recursion through Syn edges — this is the tradeoff that avoids cycle complications without needing `visited` bookkeeping.
+2. `total_value(n)` adds a **depth-1 Syn pair bonus**: `d_Syn_pair × _tv_dag(z)` for every immediate Helps neighbor `z` of `n`, plus a **completion multiplier on intrinsic value** of the form `iv × (1 + d_Syn_mul × done_partner_count)`. No recursion through Syn edges — depth-1 only, so no cycle bookkeeping needed.
 
 - `_tv_dag` amortized across the entire batch: **O(N + E_D)** (each node's computation visits its out-edges once).
-- Syn bonus per outer call: **O(δ_Syn)** where δ_Syn is the node's Helps out-degree. Total: **O(N · δ_Syn̄) = O(E_S)**.
+- Syn loop per outer call: **O(δ_Syn)** where δ_Syn is the node's Helps out-degree. Each iteration accumulates the pair bonus and tests the partner's status for the multiplier. Total: **O(N · δ_Syn̄) = O(E_S)**.
 - `score_nodes` batch: **O(N + E_D + E_S) = O(N + E)**. Linear in graph size.
 - Re-scoring unchanged graph: **O(N)** (memo hits throughout).
 
-**Semantic change in Stage 3.** Stage 1 and 2 computed a deep mixed-edge walk where a synergy neighbor's DAG children's synergy neighbors' DAG children (and so on) all contributed to the score. Stage 3 keeps the DAG-cascade identical but truncates Syn at depth 1. Test suite confirms exact equivalence for pure-DAG graphs. For graphs with Helps edges, scores differ slightly in absolute value but rank ordering is preserved — and the user's stated intent for Helps ("synergistic sibling") maps more cleanly to depth-1 anyway.
+**Semantic change in Stage 3.** Stages 1 and 2 computed a deep mixed-edge walk where a synergy neighbor's DAG children's synergy neighbors' DAG children (and so on) all contributed to the score. Stage 3 keeps the DAG cascade identical but truncates Syn at depth 1, capturing the user's "synergy = lateral mutual reinforcement, not transitive prereq" intent more cleanly anyway.
+
+**Stage 3.1 — M3 hybrid synergy.** Replaced the single additive `d_Syn × _tv_dag(z)` term with a two-part scheme: a small partner-state-blind pair bonus (`d_Syn_pair × _tv_dag(z)`) plus a multiplicative kick on intrinsic value when partners are Done (`iv × (1 + d_Syn_mul × count_done_partners)`). The pair bonus encodes "the user marked these two as related, so co-promote them"; the multiplier encodes "doing both is more than the sum of doing each alone" — kicks in only after at least one partner is Done. Multiplier applies to intrinsic only, not to the cascade or the pair bonus, so completing a synergy partner doesn't artificially amplify upstream Hard prereqs. Test suite covers: partner Open ⇒ multiplier dormant; partner Done ⇒ multiplier active; multiple Done partners accumulate additively (not exponentially); pure-DAG nodes are unaffected by synergy params.
 
 **Scaling back of the envelope**, for a graph with properties like the production DB (1.7 edges/node, branching ≈ 2, depth ≈ 8):
 
@@ -277,9 +279,9 @@ Stored as plain `dict` rows `{'source': str, 'target': str, 'type': str}` with c
 
 | Type | Meaning |
 |---|---|
-| `Needs_Hard` | Target is Blocked until source is Done. Gates eligibility in scoring. |
-| `Needs_Soft` | Source helps but doesn't block. Contributes discounted value. |
-| `Helps` | Mutually boosts both endpoints. Symmetric — one row expresses the whole relationship. |
+| `Needs_Hard` | **Must-do prerequisite.** Target is Blocked until source is Done; gates eligibility in scoring. Strongest, transitive value flow (`d_H` per hop). Use when the knowledge from A is required for B, or when the order is genuinely forced. |
+| `Needs_Soft` | **Helpful but not required.** Source provides discounted value to target without blocking it. Weaker, transitive value flow (`d_S` per hop). Use when A would meaningfully improve B but B is doable without it. |
+| `Helps` (Synergy) | **Lateral mutual reinforcement.** Symmetric — one row expresses the whole relationship. Non-transitive (no chains). Two distinct scoring effects: a small **pair bonus** `d_Syn_pair × tv(partner)` co-promotes synergy partners pre-completion, and a **completion multiplier** `(1 + d_Syn_mul × done_partners)` scales intrinsic value once partners are Done. Use when two nodes have a genuine multiplicative effect on each other (e.g., concepts that blend unusually well, where doing both is meaningfully more than the sum of doing each alone). |
 | `Resource` | **Deprecated.** Migrated to `Needs_Soft` at startup; constant kept only for legacy rows. |
 
 ### `Event` (dataclass) + `EventNodes` table

@@ -112,28 +112,27 @@ def _tv_dag(
 def total_value(
     node_name: str, visited: set, all_nodes: dict,
     H_out: dict, S_out: dict, Syn: dict,
-    w_v: float, w_i: float, d_H: float, d_S: float, d_Syn: float,
+    w_v: float, w_i: float, d_H: float, d_S: float,
+    d_Syn_pair: float, d_Syn_mul: float,
     memo: Optional[dict] = None,
 ) -> float:
-    """Computes Total Value = DAG cascade + shallow Syn bonus.
+    """Computes Total Value = scaled intrinsic + DAG cascade + Syn pair bonus.
 
-    Two-part decomposition for speed:
+    M3 hybrid synergy model:
     1. DAG cascade (`_tv_dag`): recursive sum over Hard + Soft edges,
        fully memoized across all calls. O(N + E) amortized.
-    2. Syn bonus (this function): depth-1 additive bonus for each
-       immediate Syn (Helps) neighbor of the starting node. Each
-       Syn-neighbor z contributes `d_Syn * _tv_dag(z)`.
+    2. Syn pair bonus (additive, partner-state-blind): each immediate
+       Syn (Helps) neighbor z contributes `d_Syn_pair * _tv_dag(z)`.
+       Co-promotes synergy pairs into joint consideration before any
+       work has started.
+    3. Syn completion multiplier on intrinsic: `iv * (1 + d_Syn_mul *
+       count_done_partners)`. Captures the "doing both > sum of parts"
+       intent — kicks in only once partners are Done. Multiplier
+       applies to *intrinsic value only*, not to cascade or pair bonus.
 
     Rationale: Hard + Soft are acyclic, so memoization is safe. Helps
-    edges can form cycles (they're bidirectional), so we keep Syn shallow
-    from the starting node to avoid path-dependent recursion.
-
-    Semantic note: this gives slightly different scores than a fully
-    recursive Syn walk would. In practice the "synergy boost" intent is
-    preserved: a node's Syn neighbors still add discounted value. What's
-    lost is transitive Syn chains (A synergy→B, B synergy→C no longer
-    contributes to A). Tests confirm exact equivalence for pure-DAG
-    graphs; the Syn semantics are a deliberate simplification.
+    edges can form cycles (they're bidirectional), so Syn stays shallow
+    (depth-1 only) from the starting node — synergies do not chain.
 
     `visited` is still honored at the top level (legacy callers may pass
     a non-empty set). `memo` is the cross-call DAG cache.
@@ -144,23 +143,32 @@ def total_value(
         memo = {}
     computing: set = set()
 
-    dag_val = _tv_dag(
+    node = all_nodes.get(node_name)
+    if not node:
+        return 0.0
+
+    full_dag = _tv_dag(
         node_name, all_nodes, H_out, S_out,
         w_v, w_i, d_H, d_S, memo, computing,
     )
+    iv = intrinsic_value(node, w_v, w_i)
+    cascade = full_dag - iv  # cascade-only portion (Hard + Soft contributions)
 
-    # Shallow Syn bonus: each immediate synergy neighbor contributes its
-    # DAG value discounted by d_Syn.
-    syn_val = 0.0
+    syn_additive = 0.0
+    done_syn = 0
     for z in Syn.get(node_name, set()):
         if z in visited or z == node_name:
             continue
-        syn_val += d_Syn * _tv_dag(
+        syn_additive += d_Syn_pair * _tv_dag(
             z, all_nodes, H_out, S_out,
             w_v, w_i, d_H, d_S, memo, computing,
         )
+        z_node = all_nodes.get(z)
+        if z_node is not None and z_node.status == 'Done':
+            done_syn += 1
 
-    return dag_val + syn_val
+    syn_multiplier = 1.0 + d_Syn_mul * done_syn
+    return iv * syn_multiplier + cascade + syn_additive
 
 
 def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
@@ -195,7 +203,8 @@ def score_nodes(
     w_i = hyperparams.get('w_i', 1.0)
     d_H = hyperparams.get('d_H', 0.6)
     d_S = hyperparams.get('d_S', 0.25)
-    d_Syn = hyperparams.get('d_Syn', 0.35)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -275,7 +284,7 @@ def score_nodes(
         # and difficulty (if rated) still contributes.
         t_override = 0.0 if node.time_mode == 'inherited' else None
         cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
-        tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn, memo)
+        tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo)
         score = round(tv / cost, 2)
 
         # Apply ranked priority goal boost (highest rank wins)
@@ -365,20 +374,22 @@ def _reachable_topo(start: str, H_out: dict, S_out: dict, Syn: dict) -> List[str
 
 def _contribution_weights(
     start: str, H_out: dict, S_out: dict, Syn: dict,
-    d_H: float, d_S: float, d_Syn: float,
+    d_H: float, d_S: float, d_Syn_pair: float,
 ) -> Dict[str, float]:
     """Forward-propagate discount weights from `start`.
 
     Returns {name: W(name)} where W(D) is the sum over all paths
     (H/S from start, plus syn-seeded + H/S from each syn neighbor)
-    of the product of edge discounts. By linearity of the TV formula,
-    `contribution(D) = W(D) * IV(D)` and the contributions sum to TV(start).
+    of the product of edge discounts. By linearity of the additive
+    portion of TV, `contribution(D) = W(D) * IV(D)` and the contributions
+    sum to (intrinsic + cascade + syn_additive). The synergy multiplier
+    on intrinsic is a node-level scalar, applied separately by callers.
     """
     topo = _reachable_topo(start, H_out, S_out, Syn)
     W: Dict[str, float] = {start: 1.0}
     for z in Syn.get(start, set()):
         if z != start:
-            W[z] = W.get(z, 0.0) + d_Syn
+            W[z] = W.get(z, 0.0) + d_Syn_pair
 
     for n in topo:
         w = W.get(n, 0.0)
@@ -467,7 +478,8 @@ def explain_score(
     w_i = hyperparams.get('w_i', 1.0)
     d_H = hyperparams.get('d_H', 0.6)
     d_S = hyperparams.get('d_S', 0.25)
-    d_Syn = hyperparams.get('d_Syn', 0.35)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -499,8 +511,19 @@ def explain_score(
     cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
 
     # Contribution weights + per-node metadata
-    W = _contribution_weights(node_name, H_out, S_out, Syn, d_H, d_S, d_Syn)
+    W = _contribution_weights(node_name, H_out, S_out, Syn, d_H, d_S, d_Syn_pair)
     depth, via = _depth_and_via(node_name, H_out, S_out, Syn, W)
+
+    # Synergy multiplier on intrinsic: kicks in when partners are Done.
+    # This is a node-level scalar, not a per-contributor weight, so it
+    # lives outside the W loop.
+    done_syn_count = sum(
+        1 for z in Syn.get(node_name, set())
+        if z != node_name and (other := all_nodes_dict.get(z)) is not None
+        and other.status == 'Done'
+    )
+    iv_multiplier = 1.0 + d_Syn_mul * done_syn_count
+    iv_multiplier_contribution = iv * (iv_multiplier - 1.0)
 
     contributors = []
     hard_cascade = 0.0
@@ -532,8 +555,12 @@ def explain_score(
             'contribution': contribution,
         })
 
-    # Percentages (guard against TV=0)
-    tv_for_pct = total_value_sum if total_value_sum > 0 else 1.0
+    # Percentages (guard against TV=0). Use the *full* TV including the
+    # multiplicative kick so contributor percentages reflect the actual
+    # ranking signal — otherwise pct rows wouldn't add up sensibly when a
+    # synergy multiplier is active.
+    tv_full = total_value_sum + iv_multiplier_contribution
+    tv_for_pct = tv_full if tv_full > 0 else 1.0
     for c in contributors:
         c['pct_of_tv'] = 100.0 * c['contribution'] / tv_for_pct
 
@@ -580,7 +607,7 @@ def explain_score(
             eligible = False
             block_reason = "Missing prereqs: " + ", ".join(sorted(missing))
 
-    raw_score = total_value_sum / cost if cost > 0 else 0.0
+    raw_score = tv_full / cost if cost > 0 else 0.0
 
     # Context-aware adjustments (mirrors score_nodes).
     ctx_weight = context_weights.get(node.context, 1.0) if node.context else 1.0
@@ -605,7 +632,9 @@ def explain_score(
         'block_reason': block_reason,
         'hyperparams': {
             'w_v': w_v, 'w_i': w_i, 'w_e': w_e, 'w_t': w_t, 'beta': beta,
-            'd_H': d_H, 'd_S': d_S, 'd_Syn': d_Syn, 'goal_boost': goal_boost,
+            'd_H': d_H, 'd_S': d_S,
+            'd_Syn_pair': d_Syn_pair, 'd_Syn_mul': d_Syn_mul,
+            'goal_boost': goal_boost,
             'alpha': alpha,
         },
         'intrinsic': {
@@ -621,10 +650,13 @@ def explain_score(
         },
         'composition': {
             'iv': iv,
+            'iv_multiplier': iv_multiplier,
+            'iv_multiplier_contribution': iv_multiplier_contribution,
+            'done_synergy_count': done_syn_count,
             'hard_cascade': hard_cascade,
             'soft_cascade': soft_cascade,
             'synergy': synergy_cascade,
-            'total_value': total_value_sum,
+            'total_value': total_value_sum + iv_multiplier_contribution,
         },
         'goal_boost': goal_boost_info,
         'context_adjustment': {

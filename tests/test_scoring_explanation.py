@@ -25,7 +25,8 @@ def _node(name, **kw):
 
 HYPERS = {
     'w_v': 1.0, 'w_i': 1.0,
-    'd_H': 0.6, 'd_S': 0.25, 'd_Syn': 0.35,
+    'd_H': 0.6, 'd_S': 0.25,
+    'd_Syn_pair': 0.10, 'd_Syn_mul': 0.40,
     'w_e': 2.5, 'w_t': 1.0, 'beta': 0.85,
     'goal_boost': 1.5,
 }
@@ -37,7 +38,8 @@ def _tv(name, nodes, edges):
     H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
     return total_value(
         name, set(), all_nodes_dict, H_out, S_out, Syn,
-        HYPERS['w_v'], HYPERS['w_i'], HYPERS['d_H'], HYPERS['d_S'], HYPERS['d_Syn'],
+        HYPERS['w_v'], HYPERS['w_i'], HYPERS['d_H'], HYPERS['d_S'],
+        HYPERS['d_Syn_pair'], HYPERS['d_Syn_mul'],
         memo={},
     )
 
@@ -100,15 +102,23 @@ def test_diamond_paths_sum_both_weights():
 
 
 def test_synergy_seed_weight_and_via():
-    """Pure synergy neighbor: W(z) = d_Syn, via='Synergy', depth=1."""
+    """Pure synergy neighbor: W(z) = d_Syn_pair (additive bonus), via='Synergy', depth=1.
+
+    The multiplicative kick on intrinsic is *not* a per-contributor weight — it
+    only fires when partners are Done, and is tracked separately in
+    `composition['iv_multiplier_contribution']`. With Z status='Open' the
+    contributor sum equals TV(S) on its own.
+    """
     nodes = [_node("S"), _node("Z", value=10, interest=0)]
     edges = [{"source": "S", "target": "Z", "type": EDGE_HELPS}]
     breakdown = explain_score("S", nodes, edges, HYPERS)
     by_name = {c['name']: c for c in breakdown['contributors']}
-    assert math.isclose(by_name['Z']['weight'], HYPERS['d_Syn'], rel_tol=1e-9)
+    assert math.isclose(by_name['Z']['weight'], HYPERS['d_Syn_pair'], rel_tol=1e-9)
     assert by_name['Z']['depth'] == 1
     assert by_name['Z']['via'] == 'Synergy'
 
+    # Z is Open, so the multiplicative kick is inactive (multiplier == 1.0).
+    assert math.isclose(breakdown['composition']['iv_multiplier'], 1.0)
     contributed = sum(c['contribution'] for c in breakdown['contributors'])
     assert math.isclose(contributed, _tv("S", nodes, edges), rel_tol=1e-9)
 
@@ -124,7 +134,7 @@ def test_soft_edge_contribution():
 
 
 def test_syn_then_hard_cascade():
-    """S synergy→Z, Z hard→D. W(D) = d_Syn * d_H."""
+    """S synergy→Z, Z hard→D. W(D) = d_Syn_pair * d_H."""
     nodes = [_node("S"), _node("Z"), _node("D", value=10, interest=0)]
     edges = [
         {"source": "S", "target": "Z", "type": EDGE_HELPS},
@@ -132,7 +142,7 @@ def test_syn_then_hard_cascade():
     ]
     breakdown = explain_score("S", nodes, edges, HYPERS)
     by_name = {c['name']: c for c in breakdown['contributors']}
-    assert math.isclose(by_name['D']['weight'], HYPERS['d_Syn'] * HYPERS['d_H'], rel_tol=1e-9)
+    assert math.isclose(by_name['D']['weight'], HYPERS['d_Syn_pair'] * HYPERS['d_H'], rel_tol=1e-9)
     # via is propagated from Z, which itself was via='Synergy'
     assert by_name['D']['via'] == 'Synergy'
     assert by_name['D']['depth'] == 2
@@ -371,3 +381,126 @@ def test_paths_missing_source_returns_empty():
     pi = shortest_paths_focus_data("ghost", [(1, "anything")], [], [])
     assert pi == {'subtree': [], 'node_rank': {},
                   'edge_rank': {}, 'target_labels': {}}
+
+
+# ---------------------------------------------------------------------------
+# M3 hybrid synergy — pair bonus + completion multiplier
+# ---------------------------------------------------------------------------
+
+def test_m3_synergy_partner_open_no_multiplier():
+    """Synergy partner is Open: pair bonus active, multiplier dormant."""
+    s = _node("S", value=10, interest=2)
+    z = _node("Z", value=8, interest=4, status="Open")
+    nodes = [s, z]
+    edges = [{"source": "S", "target": "Z", "type": EDGE_HELPS}]
+    breakdown = explain_score("S", nodes, edges, HYPERS)
+    comp = breakdown['composition']
+
+    # Multiplier neutral → contribution to TV is 0
+    assert math.isclose(comp['iv_multiplier'], 1.0)
+    assert math.isclose(comp['iv_multiplier_contribution'], 0.0)
+    assert comp['done_synergy_count'] == 0
+
+    # Pair bonus shows up in the synergy bucket
+    from scoring import intrinsic_value
+    iv_z = intrinsic_value(z, HYPERS['w_v'], HYPERS['w_i'])
+    expected_pair_bonus = HYPERS['d_Syn_pair'] * iv_z
+    assert math.isclose(comp['synergy'], expected_pair_bonus, rel_tol=1e-9)
+
+
+def test_m3_synergy_partner_done_multiplies_intrinsic():
+    """One Done synergy partner: iv_multiplier = 1 + d_Syn_mul."""
+    s = _node("S", value=10, interest=2)
+    z = _node("Z", value=8, interest=4, status="Done")
+    nodes = [s, z]
+    edges = [{"source": "S", "target": "Z", "type": EDGE_HELPS}]
+    breakdown = explain_score("S", nodes, edges, HYPERS)
+    comp = breakdown['composition']
+
+    expected_multiplier = 1.0 + HYPERS['d_Syn_mul']
+    assert math.isclose(comp['iv_multiplier'], expected_multiplier, rel_tol=1e-9)
+    assert comp['done_synergy_count'] == 1
+
+    from scoring import intrinsic_value
+    iv_s = intrinsic_value(s, HYPERS['w_v'], HYPERS['w_i'])
+    expected_kick = iv_s * HYPERS['d_Syn_mul']
+    assert math.isclose(comp['iv_multiplier_contribution'], expected_kick, rel_tol=1e-9)
+
+    # Total TV includes additive contributors AND the multiplicative kick
+    contributed = sum(c['contribution'] for c in breakdown['contributors'])
+    expected_tv = contributed + comp['iv_multiplier_contribution']
+    assert math.isclose(comp['total_value'], expected_tv, rel_tol=1e-9)
+    # Cross-check against ground truth
+    assert math.isclose(comp['total_value'], _tv("S", nodes, edges), rel_tol=1e-9)
+
+
+def test_m3_two_done_synergy_partners_accumulate_additively():
+    """Two Done synergy partners: multiplier = 1 + 2 * d_Syn_mul (linear, not exponential)."""
+    nodes = [_node("S", value=10, interest=0),
+             _node("Z1", value=4, interest=0, status="Done"),
+             _node("Z2", value=4, interest=0, status="Done")]
+    edges = [
+        {"source": "S", "target": "Z1", "type": EDGE_HELPS},
+        {"source": "S", "target": "Z2", "type": EDGE_HELPS},
+    ]
+    breakdown = explain_score("S", nodes, edges, HYPERS)
+    comp = breakdown['composition']
+
+    expected_multiplier = 1.0 + 2 * HYPERS['d_Syn_mul']  # additive, not (1+d)^2
+    assert math.isclose(comp['iv_multiplier'], expected_multiplier, rel_tol=1e-9)
+    assert comp['done_synergy_count'] == 2
+
+
+def test_m3_pure_dag_node_unaffected_by_synergy_params():
+    """A node with no synergy edges: multiplier == 1, no synergy contribution.
+
+    Score should be identical regardless of the d_Syn_pair / d_Syn_mul values.
+    """
+    nodes = [_node("S", value=10), _node("A", value=8), _node("B", value=6)]
+    edges = [
+        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
+        {"source": "A", "target": "B", "type": EDGE_NEEDS_HARD},
+    ]
+    breakdown_default = explain_score("S", nodes, edges, HYPERS)
+    bizarre_hp = dict(HYPERS, d_Syn_pair=0.99, d_Syn_mul=10.0)
+    breakdown_bizarre = explain_score("S", nodes, edges, bizarre_hp)
+
+    assert math.isclose(
+        breakdown_default['composition']['total_value'],
+        breakdown_bizarre['composition']['total_value'],
+        rel_tol=1e-9,
+    )
+    assert breakdown_default['composition']['iv_multiplier'] == 1.0
+    assert breakdown_bizarre['composition']['iv_multiplier'] == 1.0
+
+
+def test_m3_multiplier_does_not_amplify_cascade():
+    """The multiplier applies to intrinsic only, not to Hard/Soft cascade.
+
+    S has a Done synergy partner Z and a Hard prereq P. The Hard cascade
+    contribution P → S is unaffected by the multiplier; only S's intrinsic
+    value is amplified.
+    """
+    s = _node("S", value=10, interest=2)
+    p = _node("P", value=8, interest=6, status="Open")
+    z = _node("Z", value=4, interest=3, status="Done")
+    nodes = [s, p, z]
+    edges = [
+        {"source": "S", "target": "P", "type": EDGE_NEEDS_HARD},
+        {"source": "S", "target": "Z", "type": EDGE_HELPS},
+    ]
+    breakdown = explain_score("S", nodes, edges, HYPERS)
+    comp = breakdown['composition']
+
+    from scoring import intrinsic_value
+    iv_s = intrinsic_value(s, HYPERS['w_v'], HYPERS['w_i'])
+    iv_p = intrinsic_value(p, HYPERS['w_v'], HYPERS['w_i'])
+    iv_z = intrinsic_value(z, HYPERS['w_v'], HYPERS['w_i'])
+
+    # cascade is d_H * iv_p (unscaled — multiplier doesn't touch it)
+    assert math.isclose(comp['hard_cascade'], HYPERS['d_H'] * iv_p, rel_tol=1e-9)
+    # additive synergy bonus is d_Syn_pair * iv_z (unscaled)
+    assert math.isclose(comp['synergy'], HYPERS['d_Syn_pair'] * iv_z, rel_tol=1e-9)
+    # multiplier kick is iv_s * d_Syn_mul — applies to intrinsic only
+    assert math.isclose(comp['iv_multiplier_contribution'],
+                        iv_s * HYPERS['d_Syn_mul'], rel_tol=1e-9)
