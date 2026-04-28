@@ -16,6 +16,7 @@ so a single import is shared across all callback modules.
 import json
 from typing import Optional
 from database import get_connection
+from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
 ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
@@ -55,9 +56,9 @@ DEFAULT_SUBCONTEXTS = {
 DEFAULT_DANGER_COLOR = '#c94c4c' # subtle red
 
 DEFAULT_NODE_COLORS = {
-    'Blocked': '#dc3545',
-    'Open': '#0d6efd',
-    'Done': '#198754',
+    STATUS_BLOCKED: '#dc3545',
+    STATUS_OPEN: '#0d6efd',
+    STATUS_DONE: '#198754',
     'Goal': '#ffc107',
     'Action': '#fd7e14',
     'Learn': '#0d6efd',
@@ -80,17 +81,17 @@ DEFAULT_NODE_SHAPES = {
 # human-readable source of truth — keep it in sync when changing values.
 # Each entry is (background, text).
 BADGE_PALETTE = {
-    'Override':   ('#c4528c', '#ffffff'),  # was #e83e8c
-    'Goal':       ('#f39c12', '#ffffff'),  # type tile — Darkly --bs-warning (matches empty-state ranking list)
-    'Priority':   ('#f39c12', '#ffffff'),  # Priority N — same as Goal; suppresses Goal type when shown
-    'Action':     ('#d97120', '#ffffff'),  # was #fd7e14
-    'Learn':      ('#2c70d6', '#ffffff'),  # was #0d6efd
-    'Resource':   ('#7c4d9c', '#ffffff'),  # was #9047b8
-    'Open':       ('#5677a6', '#ffffff'),  # lighter friendly blue (swapped with HardRelPri)
-    'Done':       ('#1a9d78', '#ffffff'),  # was #00bc8c
-    'Blocked':    ('#b35353', '#ffffff'),  # was #c94c4c
-    'HardRelPri': ('#375a7f', '#d6e0ee'),  # darker rugged blue (swapped with Open) — matches subtasks Hard
-    'SoftRelPri': ('#52606e', '#d0d6dc'),  # matches subtasks Soft
+    'Override':   ('#b03878', '#ffffff'),  # was #c4528c
+    'Goal':       ('#d98800', '#ffffff'),  # type tile — Darkly --bs-warning (matches empty-state ranking list)
+    'Priority':   ('#d98800', '#ffffff'),  # Priority N — same as Goal; suppresses Goal type when shown
+    'Action':     ('#c35d0a', '#ffffff'),  # was #d97120
+    'Learn':      ('#1c5ec2', '#ffffff'),  # was #2c70d6
+    'Resource':   ('#683688', '#ffffff'),  # was #7c4d9c
+    STATUS_OPEN:       ('#3e61a0', '#ffffff'),  # was #5677a6
+    STATUS_DONE:       ('#148a68', '#ffffff'),  # was #1a9d78
+    STATUS_BLOCKED:    ('#9e3838', '#ffffff'),  # was #b35353
+    'HardRelPri': ('#2a4d6e', '#d6e0ee'),  # was #375a7f — matches subtasks Hard
+    'SoftRelPri': ('#414f5c', '#d0d6dc'),  # was #52606e — matches subtasks Soft
 }
 
 
@@ -615,7 +616,7 @@ class ConfigManager:
             stale = False
             for n_name in event_nodes:
                 node = manager.get_node(n_name)
-                if node and node.status != "Done":
+                if node and node.status != STATUS_DONE:
                     live.add(n_name)
                 else:
                     stale = True

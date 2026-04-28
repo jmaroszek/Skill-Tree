@@ -97,7 +97,7 @@ Each tab's Dash reactivity lives in its own `*_callbacks.py`. They all follow th
 #### Domain layer
 
 - [`graph_manager.py`](graph_manager.py) — The single gateway between callbacks and SQLite for node/edge data. Handles cascade status updates (a node auto-Blocks when any hard prerequisite isn't Done), cycle detection, filtered queries, subtree BFS, and the two internal cache invalidation counters (`_graph_version`, `_scoring_version`) that let higher-level caches skip work.
-- [`event_manager.py`](event_manager.py) — Same shape as `GraphManager`, scoped to Events and EventNodes. Owns `check_pending_events()`, which is called on each relevant page load and after node completions to flip triggered events and their dormant nodes.
+- [`event_manager.py`](event_manager.py) — Same shape as `GraphManager`, scoped to Events and EventNodes. Owns `check_pending_activations()` (delayed dormant nodes whose date has arrived) and `check_scheduled_triggers()` (date-based events that are now due) — called on each relevant page load. Node-completion events flow through `auto_trigger_by_node_completion()`, fired automatically inside `GraphManager.update_node` whenever a node transitions to Done.
 - [`config.py`](config.py) — `ConfigManager` is a classmethod-only facade over the `Settings` key/value table, with typed getters/setters for every stored preference. Also holds the `DEFAULT_*` constants used as first-run defaults and the global `ENVIRONMENT` flag that flips the DB path.
 
 #### Pure modules (no DB, no Dash)
@@ -164,7 +164,7 @@ score = eligibility
 
 - **Eligibility** is 1 if every hard prerequisite is Done, else 0. A zero-eligibility node is pushed to the bottom of the list.
 - **Intrinsic value** of a node is `w_v * value + w_i * interest`, with `w_v` and `w_i` configurable hyperparameters.
-- **Total value** is intrinsic value *plus* a recursive discounted sum over Hard/Soft prereqs (the DAG cascade), plus an M3 hybrid synergy contribution. The synergy contribution has two parts: a small **additive pair bonus** `d_Syn_pair × tv(partner)` summed over immediate synergy neighbors regardless of their state, and a **multiplicative kick on intrinsic value** that fires when a synergy partner is Done — `intrinsic × (1 + d_Syn_mul × count_done_partners)`. The multiplier applies to *intrinsic only*, not to the cascade. Two new hyperparameters (`d_Syn_pair` ≈ 0.10, `d_Syn_mul` ≈ 0.40 in the Default profile) replace the single old `d_Syn`. The asymmetry encodes the semantic distinction: synergy is a *categorically different* relationship from Hard/Soft (mutual reinforcement, not directional dependency), so it doesn't sit on the same "necessity" axis.
+- **Total value** is intrinsic value *plus* a recursive discounted sum over Hard/Soft prereqs (the DAG cascade), plus an M3 hybrid synergy contribution. The synergy contribution has two parts: a small **additive pair bonus** `d_Syn_pair × tv(partner)` summed over immediate synergy neighbors regardless of their state, and a **multiplicative kick on intrinsic value** that fires when a synergy partner is Done — `intrinsic × (1 + d_Syn_mul × sqrt(count_done_partners))`. The sqrt is a diminishing-returns cap: 1 partner gives the full d_Syn_mul kick, 4 partners give 2×, 16 give 4× — preserving "more partners = more boost" while keeping dense synergy hubs from running away. The multiplier applies to *intrinsic only*, not to the cascade. Two hyperparameters (`d_Syn_pair` ≈ 0.10, `d_Syn_mul` ≈ 0.40 in the Default profile) replace the single old `d_Syn`. The asymmetry encodes the semantic distinction: synergy is a *categorically different* relationship from Hard/Soft (mutual reinforcement, not directional dependency), so it doesn't sit on the same "necessity" axis.
 - **Perceived cost** is `1 + w_e * difficulty + w_t * (time ** beta)`, where `beta < 1` makes the time penalty sub-linear (a 100-hour task is expensive but not 100× worse than a 1-hour task).
 - **Goal boost.** The top three Priority Goals each multiply the scores of everything in their hard-prerequisite subtree — the #1 goal at full strength, #2 at ~66%, #3 at ~33%. Highest-rank boost wins if a node belongs to multiple priority subtrees.
 - **Context weight.** User-assigned per parent context; defaults to 1.0. Subcontexts inherit their parent's weight. Lets the user state cross-context importance explicitly ("Health > abstract math") even before decomposing those areas. Persisted under the `CONTEXT_WEIGHTS` Settings key.
@@ -194,7 +194,7 @@ The Total Value recursion has gone through three stages as the graph grew. Each 
 **Stage 3 — DAG memoization + shallow Syn bonus.** Split the recursion by edge type:
 
 1. `_tv_dag(n)`: recurses only over Hard + Soft out-edges. Because Hard+Soft is a DAG, the `visited` set never prunes differently across paths — so results are path-independent and safe to cache **globally**. Memoized across inner and outer calls. Each node is computed exactly once per batch.
-2. `total_value(n)` adds a **depth-1 Syn pair bonus**: `d_Syn_pair × _tv_dag(z)` for every immediate Helps neighbor `z` of `n`, plus a **completion multiplier on intrinsic value** of the form `iv × (1 + d_Syn_mul × done_partner_count)`. No recursion through Syn edges — depth-1 only, so no cycle bookkeeping needed.
+2. `total_value(n)` adds a **depth-1 Syn pair bonus**: `d_Syn_pair × _tv_dag(z)` for every immediate Helps neighbor `z` of `n`, plus a **completion multiplier on intrinsic value** of the form `iv × (1 + d_Syn_mul × sqrt(done_partner_count))`. No recursion through Syn edges — depth-1 only, so no cycle bookkeeping needed.
 
 - `_tv_dag` amortized across the entire batch: **O(N + E_D)** (each node's computation visits its out-edges once).
 - Syn loop per outer call: **O(δ_Syn)** where δ_Syn is the node's Helps out-degree. Each iteration accumulates the pair bonus and tests the partner's status for the multiplier. Total: **O(N · δ_Syn̄) = O(E_S)**.
@@ -203,7 +203,7 @@ The Total Value recursion has gone through three stages as the graph grew. Each 
 
 **Semantic change in Stage 3.** Stages 1 and 2 computed a deep mixed-edge walk where a synergy neighbor's DAG children's synergy neighbors' DAG children (and so on) all contributed to the score. Stage 3 keeps the DAG cascade identical but truncates Syn at depth 1, capturing the user's "synergy = lateral mutual reinforcement, not transitive prereq" intent more cleanly anyway.
 
-**Stage 3.1 — M3 hybrid synergy.** Replaced the single additive `d_Syn × _tv_dag(z)` term with a two-part scheme: a small partner-state-blind pair bonus (`d_Syn_pair × _tv_dag(z)`) plus a multiplicative kick on intrinsic value when partners are Done (`iv × (1 + d_Syn_mul × count_done_partners)`). The pair bonus encodes "the user marked these two as related, so co-promote them"; the multiplier encodes "doing both is more than the sum of doing each alone" — kicks in only after at least one partner is Done. Multiplier applies to intrinsic only, not to the cascade or the pair bonus, so completing a synergy partner doesn't artificially amplify upstream Hard prereqs. Test suite covers: partner Open ⇒ multiplier dormant; partner Done ⇒ multiplier active; multiple Done partners accumulate additively (not exponentially); pure-DAG nodes are unaffected by synergy params.
+**Stage 3.1 — M3 hybrid synergy.** Replaced the single additive `d_Syn × _tv_dag(z)` term with a two-part scheme: a small partner-state-blind pair bonus (`d_Syn_pair × _tv_dag(z)`) plus a multiplicative kick on intrinsic value when partners are Done (`iv × (1 + d_Syn_mul × sqrt(count_done_partners))`). The pair bonus encodes "the user marked these two as related, so co-promote them"; the multiplier encodes "doing both is more than the sum of doing each alone" — kicks in only after at least one partner is Done. The sqrt is a diminishing-returns cap added in the correctness-hardening pass: a single Done partner gives the full d_Syn_mul kick (sqrt(1)=1), but a hub of 16 partners only gives 4× that — preventing dense synergy networks from inflating any single node's score unboundedly. Multiplier applies to intrinsic only, not to the cascade or the pair bonus, so completing a synergy partner doesn't artificially amplify upstream Hard prereqs. Test suite covers: partner Open ⇒ multiplier dormant; partner Done ⇒ multiplier active; multiple Done partners accumulate sub-linearly via sqrt; pure-DAG nodes are unaffected by synergy params.
 
 **Scaling back of the envelope**, for a graph with properties like the production DB (1.7 edges/node, branching ≈ 2, depth ≈ 8):
 
@@ -233,7 +233,7 @@ The Details tab's relationship column uses set arithmetic to label Synergy nodes
 
 The `time` property on a Node blends three estimates (optimistic, most likely, pessimistic) into one number. Low-uncertainty estimates (pessimistic/optimistic ratio ≤ 2) use the classic arithmetic PERT mean `(o + 4m + p) / 6`. High-uncertainty estimates (ratio ≥ 10) use the geometric/log mean. Between those bounds, it smoothly interpolates. There are also fallbacks for when only partial estimates are provided. The result is what shows up everywhere in the UI as "Time."
 
-### Event activation (`event_manager.check_pending_events`)
+### Event activation (`event_manager.check_pending_activations` + `check_scheduled_triggers`)
 
 An Event has one of three trigger types:
 
@@ -241,7 +241,7 @@ An Event has one of three trigger types:
 - **Date** — the event has a `trigger_date` and today's date is ≥ that value.
 - **Node** — the event has a `trigger_node` and that node's status is Done.
 
-When an event triggers, `check_pending_events` iterates its attached `EventNodes` rows. Each has a `delay_days` offset — the wake-up date becomes `event_date + delay_days`. If that date has arrived (or the delay is zero), the dormant node flips to active (`dormant = 0`). Any `override_on_trigger` flag gets applied at the same time.
+When an event triggers, `trigger_event` iterates its attached `EventNodes` rows. Each has a `delay_days` offset — the wake-up date becomes `event_date + delay_days`. If that date has arrived (or the delay is zero), the dormant node flips to active (`dormant = 0`). `check_pending_activations` is the polling sweep that fires the delayed activations on subsequent page loads. Any `override_on_trigger` flag gets applied at the same time.
 
 ### Monte Carlo simulation (`simulation.simulate_task_chain`)
 

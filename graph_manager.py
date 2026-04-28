@@ -11,7 +11,7 @@ import sqlite3
 import threading
 import database
 import networkx as nx
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
 from scoring import score_nodes
 from typing import List, Dict, Optional, Set, Tuple
@@ -136,8 +136,23 @@ class GraphManager:
         # override parent, clear the override — the boost on its dependents
         # is no longer meaningful. Done is only ever set here (the cascade
         # in _update_dependent_nodes_state only flips Blocked/Open).
-        if node.status == 'Done':
+        if node.status == STATUS_DONE:
             ConfigManager.clear_override_if_parent(node.name)
+            # Fire any event whose trigger_node matches this name, but only
+            # on a true Open/Blocked → Done transition. Re-saving an already-
+            # Done node should be a no-op for events. Lazy import to avoid
+            # the event_manager ↔ graph_manager circular dependency.
+            if prior is None or prior.status != STATUS_DONE:
+                try:
+                    from event_manager import EventManager
+                    EventManager().auto_trigger_by_node_completion(node.name)
+                except Exception:
+                    # Event-firing must never block a node save. Failures here
+                    # are logged but the node update remains committed.
+                    import logging
+                    logging.getLogger(__name__).exception(
+                        "auto_trigger_by_node_completion failed for %s", node.name
+                    )
 
     def delete_node(self, node_name: str):
         """Deletes a node by name.
@@ -186,22 +201,34 @@ class GraphManager:
         self._bump_version()
 
     def rename_node(self, old_name: str, new_name: str):
-        """Renames a node, updating all edge and event references atomically."""
+        """Renames a node, updating all edge and event references atomically.
+
+        FKs are temporarily disabled so the Nodes row can be renamed before
+        Edges/Events/EventNodes/Aliases catch up. The whole sequence runs in
+        an explicit transaction; any error rolls back to the pre-rename state
+        so a partial rename can never be left in the DB. The PRAGMA reset is
+        in a finally so FKs are restored even on failure.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            # Temporarily disable FK checks so we can rename node + edges atomically
             cursor.execute("PRAGMA foreign_keys = OFF")
-            cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
-            cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
-            cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
-            # Update event trigger_node references
-            cursor.execute("UPDATE Events SET trigger_node=? WHERE trigger_node=?", (new_name, old_name))
-            # Also update EventNodes mapping table
-            cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
-            # Update Aliases table
-            cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
-            conn.commit()
-            cursor.execute("PRAGMA foreign_keys = ON")
+            try:
+                cursor.execute("BEGIN")
+                cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
+                cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
+                cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
+                # Update event trigger_node references
+                cursor.execute("UPDATE Events SET trigger_node=? WHERE trigger_node=?", (new_name, old_name))
+                # Also update EventNodes mapping table
+                cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
+                # Update Aliases table
+                cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                cursor.execute("PRAGMA foreign_keys = ON")
         ConfigManager.rename_node_references(old_name, new_name)
         self._bump_version()
 
@@ -238,11 +265,36 @@ class GraphManager:
             conn.commit()
 
     def get_all_aliases(self) -> dict:
-        """Return {alias: node_name} mapping for all aliases."""
+        """Return {alias: node_name} mapping for all aliases.
+
+        Keys are the stored (titlecase-linted) form. For case-insensitive
+        lookups use :py:meth:`resolve_alias`.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT alias, node_name FROM Aliases")
             return {row[0]: row[1] for row in cursor.fetchall()}
+
+    def resolve_alias(self, alias_input: str) -> Optional[str]:
+        """Look up the node name for an alias, case-insensitively.
+
+        Aliases are stored titlecase-linted, but the user may type any case
+        (e.g. ``alias:mathnotes`` matches a stored ``MathNotes``). Returns
+        the node name on hit, or ``None`` on miss.
+        """
+        if not alias_input:
+            return None
+        target = alias_input.strip().casefold()
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # SQLite's LOWER is ASCII-only but our aliases are user-controlled
+            # text — fall back to a Python loop so casefold (which handles
+            # full Unicode) is the source of truth.
+            cursor.execute("SELECT alias, node_name FROM Aliases")
+            for alias, node_name in cursor.fetchall():
+                if alias.casefold() == target:
+                    return node_name
+        return None
 
     def get_all_nodes(self, include_dormant: bool = False) -> List[Node]:
         """Retrieves all nodes. Excludes dormant nodes by default."""
@@ -461,74 +513,151 @@ class GraphManager:
         """Check if a prerequisite node is satisfied (Done)."""
         if not p_node:
             return False
-        return p_node.status == 'Done'
+        return p_node.status == STATUS_DONE
 
     def _update_node_state(self, node_name: str):
-        # Done is intentionally sticky on transitive dependents: when an
-        # upstream prereq is un-Done (Done → Open), the cascade walks
-        # downstream and re-evaluates each dependent here, but a Done
-        # dependent stays Done. Done reflects user-asserted completion that
-        # shouldn't auto-revert just because a prereq was re-opened. This
-        # can leave the graph in an asymmetric state (Done node with un-Done
-        # prereq); use ConfigManager → Settings → Personal → "Repair graph
-        # state" if you want every non-Done node re-derived.
-        node = self.get_node(node_name)
-        if not node or node.status == "Done":
-            return
-        # Goal nodes use their own status, not the auto-calculated status
-        if node.type == 'Goal':
-            return
+        """Recompute Blocked/Open for ``node_name`` and cascade to dependents.
 
+        Iterative BFS over the dependency frontier so a single SQLite
+        connection is shared across the whole cascade — previous recursive
+        version opened a new connection per level, which on a deep cascade
+        meant 100+ short-lived connections per call.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT source FROM Edges WHERE target=? AND type='Needs_Hard'", (node_name,))
-            prereqs = [row[0] for row in cursor.fetchall()]
-
-            is_blocked = False
-            for prereq_name in prereqs:
-                p_node = self.get_node(prereq_name)
-                if not self._is_prereq_satisfied(p_node):
-                    is_blocked = True
-                    break
-
-            new_status = "Blocked" if is_blocked else "Open"
-            if node.status == "In Progress" and new_status == "Open":
-                new_status = "In Progress"
-
-            if node.status != new_status:
-                cursor.execute("UPDATE Nodes SET status=? WHERE name=?", (new_status, node_name))
-                conn.commit()
-                self._update_dependent_nodes_state(node_name)
+            self._cascade_update_states([node_name], cursor)
+            conn.commit()
 
     def _update_dependent_nodes_state(self, node_name: str):
+        """Recompute every Hard-downstream dependent of ``node_name``."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'", (node_name,))
-            dependents = [row[0] for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'",
+                (node_name,),
+            )
+            seeds = [row[0] for row in cursor.fetchall()]
+            if seeds:
+                self._cascade_update_states(seeds, cursor)
+                conn.commit()
 
-        for dept in dependents:
-            self._update_node_state(dept)
+    def _cascade_update_states(self, seeds: List[str], cursor) -> None:
+        """Iterative cascade: re-derive Blocked/Open for each seed and walk
+        downstream Hard dependents on every actual status change.
+
+        Cascade is exhaustive: a Done node whose prereqs are no longer all
+        Done flips to Blocked, propagating downstream. A Done node whose
+        prereqs ARE all Done stays Done — recomputing should never silently
+        un-mark work the user said they finished. Goals retain user-set
+        status. Caller owns the connection commit.
+        """
+        queue: List[str] = list(seeds)
+        seen: Set[str] = set()
+        while queue:
+            node_name = queue.pop(0)
+            if node_name in seen:
+                continue
+            seen.add(node_name)
+
+            cursor.execute(
+                "SELECT type, status FROM Nodes WHERE name=?", (node_name,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                continue
+            node_type, current_status = row
+            if node_type == 'Goal':
+                continue
+
+            cursor.execute(
+                "SELECT n.status FROM Edges e "
+                "JOIN Nodes n ON e.source = n.name "
+                "WHERE e.target=? AND e.type='Needs_Hard'",
+                (node_name,),
+            )
+            is_blocked = any(s != STATUS_DONE for (s,) in cursor.fetchall())
+
+            # Done nodes only ever transition to Blocked. If they're not
+            # Blocked, leave them Done — never silently un-finish work.
+            if current_status == STATUS_DONE and not is_blocked:
+                continue
+
+            new_status = STATUS_BLOCKED if is_blocked else STATUS_OPEN
+            if current_status == new_status:
+                continue
+
+            cursor.execute(
+                "UPDATE Nodes SET status=? WHERE name=?", (new_status, node_name),
+            )
+            cursor.execute(
+                "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'",
+                (node_name,),
+            )
+            for (dependent,) in cursor.fetchall():
+                if dependent not in seen:
+                    queue.append(dependent)
+
+    def get_downstream_done_dependents(self, node_name: str) -> List[str]:
+        """Return Done downstream nodes that would re-block if `node_name` were un-Done.
+
+        Walks Hard out-edges transitively from `node_name` and returns every
+        Done node found. Used to warn the user before they un-Done a node:
+        these are the dependents that will flip Done → Blocked once the
+        cascade runs.
+        """
+        result: List[str] = []
+        seen: Set[str] = {node_name}
+        stack: List[str] = [node_name]
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            while stack:
+                current = stack.pop()
+                cursor.execute(
+                    "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'",
+                    (current,),
+                )
+                for (target,) in cursor.fetchall():
+                    if target in seen:
+                        continue
+                    seen.add(target)
+                    target_node = self.get_node(target)
+                    if target_node and target_node.status == STATUS_DONE:
+                        result.append(target)
+                    stack.append(target)
+        return result
 
     def recompute_all_statuses(self) -> int:
         """Walk every non-Goal, non-Done node and re-derive its Blocked/Open status.
 
-        Safety net for any case where the incremental cascade (_update_node_state
-        called from add_edge / sync_edges / update_node) was bypassed and left a
-        node's status column stale. Returns the number of nodes whose status
-        actually changed.
+        Safety net for any case where the incremental cascade was bypassed.
+        Called on app launch (`app.py`) so every session starts in a
+        consistent state. Returns the number of nodes whose status actually
+        changed; logs a warning when drift is detected so silent bypass
+        paths surface in the logs instead of being papered over.
         """
-        changed = 0
+        import logging
+        logger = logging.getLogger(__name__)
+        changed_names: List[str] = []
         for node in self.get_all_nodes(include_dormant=True):
-            if node.type == 'Goal' or node.status == 'Done':
+            # Goal status is user-controlled. Done-status nodes ARE re-derived
+            # so that a Done node whose prereqs were un-Done outside the
+            # cascade (raw SQL, restored backup, etc.) flips to Blocked
+            # rather than sitting in an asymmetric state.
+            if node.type == 'Goal':
                 continue
             before = node.status
             self._update_node_state(node.name)
             after_node = self.get_node(node.name)
             if after_node and after_node.status != before:
-                changed += 1
-        if changed:
+                changed_names.append(node.name)
+        if changed_names:
+            logger.warning(
+                "recompute_all_statuses: repaired %d drifted node(s): %s",
+                len(changed_names),
+                ", ".join(changed_names[:10]) + ("..." if len(changed_names) > 10 else ""),
+            )
             self._bump_version()
-        return changed
+        return len(changed_names)
 
     # --- Logic ---
 
@@ -582,8 +711,8 @@ class GraphManager:
             cursor.execute('''
                 SELECT target FROM Edges
                 JOIN Nodes ON Edges.target = Nodes.name
-                WHERE source=? AND Edges.type='Needs_Hard' AND Nodes.status='Blocked'
-            ''', (node_name,))
+                WHERE source=? AND Edges.type='Needs_Hard' AND Nodes.status=?
+            ''', (node_name, STATUS_BLOCKED))
             return [row[0] for row in cursor.fetchall()]
 
     def get_directly_unlocked_nodes_by_type(self, node_name: str) -> Dict[str, List[str]]:
@@ -594,8 +723,8 @@ class GraphManager:
                 SELECT target, Edges.type FROM Edges
                 JOIN Nodes ON Edges.target = Nodes.name
                 WHERE source=? AND Edges.type IN ('Needs_Hard', 'Needs_Soft')
-                AND Nodes.status IN ('Blocked', 'Open')
-            ''', (node_name,))
+                AND Nodes.status IN (?, ?)
+            ''', (node_name, STATUS_BLOCKED, STATUS_OPEN))
             hard, soft = [], []
             for row in cursor.fetchall():
                 if row[1] == 'Needs_Hard':
@@ -715,9 +844,9 @@ class GraphManager:
         nodes = [self.get_node(name) for name in subtree]
         nodes = [n for n in nodes if n is not None]
         total = len(nodes)
-        done = sum(1 for n in nodes if n.status == "Done")
-        blocked = sum(1 for n in nodes if n.status == "Blocked")
-        remaining_time = sum(n.time for n in nodes if n.status != "Done")
+        done = sum(1 for n in nodes if n.status == STATUS_DONE)
+        blocked = sum(1 for n in nodes if n.status == STATUS_BLOCKED)
+        remaining_time = sum(n.time for n in nodes if n.status != STATUS_DONE)
         pct = round(done / total * 100) if total > 0 else 0
         
         # A goal is considered blocked if ALL of its remaining subtasks are blocked
@@ -750,7 +879,7 @@ class GraphManager:
         total = 0.0
         for name in subtree:
             child = self.get_node(name)
-            if child and child.status != 'Done':
+            if child and child.status != STATUS_DONE:
                 total += child.time
         return round(total, 2)
 
@@ -798,10 +927,10 @@ class GraphManager:
             result = [n for n in result if n.type in filters['node_types']]
 
         if 'hide_done' in filters and filters['hide_done']:
-            result = [n for n in result if n.status != 'Done']
+            result = [n for n in result if n.status != STATUS_DONE]
 
         if 'hide_blocked' in filters and filters['hide_blocked']:
-            result = [n for n in result if n.status != 'Blocked']
+            result = [n for n in result if n.status != STATUS_BLOCKED]
 
         if 'search' in filters and filters['search']:
             search_val = filters['search'].lower()
@@ -836,7 +965,7 @@ class GraphManager:
 
                 if not prereqs:
                     has_incomplete = any(
-                        status_lookup.get(p, 'Open') != 'Done'
+                        status_lookup.get(p, STATUS_OPEN) != STATUS_DONE
                         for p in current_path
                     )
                     if has_incomplete:
@@ -876,7 +1005,7 @@ class GraphManager:
 
                 if not prereqs:
                     has_incomplete = any(
-                        status_lookup.get(p, 'Open') != 'Done'
+                        status_lookup.get(p, STATUS_OPEN) != STATUS_DONE
                         for p in current_path
                     )
                     if has_incomplete:

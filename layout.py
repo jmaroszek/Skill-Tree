@@ -18,6 +18,7 @@ from details_layout import build_details_tab_content, _freeze_indicator, build_g
 from settings_layout import build_settings_tab_content
 from analyze_layout import build_analyze_tab_content
 from styles import stylesheet
+from models import STATUS_DONE
 
 # These are only used for the initial render; core_engine refreshes them dynamically.
 NODE_TYPES = ConfigManager.get_node_types()
@@ -142,7 +143,7 @@ sidebar_content = html.Div(
             html.Div(id="section-done-time", children=[
                 html.Div([
                     dbc.Checklist(
-                        options=[{"label": "Done", "value": "Done"}],
+                        options=[{"label": STATUS_DONE, "value": STATUS_DONE}],
                         value=[],
                         id="node-status-done",
                         switch=True,
@@ -701,6 +702,20 @@ delete_confirm_modal = dbc.Modal([
 ], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
 
 
+# Confirmation modal for un-marking a Done node when downstream Done nodes
+# would be re-blocked by the cascade. Lists the affected nodes and waits for
+# explicit confirmation so the user knows their previously-Done dependents
+# will flip to Blocked.
+undo_done_confirm_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Un-mark as Done?")),
+    dbc.ModalBody(id="undo-done-confirm-body"),
+    dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-undo-done-cancel", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
+    ], className="d-flex"),
+], id="modal-undo-done-confirm", size="md", is_open=False, centered=True)
+
+
 # Used by the canvas context menu and Delete-key hotkey — handles one or many
 # nodes. Distinct from the node-editor delete flow above, which always targets
 # the single node currently open in the editor.
@@ -1076,7 +1091,7 @@ def build_app_layout(initial_elements, env="production"):
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
             html.Div("Details", id="ctx-menu-details", className="ctx-menu-item"),
-            html.Div("Done", id="ctx-menu-toggle-done", className="ctx-menu-item"),
+            html.Div(STATUS_DONE, id="ctx-menu-toggle-done", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Drive", id="ctx-menu-drive", className="ctx-menu-item"),
@@ -1252,6 +1267,7 @@ def build_app_layout(initial_elements, env="production"):
         error_modal,
         unsaved_changes_modal,
         delete_confirm_modal,
+        undo_done_confirm_modal,
         group_delete_confirm_modal,
         override_conflict_modal,
         override_untoggle_modal,
@@ -1285,6 +1301,10 @@ def build_app_layout(initial_elements, env="production"):
         # Downstream listeners use this instead of cytoscape-graph.elements to
         # avoid re-firing on cosmetic updates (filter, depth, highlight).
         dcc.Store(id='graph-version-store', data=0),
+        # Holds the names the user is about to un-Done while the confirmation
+        # modal is open. Read by the modal-confirm callback to perform the
+        # actual toggle once the user has acknowledged the downstream impact.
+        dcc.Store(id='pending-undo-done-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
 
         main_tabs,

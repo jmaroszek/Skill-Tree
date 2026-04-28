@@ -11,7 +11,7 @@ to active (with an optional per-node delay) via check_pending_events().
 import sqlite3
 from datetime import date, timedelta
 import database
-from models import Node, Event
+from models import Node, Event, STATUS_DONE
 from typing import List, Dict, Optional
 
 
@@ -67,6 +67,7 @@ class EventManager:
     def delete_event(self, event_name: str, delete_nodes: bool = True):
         """Deletes an event. If delete_nodes is True, also deletes its dormant nodes.
         If False, activates them instead."""
+        activated_names: List[str] = []
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if delete_nodes:
@@ -80,7 +81,15 @@ class EventManager:
                     cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (name, name))
                     cursor.execute("DELETE FROM Nodes WHERE name=?", (name,))
             else:
-                # Activate all dormant nodes instead of deleting
+                # Activate all dormant nodes instead of deleting. Capture names
+                # so we can run the cascade after the bulk update — otherwise
+                # an activated node with un-Done prereqs would stay Open in
+                # the DB until the next manual edit.
+                cursor.execute(
+                    "SELECT node_name FROM EventNodes WHERE event_name=? AND activated=0",
+                    (event_name,)
+                )
+                activated_names = [row[0] for row in cursor.fetchall()]
                 cursor.execute(
                     "UPDATE Nodes SET dormant=0 WHERE name IN "
                     "(SELECT node_name FROM EventNodes WHERE event_name=? AND activated=0)",
@@ -89,6 +98,21 @@ class EventManager:
 
             cursor.execute("DELETE FROM Events WHERE name=?", (event_name,))
             conn.commit()
+
+        # Re-derive status for any newly-activated node so a Blocked-on-prereqs
+        # node doesn't sit stuck at Open. Done-status nodes also fire any
+        # pending node-completion events tied to them.
+        if activated_names:
+            from graph_manager import GraphManager
+            gm = GraphManager()
+            for name in activated_names:
+                gm._update_node_state(name)
+                node = gm.get_node(name)
+                if node and node.status == STATUS_DONE:
+                    try:
+                        self.auto_trigger_by_node_completion(name)
+                    except Exception:
+                        pass
 
     def get_event(self, name: str) -> Optional[Event]:
         with self.get_connection() as conn:
@@ -293,9 +317,17 @@ class EventManager:
 
             conn.commit()
 
-        # Cascade state updates for immediately activated nodes
+        # Cascade state updates for immediately activated nodes. If any was
+        # stored as Done while dormant, it just became visible in the live
+        # graph — fire any node-completion events tied to it.
         for node_name in result['activated']:
             gm._update_node_state(node_name)
+            node = gm.get_node(node_name)
+            if node and node.status == STATUS_DONE:
+                try:
+                    self.auto_trigger_by_node_completion(node_name)
+                except Exception:
+                    pass
 
         return result
 
@@ -332,6 +364,12 @@ class EventManager:
 
         for node_name in activated:
             gm._update_node_state(node_name)
+            node = gm.get_node(node_name)
+            if node and node.status == STATUS_DONE:
+                try:
+                    self.auto_trigger_by_node_completion(node_name)
+                except Exception:
+                    pass
 
         for event_name, nodes in event_nodes_map.items():
             ConfigManager.add_pending_event_notification({

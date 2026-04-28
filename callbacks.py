@@ -8,6 +8,8 @@ import os
 import subprocess
 import urllib.parse
 
+from typing import List, Set
+
 import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
@@ -15,7 +17,7 @@ import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import (ConfigManager, badge_style)
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
@@ -36,10 +38,10 @@ manager = GraphManager()
 event_manager = EventManager()
 
 
-# core_engine has 21 outputs; this constant + helper let the tab-gating guard
+# core_engine has 24 outputs; this constant + helper let the tab-gating guard
 # return a no_update tuple of the correct arity. test_core_engine_arity verifies
 # that it stays in sync with the actual callback registration.
-_CORE_ENGINE_NUM_OUTPUTS = 21
+_CORE_ENGINE_NUM_OUTPUTS = 24
 
 # Tabs whose own callbacks already refresh their content; switching to them
 # should NOT trigger a graph regen via core_engine.
@@ -69,11 +71,61 @@ def _core_engine_noop_tuple():
 
 
 def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_style):
-    """Return a 22-tuple populated only at the three sidebar-style slots.
+    """Return a tuple populated only at the three sidebar-style slots.
 
     Used by the editor-UI-only short-circuit in core_engine.
     """
     out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
+    out[_SIDEBAR_EDITOR_STYLE_IDX] = next_ed_style
+    out[_DETAILS_GOAL_SIDEBAR_STYLE_IDX] = next_goal_style
+    out[_EVENTS_SIDEBAR_STYLE_IDX] = next_events_style
+    return tuple(out)
+
+
+# Output slot indices for the new undo-Done modal outputs (added in Group 3).
+_UNDO_DONE_MODAL_IDX = 21
+_UNDO_DONE_BODY_IDX = 22
+_PENDING_UNDO_DONE_IDX = 23
+
+
+def _build_undo_done_body(target_names, downstream_done):
+    """Construct the modal body warning the user about Done dependents that
+    will flip Blocked when the listed targets are un-marked."""
+    target_label = (
+        f"'{target_names[0]}'" if len(target_names) == 1
+        else f"{len(target_names)} selected nodes"
+    )
+    items = [html.Li(name) for name in downstream_done[:25]]
+    overflow = (
+        html.Div(f"...and {len(downstream_done) - 25} more.",
+                 className="text-muted small mt-1")
+        if len(downstream_done) > 25 else None
+    )
+    children = [
+        html.P([
+            "Un-marking ", html.Strong(target_label), " will flip "
+            f"{len(downstream_done)} downstream Done node(s) to Blocked, "
+            "because their hard prerequisite is no longer complete:"
+        ]),
+        html.Ul(items, className="mb-0"),
+    ]
+    if overflow is not None:
+        children.append(overflow)
+    return children
+
+
+def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_style):
+    """Return a tuple matching core_engine's output arity, populated only with
+    the save-error message + sidebar styles.
+
+    Used when the save flow detects a validation error (missing name / type)
+    and wants to surface the error without touching graph state, filters,
+    or the modal-confirmation flow.
+    """
+    out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
+    out[1] = msg                  # save-output.children
+    out[7] = False                # clear-interval.disabled
+    out[8] = 0                    # clear-interval.n_intervals
     out[_SIDEBAR_EDITOR_STYLE_IDX] = next_ed_style
     out[_DETAILS_GOAL_SIDEBAR_STYLE_IDX] = next_goal_style
     out[_EVENTS_SIDEBAR_STYLE_IDX] = next_events_style
@@ -263,12 +315,12 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
     for node in filtered_nodes:
         if node.name in override_set:
             node_color = override_color
-        elif node.status == 'Done':
-            node_color = colors.get('Done', '#198754')
-        elif node.status == 'Blocked':
-            node_color = colors.get('Blocked', '#dc3545')
+        elif node.status == STATUS_DONE:
+            node_color = colors.get(STATUS_DONE, '#198754')
+        elif node.status == STATUS_BLOCKED:
+            node_color = colors.get(STATUS_BLOCKED, '#dc3545')
         else:
-            node_color = colors.get(node.type, colors.get('Open', '#0d6efd'))
+            node_color = colors.get(node.type, colors.get(STATUS_OPEN, '#0d6efd'))
 
         node_data = {
             'data': {
@@ -521,7 +573,7 @@ def register_callbacks(app):
         options = node_options(all_nodes)
 
         def_out = [
-            "", "Learn", "", "", "", 5, 5, 5, 2, 4, 6, "Open", [],
+            "", "Learn", "", "", "", 5, 5, 5, 2, 4, 6, STATUS_OPEN, [],
             [], [], [], [], [],
             options, options, options, options, options,
             [''], [''], [''],
@@ -642,8 +694,10 @@ def register_callbacks(app):
             resolved_name = search_val
             if search_val.startswith('alias:'):
                 alias_key = search_val[6:]
-                all_aliases = manager.get_all_aliases()
-                resolved_name = all_aliases.get(alias_key, search_val)
+                # Case-insensitive resolve so the user's typed casing
+                # doesn't have to match the stored titlecase form.
+                resolved = manager.resolve_alias(alias_key)
+                resolved_name = resolved if resolved is not None else search_val
             node = manager.get_node(resolved_name)
             if node and node.dormant:
                 return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*14
@@ -699,8 +753,8 @@ def register_callbacks(app):
         helps_vals = list(set(helps_vals))
         filtered_options = node_options(all_nodes, exclude=name)
 
-        actual_status = data.get('status', 'Open')
-        done_val = ["Done"] if actual_status == "Done" else []
+        actual_status = data.get('status', STATUS_OPEN)
+        done_val = [STATUS_DONE] if actual_status == STATUS_DONE else []
 
         friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
             data.get('time_o', 1.0), data.get('time_m', 1.0), data.get('time_p', 1.0)
@@ -1132,7 +1186,10 @@ def register_callbacks(app):
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
          Output('details-goal-sidebar', 'style', allow_duplicate=True),
-         Output('events-sidebar-container', 'style', allow_duplicate=True)],
+         Output('events-sidebar-container', 'style', allow_duplicate=True),
+         Output('modal-undo-done-confirm', 'is_open'),
+         Output('undo-done-confirm-body', 'children'),
+         Output('pending-undo-done-store', 'data')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -1163,7 +1220,8 @@ def register_callbacks(app):
          Input('graph-settings-neighbor-links', 'value'),
          Input('main-tabs', 'active_tab'),
          Input('graph-settings-relayout', 'n_clicks'),
-         Input('btn-sidebar-relayout', 'n_clicks')],
+         Input('btn-sidebar-relayout', 'n_clicks'),
+         Input('btn-undo-done-confirm', 'n_clicks')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -1186,7 +1244,8 @@ def register_callbacks(app):
          State('events-sidebar-container', 'style'),
          State('pending-navigation-store', 'data'),
          State({'type': 'alias-input', 'index': ALL}, 'value'),
-         State('editor-pristine-snapshot', 'data')],
+         State('editor-pristine-snapshot', 'data'),
+         State('pending-undo-done-store', 'data')],
         prevent_initial_call='initial_duplicate'
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, search_val,
@@ -1198,6 +1257,7 @@ def register_callbacks(app):
                      f_goal, focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _details_refresh, _bg_click,
                      gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout,
+                     btn_undo_done_confirm,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -1205,7 +1265,7 @@ def register_callbacks(app):
                      current_elements, ed_style, original_name,
                      time_mode_val, priority_rank_val, competence_val,
                      goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values,
-                     pristine_snapshot):
+                     pristine_snapshot, pending_undo_done):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -1333,16 +1393,16 @@ def register_callbacks(app):
                 ])
                 if form_has_content:
                     msg = "Error: Node name is required."
-                    return dash.no_update, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                    return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
                 else:
                     next_ed_style['transform'] = "translateX(-380px)"
-                    return dash.no_update, "", dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                    return _core_engine_save_error_tuple("", next_ed_style, next_goal_style, next_events_sidebar_style)
             if not n_type:
                 msg = "Error: Node type is required."
-                return dash.no_update, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
             try:
                 # Track if this save marks the node Done (for event completion check)
-                if status_done and "Done" in (status_done or []):
+                if status_done and STATUS_DONE in (status_done or []):
                     completion_check_node = name
 
                 multiplier = ConfigManager.get_time_multiplier(time_unit)
@@ -1382,7 +1442,7 @@ def register_callbacks(app):
                     ConfigManager.set_priority_goals(priority_goals)
             except (ValueError, TypeError):
                 msg = "Error: Please check your mathematical inputs."
-                return dash.no_update, msg, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, False, 0, dash.no_update, dash.no_update, next_ed_style, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, next_goal_style
+                return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-node-delete-confirm' and name:
@@ -1394,7 +1454,18 @@ def register_callbacks(app):
             try:
                 node_id = tapped_node.get('id')
                 _pre_node = manager.get_node(node_id)
-                if _pre_node and _pre_node.status != "Done":
+                # Done → Open with downstream Done dependents needs explicit
+                # user confirmation: re-blocking previously-Done work is
+                # destructive enough to warrant a modal.
+                if _pre_node and _pre_node.status == STATUS_DONE:
+                    downstream_done = manager.get_downstream_done_dependents(node_id)
+                    if downstream_done:
+                        out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
+                        out[_UNDO_DONE_MODAL_IDX] = True
+                        out[_UNDO_DONE_BODY_IDX] = _build_undo_done_body([node_id], downstream_done)
+                        out[_PENDING_UNDO_DONE_IDX] = [node_id]
+                        return tuple(out)
+                if _pre_node and _pre_node.status != STATUS_DONE:
                     completion_check_node = node_id
                 msg = handle_toggle_done(manager, tapped_node)
             except Exception as e:
@@ -1410,8 +1481,29 @@ def register_callbacks(app):
 
                 nodes = [n for n in (manager.get_node(nm) for nm in node_names) if n]
                 if nodes:
-                    any_not_done = any(n.status != "Done" for n in nodes)
-                    new_status = "Done" if any_not_done else "Open"
+                    any_not_done = any(n.status != STATUS_DONE for n in nodes)
+                    new_status = STATUS_DONE if any_not_done else STATUS_OPEN
+
+                    # Pre-check for Done → Open transition: collect every
+                    # downstream Done node that would be re-blocked. If any
+                    # exist, gate the toggle behind the confirmation modal.
+                    if new_status == STATUS_OPEN:
+                        affected_downstream: List[str] = []
+                        seen_downstream: Set[str] = set()
+                        for node in nodes:
+                            if node.status != STATUS_DONE:
+                                continue
+                            for d in manager.get_downstream_done_dependents(node.name):
+                                if d not in seen_downstream:
+                                    seen_downstream.add(d)
+                                    affected_downstream.append(d)
+                        if affected_downstream:
+                            out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
+                            target_names = [n.name for n in nodes]
+                            out[_UNDO_DONE_MODAL_IDX] = True
+                            out[_UNDO_DONE_BODY_IDX] = _build_undo_done_body(target_names, affected_downstream)
+                            out[_PENDING_UNDO_DONE_IDX] = target_names
+                            return tuple(out)
 
                     flipped = 0
                     for node in nodes:
@@ -1420,13 +1512,32 @@ def register_callbacks(app):
                             manager.update_node(node)
                             flipped += 1
 
-                    if len(nodes) == 1 and new_status == "Done" and flipped == 1:
+                    if len(nodes) == 1 and new_status == STATUS_DONE and flipped == 1:
                         completion_check_node = nodes[0].name
 
                     if len(nodes) == 1:
                         msg = f"Toggled status of '{nodes[0].name}' to {new_status}"
                     else:
                         msg = f"Set {flipped} node(s) to {new_status}"
+            except Exception as e:
+                msg = f"Error: {e}"
+        elif trigger_id == 'btn-undo-done-confirm' and pending_undo_done:
+            # Modal confirmed: perform the previously-gated Done → Open toggle
+            # on every node in pending_undo_done. Cascade re-blocks downstream
+            # Done dependents via _update_node_state.
+            try:
+                target_names = list(pending_undo_done) if isinstance(pending_undo_done, list) else [pending_undo_done]
+                flipped = 0
+                for nm in target_names:
+                    node = manager.get_node(nm)
+                    if node and node.status == STATUS_DONE:
+                        node.status = STATUS_OPEN
+                        manager.update_node(node)
+                        flipped += 1
+                if flipped == 1:
+                    msg = f"Un-marked '{target_names[0]}' (Done → Open)"
+                else:
+                    msg = f"Un-marked {flipped} node(s) (Done → Open)"
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'group-delete-input' and group_delete_data:
@@ -1643,15 +1754,18 @@ def register_callbacks(app):
 
             clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
 
-            # Silently auto-trigger events tied to this node's completion.
-            # The user is notified on next app load via the announcement modal.
-            if completion_check_node:
-                try:
-                    _event_mgr.auto_trigger_by_node_completion(completion_check_node)
-                except Exception:
-                    pass
+            # Node-completion events are now fired from GraphManager.update_node
+            # whenever a node transitions to Done — no per-callback hook needed.
+            # The time-based sweeps (check_pending_activations / check_scheduled_triggers)
+            # still run at the top of core_engine because they're polling and
+            # don't have a single transition point to hook into.
 
-        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style)
+        # Last 3 outputs are the undo-Done modal trio. The full path either
+        # opens the modal earlier (return short-circuit in the toggle branch)
+        # or runs to completion when no confirmation is needed; on this final
+        # return the modal stays closed and the pending store is cleared so
+        # any prior open state from a now-resolved flow is reset.
+        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style, False, "", None)
 
     # --- Filters Sidebar Toggle (CLIENTSIDE) ---
     # Handled entirely in the browser via assets/filters_sidebar.js. Previously
@@ -1682,6 +1796,21 @@ def register_callbacks(app):
         State('events-sidebar-container', 'style'),
         prevent_initial_call=True,
     )
+
+    @app.callback(
+        Output('modal-undo-done-confirm', 'is_open', allow_duplicate=True),
+        Output('pending-undo-done-store', 'data', allow_duplicate=True),
+        Input('btn-undo-done-cancel', 'n_clicks'),
+        Input('btn-undo-done-confirm', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def close_undo_done_modal(_cancel, _confirm):
+        """Close the undo-Done modal and clear the pending store on either
+        button. The actual toggle (on confirm) is performed by core_engine
+        listening to btn-undo-done-confirm; this callback only manages the
+        modal/store cleanup so the next toggle starts fresh.
+        """
+        return False, None
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),

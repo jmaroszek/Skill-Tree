@@ -8,7 +8,7 @@ from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunc
 from event_manager import EventManager
 from graph_manager import GraphManager
 from config import ConfigManager
-from models import Node, Event
+from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
 from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker, strip_gdrive_prefix
 
@@ -768,7 +768,7 @@ def register_event_callbacks(app):
             time_p=float(time_p or 0) * multiplier,
             interest=interest or 5,
             difficulty=difficulty or 5,
-            status="Open",
+            status=STATUS_OPEN,
             context=context or None,
             subcontext=(subcontext or '').strip() or None,
             competence=competence or None,

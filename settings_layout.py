@@ -166,26 +166,6 @@ def build_settings_tab_content():
                                      placeholder="e.g. a, an, the, and, or, of"),
                         html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
 
-                        # --- Maintenance section ---
-                        html.Hr(className="my-2"),
-                        html.H5("Maintenance", className="mt-2 mb-1"),
-                        html.Small(
-                            "Re-derive every node's Blocked/Open status from current "
-                            "hard prerequisites. Runs automatically at app startup; use "
-                            "this if you suspect drift mid-session (e.g. after manual DB "
-                            "inspection). Done nodes stay Done.",
-                            className="text-muted d-block mb-2",
-                        ),
-                        html.Div([
-                            dbc.Button(
-                                "Repair graph state",
-                                id="btn-repair-graph-state",
-                                color="secondary", size="sm",
-                            ),
-                            html.Span(id="repair-graph-state-status",
-                                      className="ms-2 text-muted",
-                                      style={"fontSize": "0.85rem"}),
-                        ]),
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Contexts", tab_id="tab-contexts", children=[

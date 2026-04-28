@@ -175,6 +175,52 @@ class TestNodeCRUD:
         mgr.delete_node("A")
         assert len(mgr.get_edges()) == 0
 
+    def test_delete_node_full_reference_cleanup(self, mgr):
+        """Pinning the implicit FK-CASCADE + ConfigManager.delete_node_references
+        contract: every table or settings list that references the deleted node
+        must have no trace of it after delete_node returns."""
+        from event_manager import EventManager
+        from models import Event
+        em = EventManager()
+
+        # Set up X with edges in/out, an alias, an event triggered by X,
+        # an EventNode attachment, X as priority goal, and X as override
+        # parent — covering every reference path delete_node has to clean.
+        mgr.add_node(_make_node("X", type="Goal"))
+        mgr.add_node(_make_node("U"))
+        mgr.add_node(_make_node("D"))
+        mgr.add_edge("U", "X", EDGE_NEEDS_HARD)   # incoming
+        mgr.add_edge("X", "D", EDGE_NEEDS_HARD)   # outgoing
+        mgr.set_aliases("X", ["X-Alias"])
+        em.add_event(Event(name="EvtX", trigger_node="X"))
+        mgr.add_node(_make_node("Dormant", status="Open"))
+        em.add_node_to_event("EvtX", "Dormant", delay_days=0)
+        ConfigManager.set_priority_goals(["X"])
+        ConfigManager.set_override({"parent": "X", "mode": "hard"})
+
+        mgr.delete_node("X")
+
+        # Node row gone
+        assert mgr.get_node("X") is None
+        # Edges referencing X (in either direction) gone
+        assert all(e['source'] != "X" and e['target'] != "X" for e in mgr.get_edges())
+        # Aliases gone (FK CASCADE)
+        with mgr.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM Aliases WHERE node_name=?", ("X",))
+            assert cursor.fetchone()[0] == 0
+            # EventNodes referencing X (none in this test, but ensure none leak)
+            cursor.execute("SELECT COUNT(*) FROM EventNodes WHERE node_name=?", ("X",))
+            assert cursor.fetchone()[0] == 0
+        # Event's trigger_node is NULLed (event demotes to manual trigger)
+        evt = em.get_event("EvtX")
+        assert evt is not None
+        assert evt.trigger_node is None
+        # Priority goals list cleaned
+        assert "X" not in ConfigManager.get_priority_goals()
+        # Override parent cleared
+        assert ConfigManager.get_override().get("parent") is None
+
     def test_get_all_nodes(self, mgr):
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
@@ -530,13 +576,17 @@ class TestStateManagement:
         mgr.add_edge("Prereq", "Target", EDGE_NEEDS_SOFT)
         assert mgr.get_node("Target").status == "Open"
 
-    def test_done_node_stays_done_after_prereq_change(self, mgr):
+    def test_done_node_reblocks_when_prereq_un_dones(self, mgr):
+        """Un-Done-ing a prereq cascades downstream: a Done dependent flips
+        to Blocked because its hard prereq is no longer satisfied. This is
+        the post-Group-3 non-sticky-Done semantics — the UI guards this with
+        a confirmation modal so the user is aware before triggering."""
         mgr.add_node(_make_node("Prereq", status="Done"))
         mgr.add_node(_make_node("Target", status="Done"))
         mgr.add_edge("Prereq", "Target", EDGE_NEEDS_HARD)
-        # Change prereq back to Open — Target should stay Done
+        # Change prereq back to Open — Target should re-Block
         mgr.update_node(_make_node("Prereq", status="Open"))
-        assert mgr.get_node("Target").status == "Done"
+        assert mgr.get_node("Target").status == "Blocked"
 
     def test_cascade_unblock(self, mgr):
         mgr.add_node(_make_node("A", status="Open"))
@@ -682,18 +732,6 @@ class TestStateManagement:
         mgr.sync_edges("B", needs_hard=[], needs_soft=[], supports_hard=[], supports_soft=[], helps=[])
         assert mgr.get_node("B").status == "Open"
 
-    def test_in_progress_preserved_when_unblocked(self, mgr):
-        """A node with In Progress status should keep it when prereqs are satisfied."""
-        mgr.add_node(_make_node("A", status="Open"))
-        mgr.add_node(_make_node("B", status="In Progress"))
-        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-        # B gets blocked
-        assert mgr.get_node("B").status == "Blocked"
-        # Complete A — B should return to Open (In Progress → Blocked → Open, not back to In Progress)
-        mgr.update_node(_make_node("A", status="Done"))
-        # _update_node_state re-reads from DB where status is now "Blocked", so it becomes "Open"
-        assert mgr.get_node("B").status == "Open"
-
     def test_recompute_all_statuses_repairs_drift(self, mgr):
         """Raw-SQL edge insertion bypasses the cascade, leaving the target stuck
         at Open. recompute_all_statuses must repair it."""
@@ -719,9 +757,10 @@ class TestStateManagement:
         assert mgr.get_node("B").status == "Blocked"
         assert mgr.recompute_all_statuses() == 0
 
-    def test_recompute_all_statuses_skips_goals_and_done(self, mgr):
-        """Goals keep their manual status; Done nodes stay Done even if prereqs
-        would otherwise force Blocked."""
+    def test_recompute_all_statuses_skips_goals_and_repairs_done(self, mgr):
+        """Goals keep their manual status. Done nodes whose prereqs are no
+        longer satisfied are repaired to Blocked — recompute is the safety
+        net that surfaces drift the cascade missed."""
         mgr.add_node(_make_node("Prereq", status="Open"))
         mgr.add_node(_make_node("GoalNode", type="Goal", status="Open"))
         mgr.add_node(_make_node("DoneNode", status="Done"))
@@ -736,8 +775,11 @@ class TestStateManagement:
             )
             conn.commit()
         mgr.recompute_all_statuses()
+        # Goal status is user-controlled even when raw-SQL inserts created
+        # an unsatisfied prereq.
         assert mgr.get_node("GoalNode").status == "Open"
-        assert mgr.get_node("DoneNode").status == "Done"
+        # Done with un-Done prereq is asymmetric drift; recompute repairs it.
+        assert mgr.get_node("DoneNode").status == "Blocked"
 
 
 # ============================================================================
@@ -1810,10 +1852,14 @@ class TestDirectlyUnlockedByType:
         assert "SoftDep" in result['soft']
 
     def test_done_nodes_excluded(self, mgr):
-        """Nodes already Done should not appear in unlocked lists."""
-        mgr.add_node(_make_node("Prereq", status="Open"))
+        """Nodes already Done should not appear in unlocked lists. With
+        non-sticky-Done semantics, DoneDep can only stay Done while its hard
+        prereq is also Done — so the test sets that up explicitly."""
+        mgr.add_node(_make_node("Prereq", status="Done"))
         mgr.add_node(_make_node("DoneDep", status="Done"))
         mgr.add_edge("Prereq", "DoneDep", EDGE_NEEDS_HARD)
+        # DoneDep stays Done because Prereq is Done; the unlocked-by query
+        # filters Done out of its results.
         result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
         assert result['hard'] == []
         assert result['soft'] == []

@@ -17,6 +17,7 @@ from config import (
     badge_style,
 )
 from styles import stylesheet
+from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
 
 def _freeze_indicator(indicator_id: str):
@@ -545,8 +546,8 @@ def build_details_tab_content():
     ], id="modal-details-subtask-remove", is_open=False, centered=True)
 
     explain_legend_items = []
-    for label, color in (('Self', '#7a6e62'), ('Hard', '#375a7f'),
-                         ('Soft', '#6c7682'), ('Synergy', '#5a8088')):
+    for label, color in (('Self', '#685e52'), ('Hard', '#2a4d6e'),
+                         ('Soft', '#576068'), ('Synergy', '#466a78')):
         explain_legend_items.append(html.Span([
             html.Span("\u25A0 ", style={"color": color}),
             html.Span(label, style={"color": "#adb5bd"}),
@@ -740,12 +741,12 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     formatted_time = ConfigManager.format_time_friendly(completion.get("remaining_time", 0))
 
     # A goal is effectively Done if its toggle is on OR all subtasks are complete
-    if status == "Done" or (pct == 100 and total > 0):
-        effective_status = "Done"
+    if status == STATUS_DONE or (pct == 100 and total > 0):
+        effective_status = STATUS_DONE
     elif completion.get("is_blocked", False):
-        effective_status = "Blocked"
+        effective_status = STATUS_BLOCKED
     else:
-        effective_status = "Open"
+        effective_status = STATUS_OPEN
 
     # status badge uses centralized BADGE_PALETTE (constructed inline below)
 
@@ -833,11 +834,11 @@ def _build_filters_sidebar():
                 dbc.Checklist(
                     id="details-filter-status",
                     options=[
-                        {"label": "Open", "value": "Open"},
-                        {"label": "Blocked", "value": "Blocked"},
-                        {"label": "Done", "value": "Done"},
+                        {"label": STATUS_OPEN, "value": STATUS_OPEN},
+                        {"label": STATUS_BLOCKED, "value": STATUS_BLOCKED},
+                        {"label": STATUS_DONE, "value": STATUS_DONE},
                     ],
-                    value=["Open", "Blocked", "Done"],
+                    value=[STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE],
                     className="mb-3",
                     style={"fontSize": "0.85rem"},
                 ),
@@ -1219,9 +1220,9 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     # (categorically different from the Hard/Soft necessity axis).
     # Matches _VIA_COLORS in the explain modal.
     _REL_BADGE_STYLES = {
-        "Hard":    {"backgroundColor": "#375a7f", "color": "#d6e0ee"},
-        "Soft":    {"backgroundColor": "#6c7682", "color": "#dde0e5"},
-        "Synergy": {"backgroundColor": "#5a8088", "color": "#d8e6e9"},
+        "Hard":    {"backgroundColor": "#2a4d6e", "color": "#d6e0ee"},
+        "Soft":    {"backgroundColor": "#576068", "color": "#dde0e5"},
+        "Synergy": {"backgroundColor": "#466a78", "color": "#d8e6e9"},
     }
 
     rows = []

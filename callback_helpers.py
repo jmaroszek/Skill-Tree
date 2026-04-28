@@ -14,7 +14,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
 from config import ConfigManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from scoring import (
     build_adjacency as build_scoring_adjacency,
     total_value,
@@ -181,8 +181,9 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
             from graph_manager import GraphManager
             _mgr = GraphManager()
             alias_key = search_val[6:]
-            all_aliases = _mgr.get_all_aliases()
-            return all_aliases.get(alias_key, search_val)
+            # Case-insensitive resolve so 'alias:mathnotes' finds 'MathNotes'.
+            resolved = _mgr.resolve_alias(alias_key)
+            return resolved if resolved is not None else search_val
         return search_val
     if trigger_id == 'cytoscape-graph' and tapped_node:
         return tapped_node.get('id')
@@ -363,7 +364,7 @@ def build_editor_snapshot(manager, node_name):
         'desc': node.description or '',
         'context': node.context or '',
         'subctx': node.subcontext or '',
-        'status_done': ['Done'] if node.status == 'Done' else [],
+        'status_done': [STATUS_DONE] if node.status == STATUS_DONE else [],
         'val': node.value or 5,
         'interest': node.interest or 5,
         'diff': node.difficulty or 5,
@@ -488,7 +489,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     """Create or update a node and sync its edges. Returns a status message."""
     from models import Node
 
-    target_status = "Done" if (status_done and "Done" in status_done) else "Open"
+    target_status = STATUS_DONE if (status_done and STATUS_DONE in status_done) else STATUS_OPEN
 
     node = Node(
         name=name, type=n_type, description=desc or "",
@@ -525,7 +526,7 @@ def handle_toggle_done(manager, tapped_node):
     """Toggle a node's status between Done and Open. Returns a status message."""
     node = manager.get_node(tapped_node.get('id'))
     if node:
-        node.status = "Open" if node.status == "Done" else "Done"
+        node.status = STATUS_OPEN if node.status == STATUS_DONE else STATUS_DONE
         manager.update_node(node)
         return f"Toggled status of '{node.name}' to {node.status}"
     return ""
@@ -724,7 +725,7 @@ def _build_hard_dag(manager):
     """Build a hard-edge DAG among non-Done nodes. Returns (non_done_names, dag_fwd, dag_rev)."""
     nodes = manager.get_all_nodes()
     edges = manager.get_edges()
-    non_done_names = {n.name for n in nodes if n.status != 'Done'}
+    non_done_names = {n.name for n in nodes if n.status != STATUS_DONE}
 
     dag_fwd = defaultdict(list)   # source -> targets that depend on source
     dag_rev = defaultdict(list)   # target -> sources (prerequisites of target)
@@ -783,7 +784,7 @@ def _compute_highest_priority_path(manager):
 
     n_active_map = {}
     for n in nodes:
-        if n.type == 'Goal' or n.status in ('Done', 'Blocked'):
+        if n.type == 'Goal' or n.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
         if n.context is None:
             continue
@@ -856,7 +857,7 @@ def format_value_chain_section(manager):
     # Build reverse hard-edge DAG among non-Done nodes for subtask counting
     # Edge source → target means "source is prerequisite of target"
     # dag_rev[target] = [sources] = prerequisites of target
-    non_done_names = {n.name for n in all_nodes if n.status != 'Done'}
+    non_done_names = {n.name for n in all_nodes if n.status != STATUS_DONE}
     dag_rev = defaultdict(list)
     for e in edges:
         if e['type'] == EDGE_NEEDS_HARD:
@@ -889,7 +890,7 @@ def format_value_chain_section(manager):
     def _trim_leading_blocked(chain):
         """Remove leading Blocked nodes so chains start with an actionable node."""
         for i, name in enumerate(chain):
-            if node_status.get(name) != 'Blocked':
+            if node_status.get(name) != STATUS_BLOCKED:
                 return chain[i:]
         return chain
 
@@ -1070,10 +1071,10 @@ if abs_path:
 # multiplicative reinforcement, not a weaker prereq). Self is a warm
 # sand off the cool axis entirely so it can't be confused with Soft.
 _VIA_COLORS = {
-    'Self':    '#7a6e62',  # warm sand — the node itself, off the edge axis
-    'Hard':    '#375a7f',  # darker rugged blue (must-have)
-    'Soft':    '#6c7682',  # neutral slate (should-have)
-    'Synergy': '#5a8088',  # cyan-teal (mutual, multiplicative — categorically different)
+    'Self':    '#685e52',  # warm sand — the node itself, off the edge axis
+    'Hard':    '#2a4d6e',  # darker rugged blue (must-have)
+    'Soft':    '#576068',  # neutral slate (should-have)
+    'Synergy': '#466a78',  # cyan-teal (mutual, multiplicative — categorically different)
 }
 
 

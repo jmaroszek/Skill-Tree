@@ -8,6 +8,7 @@ on one task at a time, not parallel execution.
 
 import numpy as np
 from typing import Dict, List
+from models import STATUS_DONE
 
 
 def pert_beta_sample(o: float, m: float, p: float, size: int = 10000) -> np.ndarray:
@@ -129,7 +130,7 @@ def simulate_task_chain(
     incomplete = set()
     for name in visited:
         node = nodes_dict.get(name)
-        if node and node.status != 'Done':
+        if node and node.status != STATUS_DONE:
             incomplete.add(name)
 
     if not incomplete:

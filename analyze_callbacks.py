@@ -8,7 +8,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from collections import defaultdict
 from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
 from scoring import intrinsic_value
 
@@ -72,9 +72,9 @@ def _build_adjacency(edges):
 # ---------------------------------------------------------------------------
 
 def _compute_overview(nodes, edges):
-    active = [n for n in nodes if n.status != 'Done']
-    blocked = [n for n in active if n.status == 'Blocked']
-    remaining_time = sum(n.time for n in nodes if n.status != 'Done')
+    active = [n for n in nodes if n.status != STATUS_DONE]
+    blocked = [n for n in active if n.status == STATUS_BLOCKED]
+    remaining_time = sum(n.time for n in nodes if n.status != STATUS_DONE)
     goals = [n for n in nodes if n.type == 'Goal']
     return {
         'active_count': len(active),
@@ -82,14 +82,14 @@ def _compute_overview(nodes, edges):
         'blocked_pct': round(len(blocked) / len(active) * 100) if active else 0,
         'remaining_time': remaining_time,
         'goal_count': len(goals),
-        'done_count': len([n for n in nodes if n.status == 'Done']),
+        'done_count': len([n for n in nodes if n.status == STATUS_DONE]),
         'total_count': len(nodes),
     }
 
 
 def _compute_bottlenecks(nodes, hard_fwd, limits):
     """For each non-Done node, compute how many downstream nodes are reachable via hard edges."""
-    non_done = {n.name for n in nodes if n.status != 'Done'}
+    non_done = {n.name for n in nodes if n.status != STATUS_DONE}
     node_map = {n.name: n for n in nodes}
     results = []
 
@@ -126,7 +126,7 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
 
 
 def _compute_top_time_sinks(nodes, limits):
-    active = [n for n in nodes if n.status != 'Done']
+    active = [n for n in nodes if n.status != STATUS_DONE]
     return sorted(active, key=lambda n: n.time, reverse=True)[:limits.get('time_sinks', 10)]
 
 
@@ -202,9 +202,9 @@ def _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits):
         hard_subtree = _walk_back(g.name, hard_rev)
         sub_nodes = [node_map[name] for name in hard_subtree if name in node_map]
         total = len(sub_nodes)
-        done = sum(1 for n in sub_nodes if n.status == 'Done')
-        blocked = sum(1 for n in sub_nodes if n.status == 'Blocked')
-        remaining = sum(n.time for n in sub_nodes if n.status != 'Done')
+        done = sum(1 for n in sub_nodes if n.status == STATUS_DONE)
+        blocked = sum(1 for n in sub_nodes if n.status == STATUS_BLOCKED)
+        remaining = sum(n.time for n in sub_nodes if n.status != STATUS_DONE)
         pct = round(done / total * 100) if total else 0
         priority_rank = (priority_goals.index(g.name) + 1) if g.name in priority_goals else None
         goal_rows.append({
@@ -244,7 +244,7 @@ def _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits):
 def _compute_risk(nodes, limits):
     candidates = [
         n for n in nodes
-        if n.status != 'Done' and n.time_o > 0 and n.time_p > 0
+        if n.status != STATUS_DONE and n.time_o > 0 and n.time_p > 0
     ]
     results = []
     for n in candidates:
@@ -266,11 +266,11 @@ def _compute_risk(nodes, limits):
 def _compute_ratings(nodes):
     """Compute average value, interest, difficulty per context for non-Done nodes."""
     all_by_ctx = defaultdict(lambda: {'total': 0, 'done': 0})
-    active = [n for n in nodes if n.status != 'Done']
+    active = [n for n in nodes if n.status != STATUS_DONE]
     for n in nodes:
         ctx = n.context or 'No Context'
         all_by_ctx[ctx]['total'] += 1
-        if n.status == 'Done':
+        if n.status == STATUS_DONE:
             all_by_ctx[ctx]['done'] += 1
 
     by_ctx = defaultdict(lambda: {'values': [], 'interests': [], 'difficulties': [], 'count': 0})
@@ -302,7 +302,7 @@ def _compute_context_coverage(nodes):
     configured_contexts = ConfigManager.get_contexts()
     configured_subcontexts = ConfigManager.get_subcontexts()
     weights = ConfigManager.get_context_weights()
-    active = [n for n in nodes if n.status != 'Done']
+    active = [n for n in nodes if n.status != STATUS_DONE]
 
     # Context coverage
     ctx_counts = defaultdict(lambda: {'count': 0, 'time': 0.0, 'avg_value': 0, 'avg_interest': 0, 'values': [], 'interests': []})
@@ -363,7 +363,7 @@ def _compute_context_coverage(nodes):
 
 
 def _compute_dependency_structure(nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits):
-    non_done_names = {n.name for n in nodes if n.status != 'Done'}
+    non_done_names = {n.name for n in nodes if n.status != STATUS_DONE}
     all_names = {n.name for n in nodes}
 
     # --- Longest chain via DAG longest-path (topological order) ---
@@ -455,7 +455,7 @@ def _compute_dependency_structure(nodes, hard_fwd, hard_rev, all_fwd, all_rev, e
 _BG = '#1a1d21'
 _CARD_BG = '#2b3035'
 _BORDER = '#495057'
-_STATUS_COLORS = {'Open': '#0d6efd', 'Blocked': '#dc3545', 'Done': '#198754'}
+_STATUS_COLORS = {STATUS_OPEN: '#0d6efd', STATUS_BLOCKED: '#dc3545', STATUS_DONE: '#198754'}
 _CHART_CFG = {"displayModeBar": False}
 
 
@@ -541,8 +541,8 @@ def _render_overview(metrics):
     cards = [
         ('Goals', str(metrics['goal_count']), '#ffc107'),
         ('Active Nodes', str(metrics['active_count']), '#0d6efd'),
-        ('Done', str(metrics['done_count']), '#198754'),
-        ('Blocked', f"{metrics['blocked_pct']}%", '#dc3545'),
+        (STATUS_DONE, str(metrics['done_count']), '#198754'),
+        (STATUS_BLOCKED, f"{metrics['blocked_pct']}%", '#dc3545'),
         ('Remaining Time', fmt(metrics['remaining_time']), '#0dcaf0'),
     ]
     cols = []
@@ -676,7 +676,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     fig = go.Figure()
     fig.add_trace(go.Bar(
         y=bar_names, x=done_pcts, orientation='h',
-        marker_color='#198754', opacity=0.9, name='Done',
+        marker_color='#198754', opacity=0.9, name=STATUS_DONE,
         hovertext=hover_done, hoverinfo='text',
     ))
     fig.add_trace(go.Bar(

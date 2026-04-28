@@ -8,6 +8,7 @@ from dash import html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import ConfigManager
+from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import get_trigger_id, build_context_weight_rows
 
@@ -179,8 +180,8 @@ def register_settings_callbacks(app):
             ], className="mb-2")
 
         status_color_rows = [
-            _color_row("Done", "Done"),
-            _color_row("Blocked", "Blocked"),
+            _color_row(STATUS_DONE, STATUS_DONE),
+            _color_row(STATUS_BLOCKED, STATUS_BLOCKED),
             _color_row("Override", "Override"),
         ]
         def _type_color_row(key):
@@ -619,7 +620,7 @@ def register_settings_callbacks(app):
         priority_goals = ConfigManager.get_priority_goals()
         all_nodes = manager.get_all_nodes()
         edges = manager.get_edges()
-        active = [n for n in all_nodes if n.status not in ("Done", "Blocked")]
+        active = [n for n in all_nodes if n.status not in (STATUS_DONE, STATUS_BLOCKED)]
         runs = []
         for _ in range(N):
             _, t = score_nodes(active, all_nodes, edges, hypers,
@@ -992,8 +993,8 @@ def register_settings_callbacks(app):
             ], className="mb-2")
 
         return [
-            _color_row("Done", "Done"),
-            _color_row("Blocked", "Blocked"),
+            _color_row(STATUS_DONE, STATUS_DONE),
+            _color_row(STATUS_BLOCKED, STATUS_BLOCKED),
             _color_row("Override", "Override"),
         ]
 
@@ -1031,18 +1032,3 @@ def register_settings_callbacks(app):
             ], className="mb-2"))
         return rows
 
-    @app.callback(
-        Output('repair-graph-state-status', 'children'),
-        Input('btn-repair-graph-state', 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def repair_graph_state(n_clicks):
-        """Manual lever for `recompute_all_statuses` — same logic that runs
-        at app startup ([app.py](app.py)). Reports how many nodes' Blocked/Open
-        status was repaired so the user can tell whether drift was present."""
-        if not n_clicks:
-            return dash.no_update
-        changed = manager.recompute_all_statuses()
-        if changed == 0:
-            return "Graph state already consistent."
-        return f"Repaired {changed} node{'s' if changed != 1 else ''}."

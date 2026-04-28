@@ -18,6 +18,14 @@ EDGE_NEEDS_HARD = 'Needs_Hard'
 EDGE_NEEDS_SOFT = 'Needs_Soft'
 EDGE_HELPS = 'Helps'
 
+# Status constants. The full enum is small but referenced from many files;
+# importing the constants prevents typos that would silently break filtering
+# and scoring (a misspelled "Block" would never compare equal to "Blocked").
+STATUS_OPEN = 'Open'
+STATUS_BLOCKED = 'Blocked'
+STATUS_DONE = 'Done'
+ALL_STATUSES = (STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE)
+
 
 @dataclass
 class Node:
@@ -104,7 +112,9 @@ class Node:
         except ValueError:
             e_log = e_arith
             
-        ratio = p / o if o > 0 else 1
+        # `o > 0` is guaranteed by the clamp on line 97; the conditional was
+        # dead code preserved from earlier defensive patterns.
+        ratio = p / o
         
         if ratio <= 2:
             w = 0

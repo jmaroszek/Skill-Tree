@@ -41,17 +41,17 @@ sync.**
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Override     | `#c4528c` | `#ffffff` | Manual override; rare but loud. Always first in stack.    |
-| Goal         | `#f39c12` | `#ffffff` | Type tile — Darkly `--bs-warning` (matches the empty-state ranking list). Suppressed when a `Priority N` tile is shown. |
-| Priority     | `#f39c12` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
-| Action       | `#d97120` | `#ffffff` | Type tile.                                                |
-| Learn        | `#2c70d6` | `#ffffff` | Type tile.                                                |
-| Resource     | `#7c4d9c` | `#ffffff` | Type tile.                                                |
-| Open         | `#5677a6` | `#ffffff` | Status tile — lighter, friendlier blue.                   |
-| Done         | `#1a9d78` | `#ffffff` | Status tile.                                              |
-| Blocked      | `#b35353` | `#ffffff` | Status tile.                                              |
-| HardRelPri   | `#375a7f` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches subtasks-table Hard. |
-| SoftRelPri   | `#52606e` | `#d0d6dc` | `Soft #N`. Matches subtasks-table Soft tile.              |
+| Override     | `#b03878` | `#ffffff` | Manual override; rare but loud. Always first in stack.    |
+| Goal         | `#d98800` | `#ffffff` | Type tile — Darkly `--bs-warning` (matches the empty-state ranking list). Suppressed when a `Priority N` tile is shown. |
+| Priority     | `#d98800` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
+| Action       | `#c35d0a` | `#ffffff` | Type tile.                                                |
+| Learn        | `#1c5ec2` | `#ffffff` | Type tile.                                                |
+| Resource     | `#683688` | `#ffffff` | Type tile.                                                |
+| Open         | `#3e61a0` | `#ffffff` | Status tile — solid blue.                                 |
+| Done         | `#148a68` | `#ffffff` | Status tile.                                              |
+| Blocked      | `#9e3838` | `#ffffff` | Status tile.                                              |
+| HardRelPri   | `#2a4d6e` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches subtasks-table Hard. |
+| SoftRelPri   | `#414f5c` | `#d0d6dc` | `Soft #N`. Matches subtasks-table Soft tile.              |
 
 **Render order** in the Details info pane:
 
@@ -75,12 +75,12 @@ goal via a Hard edge.
 
 | Edge type | Background | Text      | Notes                                                     |
 |-----------|-----------|-----------|-----------------------------------------------------------|
-| Hard      | `#375a7f` | `#d6e0ee` | Darker rugged blue. Same value as the `HardRelPri` badge. |
-| Soft      | `#6c7682` | `#dde0e5` | Neutral slate.                                            |
-| Synergy   | `#5a8088` | `#d8e6e9` | Cyan-teal — categorically different from Hard/Soft.       |
+| Hard      | `#2a4d6e` | `#d6e0ee` | Darker rugged blue. Same value as the `HardRelPri` badge. |
+| Soft      | `#576068` | `#dde0e5` | Neutral slate.                                            |
+| Synergy   | `#466a78` | `#d8e6e9` | Cyan-teal — categorically different from Hard/Soft.       |
 
 The explain-modal contributors chart and legend use the same edge palette
-plus a `Self` tile (`#7a6e62` warm sand) for the node itself.
+plus a `Self` tile (`#685e52` warm sand) for the node itself.
 
 ### Selection (Cytoscape)
 | Token           | Hex       |

@@ -15,7 +15,7 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 
 - **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop).
 - **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
-- **`Helps`** (Synergy) — *mutual multiplicative reinforcement*, not a lesser Soft. Doing both is significantly more valuable than the sum of doing each alone (e.g., concepts that blend unusually well). Bidirectional, non-transitive (no chains). Synergy contributes via two paths: a small **pair bonus** `d_Syn_pair * tv(partner)` pre-completion, and a **multiplicative kick on intrinsic value** `iv * (1 + d_Syn_mul * count_done_partners)` once partners are Done. Multiplier applies to intrinsic only — not to the cascade or the pair bonus. See [`scoring.py`](scoring.py)'s `total_value` for the implementation.
+- **`Helps`** (Synergy) — *mutual multiplicative reinforcement*, not a lesser Soft. Doing both is significantly more valuable than the sum of doing each alone (e.g., concepts that blend unusually well). Bidirectional, non-transitive (no chains). Synergy contributes via two paths: a small **pair bonus** `d_Syn_pair * tv(partner)` pre-completion, and a **multiplicative kick on intrinsic value** `iv * (1 + d_Syn_mul * sqrt(count_done_partners))` once partners are Done. The sqrt is a diminishing-returns cap so a hub of N synergy partners gives ~`sqrt(N)`× the boost, not N× — keeps "more partners = more boost" without unbounded inflation. Multiplier applies to intrinsic only — not to the cascade or the pair bonus. See [`scoring.py`](scoring.py)'s `total_value` for the implementation.
 
 ## Where to look
 

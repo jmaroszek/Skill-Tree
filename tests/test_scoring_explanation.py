@@ -434,8 +434,16 @@ def test_m3_synergy_partner_done_multiplies_intrinsic():
     assert math.isclose(comp['total_value'], _tv("S", nodes, edges), rel_tol=1e-9)
 
 
-def test_m3_two_done_synergy_partners_accumulate_additively():
-    """Two Done synergy partners: multiplier = 1 + 2 * d_Syn_mul (linear, not exponential)."""
+def test_m3_two_done_synergy_partners_accumulate_sublinearly():
+    """Two Done synergy partners: multiplier = 1 + sqrt(2) * d_Syn_mul.
+
+    Sub-linear (sqrt) accumulation prevents dense synergy hubs from running
+    away. With 2 partners the kick is sqrt(2)≈1.414× the single-partner
+    value, not 2× (which would let an N-partner hub get N× boost). 1
+    partner still gives exactly d_Syn_mul (sqrt(1)=1), preserving simple
+    cases.
+    """
+    import math
     nodes = [_node("S", value=10, interest=0),
              _node("Z1", value=4, interest=0, status="Done"),
              _node("Z2", value=4, interest=0, status="Done")]
@@ -446,7 +454,7 @@ def test_m3_two_done_synergy_partners_accumulate_additively():
     breakdown = explain_score("S", nodes, edges, HYPERS)
     comp = breakdown['composition']
 
-    expected_multiplier = 1.0 + 2 * HYPERS['d_Syn_mul']  # additive, not (1+d)^2
+    expected_multiplier = 1.0 + math.sqrt(2) * HYPERS['d_Syn_mul']
     assert math.isclose(comp['iv_multiplier'], expected_multiplier, rel_tol=1e-9)
     assert comp['done_synergy_count'] == 2
 

@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import (ConfigManager, badge_style)
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table, build_goal_card,
                              _build_suggestion_row, build_details_suggestions)
 from simulation import simulate_task_chain
@@ -403,7 +403,7 @@ def register_details_callbacks(app):
             global_filters['hide_blocked'] = True
         subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
 
-        subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
+        subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
         edges = graph_manager.get_edges()
 
         subtasks_table = build_details_subtasks_table(
@@ -485,7 +485,7 @@ def register_details_callbacks(app):
             global_filters['hide_blocked'] = True
         subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
 
-        subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
+        subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
         edges = graph_manager.get_edges()
 
         return build_details_subtasks_table(
@@ -1281,7 +1281,7 @@ def register_details_callbacks(app):
                 time_o=t_o, time_m=t_m, time_p=t_p,
                 interest=interest or 5,
                 difficulty=difficulty or 5,
-                status="Open",
+                status=STATUS_OPEN,
                 context=context or None,
                 subcontext=(subcontext or "").strip() or None,
                 competence=competence or None,
@@ -1741,9 +1741,9 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 'id': node.name,
                 'label': node.name,
                 'color': (
-                    colors.get('Done', '#198754') if node.status == 'Done'
-                    else colors.get('Blocked', '#dc3545') if node.status == 'Blocked'
-                    else colors.get(node.type, colors.get('Open', '#0d6efd'))
+                    colors.get(STATUS_DONE, '#198754') if node.status == STATUS_DONE
+                    else colors.get(STATUS_BLOCKED, '#dc3545') if node.status == STATUS_BLOCKED
+                    else colors.get(node.type, colors.get(STATUS_OPEN, '#0d6efd'))
                 ),
                 'shape': shapes.get(node.type, 'ellipse'),
                 'type': node.type,

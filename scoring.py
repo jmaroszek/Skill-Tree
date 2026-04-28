@@ -9,8 +9,9 @@ Each node's priority is: P = eligibility * (TotalValue / PerceivedCost)
 See README.md for full mathematical specification and hyperparameter profiles.
 """
 
+import math
 import time
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from typing import List, Dict, Tuple, Optional, Union
 
 
@@ -65,7 +66,7 @@ def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
         req_node = all_nodes.get(req)
         if not req_node:
             return False
-        if req_node.status != "Done":
+        if req_node.status != STATUS_DONE:
             return False
     return True
 
@@ -164,11 +165,68 @@ def total_value(
             w_v, w_i, d_H, d_S, memo, computing,
         )
         z_node = all_nodes.get(z)
-        if z_node is not None and z_node.status == 'Done':
+        if z_node is not None and z_node.status == STATUS_DONE:
             done_syn += 1
 
-    syn_multiplier = 1.0 + d_Syn_mul * done_syn
+    # Sub-linear (sqrt) accumulation so dense synergy hubs don't run away —
+    # 4 Done partners give 2× the kick of 1, not 4×, and a node with 16 Done
+    # partners caps near 4× rather than 16×. Keeps "more partners = more
+    # boost" without unbounded inflation in heavily-synergy-linked graphs.
+    syn_multiplier = 1.0 + d_Syn_mul * math.sqrt(done_syn)
     return iv * syn_multiplier + cascade + syn_additive
+
+
+def _compute_priority_score(
+    node: Node,
+    *,
+    all_nodes_dict: dict,
+    H_out: dict, S_out: dict, Syn: dict,
+    hyperparams: dict,
+    node_to_boost: Dict[str, float],
+    n_active_map: Dict[Tuple[Optional[str], Optional[str]], int],
+    memo: Optional[Dict[str, float]] = None,
+) -> float:
+    """Single source of truth for the per-node ROI formula.
+
+    Used by both ``score_nodes`` (batch ranking) and ``explain_score``
+    (per-node breakdown) so the two paths can never drift on the order or
+    composition of cost / TV / boost / density / weight. Returns the final
+    rounded priority score; callers handle ineligibility / Goal / Done /
+    Blocked filtering before calling this.
+    """
+    w_v = hyperparams.get('w_v', 1.0)
+    w_i = hyperparams.get('w_i', 1.0)
+    d_H = hyperparams.get('d_H', 0.6)
+    d_S = hyperparams.get('d_S', 0.25)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    w_e = hyperparams.get('w_e', 2.5)
+    w_t = hyperparams.get('w_t', 1.0)
+    beta = hyperparams.get('beta', 0.85)
+    alpha = hyperparams.get('alpha', 0.0)
+    context_weights = hyperparams.get('context_weights', {}) or {}
+
+    # Inherited-time containers carry no marginal time cost. The base
+    # `1.0 +` in perceived_cost keeps the denominator positive and
+    # difficulty (if rated) still contributes.
+    t_override = 0.0 if node.time_mode == 'inherited' else None
+    cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
+    tv = total_value(
+        node.name, set(), all_nodes_dict, H_out, S_out, Syn,
+        w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+    )
+    score = round(tv / cost, 2) if cost > 0 else 0.0
+
+    if node.name in node_to_boost:
+        score = round(score * node_to_boost[node.name], 2)
+
+    weight = context_weights.get(node.context, 1.0) if node.context else 1.0
+    n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
+    density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
+    if weight != 1.0 or density_mult != 1.0:
+        score = round(score * weight * density_mult, 2)
+
+    return score
 
 
 def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
@@ -226,7 +284,7 @@ def score_nodes(
     # row slipped through.
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n in active_nodes:
-        if n.type == 'Goal' or n.status in ('Done', 'Blocked'):
+        if n.type == 'Goal' or n.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
         if n.context is None:
             continue
@@ -267,7 +325,7 @@ def score_nodes(
             scored_nodes.append(node)
             continue
 
-        if node.status in ("Done", "Blocked"):
+        if node.status in (STATUS_DONE, STATUS_BLOCKED):
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue
@@ -277,30 +335,15 @@ def score_nodes(
             scored_nodes.append(node)
             continue
 
-        # Inherited-time nodes are pure containers — their dependencies
-        # are scored independently with their own time costs, so the
-        # marginal time of "checking off the container" is 0. The base
-        # `1.0 +` in perceived_cost still keeps the denominator positive,
-        # and difficulty (if rated) still contributes.
-        t_override = 0.0 if node.time_mode == 'inherited' else None
-        cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
-        tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn, w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo)
-        score = round(tv / cost, 2)
-
-        # Apply ranked priority goal boost (highest rank wins)
-        if node.name in node_to_boost:
-            score = round(score * node_to_boost[node.name], 2)
-
-        # Context-aware adjustments (post-TV/cost). Weight applies at the
-        # parent-context level only; density normalizes by (context,
-        # subcontext) bucket size. Both default to no-op (1.0).
-        weight = context_weights.get(node.context, 1.0) if node.context else 1.0
-        n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
-        density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
-        if weight != 1.0 or density_mult != 1.0:
-            score = round(score * weight * density_mult, 2)
-
-        node.priority_score = score
+        node.priority_score = _compute_priority_score(
+            node,
+            all_nodes_dict=all_nodes_dict,
+            H_out=H_out, S_out=S_out, Syn=Syn,
+            hyperparams=hyperparams,
+            node_to_boost=node_to_boost,
+            n_active_map=n_active_map,
+            memo=memo,
+        )
         scored_nodes.append(node)
 
     t3 = time.perf_counter() if time_phases else 0.0
@@ -498,7 +541,7 @@ def explain_score(
     # uncategorized (context=None) from density. See score_nodes for rationale.
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n_ in all_nodes:
-        if n_.type == 'Goal' or n_.status in ('Done', 'Blocked'):
+        if n_.type == 'Goal' or n_.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
         if n_.context is None:
             continue
@@ -520,9 +563,12 @@ def explain_score(
     done_syn_count = sum(
         1 for z in Syn.get(node_name, set())
         if z != node_name and (other := all_nodes_dict.get(z)) is not None
-        and other.status == 'Done'
+        and other.status == STATUS_DONE
     )
-    iv_multiplier = 1.0 + d_Syn_mul * done_syn_count
+    # Sub-linear (sqrt) so dense synergy hubs don't run away. Matches the
+    # formula in `total_value` exactly so explain_score's reported multiplier
+    # never drifts from the actual scoring multiplier.
+    iv_multiplier = 1.0 + d_Syn_mul * math.sqrt(done_syn_count)
     iv_multiplier_contribution = iv * (iv_multiplier - 1.0)
 
     contributors = []
@@ -591,17 +637,17 @@ def explain_score(
     if node.type == 'Goal':
         eligible = False
         block_reason = "Goals are not ranked"
-    elif node.status == 'Done':
+    elif node.status == STATUS_DONE:
         eligible = False
-        block_reason = "Done"
-    elif node.status == 'Blocked':
+        block_reason = STATUS_DONE
+    elif node.status == STATUS_BLOCKED:
         eligible = False
-        block_reason = "Blocked"
+        block_reason = STATUS_BLOCKED
     else:
         missing = [
             req for req in Hard_in.get(node_name, [])
             if all_nodes_dict.get(req) is None
-            or all_nodes_dict[req].status != 'Done'
+            or all_nodes_dict[req].status != STATUS_DONE
         ]
         if missing:
             eligible = False
