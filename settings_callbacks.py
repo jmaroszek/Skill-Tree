@@ -115,7 +115,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 43
+            return (dash.no_update,) * 44
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()

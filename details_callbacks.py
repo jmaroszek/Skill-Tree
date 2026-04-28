@@ -976,13 +976,15 @@ def register_details_callbacks(app):
         Output("details-add-website-store", "data"),
         # Override reset
         Output("details-add-override-toggle", "value"),
+        # Value mode reset
+        Output("details-add-value-mode", "value"),
         Input("btn-details-add-node", "n_clicks"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     def open_add_node_modal(n_clicks, selected_node):
         if not n_clicks:
-            return (no_update,) * 36
+            return (no_update,) * 37
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -1018,6 +1020,8 @@ def register_details_callbacks(app):
             [''], [''], [''],
             # Override reset
             False,
+            # Value mode reset
+            [],
         )
 
     # --- Add Node Modal: Toggle mode ---
@@ -1062,6 +1066,17 @@ def register_details_callbacks(app):
         prevent_initial_call=True,
     )
     def toggle_details_add_time_mode(mode_val):
+        if mode_val and "inherited" in mode_val:
+            return {"display": "none"}
+        return {"display": "block"}
+
+    # --- Add Node Modal: Inherit-ratings toggle hides/shows V/I/E sliders ---
+    @app.callback(
+        Output("details-add-ratings", "style"),
+        Input("details-add-value-mode", "value"),
+        prevent_initial_call=True,
+    )
+    def toggle_details_add_value_mode(mode_val):
         if mode_val and "inherited" in mode_val:
             return {"display": "none"}
         return {"display": "block"}
@@ -1220,6 +1235,7 @@ def register_details_callbacks(app):
         State("details-add-time-p", "value"),
         State("details-add-time-unit", "value"),
         State("details-add-time-mode", "value"),
+        State("details-add-value-mode", "value"),
         # Relationships
         State("details-add-needs-hard", "value"),
         State("details-add-needs-soft", "value"),
@@ -1240,6 +1256,7 @@ def register_details_callbacks(app):
                       name, node_type, context, subcontext, desc, competence,
                       value, interest, difficulty,
                       time_o, time_m, time_p, time_unit, time_mode_val,
+                      value_mode_val,
                       needs_hard, needs_soft, supports_hard, supports_soft, helps,
                       obsidian_vals, drive_vals, website_vals,
                       override_toggle, override_mode):
@@ -1272,6 +1289,7 @@ def register_details_callbacks(app):
             web_path = serialize_links(website_vals)
 
             t_mode = 'inherited' if (time_mode_val and 'inherited' in time_mode_val) else 'manual'
+            v_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
 
             new_node = Node(
                 name=name.strip(),
@@ -1289,6 +1307,7 @@ def register_details_callbacks(app):
                 google_drive_path=drive_path,
                 website=web_path,
                 time_mode=t_mode,
+                value_mode=v_mode,
             )
 
             try:
