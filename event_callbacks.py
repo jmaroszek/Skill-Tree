@@ -1317,7 +1317,38 @@ def register_event_callbacks(app):
         )
 
     # --- Events Graph Settings: Apply Layout Parameters ---
-    @app.callback(
+    # Clientside so allowOneLayout('events') is set in the same synchronous
+    # function that returns the layout dict — see callbacks.py for the rationale.
+    app.clientside_callback(
+        """
+        function(edge_length, gravity, repulsion, relayout_n, elements, freeze_on) {
+            var ctx = window.dash_clientside.callback_context;
+            var trig = ctx.triggered_id
+                || (ctx.triggered && ctx.triggered.length
+                    ? ctx.triggered[0].prop_id.split('.')[0]
+                    : null);
+            if (freeze_on && trig !== 'events-graph-settings-relayout') {
+                return window.dash_clientside.no_update;
+            }
+            var is_relayout = (trig === 'events-graph-settings-relayout');
+            var randomize = is_relayout || (trig === 'events-detail-graph');
+            if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
+                window.SkillTree.allowOneLayout('events');
+            }
+            return {
+                name: 'fcose',
+                quality: 'proof',
+                animate: false,
+                fit: true,
+                randomize: randomize,
+                padding: 20,
+                idealEdgeLength: edge_length || 100,
+                nodeRepulsion: repulsion || 4500,
+                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0.25,
+                numIter: 2500,
+            };
+        }
+        """,
         Output('events-detail-graph', 'layout'),
         Input('events-graph-settings-edge-length', 'value'),
         Input('events-graph-settings-gravity', 'value'),
@@ -1326,23 +1357,6 @@ def register_event_callbacks(app):
         Input('events-detail-graph', 'elements'),
         State('events-freeze-rerender-store', 'data'),
     )
-    def update_events_graph_layout(edge_length, gravity, repulsion, _relayout, _elements, freeze_on):
-        trigger = ctx.triggered_id
-        if freeze_on and trigger != 'events-graph-settings-relayout':
-            return no_update
-        randomize = trigger in ('events-graph-settings-relayout', 'events-detail-graph')
-        return {
-            'name': 'fcose',
-            'quality': 'proof',
-            'animate': False,
-            'fit': True,
-            'randomize': randomize,
-            'padding': 20,
-            'idealEdgeLength': edge_length or 100,
-            'nodeRepulsion': repulsion or 4500,
-            'gravity': gravity if gravity is not None else 0.25,
-            'numIter': 2500,
-        }
 
     # --- Events Sidebar Toggle + Tab-Inner Shift (CLIENTSIDE) ---
     # Prior server-side implementations of this toggle exhibited a persistent

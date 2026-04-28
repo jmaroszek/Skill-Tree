@@ -173,6 +173,11 @@
 
         cy.on('position', 'node', function (evt) {
             if (!state.frozen || state.inProgrammatic || state.bypassFreeze) return;
+            // Active user drag — let position events through so the node tracks
+            // the cursor. dragfree captures the final position into
+            // lockedPositions on release. `:grabbed` (not just evt.target.grabbed())
+            // catches grouped drag, where siblings move alongside the grabbed node.
+            if (cy.$(':grabbed').length > 0) return;
             var n = evt.target;
             var locked = state.lockedPositions[n.id()];
             if (!locked) return;
@@ -243,6 +248,30 @@
         if (state) state.allowNextLayout = true;
     };
 
+    function pickInitialPosition(state, nodeId, neighborIdsById) {
+        // Place a new node at the centroid of its already-locked neighbors so
+        // it appears near its connections instead of at Cytoscape's default
+        // (which lands new nodes near 0,0 and visually "swirls" the layout).
+        var neighborIds = neighborIdsById[nodeId] || [];
+        var sumX = 0, sumY = 0, count = 0;
+        for (var i = 0; i < neighborIds.length; i++) {
+            var p = state.lockedPositions[neighborIds[i]];
+            if (p) { sumX += p.x; sumY += p.y; count++; }
+        }
+        if (count > 0) return { x: sumX / count, y: sumY / count };
+        // No locked neighbors — fall back to centroid of all locked nodes.
+        var ids = Object.keys(state.lockedPositions);
+        if (ids.length > 0) {
+            sumX = 0; sumY = 0;
+            for (var j = 0; j < ids.length; j++) {
+                sumX += state.lockedPositions[ids[j]].x;
+                sumY += state.lockedPositions[ids[j]].y;
+            }
+            return { x: sumX / ids.length, y: sumY / ids.length };
+        }
+        return { x: 0, y: 0 };
+    }
+
     window.SkillTree.applyDelta = function (canvasId, newElements) {
         var state = registry[canvasId];
         if (!state) return;
@@ -250,9 +279,16 @@
         if (!cy || !Array.isArray(newElements)) return;
 
         var nextById = Object.create(null);
+        var neighborIdsById = Object.create(null);
         newElements.forEach(function (el) {
-            if (el && el.data && el.data.id != null) {
-                nextById[el.data.id] = el;
+            if (!el || !el.data || el.data.id == null) return;
+            nextById[el.data.id] = el;
+            // Edges carry source+target; record both directions so a new node
+            // can find its already-positioned neighbors regardless of direction.
+            if (el.data.source != null && el.data.target != null) {
+                var s = el.data.source, t = el.data.target;
+                (neighborIdsById[s] = neighborIdsById[s] || []).push(t);
+                (neighborIdsById[t] = neighborIdsById[t] || []).push(s);
             }
         });
 
@@ -277,11 +313,14 @@
                     if (existing.length === 0) {
                         var cloned = JSON.parse(JSON.stringify(newEl));
                         var isNode = !(cloned.data && cloned.data.source);
-                        if (isNode && state.lockedPositions[id] && !cloned.position) {
-                            cloned.position = {
-                                x: state.lockedPositions[id].x,
-                                y: state.lockedPositions[id].y,
-                            };
+                        if (isNode && !cloned.position) {
+                            var pos = state.lockedPositions[id]
+                                || pickInitialPosition(state, id, neighborIdsById);
+                            // Write back so subsequent applyDelta calls see this
+                            // node as locked — otherwise we'd re-pick a new
+                            // position every edit and the node would drift.
+                            state.lockedPositions[id] = { x: pos.x, y: pos.y };
+                            cloned.position = { x: pos.x, y: pos.y };
                         }
                         try { cy.add(cloned); } catch (e) { /* best effort */ }
                     } else {

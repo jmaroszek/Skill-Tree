@@ -1481,7 +1481,51 @@ def register_details_callbacks(app):
         return f"{n} node{'s' if n != 1 else ''}"
 
     # --- Details Graph Settings: Apply Layout Parameters ---
-    @app.callback(
+    # Clientside so allowOneLayout('details') is set in the same synchronous
+    # function that returns the layout dict — see callbacks.py for the rationale.
+    app.clientside_callback(
+        """
+        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on) {
+            var ctx = window.dash_clientside.callback_context;
+            var trig = ctx.triggered_id
+                || (ctx.triggered && ctx.triggered.length
+                    ? ctx.triggered[0].prop_id.split('.')[0]
+                    : null);
+            // While frozen, suppress layout prop updates (sliders/element changes)
+            // EXCEPT explicit re-layout clicks — those bypass the JS guard.
+            if (freeze_on && trig !== 'details-graph-settings-relayout') {
+                return window.dash_clientside.no_update;
+            }
+            var is_relayout = (trig === 'details-graph-settings-relayout');
+            // Randomize on re-layout click or when elements change (new node selected).
+            var randomize = is_relayout || (trig === 'details-mini-graph');
+            if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
+                window.SkillTree.allowOneLayout('details');
+            }
+            // Scale fcose iterations with graph size. Small subtrees converge
+            // fast and don't need 2500 iters; large ones still do.
+            var node_count = 0;
+            if (Array.isArray(elements)) {
+                for (var i = 0; i < elements.length; i++) {
+                    var e = elements[i];
+                    if (e && e.data && e.data.source === undefined) node_count++;
+                }
+            }
+            var num_iter = Math.max(500, Math.min(2500, node_count * 25));
+            return {
+                name: 'fcose',
+                quality: 'proof',
+                animate: !!animate,
+                fit: true,
+                randomize: randomize,
+                padding: 20,
+                idealEdgeLength: edge_length || 100,
+                nodeRepulsion: repulsion || 4500,
+                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0.25,
+                numIter: num_iter,
+            };
+        }
+        """,
         Output('details-mini-graph', 'layout'),
         Input('details-graph-settings-edge-length', 'value'),
         Input('details-graph-settings-gravity', 'value'),
@@ -1491,31 +1535,6 @@ def register_details_callbacks(app):
         Input('details-mini-graph', 'elements'),
         State('details-freeze-rerender-store', 'data'),
     )
-    def update_details_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _elements, freeze_on):
-        trigger = ctx.triggered_id
-        # While frozen, suppress layout prop updates (sliders/element changes)
-        # EXCEPT explicit re-layout clicks — those are allowed by the JS guard.
-        if freeze_on and trigger != 'details-graph-settings-relayout':
-            return no_update
-        # Randomize on re-layout click or when elements change (new node selected)
-        randomize = trigger in ('details-graph-settings-relayout', 'details-mini-graph')
-        # Scale fcose iterations with graph size. Small subtrees converge
-        # fast and don't need 2500 iters; large ones still do.
-        node_count = sum(1 for e in (_elements or [])
-                         if 'source' not in e.get('data', {}))
-        num_iter = max(500, min(2500, node_count * 25))
-        return {
-            'name': 'fcose',
-            'quality': 'proof',
-            'animate': bool(animate),
-            'fit': True,
-            'randomize': randomize,
-            'padding': 20,
-            'idealEdgeLength': edge_length or 100,
-            'nodeRepulsion': repulsion or 4500,
-            'gravity': gravity if gravity is not None else 0.25,
-            'numIter': num_iter,
-        }
 
     # --- Explain Score modal ---------------------------------------------
     @app.callback(

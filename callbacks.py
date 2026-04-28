@@ -2380,15 +2380,15 @@ def register_callbacks(app):
         )
 
     # --- Freeze feature: per-canvas clientside wiring ---
-    # Each Cytoscape canvas (main / details / events) gets four parameterized
+    # Each Cytoscape canvas (main / details / events) gets three parameterized
     # clientside callbacks: pending-store → elements bypass, switch → store
     # sync (also flips the JS frozen flag so the freeze-off refresh doesn't
-    # race it), snowflake/class-name indicator, and a Re-layout button hook
-    # that lets one layout through the JS guard while freeze is on.
+    # race it), and snowflake/class-name indicator. The Settle (re-layout)
+    # button's allowOneLayout call lives inside the layout callback itself
+    # so it's sequenced synchronously with the layout-prop write.
     def _register_freeze_callbacks(canvas_id, switch_id, store_id, pending_id,
-                                   cytoscape_id, indicator_id, container_id,
-                                   relayout_inputs):
-        """Wire the four freeze clientside callbacks for one canvas."""
+                                   cytoscape_id, indicator_id, container_id):
+        """Wire the three freeze clientside callbacks for one canvas."""
         js_canvas = repr(canvas_id)  # JS-safe quoted string literal
 
         # Bypass: pending-store -> cytoscape.elements.
@@ -2451,22 +2451,6 @@ def register_callbacks(app):
             State(container_id, 'className'),
         )
 
-        # Re-layout button hook: lets one incoming layout bypass the JS
-        # freeze guard. Outputs to the indicator's `title` as a dummy.
-        app.clientside_callback(
-            """
-            function() {
-                if (window.SkillTree && window.SkillTree.allowOneLayout) {
-                    window.SkillTree.allowOneLayout(__CANVAS__);
-                }
-                return window.dash_clientside.no_update;
-            }
-            """.replace('__CANVAS__', js_canvas),
-            Output(indicator_id, 'title'),
-            *[Input(inp_id, 'n_clicks') for inp_id in relayout_inputs],
-            prevent_initial_call=True,
-        )
-
     _register_freeze_callbacks(
         canvas_id='main',
         switch_id='graph-settings-freeze-rerender',
@@ -2475,7 +2459,6 @@ def register_callbacks(app):
         cytoscape_id='cytoscape-graph',
         indicator_id='freeze-indicator',
         container_id='canvas-container',
-        relayout_inputs=['graph-settings-relayout', 'btn-sidebar-relayout'],
     )
     _register_freeze_callbacks(
         canvas_id='details',
@@ -2485,7 +2468,6 @@ def register_callbacks(app):
         cytoscape_id='details-mini-graph',
         indicator_id='details-freeze-indicator',
         container_id='details-dep-graph-container',
-        relayout_inputs=['details-graph-settings-relayout'],
     )
     _register_freeze_callbacks(
         canvas_id='events',
@@ -2495,11 +2477,56 @@ def register_callbacks(app):
         cytoscape_id='events-detail-graph',
         indicator_id='events-freeze-indicator',
         container_id='events-detail-graph-container',
-        relayout_inputs=['events-graph-settings-relayout'],
     )
 
     # --- Graph Settings: Apply Layout Parameters ---
-    @app.callback(
+    # Clientside so allowOneLayout('main') is set in the same synchronous
+    # function that returns the new layout dict. A previous server-side
+    # implementation paired with a separate clientside allowOneLayout callback
+    # was racy: Dash doesn't order parallel callbacks bound to the same input,
+    # so the layout prop sometimes reached Cytoscape before the JS guard's
+    # allowNextLayout flag was set, causing the freeze guard at layoutstart
+    # to stop the layout (Settle button silently no-op).
+    app.clientside_callback(
+        """
+        function(edge_length, gravity, repulsion, animate, relayout_n, sidebar_relayout_n, freeze_on) {
+            var ctx = window.dash_clientside.callback_context;
+            var trig = ctx.triggered_id
+                || (ctx.triggered && ctx.triggered.length
+                    ? ctx.triggered[0].prop_id.split('.')[0]
+                    : null);
+            var relayout_triggers = ['graph-settings-relayout', 'btn-sidebar-relayout'];
+            // Freeze toggle fired: run layout only on the off-transition (refresh).
+            // On the on-transition we stay put so the user's current positions hold.
+            if (trig === 'freeze-rerender-store' && freeze_on) {
+                return window.dash_clientside.no_update;
+            }
+            // While frozen, slider changes are deferred — they'll apply on the
+            // next freeze-off transition. But relayout clicks still force a
+            // refresh (user's explicit "update now" action).
+            if (freeze_on && trig !== 'freeze-rerender-store'
+                && relayout_triggers.indexOf(trig) === -1) {
+                return window.dash_clientside.no_update;
+            }
+            var is_relayout = relayout_triggers.indexOf(trig) !== -1;
+            // Sequence the freeze-guard bypass synchronously with the layout-
+            // prop write so layoutstart sees allowNextLayout=true next tick.
+            if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
+                window.SkillTree.allowOneLayout('main');
+            }
+            return {
+                name: 'fcose',
+                quality: 'proof',
+                fit: true,
+                animate: !!animate,
+                randomize: is_relayout,
+                idealEdgeLength: edge_length || 100,
+                nodeRepulsion: repulsion || 4500,
+                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0.25,
+                numIter: 2500,
+            };
+        }
+        """,
         Output('cytoscape-graph', 'layout'),
         Input('graph-settings-edge-length', 'value'),
         Input('graph-settings-gravity', 'value'),
@@ -2510,30 +2537,6 @@ def register_callbacks(app):
         Input('freeze-rerender-store', 'data'),
         prevent_initial_call=True,
     )
-    def update_graph_layout(edge_length, gravity, repulsion, animate, _relayout, _sidebar_relayout, freeze_on):
-        trig = ctx.triggered_id
-        relayout_triggers = ('graph-settings-relayout', 'btn-sidebar-relayout')
-        # Freeze toggle fired: run layout only on the off-transition (refresh).
-        # On the on-transition we stay put so the user's current positions hold.
-        if trig == 'freeze-rerender-store' and freeze_on:
-            return dash.no_update
-        # While frozen, slider changes are deferred — they'll apply on the next
-        # freeze-off transition. But relayout clicks still force a refresh
-        # (user's explicit "update now" action).
-        if freeze_on and trig != 'freeze-rerender-store' and trig not in relayout_triggers:
-            return dash.no_update
-        randomize = trig in relayout_triggers
-        return {
-            'name': 'fcose',
-            'quality': 'proof',
-            'fit': True,
-            'animate': bool(animate),
-            'randomize': randomize,
-            'idealEdgeLength': edge_length or 100,
-            'nodeRepulsion': repulsion or 4500,
-            'gravity': gravity if gravity is not None else 0.25,
-            'numIter': 2500,
-        }
 
     # =====================================================================
     # Override callbacks
