@@ -35,6 +35,13 @@ class Node:
     overrides, goal orderings, and events (see GraphManager.rename_node).
     `time_mode='inherited'` means a parent node draws its time estimate
     from its hard prerequisites rather than its own time_o/m/p fields.
+    `value_mode='inherited'` is the symmetric flag for ratings: when set,
+    the node's intrinsic value AND its own effort cost are both zeroed
+    in scoring, so the node is a pure structural conduit. Its priority
+    score depends entirely on the cascade from its descendants — value,
+    interest, and effort all "inherit" from children. Use for container-
+    only Learn/Goal nodes that shouldn't inject their own ratings into
+    their subtree.
     """
     name: str               # Primary key
     type: str               # [Learn, Goal, Action, Resource]
@@ -54,6 +61,7 @@ class Node:
     website: Optional[str] = None
     dormant: int = 0
     time_mode: str = 'manual'  # 'manual' or 'inherited'
+    value_mode: str = 'manual'  # 'manual' or 'inherited'
     priority_score: Optional[float] = None
 
     def __post_init__(self):
@@ -69,11 +77,15 @@ class Node:
         self.dormant = int(self.dormant) if self.dormant is not None else 0
         if self.time_mode not in ('manual', 'inherited'):
             self.time_mode = 'manual'
+        if self.value_mode not in ('manual', 'inherited'):
+            self.value_mode = 'manual'
         # Note: time_o/m/p are NOT zeroed when time_mode='inherited'. The
         # `time` property short-circuits to 0 for inherited mode regardless,
         # so the stored values are inert at read time — and preserving them
         # means a user who toggles inherited→manual gets their original
-        # estimates back instead of losing them silently.
+        # estimates back instead of losing them silently. Same precedent
+        # for value_mode: v/i/d are preserved even when 'inherited' so a
+        # toggle back to 'manual' restores the user's original ratings.
 
     @property
     def time(self) -> float:

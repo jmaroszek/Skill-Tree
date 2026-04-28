@@ -146,11 +146,23 @@ Working top to bottom:
 **[SCREENSHOT: the Competence popup showing all seven levels with descriptions.]**
 
 - **Ratings: Value / Interest / Effort.** Each on a 1-10 scale. Click a number to set it. Click the question mark for the rating descriptions.
+- **Inherit (Ratings).** A toggle right next to Override. Treats this node as a *pure container* — its own value, interest, and effort all drop out of scoring, and the node's priority comes entirely from what cascades up from its children. Use for "header" nodes that exist purely to group other things (e.g. a `Transcendentalism` Learn that sits above `Walden` and `Emerson Essays` and has no work of its own beyond reading them).
 
 **[SCREENSHOT: the Ratings popup showing what each number on the Value scale means.]**
 
 - **Status.** Open, Blocked, or Done. (Blocked sets automatically if a hard prerequisite isn't done, but you can override.)
 - **Time Estimates.** Three numbers — *Optimistic* (if everything goes right), *Expected* (most likely), *Pessimistic* (if it goes sideways). Pick your unit — Hours, Days, Weeks, or Months. The app blends these three numbers into a single expected duration using a method called PERT estimation. If you'd rather skip the three-number thing, choose **Inherit** and the node will pull its time from whatever feeds into it.
+
+#### When to use which Inherit toggle
+
+The two Inherit toggles — one next to the Ratings sliders, one inside Time Estimates — are independent. You'll often want one but not the other:
+
+- **Inherit Time only** (most common for headers): the node has its own *importance* worth rating (e.g. a `Mastery` Learn header you genuinely care about, with v=7 / i=7), but its actual *time investment* is just the sum of reading the books underneath it. Set Inherit on Time, leave Inherit on Ratings off, and rate value/interest/effort the way you would for any focused topic.
+- **Inherit Ratings only**: rare. Mostly a transient state while you're toggling things — not a typical persistent setting.
+- **Both Inherit on**: pure container. The node has no work of its own at all — it exists purely as a structural grouping, and its score is exactly the rolled-up score of its children. Mark it Done when all the children are done.
+- **Neither**: standard. The node has its own time, ratings, and effort. This is the default for atomic Learns, Resources, and most Actions.
+
+Quick rule of thumb: *if you'd describe a node as "the topic itself,"* leave Inherit Ratings off; *if you'd describe it as "the thing that holds these other things,"* turn it on.
 - **Progress** (for Resource nodes only) — a 0-100% slider so you can track partial completion on ongoing resources.
 - **Relationships: Hard / Soft / Supports.** Dropdowns where you pick the other nodes this one depends on (Hard/Soft) or mutually boosts (Supports). This is how you grow the web.
 

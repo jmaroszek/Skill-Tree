@@ -47,14 +47,31 @@ def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dic
 
 
 def intrinsic_value(node: Node, w_v: float, w_i: float) -> float:
-    """Weighted sum of a node's Value and Interest."""
+    """Weighted sum of a node's Value and Interest.
+
+    Returns 0 when `value_mode='inherited'`: the node is a pure structural
+    conduit and shouldn't inject its own ratings as an IV bump into its
+    descendants via the cascade. Mirrors the `time_mode='inherited'`
+    short-circuit on `Node.time`.
+    """
+    if node.value_mode == 'inherited':
+        return 0.0
     return (w_v * node.value) + (w_i * node.interest)
 
 
-def perceived_cost(node: Node, w_e: float, w_t: float, beta: float, time_override: float = None) -> float:
-    """Sub-linear cost combining Difficulty and PERT time."""
+def perceived_cost(node: Node, w_e: float, w_t: float, beta: float,
+                   time_override: float = None, effort_override: float = None) -> float:
+    """Sub-linear cost combining Difficulty and PERT time.
+
+    `time_override` substitutes for `node.time` when provided (used for
+    `time_mode='inherited'` containers — see _compute_priority_score).
+    `effort_override` substitutes for `node.difficulty` similarly when
+    `value_mode='inherited'`, so a pure container contributes neither
+    intrinsic value nor own-effort cost.
+    """
     t = time_override if time_override is not None else node.time
-    return 1.0 + (w_e * node.difficulty) + (w_t * (t ** beta))
+    e = effort_override if effort_override is not None else node.difficulty
+    return 1.0 + (w_e * e) + (w_t * (t ** beta))
 
 
 def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
@@ -206,11 +223,14 @@ def _compute_priority_score(
     alpha = hyperparams.get('alpha', 0.0)
     context_weights = hyperparams.get('context_weights', {}) or {}
 
-    # Inherited-time containers carry no marginal time cost. The base
-    # `1.0 +` in perceived_cost keeps the denominator positive and
-    # difficulty (if rated) still contributes.
+    # Inherited-time containers carry no marginal time cost; inherited-value
+    # containers also carry no marginal effort cost (the node is a pure
+    # structural conduit). The base `1.0 +` keeps the denominator positive
+    # in both cases.
     t_override = 0.0 if node.time_mode == 'inherited' else None
-    cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
+    e_override = 0.0 if node.value_mode == 'inherited' else None
+    cost = perceived_cost(node, w_e, w_t, beta,
+                          time_override=t_override, effort_override=e_override)
     tv = total_value(
         node.name, set(), all_nodes_dict, H_out, S_out, Syn,
         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
@@ -550,8 +570,11 @@ def explain_score(
 
     iv = intrinsic_value(node, w_v, w_i)
     time_overridden = (node.time_mode == 'inherited')
+    value_overridden = (node.value_mode == 'inherited')
     t_override = 0.0 if time_overridden else None
-    cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
+    e_override = 0.0 if value_overridden else None
+    cost = perceived_cost(node, w_e, w_t, beta,
+                          time_override=t_override, effort_override=e_override)
 
     # Contribution weights + per-node metadata
     W = _contribution_weights(node_name, H_out, S_out, Syn, d_H, d_S, d_Syn_pair)

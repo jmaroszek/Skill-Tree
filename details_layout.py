@@ -984,14 +984,30 @@ def _build_add_node_modal(ted):
 
                 html.Hr(className="my-2"),
                 html.H5("Ratings", className="mt-2 mb-1"),
-                dbc.Label("Value", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-value"),
+                html.Div(id="details-add-ratings", children=[
+                    dbc.Label("Value", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-value"),
 
-                dbc.Label("Interest", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-interest"),
+                    dbc.Label("Interest", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-interest"),
 
-                dbc.Label("Effort", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-difficulty"),
+                    dbc.Label("Effort", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-difficulty"),
+                ]),
+                html.Div([
+                    dbc.Checklist(
+                        options=[{"label": "Inherit", "value": "inherited"}],
+                        value=[],
+                        id="details-add-value-mode",
+                        switch=True,
+                        className="mb-0 flex-grow-1",
+                    ),
+                ], className="d-flex align-items-center mt-2 mb-2"),
+                dbc.Tooltip(
+                    "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
+                    target="details-add-value-mode", placement="left",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+                ),
 
                 html.Hr(className="my-2"),
                 html.H5("Time Estimates", className="mt-2 mb-2"),

@@ -2041,6 +2041,191 @@ class TestTimeModeField:
 
 
 # ============================================================================
+# Node Model — value_mode validation
+# ============================================================================
+
+class TestValueModeField:
+    def test_default_is_manual(self):
+        node = _make_node()
+        assert node.value_mode == 'manual'
+
+    def test_inherited_accepted(self):
+        node = _make_node(value_mode='inherited')
+        assert node.value_mode == 'inherited'
+
+    def test_invalid_value_mode_defaults_to_manual(self):
+        node = _make_node(value_mode='auto')
+        assert node.value_mode == 'manual'
+
+    def test_value_mode_in_to_dict(self):
+        node = _make_node(value_mode='inherited')
+        d = node.to_dict()
+        assert d['value_mode'] == 'inherited'
+
+    def test_value_mode_persisted_in_db(self, mgr):
+        mgr.add_node(_make_node("Inh", value_mode='inherited'))
+        node = mgr.get_node("Inh")
+        assert node.value_mode == 'inherited'
+
+    def test_value_mode_manual_persisted_in_db(self, mgr):
+        mgr.add_node(_make_node("Man", value_mode='manual'))
+        node = mgr.get_node("Man")
+        assert node.value_mode == 'manual'
+
+    def test_value_mode_updated(self, mgr):
+        mgr.add_node(_make_node("X", value_mode='manual'))
+        node = mgr.get_node("X")
+        node.value_mode = 'inherited'
+        mgr.update_node(node)
+        updated = mgr.get_node("X")
+        assert updated.value_mode == 'inherited'
+
+    def test_inherited_preserves_vid_on_construction(self):
+        """v/i/d are preserved when value_mode='inherited' so a toggle back
+        to 'manual' restores the user's original ratings. Mirrors the
+        time_mode precedent."""
+        n = _make_node(value_mode='inherited', value=8, interest=9, difficulty=4)
+        assert n.value == 8 and n.interest == 9 and n.difficulty == 4
+
+    def test_inherited_zeroes_intrinsic_value(self):
+        """`intrinsic_value()` returns 0 when value_mode='inherited' regardless
+        of the underlying v/i/d ratings — the node becomes a pure structural
+        conduit and contributes no own-IV bump to its descendants."""
+        n = _make_node(value_mode='inherited', value=10, interest=10)
+        assert intrinsic_value(n, w_v=1.0, w_i=1.0) == 0.0
+
+    def test_manual_uses_full_intrinsic_value(self):
+        n = _make_node(value_mode='manual', value=10, interest=10)
+        assert intrinsic_value(n, w_v=1.0, w_i=1.0) == 20.0
+
+    def test_inherited_db_roundtrip_preserves_vid(self, mgr):
+        mgr.add_node(_make_node("R", value_mode='inherited',
+                                value=7, interest=8, difficulty=6))
+        fetched = mgr.get_node("R")
+        assert fetched.value == 7 and fetched.interest == 8 and fetched.difficulty == 6
+        # And the IV reads as 0 — preservation is purely for the round-trip
+        # when the user toggles back to manual.
+        assert intrinsic_value(fetched, 1.0, 1.0) == 0.0
+
+    def test_toggle_inherited_to_manual_restores_ratings(self, mgr):
+        """Add manual, toggle to inherited, toggle back — original ratings still there."""
+        mgr.add_node(_make_node("T", value_mode='manual',
+                                value=6, interest=7, difficulty=8))
+        node = mgr.get_node("T")
+        node.value_mode = 'inherited'
+        mgr.update_node(node)
+        node = mgr.get_node("T")
+        node.value_mode = 'manual'
+        mgr.update_node(node)
+        final = mgr.get_node("T")
+        assert final.value_mode == 'manual'
+        assert final.value == 6 and final.interest == 7 and final.difficulty == 8
+        # And the IV is back to its full value.
+        assert intrinsic_value(final, 1.0, 1.0) == 13.0
+
+    def test_independent_of_time_mode(self):
+        """value_mode and time_mode are orthogonal flags."""
+        n1 = _make_node(time_mode='inherited', value_mode='manual',
+                        value=5, interest=5)
+        assert intrinsic_value(n1, 1.0, 1.0) == 10.0  # value still contributes
+        assert n1.time == 0.0  # time still inherited
+
+        n2 = _make_node(time_mode='manual', value_mode='inherited',
+                        value=5, interest=5)
+        assert intrinsic_value(n2, 1.0, 1.0) == 0.0  # value zeroed
+        assert n2.time > 0.0  # time still manual
+
+
+# ============================================================================
+# Scoring — inherited value_mode prevents own-IV injection
+# ============================================================================
+
+class TestScoringInheritedValueMode:
+    def test_inherited_node_scores_with_zero_iv(self):
+        """A node with value_mode='inherited' contributes 0 IV to its own score
+        — score depends entirely on cascade from descendants (none here)."""
+        n = _make_node("Container", value=10, interest=10, difficulty=3,
+                       value_mode='inherited')
+        scored = score_nodes([n], [n], [], {})
+        # iv = 0, cascade = 0 (no children), so total_value = 0, score = 0.
+        assert scored[0].priority_score == 0.0
+
+    def test_manual_node_scores_with_full_iv(self):
+        """Sanity baseline: identical node in manual mode scores normally."""
+        n = _make_node("Manual", value=10, interest=10, difficulty=3,
+                       value_mode='manual')
+        scored = score_nodes([n], [n], [], {})
+        assert scored[0].priority_score > 0.0
+
+    def test_inherited_parent_does_not_inflate_child_score(self):
+        """A child's score is its own IV + d_H * tv(parent). When the parent
+        is value_mode='inherited', the parent contributes 0 to its own IV,
+        so the child's score loses the parent's IV bump.
+
+        Compare two structurally identical trees: in tree A the parent is
+        manual (full IV), in tree B the parent is inherited (zero IV).
+        The child in A should score higher than the child in B.
+        """
+        # Tree A: manual parent
+        child_a = _make_node("ChildA", value=5, interest=5, difficulty=3)
+        parent_a = _make_node("ParentA", type='Learn', value=10, interest=10,
+                              difficulty=3, value_mode='manual')
+        edges_a = [{'source': 'ChildA', 'target': 'ParentA', 'type': 'Needs_Hard'}]
+
+        # Tree B: inherited parent (same children, same parent v/i/d)
+        child_b = _make_node("ChildB", value=5, interest=5, difficulty=3)
+        parent_b = _make_node("ParentB", type='Learn', value=10, interest=10,
+                              difficulty=3, value_mode='inherited')
+        edges_b = [{'source': 'ChildB', 'target': 'ParentB', 'type': 'Needs_Hard'}]
+
+        scored_a = score_nodes([child_a, parent_a], [child_a, parent_a], edges_a, {})
+        scored_b = score_nodes([child_b, parent_b], [child_b, parent_b], edges_b, {})
+
+        a = next(n for n in scored_a if n.name == 'ChildA').priority_score
+        b = next(n for n in scored_b if n.name == 'ChildB').priority_score
+        # Manual parent injects extra IV into the child via cascade — child A wins.
+        assert a > b
+
+    def test_inherited_value_mode_zeroes_effort_in_cost(self):
+        """value_mode='inherited' also zeros the difficulty term in cost.
+        A pure container shouldn't inject its own effort into its denominator."""
+        manual = _make_node("M", value=5, interest=5, difficulty=10,
+                            time_o=1, time_m=1, time_p=1, value_mode='manual')
+        inherited = _make_node("I", value=5, interest=5, difficulty=10,
+                               time_o=1, time_m=1, time_p=1, value_mode='inherited')
+        # cost_manual  = 1 + 2.5*10 + 1.0*1 = 27
+        # cost_inherit = 1 + 0      + 1.0*1 = 2
+        c_manual = perceived_cost(manual, w_e=2.5, w_t=1.0, beta=0.85)
+        c_inherit = perceived_cost(inherited, w_e=2.5, w_t=1.0, beta=0.85,
+                                   effort_override=0.0)
+        assert c_manual > c_inherit
+        # And the score path uses the override automatically.
+        scored = score_nodes([inherited], [inherited], [], {})
+        # iv = 0, cost = 1 + 0 + 1.0*1 = 2.0, tv = 0, score = 0/2 = 0
+        assert scored[0].priority_score == 0.0
+
+    def test_inherited_parent_still_passes_descendant_value(self):
+        """An inherited parent zeroes its OWN IV but still passes its descendants'
+        IV upward through the cascade. Verify a grandchild → parent → grandparent
+        chain still flows when the middle node is inherited."""
+        gc = _make_node("Grandchild", value=8, interest=8, difficulty=3)
+        mid = _make_node("Middle", type='Learn', value=10, interest=10,
+                         difficulty=3, value_mode='inherited')
+        gp = _make_node("Grandparent", type='Learn', value=2, interest=2,
+                        difficulty=3, value_mode='manual')
+        edges = [
+            {'source': 'Grandchild', 'target': 'Middle', 'type': 'Needs_Hard'},
+            {'source': 'Middle',     'target': 'Grandparent', 'type': 'Needs_Hard'},
+        ]
+        scored = score_nodes([gc, mid, gp], [gc, mid, gp], edges, {})
+        # Grandchild gets its own IV plus d_H * tv(Middle), where tv(Middle) =
+        # 0 (inherited) + d_H * tv(Grandparent). So Grandchild's score is non-zero
+        # and reflects the path through Middle even though Middle itself adds 0.
+        gc_score = next(n for n in scored if n.name == 'Grandchild').priority_score
+        assert gc_score > 0.0
+
+
+# ============================================================================
 # GraphManager — get_effective_time
 # ============================================================================
 

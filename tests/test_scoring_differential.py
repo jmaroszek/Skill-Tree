@@ -109,8 +109,10 @@ def _baseline_score_nodes(
             scored_nodes.append(node)
             continue
 
-        t_override = 1.0 if node.time_mode == 'inherited' else None
-        cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
+        t_override = 0.0 if node.time_mode == 'inherited' else None
+        e_override = 0.0 if node.value_mode == 'inherited' else None
+        cost = perceived_cost(node, w_e, w_t, beta,
+                              time_override=t_override, effort_override=e_override)
         # CRITICAL: memo=None — replicates pre-Phase-E behavior.
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn,
                          w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None)

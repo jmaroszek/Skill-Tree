@@ -167,22 +167,43 @@ sidebar_content = html.Div(
                 dbc.Tooltip("Ratings reference", target="btn-ratings-info", placement="right",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="d-flex align-items-center mt-2 mb-1"),
-            dbc.Label("Value", className="mt-2"),
-            dcc.Slider(min=1, max=10, step=1, value=5, id="node-value"),
-
-            dbc.Label("Interest", className="mt-2"),
-            dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
-
-            dbc.Label("Effort", className="mt-2"),
-            dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
-
-            dbc.Checklist(
-                options=[{"label": "Override", "value": "on"}],
-                value=[],
-                id="override-toggle",
-                switch=True,
-                className="mt-3 mb-1",
+            html.Div([
+                dbc.Checklist(
+                    options=[{"label": "Inherit", "value": "inherited"}],
+                    value=[],
+                    id="node-value-mode",
+                    switch=True,
+                    className="mb-0 me-3",
+                ),
+                dbc.Checklist(
+                    options=[{"label": "Override", "value": "on"}],
+                    value=[],
+                    id="override-toggle",
+                    switch=True,
+                    className="mb-0",
+                ),
+            ], className="d-flex align-items-center mt-2 mb-2"),
+            dbc.Tooltip(
+                "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
+                target="node-value-mode", placement="left",
+                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
+            dbc.Tooltip(
+                "Boost this node's priority manually. Click for scope options.",
+                target="override-toggle", placement="left",
+                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+            ),
+
+            html.Div(id="section-ratings", children=[
+                dbc.Label("Value", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="node-value"),
+
+                dbc.Label("Interest", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
+
+                dbc.Label("Effort", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
+            ]),
             dbc.Popover(
                 [
                     dbc.PopoverHeader("Override Mode"),
@@ -219,6 +240,11 @@ sidebar_content = html.Div(
                         id="node-time-mode",
                         switch=True,
                         className="mb-0 flex-grow-1",
+                    ),
+                    dbc.Tooltip(
+                        "Treat this node's time as the sum of its children's. Use for containers whose only work is completing the children.",
+                        target="node-time-mode", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                     ),
                     dbc.Select(id="node-time-unit", options=[
                         {"label": "Hours", "value": "hours"},

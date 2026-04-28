@@ -296,6 +296,7 @@ NEW_NODE_SNAPSHOT = {
     'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
     'obs_links': [''], 'drive_links': [''], 'website_links': [''],
     'time_mode': [],
+    'value_mode': [],
     'priority_rank': 'none', 'competence': '',
     'aliases': [''],
 }
@@ -384,6 +385,7 @@ def build_editor_snapshot(manager, node_name):
         'drive_links': strip_gdrive_prefix(parse_links(node.google_drive_path)),
         'website_links': parse_links(node.website),
         'time_mode': ['inherited'] if node.time_mode == 'inherited' else [],
+        'value_mode': ['inherited'] if node.value_mode == 'inherited' else [],
         'priority_rank': priority_rank,
         'competence': node.competence or '',
         'aliases': aliases,
@@ -425,6 +427,7 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'drive_links': form_values.get('drive_links') or [''],
         'website_links': form_values.get('website_links') or [''],
         'time_mode': form_values.get('time_mode') or [],
+        'value_mode': form_values.get('value_mode') or [],
         'priority_rank': form_values.get('priority_rank') or 'none',
         'competence': form_values.get('competence') or '',
         'aliases': linted_aliases or [''],
@@ -467,7 +470,7 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
             return True
 
     # Checkbox-list fields — set comparison.
-    for k in ('status_done', 'time_mode'):
+    for k in ('status_done', 'time_mode', 'value_mode'):
         if set(form_values.get(k) or []) != set(snapshot.get(k) or []):
             return True
 
@@ -485,7 +488,7 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                time_mode='manual', competence=None):
+                time_mode='manual', value_mode='manual', competence=None):
     """Create or update a node and sync its edges. Returns a status message."""
     from models import Node
 
@@ -500,6 +503,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         google_drive_path=(drive_path or '').strip() or None,
         website=(website_path or '').strip() or None,
         time_mode=time_mode,
+        value_mode=value_mode,
         competence=competence or None,
     )
     existing = manager.get_node(name)
@@ -813,7 +817,9 @@ def _compute_highest_priority_path(manager):
             score_map[name] = 0.0
             continue
         t_override = 0.0 if node.time_mode == 'inherited' else None
-        cost = perceived_cost(node, w_e, w_t, beta, time_override=t_override)
+        e_override = 0.0 if node.value_mode == 'inherited' else None
+        cost = perceived_cost(node, w_e, w_t, beta,
+                              time_override=t_override, effort_override=e_override)
         tv = total_value(name, set(), all_nodes_dict, H_out, S_out, Syn,
                          w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul)
         score = tv / cost

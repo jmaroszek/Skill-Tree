@@ -163,9 +163,9 @@ score = eligibility
 ```
 
 - **Eligibility** is 1 if every hard prerequisite is Done, else 0. A zero-eligibility node is pushed to the bottom of the list.
-- **Intrinsic value** of a node is `w_v * value + w_i * interest`, with `w_v` and `w_i` configurable hyperparameters.
+- **Intrinsic value** of a node is `w_v * value + w_i * interest`, with `w_v` and `w_i` configurable hyperparameters. Short-circuits to `0` when `value_mode='inherited'` (see Container modes below).
 - **Total value** is intrinsic value *plus* a recursive discounted sum over Hard/Soft prereqs (the DAG cascade), plus an M3 hybrid synergy contribution. The synergy contribution has two parts: a small **additive pair bonus** `d_Syn_pair × tv(partner)` summed over immediate synergy neighbors regardless of their state, and a **multiplicative kick on intrinsic value** that fires when a synergy partner is Done — `intrinsic × (1 + d_Syn_mul × sqrt(count_done_partners))`. The sqrt is a diminishing-returns cap: 1 partner gives the full d_Syn_mul kick, 4 partners give 2×, 16 give 4× — preserving "more partners = more boost" while keeping dense synergy hubs from running away. The multiplier applies to *intrinsic only*, not to the cascade. Two hyperparameters (`d_Syn_pair` ≈ 0.10, `d_Syn_mul` ≈ 0.40 in the Default profile) replace the single old `d_Syn`. The asymmetry encodes the semantic distinction: synergy is a *categorically different* relationship from Hard/Soft (mutual reinforcement, not directional dependency), so it doesn't sit on the same "necessity" axis.
-- **Perceived cost** is `1 + w_e * difficulty + w_t * (time ** beta)`, where `beta < 1` makes the time penalty sub-linear (a 100-hour task is expensive but not 100× worse than a 1-hour task).
+- **Perceived cost** is `1 + w_e * difficulty + w_t * (time ** beta)`, where `beta < 1` makes the time penalty sub-linear (a 100-hour task is expensive but not 100× worse than a 1-hour task). The difficulty term short-circuits to `0` when `value_mode='inherited'`; the time term short-circuits to `0` when `time_mode='inherited'` (see Container modes below).
 - **Goal boost.** The top three Priority Goals each multiply the scores of everything in their hard-prerequisite subtree — the #1 goal at full strength, #2 at ~66%, #3 at ~33%. Highest-rank boost wins if a node belongs to multiple priority subtrees.
 - **Context weight.** User-assigned per parent context; defaults to 1.0. Subcontexts inherit their parent's weight. Lets the user state cross-context importance explicitly ("Health > abstract math") even before decomposing those areas. Persisted under the `CONTEXT_WEIGHTS` Settings key.
 - **Density normalization.** `1 / n_active[(context, subcontext)] ** alpha`, where `n_active` counts active (not Done, not Blocked, not type=Goal) nodes in the target's `(context, subcontext)` bucket. The `alpha` hyperparameter tunes strength: 0 disables, 0.5 compensates moderately, 1.0 fully cancels size bias. Motivation: without this, a heavily decomposed context crowds top-N recommendations regardless of its cross-context importance, because the cascade sums contributions without normalizing for granularity. Per-profile defaults: Default 0.3, Curious 0.4, Industrious 0.2 — all deliberately conservative so the user feels the effect but can dial up/down.
@@ -173,6 +173,24 @@ score = eligibility
 Both context weight and density multipliers apply **after** TV/cost — the cascade itself and its memoization are untouched.
 
 `score_nodes()` composes the above, returning the active-nodes list sorted descending on `priority_score`.
+
+#### Container modes (`time_mode` / `value_mode`)
+
+Two orthogonal flags let a node opt out of contributing its own ratings to scoring, leaving it as a structural conduit whose score depends entirely on what cascades up from descendants. Both default to `'manual'`; either or both can be set to `'inherited'` per node.
+
+- **`time_mode='inherited'`** zeros the time term in `perceived_cost`. The `Node.time` property short-circuits to `0`, and `_compute_priority_score` passes `time_override=0.0`. Use when a node has no marginal time of its own — its work is just completing its hard children. Common case: a Goal node whose total effort is the sum of its sub-Learns.
+- **`value_mode='inherited'`** zeros the **intrinsic-value AND difficulty** terms together. `intrinsic_value()` short-circuits to `0`, and `_compute_priority_score` passes `effort_override=0.0` to `perceived_cost`. The node still passes cascade upward to its parents — only its own ratings drop out. Use for *pure container* nodes that exist purely to group children (the canonical "header" Learn whose value IS its descendants).
+
+The four combinations are all valid and mean different things:
+
+| `time_mode` | `value_mode` | Meaning | Example |
+|---|---|---|---|
+| `manual` | `manual` | **Atomic node.** Has its own time, ratings, and cost. Standard case for Learns, Resources, and most Actions. | A book with concrete reading time and a value/interest rating |
+| `inherited` | `manual` | **Time-aggregating Learn.** Has its own intrinsic value (the domain matters in itself) but its time rolls up from children. | A `Mastery` Learn header with rated importance, holding three book Resources |
+| `manual` | `inherited` | **Rare.** Effort + value zeroed but time stays manual. Mostly arises mid-edit while toggling. Not a typical persistent state. | — |
+| `inherited` | `inherited` | **Pure container.** No own time, no own value, no own effort — the node is purely structural. Score = cascade / (1 + 0 + 0) = cascade. | A `Transcendentalism` Learn that exists only to group `Walden` and `Emerson Essays` under American Philosophy |
+
+Settings are persisted as text columns on the `Nodes` table (added via auto-migration in `database.init_db`). Toggles in the editor sidebar live next to the Override switch (`value_mode`) and inside the Time Estimates section (`time_mode`); the Add-Node modal mirrors both.
 
 #### A short history of `total_value()`
 
@@ -264,7 +282,8 @@ For a target node, BFS walks backward through the dependency graph (hard by defa
 | `time_o` | float | Optimistic estimate, in hours. |
 | `time_m` | float | Most-likely estimate, in hours. |
 | `time_p` | float | Pessimistic estimate, in hours. |
-| `time_mode` | str | `'manual'` (use the three-point fields) or `'inherited'` (pull from hard prereqs). |
+| `time_mode` | str | `'manual'` (use the three-point fields) or `'inherited'` (zero own time in cost; aggregate from hard children). See *Container modes* in the algorithm section. |
+| `value_mode` | str | `'manual'` (use own ratings) or `'inherited'` (zero own intrinsic value and effort in scoring; rely entirely on cascade from descendants). Independent of `time_mode`. See *Container modes*. |
 | `status` | str | `Open`, `Blocked`, or `Done`. `Blocked` is derived from prereq state. |
 | `competence` | Optional[str] | Seven-level skill tier (`Outsider` → `Innovator`). |
 | `context` / `subcontext` | Optional[str] | Life area and sub-area (Health → Exercise, etc.). |

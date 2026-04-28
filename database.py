@@ -132,6 +132,15 @@ def init_db():
     except Exception:
         pass  # Column already exists
 
+    # Add value_mode column. Mirrors time_mode: 'inherited' makes the node a
+    # pure structural conduit whose own v/i/d ratings contribute 0 to its
+    # intrinsic value in scoring. Defaults to 'manual' for existing rows.
+    try:
+        cursor.execute("ALTER TABLE Nodes ADD COLUMN value_mode TEXT NOT NULL DEFAULT 'manual'")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
+
     # Store override intent on dormant nodes so it can be applied at event trigger time.
     try:
         cursor.execute("ALTER TABLE EventNodes ADD COLUMN override_on_trigger INTEGER NOT NULL DEFAULT 0")
