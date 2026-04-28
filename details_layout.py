@@ -466,6 +466,13 @@ def build_details_tab_content():
                     options=[{"label": "Hide Done", "value": "hide_done"}],
                     value=["hide_done"],
                     switch=True,
+                    style={"fontSize": "0.82rem"},
+                ),
+                dbc.Checklist(
+                    id="details-hide-blocked",
+                    options=[{"label": "Hide Blocked", "value": "hide_blocked"}],
+                    value=[],
+                    switch=True,
                     style={"fontSize": "0.82rem", "marginRight": "12px"},
                 ),
             ], className="d-flex gap-3"),

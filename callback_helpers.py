@@ -636,7 +636,10 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
         if not node:
             node = manager.get_node(selected_node_id)
 
-    desc_content = node.description.strip() if node and node.description and node.description.strip() else "None"
+    if not selected_node_id:
+        desc_content = "Click a row to see its description"
+    else:
+        desc_content = node.description.strip() if node and node.description and node.description.strip() else "None"
 
     desc_area = html.Div([
         html.H6("Description", className="text-muted mb-2", style=SECTION_TITLE_STYLE),

@@ -800,6 +800,9 @@ class GraphManager:
         if 'hide_done' in filters and filters['hide_done']:
             result = [n for n in result if n.status != 'Done']
 
+        if 'hide_blocked' in filters and filters['hide_blocked']:
+            result = [n for n in result if n.status != 'Blocked']
+
         if 'search' in filters and filters['search']:
             search_val = filters['search'].lower()
             result = [n for n in result if search_val in n.name.lower()]

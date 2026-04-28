@@ -280,6 +280,7 @@ def register_details_callbacks(app):
         State("filter-difficulty", "value"),
         State("filter-node-type", "value"),
         State("details-graph-settings-max-depth", "value"),
+        State("details-hide-blocked", "value"),
         prevent_initial_call=True,
     )
     def select_detail_node(node_name, _refresh, _version, _override_data,
@@ -287,7 +288,7 @@ def register_details_callbacks(app):
                            include_synergies_val,
                            f_context, f_subcontext, f_done,
                            f_value, f_interest, f_time, f_difficulty,
-                           f_node_types, gs_max_depth):
+                           f_node_types, gs_max_depth, hide_blocked_val):
         if not node_name:
             return (
                 {"display": "block"},
@@ -398,6 +399,8 @@ def register_details_callbacks(app):
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types)
+        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
+            global_filters['hide_blocked'] = True
         subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
 
         subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
@@ -444,6 +447,7 @@ def register_details_callbacks(app):
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
         Input("details-graph-settings-max-depth", "value"),
+        Input("details-hide-blocked", "value"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
@@ -451,7 +455,8 @@ def register_details_callbacks(app):
                                         include_synergies_val,
                                         f_context, f_subcontext, f_done,
                                         f_value, f_interest, f_time, f_difficulty,
-                                        f_node_types, gs_max_depth, selected_node):
+                                        f_node_types, gs_max_depth,
+                                        hide_blocked_val, selected_node):
         if not selected_node:
             return no_update
 
@@ -476,6 +481,8 @@ def register_details_callbacks(app):
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types)
+        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
+            global_filters['hide_blocked'] = True
         subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
 
         subtask_nodes.sort(key=lambda n: (n.status == "Done", n.name))
@@ -524,18 +531,21 @@ def register_details_callbacks(app):
         Input("filter-difficulty", "value"),
         Input("details-graph-settings-max-depth", "value"),
         Input("details-graph-settings-neighbor-links", "value"),
+        Input("details-hide-blocked", "value"),
     )
     def update_details_graph(selected_node, _refresh, _version,
                              include_soft_val, include_transitive_val,
                              include_synergies_val,
                              f_node_types, f_done, f_context, f_subcontext,
                              f_value, f_interest, f_time, f_difficulty,
-                             gs_max_depth, gs_neighbor_links):
+                             gs_max_depth, gs_neighbor_links, hide_blocked_val):
         if not selected_node:
             return []
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types)
+        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
+            global_filters['hide_blocked'] = True
         return _build_graph_elements(selected_node, include_soft_val,
                                      include_synergies_val, global_filters,
                                      include_transitive_val=include_transitive_val,
@@ -726,13 +736,14 @@ def register_details_callbacks(app):
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
         Input("details-graph-settings-max-depth", "value"),
+        Input("details-hide-blocked", "value"),
         prevent_initial_call=True,
     )
     def run_details_simulation(node_name, include_soft_val, include_transitive_val,
                                 include_synergies_val,
                                 f_context, f_subcontext, f_done,
                                 f_value, f_interest, f_time, f_difficulty,
-                                f_node_types, gs_max_depth):
+                                f_node_types, gs_max_depth, hide_blocked_val):
         if not node_name:
             empty_fig = go.Figure()
             empty_fig.update_layout(template="plotly_dark",
@@ -742,6 +753,8 @@ def register_details_callbacks(app):
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types)
+        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
+            global_filters['hide_blocked'] = True
         return _run_simulation(node_name, include_soft_val, include_synergies_val,
                                include_transitive_val=include_transitive_val,
                                global_filters=global_filters,
