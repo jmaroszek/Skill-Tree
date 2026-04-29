@@ -473,16 +473,28 @@ def register_callbacks(app):
                 lines.append(html.Div(subctx_str, style={"color": "#adb5bd"}))
 
         else:
-            final_time = data.get('time', 0)
-            time_str = ConfigManager.format_time_friendly(final_time)
+            ratings_inherited = data.get('value_mode') == 'inherited'
+            time_inherited = data.get('time_mode') == 'inherited'
 
-            lines = [
-                header,
-                html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
-                html.Div([html.Strong("Interest: "), str(data.get('interest', ''))]),
-                html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
-                html.Div([html.Strong("Time: "), time_str]),
-            ]
+            lines = [header]
+
+            if ratings_inherited and time_inherited:
+                lines.append(html.Div("Container", style={"color": "#adb5bd"}))
+            else:
+                if ratings_inherited:
+                    lines.append(html.Div([html.Strong("Ratings: "), "inherited"]))
+                else:
+                    lines += [
+                        html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
+                        html.Div([html.Strong("Interest: "), str(data.get('interest', ''))]),
+                        html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
+                    ]
+
+                if time_inherited:
+                    lines.append(html.Div([html.Strong("Time: "), "inherited"]))
+                else:
+                    time_str = ConfigManager.format_time_friendly(data.get('time', 0))
+                    lines.append(html.Div([html.Strong("Time: "), time_str]))
 
             ctx_val = data.get('context', '')
             sub_val = data.get('subcontext', '')
