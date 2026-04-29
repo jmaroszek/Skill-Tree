@@ -7,44 +7,70 @@
     var DEFAULT_LEFT = '420px';
     var DEFAULT_TOP = '120px';
 
-    function resetPopupGeometry(popup) {
-        popup.style.width = DEFAULT_WIDTH;
-        popup.style.height = DEFAULT_HEIGHT;
-        popup.style.left = DEFAULT_LEFT;
-        popup.style.top = DEFAULT_TOP;
+    // Multiple sites trigger the same popup: main node editor and the Add
+    // Subtask modal (Details tab). The modal renders lazily, so we watch
+    // continuously and wire up each button as it appears.
+    var TRIGGER_IDS = [
+        'btn-ratings-info',
+        'btn-details-ratings-info',
+    ];
+
+    var attached = {};
+    var popup = null;
+    var header = null;
+    var closeBtn = null;
+    var editBtn = null;
+
+    function resetPopupGeometry(p) {
+        p.style.width = DEFAULT_WIDTH;
+        p.style.height = DEFAULT_HEIGHT;
+        p.style.left = DEFAULT_LEFT;
+        p.style.top = DEFAULT_TOP;
     }
 
-    function init() {
-        const btn = document.getElementById('btn-ratings-info');
-        const closeBtn = document.getElementById('btn-ratings-close');
-        const editBtn = document.getElementById('btn-ratings-edit');
-        const popup = document.getElementById('ratings-popup');
-        const header = document.getElementById('ratings-popup-header');
-        if (!btn || !popup || !header || !closeBtn) return;
-
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (popup.style.display === 'flex') {
-                popup.style.display = 'none';
-            } else {
-                resetPopupGeometry(popup);
-                popup.style.display = 'flex';
-            }
-        });
-
-        closeBtn.addEventListener('click', function () {
+    function onTriggerClick(e) {
+        e.stopPropagation();
+        if (!popup) return;
+        if (popup.style.display === 'flex') {
             popup.style.display = 'none';
-        });
-
-        if (editBtn) {
-            editBtn.addEventListener('click', function () {
-                popup.style.display = 'none';
-            });
+        } else {
+            resetPopupGeometry(popup);
+            popup.style.display = 'flex';
         }
+    }
 
-        // Drag via header
+    function tryAttachTrigger(id) {
+        if (attached[id]) return;
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('click', onTriggerClick);
+        attached[id] = true;
+    }
+
+    function attachShared() {
+        if (!popup) popup = document.getElementById('ratings-popup');
+        if (!header) header = document.getElementById('ratings-popup-header');
+        if (!closeBtn) {
+            closeBtn = document.getElementById('btn-ratings-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function () {
+                    if (popup) popup.style.display = 'none';
+                });
+            }
+        }
+        if (!editBtn) {
+            editBtn = document.getElementById('btn-ratings-edit');
+            if (editBtn) {
+                editBtn.addEventListener('click', function () {
+                    if (popup) popup.style.display = 'none';
+                });
+            }
+        }
+        if (!popup || !header || header.__dragWired) return;
+        header.__dragWired = true;
+
         header.addEventListener('mousedown', function (e) {
-            if (e.target === closeBtn || closeBtn.contains(e.target)) return;
+            if (closeBtn && (e.target === closeBtn || closeBtn.contains(e.target))) return;
             if (editBtn && (e.target === editBtn || editBtn.contains(e.target))) return;
             if (!window.SkillTree || !window.SkillTree.drag) return;
             var startX = e.clientX;
@@ -62,12 +88,12 @@
         });
     }
 
-    // Dash renders components asynchronously — wait for the button to appear
-    var obs = new MutationObserver(function () {
-        if (document.getElementById('btn-ratings-info')) {
-            obs.disconnect();
-            init();
-        }
-    });
+    function wireAll() {
+        attachShared();
+        TRIGGER_IDS.forEach(tryAttachTrigger);
+    }
+
+    var obs = new MutationObserver(wireAll);
     obs.observe(document.body, { childList: true, subtree: true });
+    wireAll();
 })();

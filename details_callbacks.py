@@ -1019,7 +1019,7 @@ def register_details_callbacks(app):
             # Reset external resource stores
             [''], [''], [''],
             # Override reset
-            False,
+            [],
             # Value mode reset
             [],
         )
@@ -1344,7 +1344,7 @@ def register_details_callbacks(app):
                 return no_update, no_update, str(e)
 
             # Apply override if requested
-            if override_toggle:
+            if override_toggle and "on" in override_toggle:
                 ConfigManager.set_override({
                     "parent": name.strip(),
                     "mode": override_mode or "hard"
@@ -1359,7 +1359,7 @@ def register_details_callbacks(app):
         prevent_initial_call=True,
     )
     def toggle_add_override_options(on):
-        return {"display": "block"} if on else {"display": "none"}
+        return {"display": "block"} if on and "on" in on else {"display": "none"}
 
     # --- Subtask Remove: Open Modal ---
     @app.callback(
