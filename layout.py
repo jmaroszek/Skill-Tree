@@ -529,7 +529,10 @@ filters_content = html.Div([
     html.Hr(className="my-3"),
     html.Div([
         dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
-        dbc.Button("Re-layout", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
+        dbc.Button("Settle", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
+        dbc.Tooltip("Re-run layout physics to untangle nodes",
+                    target="btn-sidebar-relayout", placement="top",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
     ], className="d-flex gap-2 mb-3"),
 ], className="px-3 pb-2 pt-0", style={"width": "320px", "minWidth": "320px"})
 
