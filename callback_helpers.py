@@ -830,12 +830,12 @@ def _topo_sort(non_done_names, dag_fwd):
         for tgt in dag_fwd.get(name, []):
             in_degree[tgt] += 1
 
-    queue = [n for n in non_done_names if in_degree[n] == 0]
+    queue = sorted(n for n in non_done_names if in_degree[n] == 0)
     topo = []
     while queue:
         node = queue.pop(0)
         topo.append(node)
-        for nxt in dag_fwd.get(node, []):
+        for nxt in sorted(dag_fwd.get(node, [])):
             in_degree[nxt] -= 1
             if in_degree[nxt] == 0:
                 queue.append(nxt)
@@ -849,6 +849,12 @@ def _compute_highest_priority_path(manager):
     context weight, density normalization) but skips the eligibility gate so
     Blocked nodes contribute their would-be priority to chain weight. Goals
     score 0 — they're terminal endpoints, not work.
+
+    Tiebreak order: max cumulative dp, then min chain length (so trailing
+    zero-score Goal containers get trimmed instead of padding the chain),
+    then alphabetical name. Length tiebreak applies at every DP step, not
+    just the endpoint, so intermediate parent ties also collapse to the
+    shortest-prefix predecessor.
     """
     nodes, edges, non_done_names, dag_fwd, _dag_rev = _build_hard_dag(manager)
     if not non_done_names:
@@ -913,17 +919,23 @@ def _compute_highest_priority_path(manager):
 
     topo = _topo_sort(non_done_names, dag_fwd)
     dp = {n: score_map.get(n, 0) for n in non_done_names}
+    length = {n: 1 for n in non_done_names}
     parent = {n: None for n in non_done_names}
     for node in topo:
-        for nxt in dag_fwd.get(node, []):
+        for nxt in sorted(dag_fwd.get(node, [])):
             candidate = dp[node] + score_map.get(nxt, 0)
+            cand_len = length[node] + 1
             if candidate > dp[nxt]:
                 dp[nxt] = candidate
+                length[nxt] = cand_len
+                parent[nxt] = node
+            elif candidate == dp[nxt] and cand_len < length[nxt]:
+                length[nxt] = cand_len
                 parent[nxt] = node
 
     if not dp:
         return []
-    end = max(dp, key=dp.get)
+    end = min(dp, key=lambda n: (-dp[n], length[n], n))
     if parent[end] is None:
         return []
 
