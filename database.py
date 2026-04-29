@@ -66,7 +66,13 @@ def init_db():
             obsidian_path TEXT,
             google_drive_path TEXT,
             website TEXT,
-            dormant INTEGER NOT NULL DEFAULT 0
+            dormant INTEGER NOT NULL DEFAULT 0,
+            habit_duration REAL NOT NULL DEFAULT 0,
+            habit_duration_unit TEXT NOT NULL DEFAULT 'weeks',
+            habit_intensity_o REAL NOT NULL DEFAULT 0,
+            habit_intensity_m REAL NOT NULL DEFAULT 0,
+            habit_intensity_p REAL NOT NULL DEFAULT 0,
+            habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day'
         )
     ''')
 
@@ -161,6 +167,23 @@ def init_db():
         conn.commit()
     except Exception:
         pass
+
+    # Habit-mode breakdown columns. Persisted alongside the computed
+    # time_o/m/p so re-opening the editor restores the duration × intensity
+    # form a user typed, not just the resulting hours.
+    for stmt in (
+        "ALTER TABLE Nodes ADD COLUMN habit_duration REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE Nodes ADD COLUMN habit_duration_unit TEXT NOT NULL DEFAULT 'weeks'",
+        "ALTER TABLE Nodes ADD COLUMN habit_intensity_o REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE Nodes ADD COLUMN habit_intensity_m REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE Nodes ADD COLUMN habit_intensity_p REAL NOT NULL DEFAULT 0",
+        "ALTER TABLE Nodes ADD COLUMN habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day'",
+    ):
+        try:
+            cursor.execute(stmt)
+            conn.commit()
+        except Exception:
+            pass
 
     conn.close()
     _initialized = True

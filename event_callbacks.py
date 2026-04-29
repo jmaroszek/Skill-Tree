@@ -10,7 +10,8 @@ from graph_manager import GraphManager
 from config import ConfigManager
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
-from callback_helpers import render_link_rows, serialize_links, spawn_local_file_picker, strip_gdrive_prefix
+from callback_helpers import (render_link_rows, serialize_links, spawn_local_file_picker,
+                              strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp)
 
 event_manager = EventManager()
 graph_manager = GraphManager()
@@ -587,12 +588,20 @@ def register_event_callbacks(app):
         Output("editing-dormant-node-store", "data", allow_duplicate=True),
         Output("modal-dormant-node-title", "children", allow_duplicate=True),
         Output("btn-dormant-node-save", "children", allow_duplicate=True),
+        # Habit-mode reset (7 new outputs)
+        Output("dormant-node-time-habit-mode", "value", allow_duplicate=True),
+        Output("dormant-node-habit-duration", "value", allow_duplicate=True),
+        Output("dormant-node-habit-duration-unit", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-o", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-m", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-p", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-unit", "value", allow_duplicate=True),
         Input("btn-add-dormant-node", "n_clicks"),
         prevent_initial_call=True,
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 37
+            return (no_update,) * 44
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -613,7 +622,9 @@ def register_event_callbacks(app):
                 _ted.get('expected', 4),
                 _ted.get('pessimistic', 6),
                 0, "days", "hard",
-                None, "Add Dormant Node", "Add Node")
+                None, "Add Dormant Node", "Add Node",
+                # Habit reset
+                [], 0, 'weeks', 0, 0, 0, 'min_per_day')
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -639,16 +650,53 @@ def register_event_callbacks(app):
             return not is_open
         return no_update
 
-    # --- Dormant Node Modal: Inherit toggle hides/shows OMP ---
+    # --- Dormant Node Modal: Mode toggles control OMP / Habit visibility ---
     @app.callback(
         Output("dormant-node-time-omp", "style"),
+        Output("section-dormant-node-time-habit", "style"),
         Input("dormant-node-time-mode", "value"),
+        Input("dormant-node-time-habit-mode", "value"),
         prevent_initial_call=True,
     )
-    def toggle_dormant_time_mode(mode_val):
-        if mode_val and "inherited" in mode_val:
-            return {"display": "none"}
-        return {"display": "block"}
+    def toggle_dormant_time_mode(inherit_val, habit_val):
+        inherit_on = bool(inherit_val and "inherited" in inherit_val)
+        habit_on = bool(habit_val and "habit" in habit_val)
+        if inherit_on:
+            return {"display": "none"}, {"display": "none"}
+        if habit_on:
+            return {"display": "none"}, {"display": "block"}
+        return {"display": "block"}, {"display": "none"}
+
+    # --- Dormant Node Modal: Habit / Inherit mutual exclusivity ---
+    @app.callback(
+        Output("dormant-node-time-mode", "value", allow_duplicate=True),
+        Output("dormant-node-time-habit-mode", "value", allow_duplicate=True),
+        Input("dormant-node-time-mode", "value"),
+        Input("dormant-node-time-habit-mode", "value"),
+        prevent_initial_call=True,
+    )
+    def enforce_dormant_time_exclusivity(inherit_val, habit_val):
+        trig = ctx.triggered_id
+        if trig == "dormant-node-time-mode" and inherit_val and "inherited" in inherit_val:
+            return inherit_val, []
+        if trig == "dormant-node-time-habit-mode" and habit_val and "habit" in habit_val:
+            return [], habit_val
+        return inherit_val, habit_val
+
+    # --- Dormant Node Modal: Live total-hours preview for habit ---
+    @app.callback(
+        Output("dormant-node-habit-total-preview", "children"),
+        Input("dormant-node-habit-duration", "value"),
+        Input("dormant-node-habit-duration-unit", "value"),
+        Input("dormant-node-habit-intensity-m", "value"),
+        Input("dormant-node-habit-intensity-unit", "value"),
+    )
+    def update_dormant_habit_preview(duration, dur_unit, intensity_m, int_unit):
+        total = habit_to_hours(duration or 0, dur_unit or 'weeks',
+                               intensity_m or 0, int_unit or 'min_per_day')
+        if total <= 0:
+            return ""
+        return f"Computes to ~{round(total, 1)} h total"
 
     # --- Cancel Dormant Node Modal ---
     @app.callback(
@@ -691,6 +739,14 @@ def register_event_callbacks(app):
         State("dormant-node-time-p", "value"),
         State("dormant-node-time-unit", "value"),
         State("dormant-node-time-mode", "value"),
+        # Habit-mode states
+        State("dormant-node-time-habit-mode", "value"),
+        State("dormant-node-habit-duration", "value"),
+        State("dormant-node-habit-duration-unit", "value"),
+        State("dormant-node-habit-intensity-o", "value"),
+        State("dormant-node-habit-intensity-m", "value"),
+        State("dormant-node-habit-intensity-p", "value"),
+        State("dormant-node-habit-intensity-unit", "value"),
         State("dormant-node-delay-value", "value"),
         State("dormant-node-delay-unit", "value"),
         State("dormant-node-needs-hard", "value"),
@@ -712,6 +768,9 @@ def register_event_callbacks(app):
                           name, node_type, context, subcontext, desc, competence,
                           value, interest, difficulty, time_o, time_m, time_p, time_unit,
                           time_mode_val,
+                          time_habit_mode_val,
+                          habit_duration, habit_duration_unit,
+                          habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
                           delay_value, delay_unit,
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
                           obsidian_vals, drive_vals, website_vals,
@@ -756,16 +815,33 @@ def register_event_callbacks(app):
             delay_days = delay_value
 
         multiplier = ConfigManager.get_time_multiplier(time_unit)
-        t_mode = 'inherited' if (time_mode_val and 'inherited' in time_mode_val) else 'manual'
+        habit_on = bool(time_habit_mode_val and 'habit' in time_habit_mode_val)
+        if habit_on:
+            t_o, t_m, t_p = compute_habit_time_omp(
+                habit_duration or 0, habit_duration_unit or 'weeks',
+                habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
+                habit_int_unit or 'min_per_day',
+            )
+            t_mode = 'habit'
+        elif time_mode_val and 'inherited' in time_mode_val:
+            t_o = float(time_o or 0) * multiplier
+            t_m = float(time_m or 0) * multiplier
+            t_p = float(time_p or 0) * multiplier
+            t_mode = 'inherited'
+        else:
+            t_o = float(time_o or 0) * multiplier
+            t_m = float(time_m or 0) * multiplier
+            t_p = float(time_p or 0) * multiplier
+            t_mode = 'manual'
 
         node = Node(
             name=name,
             type=node_type or "Learn",
             description=desc or "",
             value=value or 5,
-            time_o=float(time_o or 0) * multiplier,
-            time_m=float(time_m or 0) * multiplier,
-            time_p=float(time_p or 0) * multiplier,
+            time_o=t_o,
+            time_m=t_m,
+            time_p=t_p,
             interest=interest or 5,
             difficulty=difficulty or 5,
             status=STATUS_OPEN,
@@ -776,6 +852,12 @@ def register_event_callbacks(app):
             google_drive_path=serialize_links(drive_vals) or None,
             website=serialize_links(website_vals) or None,
             time_mode=t_mode,
+            habit_duration=habit_duration or 0,
+            habit_duration_unit=habit_duration_unit or 'weeks',
+            habit_intensity_o=habit_int_o or 0,
+            habit_intensity_m=habit_int_m or 0,
+            habit_intensity_p=habit_int_p or 0,
+            habit_intensity_unit=habit_int_unit or 'min_per_day',
         )
 
         if is_edit:
@@ -985,13 +1067,21 @@ def register_event_callbacks(app):
         Output("dormant-override-toggle", "value", allow_duplicate=True),
         Output("dormant-override-mode", "value", allow_duplicate=True),
         Output("dormant-node-save-status", "children", allow_duplicate=True),
+        # Habit-mode pre-fill (7 new outputs)
+        Output("dormant-node-time-habit-mode", "value", allow_duplicate=True),
+        Output("dormant-node-habit-duration", "value", allow_duplicate=True),
+        Output("dormant-node-habit-duration-unit", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-o", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-m", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-p", "value", allow_duplicate=True),
+        Output("dormant-node-habit-intensity-unit", "value", allow_duplicate=True),
         Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
         Input("dormant-edit-trigger-input", "value"),
         State("selected-event-store", "data"),
         prevent_initial_call=True,
     )
     def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
-        _N = 40
+        _N = 47
         if not selected_event:
             return (no_update,) * _N
         triggered = ctx.triggered_id
@@ -1053,6 +1143,7 @@ def register_event_callbacks(app):
             node.time_o, node.time_m, node.time_p
         )
         time_mode_val = ["inherited"] if node.time_mode == 'inherited' else []
+        time_habit_mode_val = ["habit"] if node.time_mode == 'habit' else []
 
         # Delay: invert to form fields via the shared helper.
         from events_layout import _delay_days_to_form
@@ -1106,6 +1197,14 @@ def register_event_callbacks(app):
             override_on_trigger,               # override toggle
             override_mode_val,                 # override mode
             "",                                # save-status
+            # Habit-mode pre-fill
+            time_habit_mode_val,
+            node.habit_duration or 0,
+            node.habit_duration_unit or 'weeks',
+            node.habit_intensity_o or 0,
+            node.habit_intensity_m or 0,
+            node.habit_intensity_p or 0,
+            node.habit_intensity_unit or 'min_per_day',
         )
 
     # --- Remove Dormant Node ---

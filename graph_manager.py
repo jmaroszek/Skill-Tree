@@ -92,8 +92,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -120,7 +120,10 @@ class GraphManager:
                     context=:context, subcontext=:subcontext, status=:status,
                     obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
                     website=:website,
-                    dormant=:dormant, time_mode=:time_mode, value_mode=:value_mode
+                    dormant=:dormant, time_mode=:time_mode, value_mode=:value_mode,
+                    habit_duration=:habit_duration, habit_duration_unit=:habit_duration_unit,
+                    habit_intensity_o=:habit_intensity_o, habit_intensity_m=:habit_intensity_m,
+                    habit_intensity_p=:habit_intensity_p, habit_intensity_unit=:habit_intensity_unit
                 WHERE name=:name
             ''', data)
             conn.commit()

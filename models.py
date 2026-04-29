@@ -60,8 +60,18 @@ class Node:
     google_drive_path: Optional[str] = None
     website: Optional[str] = None
     dormant: int = 0
-    time_mode: str = 'manual'  # 'manual' or 'inherited'
+    time_mode: str = 'manual'  # 'manual', 'inherited', or 'habit'
     value_mode: str = 'manual'  # 'manual' or 'inherited'
+    # Habit-mode breakdown — preserved across mode toggles so re-enabling
+    # Habit restores the user's last (duration, intensity) inputs. The
+    # canonical hours used by scoring still live in time_o/m/p; these are
+    # the source of truth for repopulating the habit form.
+    habit_duration: float = 0.0
+    habit_duration_unit: str = 'weeks'         # 'days' | 'weeks' | 'months'
+    habit_intensity_o: float = 0.0
+    habit_intensity_m: float = 0.0
+    habit_intensity_p: float = 0.0
+    habit_intensity_unit: str = 'min_per_day'  # '{min|hr}_per_{day|week}'
     priority_score: Optional[float] = None
 
     def __post_init__(self):
@@ -75,10 +85,20 @@ class Node:
         self.interest = max(1, min(10, self.interest))
         self.difficulty = max(1, min(10, self.difficulty))
         self.dormant = int(self.dormant) if self.dormant is not None else 0
-        if self.time_mode not in ('manual', 'inherited'):
+        if self.time_mode not in ('manual', 'inherited', 'habit'):
             self.time_mode = 'manual'
         if self.value_mode not in ('manual', 'inherited'):
             self.value_mode = 'manual'
+        self.habit_duration = float(self.habit_duration) if self.habit_duration else 0.0
+        self.habit_intensity_o = float(self.habit_intensity_o) if self.habit_intensity_o else 0.0
+        self.habit_intensity_m = float(self.habit_intensity_m) if self.habit_intensity_m else 0.0
+        self.habit_intensity_p = float(self.habit_intensity_p) if self.habit_intensity_p else 0.0
+        if self.habit_duration_unit not in ('days', 'weeks', 'months'):
+            self.habit_duration_unit = 'weeks'
+        if self.habit_intensity_unit not in (
+            'min_per_day', 'hr_per_day', 'min_per_week', 'hr_per_week'
+        ):
+            self.habit_intensity_unit = 'min_per_day'
         # Note: time_o/m/p are NOT zeroed when time_mode='inherited'. The
         # `time` property short-circuits to 0 for inherited mode regardless,
         # so the stored values are inert at read time — and preserving them

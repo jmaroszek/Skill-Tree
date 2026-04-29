@@ -272,6 +272,46 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     return filters
 
 
+# --- Habit-mode time conversion ---
+
+
+def habit_to_hours(duration: float, duration_unit: str,
+                   intensity: float, intensity_unit: str) -> float:
+    """Convert a (duration, intensity) habit estimate to total hours.
+
+    intensity_unit is '{min|hr}_per_{day|week}'. duration_unit is one of
+    'days' / 'weeks' / 'months'. Months use a 30-day approximation — the
+    blend is for ROI cost, not calendar precision. Returns 0.0 if either
+    side is zero.
+    """
+    if not duration or not intensity:
+        return 0.0
+    if duration_unit == 'weeks':
+        days = float(duration) * 7
+    elif duration_unit == 'months':
+        days = float(duration) * 30
+    else:
+        days = float(duration)
+    parts = (intensity_unit or 'min_per_day').split('_per_')
+    mag_unit, period = parts[0], (parts[1] if len(parts) == 2 else 'day')
+    hours_per_mag = (1 / 60.0) if mag_unit == 'min' else 1.0
+    if period == 'week':
+        hours_per_day = float(intensity) * hours_per_mag / 7.0
+    else:
+        hours_per_day = float(intensity) * hours_per_mag
+    return round(days * hours_per_day, 2)
+
+
+def compute_habit_time_omp(duration, duration_unit,
+                           int_o, int_m, int_p, intensity_unit):
+    """Convert PERT bands on intensity into PERT bands on total hours."""
+    return (
+        habit_to_hours(duration, duration_unit, int_o, intensity_unit),
+        habit_to_hours(duration, duration_unit, int_m, intensity_unit),
+        habit_to_hours(duration, duration_unit, int_p, intensity_unit),
+    )
+
+
 # --- Editor Dirty-State Check (snapshot-based) ---
 
 
@@ -296,6 +336,11 @@ NEW_NODE_SNAPSHOT = {
     'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
     'obs_links': [''], 'drive_links': [''], 'website_links': [''],
     'time_mode': [],
+    'time_habit_mode': [],
+    'habit_duration': 0,
+    'habit_duration_unit': 'weeks',
+    'habit_intensity_o': 0, 'habit_intensity_m': 0, 'habit_intensity_p': 0,
+    'habit_intensity_unit': 'min_per_day',
     'value_mode': [],
     'priority_rank': 'none', 'competence': '',
     'aliases': [''],
@@ -385,6 +430,13 @@ def build_editor_snapshot(manager, node_name):
         'drive_links': strip_gdrive_prefix(parse_links(node.google_drive_path)),
         'website_links': parse_links(node.website),
         'time_mode': ['inherited'] if node.time_mode == 'inherited' else [],
+        'time_habit_mode': ['habit'] if node.time_mode == 'habit' else [],
+        'habit_duration': node.habit_duration or 0,
+        'habit_duration_unit': node.habit_duration_unit or 'weeks',
+        'habit_intensity_o': node.habit_intensity_o or 0,
+        'habit_intensity_m': node.habit_intensity_m or 0,
+        'habit_intensity_p': node.habit_intensity_p or 0,
+        'habit_intensity_unit': node.habit_intensity_unit or 'min_per_day',
         'value_mode': ['inherited'] if node.value_mode == 'inherited' else [],
         'priority_rank': priority_rank,
         'competence': node.competence or '',
@@ -427,6 +479,13 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'drive_links': form_values.get('drive_links') or [''],
         'website_links': form_values.get('website_links') or [''],
         'time_mode': form_values.get('time_mode') or [],
+        'time_habit_mode': form_values.get('time_habit_mode') or [],
+        'habit_duration': form_values.get('habit_duration') or 0,
+        'habit_duration_unit': form_values.get('habit_duration_unit') or 'weeks',
+        'habit_intensity_o': form_values.get('habit_intensity_o') or 0,
+        'habit_intensity_m': form_values.get('habit_intensity_m') or 0,
+        'habit_intensity_p': form_values.get('habit_intensity_p') or 0,
+        'habit_intensity_unit': form_values.get('habit_intensity_unit') or 'min_per_day',
         'value_mode': form_values.get('value_mode') or [],
         'priority_rank': form_values.get('priority_rank') or 'none',
         'competence': form_values.get('competence') or '',
@@ -451,12 +510,17 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
         if _norm_str(form_values.get(k)) != _norm_str(snapshot.get(k)):
             return True
 
-    # Type / time_unit / priority_rank — direct equality with empty-coercion.
+    # Type / time_unit / priority_rank / habit unit selectors — direct
+    # equality with empty-coercion.
     if (form_values.get('n_type') or '') != (snapshot.get('n_type') or ''):
         return True
     if (form_values.get('time_unit') or '') != (snapshot.get('time_unit') or ''):
         return True
     if (form_values.get('priority_rank') or 'none') != (snapshot.get('priority_rank') or 'none'):
+        return True
+    if (form_values.get('habit_duration_unit') or 'weeks') != (snapshot.get('habit_duration_unit') or 'weeks'):
+        return True
+    if (form_values.get('habit_intensity_unit') or 'min_per_day') != (snapshot.get('habit_intensity_unit') or 'min_per_day'):
         return True
 
     # Integer fields with a default-of-5 convention.
@@ -465,12 +529,14 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
             return True
 
     # Time fields — compare with 2-decimal rounding to match form display.
-    for k in ('time_o', 'time_m', 'time_p'):
+    for k in ('time_o', 'time_m', 'time_p',
+              'habit_duration',
+              'habit_intensity_o', 'habit_intensity_m', 'habit_intensity_p'):
         if round(float(form_values.get(k) or 0), 2) != round(float(snapshot.get(k) or 0), 2):
             return True
 
     # Checkbox-list fields — set comparison.
-    for k in ('status_done', 'time_mode', 'value_mode'):
+    for k in ('status_done', 'time_mode', 'time_habit_mode', 'value_mode'):
         if set(form_values.get(k) or []) != set(snapshot.get(k) or []):
             return True
 
@@ -488,8 +554,17 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                time_mode='manual', value_mode='manual', competence=None):
-    """Create or update a node and sync its edges. Returns a status message."""
+                time_mode='manual', value_mode='manual', competence=None,
+                habit_duration=0.0, habit_duration_unit='weeks',
+                habit_intensity_o=0.0, habit_intensity_m=0.0, habit_intensity_p=0.0,
+                habit_intensity_unit='min_per_day'):
+    """Create or update a node and sync its edges. Returns a status message.
+
+    Caller is responsible for converting habit-mode inputs to time_o/m/p
+    before calling — this function just persists what it's given. The
+    habit_* fields are stored alongside time_o/m/p so the editor can
+    repopulate the habit form on re-open.
+    """
     from models import Node
 
     target_status = STATUS_DONE if (status_done and STATUS_DONE in status_done) else STATUS_OPEN
@@ -505,6 +580,12 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         time_mode=time_mode,
         value_mode=value_mode,
         competence=competence or None,
+        habit_duration=habit_duration or 0,
+        habit_duration_unit=habit_duration_unit or 'weeks',
+        habit_intensity_o=habit_intensity_o or 0,
+        habit_intensity_m=habit_intensity_m or 0,
+        habit_intensity_p=habit_intensity_p or 0,
+        habit_intensity_unit=habit_intensity_unit or 'min_per_day',
     )
     existing = manager.get_node(name)
     if existing:

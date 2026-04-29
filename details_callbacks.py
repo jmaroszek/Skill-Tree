@@ -17,7 +17,8 @@ from details_layout import (build_details_subtasks_table, build_goal_card,
 from simulation import simulate_task_chain
 from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
-                              build_explain_summary, build_explain_chart)
+                              build_explain_summary, build_explain_chart,
+                              habit_to_hours, compute_habit_time_omp)
 from scoring import explain_score, shortest_paths_focus_data
 
 graph_manager = GraphManager()
@@ -978,13 +979,21 @@ def register_details_callbacks(app):
         Output("details-add-override-toggle", "value"),
         # Value mode reset
         Output("details-add-value-mode", "value"),
+        # Habit-mode reset (7 new outputs)
+        Output("details-add-time-habit-mode", "value"),
+        Output("details-add-habit-duration", "value"),
+        Output("details-add-habit-duration-unit", "value"),
+        Output("details-add-habit-intensity-o", "value"),
+        Output("details-add-habit-intensity-m", "value"),
+        Output("details-add-habit-intensity-p", "value"),
+        Output("details-add-habit-intensity-unit", "value"),
         Input("btn-details-add-node", "n_clicks"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     def open_add_node_modal(n_clicks, selected_node):
         if not n_clicks:
-            return (no_update,) * 37
+            return (no_update,) * 44
 
         types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
@@ -1022,6 +1031,12 @@ def register_details_callbacks(app):
             [],
             # Value mode reset
             [],
+            # Habit reset
+            [],            # details-add-time-habit-mode
+            0,             # details-add-habit-duration
+            'weeks',       # details-add-habit-duration-unit
+            0, 0, 0,       # details-add-habit-intensity o/m/p
+            'min_per_day', # details-add-habit-intensity-unit
         )
 
     # --- Add Node Modal: Toggle mode ---
@@ -1059,16 +1074,53 @@ def register_details_callbacks(app):
             return not is_open
         return no_update
 
-    # --- Add Node Modal: Inherit toggle hides/shows OMP ---
+    # --- Add Node Modal: Mode toggles control OMP / Habit visibility ---
     @app.callback(
         Output("details-add-time-omp", "style"),
+        Output("section-details-add-time-habit", "style"),
         Input("details-add-time-mode", "value"),
+        Input("details-add-time-habit-mode", "value"),
         prevent_initial_call=True,
     )
-    def toggle_details_add_time_mode(mode_val):
-        if mode_val and "inherited" in mode_val:
-            return {"display": "none"}
-        return {"display": "block"}
+    def toggle_details_add_time_mode(inherit_val, habit_val):
+        inherit_on = bool(inherit_val and "inherited" in inherit_val)
+        habit_on = bool(habit_val and "habit" in habit_val)
+        if inherit_on:
+            return {"display": "none"}, {"display": "none"}
+        if habit_on:
+            return {"display": "none"}, {"display": "block"}
+        return {"display": "block"}, {"display": "none"}
+
+    # --- Add Node Modal: Habit / Inherit mutual exclusivity ---
+    @app.callback(
+        Output("details-add-time-mode", "value", allow_duplicate=True),
+        Output("details-add-time-habit-mode", "value", allow_duplicate=True),
+        Input("details-add-time-mode", "value"),
+        Input("details-add-time-habit-mode", "value"),
+        prevent_initial_call=True,
+    )
+    def enforce_details_add_exclusivity(inherit_val, habit_val):
+        trig = ctx.triggered_id
+        if trig == "details-add-time-mode" and inherit_val and "inherited" in inherit_val:
+            return inherit_val, []
+        if trig == "details-add-time-habit-mode" and habit_val and "habit" in habit_val:
+            return [], habit_val
+        return inherit_val, habit_val
+
+    # --- Add Node Modal: Live total-hours preview for habit ---
+    @app.callback(
+        Output("details-add-habit-total-preview", "children"),
+        Input("details-add-habit-duration", "value"),
+        Input("details-add-habit-duration-unit", "value"),
+        Input("details-add-habit-intensity-m", "value"),
+        Input("details-add-habit-intensity-unit", "value"),
+    )
+    def update_details_add_habit_preview(duration, dur_unit, intensity_m, int_unit):
+        total = habit_to_hours(duration or 0, dur_unit or 'weeks',
+                               intensity_m or 0, int_unit or 'min_per_day')
+        if total <= 0:
+            return ""
+        return f"Computes to ~{round(total, 1)} h total"
 
     # --- Add Node Modal: Inherit-ratings toggle hides/shows V/I/E sliders ---
     @app.callback(
@@ -1236,6 +1288,14 @@ def register_details_callbacks(app):
         State("details-add-time-unit", "value"),
         State("details-add-time-mode", "value"),
         State("details-add-value-mode", "value"),
+        # Habit-mode states
+        State("details-add-time-habit-mode", "value"),
+        State("details-add-habit-duration", "value"),
+        State("details-add-habit-duration-unit", "value"),
+        State("details-add-habit-intensity-o", "value"),
+        State("details-add-habit-intensity-m", "value"),
+        State("details-add-habit-intensity-p", "value"),
+        State("details-add-habit-intensity-unit", "value"),
         # Relationships
         State("details-add-needs-hard", "value"),
         State("details-add-needs-soft", "value"),
@@ -1257,6 +1317,9 @@ def register_details_callbacks(app):
                       value, interest, difficulty,
                       time_o, time_m, time_p, time_unit, time_mode_val,
                       value_mode_val,
+                      time_habit_mode_val,
+                      habit_duration, habit_duration_unit,
+                      habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
                       needs_hard, needs_soft, supports_hard, supports_soft, helps,
                       obsidian_vals, drive_vals, website_vals,
                       override_toggle, override_mode):
@@ -1288,7 +1351,18 @@ def register_details_callbacks(app):
             drive_path = serialize_links(drive_vals)
             web_path = serialize_links(website_vals)
 
-            t_mode = 'inherited' if (time_mode_val and 'inherited' in time_mode_val) else 'manual'
+            habit_on = bool(time_habit_mode_val and 'habit' in time_habit_mode_val)
+            if habit_on:
+                t_o, t_m, t_p = compute_habit_time_omp(
+                    habit_duration or 0, habit_duration_unit or 'weeks',
+                    habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
+                    habit_int_unit or 'min_per_day',
+                )
+                t_mode = 'habit'
+            elif time_mode_val and 'inherited' in time_mode_val:
+                t_mode = 'inherited'
+            else:
+                t_mode = 'manual'
             v_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
 
             new_node = Node(
@@ -1308,6 +1382,12 @@ def register_details_callbacks(app):
                 website=web_path,
                 time_mode=t_mode,
                 value_mode=v_mode,
+                habit_duration=habit_duration or 0,
+                habit_duration_unit=habit_duration_unit or 'weeks',
+                habit_intensity_o=habit_int_o or 0,
+                habit_intensity_m=habit_int_m or 0,
+                habit_intensity_p=habit_int_p or 0,
+                habit_intensity_unit=habit_int_unit or 'min_per_day',
             )
 
             try:

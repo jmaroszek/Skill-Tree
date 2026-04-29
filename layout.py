@@ -239,11 +239,23 @@ sidebar_content = html.Div(
                         value=[],
                         id="node-time-mode",
                         switch=True,
-                        className="mb-0 flex-grow-1",
+                        className="mb-0",
                     ),
                     dbc.Tooltip(
                         "Treat this node's time as the sum of its children's. Use for containers whose only work is completing the children.",
                         target="node-time-mode", placement="left",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+                    ),
+                    dbc.Checklist(
+                        options=[{"label": "Habit", "value": "habit"}],
+                        value=[],
+                        id="node-time-habit-mode",
+                        switch=True,
+                        className="mb-0 ms-3 flex-grow-1",
+                    ),
+                    dbc.Tooltip(
+                        "Distributed-cadence project (e.g., 30 min/day for 6 weeks). Enter a duration and per-period intensity; total hours are computed and used for scoring.",
+                        target="node-time-habit-mode", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                     ),
                     dbc.Select(id="node-time-unit", options=[
@@ -261,6 +273,43 @@ sidebar_content = html.Div(
                     html.Div(id="time-validation-error", children="",
                              style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
                              className="mt-1"),
+                ]),
+                html.Div(id="section-time-habit", style={"display": "none"}, children=[
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Duration", className="mb-0"),
+                            dbc.Input(id="node-habit-duration", type="number", min=0),
+                        ], width=8),
+                        dbc.Col([
+                            dbc.Label(" ", className="mb-0"),
+                            dbc.Select(id="node-habit-duration-unit", options=[
+                                {"label": "Days", "value": "days"},
+                                {"label": "Weeks", "value": "weeks"},
+                                {"label": "Months", "value": "months"},
+                            ], value="weeks"),
+                        ], width=4),
+                    ], className="mb-2"),
+                    dbc.Label("Intensity", className="mb-0 mt-2"),
+                    dbc.Row([
+                        dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
+                                 dbc.Input(id="node-habit-intensity-o", type="number", min=0)]),
+                        dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
+                                 dbc.Input(id="node-habit-intensity-m", type="number", min=0)]),
+                        dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
+                                 dbc.Input(id="node-habit-intensity-p", type="number", min=0)]),
+                    ]),
+                    dbc.RadioItems(
+                        id="node-habit-intensity-unit",
+                        options=[
+                            {"label": "min/day", "value": "min_per_day"},
+                            {"label": "hr/week", "value": "hr_per_week"},
+                        ],
+                        value="min_per_day",
+                        inline=True,
+                        className="mt-2",
+                    ),
+                    html.Div(id="node-habit-total-preview",
+                             className="mt-2 small text-muted"),
                 ]),
             ]),
             

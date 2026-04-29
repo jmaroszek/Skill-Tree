@@ -174,7 +174,14 @@ def build_events_tab_content():
                     value=[],
                     id="dormant-node-time-mode",
                     switch=True,
-                    className="mb-0 flex-grow-1",
+                    className="mb-0",
+                ),
+                dbc.Checklist(
+                    options=[{"label": "Habit", "value": "habit"}],
+                    value=[],
+                    id="dormant-node-time-habit-mode",
+                    switch=True,
+                    className="mb-0 ms-3 flex-grow-1",
                 ),
                 dbc.Select(id="dormant-node-time-unit", options=[
                     {"label": "Hours", "value": "hours"},
@@ -188,6 +195,44 @@ def build_events_tab_content():
                     dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=_ted.get('expected', 0))]),
                     dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=_ted.get('pessimistic', 0))]),
                 ]),
+            ]),
+            html.Div(id="section-dormant-node-time-habit",
+                     style={"display": "none"}, children=[
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Label("Duration", className="mb-0"),
+                        dbc.Input(id="dormant-node-habit-duration", type="number", min=0, value=0),
+                    ], width=8),
+                    dbc.Col([
+                        dbc.Label(" ", className="mb-0"),
+                        dbc.Select(id="dormant-node-habit-duration-unit", options=[
+                            {"label": "Days", "value": "days"},
+                            {"label": "Weeks", "value": "weeks"},
+                            {"label": "Months", "value": "months"},
+                        ], value="weeks"),
+                    ], width=4),
+                ], className="mb-2"),
+                dbc.Label("Intensity", className="mb-0 mt-2"),
+                dbc.Row([
+                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
+                             dbc.Input(id="dormant-node-habit-intensity-o", type="number", min=0, value=0)]),
+                    dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
+                             dbc.Input(id="dormant-node-habit-intensity-m", type="number", min=0, value=0)]),
+                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
+                             dbc.Input(id="dormant-node-habit-intensity-p", type="number", min=0, value=0)]),
+                ]),
+                dbc.RadioItems(
+                    id="dormant-node-habit-intensity-unit",
+                    options=[
+                        {"label": "min/day", "value": "min_per_day"},
+                        {"label": "hr/week", "value": "hr_per_week"},
+                    ],
+                    value="min_per_day",
+                    inline=True,
+                    className="mt-2",
+                ),
+                html.Div(id="dormant-node-habit-total-preview",
+                         className="mt-2 small text-muted"),
             ]),
 
             html.Hr(className="my-2"),
