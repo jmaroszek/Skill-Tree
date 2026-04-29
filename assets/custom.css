@@ -82,6 +82,38 @@ input[type=number] {
     color: #000 !important;
 }
 
+/* Match dcc.Dropdown styling to Bootstrap's form-select. Dash 3+'s Radix-
+   based dropdown ships with smaller defaults (~33px button, 15px chevron
+   with light fill, 200px menu) that read as visibly different from the
+   surrounding dbc.Input / dbc.Select. These rules pull the trigger up to
+   Bootstrap's height, beef up the chevron, and expand the open menu so
+   ~5 option rows are visible at once. */
+.dash-dropdown {
+    min-height: 38px;
+}
+.dash-dropdown-trigger-icon {
+    /* Bootstrap renders its form-select chevron at 16x12 via
+       background-image. Match those dimensions so the trigger reads
+       identically to the surrounding dbc.Select fields. */
+    width: 16px !important;
+    height: 12px !important;
+}
+.dash-dropdown-trigger-icon path {
+    /* Override Radix's filled curved-chevron path with Bootstrap's
+       simple stroked V (m2 5 6 6 6-6) inside the existing 0 0 15 15
+       viewBox. The CSS `d` property is supported in modern Chromium
+       which is what this app targets. */
+    d: path("M2 5l6 6 6-6") !important;
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 2 !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
+}
+.dash-dropdown-content {
+    max-height: 320px !important;
+}
+
 /* Hide scrollbar in goals list while keeping scrollable */
 #goals-list-container {
     -ms-overflow-style: none;
