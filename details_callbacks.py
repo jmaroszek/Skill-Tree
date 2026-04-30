@@ -1576,7 +1576,7 @@ def register_details_callbacks(app):
         if is_filters_active(node_type=f_type, context=f_ctx, subcontext=f_sub,
                              value=f_val, interest=f_int, difficulty=f_diff,
                              time=f_time, done=f_done):
-            return f"{text} (filters applied)"
+            return f"{text} (filtered)"
         return text
 
     # --- Details Graph Settings: Apply Layout Parameters ---

@@ -2157,7 +2157,7 @@ def register_callbacks(app):
                              community_method=f_comm_method, value=f_val,
                              interest=f_int, difficulty=f_diff, time=f_time,
                              done=f_done):
-            return f"{text} (filters applied)"
+            return f"{text} (filtered)"
         return text
 
     @app.callback(
