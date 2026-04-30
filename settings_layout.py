@@ -191,7 +191,7 @@ def build_settings_tab_content():
                             inline=True,
                         ),
                         html.Small(
-                            "None keeps the order defined above; Length sorts shortest first; Alphabetical sorts A–Z.",
+                            "None keeps the order defined above. Length sorts shortest first. Alphabetical sorts A–Z.",
                             className="text-muted d-block mb-1"),
 
                         # --- Priority weights ---
