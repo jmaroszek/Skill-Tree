@@ -430,7 +430,71 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     #  LOWER SECTION: Subtasks table + Simulation                         #
     # ------------------------------------------------------------------ #
+    # Filter toggles are shared between the Milestones strip (above) and
+    # the Subtasks table (below). They live in the top-right of WHICHEVER
+    # header is currently topmost, so the user always sees them in the
+    # same screen position regardless of whether milestones are present:
+    # rendered as TWO physical copies (-top alongside Milestones header,
+    # canonical no-suffix alongside Subtasks header), kept in sync by five
+    # sync callbacks in details_callbacks.py. Existing scoring/filter
+    # callbacks listen only to the canonical (no-suffix) IDs.
+    def _build_toggles(suffix=""):
+        """Return a flex row of the five filter checklists, with optional
+        id suffix so two copies (one with -top, one canonical) can co-exist."""
+        return html.Div([
+            dbc.Checklist(
+                id=f"details-include-soft-needs{suffix}",
+                options=[{"label": "Soft Needs", "value": "include"}],
+                value=["include"],
+                switch=True,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Checklist(
+                id=f"details-include-transitive{suffix}",
+                options=[{"label": "Transitive", "value": "include"}],
+                value=["include"],
+                switch=True,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Checklist(
+                id=f"details-include-synergies{suffix}",
+                options=[{"label": "Synergies", "value": "include"}],
+                value=["include"],
+                switch=True,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Checklist(
+                id=f"details-hide-done{suffix}",
+                options=[{"label": "Hide Done", "value": "hide_done"}],
+                value=["hide_done"],
+                switch=True,
+                style={"fontSize": "0.82rem"},
+            ),
+            dbc.Checklist(
+                id=f"details-hide-blocked{suffix}",
+                options=[{"label": "Hide Blocked", "value": "hide_blocked"}],
+                value=[],
+                switch=True,
+                style={"fontSize": "0.82rem", "marginRight": "12px"},
+            ),
+        ], className="d-flex gap-3")
+
     subtasks_section = html.Div([
+        # Milestones roster: same-rank H5 header as Subtasks below, single-row
+        # horizontal strip of tiles. Section (header + top toggles + strip)
+        # hidden together when no Milestone survives filtering.
+        html.Div(id="details-milestones-section", style={"display": "none"}, children=[
+            html.Div([
+                html.H5("Milestones", className="mb-0"),
+                _build_toggles(suffix="-top"),
+            ], className="d-flex align-items-center justify-content-between mb-3"),
+            html.Div(id="details-milestones-tiles",
+                     className="d-flex flex-nowrap gap-2 mb-4 milestone-tiles-scroll"),
+        ]),
+        # Subtasks header — same row as the canonical filter toggles. The
+        # toggle wrapper has its own id so its visibility can be flipped
+        # opposite to the milestones-section: hidden when milestones show
+        # (toggles live up there instead), visible otherwise.
         html.Div([
             html.Div([
                 html.H5("Subtasks", className="mb-0"),
@@ -440,56 +504,8 @@ def build_details_tab_content():
                 dbc.Tooltip("Add subtask node", target="btn-details-add-node", placement="right",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="d-flex align-items-center"),
-            html.Div([
-                dbc.Checklist(
-                    id="details-include-soft-needs",
-                    options=[{"label": "Soft Needs", "value": "include"}],
-                    value=["include"],
-                    switch=True,
-                    style={"fontSize": "0.82rem"},
-                ),
-                dbc.Checklist(
-                    id="details-include-transitive",
-                    options=[{"label": "Transitive", "value": "include"}],
-                    value=["include"],
-                    switch=True,
-                    style={"fontSize": "0.82rem"},
-                ),
-                dbc.Checklist(
-                    id="details-include-synergies",
-                    options=[{"label": "Synergies", "value": "include"}],
-                    value=["include"],
-                    switch=True,
-                    style={"fontSize": "0.82rem"},
-                ),
-                dbc.Checklist(
-                    id="details-hide-done",
-                    options=[{"label": "Hide Done", "value": "hide_done"}],
-                    value=["hide_done"],
-                    switch=True,
-                    style={"fontSize": "0.82rem"},
-                ),
-                dbc.Checklist(
-                    id="details-hide-blocked",
-                    options=[{"label": "Hide Blocked", "value": "hide_blocked"}],
-                    value=[],
-                    switch=True,
-                    style={"fontSize": "0.82rem", "marginRight": "12px"},
-                ),
-            ], className="d-flex gap-3"),
+            html.Div(_build_toggles(), id="details-subtask-toggles-bottom"),
         ], className="d-flex align-items-center justify-content-between mb-2"),
-        # Milestones roster: horizontal strip of tiles for direct Hard-child
-        # Milestones of the selected node. Hidden when the selection has no
-        # Milestone children. Filter-aware — same global filters and hide-blocked
-        # the Subtasks table uses, so the Details tab stays in lockstep.
-        html.Div(id="details-milestones-section", style={"display": "none"}, children=[
-            html.Div([
-                html.Span("Milestones ", className="text-muted small"),
-                html.Span(id="details-milestones-count", className="text-muted small"),
-            ], className="mb-1"),
-            html.Div(id="details-milestones-tiles",
-                     className="d-flex flex-wrap gap-2 mb-3"),
-        ]),
         html.Div(id="details-subtasks-table-container",
                  style={"overflowY": "visible", "flex": "none"}),
     ], id="details-subtasks-section",
@@ -1399,16 +1415,11 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
        className="text-light", style={"fontSize": "0.82rem"})
 
 
-# Milestone color is the canonical default; the user could remap via the
-# Settings UI but the diamond glyph in the tile reads best in this hue.
-_MILESTONE_GLYPH_COLOR = "#17a2b8"
-
-
 def build_milestone_tile(milestone_node, completion: dict):
     """Compact tile for the Details-tab Milestones roster.
 
-    Layout (~280px wide, flex-wrap to multiple rows when many):
-      ◆ Name                   [Status]
+    Layout (~280px wide, single horizontal scroll row in the strip):
+      Name                     [Status]
       ▰▰▰▰▰▱▱▱▱▱  47% · 18.2h
 
     Leaf Milestones (no Hard children, total == 0) skip the progress bar
@@ -1422,13 +1433,8 @@ def build_milestone_tile(milestone_node, completion: dict):
     pct = (completion or {}).get('pct', 0)
     remaining = (completion or {}).get('remaining_time', 0)
 
-    # Header row: glyph + name (truncated) + status pill.
+    # Header row: name (truncated) + status pill.
     header = html.Div([
-        html.Span(
-            "◆ ",
-            style={"color": _MILESTONE_GLYPH_COLOR, "fontWeight": "bold",
-                   "marginRight": "2px"},
-        ),
         html.Span(
             milestone_node.name,
             style={
@@ -1463,7 +1469,7 @@ def build_milestone_tile(milestone_node, completion: dict):
                     "transition": "width 0.3s ease"
                 }),
                 style={"backgroundColor": "#495057", "borderRadius": "3px",
-                       "marginTop": "6px", "marginBottom": "4px",
+                       "marginTop": "10px", "marginBottom": "5px",
                        "overflow": "hidden"},
             ),
             html.Div(
@@ -1474,16 +1480,18 @@ def build_milestone_tile(milestone_node, completion: dict):
         ]
 
     # Whole tile is clickable — pattern-matched id picked up by
-    # navigate_to_milestone_tile in details_callbacks.
+    # navigate_to_milestone_tile in details_callbacks. Subtle gray border
+    # matches the app's separator color; the colored canvas shape is the
+    # primary visual cue for "milestone" elsewhere.
     return html.Div(
         children,
         id={"type": "details-milestone-tile", "index": milestone_node.name},
         n_clicks=0,
         style={
             "flex": "0 0 280px",
-            "padding": "8px 10px",
+            "padding": "10px 12px",
             "backgroundColor": "#2b3035",
-            "border": f"1px solid {_MILESTONE_GLYPH_COLOR}",
+            "border": "1px solid #495057",
             "borderRadius": "6px",
             "cursor": "pointer",
             "minWidth": "0",

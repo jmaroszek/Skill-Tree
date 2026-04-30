@@ -19,6 +19,40 @@ input[type=number] {
     display: none;  /* Safari and Chrome */
 }
 
+/* Milestones roster (Details tab): single-row horizontal scroll with a
+   subtle gray scrollbar — opts back in to a visible scrollbar against the
+   global hide above so users can tell when there are more tiles than fit.
+   Width/height kept minimal so the bar is unobtrusive when not hovered. */
+.milestone-tiles-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    /* max-width:100% + min-width:0 force the container to respect its
+       parent's width instead of expanding to fit all 280px tiles, which
+       is what actually triggers overflow-x:auto. Without these, the flex
+       row grows past the parent and is clipped silently by an ancestor's
+       overflow rather than producing a scrollbar here. */
+    max-width: 100%;
+    min-width: 0;
+    /* Gap between the bottom of the tiles and the scrollbar. */
+    padding-bottom: 10px;
+    scrollbar-width: thin;             /* Firefox */
+    scrollbar-color: #495057 transparent;  /* thumb / track — Firefox */
+}
+.milestone-tiles-scroll::-webkit-scrollbar {
+    display: block;                    /* override the global hide */
+    height: 6px;
+}
+.milestone-tiles-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.milestone-tiles-scroll::-webkit-scrollbar-thumb {
+    background: #495057;
+    border-radius: 3px;
+}
+.milestone-tiles-scroll::-webkit-scrollbar-thumb:hover {
+    background: #6c757d;
+}
+
 /* Resize handle between canvas and bottom panel */
 #resize-handle {
     height: 6px;

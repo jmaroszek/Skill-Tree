@@ -21,7 +21,7 @@ from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               is_filters_active,
                               build_explain_summary, build_explain_chart,
                               habit_to_hours, compute_habit_time_omp,
-                              resolve_time_mode)
+                              resolve_time_mode, get_trigger_id)
 from scoring import explain_score, shortest_paths_focus_data
 
 graph_manager = GraphManager()
@@ -55,24 +55,45 @@ def _apply_max_depth(subtree, selected_node, max_depth, edge_types):
     return subtree & visited
 
 
-def _build_milestones_section(subtask_nodes):
-    """Compute the (style, count_text, tiles) tuple for the milestones strip.
+def _build_milestones_section(subtask_nodes, parent_name, edges, include_transitive):
+    """Compute the (section_style, bottom_toggles_style, tiles) tuple for
+    the milestones strip and the canonical bottom toggle wrapper.
 
-    Takes the same already-filtered ``subtask_nodes`` list the Subtasks table
-    is built from — picks out the Milestones, sorts by name, and renders one
-    tile each. By piggy-backing on the caller's subtree + filter pipeline
-    (Soft Needs, Transitive, Synergies, max-depth, hide_done, hide_blocked,
-    context, ratings, node-types), the strip stays perfectly in lockstep
-    with the table: turning Transitive on surfaces deeper Milestones in the
-    chain (e.g. `Run 5K → sub-25 → sub-22`); Hide Done drops completed ones;
-    deselecting Milestone in the type filter empties the strip.
+    Mirrors the Subtasks table exactly: takes the same filtered subtree,
+    applies the same direct-children narrowing when Transitive is OFF
+    (matching the post-filter logic at the top of
+    ``build_details_subtasks_table``), then picks out Milestones and renders
+    them as tiles.
 
-    Returns (display:none, "", []) when no Milestone survives filtering.
+    The bottom toggle wrapper visibility is the *inverse* of the milestones
+    section visibility: when milestones are shown, the toggles live up next
+    to the Milestones header (their -top counterparts), so the canonical
+    bottom set is hidden to avoid duplication. Otherwise the canonical set
+    sits with the Subtasks header as before.
+
+    Returns (section: display:none, bottom_toggles: visible, tiles: []) when
+    no Milestone survives filtering.
     """
+    # Direct-children narrowing (same shape as build_details_subtasks_table).
+    if not include_transitive and parent_name:
+        direct_children = set()
+        for e in edges or []:
+            if e['target'] == parent_name:
+                direct_children.add(e['source'])
+            elif e['source'] == parent_name:
+                direct_children.add(e['target'])
+        subtask_nodes = [n for n in subtask_nodes if n.name in direct_children]
+
     milestones = [n for n in subtask_nodes if n.type == "Milestone"]
-    milestones.sort(key=lambda n: n.name)
+    # Sort Open first, Blocked next, Done last — within each group alphabetical.
+    # Mirrors the existing subtasks-table convention (Done at the bottom) but
+    # additionally promotes Open above Blocked since Open milestones are the
+    # ones the user can act on right now.
+    _STATUS_ORDER = {STATUS_OPEN: 0, STATUS_BLOCKED: 1, STATUS_DONE: 2}
+    milestones.sort(key=lambda n: (_STATUS_ORDER.get(n.status, 99), n.name))
     if not milestones:
-        return {"display": "none"}, "", []
+        # Milestones hidden → canonical bottom toggles visible (default).
+        return {"display": "none"}, {}, []
     tiles = [
         build_milestone_tile(
             ms,
@@ -80,7 +101,8 @@ def _build_milestones_section(subtask_nodes):
         )
         for ms in milestones
     ]
-    return {"display": "block"}, f"({len(milestones)})", tiles
+    # Milestones shown → bottom toggles hidden (top toggles take over).
+    return {"display": "block"}, {"display": "none"}, tiles
 
 
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
@@ -295,9 +317,10 @@ def register_details_callbacks(app):
         Output("details-priority-badge", "children"),
         # Subtasks
         Output("details-subtasks-table-container", "children"),
-        # Milestones roster (above the subtasks table, filter-aware)
+        # Milestones roster (above the subtasks table, filter-aware) +
+        # canonical bottom toggle visibility (hidden when milestones show).
         Output("details-milestones-section", "style"),
-        Output("details-milestones-count", "children"),
+        Output("details-subtask-toggles-bottom", "style"),
         Output("details-milestones-tiles", "children"),
         # Inputs
         Input("details-node-select", "value"),
@@ -335,7 +358,7 @@ def register_details_callbacks(app):
                 {"display": "none"}, "",
                 html.Div("Select a node to see subtasks.",
                          className="text-muted text-center py-3"),
-                {"display": "none"}, "", [],
+                {"display": "none"}, {}, [],
             )
 
         node = graph_manager.get_node(node_name)
@@ -410,8 +433,29 @@ def register_details_callbacks(app):
                 progress_val = completion["pct"]
                 remaining = ConfigManager.format_time_friendly(
                     completion["remaining_time"])
-                progress_text = (f"{completion['done']}/{completion['total']} "
-                                f"hard subtasks · {remaining} remaining")
+                # Milestone count: walk the same hard-subtree the completion
+                # walked, count Milestones in it. Filter-independent (matches
+                # the existing "X/Y hard subtasks" stat which is also total).
+                hard_subtree = graph_manager.get_goal_subtree(
+                    node_name, edge_types=(EDGE_NEEDS_HARD,))
+                ms_total = 0
+                ms_done = 0
+                for child_name in hard_subtree:
+                    child = graph_manager.get_node(child_name)
+                    if child is not None and child.type == "Milestone":
+                        ms_total += 1
+                        if child.status == STATUS_DONE:
+                            ms_done += 1
+                ms_label = "milestone" if ms_total == 1 else "milestones"
+                parts = []
+                if ms_total > 0:
+                    parts.append(f"{ms_done}/{ms_total} {ms_label}")
+                parts.append(f"{completion['done']}/{completion['total']} hard subtasks")
+                parts.append(f"{remaining} remaining")
+                #   (nbsp) sits next to the regular space so it doesn't
+                # collapse — gives a visibly wider gap on each side of the
+                # middle dot than a plain " · " would.
+                progress_text = "  ·  ".join(parts)
 
         show_priority = {"display": "none"}
         priority_badge = ""
@@ -443,17 +487,20 @@ def register_details_callbacks(app):
         subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
         edges = graph_manager.get_edges()
 
+        # Milestones get their own dedicated strip above the table, so the
+        # table itself excludes them — avoids redundant rendering.
+        non_milestone_subtasks = [n for n in subtask_nodes if n.type != "Milestone"]
         subtasks_table = build_details_subtasks_table(
-            subtask_nodes, graph_manager=graph_manager, edges=edges,
+            non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
             parent_name=node_name, include_soft=include_soft,
             include_transitive=include_transitive,
             include_synergies=include_synergies)
 
         # Milestones roster — derived from the same filtered subtask_nodes the
-        # Subtasks table uses, so the strip stays in lockstep with the table:
-        # Transitive surfaces deeper Milestones in a chain, Hide Done/Blocked
-        # drop them, etc.
-        ms_section_style, ms_count, ms_tiles = _build_milestones_section(subtask_nodes)
+        # Subtasks table uses, with the same Transitive narrowing, so the strip
+        # stays in lockstep with the table.
+        ms_section_style, bottom_toggles_style, ms_tiles = _build_milestones_section(
+            subtask_nodes, node_name, edges, include_transitive)
 
         return (
             {"display": "none"},
@@ -473,14 +520,14 @@ def register_details_callbacks(app):
             show_progress, progress_val, progress_text,
             show_priority, priority_badge,
             subtasks_table,
-            ms_section_style, ms_count, ms_tiles,
+            ms_section_style, bottom_toggles_style, ms_tiles,
         )
 
     # --- Toggle subtask filters ---
     @app.callback(
         Output("details-subtasks-table-container", "children", allow_duplicate=True),
         Output("details-milestones-section", "style", allow_duplicate=True),
-        Output("details-milestones-count", "children", allow_duplicate=True),
+        Output("details-subtask-toggles-bottom", "style", allow_duplicate=True),
         Output("details-milestones-tiles", "children", allow_duplicate=True),
         Input("details-include-soft-needs", "value"),
         Input("details-include-transitive", "value"),
@@ -535,18 +582,20 @@ def register_details_callbacks(app):
         subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
         edges = graph_manager.get_edges()
 
+        # Milestones get their own dedicated strip — exclude them from the table.
+        non_milestone_subtasks = [n for n in subtask_nodes if n.type != "Milestone"]
         subtasks_table = build_details_subtasks_table(
-            subtask_nodes, graph_manager=graph_manager, edges=edges,
+            non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
             parent_name=selected_node, include_soft=include_soft,
             include_transitive=include_transitive,
             include_synergies=include_synergies)
 
-        # Milestones roster shares the same filtered subtree the table uses
-        # so both surfaces narrow together — Transitive ON includes deeper
-        # milestones in chains; Hide Done/Blocked drop them; etc.
-        ms_section_style, ms_count, ms_tiles = _build_milestones_section(subtask_nodes)
+        # Milestones roster shares the same filtered subtree + Transitive
+        # narrowing the table uses, so both surfaces stay in lockstep.
+        ms_section_style, bottom_toggles_style, ms_tiles = _build_milestones_section(
+            subtask_nodes, selected_node, edges, include_transitive)
 
-        return subtasks_table, ms_section_style, ms_count, ms_tiles
+        return subtasks_table, ms_section_style, bottom_toggles_style, ms_tiles
 
     # --- Sync "Hide Done" toggle with sidebar filter ---
     @app.callback(
@@ -562,6 +611,46 @@ def register_details_callbacks(app):
         if ctx.triggered_id == "details-hide-done":
             return no_update, details_val
         return filter_val, no_update
+
+    # --- Sync Milestones-row toggles with the canonical Subtasks-row toggles ---
+    # The five filter switches render twice (top: with the Milestones header;
+    # bottom: with the Subtasks header). Only one set is visible at a time;
+    # the user's interaction with whichever set is showing must propagate to
+    # the other so the canonical (no-suffix) IDs always reflect the current
+    # value — every existing scoring/filter callback listens to those.
+    #
+    # Each pair gets its own two-way sync callback that no_updates when the
+    # other side already matches, keeping the dispatch from looping.
+    def _register_toggle_sync(canonical_id):
+        top_id = f"{canonical_id}-top"
+
+        @app.callback(
+            Output(canonical_id, "value", allow_duplicate=True),
+            Output(top_id, "value", allow_duplicate=True),
+            Input(canonical_id, "value"),
+            Input(top_id, "value"),
+            prevent_initial_call=True,
+        )
+        def _sync(canonical_val, top_val):
+            trig = get_trigger_id()
+            canonical_val = canonical_val or []
+            top_val = top_val or []
+            if list(canonical_val) == list(top_val):
+                return no_update, no_update
+            if trig == canonical_id:
+                return no_update, canonical_val
+            return top_val, no_update
+        # Give Dash a unique function name per registration so logs/errors
+        # are easier to attribute to the right toggle pair.
+        _sync.__name__ = f"sync_toggle_{canonical_id.replace('-', '_')}"
+        return _sync
+
+    for _toggle_id in ("details-include-soft-needs",
+                       "details-include-transitive",
+                       "details-include-synergies",
+                       "details-hide-done",
+                       "details-hide-blocked"):
+        _register_toggle_sync(_toggle_id)
 
     # --- Dependency Graph ---
     # Outputs to details-elements-pending-store; a clientside callback in

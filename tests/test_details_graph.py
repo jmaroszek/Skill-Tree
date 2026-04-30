@@ -225,81 +225,104 @@ from details_layout import build_milestone_tile
 
 
 class TestBuildMilestonesSection:
-    """The (style, count, tiles) tuple — picks Milestones out of the already-
-    filtered subtree the caller built, so transitive milestones surface when
-    Transitive is on, Hide Done drops Done ones, etc."""
+    """The (section_style, bottom_toggles_style, tiles) tuple — picks
+    Milestones out of the already-filtered subtree the caller built, and
+    flips the canonical bottom-toggle wrapper visibility opposite to the
+    milestones section so the toggles always sit with the topmost header."""
 
     def test_hidden_when_no_milestones(self, mgr):
-        # subtask list contains no Milestones → strip hidden.
+        # subtask list contains no Milestones → strip hidden, bottom toggles
+        # take over (visible).
         mgr.add_node(_make_node("L1", type="Learn"))
         mgr.add_node(_make_node("L2", type="Learn"))
-        style, count, tiles = _build_milestones_section(
-            [mgr.get_node("L1"), mgr.get_node("L2")])
-        assert style == {"display": "none"}
-        assert count == ""
+        section_style, bottom_style, tiles = _build_milestones_section(
+            [mgr.get_node("L1"), mgr.get_node("L2")],
+            parent_name="L1", edges=[], include_transitive=True)
+        assert section_style == {"display": "none"}
+        assert bottom_style == {}  # default = visible
         assert tiles == []
 
     def test_hidden_for_empty_subtree(self, mgr):
-        style, count, tiles = _build_milestones_section([])
-        assert style == {"display": "none"}
-        assert count == ""
+        section_style, bottom_style, tiles = _build_milestones_section(
+            [], parent_name=None, edges=[], include_transitive=True)
+        assert section_style == {"display": "none"}
+        assert bottom_style == {}
         assert tiles == []
 
-    def test_visible_with_count_and_tiles(self, mgr):
+    def test_visible_with_tiles(self, mgr):
+        # Milestones present → section visible AND bottom toggles hidden
+        # (top toggles inside the milestones header take over).
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
         mgr.add_node(_make_node("M1", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("M2", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("L", type="Learn"))
-        style, count, tiles = _build_milestones_section(
-            [mgr.get_node("M1"), mgr.get_node("M2"), mgr.get_node("L")])
-        assert style == {"display": "block"}
-        assert count == "(2)"
+        for src in ("M1", "M2", "L"):
+            mgr.add_edge(src, "Goal", EDGE_NEEDS_HARD)
+        section_style, bottom_style, tiles = _build_milestones_section(
+            [mgr.get_node("M1"), mgr.get_node("M2"), mgr.get_node("L")],
+            parent_name="Goal", edges=mgr.get_edges(), include_transitive=True)
+        assert section_style == {"display": "block"}
+        assert bottom_style == {"display": "none"}
         assert len(tiles) == 2
 
     def test_picks_only_milestone_type(self, mgr):
-        # Goals, Actions, Learns, Resources are all skipped.
         mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
         mgr.add_node(_make_node("L", type="Learn"))
         mgr.add_node(_make_node("A", type="Action"))
         mgr.add_node(_make_node("R", type="Resource"))
         subtask_nodes = [mgr.get_node(n) for n in ("M", "G", "L", "A", "R")]
-        style, count, tiles = _build_milestones_section(subtask_nodes)
-        assert count == "(1)"
+        _section_style, _bottom_style, tiles = _build_milestones_section(
+            subtask_nodes, parent_name=None, edges=[], include_transitive=True)
         assert len(tiles) == 1
 
-    def test_includes_transitive_milestones(self, mgr):
-        # The caller's filtered subtree (with Transitive on) includes
-        # grandchild milestones — they should appear in the strip too.
+    def test_includes_transitive_milestones_when_transitive_on(self, mgr):
         mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
         mgr.add_node(_make_node("Direct", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("Grand", type="Milestone", time_mode='inherited'))
         mgr.add_edge("Direct", "Goal", EDGE_NEEDS_HARD)
         mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
-        # Simulate the caller's subtree (transitive ON includes both).
         subtask_nodes = [mgr.get_node("Direct"), mgr.get_node("Grand")]
-        style, count, tiles = _build_milestones_section(subtask_nodes)
-        assert count == "(2)"
+        _section_style, _bottom_style, tiles = _build_milestones_section(
+            subtask_nodes, parent_name="Goal", edges=mgr.get_edges(),
+            include_transitive=True)
         assert len(tiles) == 2
 
-    def test_excludes_done_milestone_when_filtered_out(self, mgr):
-        # Caller has already applied Hide Done — the filtered subtask list
-        # passed in doesn't include the Done milestone, so neither does the
-        # strip. (The strip does no filtering of its own.)
-        mgr.add_node(_make_node("OpenMS", type="Milestone", time_mode='inherited'))
-        # Caller would pass only OpenMS (DoneMS pre-filtered out)
-        style, count, tiles = _build_milestones_section([mgr.get_node("OpenMS")])
-        assert count == "(1)"
+    def test_excludes_transitive_milestones_when_transitive_off(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("Direct", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Grand", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("Direct", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
+        subtask_nodes = [mgr.get_node("Direct"), mgr.get_node("Grand")]
+        _section_style, _bottom_style, tiles = _build_milestones_section(
+            subtask_nodes, parent_name="Goal", edges=mgr.get_edges(),
+            include_transitive=False)
+        assert len(tiles) == 1
+        assert tiles[0].id["index"] == "Direct"
 
-    def test_sorts_alphabetically(self, mgr):
-        # Stable display order for the user — alphabetical.
-        mgr.add_node(_make_node("Charlie", type="Milestone", time_mode='inherited'))
-        mgr.add_node(_make_node("Alpha", type="Milestone", time_mode='inherited'))
-        mgr.add_node(_make_node("Bravo", type="Milestone", time_mode='inherited'))
-        subtask_nodes = [mgr.get_node(n) for n in ("Charlie", "Alpha", "Bravo")]
-        style, count, tiles = _build_milestones_section(subtask_nodes)
-        # Tiles are html.Div objects — inspect their pattern-matched ids
-        ordered_names = [t.id["index"] for t in tiles]
-        assert ordered_names == ["Alpha", "Bravo", "Charlie"]
+    def test_excludes_done_milestone_when_filtered_out(self, mgr):
+        mgr.add_node(_make_node("OpenMS", type="Milestone", time_mode='inherited'))
+        _section_style, _bottom_style, tiles = _build_milestones_section(
+            [mgr.get_node("OpenMS")],
+            parent_name=None, edges=[], include_transitive=True)
+        assert len(tiles) == 1
+
+    def test_sorts_open_before_blocked_before_done(self, mgr):
+        mgr.add_node(_make_node("DoneA", type="Milestone",
+                                time_mode='inherited', status="Done"))
+        mgr.add_node(_make_node("OpenB", type="Milestone",
+                                time_mode='inherited', status="Open"))
+        mgr.add_node(_make_node("BlockedA", type="Milestone",
+                                time_mode='inherited', status="Blocked"))
+        mgr.add_node(_make_node("OpenA", type="Milestone",
+                                time_mode='inherited', status="Open"))
+        subtask_nodes = [mgr.get_node(n)
+                         for n in ("DoneA", "OpenB", "BlockedA", "OpenA")]
+        _section_style, _bottom_style, tiles = _build_milestones_section(
+            subtask_nodes, parent_name=None, edges=[], include_transitive=True)
+        ordered = [t.id["index"] for t in tiles]
+        assert ordered == ["OpenA", "OpenB", "BlockedA", "DoneA"]
 
 
 class TestBuildMilestoneTile:
