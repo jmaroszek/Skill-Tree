@@ -16,7 +16,7 @@ import dash_bootstrap_components as dbc
 
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import (ConfigManager, badge_style)
+from config import (ConfigManager, badge_style, sort_subcontexts)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
@@ -2197,7 +2197,7 @@ def register_callbacks(app):
         base = [{"label": "None", "value": ""}]
         if not ctx:
             return base
-        subs = ConfigManager.get_subcontexts().get(ctx, [])
+        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(ctx, []))
         return base + [{"label": s, "value": s} for s in subs]
 
     @app.callback(
@@ -2213,7 +2213,7 @@ def register_callbacks(app):
         multi_context = len(contexts) > 1
         opts = []
         for c in contexts:
-            for s in all_subs.get(c, []):
+            for s in sort_subcontexts(all_subs.get(c, [])):
                 label = f"{c} > {s}" if multi_context else s
                 opts.append({"label": label, "value": f"{c}::{s}"})
         return opts, []

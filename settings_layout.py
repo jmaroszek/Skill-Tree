@@ -8,6 +8,9 @@ from config import (
     ConfigManager,
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
+    SUBCONTEXT_SORT_DEFINITION,
+    SUBCONTEXT_SORT_LENGTH,
+    SUBCONTEXT_SORT_ALPHABETICAL,
 )
 
 _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
@@ -174,6 +177,19 @@ def build_settings_tab_content():
                         html.H5("Definitions", className="mt-2 mb-1"),
                         html.Small("One context per line. Optionally add a colon and comma-separated subcontexts. Context names are ignored when checking for duplicate nodes.", className="text-muted d-block mb-1"),
                         dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
+
+                        # --- Subcontext dropdown sort order ---
+                        dbc.Label("Subcontext Dropdown Order", className="mt-2"),
+                        dbc.RadioItems(
+                            id="setting-subcontext-sort-mode",
+                            options=[
+                                {"label": "None", "value": SUBCONTEXT_SORT_DEFINITION},
+                                {"label": "Length", "value": SUBCONTEXT_SORT_LENGTH},
+                                {"label": "Alphabetical", "value": SUBCONTEXT_SORT_ALPHABETICAL},
+                            ],
+                            value=SUBCONTEXT_SORT_DEFINITION,
+                            inline=True,
+                        ),
 
                         # --- Priority weights ---
                         html.Hr(className="my-3"),

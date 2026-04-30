@@ -7,7 +7,7 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
 from graph_manager import GraphManager
-from config import ConfigManager
+from config import ConfigManager, sort_subcontexts
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
 from callback_helpers import (render_link_rows, serialize_links, spawn_local_file_picker,
@@ -635,7 +635,7 @@ def register_event_callbacks(app):
         base = [{"label": "None", "value": ""}]
         if not context:
             return base
-        subs = ConfigManager.get_subcontexts().get(context, [])
+        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(context, []))
         return base + [{"label": s, "value": s} for s in subs]
 
     # --- Dormant Node Modal: Subcontext Toggle ---
@@ -1135,7 +1135,7 @@ def register_event_callbacks(app):
         ctx_opts = [{"label": c, "value": c} for c in contexts]
         subctx_opts = [{"label": "None", "value": ""}]
         if node.context:
-            subs = ConfigManager.get_subcontexts().get(node.context, [])
+            subs = sort_subcontexts(ConfigManager.get_subcontexts().get(node.context, []))
             subctx_opts += [{"label": s, "value": s} for s in subs]
 
         # Time fields: convert stored hours back to friendly unit.

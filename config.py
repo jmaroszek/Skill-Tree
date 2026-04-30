@@ -53,6 +53,36 @@ DEFAULT_SUBCONTEXTS = {
     "Money":      ["Business", "Economics", "Personal Finance"],
 }
 
+# Sort modes for subcontext dropdown menus. 'definition' preserves the
+# user-defined order from the Contexts settings textbox; the other modes
+# re-order alphabetically or by length.
+SUBCONTEXT_SORT_DEFINITION = 'definition'
+SUBCONTEXT_SORT_LENGTH = 'length'
+SUBCONTEXT_SORT_ALPHABETICAL = 'alphabetical'
+SUBCONTEXT_SORT_MODES = (
+    SUBCONTEXT_SORT_DEFINITION,
+    SUBCONTEXT_SORT_LENGTH,
+    SUBCONTEXT_SORT_ALPHABETICAL,
+)
+DEFAULT_SUBCONTEXT_SORT_MODE = SUBCONTEXT_SORT_DEFINITION
+
+
+def sort_subcontexts(subs, mode=None):
+    """Return a list of subcontexts sorted by the user's configured mode.
+
+    `'definition'` preserves the input order. `'length'` is stable so equal
+    lengths keep their definition order. `None` falls back to the live
+    ConfigManager value.
+    """
+    if mode is None:
+        mode = ConfigManager.get_subcontext_sort_mode()
+    items = list(subs)
+    if mode == SUBCONTEXT_SORT_LENGTH:
+        return sorted(items, key=len)
+    if mode == SUBCONTEXT_SORT_ALPHABETICAL:
+        return sorted(items, key=lambda s: s.lower())
+    return items
+
 DEFAULT_DANGER_COLOR = '#c94c4c' # subtle red
 
 DEFAULT_NODE_COLORS = {
@@ -343,6 +373,19 @@ class ConfigManager:
     @classmethod
     def set_subcontexts(cls, subcontexts: dict):
         cls._set_db_value("SUBCONTEXTS", json.dumps(subcontexts))
+
+    @classmethod
+    def get_subcontext_sort_mode(cls) -> str:
+        val = cls._get_db_value("SUBCONTEXT_SORT_MODE")
+        if val in SUBCONTEXT_SORT_MODES:
+            return val
+        return DEFAULT_SUBCONTEXT_SORT_MODE
+
+    @classmethod
+    def set_subcontext_sort_mode(cls, mode: str):
+        if mode not in SUBCONTEXT_SORT_MODES:
+            mode = DEFAULT_SUBCONTEXT_SORT_MODE
+        cls._set_db_value("SUBCONTEXT_SORT_MODE", mode)
 
     @classmethod
     def get_node_colors(cls):

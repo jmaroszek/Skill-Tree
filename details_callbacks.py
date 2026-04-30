@@ -10,7 +10,7 @@ import numpy as np
 import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import (ConfigManager, badge_style)
+from config import (ConfigManager, badge_style, sort_subcontexts)
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table, build_goal_card,
                              _build_suggestion_row, build_details_suggestions)
@@ -1060,7 +1060,7 @@ def register_details_callbacks(app):
         base = [{"label": "None", "value": ""}]
         if not context:
             return base
-        subs = ConfigManager.get_subcontexts().get(context, [])
+        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(context, []))
         return base + [{"label": s, "value": s} for s in subs]
 
     # --- Add Node Modal: Subcontext Toggle ---

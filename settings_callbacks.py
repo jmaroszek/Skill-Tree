@@ -7,7 +7,7 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
-from config import ConfigManager
+from config import ConfigManager, sort_subcontexts
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import get_trigger_id, build_context_weight_rows
@@ -110,12 +110,13 @@ def register_settings_callbacks(app):
         Output('setting-analyze-deepest', 'value'),
         Output('setting-analyze-connected', 'value'),
         Output('setting-show-scoring-perf', 'value'),
+        Output('setting-subcontext-sort-mode', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 44
+            return (dash.no_update,) * 45
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -258,6 +259,7 @@ def register_settings_callbacks(app):
             al.get('deepest', DEFAULT_ANALYZE_LIMITS['deepest']),
             al.get('connected', DEFAULT_ANALYZE_LIMITS['connected']),
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
+            ConfigManager.get_subcontext_sort_mode(),
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -355,6 +357,7 @@ def register_settings_callbacks(app):
         State('setting-analyze-deepest', 'value'),
         State('setting-analyze-connected', 'value'),
         State('setting-show-scoring-perf', 'value'),
+        State('setting-subcontext-sort-mode', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul, we, wt, beta, goal_boost,
@@ -370,7 +373,7 @@ def register_settings_callbacks(app):
                       egl_edge_length, egl_gravity, egl_repulsion,
                       al_bottlenecks, al_goals, al_risk,
                       al_time_sinks, al_deepest, al_connected,
-                      show_scoring_perf_val):
+                      show_scoring_perf_val, subcontext_sort_mode_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -381,6 +384,8 @@ def register_settings_callbacks(app):
             ConfigManager.set_show_scoring_perf(
                 bool(show_scoring_perf_val and "enabled" in show_scoring_perf_val)
             )
+            if subcontext_sort_mode_val:
+                ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
             new_hp = {
                 'w_v': float(wv), 'w_i': float(wi),
                 'd_H': float(dh), 'd_S': float(ds),
@@ -798,9 +803,11 @@ def register_settings_callbacks(app):
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = subcontexts_map.get(ctx_val, [])
+            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []))
         else:
-            subs = [s for ss in subcontexts_map.values() for s in ss]
+            subs = sort_subcontexts(
+                [s for ss in subcontexts_map.values() for s in ss]
+            )
         opts = [{"label": s, "value": s} for s in subs]
         opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
         default = subs[0] if subs else "__keep__"

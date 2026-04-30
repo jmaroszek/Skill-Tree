@@ -12,6 +12,7 @@ from config import (
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     TOOLTIP_NODE_HIDE_DELAY_MS,
+    sort_subcontexts,
 )
 from events_layout import build_events_tab_content, build_events_sidebar_content
 from details_layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
@@ -668,9 +669,11 @@ def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_b
 
     def _sub_options_for(ctx_val):
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = subcontexts_map.get(ctx_val, [])
+            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []))
         else:
-            subs = [s for ss in subcontexts_map.values() for s in ss]
+            subs = sort_subcontexts(
+                [s for ss in subcontexts_map.values() for s in ss]
+            )
         opts = [{"label": s, "value": s} for s in subs]
         opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
         return opts, (subs[0] if subs else "__keep__")

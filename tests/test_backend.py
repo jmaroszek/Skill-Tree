@@ -1268,6 +1268,64 @@ class TestConfigManager:
         ConfigManager._set_db_value("SUBCONTEXTS", '["a", "b"]')
         assert ConfigManager.get_subcontexts() == {}
 
+    def test_subcontext_sort_mode_default_is_definition(self):
+        from config import DEFAULT_SUBCONTEXT_SORT_MODE
+        assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
+
+    def test_subcontext_sort_mode_round_trip(self):
+        from config import (
+            SUBCONTEXT_SORT_LENGTH,
+            SUBCONTEXT_SORT_ALPHABETICAL,
+            SUBCONTEXT_SORT_DEFINITION,
+        )
+        for mode in (SUBCONTEXT_SORT_LENGTH, SUBCONTEXT_SORT_ALPHABETICAL, SUBCONTEXT_SORT_DEFINITION):
+            ConfigManager.set_subcontext_sort_mode(mode)
+            assert ConfigManager.get_subcontext_sort_mode() == mode
+
+    def test_subcontext_sort_mode_invalid_falls_back_to_default(self):
+        from config import DEFAULT_SUBCONTEXT_SORT_MODE
+        ConfigManager._set_db_value("SUBCONTEXT_SORT_MODE", "garbage")
+        assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
+
+    def test_subcontext_sort_mode_setter_rejects_invalid(self):
+        from config import DEFAULT_SUBCONTEXT_SORT_MODE
+        ConfigManager.set_subcontext_sort_mode("not-a-mode")
+        assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
+
+    def test_sort_subcontexts_definition_preserves_order(self):
+        from config import sort_subcontexts, SUBCONTEXT_SORT_DEFINITION
+        items = ["Rational", "Sensory", "Judgment"]
+        assert sort_subcontexts(items, SUBCONTEXT_SORT_DEFINITION) == items
+
+    def test_sort_subcontexts_length_orders_short_first(self):
+        from config import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
+        items = ["Engineering", "Math", "Data Science", "Physics"]
+        # Stable: 'Math' (4) < 'Physics' (7) < 'Engineering' (11) == 'Data Science' (12)
+        # Length-only key keeps relative order of equal-length entries.
+        assert sort_subcontexts(items, SUBCONTEXT_SORT_LENGTH) == [
+            "Math", "Physics", "Engineering", "Data Science",
+        ]
+
+    def test_sort_subcontexts_alphabetical_case_insensitive(self):
+        from config import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        items = ["banana", "Apple", "cherry"]
+        assert sort_subcontexts(items, SUBCONTEXT_SORT_ALPHABETICAL) == ["Apple", "banana", "cherry"]
+
+    def test_sort_subcontexts_uses_configured_mode_when_none(self):
+        from config import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        ConfigManager.set_subcontext_sort_mode(SUBCONTEXT_SORT_ALPHABETICAL)
+        assert sort_subcontexts(["zeta", "alpha"]) == ["alpha", "zeta"]
+
+    def test_sort_subcontexts_does_not_mutate_input(self):
+        from config import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        items = ["zeta", "alpha"]
+        sort_subcontexts(items, SUBCONTEXT_SORT_ALPHABETICAL)
+        assert items == ["zeta", "alpha"]
+
+    def test_sort_subcontexts_empty(self):
+        from config import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
+        assert sort_subcontexts([], SUBCONTEXT_SORT_LENGTH) == []
+
     def test_set_and_get_hyperparams(self):
         custom = {**DEFAULT_HYPERPARAMS, 'w_v': 2.0}
         ConfigManager.set_hyperparams(custom)
