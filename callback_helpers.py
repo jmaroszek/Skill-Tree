@@ -28,7 +28,7 @@ def build_context_weight_rows(contexts, ctx_weights):
                     className="d-flex align-items-center"),
             dbc.Col(dbc.Input(
                 id={"type": "setting-context-weight", "index": ctx_name},
-                type="number", min=0, max=10, step=0.1,
+                type="number", min=0, max=10, step="any",
                 value=float(ctx_weights.get(ctx_name, 1.0)),
             ), width=4),
         ], className="mb-2"))
