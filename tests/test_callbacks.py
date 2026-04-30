@@ -11,7 +11,7 @@ import database
 from models import Node, EDGE_NEEDS_HARD
 from callbacks import generate_elements, manager
 from callback_helpers import (
-    build_filters, node_options, handle_save, handle_delete,
+    build_filters, is_filters_active, node_options, handle_save, handle_delete,
     handle_toggle_done, handle_group_delete,
 )
 
@@ -133,6 +133,80 @@ class TestBuildFilters:
         # every selected context.
         result = build_filters(["Mind"], ["Rational"], [])
         assert result == {"context_subcontext_union": [("Mind", ["Rational"])]}
+
+
+# ============================================================================
+# is_filters_active
+# ============================================================================
+
+class TestIsFiltersActive:
+    def test_all_defaults_inactive(self):
+        # Mirrors the "Clear Filters" reset state.
+        assert is_filters_active(
+            node_type=[], context=[], subcontext=[], goal=[],
+            community="All", community_method="components",
+            value=1, interest=1, difficulty=10, time=None,
+            done=["hide_done"],
+        ) is False
+
+    def test_no_args_inactive(self):
+        # Defensive: when a caller (e.g. Details canvas) passes nothing for
+        # filters that don't affect it, the helper must not flag.
+        assert is_filters_active() is False
+
+    def test_node_type_active(self):
+        assert is_filters_active(node_type=["Learn"]) is True
+
+    def test_context_active(self):
+        assert is_filters_active(context=["Mind"]) is True
+
+    def test_subcontext_active(self):
+        assert is_filters_active(subcontext=["Rational"]) is True
+
+    def test_goal_active(self):
+        assert is_filters_active(goal=["Read War and Peace"]) is True
+
+    def test_community_all_inactive(self):
+        assert is_filters_active(community="All") is False
+
+    def test_community_specific_active(self):
+        assert is_filters_active(community="3") is True
+
+    def test_orphans_method_active(self):
+        # "Orphans" mode narrows visible nodes even with community="All".
+        assert is_filters_active(community="All",
+                                 community_method="orphans") is True
+
+    def test_default_method_inactive(self):
+        assert is_filters_active(community_method="components") is False
+
+    def test_min_value_active(self):
+        assert is_filters_active(value=2) is True
+
+    def test_min_value_at_floor_inactive(self):
+        assert is_filters_active(value=1) is False
+
+    def test_min_interest_active(self):
+        assert is_filters_active(interest=5) is True
+
+    def test_max_difficulty_active(self):
+        assert is_filters_active(difficulty=7) is True
+
+    def test_max_difficulty_at_ceiling_inactive(self):
+        assert is_filters_active(difficulty=10) is False
+
+    def test_max_time_active(self):
+        assert is_filters_active(time=20) is True
+
+    def test_max_time_zero_inactive(self):
+        assert is_filters_active(time=0) is False
+
+    def test_done_default_inactive(self):
+        assert is_filters_active(done=["hide_done"]) is False
+
+    def test_done_toggled_off_active(self):
+        # Showing completed tasks is a deviation from the default.
+        assert is_filters_active(done=[]) is True
 
 
 # ============================================================================

@@ -265,6 +265,43 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     return filters
 
 
+def is_filters_active(*, node_type=None, context=None, subcontext=None, goal=None,
+                      community=None, community_method=None,
+                      value=None, interest=None, difficulty=None,
+                      time=None, done=None):
+    """Returns True if any sidebar filter has a non-default value.
+
+    Defaults match the "Clear Filters" reset state in
+    callbacks.clear_filters. Pass None for filters that don't affect the
+    calling canvas (e.g. the Details canvas ignores Goal and Community)
+    so the indicator only fires on filters that actually narrow what
+    the user sees.
+    """
+    if node_type:
+        return True
+    if context:
+        return True
+    if subcontext:
+        return True
+    if goal:
+        return True
+    if community and community != "All":
+        return True
+    if community_method == "orphans":
+        return True
+    if value is not None and value > 1:
+        return True
+    if interest is not None and interest > 1:
+        return True
+    if difficulty is not None and difficulty < 10:
+        return True
+    if time:
+        return True
+    if done is not None and list(done) != ["hide_done"]:
+        return True
+    return False
+
+
 # --- Habit-mode time conversion ---
 
 

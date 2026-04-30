@@ -21,7 +21,7 @@ from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, ST
 from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
-    node_options, build_filters,
+    node_options, build_filters, is_filters_active,
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     format_suggestions_table, format_traversal_ui,
     render_link_rows, spawn_local_file_picker,
@@ -2135,10 +2135,30 @@ def register_callbacks(app):
     @app.callback(
         Output('canvas-node-count', 'children'),
         Input('cytoscape-graph', 'elements'),
+        Input('filter-node-type', 'value'),
+        Input('filter-context', 'value'),
+        Input('filter-subcontext', 'value'),
+        Input('filter-goal', 'value'),
+        Input('filter-community', 'value'),
+        Input('community-method', 'value'),
+        Input('filter-value', 'value'),
+        Input('filter-interest', 'value'),
+        Input('filter-difficulty', 'value'),
+        Input('filter-time', 'value'),
+        Input('filter-done', 'value'),
     )
-    def update_canvas_node_count(elements):
+    def update_canvas_node_count(elements, f_type, f_ctx, f_sub, f_goal,
+                                 f_comm, f_comm_method, f_val, f_int,
+                                 f_diff, f_time, f_done):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
-        return f"{n} node{'s' if n != 1 else ''}"
+        text = f"{n} node{'s' if n != 1 else ''}"
+        if is_filters_active(node_type=f_type, context=f_ctx, subcontext=f_sub,
+                             goal=f_goal, community=f_comm,
+                             community_method=f_comm_method, value=f_val,
+                             interest=f_int, difficulty=f_diff, time=f_time,
+                             done=f_done):
+            return f"{text} (filters applied)"
+        return text
 
     @app.callback(
         Output('focus-goal-store', 'data', allow_duplicate=True),

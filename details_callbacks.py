@@ -17,6 +17,7 @@ from details_layout import (build_details_subtasks_table, build_goal_card,
 from simulation import simulate_task_chain
 from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
+                              is_filters_active,
                               build_explain_summary, build_explain_chart,
                               habit_to_hours, compute_habit_time_omp)
 from scoring import explain_score, shortest_paths_focus_data
@@ -1552,13 +1553,31 @@ def register_details_callbacks(app):
         )
 
     # --- Details Tab: Node Count Canvas Overlay ---
+    # The Details canvas honors the global Context/Subcontext/Type/Done/
+    # ratings/time filters but ignores Goal and Community (those only narrow
+    # the main canvas), so the indicator only checks the filters that
+    # actually affect the subtree being rendered here.
     @app.callback(
         Output('details-canvas-node-count', 'children'),
         Input('details-mini-graph', 'elements'),
+        Input('filter-node-type', 'value'),
+        Input('filter-context', 'value'),
+        Input('filter-subcontext', 'value'),
+        Input('filter-value', 'value'),
+        Input('filter-interest', 'value'),
+        Input('filter-difficulty', 'value'),
+        Input('filter-time', 'value'),
+        Input('filter-done', 'value'),
     )
-    def update_details_node_count(elements):
+    def update_details_node_count(elements, f_type, f_ctx, f_sub, f_val,
+                                  f_int, f_diff, f_time, f_done):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
-        return f"{n} node{'s' if n != 1 else ''}"
+        text = f"{n} node{'s' if n != 1 else ''}"
+        if is_filters_active(node_type=f_type, context=f_ctx, subcontext=f_sub,
+                             value=f_val, interest=f_int, difficulty=f_diff,
+                             time=f_time, done=f_done):
+            return f"{text} (filters applied)"
+        return text
 
     # --- Details Graph Settings: Apply Layout Parameters ---
     # Clientside so allowOneLayout('details') is set in the same synchronous
