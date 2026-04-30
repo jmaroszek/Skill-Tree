@@ -27,11 +27,16 @@ stylesheet = [
         }
     },
     {
+        # Selection indicator: thick white border, no background override.
+        # Previously used cyan #0dcaf0 as the bg, which clashed with the
+        # Milestone type color (teal #17a2b8) — the two looked nearly
+        # identical. A border-only indicator works regardless of the
+        # node's underlying type color and avoids future clashes.
         'selector': 'node:selected',
         'style': {
-            'background-color': '#0dcaf0',
-            'border-width': 4,
-            'border-color': '#055160'
+            'border-width': 5,
+            'border-color': '#ffffff',
+            'border-opacity': 1,
         }
     },
     {

@@ -1566,14 +1566,19 @@ def register_details_callbacks(app):
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
         Input('filter-done', 'value'),
+        Input('details-graph-settings-max-depth', 'value'),
     )
     def update_details_node_count(elements, f_type, f_ctx, f_sub, f_val,
-                                  f_int, f_diff, f_time, f_done):
+                                  f_int, f_diff, f_time, f_done, max_depth):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
         text = f"{n} node{'s' if n != 1 else ''}"
-        if is_filters_active(node_type=f_type, context=f_ctx, subcontext=f_sub,
-                             value=f_val, interest=f_int, difficulty=f_diff,
-                             time=f_time, done=f_done):
+        # Non-default max-depth (anything other than 0 = "All") narrows the
+        # rendered subtree just like a filter does — surface it the same way.
+        depth_active = bool(max_depth)
+        if depth_active or is_filters_active(
+                node_type=f_type, context=f_ctx, subcontext=f_sub,
+                value=f_val, interest=f_int, difficulty=f_diff,
+                time=f_time, done=f_done):
             return f"{text} (filtered)"
         return text
 
