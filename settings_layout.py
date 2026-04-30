@@ -250,26 +250,26 @@ def build_settings_tab_content():
                         ], className="mb-2"),
                         # Row 1
                         dbc.Row([
-                            dbc.Col([dbc.Label("Value Weight", className="mt-2"), dbc.Input(id="hp-wv", type="number", step=0.1)]),
-                            dbc.Col([dbc.Label("Hard Need", className="mt-2"), dbc.Input(id="hp-dh", type="number", step=0.01)]),
-                            dbc.Col([dbc.Label("Effort Weight", className="mt-2"), dbc.Input(id="hp-we", type="number", step=0.1)]),
+                            dbc.Col([dbc.Label("Value Weight", className="mt-2"), dbc.Input(id="hp-wv", type="number", step="any")]),
+                            dbc.Col([dbc.Label("Hard Need", className="mt-2"), dbc.Input(id="hp-dh", type="number", step="any")]),
+                            dbc.Col([dbc.Label("Effort Weight", className="mt-2"), dbc.Input(id="hp-we", type="number", step="any")]),
                         ]),
                         # Row 2
                         dbc.Row([
-                            dbc.Col([dbc.Label("Interest Weight", className="mt-2"), dbc.Input(id="hp-wi", type="number", step=0.1)]),
-                            dbc.Col([dbc.Label("Soft Need", className="mt-2"), dbc.Input(id="hp-ds", type="number", step=0.01)]),
-                            dbc.Col([dbc.Label("Time Weight", className="mt-2"), dbc.Input(id="hp-wt", type="number", step=0.1)]),
+                            dbc.Col([dbc.Label("Interest Weight", className="mt-2"), dbc.Input(id="hp-wi", type="number", step="any")]),
+                            dbc.Col([dbc.Label("Soft Need", className="mt-2"), dbc.Input(id="hp-ds", type="number", step="any")]),
+                            dbc.Col([dbc.Label("Time Weight", className="mt-2"), dbc.Input(id="hp-wt", type="number", step="any")]),
                         ]),
                         # Row 3 (IV column empty; VP carries the two synergy params stacked)
                         dbc.Row([
                             dbc.Col([]),
                             dbc.Col([
                                 dbc.Label("Pending Bonus", className="mt-2"),
-                                dbc.Input(id="hp-dsyn-pair", type="number", step=0.01),
+                                dbc.Input(id="hp-dsyn-pair", type="number", step="any"),
                                 dbc.Label("Done Multiplier", className="mt-2"),
-                                dbc.Input(id="hp-dsyn-mul", type="number", step=0.05),
+                                dbc.Input(id="hp-dsyn-mul", type="number", step="any"),
                             ]),
-                            dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
+                            dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step="any")]),
                         ], className="mb-2"),
 
                         # --- Multipliers section ---
@@ -279,7 +279,7 @@ def build_settings_tab_content():
                         html.H6("Goal Boost", className="mt-2 mb-1"),
                         dbc.Row([
                             dbc.Col([
-                                dbc.Input(id="hp-goal-boost", type="number", step=0.1),
+                                dbc.Input(id="hp-goal-boost", type="number", step="any"),
                             ], width=2),
                             dbc.Col([
                                 html.Small(
@@ -293,7 +293,7 @@ def build_settings_tab_content():
                         dbc.Row([
                             dbc.Col([
                                 dbc.Input(id="hp-alpha", type="number",
-                                          min=0, max=1.5, step=0.05),
+                                          min=0, max=1.5, step="any"),
                             ], width=2),
                             dbc.Col([
                                 html.Small(
