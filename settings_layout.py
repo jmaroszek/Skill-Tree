@@ -175,7 +175,7 @@ def build_settings_tab_content():
                     html.Div([
                         # --- Context definitions ---
                         html.H5("Definitions", className="mt-2 mb-1"),
-                        html.Small("One context per line. Optionally add a colon and comma-separated subcontexts. Context names are ignored when checking for duplicate nodes.", className="text-muted d-block mb-1"),
+                        html.Small("One context per line. Optionally add a colon and comma-separated subcontexts.", className="text-muted d-block mb-1"),
                         dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
 
                         # --- Subcontext dropdown sort order ---
@@ -190,6 +190,10 @@ def build_settings_tab_content():
                             value=SUBCONTEXT_SORT_DEFINITION,
                             inline=True,
                         ),
+                        html.Small(
+                            "How subcontexts are ordered in dropdown menus. "
+                            "None keeps the order defined above; Length sorts shortest first; Alphabetical sorts A–Z.",
+                            className="text-muted d-block mb-1"),
 
                         # --- Priority weights ---
                         html.Hr(className="my-3"),
