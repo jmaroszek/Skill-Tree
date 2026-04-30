@@ -191,7 +191,6 @@ def build_settings_tab_content():
                             inline=True,
                         ),
                         html.Small(
-                            "How subcontexts are ordered in dropdown menus. "
                             "None keeps the order defined above; Length sorts shortest first; Alphabetical sorts A–Z.",
                             className="text-muted d-block mb-1"),
 
