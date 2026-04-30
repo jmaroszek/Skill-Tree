@@ -93,6 +93,7 @@ DEFAULT_NODE_COLORS = {
     'Action': '#fd7e14',
     'Learn': '#0d6efd',
     'Resource': '#9047b8',
+    'Milestone': '#17a2b8',
     'Override': '#e83e8c',
 }
 
@@ -101,7 +102,7 @@ DEFAULT_NODE_SHAPES = {
     'Action': 'triangle',
     'Goal': 'star',
     'Resource': 'pentagon',
-
+    'Milestone': 'diamond',
 }
 
 # Tile/badge palette for the Node Editor priority strip and the Details
@@ -595,8 +596,11 @@ class ConfigManager:
     def set_hp_profile(cls, profile: str):
         cls._set_db_value("HP_PROFILE", profile)
 
-    # Types that always keep their shape even if not in the user's type list
-    _PERMANENT_SHAPE_TYPES = {'Goal'}
+    # Types that always keep their shape even if not in the user's type list.
+    # Goal and Milestone are referenced by literal string in scoring.py and
+    # the canvas hover tooltip, so their visual identity must persist even
+    # if a user removes them from the editable type list.
+    _PERMANENT_SHAPE_TYPES = {'Goal', 'Milestone'}
 
     @classmethod
     def sync_shapes_to_types(cls, new_types: list):
@@ -853,6 +857,15 @@ class ConfigManager:
         types = cls.get_node_types()
         if 'Goal' not in types:
             types.append('Goal')
+            cls.set_node_types(types)
+            cls.sync_shapes_to_types(types)
+
+    @classmethod
+    def ensure_milestone_type(cls):
+        """Ensure 'Milestone' type exists in stored node types (migration for existing DBs)."""
+        types = cls.get_node_types()
+        if 'Milestone' not in types:
+            types.append('Milestone')
             cls.set_node_types(types)
             cls.sync_shapes_to_types(types)
 

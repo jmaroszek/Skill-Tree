@@ -247,24 +247,30 @@ sidebar_content = html.Div(
                         target="node-time-mode", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                     ),
-                    dbc.Checklist(
-                        options=[{"label": "Habit", "value": "habit"}],
-                        value=[],
-                        id="node-time-habit-mode",
-                        switch=True,
-                        className="mb-0 ms-3 flex-grow-1",
-                    ),
-                    dbc.Tooltip(
-                        "Distributed-cadence project (e.g., 30 min/day for 6 weeks). Enter a duration and per-period intensity; total hours are computed and used for scoring.",
-                        target="node-time-habit-mode", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-                    ),
+                    html.Div([
+                        dbc.Checklist(
+                            options=[{"label": "Habit", "value": "habit"}],
+                            value=[],
+                            id="node-time-habit-mode",
+                            switch=True,
+                            className="mb-0",
+                        ),
+                        dbc.Tooltip(
+                            "Distributed-cadence project (e.g., 30 min/day for 6 weeks). Enter a duration and per-period intensity; total hours are computed and used for scoring.",
+                            target="node-time-habit-mode", placement="left",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+                        ),
+                    ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
                     dbc.Select(id="node-time-unit", options=[
                         {"label": "Hours", "value": "hours"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
                     ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"}),
                 ], className="d-flex align-items-center mb-2"),
+                html.Div(id="time-mode-warning",
+                         style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                         className="mt-1 mb-2",
+                         children=""),
                 html.Div(id="section-time-omp", children=[
                     dbc.Row([
                         dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
@@ -805,6 +811,19 @@ undo_done_confirm_modal = dbc.Modal([
         dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
     ], className="d-flex"),
 ], id="modal-undo-done-confirm", size="md", is_open=False, centered=True)
+
+
+# Suggestion modal that fires when the last hard prerequisite of a Goal or
+# Milestone becomes Done. Offers a one-click "Mark Done" without forcing it —
+# matches the user's preference that container completion remain explicit.
+auto_done_suggestion_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Mark Done?")),
+    dbc.ModalBody(id="auto-done-suggestion-body"),
+    dbc.ModalFooter([
+        dbc.Button("Dismiss", id="btn-auto-done-dismiss", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Mark Done", id="btn-auto-done-confirm", color="primary", className="flex-fill"),
+    ], className="d-flex"),
+], id="modal-auto-done-suggestion", size="sm", is_open=False, centered=True)
 
 
 # Used by the canvas context menu and Delete-key hotkey — handles one or many
@@ -1359,6 +1378,7 @@ def build_app_layout(initial_elements, env="production"):
         unsaved_changes_modal,
         delete_confirm_modal,
         undo_done_confirm_modal,
+        auto_done_suggestion_modal,
         group_delete_confirm_modal,
         override_conflict_modal,
         override_untoggle_modal,
@@ -1396,6 +1416,13 @@ def build_app_layout(initial_elements, env="production"):
         # modal is open. Read by the modal-confirm callback to perform the
         # actual toggle once the user has acknowledged the downstream impact.
         dcc.Store(id='pending-undo-done-store', data=None),
+        # Queue of Goal/Milestone names whose hard prereqs just became all
+        # Done. Drained from GraphManager._auto_done_candidates whenever the
+        # graph version bumps, then surfaced one at a time by the auto-Done
+        # suggestion modal. Persists across modal interactions so chained
+        # candidates (parent container becoming ready after the child Goal
+        # is marked Done) are queued naturally.
+        dcc.Store(id='auto-done-candidates-store', data=[]),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
 
         main_tabs,

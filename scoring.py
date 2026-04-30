@@ -304,7 +304,7 @@ def score_nodes(
     # row slipped through.
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n in active_nodes:
-        if n.type == 'Goal' or n.status in (STATUS_DONE, STATUS_BLOCKED):
+        if n.type in ('Goal', 'Milestone') or n.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
         if n.context is None:
             continue
@@ -340,7 +340,7 @@ def score_nodes(
 
     scored_nodes = []
     for node in active_nodes:
-        if node.type == 'Goal':
+        if node.type in ('Goal', 'Milestone'):
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue
@@ -561,7 +561,7 @@ def explain_score(
     # uncategorized (context=None) from density. See score_nodes for rationale.
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n_ in all_nodes:
-        if n_.type == 'Goal' or n_.status in (STATUS_DONE, STATUS_BLOCKED):
+        if n_.type in ('Goal', 'Milestone') or n_.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
         if n_.context is None:
             continue
@@ -657,9 +657,9 @@ def explain_score(
     # Eligibility / block reason
     eligible = True
     block_reason: Optional[str] = None
-    if node.type == 'Goal':
+    if node.type in ('Goal', 'Milestone'):
         eligible = False
-        block_reason = "Goals are not ranked"
+        block_reason = f"{node.type}s are not ranked"
     elif node.status == STATUS_DONE:
         eligible = False
         block_reason = STATUS_DONE

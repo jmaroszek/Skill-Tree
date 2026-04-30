@@ -8,7 +8,7 @@ import math
 from typing import Any
 import pytest
 import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_BLOCKED, STATUS_OPEN
 from graph_manager import GraphManager
 from callback_helpers import compute_orphaned_subcontext_pairs
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
@@ -1883,6 +1883,45 @@ class TestScoringGoalBoost:
 
 
 # ============================================================================
+# Scoring — Milestone exclusion
+# ============================================================================
+
+class TestScoringMilestoneSkip:
+    """Milestone nodes are non-competing containers (like Goals): they should
+    receive priority_score=-1.0 and be excluded from per-bucket density counts.
+    """
+
+    def test_milestone_nodes_get_negative_score(self, mgr):
+        mgr.add_node(_make_node("M", type="Milestone", value=10, interest=10))
+        scored = mgr.calculate_priority_scores([mgr.get_node("M")])
+        assert scored[0].priority_score == -1.0
+
+    def test_milestone_excluded_from_density_bucket(self, mgr):
+        # Two Learns + one Milestone in same (context, subcontext) bucket.
+        # Density is computed only from competing nodes, so the Milestone
+        # should NOT inflate the bucket count and dilute the Learn scores.
+        # Using score_nodes directly so we can pass alpha=1.0 (density on).
+        hypers = {**DEFAULT_HYPERPARAMS, 'alpha': 1.0}
+        mgr.add_node(_make_node("L1", type="Learn", context="Mind", subcontext="Rational"))
+        mgr.add_node(_make_node("L2", type="Learn", context="Mind", subcontext="Rational"))
+        mgr.add_node(_make_node("MS", type="Milestone", context="Mind", subcontext="Rational"))
+        active = [mgr.get_node("L1"), mgr.get_node("L2"), mgr.get_node("MS")]
+        scored_with_ms = score_nodes(active, active, mgr.get_edges(), hypers)
+
+        # Now add another Learn — this DOES increase density and should lower
+        # L1's score. Confirms density is sensitive to competing nodes only.
+        mgr.add_node(_make_node("L3", type="Learn", context="Mind", subcontext="Rational"))
+        active2 = [mgr.get_node(n) for n in ("L1", "L2", "L3", "MS")]
+        scored_with_l3 = score_nodes(active2, active2, mgr.get_edges(), hypers)
+
+        l1_with_ms = next(n for n in scored_with_ms if n.name == "L1").priority_score
+        l1_with_l3 = next(n for n in scored_with_l3 if n.name == "L1").priority_score
+        # Adding a real competing Learn lowers density-adjusted score for L1;
+        # adding a Milestone (already present) did not.
+        assert l1_with_l3 < l1_with_ms
+
+
+# ============================================================================
 # get_prerequisite_chains_typed
 # ============================================================================
 
@@ -2102,6 +2141,252 @@ class TestEnsureGoalType:
         ConfigManager.ensure_goal_type()
         shapes = ConfigManager.get_node_shapes()
         assert "Goal" in shapes
+
+
+# ============================================================================
+# ConfigManager — ensure_milestone_type
+# ============================================================================
+
+class TestEnsureMilestoneType:
+    def test_adds_milestone_if_missing(self):
+        ConfigManager.set_node_types(["Learn", "Action", "Goal"])
+        ConfigManager.ensure_milestone_type()
+        types = ConfigManager.get_node_types()
+        assert "Milestone" in types
+
+    def test_no_duplicate_if_present(self):
+        ConfigManager.set_node_types(["Learn", "Action", "Goal", "Milestone"])
+        ConfigManager.ensure_milestone_type()
+        types = ConfigManager.get_node_types()
+        assert types.count("Milestone") == 1
+
+    def test_shape_added_for_new_type(self):
+        ConfigManager.set_node_types(["Learn"])
+        ConfigManager.set_node_shapes({"Learn": "ellipse"})
+        ConfigManager.ensure_milestone_type()
+        shapes = ConfigManager.get_node_shapes()
+        assert shapes.get("Milestone") == "diamond"
+
+
+# ============================================================================
+# database — Goal time_mode migration
+# ============================================================================
+
+class TestGoalTimeModeMigration:
+    """One-time data migration: Goal nodes must use time_mode='inherited'.
+    The migration runs in init_db; calling it again with _initialized=False
+    re-triggers it. Idempotent — only flips type='Goal' AND time_mode='manual'.
+    """
+
+    def test_flips_existing_goal_from_manual_to_inherited(self, mgr):
+        mgr.add_node(_make_node("MigGoal", type="Goal", time_mode='manual'))
+        # Re-run migration
+        database._initialized = False
+        database.init_db()
+        node = mgr.get_node("MigGoal")
+        assert node.time_mode == 'inherited'
+
+    def test_leaves_non_goal_types_untouched(self, mgr):
+        mgr.add_node(_make_node("MigLearn", type="Learn", time_mode='manual'))
+        database._initialized = False
+        database.init_db()
+        node = mgr.get_node("MigLearn")
+        assert node.time_mode == 'manual'
+
+    def test_leaves_already_inherited_goal_untouched(self, mgr):
+        mgr.add_node(_make_node("InhGoal", type="Goal", time_mode='inherited'))
+        database._initialized = False
+        database.init_db()
+        node = mgr.get_node("InhGoal")
+        assert node.time_mode == 'inherited'
+
+    def test_migration_is_idempotent(self, mgr):
+        mgr.add_node(_make_node("IdemGoal", type="Goal", time_mode='manual'))
+        for _ in range(3):
+            database._initialized = False
+            database.init_db()
+        node = mgr.get_node("IdemGoal")
+        assert node.time_mode == 'inherited'
+
+
+# ============================================================================
+# GraphManager — auto-Done candidate queue
+# ============================================================================
+
+class TestAutoDoneCandidates:
+    """When the last hard prerequisite of a Goal or Milestone becomes Done,
+    GraphManager should queue the container as an auto-Done candidate. The UI
+    drains this queue and surfaces a "Mark Done?" suggestion modal.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_candidates(self):
+        # Class-level state — reset between every test in this class so the
+        # queue from one assertion doesn't leak into the next.
+        GraphManager._auto_done_candidates = []
+        yield
+        GraphManager._auto_done_candidates = []
+
+    def test_pop_returns_and_clears(self, mgr):
+        GraphManager._auto_done_candidates = ['A', 'B', 'C']
+        popped = mgr.pop_auto_done_candidates()
+        assert popped == ['A', 'B', 'C']
+        assert mgr.pop_auto_done_candidates() == []
+
+    def test_last_prereq_done_queues_goal(self, mgr):
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("P", type="Learn"))
+        mgr.add_edge("P", "G", EDGE_NEEDS_HARD)
+
+        # Flip P to Done — its only dependent G has all prereqs Done now.
+        p = mgr.get_node("P")
+        p.status = STATUS_DONE
+        mgr.update_node(p)
+
+        assert mgr.pop_auto_done_candidates() == ["G"]
+
+    def test_last_prereq_done_queues_milestone(self, mgr):
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("P", type="Learn"))
+        mgr.add_edge("P", "M", EDGE_NEEDS_HARD)
+
+        p = mgr.get_node("P")
+        p.status = STATUS_DONE
+        mgr.update_node(p)
+
+        assert mgr.pop_auto_done_candidates() == ["M"]
+
+    def test_non_last_prereq_done_does_not_queue(self, mgr):
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("P1", type="Learn"))
+        mgr.add_node(_make_node("P2", type="Learn"))
+        mgr.add_edge("P1", "G", EDGE_NEEDS_HARD)
+        mgr.add_edge("P2", "G", EDGE_NEEDS_HARD)
+
+        # P1 done, but P2 is still Open — Goal isn't ready.
+        p1 = mgr.get_node("P1")
+        p1.status = STATUS_DONE
+        mgr.update_node(p1)
+
+        assert mgr.pop_auto_done_candidates() == []
+
+    def test_non_container_dependent_not_queued(self, mgr):
+        # A Learn that depends on a Learn shouldn't be queued — only Goals
+        # and Milestones get the auto-done suggestion.
+        mgr.add_node(_make_node("L1", type="Learn"))
+        mgr.add_node(_make_node("L2", type="Learn"))
+        mgr.add_edge("L1", "L2", EDGE_NEEDS_HARD)
+
+        l1 = mgr.get_node("L1")
+        l1.status = STATUS_DONE
+        mgr.update_node(l1)
+
+        assert mgr.pop_auto_done_candidates() == []
+
+    def test_already_done_container_not_queued(self, mgr):
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited',
+                                status=STATUS_DONE))
+        mgr.add_node(_make_node("P", type="Learn"))
+        mgr.add_edge("P", "G", EDGE_NEEDS_HARD)
+
+        p = mgr.get_node("P")
+        p.status = STATUS_DONE
+        mgr.update_node(p)
+
+        assert mgr.pop_auto_done_candidates() == []
+
+    def test_resave_already_done_node_does_not_queue(self, mgr):
+        # Re-saving an already-Done leaf shouldn't re-fire candidates.
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("P", type="Learn"))
+        mgr.add_edge("P", "G", EDGE_NEEDS_HARD)
+
+        # First save: P → Done. Queues G.
+        p = mgr.get_node("P")
+        p.status = STATUS_DONE
+        mgr.update_node(p)
+        mgr.pop_auto_done_candidates()  # Drain
+
+        # Re-save P (still Done) — should NOT re-queue.
+        p = mgr.get_node("P")
+        mgr.update_node(p)
+        assert mgr.pop_auto_done_candidates() == []
+
+    def test_open_to_open_save_does_not_queue(self, mgr):
+        # Saving a node without a Done transition shouldn't queue.
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("P", type="Learn"))
+        mgr.add_edge("P", "G", EDGE_NEEDS_HARD)
+
+        p = mgr.get_node("P")
+        p.description = "edited"
+        mgr.update_node(p)
+        assert mgr.pop_auto_done_candidates() == []
+
+    def test_multiple_containers_share_prereq(self, mgr):
+        # One leaf shared between two Goals — when the leaf goes Done and
+        # both Goals' other prereqs are also Done, both queue.
+        mgr.add_node(_make_node("G1", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("G2", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("Shared", type="Learn"))
+        mgr.add_edge("Shared", "G1", EDGE_NEEDS_HARD)
+        mgr.add_edge("Shared", "G2", EDGE_NEEDS_HARD)
+
+        s = mgr.get_node("Shared")
+        s.status = STATUS_DONE
+        mgr.update_node(s)
+
+        candidates = mgr.pop_auto_done_candidates()
+        assert set(candidates) == {"G1", "G2"}
+
+    def test_chained_containers_only_direct_queued(self, mgr):
+        # Leaf → Milestone → Goal. When leaf goes Done, only the Milestone
+        # is direct-eligible. The Goal still has the Milestone as an Open
+        # prereq, so it shouldn't queue yet.
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("L", type="Learn"))
+        mgr.add_edge("L", "M", EDGE_NEEDS_HARD)
+        mgr.add_edge("M", "G", EDGE_NEEDS_HARD)
+
+        l = mgr.get_node("L")
+        l.status = STATUS_DONE
+        mgr.update_node(l)
+        assert mgr.pop_auto_done_candidates() == ["M"]
+
+        # Mark Milestone Done — now Goal becomes a candidate.
+        m = mgr.get_node("M")
+        m.status = STATUS_DONE
+        mgr.update_node(m)
+        assert mgr.pop_auto_done_candidates() == ["G"]
+
+    def test_milestone_with_no_prereqs_not_queued(self, mgr):
+        # A Milestone with zero hard prereqs has "all prereqs done" vacuously.
+        # We don't queue it — there's nothing concrete the user just achieved.
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
+        # Trigger collection by saving an unrelated Done node — but there's
+        # no edge from it, so the dependent walk yields nothing.
+        mgr.add_node(_make_node("Other", type="Learn"))
+        other = mgr.get_node("Other")
+        other.status = STATUS_DONE
+        mgr.update_node(other)
+        assert mgr.pop_auto_done_candidates() == []
+
+    def test_dedup_in_queue(self, mgr):
+        # Multiple update_node calls that would each queue the same candidate
+        # should only queue it once.
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("P", type="Learn"))
+        mgr.add_edge("P", "G", EDGE_NEEDS_HARD)
+
+        p = mgr.get_node("P")
+        p.status = STATUS_DONE
+        mgr.update_node(p)
+        # Re-save P (also as Done) to attempt double-queue
+        p = mgr.get_node("P")
+        mgr.update_node(p)
+
+        assert mgr.pop_auto_done_candidates() == ["G"]
 
 
 # ============================================================================

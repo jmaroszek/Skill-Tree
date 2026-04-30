@@ -546,6 +546,38 @@ class TestHandleSaveTimeMode:
         assert node.type == "Goal"
         assert node.time_mode == 'inherited'
 
+    def test_milestone_node_with_inherited_time(self):
+        """Milestone nodes use inherited time mode (mirrors Goal)."""
+        handle_save(manager, "MyMilestone", "Milestone", "a milestone",
+                    8, 0, 0, 0, 7, 5,
+                    [], "Body", None, None, None, None,
+                    [], [], [], [], [], time_mode='inherited')
+        node = manager.get_node("MyMilestone")
+        assert node is not None
+        assert node.type == "Milestone"
+        assert node.time_mode == 'inherited'
+
+    def test_convert_learn_to_milestone_via_save(self):
+        """Saving an existing Learn again with type='Milestone' converts it.
+        The save-layer time_mode resolution upstream forces 'inherited' for
+        Milestones — here we just confirm the type-flip persists cleanly.
+        """
+        handle_save(manager, "Convertible", "Learn", "starts as learn",
+                    5, 1.0, 2.0, 4.0, 5, 5,
+                    [], "Mind", None, None, None, None,
+                    [], [], [], [], [], time_mode='manual')
+        assert manager.get_node("Convertible").type == "Learn"
+
+        # Convert-type: same name + new type, time_mode='inherited' as the
+        # upstream resolver would supply for a Milestone.
+        handle_save(manager, "Convertible", "Milestone", "now a milestone",
+                    8, 0, 0, 0, 8, 7,
+                    [], "Mind", None, None, None, None,
+                    [], [], [], [], [], time_mode='inherited')
+        node = manager.get_node("Convertible")
+        assert node.type == "Milestone"
+        assert node.time_mode == 'inherited'
+
 
 # ============================================================================
 # Goal node creation from node editor

@@ -185,6 +185,20 @@ def init_db():
         except Exception:
             pass
 
+    # One-time data migration: Goal nodes must use time_mode='inherited' (the
+    # editor enforces this for new saves; this catches pre-existing rows).
+    # Idempotent — once flipped, the WHERE clause matches no rows. time_o/m/p
+    # values are preserved (Node.time short-circuits to 0 for inherited mode
+    # but stored values stay intact, so a future type-change restores them).
+    try:
+        cursor.execute(
+            "UPDATE Nodes SET time_mode='inherited' "
+            "WHERE type='Goal' AND time_mode='manual'"
+        )
+        conn.commit()
+    except Exception:
+        pass
+
     conn.close()
     _initialized = True
 

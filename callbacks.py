@@ -30,7 +30,7 @@ from callback_helpers import (
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state,
-    habit_to_hours, compute_habit_time_omp,
+    habit_to_hours, compute_habit_time_omp, resolve_time_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -437,7 +437,7 @@ def register_callbacks(app):
                    "borderBottom": "1px solid #495057", "paddingBottom": "4px"}
         )
 
-        if node_type == 'Goal':
+        if node_type in ('Goal', 'Milestone'):
             completion = manager.get_goal_completion(node_id, include_soft=False)
             total = completion.get('total', 0)
             done = completion.get('done', 0)
@@ -965,16 +965,22 @@ def register_callbacks(app):
     @app.callback(
         [Output('section-done-time', 'style'),
          Output('section-time-estimates', 'style'),
-         Output('section-priority-rank', 'style')],
+         Output('section-priority-rank', 'style'),
+         Output('section-time-habit-toggle', 'style')],
         Input('node-type', 'value')
     )
     def toggle_type_fields(node_type):
         show = {}
         hide = {'display': 'none'}
         if node_type == 'Goal':
-            return show, show, show  # Show time estimates (for time_mode toggle) + priority rank
-        else:  # Learn, Action, Resource
-            return show, show, hide
+            # Priority rank visible; habit toggle hidden (containers must inherit).
+            return show, show, show, hide
+        if node_type == 'Milestone':
+            # No priority rank (top-level-Goal mechanic only);
+            # habit toggle hidden (containers must inherit).
+            return show, show, hide, hide
+        # Learn, Action, Resource: full set, habit toggle visible.
+        return show, show, hide, show
 
     # --- Toggle O/M/P / Habit / unit-dropdown visibility based on mode ---
     @app.callback(
@@ -1008,6 +1014,50 @@ def register_callbacks(app):
         if trig == 'node-time-habit-mode' and habit_val and 'habit' in habit_val:
             return [], habit_val
         return inherit_val, habit_val
+
+    # --- Locked Inherit toggle for Goal / Milestone ---
+    # Container types must always inherit time from their children. This callback
+    # forces 'inherited' ON whenever the type is Goal or Milestone, and reveals an
+    # inline warning if the user attempts to toggle it off. The trigger-id check
+    # distinguishes user-initiated toggles from system-induced bounce-backs:
+    # the bounce-back fires the same Input again with value=['inherited'], and
+    # we use no_update for the warning in that second cycle so we don't clobber
+    # the message we just made visible.
+    @app.callback(
+        Output('node-time-mode', 'value', allow_duplicate=True),
+        Output('time-mode-warning', 'style'),
+        Output('time-mode-warning', 'children'),
+        Input('node-time-mode', 'value'),
+        Input('node-type', 'value'),
+        prevent_initial_call=True,
+    )
+    def enforce_locked_time_mode(time_mode_val, node_type):
+        hidden = {"display": "none"}
+        visible = {"display": "block", "color": "#dc3545", "fontSize": "0.85rem"}
+        trig = get_trigger_id()
+
+        if node_type not in ('Goal', 'Milestone'):
+            # Type isn't a container — clear any lingering warning, no force.
+            return time_mode_val, hidden, ""
+
+        inherited_on = bool(time_mode_val and 'inherited' in time_mode_val)
+        if inherited_on:
+            # Already correct. If the trigger is a type change (just switched
+            # into Goal/Milestone), clear any stale warning. If the trigger is
+            # node-time-mode, we are in the second cycle of a bounce-back —
+            # preserve the warning we just set visible (no_update).
+            if trig == 'node-type':
+                return no_update, hidden, ""
+            return no_update, no_update, no_update
+
+        # Inherited is OFF and type requires it ON — force back.
+        msg = (f"Inherit mode is required for {node_type} nodes — "
+               "their time is the sum of their children's.")
+        if trig == 'node-time-mode':
+            # User-initiated toggle-off — bounce back AND show warning.
+            return ['inherited'], visible, msg
+        # System-induced (type change with form value not yet inherited) — silent.
+        return ['inherited'], hidden, ""
 
     # --- Live total-hours preview for habit mode ---
     @app.callback(
@@ -1309,7 +1359,7 @@ def register_callbacks(app):
     # node's data before pushing to Cytoscape. That's what keeps node
     # positions from drifting on save during bulk-edit freeze mode.
     @app.callback(
-        [Output('elements-pending-store', 'data'), Output('save-output', 'children'),
+        [Output('elements-pending-store', 'data', allow_duplicate=True), Output('save-output', 'children'),
          Output('suggestions-table', 'children'),
          Output('traversal-chains-hard', 'children'), Output('traversal-chains-soft', 'children'),
          Output('synergies-list', 'children'), Output('node-info-description', 'children'),
@@ -1575,21 +1625,17 @@ def register_callbacks(app):
                         manager.get_node(original_name.strip())):
                     manager.rename_node(original_name.strip(), name.strip())
 
-                # Determine the time-mode discriminator. Habit and Inherit are
-                # mutually exclusive in the UI (enforced by a callback), so the
-                # checks below are independent — habit wins if both somehow fire.
-                habit_on = bool(time_habit_mode_val and 'habit' in time_habit_mode_val)
-                if habit_on:
+                # Resolve the canonical time_mode via the shared helper —
+                # centralizes the Goal/Milestone-must-inherit invariant and
+                # eliminates drift across the three save paths (main editor,
+                # dormant-node creation, details-panel save).
+                time_mode = resolve_time_mode(n_type, time_mode_val, time_habit_mode_val)
+                if time_mode == 'habit':
                     t_o, t_m, t_p = compute_habit_time_omp(
                         habit_duration or 0, habit_duration_unit or 'weeks',
                         habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
                         habit_int_unit or 'min_per_day',
                     )
-                    time_mode = 'habit'
-                elif time_mode_val and 'inherited' in time_mode_val:
-                    time_mode = 'inherited'
-                else:
-                    time_mode = 'manual'
                 value_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
                 msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
                                   interest, diff, status_done, context, subctx,
@@ -1991,6 +2037,90 @@ def register_callbacks(app):
         modal/store cleanup so the next toggle starts fresh.
         """
         return False, None
+
+    # --- Auto-Done Suggestion Modal ---
+    # Single orchestrator that drains GraphManager's auto-done candidate queue
+    # on every graph-version bump, and surfaces them one at a time in a modal
+    # offering "Mark Done" / "Dismiss". Marking Done re-runs update_node which
+    # may queue parent containers (chained), so the modal stays open until the
+    # queue is empty. Dismiss simply pops without acting. The store is the
+    # SSOT for what's queued — both branches read and write it via this
+    # single callback to avoid races with the drain trigger.
+    @app.callback(
+        Output('modal-auto-done-suggestion', 'is_open'),
+        Output('auto-done-suggestion-body', 'children'),
+        Output('auto-done-candidates-store', 'data'),
+        Output('elements-pending-store', 'data', allow_duplicate=True),
+        Output('save-output', 'children', allow_duplicate=True),
+        Input('graph-version-store', 'data'),
+        Input('btn-auto-done-confirm', 'n_clicks'),
+        Input('btn-auto-done-dismiss', 'n_clicks'),
+        State('auto-done-candidates-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def manage_auto_done_modal(_version, _confirm, _dismiss, current_candidates):
+        from models import STATUS_DONE, STATUS_BLOCKED
+        trig = get_trigger_id()
+        candidates = list(current_candidates or [])
+        elements_out = no_update
+        save_msg_out = no_update
+
+        if trig == 'btn-auto-done-confirm' and candidates:
+            target = candidates.pop(0)
+            node = manager.get_node(target)
+            if node is None:
+                save_msg_out = f"'{target}' no longer exists"
+            elif node.status == STATUS_DONE:
+                # Already Done via another path — silently skip.
+                pass
+            elif node.status == STATUS_BLOCKED:
+                # Prereqs no longer all Done (e.g. a sibling un-done) —
+                # don't force; let the user re-decide later.
+                save_msg_out = (
+                    f"'{target}' is no longer eligible — "
+                    "a prereq was un-done."
+                )
+            else:
+                try:
+                    node.status = STATUS_DONE
+                    manager.update_node(node)
+                    save_msg_out = f"Marked '{target}' as Done"
+                    elements_out = generate_elements()
+                except Exception as exc:
+                    save_msg_out = f"Error marking '{target}' Done: {exc}"
+                    # Re-prepend so the user can retry from the modal.
+                    candidates.insert(0, target)
+
+        elif trig == 'btn-auto-done-dismiss' and candidates:
+            candidates.pop(0)
+
+        # Drain any newly-queued candidates from the manager (a Mark Done
+        # above may have flipped a parent container's prereqs to all-Done,
+        # OR an unrelated save bumped graph-version-store and pushed new
+        # candidates while the modal was idle).
+        new_candidates = manager.pop_auto_done_candidates()
+        for c in new_candidates:
+            if c not in candidates:
+                candidates.append(c)
+
+        if candidates:
+            first = candidates[0]
+            first_node = manager.get_node(first)
+            type_label = (first_node.type if first_node else "node").lower()
+            body = html.Div([
+                html.P([
+                    "All hard prerequisites of ",
+                    html.Strong(first),
+                    f" are complete. Mark this {type_label} Done?",
+                ], className="mb-2"),
+                html.Div(
+                    f"{len(candidates) - 1} more pending"
+                    if len(candidates) > 1 else "",
+                    className="text-muted small",
+                ),
+            ])
+            return True, body, candidates, elements_out, save_msg_out
+        return False, "", [], elements_out, save_msg_out
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),

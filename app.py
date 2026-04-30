@@ -37,6 +37,7 @@ except Exception:
 
 ConfigManager.ensure_action_type()
 ConfigManager.ensure_goal_type()
+ConfigManager.ensure_milestone_type()
 
 # Safety-net: repair any drift between stored node.status and what the cascade
 # would derive from current Needs_Hard edges. Covers cases where a mutation

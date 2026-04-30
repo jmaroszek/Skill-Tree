@@ -89,14 +89,14 @@ def _baseline_score_nodes(
 
     n_active_map = {}
     for n in active_nodes:
-        if n.type == 'Goal' or n.status in ('Done', 'Blocked'):
+        if n.type in ('Goal', 'Milestone') or n.status in ('Done', 'Blocked'):
             continue
         key = (n.context, n.subcontext)
         n_active_map[key] = n_active_map.get(key, 0) + 1
 
     scored_nodes = []
     for node in active_nodes:
-        if node.type == 'Goal':
+        if node.type in ('Goal', 'Milestone'):
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue

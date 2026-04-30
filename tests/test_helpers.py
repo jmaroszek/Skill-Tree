@@ -12,6 +12,7 @@ from callback_helpers import (
     _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, build_explain_summary,
+    resolve_time_mode,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -49,6 +50,67 @@ class TestParseLinks:
     def test_numeric_string(self):
         # "42" is valid JSON (a number) but not a list
         assert parse_links("42") == ["42"]
+
+
+# ============================================================================
+# resolve_time_mode
+# ============================================================================
+
+class TestResolveTimeMode:
+    """Goal/Milestone container types must always inherit time from children;
+    other types follow habit > inherited > manual based on form widget state.
+    """
+
+    def test_goal_forces_inherited_no_form_values(self):
+        assert resolve_time_mode('Goal', [], []) == 'inherited'
+
+    def test_goal_forces_inherited_even_when_habit_on(self):
+        # Form lock makes this state unreachable in the UI, but the resolver
+        # must enforce the invariant for any caller (convert-type, programmatic).
+        assert resolve_time_mode('Goal', [], ['habit']) == 'inherited'
+
+    def test_goal_forces_inherited_even_when_inherited_off(self):
+        # User toggled off (somehow); resolver still enforces.
+        assert resolve_time_mode('Goal', [], []) == 'inherited'
+
+    def test_milestone_forces_inherited_no_form_values(self):
+        assert resolve_time_mode('Milestone', [], []) == 'inherited'
+
+    def test_milestone_forces_inherited_even_when_habit_on(self):
+        assert resolve_time_mode('Milestone', [], ['habit']) == 'inherited'
+
+    def test_milestone_forces_inherited_even_when_inherited_explicit(self):
+        assert resolve_time_mode('Milestone', ['inherited'], []) == 'inherited'
+
+    def test_learn_default_manual(self):
+        assert resolve_time_mode('Learn', [], []) == 'manual'
+
+    def test_learn_inherited_when_toggled(self):
+        assert resolve_time_mode('Learn', ['inherited'], []) == 'inherited'
+
+    def test_learn_habit_when_toggled(self):
+        assert resolve_time_mode('Learn', [], ['habit']) == 'habit'
+
+    def test_learn_habit_wins_over_inherited(self):
+        # Mutual exclusivity is enforced upstream by enforce_time_mode_exclusivity,
+        # but if both arrive here somehow, habit wins (matches existing precedent
+        # in the original branched logic).
+        assert resolve_time_mode('Learn', ['inherited'], ['habit']) == 'habit'
+
+    def test_action_and_resource_follow_learn_rules(self):
+        assert resolve_time_mode('Action', [], []) == 'manual'
+        assert resolve_time_mode('Action', ['inherited'], []) == 'inherited'
+        assert resolve_time_mode('Resource', [], ['habit']) == 'habit'
+
+    def test_unknown_type_defaults_to_manual(self):
+        # Unknown / None types are treated like Learn (no special-case force).
+        assert resolve_time_mode(None, [], []) == 'manual'
+        assert resolve_time_mode('Unknown', [], []) == 'manual'
+
+    def test_none_form_values_safe(self):
+        # Defensive: callers might pass None instead of empty lists.
+        assert resolve_time_mode('Learn', None, None) == 'manual'
+        assert resolve_time_mode('Goal', None, None) == 'inherited'
 
 
 # ============================================================================

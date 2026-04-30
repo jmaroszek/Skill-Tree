@@ -43,6 +43,13 @@ class GraphManager:
     # so the monotonic contract still holds for cache invalidation.
     _graph_version: int = 0
     _scoring_version: int = 0
+    # Class-level queue of Goal/Milestone names whose hard prereqs just became
+    # all Done as a side-effect of an update_node call. Drained by the UI to
+    # surface a "Mark Done?" suggestion modal. Class-level (not instance) for
+    # the same reason as _graph_version: every GraphManager touches the same
+    # DB and needs to see the same pending candidates regardless of which
+    # instance initiated the mutation.
+    _auto_done_candidates: List[str] = []
     # Latest scoring-run timings (dict with adj_ms/goals_ms/score_ms/rank_ms/
     # total_ms/n_nodes). Written by calculate_priority_scores on the single
     # startup run; read-and-consumed by the Next-tab perf overlay.
@@ -157,6 +164,62 @@ class GraphManager:
                     logging.getLogger(__name__).exception(
                         "auto_trigger_by_node_completion failed for %s", node.name
                     )
+                # Auto-Done suggestion: any direct Hard dependent that is a
+                # Goal/Milestone whose prereqs are now ALL Done (and isn't
+                # already Done itself) becomes a candidate the UI surfaces
+                # via a "Mark Done?" modal. Detection is scoped to true Done
+                # transitions so re-saves and graph edits don't spam.
+                self._collect_auto_done_candidates(node.name)
+
+    def _collect_auto_done_candidates(self, just_done_name: str) -> None:
+        """Append direct Goal/Milestone dependents of ``just_done_name`` whose
+        hard prereqs are now all Done to the class-level candidate queue.
+
+        Only direct dependents are inspected: a transitive container can't be
+        "ready" yet because its own prereq (the direct dependent) is still
+        Open/Blocked. If the user marks the direct candidate Done via the
+        modal, that update_node call will detect the transitive container.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT n.name, n.type, n.status FROM Edges e "
+                "JOIN Nodes n ON e.target = n.name "
+                "WHERE e.source=? AND e.type='Needs_Hard'",
+                (just_done_name,),
+            )
+            dependents = cursor.fetchall()
+            for dep_name, dep_type, dep_status in dependents:
+                if dep_type not in ('Goal', 'Milestone'):
+                    continue
+                if dep_status == STATUS_DONE:
+                    continue
+                # Verify ALL of dep's hard prereqs are Done.
+                cursor.execute(
+                    "SELECT n.status FROM Edges e "
+                    "JOIN Nodes n ON e.source = n.name "
+                    "WHERE e.target=? AND e.type='Needs_Hard'",
+                    (dep_name,),
+                )
+                prereqs = cursor.fetchall()
+                if not prereqs:
+                    continue  # No prereqs = "all done" is vacuously true; skip
+                if any(s != STATUS_DONE for (s,) in prereqs):
+                    continue
+                if dep_name not in GraphManager._auto_done_candidates:
+                    GraphManager._auto_done_candidates.append(dep_name)
+
+    def pop_auto_done_candidates(self) -> List[str]:
+        """Return and clear the queued auto-Done candidate names.
+
+        Caller is the Dash drain callback that pushes pending candidates into
+        the editor's modal-trigger store. Each candidate represents a
+        Goal/Milestone whose hard prereqs are now all Done — the UI offers
+        the user a one-click "Mark Done?" suggestion for it.
+        """
+        candidates = list(GraphManager._auto_done_candidates)
+        GraphManager._auto_done_candidates = []
+        return candidates
 
     def delete_node(self, node_name: str):
         """Deletes a node by name.

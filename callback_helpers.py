@@ -361,6 +361,26 @@ def compute_habit_time_omp(duration, duration_unit,
     )
 
 
+def resolve_time_mode(n_type, time_mode_val, time_habit_mode_val):
+    """Map node type + form widget values to the canonical time_mode string.
+
+    Goal and Milestone are container types whose time is the sum of their
+    children's; they must always use ``time_mode='inherited'``. The editor
+    locks the toggle for these types, but this resolver is the canonical
+    server-side enforcement — used by every save path (main editor,
+    dormant-node creation, details-panel save) so that any future caller
+    (convert-type, programmatic save, etc.) can't accidentally bypass the
+    invariant. Otherwise, habit > inherited > manual.
+    """
+    if n_type in ('Goal', 'Milestone'):
+        return 'inherited'
+    if time_habit_mode_val and 'habit' in time_habit_mode_val:
+        return 'habit'
+    if time_mode_val and 'inherited' in time_mode_val:
+        return 'inherited'
+    return 'manual'
+
+
 # --- Editor Dirty-State Check (snapshot-based) ---
 
 

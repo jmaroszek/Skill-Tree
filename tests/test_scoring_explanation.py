@@ -196,6 +196,13 @@ def test_goal_node_reports_reason():
     assert breakdown['block_reason'] == "Goals are not ranked"
 
 
+def test_milestone_node_reports_reason():
+    nodes = [_node("M", type="Milestone", value=10, interest=5)]
+    breakdown = explain_score("M", nodes, [], HYPERS)
+    assert breakdown['eligible'] is False
+    assert breakdown['block_reason'] == "Milestones are not ranked"
+
+
 def test_missing_hard_prereqs_are_listed():
     nodes = [
         _node("S"),

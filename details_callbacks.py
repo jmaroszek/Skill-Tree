@@ -19,7 +19,8 @@ from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
                               is_filters_active,
                               build_explain_summary, build_explain_chart,
-                              habit_to_hours, compute_habit_time_omp)
+                              habit_to_hours, compute_habit_time_omp,
+                              resolve_time_mode)
 from scoring import explain_score, shortest_paths_focus_data
 
 graph_manager = GraphManager()
@@ -1352,18 +1353,15 @@ def register_details_callbacks(app):
             drive_path = serialize_links(drive_vals)
             web_path = serialize_links(website_vals)
 
-            habit_on = bool(time_habit_mode_val and 'habit' in time_habit_mode_val)
-            if habit_on:
+            # Resolve time_mode via the shared helper — Goal/Milestone always
+            # inherit; otherwise habit > inherited > manual.
+            t_mode = resolve_time_mode(node_type, time_mode_val, time_habit_mode_val)
+            if t_mode == 'habit':
                 t_o, t_m, t_p = compute_habit_time_omp(
                     habit_duration or 0, habit_duration_unit or 'weeks',
                     habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
                     habit_int_unit or 'min_per_day',
                 )
-                t_mode = 'habit'
-            elif time_mode_val and 'inherited' in time_mode_val:
-                t_mode = 'inherited'
-            else:
-                t_mode = 'manual'
             v_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
 
             new_node = Node(

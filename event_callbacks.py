@@ -11,7 +11,8 @@ from config import ConfigManager, sort_subcontexts
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
 from callback_helpers import (render_link_rows, serialize_links, spawn_local_file_picker,
-                              strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp)
+                              strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp,
+                              resolve_time_mode)
 
 event_manager = EventManager()
 graph_manager = GraphManager()
@@ -815,24 +816,19 @@ def register_event_callbacks(app):
             delay_days = delay_value
 
         multiplier = ConfigManager.get_time_multiplier(time_unit)
-        habit_on = bool(time_habit_mode_val and 'habit' in time_habit_mode_val)
-        if habit_on:
+        # Resolve time_mode via the shared helper — Goal/Milestone always
+        # inherit; otherwise habit > inherited > manual.
+        t_mode = resolve_time_mode(node_type or "Learn", time_mode_val, time_habit_mode_val)
+        if t_mode == 'habit':
             t_o, t_m, t_p = compute_habit_time_omp(
                 habit_duration or 0, habit_duration_unit or 'weeks',
                 habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
                 habit_int_unit or 'min_per_day',
             )
-            t_mode = 'habit'
-        elif time_mode_val and 'inherited' in time_mode_val:
-            t_o = float(time_o or 0) * multiplier
-            t_m = float(time_m or 0) * multiplier
-            t_p = float(time_p or 0) * multiplier
-            t_mode = 'inherited'
         else:
             t_o = float(time_o or 0) * multiplier
             t_m = float(time_m or 0) * multiplier
             t_p = float(time_p or 0) * multiplier
-            t_mode = 'manual'
 
         node = Node(
             name=name,
