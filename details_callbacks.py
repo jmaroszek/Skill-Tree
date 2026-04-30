@@ -55,48 +55,32 @@ def _apply_max_depth(subtree, selected_node, max_depth, edge_types):
     return subtree & visited
 
 
-def _get_direct_hard_child_milestones(parent_name):
-    """Return Node objects for direct Hard-prereq children of `parent_name`
-    that are typed Milestone, sorted by name. Used to render the Details-tab
-    Milestones roster (a horizontal strip of tiles above the subtasks table).
-
-    Direct-only — transitive containers can't be ready yet because their own
-    direct prereq is still Open/Blocked, so they're surfaced after the user
-    Marks Done on the direct one (via the auto-Done suggestion modal flow).
-    """
-    with graph_manager.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT n.name FROM Edges e JOIN Nodes n ON e.source = n.name "
-            "WHERE e.target=? AND e.type='Needs_Hard' AND n.type='Milestone' "
-            "ORDER BY n.name",
-            (parent_name,),
-        )
-        names = [row[0] for row in cursor.fetchall()]
-    return [graph_manager.get_node(n) for n in names if graph_manager.get_node(n) is not None]
-
-
-def _build_milestones_section(parent_name, global_filters):
+def _build_milestones_section(subtask_nodes):
     """Compute the (style, count_text, tiles) tuple for the milestones strip.
 
-    Filter-aware via `global_filters` — same filter pipeline the Subtasks
-    table uses (build_filters + hide_blocked), so the strip stays in sync
-    with the table. Returns (display:none, "", []) when no Milestone child
-    survives filtering.
+    Takes the same already-filtered ``subtask_nodes`` list the Subtasks table
+    is built from — picks out the Milestones, sorts by name, and renders one
+    tile each. By piggy-backing on the caller's subtree + filter pipeline
+    (Soft Needs, Transitive, Synergies, max-depth, hide_done, hide_blocked,
+    context, ratings, node-types), the strip stays perfectly in lockstep
+    with the table: turning Transitive on surfaces deeper Milestones in the
+    chain (e.g. `Run 5K → sub-25 → sub-22`); Hide Done drops completed ones;
+    deselecting Milestone in the type filter empties the strip.
+
+    Returns (display:none, "", []) when no Milestone survives filtering.
     """
-    direct = _get_direct_hard_child_milestones(parent_name)
-    if global_filters:
-        direct = graph_manager.filter_nodes(direct, global_filters)
-    if not direct:
+    milestones = [n for n in subtask_nodes if n.type == "Milestone"]
+    milestones.sort(key=lambda n: n.name)
+    if not milestones:
         return {"display": "none"}, "", []
     tiles = [
         build_milestone_tile(
             ms,
             graph_manager.get_goal_completion(ms.name, include_soft=False),
         )
-        for ms in direct
+        for ms in milestones
     ]
-    return {"display": "block"}, f"({len(direct)})", tiles
+    return {"display": "block"}, f"({len(milestones)})", tiles
 
 
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
@@ -465,11 +449,11 @@ def register_details_callbacks(app):
             include_transitive=include_transitive,
             include_synergies=include_synergies)
 
-        # Milestones roster — same global_filters the subtasks table uses, so
-        # filter toggles affect both surfaces in lockstep. Direct Hard-child
-        # Milestones only; transitive containers chain via the auto-Done modal.
-        ms_section_style, ms_count, ms_tiles = _build_milestones_section(
-            node_name, global_filters)
+        # Milestones roster — derived from the same filtered subtask_nodes the
+        # Subtasks table uses, so the strip stays in lockstep with the table:
+        # Transitive surfaces deeper Milestones in a chain, Hide Done/Blocked
+        # drop them, etc.
+        ms_section_style, ms_count, ms_tiles = _build_milestones_section(subtask_nodes)
 
         return (
             {"display": "none"},
@@ -557,10 +541,10 @@ def register_details_callbacks(app):
             include_transitive=include_transitive,
             include_synergies=include_synergies)
 
-        # Milestones roster shares the same filter pipeline so both surfaces
-        # narrow together when the user toggles Hide Done, picks a context, etc.
-        ms_section_style, ms_count, ms_tiles = _build_milestones_section(
-            selected_node, global_filters)
+        # Milestones roster shares the same filtered subtree the table uses
+        # so both surfaces narrow together — Transitive ON includes deeper
+        # milestones in chains; Hide Done/Blocked drop them; etc.
+        ms_section_style, ms_count, ms_tiles = _build_milestones_section(subtask_nodes)
 
         return subtasks_table, ms_section_style, ms_count, ms_tiles
 

@@ -220,103 +220,86 @@ class TestBuildGraphElementsInvariants:
 # Details-tab Milestones roster
 # ============================================================================
 
-from details_callbacks import (_get_direct_hard_child_milestones,
-                               _build_milestones_section)
+from details_callbacks import _build_milestones_section
 from details_layout import build_milestone_tile
 
 
-class TestDirectHardChildMilestones:
-    """The roster query — direct Hard-child Milestones only, sorted by name."""
-
-    def test_returns_milestone_children(self, mgr):
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
-        mgr.add_node(_make_node("M1", type="Milestone", time_mode='inherited'))
-        mgr.add_node(_make_node("M2", type="Milestone", time_mode='inherited'))
-        mgr.add_edge("M1", "Goal", EDGE_NEEDS_HARD)
-        mgr.add_edge("M2", "Goal", EDGE_NEEDS_HARD)
-        result = _get_direct_hard_child_milestones("Goal")
-        assert sorted(n.name for n in result) == ["M1", "M2"]
-
-    def test_excludes_non_milestone_types(self, mgr):
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
-        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
-        mgr.add_node(_make_node("L", type="Learn"))
-        mgr.add_node(_make_node("A", type="Action"))
-        mgr.add_node(_make_node("ChildGoal", type="Goal", time_mode='inherited'))
-        for src in ("M", "L", "A", "ChildGoal"):
-            mgr.add_edge(src, "Goal", EDGE_NEEDS_HARD)
-        result = _get_direct_hard_child_milestones("Goal")
-        assert [n.name for n in result] == ["M"]
-
-    def test_excludes_soft_edges(self, mgr):
-        # A Milestone wired via Needs_Soft is NOT a direct hard child.
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
-        mgr.add_node(_make_node("Hard", type="Milestone", time_mode='inherited'))
-        mgr.add_node(_make_node("Soft", type="Milestone", time_mode='inherited'))
-        mgr.add_edge("Hard", "Goal", EDGE_NEEDS_HARD)
-        mgr.add_edge("Soft", "Goal", EDGE_NEEDS_SOFT)
-        result = _get_direct_hard_child_milestones("Goal")
-        assert [n.name for n in result] == ["Hard"]
-
-    def test_empty_when_no_milestone_children(self, mgr):
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
-        mgr.add_node(_make_node("L", type="Learn"))
-        mgr.add_edge("L", "Goal", EDGE_NEEDS_HARD)
-        assert _get_direct_hard_child_milestones("Goal") == []
-
-    def test_only_direct_not_transitive(self, mgr):
-        # Grandchild Milestones (one hop further down) must NOT appear —
-        # they're handled via the auto-Done chain after the direct one is done.
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
-        mgr.add_node(_make_node("Direct", type="Milestone", time_mode='inherited'))
-        mgr.add_node(_make_node("Grand", type="Milestone", time_mode='inherited'))
-        mgr.add_edge("Direct", "Goal", EDGE_NEEDS_HARD)
-        mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
-        result = _get_direct_hard_child_milestones("Goal")
-        assert [n.name for n in result] == ["Direct"]
-
-
 class TestBuildMilestonesSection:
-    """The (style, count, tiles) tuple — visibility, count text, filter pass-through."""
+    """The (style, count, tiles) tuple — picks Milestones out of the already-
+    filtered subtree the caller built, so transitive milestones surface when
+    Transitive is on, Hide Done drops Done ones, etc."""
 
     def test_hidden_when_no_milestones(self, mgr):
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
-        style, count, tiles = _build_milestones_section("Goal", {})
+        # subtask list contains no Milestones → strip hidden.
+        mgr.add_node(_make_node("L1", type="Learn"))
+        mgr.add_node(_make_node("L2", type="Learn"))
+        style, count, tiles = _build_milestones_section(
+            [mgr.get_node("L1"), mgr.get_node("L2")])
+        assert style == {"display": "none"}
+        assert count == ""
+        assert tiles == []
+
+    def test_hidden_for_empty_subtree(self, mgr):
+        style, count, tiles = _build_milestones_section([])
         assert style == {"display": "none"}
         assert count == ""
         assert tiles == []
 
     def test_visible_with_count_and_tiles(self, mgr):
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
         mgr.add_node(_make_node("M1", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("M2", type="Milestone", time_mode='inherited'))
-        mgr.add_edge("M1", "Goal", EDGE_NEEDS_HARD)
-        mgr.add_edge("M2", "Goal", EDGE_NEEDS_HARD)
-        style, count, tiles = _build_milestones_section("Goal", {})
+        mgr.add_node(_make_node("L", type="Learn"))
+        style, count, tiles = _build_milestones_section(
+            [mgr.get_node("M1"), mgr.get_node("M2"), mgr.get_node("L")])
         assert style == {"display": "block"}
         assert count == "(2)"
         assert len(tiles) == 2
 
-    def test_filter_aware_hide_done(self, mgr):
-        # Hide Done filter should drop completed milestones from the strip.
+    def test_picks_only_milestone_type(self, mgr):
+        # Goals, Actions, Learns, Resources are all skipped.
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("L", type="Learn"))
+        mgr.add_node(_make_node("A", type="Action"))
+        mgr.add_node(_make_node("R", type="Resource"))
+        subtask_nodes = [mgr.get_node(n) for n in ("M", "G", "L", "A", "R")]
+        style, count, tiles = _build_milestones_section(subtask_nodes)
+        assert count == "(1)"
+        assert len(tiles) == 1
+
+    def test_includes_transitive_milestones(self, mgr):
+        # The caller's filtered subtree (with Transitive on) includes
+        # grandchild milestones — they should appear in the strip too.
         mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("Direct", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Grand", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("Direct", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
+        # Simulate the caller's subtree (transitive ON includes both).
+        subtask_nodes = [mgr.get_node("Direct"), mgr.get_node("Grand")]
+        style, count, tiles = _build_milestones_section(subtask_nodes)
+        assert count == "(2)"
+        assert len(tiles) == 2
+
+    def test_excludes_done_milestone_when_filtered_out(self, mgr):
+        # Caller has already applied Hide Done — the filtered subtask list
+        # passed in doesn't include the Done milestone, so neither does the
+        # strip. (The strip does no filtering of its own.)
         mgr.add_node(_make_node("OpenMS", type="Milestone", time_mode='inherited'))
-        mgr.add_node(_make_node("DoneMS", type="Milestone",
-                                time_mode='inherited', status="Done"))
-        mgr.add_edge("OpenMS", "Goal", EDGE_NEEDS_HARD)
-        mgr.add_edge("DoneMS", "Goal", EDGE_NEEDS_HARD)
-        style, count, tiles = _build_milestones_section("Goal", {"hide_done": True})
-        assert style == {"display": "block"}
+        # Caller would pass only OpenMS (DoneMS pre-filtered out)
+        style, count, tiles = _build_milestones_section([mgr.get_node("OpenMS")])
         assert count == "(1)"
 
-    def test_filter_aware_node_type_deselect(self, mgr):
-        # Deselecting Milestone in node-types filter empties the strip.
-        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
-        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
-        mgr.add_edge("M", "Goal", EDGE_NEEDS_HARD)
-        style, _count, _tiles = _build_milestones_section(
-            "Goal", {"node_types": ["Learn", "Action"]})
-        assert style == {"display": "none"}
+    def test_sorts_alphabetically(self, mgr):
+        # Stable display order for the user — alphabetical.
+        mgr.add_node(_make_node("Charlie", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Alpha", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Bravo", type="Milestone", time_mode='inherited'))
+        subtask_nodes = [mgr.get_node(n) for n in ("Charlie", "Alpha", "Bravo")]
+        style, count, tiles = _build_milestones_section(subtask_nodes)
+        # Tiles are html.Div objects — inspect their pattern-matched ids
+        ordered_names = [t.id["index"] for t in tiles]
+        assert ordered_names == ["Alpha", "Bravo", "Charlie"]
 
 
 class TestBuildMilestoneTile:
