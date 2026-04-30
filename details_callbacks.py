@@ -13,7 +13,8 @@ from event_manager import EventManager
 from config import (ConfigManager, badge_style, sort_subcontexts)
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table, build_goal_card,
-                             _build_suggestion_row, build_details_suggestions)
+                             _build_suggestion_row, build_details_suggestions,
+                             build_milestone_tile)
 from simulation import simulate_task_chain
 from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
@@ -52,6 +53,50 @@ def _apply_max_depth(subtree, selected_node, max_depth, edge_types):
         if not frontier:
             break
     return subtree & visited
+
+
+def _get_direct_hard_child_milestones(parent_name):
+    """Return Node objects for direct Hard-prereq children of `parent_name`
+    that are typed Milestone, sorted by name. Used to render the Details-tab
+    Milestones roster (a horizontal strip of tiles above the subtasks table).
+
+    Direct-only — transitive containers can't be ready yet because their own
+    direct prereq is still Open/Blocked, so they're surfaced after the user
+    Marks Done on the direct one (via the auto-Done suggestion modal flow).
+    """
+    with graph_manager.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT n.name FROM Edges e JOIN Nodes n ON e.source = n.name "
+            "WHERE e.target=? AND e.type='Needs_Hard' AND n.type='Milestone' "
+            "ORDER BY n.name",
+            (parent_name,),
+        )
+        names = [row[0] for row in cursor.fetchall()]
+    return [graph_manager.get_node(n) for n in names if graph_manager.get_node(n) is not None]
+
+
+def _build_milestones_section(parent_name, global_filters):
+    """Compute the (style, count_text, tiles) tuple for the milestones strip.
+
+    Filter-aware via `global_filters` — same filter pipeline the Subtasks
+    table uses (build_filters + hide_blocked), so the strip stays in sync
+    with the table. Returns (display:none, "", []) when no Milestone child
+    survives filtering.
+    """
+    direct = _get_direct_hard_child_milestones(parent_name)
+    if global_filters:
+        direct = graph_manager.filter_nodes(direct, global_filters)
+    if not direct:
+        return {"display": "none"}, "", []
+    tiles = [
+        build_milestone_tile(
+            ms,
+            graph_manager.get_goal_completion(ms.name, include_soft=False),
+        )
+        for ms in direct
+    ]
+    return {"display": "block"}, f"({len(direct)})", tiles
 
 
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
@@ -266,6 +311,10 @@ def register_details_callbacks(app):
         Output("details-priority-badge", "children"),
         # Subtasks
         Output("details-subtasks-table-container", "children"),
+        # Milestones roster (above the subtasks table, filter-aware)
+        Output("details-milestones-section", "style"),
+        Output("details-milestones-count", "children"),
+        Output("details-milestones-tiles", "children"),
         # Inputs
         Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
@@ -302,11 +351,12 @@ def register_details_callbacks(app):
                 {"display": "none"}, "",
                 html.Div("Select a node to see subtasks.",
                          className="text-muted text-center py-3"),
+                {"display": "none"}, "", [],
             )
 
         node = graph_manager.get_node(node_name)
         if not node:
-            return (no_update,) * 19
+            return (no_update,) * 22
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
@@ -415,6 +465,12 @@ def register_details_callbacks(app):
             include_transitive=include_transitive,
             include_synergies=include_synergies)
 
+        # Milestones roster — same global_filters the subtasks table uses, so
+        # filter toggles affect both surfaces in lockstep. Direct Hard-child
+        # Milestones only; transitive containers chain via the auto-Done modal.
+        ms_section_style, ms_count, ms_tiles = _build_milestones_section(
+            node_name, global_filters)
+
         return (
             {"display": "none"},
             {"display": "flex", "flexDirection": "column", "flex": "1",
@@ -433,11 +489,15 @@ def register_details_callbacks(app):
             show_progress, progress_val, progress_text,
             show_priority, priority_badge,
             subtasks_table,
+            ms_section_style, ms_count, ms_tiles,
         )
 
     # --- Toggle subtask filters ---
     @app.callback(
         Output("details-subtasks-table-container", "children", allow_duplicate=True),
+        Output("details-milestones-section", "style", allow_duplicate=True),
+        Output("details-milestones-count", "children", allow_duplicate=True),
+        Output("details-milestones-tiles", "children", allow_duplicate=True),
         Input("details-include-soft-needs", "value"),
         Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
@@ -461,7 +521,7 @@ def register_details_callbacks(app):
                                         f_node_types, gs_max_depth,
                                         hide_blocked_val, selected_node):
         if not selected_node:
-            return no_update
+            return no_update, no_update, no_update, no_update
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
@@ -491,11 +551,18 @@ def register_details_callbacks(app):
         subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
         edges = graph_manager.get_edges()
 
-        return build_details_subtasks_table(
+        subtasks_table = build_details_subtasks_table(
             subtask_nodes, graph_manager=graph_manager, edges=edges,
             parent_name=selected_node, include_soft=include_soft,
             include_transitive=include_transitive,
             include_synergies=include_synergies)
+
+        # Milestones roster shares the same filter pipeline so both surfaces
+        # narrow together when the user toggles Hide Done, picks a context, etc.
+        ms_section_style, ms_count, ms_tiles = _build_milestones_section(
+            selected_node, global_filters)
+
+        return subtasks_table, ms_section_style, ms_count, ms_tiles
 
     # --- Sync "Hide Done" toggle with sidebar filter ---
     @app.callback(
@@ -853,6 +920,23 @@ def register_details_callbacks(app):
         prevent_initial_call=True,
     )
     def navigate_to_subtask(n_clicks_list, active_tab):
+        if active_tab != "tab-details":
+            return no_update
+        if not any(n_clicks_list):
+            return no_update
+        triggered = ctx.triggered_id
+        if not triggered:
+            return no_update
+        return triggered["index"]
+
+    # --- Milestone Tile Click → Select that Milestone in Details ---
+    @app.callback(
+        Output("details-node-select", "value", allow_duplicate=True),
+        Input({"type": "details-milestone-tile", "index": ALL}, "n_clicks"),
+        State("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+    def navigate_to_milestone_tile(n_clicks_list, active_tab):
         if active_tab != "tab-details":
             return no_update
         if not any(n_clicks_list):

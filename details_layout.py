@@ -478,6 +478,18 @@ def build_details_tab_content():
                 ),
             ], className="d-flex gap-3"),
         ], className="d-flex align-items-center justify-content-between mb-2"),
+        # Milestones roster: horizontal strip of tiles for direct Hard-child
+        # Milestones of the selected node. Hidden when the selection has no
+        # Milestone children. Filter-aware — same global filters and hide-blocked
+        # the Subtasks table uses, so the Details tab stays in lockstep.
+        html.Div(id="details-milestones-section", style={"display": "none"}, children=[
+            html.Div([
+                html.Span("Milestones ", className="text-muted small"),
+                html.Span(id="details-milestones-count", className="text-muted small"),
+            ], className="mb-1"),
+            html.Div(id="details-milestones-tiles",
+                     className="d-flex flex-wrap gap-2 mb-3"),
+        ]),
         html.Div(id="details-subtasks-table-container",
                  style={"overflowY": "visible", "flex": "none"}),
     ], id="details-subtasks-section",
@@ -1385,3 +1397,96 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         html.Tbody(rows),
     ], bordered=False, hover=True, responsive=True, size="sm",
        className="text-light", style={"fontSize": "0.82rem"})
+
+
+# Milestone color is the canonical default; the user could remap via the
+# Settings UI but the diamond glyph in the tile reads best in this hue.
+_MILESTONE_GLYPH_COLOR = "#17a2b8"
+
+
+def build_milestone_tile(milestone_node, completion: dict):
+    """Compact tile for the Details-tab Milestones roster.
+
+    Layout (~280px wide, flex-wrap to multiple rows when many):
+      ◆ Name                   [Status]
+      ▰▰▰▰▰▱▱▱▱▱  47% · 18.2h
+
+    Leaf Milestones (no Hard children, total == 0) skip the progress bar
+    and show just name + status pill — mirrors the canvas hover tooltip's
+    "no subtasks yet" branch behavior.
+
+    The whole tile is keyed for the pattern-matched click callback in
+    details_callbacks; clicking navigates Details to this Milestone.
+    """
+    total = (completion or {}).get('total', 0)
+    pct = (completion or {}).get('pct', 0)
+    remaining = (completion or {}).get('remaining_time', 0)
+
+    # Header row: glyph + name (truncated) + status pill.
+    header = html.Div([
+        html.Span(
+            "◆ ",
+            style={"color": _MILESTONE_GLYPH_COLOR, "fontWeight": "bold",
+                   "marginRight": "2px"},
+        ),
+        html.Span(
+            milestone_node.name,
+            style={
+                "flex": "1",
+                "overflow": "hidden",
+                "textOverflow": "ellipsis",
+                "whiteSpace": "nowrap",
+                "fontSize": "0.85rem",
+                "fontWeight": "500",
+            },
+            title=milestone_node.name,
+        ),
+        html.Span(
+            milestone_node.status,
+            className="badge",
+            style={**badge_style(milestone_node.status, font_size="0.65rem"),
+                   "marginLeft": "6px"},
+        ),
+    ], className="d-flex align-items-center")
+
+    children = [header]
+
+    if total > 0:
+        bar_color = "#198754" if pct == 100 else "#0d6efd"
+        children += [
+            # Progress bar — same style as the canvas hover tooltip so the two
+            # surfaces read identically when hovering vs. browsing.
+            html.Div(
+                html.Div(style={
+                    "width": f"{pct}%", "height": "5px",
+                    "backgroundColor": bar_color, "borderRadius": "3px",
+                    "transition": "width 0.3s ease"
+                }),
+                style={"backgroundColor": "#495057", "borderRadius": "3px",
+                       "marginTop": "6px", "marginBottom": "4px",
+                       "overflow": "hidden"},
+            ),
+            html.Div(
+                f"{pct}% · {ConfigManager.format_time_friendly(remaining)}",
+                className="text-muted",
+                style={"fontSize": "0.72rem"},
+            ),
+        ]
+
+    # Whole tile is clickable — pattern-matched id picked up by
+    # navigate_to_milestone_tile in details_callbacks.
+    return html.Div(
+        children,
+        id={"type": "details-milestone-tile", "index": milestone_node.name},
+        n_clicks=0,
+        style={
+            "flex": "0 0 280px",
+            "padding": "8px 10px",
+            "backgroundColor": "#2b3035",
+            "border": f"1px solid {_MILESTONE_GLYPH_COLOR}",
+            "borderRadius": "6px",
+            "cursor": "pointer",
+            "minWidth": "0",
+        },
+        className="details-milestone-tile",
+    )

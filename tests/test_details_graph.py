@@ -214,3 +214,137 @@ class TestBuildGraphElementsInvariants:
             if 'source' in el['data']:
                 assert el['data']['source'] in nodes
                 assert el['data']['target'] in nodes
+
+
+# ============================================================================
+# Details-tab Milestones roster
+# ============================================================================
+
+from details_callbacks import (_get_direct_hard_child_milestones,
+                               _build_milestones_section)
+from details_layout import build_milestone_tile
+
+
+class TestDirectHardChildMilestones:
+    """The roster query — direct Hard-child Milestones only, sorted by name."""
+
+    def test_returns_milestone_children(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("M1", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("M2", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("M1", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("M2", "Goal", EDGE_NEEDS_HARD)
+        result = _get_direct_hard_child_milestones("Goal")
+        assert sorted(n.name for n in result) == ["M1", "M2"]
+
+    def test_excludes_non_milestone_types(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("L", type="Learn"))
+        mgr.add_node(_make_node("A", type="Action"))
+        mgr.add_node(_make_node("ChildGoal", type="Goal", time_mode='inherited'))
+        for src in ("M", "L", "A", "ChildGoal"):
+            mgr.add_edge(src, "Goal", EDGE_NEEDS_HARD)
+        result = _get_direct_hard_child_milestones("Goal")
+        assert [n.name for n in result] == ["M"]
+
+    def test_excludes_soft_edges(self, mgr):
+        # A Milestone wired via Needs_Soft is NOT a direct hard child.
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("Hard", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Soft", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("Hard", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("Soft", "Goal", EDGE_NEEDS_SOFT)
+        result = _get_direct_hard_child_milestones("Goal")
+        assert [n.name for n in result] == ["Hard"]
+
+    def test_empty_when_no_milestone_children(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("L", type="Learn"))
+        mgr.add_edge("L", "Goal", EDGE_NEEDS_HARD)
+        assert _get_direct_hard_child_milestones("Goal") == []
+
+    def test_only_direct_not_transitive(self, mgr):
+        # Grandchild Milestones (one hop further down) must NOT appear —
+        # they're handled via the auto-Done chain after the direct one is done.
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("Direct", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Grand", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("Direct", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
+        result = _get_direct_hard_child_milestones("Goal")
+        assert [n.name for n in result] == ["Direct"]
+
+
+class TestBuildMilestonesSection:
+    """The (style, count, tiles) tuple — visibility, count text, filter pass-through."""
+
+    def test_hidden_when_no_milestones(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        style, count, tiles = _build_milestones_section("Goal", {})
+        assert style == {"display": "none"}
+        assert count == ""
+        assert tiles == []
+
+    def test_visible_with_count_and_tiles(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("M1", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("M2", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("M1", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("M2", "Goal", EDGE_NEEDS_HARD)
+        style, count, tiles = _build_milestones_section("Goal", {})
+        assert style == {"display": "block"}
+        assert count == "(2)"
+        assert len(tiles) == 2
+
+    def test_filter_aware_hide_done(self, mgr):
+        # Hide Done filter should drop completed milestones from the strip.
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("OpenMS", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("DoneMS", type="Milestone",
+                                time_mode='inherited', status="Done"))
+        mgr.add_edge("OpenMS", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("DoneMS", "Goal", EDGE_NEEDS_HARD)
+        style, count, tiles = _build_milestones_section("Goal", {"hide_done": True})
+        assert style == {"display": "block"}
+        assert count == "(1)"
+
+    def test_filter_aware_node_type_deselect(self, mgr):
+        # Deselecting Milestone in node-types filter empties the strip.
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("M", "Goal", EDGE_NEEDS_HARD)
+        style, _count, _tiles = _build_milestones_section(
+            "Goal", {"node_types": ["Learn", "Action"]})
+        assert style == {"display": "none"}
+
+
+class TestBuildMilestoneTile:
+    """The tile renderer — progress bar present/absent, status pill, glyph."""
+
+    def test_with_progress_bar(self, mgr):
+        ms = _make_node("M", type="Milestone", time_mode='inherited')
+        completion = {"total": 4, "done": 2, "pct": 50, "remaining_time": 6.0}
+        tile = build_milestone_tile(ms, completion)
+        # Tile is an html.Div with a pattern-matched id for the click callback.
+        assert tile.id == {"type": "details-milestone-tile", "index": "M"}
+        # Rendered as a string the percentage and "·" separator should appear.
+        rendered = str(tile)
+        assert "50%" in rendered
+        assert "·" in rendered
+
+    def test_no_progress_bar_when_no_prereqs(self, mgr):
+        ms = _make_node("Squat 1.5x BW", type="Milestone", time_mode='inherited')
+        completion = {"total": 0, "done": 0, "pct": 0, "remaining_time": 0.0}
+        tile = build_milestone_tile(ms, completion)
+        rendered = str(tile)
+        # No progress bar text — the "X% · Yh" stats row is gated on total > 0.
+        assert "0% ·" not in rendered
+
+    def test_handles_none_completion(self, mgr):
+        # Defensive: if completion is None or empty, treat as no-prereqs leaf.
+        ms = _make_node("M", type="Milestone", time_mode='inherited')
+        tile_none = build_milestone_tile(ms, None)
+        tile_empty = build_milestone_tile(ms, {})
+        assert tile_none.id == {"type": "details-milestone-tile", "index": "M"}
+        assert tile_empty.id == {"type": "details-milestone-tile", "index": "M"}
