@@ -320,8 +320,8 @@ The custom inputs include:
 - **Effort penalty** — how much harder tasks get deprioritized.
 - **Hard prerequisite boost** — how much a node's priority inherits from things that depend on it via hard edges.
 - **Soft prerequisite boost** — same but for soft edges.
-- **Synergy Pair Bonus** — a small extra weight applied to synergy partners regardless of completion state. Co-promotes synergy pairs so they tend to surface together in the ranking before any work starts. Keep this small — typical values 0.05–0.15.
-- **Synergy Multiplier** — the multiplicative kick applied to a node's intrinsic value once a synergy partner is Done. Each Done partner adds this much to the multiplier (e.g. 0.40 means one Done partner makes the node 40% more valuable; two Done partners makes it 80% more valuable). This is what captures the "doing both is more than the sum of the parts" intent.
+- **Pending Bonus** — a small extra weight applied to synergy partners regardless of completion state. Co-promotes synergy pairs so they tend to surface together in the ranking before any work starts. Keep this small — typical values 0.05–0.15.
+- **Done Multiplier** — the multiplicative kick applied to a node's intrinsic value once a synergy partner is Done. Each Done partner adds this much to the multiplier (e.g. 0.40 means one Done partner makes the node 40% more valuable; two Done partners makes it 80% more valuable). This is what captures the "doing both is more than the sum of the parts" intent.
 - **Goal boost** — how much extra nudge a Priority Goal gets.
 - **Time estimate weight** — how heavily the time estimate affects cost.
 - **Time mode** — how the three PERT numbers blend.

@@ -213,13 +213,21 @@ def build_settings_tab_content():
                         ], className="mt-2"),
                         # Descriptions row — Bootstrap flex makes all cols equal height
                         dbc.Row([
-                            dbc.Col(html.Small("IV = w_v \u00b7 V + w_i \u00b7 I", className="text-muted",
-                                               style={"fontFamily": "monospace"})),
+                            dbc.Col(html.Small([
+                                html.Span("IV = w_v \u00b7 V + w_i \u00b7 I",
+                                          style={"fontFamily": "monospace"}),
+                                html.Br(),
+                                "The node's worth on its own, before any cascade or synergy.",
+                            ], className="text-muted")),
                             dbc.Col(html.Small(
-                                "Hard/Soft = retention per edge type. Synergy is split: Pair Bonus = co-promotion before completion; Multiplier = kick on intrinsic when a partner is Done.",
+                                "Hard/Soft: value kept per cascade hop. Pending Bonus: additive boost each gets before either is done. Done Multiplier: multiplicative boost the other gets when one is done.",
                                 className="text-muted")),
-                            dbc.Col(html.Small("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2", className="text-muted",
-                                               style={"fontFamily": "monospace"})),
+                            dbc.Col(html.Small([
+                                html.Span("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2",
+                                          style={"fontFamily": "monospace"}),
+                                html.Br(),
+                                "\u03b2 controls the time penalty. At \u03b2 = 1, a 4\u00d7 longer task costs 4\u00d7 more. Lower \u03b2 softens this so long tasks don't carry proportional cost.",
+                            ], className="text-muted")),
                         ], className="mb-2"),
                         # Row 1
                         dbc.Row([
@@ -237,9 +245,9 @@ def build_settings_tab_content():
                         dbc.Row([
                             dbc.Col([]),
                             dbc.Col([
-                                dbc.Label("Synergy Pair Bonus", className="mt-2"),
+                                dbc.Label("Pending Bonus", className="mt-2"),
                                 dbc.Input(id="hp-dsyn-pair", type="number", step=0.01),
-                                dbc.Label("Synergy Multiplier", className="mt-2"),
+                                dbc.Label("Done Multiplier", className="mt-2"),
                                 dbc.Input(id="hp-dsyn-mul", type="number", step=0.05),
                             ]),
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step=0.05)]),
