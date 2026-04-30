@@ -10,6 +10,7 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from graph_manager import GraphManager
+from callback_helpers import compute_orphaned_subcontext_pairs
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
 from scoring import intrinsic_value, perceived_cost, is_eligible, build_adjacency, total_value, score_nodes
 
@@ -1414,6 +1415,90 @@ class TestNodeMigration:
         mgr.add_node(_make_node("A", context="Mind"))
         mgr.apply_migration('context', {})
         assert mgr.get_node("A").context == "Mind"  # unchanged
+
+
+# ============================================================================
+# Subcontext-Pair Orphan Detection
+# ============================================================================
+
+class TestOrphanedSubcontextPairs:
+    """Pure-helper tests — no DB. Identifies (ctx, sub) pairs that no longer exist."""
+
+    def test_move_between_parents(self):
+        old = {"STEM": ["Psychology"]}
+        new = {"Social": ["Psychology"]}
+        pairs = compute_orphaned_subcontext_pairs(old, new, ["STEM", "Social"])
+        assert pairs == [("STEM", "Psychology")]
+
+    def test_rename_in_place(self):
+        old = {"STEM": ["Psychology"]}
+        new = {"STEM": ["Cognitive"]}
+        pairs = compute_orphaned_subcontext_pairs(old, new, ["STEM"])
+        assert pairs == [("STEM", "Psychology")]
+
+    def test_pure_delete(self):
+        old = {"STEM": ["Psychology", "Math"]}
+        new = {"STEM": ["Math"]}
+        pairs = compute_orphaned_subcontext_pairs(old, new, ["STEM"])
+        assert pairs == [("STEM", "Psychology")]
+
+    def test_parent_context_removed_is_skipped(self):
+        # Psychology "moves" but its old parent STEM no longer exists in new_contexts —
+        # those nodes are handled by the context-orphan path, not this one.
+        old = {"STEM": ["Psychology"]}
+        new = {"Social": ["Psychology"]}
+        pairs = compute_orphaned_subcontext_pairs(old, new, ["Social"])
+        assert pairs == []
+
+    def test_same_name_added_under_new_parent_does_not_orphan(self):
+        old = {"STEM": ["Psychology"]}
+        new = {"STEM": ["Psychology"], "Arts": ["Psychology"]}
+        pairs = compute_orphaned_subcontext_pairs(old, new, ["STEM", "Arts"])
+        assert pairs == []
+
+    def test_empty_old(self):
+        pairs = compute_orphaned_subcontext_pairs({}, {"STEM": ["Math"]}, ["STEM"])
+        assert pairs == []
+
+    def test_unchanged_returns_empty(self):
+        old = {"STEM": ["Math"]}
+        new = {"STEM": ["Math"]}
+        pairs = compute_orphaned_subcontext_pairs(old, new, ["STEM"])
+        assert pairs == []
+
+    def test_combined_move_and_rename(self):
+        old = {"STEM": ["Psychology", "Bio"], "Mind": ["Sleep"]}
+        new = {"STEM": ["Biology"], "Social": ["Psychology"], "Mind": ["Sleep"]}
+        pairs = compute_orphaned_subcontext_pairs(old, new, ["STEM", "Social", "Mind"])
+        assert sorted(pairs) == sorted([("STEM", "Psychology"), ("STEM", "Bio")])
+
+
+class TestFindOrphanedSubcontextPairs:
+    """DB wrapper — confirms pair detection plus node lookup, keyed by display label."""
+
+    def test_move_flags_only_pair_matched_nodes(self, mgr):
+        mgr.add_node(_make_node("A", context="STEM", subcontext="Psychology"))
+        mgr.add_node(_make_node("B", context="STEM", subcontext="Math"))
+        old = {"STEM": ["Psychology", "Math"]}
+        new = {"STEM": ["Math"], "Social": ["Psychology"]}
+        result = mgr.find_orphaned_subcontext_pairs(old, new, ["STEM", "Social"])
+        assert "STEM › Psychology" in result
+        assert [n.name for n in result["STEM › Psychology"]] == ["A"]
+        assert "STEM › Math" not in result
+
+    def test_pair_removed_but_no_nodes_returns_empty(self, mgr):
+        mgr.add_node(_make_node("A", context="STEM", subcontext="Math"))
+        old = {"STEM": ["Psychology", "Math"]}
+        new = {"STEM": ["Math"]}
+        result = mgr.find_orphaned_subcontext_pairs(old, new, ["STEM"])
+        assert result == {}
+
+    def test_no_orphans_when_unchanged(self, mgr):
+        mgr.add_node(_make_node("A", context="STEM", subcontext="Math"))
+        old = {"STEM": ["Math"]}
+        new = {"STEM": ["Math"]}
+        result = mgr.find_orphaned_subcontext_pairs(old, new, ["STEM"])
+        assert result == {}
 
 
 # ============================================================================

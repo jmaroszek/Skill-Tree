@@ -689,6 +689,16 @@ def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_b
             if not ctx_required:
                 default_sub = "__keep__"
                 init_sub_opts, _ = _sub_options_for("__keep__")
+                # Smart default: if the orphan label is "ctx › sub" and `sub` now lives
+                # under exactly one new parent, pre-select that (parent, sub) so the
+                # common move case is a one-click migration.
+                if " › " in old_val:
+                    _, sub_name = old_val.split(" › ", 1)
+                    candidates = [c for c, ss in subcontexts_map.items() if sub_name in ss]
+                    if len(candidates) == 1:
+                        default_ctx = candidates[0]
+                        init_sub_opts, _ = _sub_options_for(default_ctx)
+                        default_sub = sub_name
             rows.append(dbc.Row([
                 dbc.Col([
                     html.Div([

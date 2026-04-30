@@ -28,11 +28,30 @@ def build_context_weight_rows(contexts, ctx_weights):
                     className="d-flex align-items-center"),
             dbc.Col(dbc.Input(
                 id={"type": "setting-context-weight", "index": ctx_name},
-                type="number", min=0, max=10, step=0.1,
+                type="number", min=0, max=10, step="any",
                 value=float(ctx_weights.get(ctx_name, 1.0)),
             ), width=4),
         ], className="mb-2"))
     return rows
+
+
+def compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts):
+    """(ctx, sub) pairs present in old but not in new, where ctx still exists in new_contexts.
+
+    Subcontexts are identified by (context, subcontext) tuple — the same name under a
+    different parent is a distinct pair. Pairs whose parent context is being removed
+    are skipped (those nodes are handled by the context-orphan path instead).
+    """
+    new_contexts_set = set(new_contexts)
+    pairs = []
+    for ctx, subs in old_subcontexts.items():
+        if ctx not in new_contexts_set:
+            continue
+        new_subs = set(new_subcontexts.get(ctx, []))
+        for sub in subs:
+            if sub not in new_subs:
+                pairs.append((ctx, sub))
+    return pairs
 
 
 def _get_duplicate_stop_words():

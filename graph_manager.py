@@ -1058,6 +1058,27 @@ class GraphManager:
                 orphans[val] = affected
         return orphans
 
+    def find_orphaned_subcontext_pairs(self, old_subcontexts: Dict, new_subcontexts: Dict,
+                                       new_contexts: list) -> Dict[str, List[Node]]:
+        """Find nodes whose (context, subcontext) pair no longer exists in the new structure.
+
+        Subcontext identity is the (context, subcontext) tuple, not the bare name —
+        moving a subcontext between parents leaves the bare name in the flat list but
+        invalidates the pair. Returns a dict keyed by 'ctx › sub' display labels.
+        """
+        from callback_helpers import compute_orphaned_subcontext_pairs
+        pairs = compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts)
+        if not pairs:
+            return {}
+
+        all_nodes = self.get_all_nodes()
+        orphans = {}
+        for ctx, sub in pairs:
+            affected = [n for n in all_nodes if n.context == ctx and n.subcontext == sub]
+            if affected:
+                orphans[f"{ctx} › {sub}"] = affected
+        return orphans
+
     def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Optional[Dict] = None):
         """Remap node attribute values in bulk.
 

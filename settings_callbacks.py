@@ -445,7 +445,6 @@ def register_settings_callbacks(app):
             old_contexts = ConfigManager.get_contexts()
             old_subcontexts = ConfigManager.get_subcontexts()
 
-            old_sub_flat = [s for subs in old_subcontexts.values() for s in subs]
             new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
 
             orphans = {}
@@ -455,7 +454,9 @@ def register_settings_callbacks(app):
             ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
             if ctx_orphans:
                 orphans['context'] = {k: [n.name for n in v] for k, v in ctx_orphans.items()}
-            sub_orphans = manager.find_orphaned_nodes('subcontext', old_sub_flat, new_sub_flat)
+            sub_orphans = manager.find_orphaned_subcontext_pairs(
+                old_subcontexts, new_subcontexts, new_contexts
+            )
             if sub_orphans:
                 orphans['subcontext'] = {k: [n.name for n in v] for k, v in sub_orphans.items()}
 
