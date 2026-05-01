@@ -354,16 +354,16 @@ class TestSuggestionsOverrideSorting:
 # ============================================================================
 
 # In the bar-chart-row layout, override is encoded as the priority bar's
-# color, not as a separate cell, checkmark, or left border. The exact
-# colors come from ConfigManager.get_node_colors() so the bars stay in
-# sync with Settings → Type Colors; we resolve them at test time rather
-# than hardcoding so a future palette change in DEFAULT_NODE_COLORS
-# doesn't silently break these assertions.
-from config import ConfigManager as _CM
+# color, not as a separate cell, checkmark, or left border. Colors come
+# from the static BADGE_PALETTE (decoupled from canvas Type Colors by
+# design — see the BADGE_PALETTE comment in config.py). We resolve them
+# at test time rather than hardcoding so future palette tweaks don't
+# silently break these assertions.
+from config import BADGE_PALETTE as _BADGE_PALETTE
 
 
 def _expected_bar_color(type_or_override: str) -> str:
-    return _CM.get_node_colors().get(type_or_override)
+    return _BADGE_PALETTE[type_or_override][0]
 
 
 def _get_first_row(result):

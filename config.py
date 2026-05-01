@@ -105,76 +105,60 @@ DEFAULT_NODE_SHAPES = {
     'Milestone': 'diamond',
 }
 
-# Tile/badge palette for the Node Editor priority strip and the Details
-# info-pane stack. All colors are slightly muted from their canvas /
-# Bootstrap-Darkly equivalents so the strip sits alongside the cool/quiet
-# subtasks-table tiles without feeling loud. STYLE_GUIDE.md is the
-# human-readable source of truth — keep it in sync when changing values.
-# Each entry is (background, text).
+# Static palette for every non-canvas surface that needs a type/status/
+# relationship color: Next-tab priority bars, Details info-pane badges,
+# Editor priority strip, subtasks-table tiles. Each entry is (background,
+# foreground).
+#
+# These colors are intentionally DECOUPLED from Settings → Type Colors
+# (which drive the Cytoscape canvas). The canvas needs vivid hues to keep
+# the network readable; the bars/badges need the same hue identity at a
+# quieter register so a screen full of them doesn't fatigue the eye.
+#
+# Type-color values were tuned by hand from the user's saturated canvas
+# palette using a per-hue HSL desaturation (orange and purple respond
+# differently to the same delta), then frozen here so future-you doesn't
+# have to remember the derivation. To change one: edit the literal hex.
+# To re-derive after a canvas-palette swap: `git log -p` this block for
+# the original deltas (Learn -25/-10, Action -30/-10, Resource -10/-4,
+# Goal/Milestone/Override -20/-7).
+#
+# STYLE_GUIDE.md is the human-readable source of truth — keep it in sync
+# when changing values here.
 BADGE_PALETTE = {
-    'Override':   ('#b03878', '#ffffff'),  # was #c4528c
-    'Goal':       ('#d98800', '#ffffff'),  # type tile — Darkly --bs-warning (matches empty-state ranking list)
-    'Priority':   ('#d98800', '#ffffff'),  # Priority N — same as Goal; suppresses Goal type when shown
-    'Action':     ('#c35d0a', '#ffffff'),  # was #d97120
-    'Learn':      ('#1c5ec2', '#ffffff'),  # was #2c70d6
-    'Resource':   ('#683688', '#ffffff'),  # was #7c4d9c
-    STATUS_OPEN:       ('#3e61a0', '#ffffff'),  # was #5677a6
-    STATUS_DONE:       ('#148a68', '#ffffff'),  # was #1a9d78
-    STATUS_BLOCKED:    ('#9e3838', '#ffffff'),  # was #b35353
-    'HardRelPri': ('#2a4d6e', '#d6e0ee'),  # was #375a7f — matches subtasks Hard
-    'SoftRelPri': ('#414f5c', '#d0d6dc'),  # was #52606e — matches subtasks Soft
+    # Type badges — muted variants of the canvas Type Colors.
+    'Learn':      ('#1d5cba', '#ffffff'),
+    'Action':     ('#bb6823', '#ffffff'),
+    'Resource':   ('#814d9e', '#ffffff'),
+    'Goal':       ('#9f962d', '#ffffff'),
+    'Priority':   ('#9f962d', '#ffffff'),  # Priority N suppresses Goal type — share its color
+    'Milestone':  ('#2f909d', '#ffffff'),
+    'Override':   ('#c516a5', '#ffffff'),
+    # Status badges (Open / Done / Blocked) — tuned independently for the
+    # subtasks-table status pills and node-info status indicators.
+    STATUS_OPEN:       ('#3e61a0', '#ffffff'),
+    STATUS_DONE:       ('#148a68', '#ffffff'),
+    STATUS_BLOCKED:    ('#9e3838', '#ffffff'),
+    # Relationship-priority badges — match the subtasks-table relationship tiles.
+    'HardRelPri': ('#2a4d6e', '#d6e0ee'),
+    'SoftRelPri': ('#414f5c', '#d0d6dc'),
 }
-
-
-# Names whose badge bg is driven by the user's Settings → Type Colors
-# (so the Next-tab bars and the Details/Editor badges all stay in sync
-# with what the user picks in settings). 'Priority' shares Goal's color
-# by convention. Status names (Open/Done/Blocked) and structural roles
-# like HardRelPri/SoftRelPri keep their hardcoded BADGE_PALETTE values.
-_SETTINGS_DRIVEN_BADGES = {
-    'Goal', 'Action', 'Learn', 'Resource', 'Milestone', 'Override',
-}
-
-
-def _relative_luminance(hex_color: str) -> float:
-    """sRGB relative luminance per WCAG; used to pick a readable foreground."""
-    h = hex_color.lstrip('#')
-    if len(h) != 6:
-        return 0.0
-    try:
-        r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
-    except ValueError:
-        return 0.0
-    def _lin(c: float) -> float:
-        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-    return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b)
 
 
 def _resolved_badge_colors(name: str) -> tuple[str, str]:
-    """Return (bg, fg) for a badge, deferring to user-configured node colors
-    for type/override/priority badges and falling back to BADGE_PALETTE for
-    everything else. Foreground flips to black on light backgrounds.
+    """Return (bg, fg) for a badge by direct lookup in BADGE_PALETTE.
+
+    Unknown names fall back to a neutral gray. The palette is the single
+    source of truth — there is no Settings → Type Colors override path.
     """
-    palette_bg, palette_fg = BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
-    type_key = 'Goal' if name == 'Priority' else name
-    if type_key in _SETTINGS_DRIVEN_BADGES:
-        try:
-            bg = ConfigManager.get_node_colors().get(type_key, palette_bg)
-        except Exception:
-            bg = palette_bg
-        # Re-derive fg for contrast since the user-picked color may be much
-        # lighter than the muted palette bg (e.g. yellow Goal).
-        fg = '#000000' if _relative_luminance(bg) > 0.55 else '#ffffff'
-        return bg, fg
-    return palette_bg, palette_fg
+    return BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
 
 
 def badge_style(name: str, font_size: str = "0.75rem") -> dict:
     """Return an inline-style dict for a node-info badge with the given name.
 
     `name` should be a key in `BADGE_PALETTE` (e.g. 'Open', 'Goal',
-    'HardRelPri'). Unknown names fall back to a neutral gray. Type/Override
-    badges defer their bg to Settings → Type Colors.
+    'HardRelPri'). Unknown names fall back to a neutral gray.
     """
     bg, fg = _resolved_badge_colors(name)
     return {"backgroundColor": bg, "color": fg, "fontSize": font_size}
@@ -198,7 +182,6 @@ def info_strip_segment_style(name: str, is_first: bool = False) -> dict:
 
     `name` should be a key in `BADGE_PALETTE`. `is_first=True` skips the
     left divider so the first segment isn't preceded by a vertical line.
-    Type/Override segments defer their bg to Settings → Type Colors.
     """
     bg, fg = _resolved_badge_colors(name)
     style = {
@@ -570,26 +553,36 @@ class ConfigManager:
         return 1.0
 
     @classmethod
-    def format_time_friendly(cls, hours: float | None) -> str:
-        """Format an hour based on user configured time bounds"""
+    def format_time_friendly(cls, hours: float | None,
+                             force_one_decimal: bool = False) -> str:
+        """Format an hour based on user configured time bounds.
+
+        By default, integer values display without a decimal ("1w", "8h").
+        Pass `force_one_decimal=True` for tabular displays where decimal
+        alignment matters — every value gets exactly one decimal place
+        ("1.0w", "8.0h", "0.0h").
+        """
         if hours is None or hours <= 0:
-            return "0h"
-        
+            return "0.0h" if force_one_decimal else "0h"
+
         settings = cls.get_time_settings()
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)
-        
+
         if hm > 0 and hours >= hm:
             months = round(hours / hm, 1)
-            if months.is_integer(): months = int(months)
+            if months.is_integer() and not force_one_decimal:
+                months = int(months)
             return f"{months}m"
         elif hw > 0 and hours >= hw:
             weeks = round(hours / hw, 1)
-            if weeks.is_integer(): weeks = int(weeks)
+            if weeks.is_integer() and not force_one_decimal:
+                weeks = int(weeks)
             return f"{weeks}w"
         else:
             h = round(hours, 1)
-            if h.is_integer(): h = int(h)
+            if h.is_integer() and not force_one_decimal:
+                h = int(h)
             return f"{h}h"
 
     @classmethod

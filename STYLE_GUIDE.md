@@ -29,29 +29,40 @@ Bootstrap DARKLY theme via `dash-bootstrap-components`.
 | text-white   | `#fff`    | Node labels, headings    |
 | text-soft    | `#adb5bd` | Subtle indicators        |
 
-### Node-info badge palette (slightly muted)
+### Node-info badge palette (muted)
 
-The Node Editor priority strip and the Details info pane share a single
-palette (`config.BADGE_PALETTE`, accessed via `config.badge_style(name)`).
-All values are slightly muted from their canvas / Bootstrap-Darkly
-equivalents so the strip sits alongside the cool/quiet subtasks-table
-edge tiles without feeling loud. **This file is the human-readable source
-of truth — keep `config.BADGE_PALETTE` and the documentation here in
-sync.**
+The Next-tab priority bars, Node Editor priority strip, Details info
+pane, and subtasks-table tiles all share a single palette
+(`config.BADGE_PALETTE`, accessed via `config.badge_style(name)` for
+badges or read directly for the Next-tab bar fills). The palette is
+**deliberately decoupled from Settings → Type Colors** — the canvas
+needs vivid hues to keep the network readable; the bars/badges need the
+same hue identity at a quieter register, and frozen literals here are
+the single source of truth so future-you doesn't have to remember any
+derivation. **This file is the human-readable source of truth — keep
+`config.BADGE_PALETTE` and the documentation here in sync.**
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Override     | `#b03878` | `#ffffff` | Manual override; rare but loud. Always first in stack.    |
-| Goal         | `#d98800` | `#ffffff` | Type tile — Darkly `--bs-warning` (matches the empty-state ranking list). Suppressed when a `Priority N` tile is shown. |
-| Priority     | `#d98800` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
-| Action       | `#c35d0a` | `#ffffff` | Type tile.                                                |
-| Learn        | `#1c5ec2` | `#ffffff` | Type tile.                                                |
-| Resource     | `#683688` | `#ffffff` | Type tile.                                                |
+| Override     | `#c516a5` | `#ffffff` | Manual override; rare but distinct. Always first in stack. |
+| Goal         | `#9f962d` | `#ffffff` | Type tile. Suppressed when a `Priority N` tile is shown.  |
+| Priority     | `#9f962d` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
+| Action       | `#bb6823` | `#ffffff` | Type tile. More desaturated than the default — orange holds saturation visually. |
+| Learn        | `#1d5cba` | `#ffffff` | Type tile.                                                |
+| Resource     | `#814d9e` | `#ffffff` | Type tile. Less desaturated than the default — purple turns muddy if pushed too far. |
+| Milestone    | `#2f909d` | `#ffffff` | Type tile.                                                |
 | Open         | `#3e61a0` | `#ffffff` | Status tile — solid blue.                                 |
 | Done         | `#148a68` | `#ffffff` | Status tile.                                              |
 | Blocked      | `#9e3838` | `#ffffff` | Status tile.                                              |
 | HardRelPri   | `#2a4d6e` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches subtasks-table Hard. |
 | SoftRelPri   | `#414f5c` | `#d0d6dc` | `Soft #N`. Matches subtasks-table Soft tile.              |
+
+The type-color values were originally derived by HSL-desaturating the
+saturated canvas palette by per-hue amounts (Learn −25 sat / −10 light,
+Action −30/−10, Resource −10/−4, Goal/Milestone/Override −20/−7), then
+frozen here. To re-derive after a major canvas-palette swap, dig those
+deltas out of the git history for this file or `config.BADGE_PALETTE`.
+Otherwise, just edit the literals to taste.
 
 **Render order** in the Details info pane:
 

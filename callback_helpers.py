@@ -12,7 +12,7 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
-from config import ConfigManager
+from config import BADGE_PALETTE, ConfigManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_DONE
 
 
@@ -771,16 +771,15 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     normalized_scores = [normalize(getattr(s, 'priority_score', 0)) for s in suggs]
     max_priority = max(normalized_scores) if normalized_scores else 0
 
-    # Bar colors track the user's settings (Settings → Type Colors / Status Colors).
-    node_colors = ConfigManager.get_node_colors()
-    override_color = node_colors.get('Override', '#e83e8c')
+    # Bar colors come from the static BADGE_PALETTE (in config.py), NOT the
+    # user-configurable canvas Type Colors. See the BADGE_PALETTE comment for
+    # the rationale — short version: canvas needs vivid hues, bars need a
+    # quieter register, and the two are decoupled by design.
+    override_color = BADGE_PALETTE['Override'][0]
 
-    # Name column auto-sizes to the longest visible name within bounds:
-    # floor 280px so short lists keep visual weight, cap 440px so an
-    # outlier name doesn't crowd the bar/meta columns. Estimate at ~8.5px
-    # per char at 14.5px system font, plus a 16px buffer for safety.
-    longest_name_chars = max((len(s.name) for s in suggs), default=0)
-    name_col_width = max(280, min(int(longest_name_chars * 8.5) + 16, 440))
+    # Fixed name column width — long names ellipsize rather than pushing
+    # the bar/meta columns around, which keeps the list scan-friendly.
+    name_col_width = 250
 
     rows = []
     for rank, s in enumerate(suggs, start=1):
@@ -799,7 +798,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             bar_width_pct = max(8.0, (priority_int / max_priority) * 100.0)
         else:
             bar_width_pct = 8.0
-        bar_color = override_color if is_override else node_colors.get(s.type, '#6c757d')
+        bar_color = override_color if is_override else BADGE_PALETTE.get(s.type, ('#6c757d', '#fff'))[0]
 
         # Column 1 — rank
         rank_col = html.Div(
@@ -873,8 +872,10 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
         )
 
         # Column 4 — time + V/I/E + R/O/D
+        # force_one_decimal keeps the column aligned (1.0w / 1.5w / 11.4h
+        # all render with the same decimal width).
         time_label = html.Span(
-            ConfigManager.format_time_friendly(eff_time) if eff_time > 0 else "0h",
+            ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
             style={"color": "#adb5bd", "minWidth": "52px", "textAlign": "right",
                    "fontSize": "15px"},
         )
@@ -940,7 +941,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     ], style={"flex": "1 1 0", "minWidth": "200px", "maxWidth": "800px"})
 
     table_row = html.Div([bar_list, desc_area], style={
-        "display": "flex", "alignItems": "flex-start", "gap": "3rem",
+        "display": "flex", "alignItems": "flex-start", "gap": "4rem",
     })
 
     return [table_row]
