@@ -350,53 +350,116 @@ class TestSuggestionsOverrideSorting:
 
 
 # ============================================================================
-# format_suggestions_table — override column
+# format_suggestions_table — override row treatment (bar color)
 # ============================================================================
 
+# In the bar-chart-row layout, override is encoded as the priority bar's
+# color, not as a separate cell, checkmark, or left border. The exact
+# colors come from ConfigManager.get_node_colors() so the bars stay in
+# sync with Settings → Type Colors; we resolve them at test time rather
+# than hardcoding so a future palette change in DEFAULT_NODE_COLORS
+# doesn't silently break these assertions.
+from config import ConfigManager as _CM
+
+
+def _expected_bar_color(type_or_override: str) -> str:
+    return _CM.get_node_colors().get(type_or_override)
+
+
+def _get_first_row(result):
+    """Walk the new layout: [flex_row(rows_container, desc)] -> first row Div."""
+    rows_container = result[0].children[0]
+    return rows_container.children[0]
+
+
+def _bar_fill_color(row):
+    """Extract the priority-bar fill color from a row Div.
+
+    Row layout: [rank_col, name_col, bar_col, meta_col]. bar_col's child is
+    the fill Div whose `background` style holds the encoded color.
+    """
+    bar_col = row.children[2]
+    fill = bar_col.children
+    return fill.style.get("background")
+
+
 class TestSuggestionsTableOverrideColumn:
-    def test_override_column_present_when_override_active(self, mgr):
-        mgr.add_node(_make_node("A", value=5))
+    def test_override_row_uses_override_bar_color(self, mgr):
+        """Pinned (override) rows get the override bar color, not their type color."""
+        mgr.add_node(_make_node("A", type="Learn", value=5))
         scored = mgr.calculate_priority_scores([mgr.get_node("A")])
         override_set = {"A"}
         result = format_suggestions_table(scored, mgr, override_set=override_set)
-        # result is [flex_row(table, desc)]; table is first child of the flex row
-        table_component = result[0].children[0]
-        thead = table_component.children[0]
-        header_texts = [th.children for th in thead.children.children if isinstance(th, html.Th)]
-        assert "Override" in header_texts
+        row = _get_first_row(result)
+        assert _bar_fill_color(row) == _expected_bar_color("Override")
 
-    def test_no_override_column_when_no_override(self, mgr):
+    def test_non_override_row_uses_type_color(self, mgr):
+        """Without an override, a Learn node's bar uses the Learn type color from settings."""
+        mgr.add_node(_make_node("A", type="Learn", value=5))
+        scored = mgr.calculate_priority_scores([mgr.get_node("A")])
+        result = format_suggestions_table(scored, mgr, override_set=None)
+        row = _get_first_row(result)
+        assert _bar_fill_color(row) == _expected_bar_color("Learn")
+
+    def test_override_takes_precedence_over_type_color(self, mgr):
+        """Override color wins over the type color even for Action nodes."""
+        mgr.add_node(_make_node("A", type="Action", value=5))
+        scored = mgr.calculate_priority_scores([mgr.get_node("A")])
+        result_no_override = format_suggestions_table(scored, mgr, override_set=None)
+        result_override = format_suggestions_table(scored, mgr, override_set={"A"})
+        assert _bar_fill_color(_get_first_row(result_no_override)) == _expected_bar_color("Action")
+        assert _bar_fill_color(_get_first_row(result_override)) == _expected_bar_color("Override")
+
+    def test_no_checkmark_or_legacy_marker(self, mgr):
+        """The new design has no checkmark/cross cell — override is bar-color only."""
+        mgr.add_node(_make_node("InSet", value=5))
+        mgr.add_node(_make_node("OutSet", value=4))
+        scored = mgr.calculate_priority_scores(
+            [mgr.get_node("InSet"), mgr.get_node("OutSet")]
+        )
+        result = format_suggestions_table(scored, mgr, override_set={"InSet"})
+        html_str = str(result)
+        assert "✓" not in html_str  # no green checkmark
+        assert "✗" not in html_str  # no red cross
+
+    def test_override_row_has_no_left_border_or_tinted_background(self, mgr):
+        """The override signal is bar color only — no separate left border or row tint."""
+        mgr.add_node(_make_node("Styled", value=5))
+        scored = mgr.calculate_priority_scores([mgr.get_node("Styled")])
+        result = format_suggestions_table(scored, mgr, override_set={"Styled"})
+        row = _get_first_row(result)
+        assert "borderLeft" not in row.style
+        # The row must not carry the legacy pink-tinted background.
+        assert row.style.get("backgroundColor") != "rgba(232, 62, 140, 0.08)"
+
+    def test_no_header_row(self, mgr):
+        """The new layout has no <Th> header row — column meanings live in tooltips."""
+        mgr.add_node(_make_node("A", value=5))
+        scored = mgr.calculate_priority_scores([mgr.get_node("A")])
+        result = format_suggestions_table(scored, mgr, override_set={"A"})
+
+        # Walk every component in the tree; assert no html.Th anywhere.
+        def _has_th(node):
+            if isinstance(node, html.Th):
+                return True
+            children = getattr(node, "children", None)
+            if children is None:
+                return False
+            if isinstance(children, list):
+                return any(_has_th(c) for c in children)
+            return _has_th(children)
+
+        assert not _has_th(result[0])
+
+    def test_row_uses_grid_layout_with_pattern_matching_id(self, mgr):
+        """Each row is an html.Div with the suggestion-row pattern-matching ID."""
         mgr.add_node(_make_node("A", value=5))
         scored = mgr.calculate_priority_scores([mgr.get_node("A")])
         result = format_suggestions_table(scored, mgr, override_set=None)
-        # result is [flex_row(table, desc)]; table is first child of the flex row
-        table_component = result[0].children[0]
-        thead = table_component.children[0]
-        header_texts = [th.children for th in thead.children.children if isinstance(th, html.Th)]
-        assert "Override" not in header_texts
-
-    def test_override_row_has_checkmark(self, mgr):
-        mgr.add_node(_make_node("InSet", value=5))
-        mgr.add_node(_make_node("OutSet", value=4))
-        all_nodes = [mgr.get_node("InSet"), mgr.get_node("OutSet")]
-        scored = mgr.calculate_priority_scores(all_nodes)
-        override_set = {"InSet"}
-        result = format_suggestions_table(scored, mgr, override_set=override_set)
-        html_str = str(result)
-        # The checkmark character should appear for the overridden node
-        assert "\u2713" in html_str
-
-    def test_override_row_styling(self, mgr):
-        mgr.add_node(_make_node("Styled", value=5))
-        scored = mgr.calculate_priority_scores([mgr.get_node("Styled")])
-        override_set = {"Styled"}
-        result = format_suggestions_table(scored, mgr, override_set=override_set)
-        # result is [flex_row(table, desc)]; table is first child of the flex row
-        table_component = result[0].children[0]
-        tbody = table_component.children[1]
-        row = tbody.children[0]
-        assert "borderLeft" in row.style
-        assert "backgroundColor" in row.style
+        row = _get_first_row(result)
+        assert isinstance(row, html.Div)
+        assert row.id == {"type": "suggestion-row", "index": "A"}
+        assert row.style.get("display") == "grid"
 
 
 # ============================================================================

@@ -705,8 +705,54 @@ def _bool_icon(val):
     return html.Span("\u2717", style={"color": "#dc3545"})
 
 
+_MONO_FONT = "ui-monospace, SFMono-Regular, Menlo, monospace"
+
+
+def _suggestion_micro_bar(val, label):
+    """One bar of the V/I/E micro-chart (6×22 track with bottom-anchored fill, native title tooltip)."""
+    try:
+        raw = float(val) if val is not None else 0.0
+    except (TypeError, ValueError):
+        raw = 0.0
+    pct = max(0.0, min(100.0, (raw / 10.0) * 100.0))
+    display_val = int(raw) if raw == int(raw) else round(raw, 1)
+    return html.Span(
+        html.Span(style={
+            "position": "absolute", "left": 0, "right": 0, "bottom": 0,
+            "height": f"{pct}%", "background": "#adb5bd", "borderRadius": "1px",
+        }),
+        title=f"{label}: {display_val}",
+        style={
+            "position": "relative", "width": "6px", "height": "22px",
+            "background": "rgba(255,255,255,0.06)", "borderRadius": "1px",
+            "overflow": "hidden", "display": "inline-block", "cursor": "default",
+        },
+    )
+
+
+def _suggestion_dot(on, label, fill_color):
+    """One R/O/D indicator dot (filled when flag true, hollow with muted border otherwise)."""
+    border_color = fill_color if on else "#6c757d"
+    return html.Span(
+        title=label,
+        style={
+            "width": "8px", "height": "8px", "borderRadius": "8px",
+            "background": fill_color if on else "transparent",
+            "border": f"1.2px solid {border_color}",
+            "display": "inline-block",
+        },
+    )
+
+
 def format_suggestions_table(suggs, manager, selected_node_id=None, override_set=None):
-    """Render the top-scored nodes as an HTML table with normalized priority scores (0-100)."""
+    """Render the top-scored nodes as bar-chart rows with normalized priority scores (0-100).
+
+    Each row encodes:
+      - rank (two-digit monospace label, leftmost)
+      - name + context line
+      - priority bar (color = type, or override color if pinned; length = priority/maxPriority)
+      - time + V/I/E micro-chart + R/O/D indicator dots
+    """
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
 
@@ -722,68 +768,160 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     all_nodes = manager.get_all_nodes()
     resource_names = {n.name for n in all_nodes if n.type == 'Resource'}
 
-    header_cells = [
-        html.Th("Name"), html.Th("Type"), html.Th("Context"), html.Th("Subcontext"),
-        html.Th("Priority"), html.Th("Value"), html.Th("Interest"), html.Th("Effort"), html.Th("Time"),
-        html.Th("Hard Unlocks"), html.Th("Soft Unlocks"), html.Th("Synergies"),
-        html.Th("Resources"), html.Th("Obsidian"), html.Th("Drive")
-    ]
-    if override_set:
-        header_cells.append(html.Th("Override"))
-    table_header = [html.Thead(html.Tr(header_cells))]
+    normalized_scores = [normalize(getattr(s, 'priority_score', 0)) for s in suggs]
+    max_priority = max(normalized_scores) if normalized_scores else 0
 
-    override_color = ConfigManager.get_node_colors().get('Override', '#e83e8c') if override_set else None
+    # Bar colors track the user's settings (Settings → Type Colors / Status Colors).
+    node_colors = ConfigManager.get_node_colors()
+    override_color = node_colors.get('Override', '#e83e8c')
 
-    row_data = []
-    for s in suggs:
+    # Name column auto-sizes to the longest visible name within bounds:
+    # floor 280px so short lists keep visual weight, cap 440px so an
+    # outlier name doesn't crowd the bar/meta columns. Estimate at ~8.5px
+    # per char at 14.5px system font, plus a 16px buffer for safety.
+    longest_name_chars = max((len(s.name) for s in suggs), default=0)
+    name_col_width = max(280, min(int(longest_name_chars * 8.5) + 16, 440))
+
+    rows = []
+    for rank, s in enumerate(suggs, start=1):
         is_selected = (s.name == selected_node_id)
-        row_class = "table-active" if is_selected else ""
+        is_override = bool(override_set and s.name in override_set)
 
         eff_time = manager.get_effective_time(s.name)
-        unlocks = manager.get_directly_unlocked_nodes_by_type(s.name)
         has_resource = s.type == 'Resource' or any(
             e['source'] in resource_names
             for e in edges
             if e['target'] == s.name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
         )
-        synergy_count = sum(
-            1 for e in edges
-            if e['type'] == EDGE_HELPS and (e['source'] == s.name or e['target'] == s.name)
+
+        priority_int = round(normalize(getattr(s, 'priority_score', 0)))
+        if max_priority > 0:
+            bar_width_pct = max(8.0, (priority_int / max_priority) * 100.0)
+        else:
+            bar_width_pct = 8.0
+        bar_color = override_color if is_override else node_colors.get(s.type, '#6c757d')
+
+        # Column 1 — rank
+        rank_col = html.Div(
+            str(rank),
+            style={
+                "fontFamily": _MONO_FONT, "fontSize": "20px",
+                "color": "#6c757d", "textAlign": "center",
+                "lineHeight": "1",
+            },
         )
 
-        row_cells = [
-            html.Td(html.Span(
-                s.name,
-                id={"type": "suggestion-name-link", "index": s.name},
-                title="Open in Details tab",
-                style={"cursor": "pointer"},
-            )),
-            html.Td(s.type),
-            html.Td(str(s.context)),
-            html.Td(str(s.subcontext) if s.subcontext else "None"),
-            html.Td(str(round(normalize(getattr(s, 'priority_score', 0))))),
-            html.Td(str(s.value)),
-            html.Td(str(s.interest) if hasattr(s, 'interest') and s.interest is not None else "None"),
-            html.Td(str(s.difficulty)),
-            html.Td(ConfigManager.format_time_friendly(eff_time) if eff_time > 0 else "0h"),
-            html.Td(str(len(unlocks['hard']))),
-            html.Td(str(len(unlocks['soft']))),
-            html.Td(str(synergy_count)),
-            html.Td(_bool_icon(has_resource)),
-            html.Td(_bool_icon(getattr(s, 'obsidian_path', None))),
-            html.Td(_bool_icon(getattr(s, 'google_drive_path', None))),
-        ]
-        if override_set:
-            row_cells.append(html.Td(_bool_icon(s.name in override_set)))
+        # Column 2 — name + context line
+        ctx_text = str(s.context) if s.context else ""
+        sub_text = str(s.subcontext) if s.subcontext else ""
+        if ctx_text and sub_text:
+            ctx_children = [html.Span(ctx_text), html.Span(" · ", style={"opacity": 0.5}), html.Span(sub_text)]
+        elif ctx_text:
+            ctx_children = [html.Span(ctx_text)]
+        elif sub_text:
+            ctx_children = [html.Span(sub_text)]
+        else:
+            ctx_children = []
 
-        row_style = {"cursor": "pointer"}
-        if override_set and s.name in override_set:
-            row_style["borderLeft"] = f"3px solid {override_color}"
-            row_style["backgroundColor"] = "rgba(232, 62, 140, 0.08)"
-        row_data.append(html.Tr(row_cells, id={"type": "suggestion-row", "index": s.name}, className=row_class, style=row_style))
+        name_col = html.Div([
+            html.Div(
+                html.Span(
+                    s.name,
+                    id={"type": "suggestion-name-link", "index": s.name},
+                    title="Open in Details tab",
+                    style={
+                        "fontSize": "14.5px", "color": "#dee2e6",
+                        "cursor": "pointer", "lineHeight": "1.35",
+                    },
+                ),
+                style={"minWidth": 0, "overflow": "hidden",
+                       "whiteSpace": "nowrap", "textOverflow": "ellipsis",
+                       "lineHeight": "1.35", "marginBottom": "1px"},
+            ),
+            html.Div(ctx_children, style={
+                "fontSize": "12px", "color": "#6c757d",
+                "fontFamily": _MONO_FONT,
+                "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
+                "lineHeight": "1.35",
+            }),
+        ], style={"minWidth": 0, "overflow": "hidden"})
 
-    table = dbc.Table(table_header + [html.Tbody(row_data)], bordered=True, hover=True,
-                     style={"width": "fit-content", "minWidth": "50%", "tableLayout": "auto"})
+        # Column 3 — priority bar
+        bar_fill = html.Div(
+            html.Span(
+                str(priority_int),
+                style={
+                    "fontFamily": _MONO_FONT, "fontSize": "14px",
+                    "fontWeight": 600, "color": "#fff",
+                    "textShadow": "0 1px 1px rgba(0,0,0,0.5)",
+                },
+            ),
+            style={
+                "width": f"{bar_width_pct}%", "height": "100%",
+                "background": bar_color, "borderRadius": "3px",
+                "display": "flex", "alignItems": "center",
+                "justifyContent": "flex-end", "paddingRight": "10px",
+            },
+        )
+        bar_col = html.Div(
+            bar_fill,
+            style={
+                "position": "relative", "height": "26px",
+                "background": "rgba(255,255,255,0.03)",
+                "borderRadius": "3px", "overflow": "hidden",
+            },
+        )
+
+        # Column 4 — time + V/I/E + R/O/D
+        time_label = html.Span(
+            ConfigManager.format_time_friendly(eff_time) if eff_time > 0 else "0h",
+            style={"color": "#adb5bd", "minWidth": "52px", "textAlign": "right",
+                   "fontSize": "15px"},
+        )
+
+        v_val = s.value if s.value is not None else 0
+        i_val = getattr(s, 'interest', None) if getattr(s, 'interest', None) is not None else 0
+        e_val = s.difficulty if s.difficulty is not None else 0
+
+        micro_chart = html.Span([
+            _suggestion_micro_bar(v_val, "Value"),
+            _suggestion_micro_bar(i_val, "Interest"),
+            _suggestion_micro_bar(e_val, "Effort"),
+        ], style={
+            "display": "inline-flex", "alignItems": "flex-end",
+            "gap": "3px", "height": "22px",
+        })
+
+        dots = html.Span([
+            _suggestion_dot(has_resource, "Resources", "#dee2e6"),
+            _suggestion_dot(bool(getattr(s, 'obsidian_path', None)), "Obsidian", "#dee2e6"),
+            _suggestion_dot(bool(getattr(s, 'google_drive_path', None)), "Drive", "#dee2e6"),
+        ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
+
+        meta_col = html.Div([time_label, micro_chart, dots], style={
+            "display": "flex", "alignItems": "center", "gap": "32px",
+            "fontFamily": _MONO_FONT, "fontSize": "11px",
+        })
+
+        row_style = {
+            "display": "grid",
+            "gridTemplateColumns": f"32px {name_col_width}px 1fr auto",
+            "alignItems": "center",
+            "gap": "14px",
+            "padding": "9px 12px",
+            "borderBottom": "1px solid #343a40",
+        }
+        if is_selected:
+            row_style["backgroundColor"] = "#2b3035"
+
+        rows.append(html.Div(
+            [rank_col, name_col, bar_col, meta_col],
+            id={"type": "suggestion-row", "index": s.name},
+            className="suggestion-bar-row",
+            style=row_style,
+        ))
+
+    bar_list = html.Div(rows, style={"flex": "4 1 0", "minWidth": "0"})
 
     node = None
     if selected_node_id:
@@ -799,9 +937,9 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     desc_area = html.Div([
         html.H6("Description", className="text-muted mb-2", style=SECTION_TITLE_STYLE),
         html.Div(desc_content, style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
-    ], style={"flex": "1", "minWidth": "200px", "maxWidth": "800px"})
+    ], style={"flex": "1 1 0", "minWidth": "200px", "maxWidth": "800px"})
 
-    table_row = html.Div([table, desc_area], style={
+    table_row = html.Div([bar_list, desc_area], style={
         "display": "flex", "alignItems": "flex-start", "gap": "3rem",
     })
 

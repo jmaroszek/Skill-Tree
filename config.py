@@ -126,13 +126,57 @@ BADGE_PALETTE = {
 }
 
 
+# Names whose badge bg is driven by the user's Settings → Type Colors
+# (so the Next-tab bars and the Details/Editor badges all stay in sync
+# with what the user picks in settings). 'Priority' shares Goal's color
+# by convention. Status names (Open/Done/Blocked) and structural roles
+# like HardRelPri/SoftRelPri keep their hardcoded BADGE_PALETTE values.
+_SETTINGS_DRIVEN_BADGES = {
+    'Goal', 'Action', 'Learn', 'Resource', 'Milestone', 'Override',
+}
+
+
+def _relative_luminance(hex_color: str) -> float:
+    """sRGB relative luminance per WCAG; used to pick a readable foreground."""
+    h = hex_color.lstrip('#')
+    if len(h) != 6:
+        return 0.0
+    try:
+        r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return 0.0
+    def _lin(c: float) -> float:
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b)
+
+
+def _resolved_badge_colors(name: str) -> tuple[str, str]:
+    """Return (bg, fg) for a badge, deferring to user-configured node colors
+    for type/override/priority badges and falling back to BADGE_PALETTE for
+    everything else. Foreground flips to black on light backgrounds.
+    """
+    palette_bg, palette_fg = BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
+    type_key = 'Goal' if name == 'Priority' else name
+    if type_key in _SETTINGS_DRIVEN_BADGES:
+        try:
+            bg = ConfigManager.get_node_colors().get(type_key, palette_bg)
+        except Exception:
+            bg = palette_bg
+        # Re-derive fg for contrast since the user-picked color may be much
+        # lighter than the muted palette bg (e.g. yellow Goal).
+        fg = '#000000' if _relative_luminance(bg) > 0.55 else '#ffffff'
+        return bg, fg
+    return palette_bg, palette_fg
+
+
 def badge_style(name: str, font_size: str = "0.75rem") -> dict:
     """Return an inline-style dict for a node-info badge with the given name.
 
     `name` should be a key in `BADGE_PALETTE` (e.g. 'Open', 'Goal',
-    'HardRelPri'). Unknown names fall back to a neutral gray.
+    'HardRelPri'). Unknown names fall back to a neutral gray. Type/Override
+    badges defer their bg to Settings → Type Colors.
     """
-    bg, fg = BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
+    bg, fg = _resolved_badge_colors(name)
     return {"backgroundColor": bg, "color": fg, "fontSize": font_size}
 
 
@@ -154,8 +198,9 @@ def info_strip_segment_style(name: str, is_first: bool = False) -> dict:
 
     `name` should be a key in `BADGE_PALETTE`. `is_first=True` skips the
     left divider so the first segment isn't preceded by a vertical line.
+    Type/Override segments defer their bg to Settings → Type Colors.
     """
-    bg, fg = BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
+    bg, fg = _resolved_badge_colors(name)
     style = {
         "backgroundColor": bg,
         "color": fg,

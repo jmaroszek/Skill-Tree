@@ -355,6 +355,16 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     color: #fff;
 }
 
+/* --- Next tab — suggestion bar rows --- */
+
+.suggestion-bar-row {
+    cursor: pointer;
+}
+
+.suggestion-bar-row:hover {
+    background-color: rgba(255, 255, 255, 0.025);
+}
+
 /* --- Type-adaptive editor section transitions --- */
 
 #section-done-time,

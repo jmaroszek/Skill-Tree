@@ -14,6 +14,7 @@ from callback_helpers import (
     build_filters, is_filters_active, node_options, handle_save, handle_delete,
     handle_toggle_done, handle_group_delete,
 )
+from config import DEFAULT_NODE_COLORS
 
 
 @pytest.fixture(autouse=True)
@@ -335,23 +336,28 @@ class TestHandleGroupDelete:
 # ============================================================================
 
 class TestResourceNodeColor:
-    """Tests that Resource nodes get the correct color in generate_elements."""
+    """Tests that nodes get the right color in generate_elements.
 
-    def test_resource_open_gets_purple(self):
+    Expected colors are resolved from DEFAULT_NODE_COLORS rather than
+    hardcoded so a future palette tweak doesn't break these checks; the
+    intent of each test is encoded in which key it pulls (Resource vs.
+    Done vs. Blocked, etc.).
+    """
+
+    def test_resource_open_gets_resource_color(self):
         manager.add_node(_make_node("Res1", type="Resource", status="Open"))
         elements = generate_elements()
         node_el = next(e for e in elements if e['data'].get('id') == 'Res1')
-        assert node_el['data']['color'] == '#9047b8'
+        assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Resource']
 
-    def test_resource_done_gets_green(self):
+    def test_resource_done_gets_done_color(self):
         manager.add_node(_make_node("Res2", type="Resource", status="Done"))
         elements = generate_elements()
         node_el = next(e for e in elements if e['data'].get('id') == 'Res2')
-        # Done color
-        assert node_el['data']['color'] == '#198754'
+        assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Done']
 
-    def test_resource_blocked_gets_red(self):
-        """Blocked resource nodes should be red, like other blocked node types."""
+    def test_resource_blocked_gets_blocked_color(self):
+        """Blocked resource nodes should follow the Blocked color, like other blocked types."""
         manager.add_node(_make_node("Blocker", type="Learn", status="Open"))
         manager.add_node(_make_node("Res3", type="Resource", status="Open"))
         manager.add_edge("Blocker", "Res3", EDGE_NEEDS_HARD)
@@ -359,20 +365,19 @@ class TestResourceNodeColor:
         assert manager.get_node("Res3").status == "Blocked"
         elements = generate_elements()
         node_el = next(e for e in elements if e['data'].get('id') == 'Res3')
-        assert node_el['data']['color'] == '#dc3545'
+        assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Blocked']
 
-    def test_goal_node_gets_yellow(self):
+    def test_goal_node_gets_goal_color(self):
         manager.add_node(_make_node("G1", type="Goal"))
         elements = generate_elements()
         node_el = next(e for e in elements if e['data'].get('id') == 'G1')
-        assert node_el['data']['color'] == '#ffc107'
+        assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Goal']
 
     def test_normal_node_gets_status_color(self):
         manager.add_node(_make_node("Learn1", type="Learn", status="Open"))
         elements = generate_elements()
         node_el = next(e for e in elements if e['data'].get('id') == 'Learn1')
-        # Open color
-        assert node_el['data']['color'] == '#0d6efd'
+        assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Open']
 
 
 # ============================================================================
