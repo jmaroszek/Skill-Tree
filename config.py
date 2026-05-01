@@ -89,11 +89,11 @@ DEFAULT_NODE_COLORS = {
     STATUS_BLOCKED: '#dc3545',
     STATUS_OPEN: '#0d6efd',
     STATUS_DONE: '#198754',
-    'Goal': '#ffc107',
-    'Action': '#fd7e14',
+    'Goal': '#d3c41d',
+    'Action': '#9047b8',
     'Learn': '#0d6efd',
-    'Resource': '#9047b8',
-    'Milestone': '#17a2b8',
+    'Resource': '#17a2b8',
+    'Milestone': '#fd7e14',
     'Override': '#e83e8c',
 }
 
