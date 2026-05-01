@@ -446,102 +446,124 @@ def create_graph_view(initial_elements):
 
 # --- Filters Section ---
 
-filters_content = html.Div([
-    html.Div([
-        html.H4("Filters"),
-        html.Span("×", id="btn-close-filters", className="fs-3 text-white float-end", style={"cursor": "pointer"})
-    ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
+def build_filters_content():
+    # Hydrate from persisted state when remember-filters is enabled; otherwise
+    # fall back to hardcoded defaults so a fresh session looks unchanged.
+    if ConfigManager.get_remember_filters():
+        f = ConfigManager.get_filters()
+    else:
+        f = ConfigManager._FILTER_DEFAULTS
 
-    html.H5("General", className="mt-2 mb-1"),
-    dbc.Label("Node Type", className="mt-2"),
-    dcc.Dropdown(
-        id="filter-node-type",
-        options=[{"label": t, "value": t} for t in NODE_TYPES],
-        value=[],
-        multi=True,
-        placeholder="All",
-        style={"color": "#212529"},
-    ),
+    return html.Div([
+        html.Div([
+            html.H4("Filters"),
+            html.Span("×", id="btn-close-filters", className="fs-3 text-white float-end", style={"cursor": "pointer"})
+        ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
 
-    dbc.Label("Context", className="mt-2"),
-    dcc.Dropdown(
-        id="filter-context",
-        options=[{"label": c, "value": c} for c in CONTEXTS],
-        value=[],
-        multi=True,
-        placeholder="All",
-        style={"color": "#212529"},
-    ),
+        html.H5("General", className="mt-2 mb-1"),
+        dbc.Label("Node Type", className="mt-2"),
+        dcc.Dropdown(
+            id="filter-node-type",
+            options=[{"label": t, "value": t} for t in NODE_TYPES],
+            value=f["node_type"],
+            multi=True,
+            placeholder="All",
+            style={"color": "#212529"},
+        ),
 
-    dbc.Label("Subcontext", className="mt-2"),
-    dcc.Dropdown(
-        id="filter-subcontext",
-        options=[],
-        value=[],
-        multi=True,
-        placeholder="All",
-        style={"color": "#212529"},
-    ),
+        dbc.Label("Context", className="mt-2"),
+        dcc.Dropdown(
+            id="filter-context",
+            options=[{"label": c, "value": c} for c in CONTEXTS],
+            value=f["context"],
+            multi=True,
+            placeholder="All",
+            style={"color": "#212529"},
+        ),
 
-    dbc.Label("Goal", className="mt-2"),
-    dcc.Dropdown(
-        id="filter-goal",
-        options=[],
-        value=[],
-        multi=True,
-        placeholder="All",
-        style={"color": "#212529"},
-    ),
+        dbc.Label("Subcontext", className="mt-2"),
+        dcc.Dropdown(
+            id="filter-subcontext",
+            options=[],
+            value=f["subcontext"],
+            multi=True,
+            placeholder="All",
+            style={"color": "#212529"},
+        ),
 
-    html.Hr(className="my-3"),
+        dbc.Label("Goal", className="mt-2"),
+        dcc.Dropdown(
+            id="filter-goal",
+            options=[],
+            value=f["goal"],
+            multi=True,
+            placeholder="All",
+            style={"color": "#212529"},
+        ),
 
-    html.H5("Communities", className="mt-2 mb-1"),
-    dbc.Label("Detection Method", className="mt-2"),
-    dbc.Select(id="community-method", options=[
-        {"label": "Islands", "value": "components"},
-        {"label": "Clusters", "value": "louvain"},
-        {"label": "Orphans", "value": "orphans"},
-    ], value="components"),
+        html.Hr(className="my-3"),
 
-    dbc.Label("Community", className="mt-3"),
-    dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
+        html.H5("Communities", className="mt-2 mb-1"),
+        dbc.Label("Detection Method", className="mt-2"),
+        dbc.Select(id="community-method", options=[
+            {"label": "Islands", "value": "components"},
+            {"label": "Clusters", "value": "louvain"},
+            {"label": "Orphans", "value": "orphans"},
+        ], value=f["community_method"]),
 
-    html.Hr(className="my-3"),
+        dbc.Label("Community", className="mt-3"),
+        dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value=f["community"]),
 
-    html.H5("Ratings", className="mt-2 mb-1"),
-    dbc.Label("Min Value", className="mt-2"),
-    dcc.Slider(min=1, max=10, step=1, value=1, id="filter-value",
-               marks={i: str(i) for i in range(1, 11)}),
+        html.Hr(className="my-3"),
 
-    dbc.Label("Min Interest", className="mt-2"),
-    dcc.Slider(min=1, max=10, step=1, value=1, id="filter-interest",
-               marks={i: str(i) for i in range(1, 11)}),
+        html.H5("Ratings", className="mt-2 mb-1"),
+        dbc.Label("Min Value", className="mt-2"),
+        dcc.Slider(min=1, max=10, step=1, value=f["value"], id="filter-value",
+                   marks={i: str(i) for i in range(1, 11)}),
 
-    dbc.Label("Max Effort", className="mt-3"),
-    dcc.Slider(min=1, max=10, step=1, value=10, id="filter-difficulty",
-               marks={i: str(i) for i in range(1, 11)}),
+        dbc.Label("Min Interest", className="mt-2"),
+        dcc.Slider(min=1, max=10, step=1, value=f["interest"], id="filter-interest",
+                   marks={i: str(i) for i in range(1, 11)}),
 
-    dbc.Label("Max Time in Hours", className="mt-2"),
-    dbc.Input(id="filter-time", type="number", min=0.1, placeholder="No limit"),
+        dbc.Label("Max Effort", className="mt-3"),
+        dcc.Slider(min=1, max=10, step=1, value=f["difficulty"], id="filter-difficulty",
+                   marks={i: str(i) for i in range(1, 11)}),
 
-    html.Hr(className="my-3"),
+        dbc.Label("Max Time in Hours", className="mt-2"),
+        dbc.Input(id="filter-time", type="number", min=0.1, value=f["time"] if f["time"] != "" else None, placeholder="No limit"),
 
-    dbc.Checklist(
-        options=[{"label": "Hide Completed Tasks", "value": "hide_done"}],
-        value=["hide_done"],  # Default ON
-        id="filter-done",
-        switch=True,
-    ),
+        html.Hr(className="my-3"),
 
-    html.Hr(className="my-3"),
-    html.Div([
-        dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
-        dbc.Button("Settle", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
-        dbc.Tooltip("Re-run layout physics to untangle nodes",
-                    target="btn-sidebar-relayout", placement="top",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-    ], className="d-flex gap-2 mb-3"),
-], className="px-3 pb-2 pt-0", style={"width": "320px", "minWidth": "320px"})
+        html.Div([
+            dbc.Checklist(
+                options=[{"label": "Hide Done", "value": "hide_done"}],
+                value=f["done"],
+                id="filter-done",
+                switch=True,
+            ),
+            dbc.Checklist(
+                options=[{"label": "Memory", "value": "enabled"}],
+                value=["enabled"] if ConfigManager.get_remember_filters() else [],
+                id="filter-remember",
+                switch=True,
+            ),
+        ], className="d-flex gap-4"),
+        dbc.Tooltip(
+            "Remember main canvas filters across sessions and browser refreshes. "
+            "When off, filters reset to defaults on app start.",
+            target="filter-remember", placement="top",
+            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+        ),
+
+        html.Hr(className="my-3"),
+        html.Div([
+            dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
+            dbc.Button("Settle", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
+            dbc.Tooltip("Re-run layout physics to untangle nodes",
+                        target="btn-sidebar-relayout", placement="top",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+        ], className="d-flex gap-2 mb-3"),
+    ], className="px-3 pb-2 pt-0", style={"width": "320px", "minWidth": "320px"})
 
 
 _section_title_style = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -1319,6 +1341,7 @@ def build_app_layout(initial_elements, env="production"):
             html.Div([
                 html.Div([next_view], className="px-4 pt-3 pb-4"),
             ], style={"flex": "1", "overflowY": "auto"}),
+            html.Div(id="next-filter-indicator", className="canvas-stats-overlay"),
             html.Div(id="next-perf-stats", className="next-perf-overlay"),
         ],
         style={"display": "block", "width": "100%", "height": "100%", "overflow": "auto",
@@ -1423,6 +1446,10 @@ def build_app_layout(initial_elements, env="production"):
         # candidates (parent container becoming ready after the child Goal
         # is marked Done) are queued naturally.
         dcc.Store(id='auto-done-candidates-store', data=[]),
+        # Sink for the filter-persistence callback. Filters get written to
+        # ConfigManager whenever any sidebar control changes; this Store
+        # exists only to give that callback a valid Output target.
+        dcc.Store(id='filter-persist-sink', data=None),
         dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
 
         main_tabs,
@@ -1542,7 +1569,7 @@ def build_app_layout(initial_elements, env="production"):
             # --- SHARED FILTERS SIDEBAR (overlay, accessible from Canvas + Suggestions) ---
             html.Div(
                 id="sidebar-filters-container",
-                children=[filters_content],
+                children=[build_filters_content()],
                 style={
                     "position": "absolute",
                     "top": "0",

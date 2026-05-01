@@ -9,6 +9,32 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 - **Sandbox DB (`data/sandbox_skilltree.db`)** is the target for any app-launch testing or experimentation.
 - **Port is 8050.**
 
+## Node-type semantics
+
+Five types — each answers a different question. Picking the right one matters; misclassification muddies the rankings.
+
+- **Goal** — a *domain, area, or capacity* the user is developing. "What am I trying to achieve here." Container-flavored, almost never atomic. "Done" = all Hard children Done (cascade). Examples: Sleep, Strength, Stoicism, Character.
+- **Learn** — a *topic or body of knowledge* the user wants to integrate. Can be atomic (Sleep Pressure, Stretching) or a container with sub-Learns (Sleep Theory, Biology of Stress). "Done" = "I understand this enough to apply or explain it."
+- **Action** — a *discrete practice or experiment* with a definite end. The user runs them as 6-week PIMLI cycles. "Done" = the cycle is complete. Time-on-task is the actual doing.
+- **Resource** — *external material* (book, course, notes). "Done" = absorbed.
+- **Milestone** — a *measurable, verifiable single-event achievement* (weight target, time, count). **Excluded from scoring** — the work happens upstream in capacity Goals; the Milestone is the checkpoint, not the practice. Use minimal time estimates (1/1/1) since the field doesn't apply.
+
+**Decision tree (first yes wins):**
+1. External material to consume? → Resource
+2. Discrete practice/experiment with definite end? → Action
+3. Measurable single-event achievement? → Milestone
+4. Decomposes into things I'd track separately? → Goal
+5. Otherwise (atomic body of knowledge) → Learn
+
+**Goal vs Learn — the hard call:** both can have children. Distinguish by *scope*: Goal = "an area / capacity" (Sleep, Strength), Learn = "a topic / body of knowledge" (Sleep Pressure, Sleep Theory). Heuristic: "an area of my life" → Goal; "a thing I want to understand" → Learn.
+
+**Common misclassifications to flag during reviews:**
+- Goal-flavored Learn (thin decomposition, all-atom children) → demote to Learn (inherited mode if it acts as a header)
+- Goal-flavored Milestone (measurable target treated as Goal) → convert to Milestone
+- Goal-flavored Action (fixed-period practice treated as Goal) → convert to Action
+
+User-facing version of this lives in the README's "Choosing the right node type" section — keep both in sync if the framework evolves.
+
 ## Edge-type semantics
 
 The three real edge types are *not* a single "strength" gradient — `Helps` is on a different axis from `Needs_Hard`/`Needs_Soft`. Treat them as:

@@ -624,6 +624,54 @@ class ConfigManager:
     def set_priority_goals(cls, goals: list):
         cls._set_db_value("PRIORITY_GOALS", json.dumps(goals[:3]))
 
+    # --- Filter persistence ---
+
+    # Defaults mirror the clear_filters() callback so persisted state and a
+    # fresh "Clear Filters" press converge on the same baseline.
+    _FILTER_DEFAULTS = {
+        "node_type": [],
+        "context": [],
+        "subcontext": [],
+        "goal": [],
+        "community_method": "components",
+        "community": "All",
+        "value": 1,
+        "interest": 1,
+        "difficulty": 10,
+        "time": "",
+        "done": ["hide_done"],
+    }
+
+    @classmethod
+    def get_remember_filters(cls) -> bool:
+        val = cls._get_db_value("REMEMBER_FILTERS")
+        if val is None:
+            return True
+        return val == "1"
+
+    @classmethod
+    def set_remember_filters(cls, enabled: bool):
+        cls._set_db_value("REMEMBER_FILTERS", "1" if enabled else "0")
+
+    @classmethod
+    def get_filters(cls) -> dict:
+        val = cls._get_db_value("FILTERS")
+        merged = dict(cls._FILTER_DEFAULTS)
+        if val:
+            try:
+                stored = json.loads(val)
+                if isinstance(stored, dict):
+                    merged.update({k: v for k, v in stored.items() if k in cls._FILTER_DEFAULTS})
+            except (ValueError, TypeError):
+                pass
+        return merged
+
+    @classmethod
+    def set_filters(cls, filters: dict):
+        merged = dict(cls._FILTER_DEFAULTS)
+        merged.update({k: v for k, v in (filters or {}).items() if k in cls._FILTER_DEFAULTS})
+        cls._set_db_value("FILTERS", json.dumps(merged))
+
     # --- Manual Priority Override ---
 
     @classmethod

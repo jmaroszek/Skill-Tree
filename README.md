@@ -95,11 +95,14 @@ Click **Nodes** and you're looking at your entire task network as a graph. Dots 
 Every dot is color-coded and shaped:
 
 - **Yellow stars** are **Goals** (the five in the sandbox: *Save $10k Emergency Fund*, *Earn Senior-Level Promotion*, *Run First 5K*, *Hold A 10-Minute Spanish Conversation*, *Host A Dinner Party For 6 Friends*).
-- **Blue circles** are open **Learning** items (*Read "Born To Run"*, *Learn 500 Core Spanish Words*).
+- **Blue circles** are open **Learn** items (*Read "Born To Run"*, *Learn 500 Core Spanish Words*).
 - **Orange triangles** are open **Actions** (*Track Expenses For A Month*, *Call Parents Weekly*).
 - **Purple pentagons** are **Resources** — things you can repeatedly draw on (*Watch Plumbing YouTube Tutorial*).
+- **Orange diamonds** (or whichever shape you've configured) are **Milestones** — measurable achievement targets that don't compete in the ranking algorithm but stay visible as motivation.
 - **Red** means the task is **Blocked** — you can't start it yet because a prerequisite isn't done.
 - **Green** means **Done**.
+
+The five types each answer a different question. There's a deeper section on this — [Choosing the right node type](#choosing-the-right-node-type) — worth reading once before you build out a graph in earnest.
 
 The lines between them have meaning too. Solid arrows are **Hard Prerequisites** — *you literally cannot do the arrow's destination until the source is Done*. Dashed arrows are **Soft Prerequisites** — helpful but not strictly required. Wavy lines are **Synergies** — two tasks that boost each other's value.
 
@@ -138,7 +141,7 @@ Working top to bottom:
 
 - **Name.** The primary identifier. Renaming is safe — all the arrows and events follow automatically.
 - **Aliases.** Click the expand arrow next to the name field to add alternate names. Useful if you sometimes call the same task different things.
-- **Type.** Goal, Action, Learn, or Resource. (You can add your own types in Settings.)
+- **Type.** Goal, Learn, Action, Resource, or Milestone. (You can add your own types in Settings.) See [Choosing the right node type](#choosing-the-right-node-type) for what each one means and how to pick.
 - **Context + Subcontext.** Which area of your life this belongs to. The subcontext list automatically updates when you pick a context.
 - **Description.** Free-text notes about the task.
 - **Competence.** Seven levels from *Outsider* all the way to *Innovator*. Click the question mark for a popup explaining each level.
@@ -480,6 +483,79 @@ A sensible way to start:
 3. Link each task to the goal with a **Hard Prerequisite** edge.
 4. Keep going — break the big tasks into smaller ones, add some **Resources** (books, courses, tools), draw **Synergy** lines where two things genuinely boost each other.
 5. Open the **Next** tab and see what the algorithm thinks you should do first.
+
+But before you go deep, read the next section — most graph problems trace back to picking the wrong type for a node.
+
+---
+
+## Choosing the right node type
+
+The five types aren't just visual labels. Each one answers a *different question* and behaves differently under the scoring algorithm. Picking the wrong type doesn't break anything, but it does muddy the rankings — a node typed as a Goal that should really be a Learn pollutes the cascade with a value rating that doesn't belong there; a Goal that should really be a Milestone competes for "next up" recommendations even though there's nothing to *do* on it directly.
+
+Get the type right and the algorithm rewards you with rankings that match your gut.
+
+### The five types at a glance
+
+| Type | Core question it answers | "Done" means | Time-on-task |
+|---|---|---|---|
+| **Goal** | What domain, area, or capacity am I developing? | All Hard children Done (cascade) | None of its own — typically inherited |
+| **Learn** | What body of knowledge do I want to integrate? | I understand this enough to apply or explain it | Reading, note-taking, integrating |
+| **Action** | What discrete practice or experiment will I run? | The cycle is complete | Actually doing the thing |
+| **Resource** | What external material am I consuming? | I've absorbed it | Reading, watching, studying |
+| **Milestone** | What measurable achievement am I targeting? | I hit the target | None — work happens upstream |
+
+### A decision tree
+
+Walk these questions in order — the first "yes" wins:
+
+1. **Is it external material I'll consume?** (book, course, set of notes, video) → **Resource**
+2. **Is it a discrete practice or experiment with a definite end?** (a 6-week PIMLI cycle, a specific protocol, a one-shot integration task) → **Action**
+3. **Is it a measurable, verifiable single-event achievement?** (a weight target, a time, a count) → **Milestone**
+4. **Does it decompose into multiple things I'd track separately?** → **Goal**
+5. **Otherwise — it's an atomic body of knowledge or skill.** → **Learn**
+
+### The hard call: Goal vs Learn
+
+This is where most misclassifications happen. Both Goals *and* Learns can have children — there are "Learn containers" (a Learn with sub-Learns underneath, set to inherited mode) just as there are Goals with children. So "does it decompose" isn't the cleanest test.
+
+The cleaner distinction is **scope and abstraction**:
+
+- A **Goal** is a *domain*, an *area*, or a *capacity*. You'd describe it as "what I'm trying to achieve here."
+  *Examples: Sleep, Strength, Stoicism, Character, Body Composition.*
+- A **Learn** is a *topic* or a *body of knowledge*. You'd describe it as "what I'm trying to understand."
+  *Examples (atomic): Sleep Pressure, Stretching, Movement Patterns. Examples (container): Sleep Theory, Biology of Stress.*
+
+Heuristic: **if you'd describe it as "an area of my life" or "a major capacity," it's a Goal. If you'd describe it as "a thing I want to understand," it's a Learn.**
+
+A Learn-container is fine when the topic naturally splits into sub-topics worth tracking individually but the whole still reads as one body of knowledge — *Sleep Theory* containing *Sleep Pressure*, *Sleep Stages*, *Chronotypes*, etc. is a topic; the children are sub-topics. *Sleep* itself is a Goal because it spans theory + hygiene + experiments + targets — it's an area, not a topic.
+
+### Goal vs Milestone
+
+The other common confusion. The test is **measurability**:
+
+- **Goal** = "develop strength" — no single moment marks it Done; you decide when the area is "good enough."
+- **Milestone** = "squat 1.5× bodyweight" — you either did it or you didn't. Verifiable, single-event.
+
+Milestones also behave differently in scoring: they're excluded from "what should I do next?" recommendations, because the work isn't *on* the milestone — it's on the upstream training that produces the capacity. The milestone is the checkpoint, not the practice.
+
+If you find yourself saying "I want a target to motivate me," that's a Milestone. If you find yourself saying "I want to develop this area," that's a Goal.
+
+### Common misclassifications to watch for
+
+- **Goal-flavored Learn** — a topic dressed up as a Goal because it felt important. Sign: thin decomposition (1-2 children that are all atoms with no sub-area structure). Fix: demote to Learn (use inherited mode for Ratings if you still want it to act as a container header).
+- **Goal-flavored Milestone** — a measurable achievement (squat target, time, count, draft completion) treated as a Goal. Fix: convert to Milestone. The graph stops treating it as work-to-be-done while keeping it visible as motivation.
+- **Goal-flavored Action** — a thing you'll *do* for a fixed period, not an area. Sign: clear start/end, time-on-task is "the practice itself." Fix: convert to Action.
+- **Action-flavored Learn** — a topic where you only have notes-integration work to do. Notes-integration is itself an Action (a one-shot task), so a *Notes Integration* Action under the Learn is often the right shape, not bundling the integration work into the Learn.
+
+### Quick rule
+
+When in doubt, ask: *what verb describes finishing this?*
+
+- *understand* → Learn
+- *do* → Action
+- *consume* → Resource
+- *develop* → Goal
+- *hit* → Milestone
 
 When the list surprises you — "wait, why is *that* #1?" — click its priority score to see the breakdown. Usually it's because that node sits upstream of a bunch of valuable stuff you hadn't considered connected.
 

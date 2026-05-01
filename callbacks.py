@@ -2296,6 +2296,104 @@ def register_callbacks(app):
         return text
 
     @app.callback(
+        Output('next-filter-indicator', 'children'),
+        Input('filter-node-type', 'value'),
+        Input('filter-context', 'value'),
+        Input('filter-subcontext', 'value'),
+        Input('filter-goal', 'value'),
+        Input('filter-community', 'value'),
+        Input('community-method', 'value'),
+        Input('filter-value', 'value'),
+        Input('filter-interest', 'value'),
+        Input('filter-difficulty', 'value'),
+        Input('filter-time', 'value'),
+        Input('filter-done', 'value'),
+    )
+    def update_next_filter_indicator(f_type, f_ctx, f_sub, f_goal, f_comm,
+                                     f_comm_method, f_val, f_int, f_diff,
+                                     f_time, f_done):
+        if is_filters_active(
+                node_type=f_type, context=f_ctx, subcontext=f_sub,
+                goal=f_goal, community=f_comm,
+                community_method=f_comm_method, value=f_val,
+                interest=f_int, difficulty=f_diff, time=f_time,
+                done=f_done):
+            return "filtered"
+        return ""
+
+    @app.callback(
+        Output('filter-remember', 'value'),
+        Input('filter-remember', 'value'),
+        State('filter-node-type', 'value'),
+        State('filter-context', 'value'),
+        State('filter-subcontext', 'value'),
+        State('filter-goal', 'value'),
+        State('community-method', 'value'),
+        State('filter-community', 'value'),
+        State('filter-value', 'value'),
+        State('filter-interest', 'value'),
+        State('filter-difficulty', 'value'),
+        State('filter-time', 'value'),
+        State('filter-done', 'value'),
+        prevent_initial_call=True,
+    )
+    def persist_remember_filters(val, f_type, f_ctx, f_sub, f_goal, f_comm_method,
+                                 f_comm, f_val, f_int, f_diff, f_time, f_done):
+        enabled = bool(val and "enabled" in val)
+        ConfigManager.set_remember_filters(enabled)
+        # When the user flips Memory ON, snapshot the *current* sidebar state
+        # so a refresh restores what they see now, not whatever stale state
+        # was left in the DB from a previous Memory-on session.
+        if enabled:
+            ConfigManager.set_filters({
+                "node_type": f_type or [],
+                "context": f_ctx or [],
+                "subcontext": f_sub or [],
+                "goal": f_goal or [],
+                "community_method": f_comm_method or "components",
+                "community": f_comm or "All",
+                "value": f_val if f_val is not None else 1,
+                "interest": f_int if f_int is not None else 1,
+                "difficulty": f_diff if f_diff is not None else 10,
+                "time": f_time if f_time is not None else "",
+                "done": f_done or [],
+            })
+        return no_update
+
+    @app.callback(
+        Output('filter-persist-sink', 'data'),
+        Input('filter-node-type', 'value'),
+        Input('filter-context', 'value'),
+        Input('filter-subcontext', 'value'),
+        Input('filter-goal', 'value'),
+        Input('community-method', 'value'),
+        Input('filter-community', 'value'),
+        Input('filter-value', 'value'),
+        Input('filter-interest', 'value'),
+        Input('filter-difficulty', 'value'),
+        Input('filter-time', 'value'),
+        Input('filter-done', 'value'),
+    )
+    def persist_filters(f_type, f_ctx, f_sub, f_goal, f_comm_method, f_comm,
+                        f_val, f_int, f_diff, f_time, f_done):
+        if not ConfigManager.get_remember_filters():
+            return no_update
+        ConfigManager.set_filters({
+            "node_type": f_type or [],
+            "context": f_ctx or [],
+            "subcontext": f_sub or [],
+            "goal": f_goal or [],
+            "community_method": f_comm_method or "components",
+            "community": f_comm or "All",
+            "value": f_val if f_val is not None else 1,
+            "interest": f_int if f_int is not None else 1,
+            "difficulty": f_diff if f_diff is not None else 10,
+            "time": f_time if f_time is not None else "",
+            "done": f_done or [],
+        })
+        return no_update
+
+    @app.callback(
         Output('focus-goal-store', 'data', allow_duplicate=True),
         Input('btn-clear-focus', 'n_clicks'),
         prevent_initial_call=True,

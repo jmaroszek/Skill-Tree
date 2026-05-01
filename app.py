@@ -50,7 +50,7 @@ app = dash.Dash(__name__, external_stylesheets=[
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
 ])
 app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
-app.layout = build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)
+app.layout = lambda: build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)
 register_callbacks(app)
 register_event_callbacks(app)
 register_details_callbacks(app)
