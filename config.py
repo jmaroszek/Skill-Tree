@@ -130,8 +130,8 @@ BADGE_PALETTE = {
     'Learn':      ('#1d5cba', '#ffffff'),
     'Action':     ('#bb6823', '#ffffff'),
     'Resource':   ('#814d9e', '#ffffff'),
-    'Goal':       ('#9f962d', '#ffffff'),
-    'Priority':   ('#9f962d', '#ffffff'),  # Priority N suppresses Goal type — share its color
+    'Goal':       ('#cdbe23', '#ffffff'),  # canvas yellow with -5 sat for badge use
+    'Priority':   ('#cdbe23', '#ffffff'),  # Priority N suppresses Goal type — share its color
     'Milestone':  ('#2f909d', '#ffffff'),
     'Override':   ('#c516a5', '#ffffff'),
     # Status badges (Open / Done / Blocked) — tuned independently for the

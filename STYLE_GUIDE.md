@@ -45,8 +45,8 @@ derivation. **This file is the human-readable source of truth — keep
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
 | Override     | `#c516a5` | `#ffffff` | Manual override; rare but distinct. Always first in stack. |
-| Goal         | `#9f962d` | `#ffffff` | Type tile. Suppressed when a `Priority N` tile is shown.  |
-| Priority     | `#9f962d` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
+| Goal         | `#cdbe23` | `#ffffff` | Type tile. Canvas Goal color with −5 sat (intentional exception to the default −20 muting — yellow goes olive when pushed further). Suppressed when a `Priority N` tile is shown. |
+| Priority     | `#cdbe23` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
 | Action       | `#bb6823` | `#ffffff` | Type tile. More desaturated than the default — orange holds saturation visually. |
 | Learn        | `#1d5cba` | `#ffffff` | Type tile.                                                |
 | Resource     | `#814d9e` | `#ffffff` | Type tile. Less desaturated than the default — purple turns muddy if pushed too far. |
