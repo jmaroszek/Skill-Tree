@@ -208,7 +208,8 @@ def node_options(nodes, exclude=None):
 
 
 def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
-                  f_time=None, f_difficulty="All", f_node_types=None, f_goal=None):
+                  f_time=None, f_difficulty="All", f_node_types=None,
+                  f_time_unit="hours"):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
 
@@ -221,10 +222,12 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
         else:
             contexts = [None]
 
-    # Subcontext dropdown values are encoded as "ctx::sub" composites by
+    # Subcontext dropdown values are encoded as "ctx\x1fsub" composites by
     # update_filter_subcontexts so the (value -> context) mapping is explicit.
-    # Plain strings (legacy state / test fixtures that haven't adopted composites)
-    # are accepted as context-agnostic subcontext names.
+    # ASCII unit-separator (\x1f) is used instead of "::" because Dash mangles
+    # values containing "::" during layout serialization. Plain strings
+    # (legacy state / test fixtures that haven't adopted composites) are
+    # accepted as context-agnostic subcontext names.
     ctx_to_subs: dict = {}
     plain_subs: list = []
     if f_subcontext and f_subcontext != "All":
@@ -235,9 +238,13 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
             v = v.strip()
             if not v:
                 continue
-            if "::" in v:
+            if "\x1f" in v:
+                c, s = v.split("\x1f", 1)
+                ctx_to_subs.setdefault(c, []).append(s if s else None)
+            elif "::" in v:
+                # Legacy persisted state from before the separator change.
                 c, s = v.split("::", 1)
-                ctx_to_subs.setdefault(c, []).append(s)
+                ctx_to_subs.setdefault(c, []).append(s if s else None)
             else:
                 plain_subs.append(v)
 
@@ -270,21 +277,17 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     if f_interest and f_interest > 1:
         filters['min_interest'] = f_interest
     if f_time is not None and f_time != "" and f_time != 0:
-        try: filters['max_time'] = float(f_time)
+        try:
+            multiplier = ConfigManager.get_time_multiplier(f_time_unit or "hours")
+            filters['max_time'] = float(f_time) * multiplier
         except (ValueError, TypeError): pass
     if f_difficulty and f_difficulty != "All":
         try: filters['max_difficulty'] = int(f_difficulty)
         except (ValueError, TypeError): pass
-    if f_goal:
-        if isinstance(f_goal, list):
-            if f_goal:
-                filters['goal'] = f_goal
-        elif f_goal != "All":
-            filters['goal'] = [f_goal]
     return filters
 
 
-def is_filters_active(*, node_type=None, context=None, subcontext=None, goal=None,
+def is_filters_active(*, node_type=None, context=None, subcontext=None,
                       community=None, community_method=None,
                       value=None, interest=None, difficulty=None,
                       time=None, done=None):
@@ -292,7 +295,7 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None, goal=Non
 
     Defaults match the "Clear Filters" reset state in
     callbacks.clear_filters. Pass None for filters that don't affect the
-    calling canvas (e.g. the Details canvas ignores Goal and Community)
+    calling canvas (e.g. the Details canvas ignores Community)
     so the indicator only fires on filters that actually narrow what
     the user sees.
     """
@@ -301,8 +304,6 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None, goal=Non
     if context:
         return True
     if subcontext:
-        return True
-    if goal:
         return True
     if community and community != "All":
         return True

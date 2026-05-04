@@ -64,7 +64,7 @@ def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     # core_engine accepts positional args from Inputs + States; supply Nones and
     # let the guard fire before any of them are used.
     args = [None] * 83
-    # active_tab sits at positional index 38 (see core_engine signature; total 71 args)
+    # active_tab sits at positional index 38
     args[38] = tab
     result = cb(*args)
     assert len(result) == _CORE_ENGINE_NUM_OUTPUTS

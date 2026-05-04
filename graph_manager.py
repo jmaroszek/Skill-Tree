@@ -1003,15 +1003,6 @@ class GraphManager:
             search_val = filters['search'].lower()
             result = [n for n in result if search_val in n.name.lower()]
 
-        if 'goal' in filters and filters['goal']:
-            goals = filters['goal'] if isinstance(filters['goal'], list) else [filters['goal']]
-            combined: Set[str] = set()
-            for g in goals:
-                subtree = self.get_goal_subtree(g)
-                subtree.add(g)
-                combined.update(subtree)
-            result = [n for n in result if n.name in combined]
-
         return result
 
     def get_prerequisite_chains(self, target_name: str) -> List[List[str]]:

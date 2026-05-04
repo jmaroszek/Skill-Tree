@@ -42,7 +42,7 @@ event_manager = EventManager()
 # core_engine has 24 outputs; this constant + helper let the tab-gating guard
 # return a no_update tuple of the correct arity. test_core_engine_arity verifies
 # that it stays in sync with the actual callback registration.
-_CORE_ENGINE_NUM_OUTPUTS = 24
+_CORE_ENGINE_NUM_OUTPUTS = 23
 
 # Tabs whose own callbacks already refresh their content; switching to them
 # should NOT trigger a graph regen via core_engine.
@@ -394,24 +394,44 @@ def register_callbacks(app):
         return dash.no_update
 
     # --- Clear Filters ---
+    # Note: filter-subcontext.value is reset clientside (see below) because we
+    # deliberately keep that prop free of server-side callback Outputs so Dash
+    # preserves the layout-set value (used to restore Memory state).
     @app.callback(
         Output('filter-node-type', 'value'),
         Output('filter-context', 'value'),
-        Output('filter-subcontext', 'value', allow_duplicate=True),
-        Output('filter-goal', 'value'),
         Output('community-method', 'value'),
         Output('filter-community', 'value'),
         Output('filter-value', 'value'),
         Output('filter-interest', 'value'),
         Output('filter-difficulty', 'value'),
         Output('filter-time', 'value'),
+        Output('filter-time-unit', 'value'),
         Output('filter-done', 'value', allow_duplicate=True),
         Input('btn-clear-filters', 'n_clicks'),
         Input('btn-details-focus', 'n_clicks'),
         prevent_initial_call=True,
     )
     def clear_filters(_clear_clicks, _focus_clicks):
-        return [], [], [], [], 'components', 'All', 1, 1, 10, None, ['hide_done']
+        return [], [], 'components', 'All', 1, 1, 10, None, 'hours', ['hide_done']
+
+    # Clientside reset of filter-subcontext.value on Clear Filters / Focus.
+    # Server-side reset would put a callback Output on this prop, which Dash
+    # uses as license to discard the layout-set value on initial render.
+    app.clientside_callback(
+        """
+        function(clear_clicks, focus_clicks) {
+            if (!clear_clicks && !focus_clicks) {
+                return window.dash_clientside.no_update;
+            }
+            return [];
+        }
+        """,
+        Output('filter-subcontext', 'value', allow_duplicate=True),
+        Input('btn-clear-filters', 'n_clicks'),
+        Input('btn-details-focus', 'n_clicks'),
+        prevent_initial_call=True,
+    )
 
     # --- Tooltip Formatting ---
     @app.callback(
@@ -1369,7 +1389,6 @@ def register_callbacks(app):
          Output('filter-context', 'options'), Output('node-context', 'options'),
          Output('node-type', 'options'),
          Output('filter-node-type', 'options'),
-         Output('filter-goal', 'options'),
          Output('cytoscape-graph', 'stylesheet'),
          Output('btn-clear-focus', 'style'),
          Output('details-goal-sidebar', 'style', allow_duplicate=True),
@@ -1384,7 +1403,8 @@ def register_callbacks(app):
          Input('cytoscape-graph', 'tapNodeData'),
          Input('filter-community', 'value'), Input('community-method', 'value'),
          Input('filter-value', 'value'), Input('filter-interest', 'value'),
-         Input('filter-time', 'value'), Input('filter-difficulty', 'value'),
+         Input('filter-time', 'value'), Input('filter-time-unit', 'value'),
+         Input('filter-difficulty', 'value'),
          Input('suggestion-count-store', 'data'),
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'), Input('btn-new-node', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'), Input('btn-goals-toggle', 'n_clicks'),
@@ -1395,7 +1415,6 @@ def register_callbacks(app):
          Input('group-delete-input', 'value'),
          Input('filter-node-type', 'value'),
          Input('selected-suggestion-store', 'data'),
-         Input('filter-goal', 'value'),
          Input('focus-goal-store', 'data'),
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value'),
@@ -1445,11 +1464,11 @@ def register_callbacks(app):
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
-                     f_community, community_method, f_value, f_interest, f_time, f_difficulty, sugg_count,
+                     f_community, community_method, f_value, f_interest, f_time, f_time_unit, f_difficulty, sugg_count,
                      btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_open, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
-                     f_goal, focus_goal,
+                     focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _details_refresh, _bg_click,
                      gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout,
                      btn_undo_done_confirm,
@@ -1532,7 +1551,7 @@ def register_callbacks(app):
         _event_mgr.check_pending_activations()
         _event_mgr.check_scheduled_triggers()
 
-        filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_goal=f_goal)
+        filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit)
 
         # Editor Sidebar State — delegate to the shared helper so both the
         # short-circuit path above and the full path below compute sidebars
@@ -1782,7 +1801,6 @@ def register_callbacks(app):
             ctx_list = dash.no_update
             type_list = dash.no_update
             f_type_list = dash.no_update
-            goal_opts = dash.no_update
             active_stylesheet = dash.no_update
             clear_focus_style = dash.no_update
 
@@ -1851,10 +1869,6 @@ def register_callbacks(app):
             type_list = [{"label": t, "value": t} for t in base_types]
 
             f_type_list = [{"label": t, "value": t} for t in base_types]
-
-            # Goal filter options
-            goal_nodes = [n for n in all_nodes if n.type == "Goal"]
-            goal_opts = [{"label": g.name, "value": g.name} for g in goal_nodes]
 
             # Focus mode stylesheet: highlight subtree, dim others
             from layout import stylesheet as base_stylesheet
@@ -1991,7 +2005,7 @@ def register_callbacks(app):
         # or runs to completion when no confirmation is needed; on this final
         # return the modal stays closed and the pending store is cleared so
         # any prior open state from a now-resolved flow is reset.
-        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, goal_opts, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style, False, "", None)
+        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style, False, "", None)
 
     # --- Filters Sidebar Toggle (CLIENTSIDE) ---
     # Handled entirely in the browser via assets/filters_sidebar.js. Previously
@@ -2268,19 +2282,19 @@ def register_callbacks(app):
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
         Input('filter-subcontext', 'value'),
-        Input('filter-goal', 'value'),
         Input('filter-community', 'value'),
         Input('community-method', 'value'),
         Input('filter-value', 'value'),
         Input('filter-interest', 'value'),
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
+        Input('filter-time-unit', 'value'),
         Input('filter-done', 'value'),
         Input('graph-settings-max-depth', 'value'),
     )
-    def update_canvas_node_count(elements, f_type, f_ctx, f_sub, f_goal,
+    def update_canvas_node_count(elements, f_type, f_ctx, f_sub,
                                  f_comm, f_comm_method, f_val, f_int,
-                                 f_diff, f_time, f_done, max_depth):
+                                 f_diff, f_time, f_time_unit, f_done, max_depth):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
         text = f"{n} node{'s' if n != 1 else ''}"
         # Non-default max-depth (anything other than 0 = "All") narrows the
@@ -2288,7 +2302,7 @@ def register_callbacks(app):
         depth_active = bool(max_depth)
         if depth_active or is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
-                goal=f_goal, community=f_comm,
+                community=f_comm,
                 community_method=f_comm_method, value=f_val,
                 interest=f_int, difficulty=f_diff, time=f_time,
                 done=f_done):
@@ -2300,21 +2314,21 @@ def register_callbacks(app):
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
         Input('filter-subcontext', 'value'),
-        Input('filter-goal', 'value'),
         Input('filter-community', 'value'),
         Input('community-method', 'value'),
         Input('filter-value', 'value'),
         Input('filter-interest', 'value'),
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
+        Input('filter-time-unit', 'value'),
         Input('filter-done', 'value'),
     )
-    def update_next_filter_indicator(f_type, f_ctx, f_sub, f_goal, f_comm,
+    def update_next_filter_indicator(f_type, f_ctx, f_sub, f_comm,
                                      f_comm_method, f_val, f_int, f_diff,
-                                     f_time, f_done):
+                                     f_time, f_time_unit, f_done):
         if is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
-                goal=f_goal, community=f_comm,
+                community=f_comm,
                 community_method=f_comm_method, value=f_val,
                 interest=f_int, difficulty=f_diff, time=f_time,
                 done=f_done):
@@ -2327,18 +2341,18 @@ def register_callbacks(app):
         State('filter-node-type', 'value'),
         State('filter-context', 'value'),
         State('filter-subcontext', 'value'),
-        State('filter-goal', 'value'),
         State('community-method', 'value'),
         State('filter-community', 'value'),
         State('filter-value', 'value'),
         State('filter-interest', 'value'),
         State('filter-difficulty', 'value'),
         State('filter-time', 'value'),
+        State('filter-time-unit', 'value'),
         State('filter-done', 'value'),
         prevent_initial_call=True,
     )
-    def persist_remember_filters(val, f_type, f_ctx, f_sub, f_goal, f_comm_method,
-                                 f_comm, f_val, f_int, f_diff, f_time, f_done):
+    def persist_remember_filters(val, f_type, f_ctx, f_sub, f_comm_method,
+                                 f_comm, f_val, f_int, f_diff, f_time, f_time_unit, f_done):
         enabled = bool(val and "enabled" in val)
         ConfigManager.set_remember_filters(enabled)
         # When the user flips Memory ON, snapshot the *current* sidebar state
@@ -2349,13 +2363,13 @@ def register_callbacks(app):
                 "node_type": f_type or [],
                 "context": f_ctx or [],
                 "subcontext": f_sub or [],
-                "goal": f_goal or [],
                 "community_method": f_comm_method or "components",
                 "community": f_comm or "All",
                 "value": f_val if f_val is not None else 1,
                 "interest": f_int if f_int is not None else 1,
                 "difficulty": f_diff if f_diff is not None else 10,
                 "time": f_time if f_time is not None else "",
+                "time_unit": f_time_unit or "hours",
                 "done": f_done or [],
             })
         return no_update
@@ -2365,30 +2379,30 @@ def register_callbacks(app):
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
         Input('filter-subcontext', 'value'),
-        Input('filter-goal', 'value'),
         Input('community-method', 'value'),
         Input('filter-community', 'value'),
         Input('filter-value', 'value'),
         Input('filter-interest', 'value'),
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
+        Input('filter-time-unit', 'value'),
         Input('filter-done', 'value'),
     )
-    def persist_filters(f_type, f_ctx, f_sub, f_goal, f_comm_method, f_comm,
-                        f_val, f_int, f_diff, f_time, f_done):
+    def persist_filters(f_type, f_ctx, f_sub, f_comm_method, f_comm,
+                        f_val, f_int, f_diff, f_time, f_time_unit, f_done):
         if not ConfigManager.get_remember_filters():
             return no_update
         ConfigManager.set_filters({
             "node_type": f_type or [],
             "context": f_ctx or [],
             "subcontext": f_sub or [],
-            "goal": f_goal or [],
             "community_method": f_comm_method or "components",
             "community": f_comm or "All",
             "value": f_val if f_val is not None else 1,
             "interest": f_int if f_int is not None else 1,
             "difficulty": f_diff if f_diff is not None else 10,
             "time": f_time if f_time is not None else "",
+            "time_unit": f_time_unit or "hours",
             "done": f_done or [],
         })
         return no_update
@@ -2433,23 +2447,58 @@ def register_callbacks(app):
         subs = sort_subcontexts(ConfigManager.get_subcontexts().get(ctx, []))
         return base + [{"label": s, "value": s} for s in subs]
 
+    # Server-side: only update OPTIONS. Dash strips the layout's `value=` for
+    # any prop that has a server-side callback Output, which would nuke the
+    # memory-restored picks. By leaving `value` untouched here, the dropdown's
+    # value comes only from layout init + user interaction + clientside resets
+    # (below), so the persisted value sticks.
     @app.callback(
         Output('filter-subcontext', 'options'),
-        Output('filter-subcontext', 'value'),
-        Input('filter-context', 'value')
+        Input('filter-context', 'value'),
     )
     def update_filter_subcontexts(ctx):
         if not ctx or ctx == "All" or (isinstance(ctx, list) and not ctx):
-            return [], []
+            return []
         contexts = ctx if isinstance(ctx, list) else [ctx]
         all_subs = ConfigManager.get_subcontexts()
         multi_context = len(contexts) > 1
         opts = []
         for c in contexts:
+            none_label = f"{c} > None" if multi_context else "None"
+            opts.append({"label": none_label, "value": f"{c}\x1f"})
             for s in sort_subcontexts(all_subs.get(c, [])):
                 label = f"{c} > {s}" if multi_context else s
-                opts.append({"label": label, "value": f"{c}::{s}"})
-        return opts, []
+                opts.append({"label": label, "value": f"{c}\x1f{s}"})
+        return opts
+
+    # When the user changes context, prune any subcontext picks whose context
+    # is no longer in the selection. Clientside only — see note above on why
+    # filter-subcontext.value has no server-side callback Output.
+    app.clientside_callback(
+        """
+        function(ctx, current_subs) {
+            if (!current_subs || current_subs.length === 0) {
+                return window.dash_clientside.no_update;
+            }
+            const contexts = Array.isArray(ctx) ? ctx : (ctx ? [ctx] : []);
+            const ctxSet = new Set(contexts);
+            const SEP = '\\u001f';
+            const kept = current_subs.filter(v => {
+                const sep = v.indexOf(SEP);
+                if (sep < 0) return false;
+                return ctxSet.has(v.slice(0, sep));
+            });
+            if (kept.length === current_subs.length) {
+                return window.dash_clientside.no_update;
+            }
+            return kept;
+        }
+        """,
+        Output('filter-subcontext', 'value'),
+        Input('filter-context', 'value'),
+        State('filter-subcontext', 'value'),
+        prevent_initial_call=True,
+    )
 
 
 

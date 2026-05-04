@@ -454,6 +454,28 @@ def build_filters_content():
     else:
         f = ConfigManager._FILTER_DEFAULTS
 
+    # Pre-build subcontext options for the persisted context selection so the
+    # restored value sticks on initial render. The encoding "ctx\x1fsub" uses
+    # ASCII unit-separator instead of "::" because Dash mangles dropdown
+    # values containing "::" (it overlaps with internal dependency notation),
+    # silently dropping them during layout serialization.
+    initial_sub_opts = []
+    persisted_contexts = f["context"] if isinstance(f["context"], list) else ([f["context"]] if f["context"] else [])
+    if persisted_contexts:
+        all_subs = ConfigManager.get_subcontexts()
+        multi_context = len(persisted_contexts) > 1
+        for c in persisted_contexts:
+            none_label = f"{c} > None" if multi_context else "None"
+            initial_sub_opts.append({"label": none_label, "value": f"{c}\x1f"})
+            for s in sort_subcontexts(all_subs.get(c, [])):
+                label = f"{c} > {s}" if multi_context else s
+                initial_sub_opts.append({"label": label, "value": f"{c}\x1f{s}"})
+    # Migrate any legacy "::" values from before the separator change.
+    persisted_subs = [v.replace("::", "\x1f", 1) if isinstance(v, str) and "\x1f" not in v else v
+                      for v in (f["subcontext"] or [])]
+    valid_subs = {o["value"] for o in initial_sub_opts}
+    initial_sub_value = [v for v in persisted_subs if v in valid_subs]
+
     return html.Div([
         html.Div([
             html.H4("Filters"),
@@ -484,35 +506,12 @@ def build_filters_content():
         dbc.Label("Subcontext", className="mt-2"),
         dcc.Dropdown(
             id="filter-subcontext",
-            options=[],
-            value=f["subcontext"],
+            options=initial_sub_opts,
+            value=initial_sub_value,
             multi=True,
             placeholder="All",
             style={"color": "#212529"},
         ),
-
-        dbc.Label("Goal", className="mt-2"),
-        dcc.Dropdown(
-            id="filter-goal",
-            options=[],
-            value=f["goal"],
-            multi=True,
-            placeholder="All",
-            style={"color": "#212529"},
-        ),
-
-        html.Hr(className="my-3"),
-
-        html.H5("Communities", className="mt-2 mb-1"),
-        dbc.Label("Detection Method", className="mt-2"),
-        dbc.Select(id="community-method", options=[
-            {"label": "Islands", "value": "components"},
-            {"label": "Clusters", "value": "louvain"},
-            {"label": "Orphans", "value": "orphans"},
-        ], value=f["community_method"]),
-
-        dbc.Label("Community", className="mt-3"),
-        dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value=f["community"]),
 
         html.Hr(className="my-3"),
 
@@ -529,8 +528,31 @@ def build_filters_content():
         dcc.Slider(min=1, max=10, step=1, value=f["difficulty"], id="filter-difficulty",
                    marks={i: str(i) for i in range(1, 11)}),
 
-        dbc.Label("Max Time in Hours", className="mt-2"),
-        dbc.Input(id="filter-time", type="number", min=0.1, value=f["time"] if f["time"] != "" else None, placeholder="No limit"),
+        dbc.Label("Max Time", className="mt-2"),
+        html.Div([
+            dbc.Input(id="filter-time", type="number", min=0.1,
+                      value=f["time"] if f["time"] != "" else None,
+                      placeholder="No limit", size="sm",
+                      className="flex-grow-1"),
+            dbc.Select(id="filter-time-unit", options=[
+                {"label": "Hours", "value": "hours"},
+                {"label": "Weeks", "value": "weeks"},
+                {"label": "Months", "value": "months"},
+            ], value=f["time_unit"], size="sm", style={"width": "100px"}),
+        ], className="d-flex gap-2"),
+
+        html.Hr(className="my-3"),
+
+        html.H5("Communities", className="mt-2 mb-1"),
+        dbc.Label("Detection Method", className="mt-2"),
+        dbc.Select(id="community-method", options=[
+            {"label": "Islands", "value": "components"},
+            {"label": "Clusters", "value": "louvain"},
+            {"label": "Orphans", "value": "orphans"},
+        ], value=f["community_method"]),
+
+        dbc.Label("Community", className="mt-3"),
+        dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value=f["community"]),
 
         html.Hr(className="my-3"),
 

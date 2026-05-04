@@ -670,13 +670,13 @@ class ConfigManager:
         "node_type": [],
         "context": [],
         "subcontext": [],
-        "goal": [],
         "community_method": "components",
         "community": "All",
         "value": 1,
         "interest": 1,
         "difficulty": 10,
         "time": "",
+        "time_unit": "hours",
         "done": ["hide_done"],
     }
 

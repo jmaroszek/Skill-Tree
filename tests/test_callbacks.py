@@ -144,7 +144,7 @@ class TestIsFiltersActive:
     def test_all_defaults_inactive(self):
         # Mirrors the "Clear Filters" reset state.
         assert is_filters_active(
-            node_type=[], context=[], subcontext=[], goal=[],
+            node_type=[], context=[], subcontext=[],
             community="All", community_method="components",
             value=1, interest=1, difficulty=10, time=None,
             done=["hide_done"],
@@ -163,9 +163,6 @@ class TestIsFiltersActive:
 
     def test_subcontext_active(self):
         assert is_filters_active(subcontext=["Rational"]) is True
-
-    def test_goal_active(self):
-        assert is_filters_active(goal=["Read War and Peace"]) is True
 
     def test_community_all_inactive(self):
         assert is_filters_active(community="All") is False
