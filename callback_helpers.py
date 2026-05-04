@@ -235,7 +235,11 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
         for v in values:
             if not v or not isinstance(v, str):
                 continue
-            v = v.strip()
+            # Only strip standard ASCII whitespace — NOT all `str.isspace()`
+            # chars, because the composite separator \x1f is whitespace by
+            # Python's definition and would silently drop the "None" sentinel
+            # (`"Body\x1f"` → `"Body"`).
+            v = v.strip(" \t\n\r\v\f")
             if not v:
                 continue
             if "\x1f" in v:
