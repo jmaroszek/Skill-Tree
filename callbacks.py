@@ -2457,6 +2457,29 @@ def register_callbacks(app):
         subs = sort_subcontexts(ConfigManager.get_subcontexts().get(ctx, []))
         return base + [{"label": s, "value": s} for s in subs]
 
+    # Clear node-subcontext value when the new context doesn't include it.
+    # populate_editor sets a valid pair on edit-load, so this no-ops then;
+    # only a user-driven context change to an incompatible context clears.
+    app.clientside_callback(
+        """
+        function(ctx, currentSub, options) {
+            if (!currentSub) return window.dash_clientside.no_update;
+            const opts = options || [];
+            for (let i = 0; i < opts.length; i++) {
+                if (opts[i] && opts[i].value === currentSub) {
+                    return window.dash_clientside.no_update;
+                }
+            }
+            return '';
+        }
+        """,
+        Output('node-subcontext', 'value', allow_duplicate=True),
+        Input('node-subcontext', 'options'),
+        State('node-subcontext', 'value'),
+        State('node-subcontext', 'options'),
+        prevent_initial_call=True,
+    )
+
     # Server-side: only update OPTIONS. Dash strips the layout's `value=` for
     # any prop that has a server-side callback Output, which would nuke the
     # memory-restored picks. By leaving `value` untouched here, the dropdown's

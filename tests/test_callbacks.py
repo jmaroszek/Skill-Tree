@@ -448,7 +448,7 @@ class TestSaveRoundTrip:
         """Every user-editable field is faithfully stored and retrieved."""
         handle_save(manager,
             "FullNode", "Goal", "A description", 9, 10.0, 20.0, 40.0, 7, 3,
-            ["Done"], "Work", "Research", None, None, None,
+            ["Done"], "Mind", "Sensory", None, None, None,
             [], [], [], [], [], 0
         )
         node = manager.get_node("FullNode")
@@ -461,8 +461,20 @@ class TestSaveRoundTrip:
         assert node.interest == 7
         assert node.difficulty == 3
         assert node.status == "Done"
-        assert node.context == "Work"
-        assert node.subcontext == "Research"
+        assert node.context == "Mind"
+        assert node.subcontext == "Sensory"
+
+    def test_invalid_subcontext_for_context_is_cleared(self):
+        """Saving a node with a subcontext that doesn't belong to the chosen
+        context drops the subcontext rather than persisting an orphan pair."""
+        handle_save(manager,
+            "Orphan", "Learn", "", 5, 1.0, 2.0, 4.0, 5, 5,
+            [], "Mind", "Life Skills", None, None, None,
+            [], [], [], [], []
+        )
+        node = manager.get_node("Orphan")
+        assert node.context == "Mind"
+        assert node.subcontext is None
 
     def test_second_save_does_not_revert_to_first_save_values(self):
         """Two successive saves with different values — the second must win.

@@ -643,11 +643,18 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
 
     target_status = STATUS_DONE if (status_done and STATUS_DONE in status_done) else STATUS_OPEN
 
+    ctx = context or None
+    sub = (subctx or '').strip() or None
+    if ctx is None:
+        sub = None
+    elif sub is not None and sub not in ConfigManager.get_subcontexts().get(ctx, []):
+        sub = None
+
     node = Node(
         name=name, type=n_type, description=desc or "",
         value=val, time_o=time_o or 0, time_m=time_m or 0, time_p=time_p or 0,
         interest=interest, difficulty=diff,
-        status=target_status, context=context or None, subcontext=(subctx or '').strip() or None,
+        status=target_status, context=ctx, subcontext=sub,
         obsidian_path=(obs_path or '').strip() or None,
         google_drive_path=(drive_path or '').strip() or None,
         website=(website_path or '').strip() or None,
