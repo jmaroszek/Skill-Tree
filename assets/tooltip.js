@@ -36,6 +36,14 @@
         return !!(m && m.style.display === 'block');
     }
 
+    // Read the identity marker injected by display_hover_data — it carries
+    // the node id the rendered tooltip content represents. Returns null if
+    // no marker (legacy/empty content).
+    function tooltipContentNodeId(tooltip) {
+        var marker = tooltip.querySelector('._tt-marker');
+        return marker ? marker.textContent : null;
+    }
+
     function initTooltip() {
         var tooltip = document.getElementById('hover-tooltip');
         if (!tooltip) {
@@ -78,9 +86,13 @@
         });
 
         // --- 2. MutationObserver: show tooltip when Dash populates content ---
+        // Only show when the rendered content's identity marker matches the
+        // currently hovered node — protects against showing stale content
+        // when Dash callback responses race the cursor.
         var observer = new MutationObserver(function () {
             if (isContextMenuOpen()) return;
             if (onNode && tooltip.innerText.trim().length > 0 && delayElapsed) {
+                if (tooltipContentNodeId(tooltip) !== lastHoveredNodeId) return;
                 clearTimeout(hideTimer);
                 positionTooltip(lastMouseX, lastMouseY);
                 tooltip.style.display = 'block';
@@ -111,7 +123,8 @@
                     delayElapsed = true;
                     if (!onNode) return;
                     if (isContextMenuOpen()) return;
-                    if (tooltip.innerText.trim().length > 0) {
+                    if (tooltip.innerText.trim().length > 0 &&
+                        tooltipContentNodeId(tooltip) === lastHoveredNodeId) {
                         positionTooltip(lastMouseX, lastMouseY);
                         tooltip.style.display = 'block';
                     }

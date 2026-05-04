@@ -451,6 +451,16 @@ def register_callbacks(app):
         node_type = data.get('type', '')
         node_id = data.get('id', data.get('label', ''))
 
+        # Identity marker — tooltip.js reads this to verify the rendered
+        # content matches the currently hovered node before showing. Necessary
+        # because Dash callback responses can lag cursor movement, so the
+        # tooltip's children may briefly hold a previous node's data.
+        marker = html.Span(
+            node_id,
+            className='_tt-marker',
+            style={"display": "none"}
+        )
+
         header = html.Div(
             html.Strong(data.get('label', node_id)),
             style={"fontSize": "0.95rem", "marginBottom": "4px",
@@ -464,7 +474,7 @@ def register_callbacks(app):
             pct = completion.get('pct', 0)
             remaining = completion.get('remaining_time', 0)
 
-            lines = [header]
+            lines = [marker, header]
 
             if total > 0:
                 bar_color = "#198754" if pct == 100 else "#0d6efd"
@@ -496,7 +506,7 @@ def register_callbacks(app):
             ratings_inherited = data.get('value_mode') == 'inherited'
             time_inherited = data.get('time_mode') == 'inherited'
 
-            lines = [header]
+            lines = [marker, header]
 
             if ratings_inherited and time_inherited:
                 lines.append(html.Div("Container", style={"color": "#adb5bd"}))
