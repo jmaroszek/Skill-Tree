@@ -33,7 +33,7 @@ sidebar_content = html.Div(
             html.H4("Node Editor"),
             html.Span("×", id="btn-close-editor", className="fs-3 text-white float-end", style={"cursor": "pointer"})
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
-        dbc.Form([
+        html.Div([
             html.Div(id="node-priority-badge", children=[],
                      className="d-flex gap-1 flex-wrap mb-2",
                      style={"display": "none"}),
