@@ -144,8 +144,32 @@ input[type=number] {
     stroke-linecap: round !important;
     stroke-linejoin: round !important;
 }
+/* Open menu sizing.
+   - Cap at 320px so ~5 option rows + search + actions are visible, but
+     fall back to Radix's available-height variable so we never overflow
+     the viewport when the trigger sits near the bottom of the screen.
+     (Dash forwards --radix-popper-available-height onto the content as
+     --radix-popover-content-available-height.) Without the cap, the
+     popover gets clipped by the window when scrolled low; without the
+     variable, our 320px wins even when only 80px is actually available.
+   - Lay out as a flex column so the inner virtualized options list
+     fills exactly the leftover space after the search bar and (multi-
+     select) actions row. The virtualized list otherwise sets its own
+     height from a measurement that races first paint — that's why the
+     menu felt "cut off" on first open and snapped to the right size
+     once the user typed (typing forces a re-measure). */
 .dash-dropdown-content {
-    max-height: 320px !important;
+    max-height: min(
+        320px,
+        var(--radix-popover-content-available-height, calc(100vh - 100px))
+    ) !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+.dash-dropdown-content > .dash-dropdown-options,
+.dash-dropdown-content > .dash-options-list {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
 }
 
 /* Hide scrollbar in goals list while keeping scrollable */
