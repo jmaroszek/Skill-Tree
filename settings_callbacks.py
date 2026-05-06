@@ -659,6 +659,27 @@ def register_settings_callbacks(app):
         return [header_line,
                 html.Table(rows, className="table table-sm table-dark table-borderless")]
 
+    # --- Settings: Repair Graph (manual trigger for recompute_all_statuses) ---
+    @app.callback(
+        Output('repair-graph-status', 'children'),
+        Output('elements-pending-store', 'data', allow_duplicate=True),
+        Input('btn-repair-graph', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def repair_graph(n_clicks):
+        if not n_clicks:
+            return dash.no_update, dash.no_update
+        try:
+            from callbacks import generate_elements
+            changed = manager.recompute_all_statuses()
+            if changed:
+                noun = "node" if changed == 1 else "nodes"
+                return f"Repaired {changed} {noun}.", generate_elements()
+            return "Graph already consistent.", dash.no_update
+        except Exception:
+            logger.exception("Failed to repair graph")
+            return "Error during repair — see logs.", dash.no_update
+
     # --- Migration Modal ---
     @app.callback(
         Output('modal-migration', 'is_open'),

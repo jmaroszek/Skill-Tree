@@ -169,6 +169,23 @@ def build_settings_tab_content():
                                      placeholder="e.g. a, an, the, and, or, of"),
                         html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
 
+                        # --- Repair Graph group ---
+                        html.Hr(className="my-2"),
+                        html.H5("Repair Graph", className="mt-2 mb-1"),
+                        html.Small(
+                            "Re-derives Open/Blocked status for every non-Goal node. Runs automatically at startup; trigger manually after programmatic edits that bypassed the cascade.",
+                            className="text-muted d-block mb-2",
+                        ),
+                        dbc.Row([
+                            dbc.Col(dbc.Button("Repair Graph", id="btn-repair-graph",
+                                               color="secondary", size="sm"),
+                                    width="auto", className="pe-2"),
+                            dbc.Col(html.Span(id="repair-graph-status",
+                                              className="text-muted",
+                                              style={"fontSize": "0.85rem"}),
+                                    className="d-flex align-items-center"),
+                        ], className="g-1 align-items-center mb-2"),
+
                     ], className="p-2")
                 ]),
                 dbc.Tab(label="Contexts", tab_id="tab-contexts", children=[
