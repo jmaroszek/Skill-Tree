@@ -647,33 +647,41 @@ next_view = html.Div([
 
 # --- Migration Modal ---
 
-def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_by_context=None):
+def build_migration_content(orphans_by_field, new_values_by_field,
+                            subcontexts_by_context=None, rename_map=None):
     """Build dynamic migration modal body from orphan data.
 
-    Type orphans: one dropdown per node, grouped by old value (migration-dropdown IDs).
-    Context orphans: one dropdown per old context value (migration-ctx-group-dropdown IDs).
-    Subcontext orphans: one dropdown per old subcontext value (migration-sub-group-dropdown IDs).
+    Per-node design: every affected node gets its own (context, subcontext)
+    dropdown so heterogeneous remaps are possible. Each affected-value group
+    also has a "Bulk apply" row for the common case where all nodes in a
+    group should go to the same target.
 
-    This grouped design avoids the cross-node state bug (one node's selection affecting
-    another's) and naturally supports bulk renaming (e.g. all "STEM" → "Science").
+    `rename_map` (from `detect_context_renames`) pre-fills per-node defaults
+    to (new_ctx, original_subcontext) when a 1:1 context rename preserves
+    subcontexts — making "rename Social → People" a one-click apply.
 
     Args:
-        orphans_by_field: {'context': {'OldCtx': [Node, ...]}, 'type': {...}, 'subcontext': {...}}
+        orphans_by_field: {'context': {'OldCtx': [n_obj, ...]}, 'type': {...}, 'subcontext': {...}}
+            Each n_obj must expose .name, and (for context orphans) .subcontext.
         new_values_by_field: {'context': [...], 'type': [...], 'subcontext': [...]}
-        subcontexts_by_context: unused, kept for signature compatibility
+        subcontexts_by_context: {ctx_name: [sub, ...]} for the post-save state.
+        rename_map: {old_ctx: new_ctx} for detected pure renames.
 
     Returns:
         Tuple of (children list for modal body, mapping dict).
         Mapping: {
-            "type": [{"field": "type", "old_value": ..., "node_name": ...}, ...],
-            "ctx_groups": [{"old_value": ..., "node_names": [...]}, ...],
-            "sub_groups": [{"old_value": ..., "node_names": [...]}, ...],
+            "type":      [{"field": "type",       "old_value": ..., "node_name": ...}, ...],
+            "ctx_nodes": [{"field": "context",    "old_value": ..., "node_name": ..., "group_idx": int}, ...],
+            "sub_nodes": [{"field": "subcontext", "old_value": ..., "node_name": ..., "group_idx": int}, ...],
         }
+        ctx_nodes/sub_nodes are ordered to match the per-node dropdown indices
+        (`migration-cgc-node` / `migration-cgs-node` etc.).
     """
+    rename_map = rename_map or {}
     children = []
     type_mapping = []
-    ctx_groups = []
-    sub_groups = []
+    ctx_node_entries = []
+    sub_node_entries = []
     type_idx = 0
 
     # --- Type changes (one dropdown per node, grouped by old value) ---
@@ -728,51 +736,43 @@ def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_b
         opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
         return opts, (subs[0] if subs else "__keep__")
 
-    def _group_rows(orphans, group_list, ctx_dd_type, sub_dd_type, ctx_required):
-        """Build group rows for context or subcontext orphan section."""
-        rows = []
-        for group_i, (old_val, nodes) in enumerate(orphans.items()):
-            node_names = [n.name for n in nodes]
-            preview = ", ".join(node_names[:8]) + (f" +{len(node_names) - 8} more" if len(node_names) > 8 else "")
-            default_ctx = new_ctx_vals[0] if (ctx_required and new_ctx_vals) else "__keep__"
-            init_sub_opts, default_sub = _sub_options_for(default_ctx)
-            if not ctx_required:
-                default_sub = "__keep__"
-                init_sub_opts, _ = _sub_options_for("__keep__")
-                # Smart default: if the orphan label is "ctx › sub" and `sub` now lives
-                # under exactly one new parent, pre-select that (parent, sub) so the
-                # common move case is a one-click migration.
-                if " › " in old_val:
-                    _, sub_name = old_val.split(" › ", 1)
-                    candidates = [c for c, ss in subcontexts_map.items() if sub_name in ss]
-                    if len(candidates) == 1:
-                        default_ctx = candidates[0]
-                        init_sub_opts, _ = _sub_options_for(default_ctx)
-                        default_sub = sub_name
-            rows.append(dbc.Row([
-                dbc.Col([
-                    html.Div([
-                        html.Strong(old_val),
-                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''}",
-                                   className="text-muted ms-1 small"),
-                    ]),
-                    html.Div(preview, className="text-muted mt-1", style={"fontSize": "0.78rem"}),
-                ], width=4),
-                dbc.Col(dbc.Select(
-                    id={"type": ctx_dd_type, "index": group_i},
-                    options=ctx_options,  # type: ignore[reportArgumentType]
-                    value=default_ctx,
-                    size="sm",
-                ), width=4, className="d-flex align-items-center"),
-                dbc.Col(dbc.Select(
-                    id={"type": sub_dd_type, "index": group_i},
-                    options=init_sub_opts,  # type: ignore[reportArgumentType]
-                    value=default_sub,
-                    size="sm",
-                ), width=4, className="d-flex align-items-center"),
-            ], className="mb-2"))
-            group_list.append({"old_value": old_val, "node_names": node_names})
-        return rows
+    def _bulk_row(group_i, ctx_dd_type, sub_dd_type, btn_type, ctx_default, sub_opts, sub_default):
+        return dbc.Row([
+            dbc.Col(html.Small("Bulk apply:", className="text-muted fw-bold"),
+                    width=4, className="d-flex align-items-center"),
+            dbc.Col(dbc.Select(
+                id={"type": ctx_dd_type, "index": group_i},
+                options=ctx_options,  # type: ignore[reportArgumentType]
+                value=ctx_default,
+                size="sm",
+            ), width=3),
+            dbc.Col(dbc.Select(
+                id={"type": sub_dd_type, "index": group_i},
+                options=sub_opts,  # type: ignore[reportArgumentType]
+                value=sub_default,
+                size="sm",
+            ), width=3),
+            dbc.Col(dbc.Button("Apply to all", id={"type": btn_type, "index": group_i},
+                               color="secondary", size="sm", className="w-100"), width=2),
+        ], className="mb-2 pb-2 border-bottom")
+
+    def _per_node_row(node_idx, name, ctx_dd_type, sub_dd_type, ctx_default, sub_opts, sub_default):
+        return dbc.Row([
+            dbc.Col(html.Span(name, className="small"),
+                    width=4, className="d-flex align-items-center"),
+            dbc.Col(dbc.Select(
+                id={"type": ctx_dd_type, "index": node_idx},
+                options=ctx_options,  # type: ignore[reportArgumentType]
+                value=ctx_default,
+                size="sm",
+            ), width=4),
+            dbc.Col(dbc.Select(
+                id={"type": sub_dd_type, "index": node_idx},
+                options=sub_opts,  # type: ignore[reportArgumentType]
+                value=sub_default,
+                size="sm",
+            ), width=4),
+        ], className="mb-1")
 
     header_row = dbc.Row([
         dbc.Col(html.Small("", className="text-muted fw-bold"), width=4),
@@ -784,17 +784,112 @@ def build_migration_content(orphans_by_field, new_values_by_field, subcontexts_b
     ctx_orphans = orphans_by_field.get('context', {})
     if ctx_orphans:
         children.append(html.H5("Context Changes", className="mt-3 mb-2"))
-        rows = _group_rows(ctx_orphans, ctx_groups, "migration-cgc", "migration-cgs", ctx_required=True)
-        children.append(dbc.Card([dbc.CardBody([header_row] + rows)], className="mb-2"))
+        for group_i, (old_val, nodes) in enumerate(ctx_orphans.items()):
+            renamed_to = rename_map.get(old_val)
+            bulk_ctx_default = renamed_to or (new_ctx_vals[0] if new_ctx_vals else "__keep__")
+            bulk_sub_opts, bulk_sub_default = _sub_options_for(bulk_ctx_default)
+            if renamed_to:
+                bulk_sub_default = "__keep__"
+
+            node_rows = []
+            for n in nodes:
+                node_idx = len(ctx_node_entries)
+                node_orig_sub = getattr(n, 'subcontext', None)
+                if renamed_to:
+                    new_subs = subcontexts_map.get(renamed_to, [])
+                    node_default_ctx = renamed_to
+                    sub_opts, fallback_default = _sub_options_for(renamed_to)
+                    if node_orig_sub and node_orig_sub in new_subs:
+                        node_default_sub = node_orig_sub
+                    elif node_orig_sub:
+                        node_default_sub = "__clear__"
+                    else:
+                        node_default_sub = fallback_default
+                else:
+                    node_default_ctx = bulk_ctx_default
+                    sub_opts, node_default_sub = _sub_options_for(node_default_ctx)
+                node_rows.append(_per_node_row(
+                    node_idx, n.name, "migration-cgc-node", "migration-cgs-node",
+                    node_default_ctx, sub_opts, node_default_sub,
+                ))
+                ctx_node_entries.append({
+                    "field": "context",
+                    "old_value": old_val,
+                    "node_name": n.name,
+                    "group_idx": group_i,
+                })
+
+            scroll_style = {"maxHeight": "40vh", "overflowY": "auto"} if len(nodes) > 12 else {}
+            header_extra = (html.Span(f" → {renamed_to}", className="text-success ms-1")
+                            if renamed_to else None)
+            children.append(dbc.Card([
+                dbc.CardBody([
+                    html.Div([
+                        html.Strong(old_val),
+                        header_extra,
+                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''}",
+                                  className="text-muted ms-1 small"),
+                    ], className="mb-2"),
+                    _bulk_row(group_i, "migration-bulk-cgc", "migration-bulk-cgs",
+                              "migration-bulk-cg-apply",
+                              bulk_ctx_default, bulk_sub_opts, bulk_sub_default),
+                    header_row,
+                    html.Div(node_rows, style=scroll_style),
+                ])
+            ], className="mb-2"))
 
     # --- Subcontext changes ---
     sub_orphans = orphans_by_field.get('subcontext', {})
     if sub_orphans:
         children.append(html.H5("Subcontext Changes", className="mt-3 mb-2"))
-        rows = _group_rows(sub_orphans, sub_groups, "migration-sgc", "migration-sgs", ctx_required=False)
-        children.append(dbc.Card([dbc.CardBody([header_row] + rows)], className="mb-2"))
+        for group_i, (old_val, nodes) in enumerate(sub_orphans.items()):
+            # Smart default: if old label is "ctx › sub" and `sub` now lives
+            # under exactly one new parent, pre-pick that (parent, sub).
+            default_ctx = "__keep__"
+            default_sub = "__keep__"
+            if " › " in old_val:
+                _, sub_name = old_val.split(" › ", 1)
+                candidates = [c for c, ss in subcontexts_map.items() if sub_name in ss]
+                if len(candidates) == 1:
+                    default_ctx = candidates[0]
+                    default_sub = sub_name
+            sub_opts, _ = _sub_options_for(default_ctx)
 
-    return children, {"type": type_mapping, "ctx_groups": ctx_groups, "sub_groups": sub_groups}
+            node_rows = []
+            for n in nodes:
+                node_idx = len(sub_node_entries)
+                node_rows.append(_per_node_row(
+                    node_idx, n.name, "migration-sgc-node", "migration-sgs-node",
+                    default_ctx, sub_opts, default_sub,
+                ))
+                sub_node_entries.append({
+                    "field": "subcontext",
+                    "old_value": old_val,
+                    "node_name": n.name,
+                    "group_idx": group_i,
+                })
+
+            scroll_style = {"maxHeight": "40vh", "overflowY": "auto"} if len(nodes) > 12 else {}
+            children.append(dbc.Card([
+                dbc.CardBody([
+                    html.Div([
+                        html.Strong(old_val),
+                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''}",
+                                  className="text-muted ms-1 small"),
+                    ], className="mb-2"),
+                    _bulk_row(group_i, "migration-bulk-sgc", "migration-bulk-sgs",
+                              "migration-bulk-sg-apply",
+                              default_ctx, sub_opts, default_sub),
+                    header_row,
+                    html.Div(node_rows, style=scroll_style),
+                ])
+            ], className="mb-2"))
+
+    return children, {
+        "type": type_mapping,
+        "ctx_nodes": ctx_node_entries,
+        "sub_nodes": sub_node_entries,
+    }
 
 
 migration_modal = dbc.Modal([
@@ -805,7 +900,7 @@ migration_modal = dbc.Modal([
         dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
         dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
     ])
-], id="modal-migration", size="lg", is_open=False, centered=True, backdrop="static")
+], id="modal-migration", size="xl", is_open=False, centered=True, backdrop="static")
 
 
 error_modal = dbc.Modal([

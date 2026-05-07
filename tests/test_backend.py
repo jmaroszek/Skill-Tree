@@ -10,7 +10,7 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_BLOCKED, STATUS_OPEN
 from graph_manager import GraphManager
-from callback_helpers import compute_orphaned_subcontext_pairs
+from callback_helpers import compute_orphaned_subcontext_pairs, detect_context_renames
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
 from scoring import intrinsic_value, perceived_cost, is_eligible, build_adjacency, total_value, score_nodes
 
@@ -1471,6 +1471,549 @@ class TestOrphanedSubcontextPairs:
         new = {"STEM": ["Biology"], "Social": ["Psychology"], "Mind": ["Sleep"]}
         pairs = compute_orphaned_subcontext_pairs(old, new, ["STEM", "Social", "Mind"])
         assert sorted(pairs) == sorted([("STEM", "Psychology"), ("STEM", "Bio")])
+
+
+class TestDetectContextRenames:
+    """Strict 1:1 rename detection — used by the migration modal to pre-fill defaults."""
+
+    def test_pure_rename_preserves_subcontexts(self):
+        old_ctx = ["Social", "Mind"]
+        new_ctx = ["People", "Mind"]
+        old_sub = {"Social": ["Dating", "Morality"], "Mind": ["Sleep"]}
+        new_sub = {"People": ["Dating", "Morality"], "Mind": ["Sleep"]}
+        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {"Social": "People"}
+
+    def test_superset_subcontexts_still_counts(self):
+        old_ctx = ["Social"]
+        new_ctx = ["People"]
+        old_sub = {"Social": ["Dating"]}
+        new_sub = {"People": ["Dating", "Friends"]}
+        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {"Social": "People"}
+
+    def test_missing_subcontext_blocks_rename(self):
+        old_ctx = ["Social"]
+        new_ctx = ["People"]
+        old_sub = {"Social": ["Dating", "Morality"]}
+        new_sub = {"People": ["Dating"]}
+        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
+
+    def test_two_removals_is_ambiguous(self):
+        old_ctx = ["A", "B"]
+        new_ctx = ["X", "Y"]
+        old_sub = {"A": ["sub"], "B": ["sub"]}
+        new_sub = {"X": ["sub"], "Y": ["sub"]}
+        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
+
+    def test_pure_addition_is_not_a_rename(self):
+        old_ctx = ["A"]
+        new_ctx = ["A", "B"]
+        old_sub = {"A": ["sub"]}
+        new_sub = {"A": ["sub"], "B": ["sub"]}
+        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
+
+    def test_pure_removal_is_not_a_rename(self):
+        old_ctx = ["A", "B"]
+        new_ctx = ["A"]
+        old_sub = {"A": ["sub"], "B": ["sub"]}
+        new_sub = {"A": ["sub"]}
+        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
+
+    def test_no_changes_returns_empty(self):
+        old_ctx = ["A"]
+        new_ctx = ["A"]
+        assert detect_context_renames(old_ctx, new_ctx, {"A": ["s"]}, {"A": ["s"]}) == {}
+
+    def test_rename_with_no_old_subcontexts(self):
+        # Old context had no subs; new context has some — still a valid rename.
+        old_ctx = ["Old"]
+        new_ctx = ["New"]
+        assert detect_context_renames(old_ctx, new_ctx, {}, {"New": ["a"]}) == {"Old": "New"}
+
+    def test_subcontext_only_change_is_not_a_rename(self):
+        # Same context names; only subcontexts shifted. Not a rename.
+        old_ctx = ["A"]
+        new_ctx = ["A"]
+        old_sub = {"A": ["s1"]}
+        new_sub = {"A": ["s2"]}
+        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
+
+
+class TestBuildMigrationContent:
+    """Per-node UI generation, smart defaults, and mapping-store shape.
+
+    Walks the rendered Dash component tree to verify each per-node dropdown's
+    default value, since the smart-default logic is the headline feature of
+    the flexible-migration redesign.
+    """
+
+    @staticmethod
+    def _walk(children):
+        """Return {(type, idx): {'value': v, 'options': [...]}} for every
+        pattern-matched component in the rendered tree."""
+        found = {}
+        def visit(el):
+            if el is None or isinstance(el, (str, int, float, bool)):
+                return
+            ch = getattr(el, 'children', None)
+            if isinstance(ch, list):
+                for x in ch: visit(x)
+            elif ch is not None:
+                visit(ch)
+            eid = getattr(el, 'id', None)
+            if isinstance(eid, dict):
+                t, i = eid.get('type'), eid.get('index')
+                found[(t, i)] = {
+                    'value': getattr(el, 'value', None),
+                    'options': getattr(el, 'options', None),
+                }
+        for c in (children if isinstance(children, list) else [children]):
+            visit(c)
+        return found
+
+    @staticmethod
+    def _ns(name, **attrs):
+        from types import SimpleNamespace
+        return SimpleNamespace(name=name, **attrs)
+
+    def _build(self, **kwargs):
+        from layout import build_migration_content
+        return build_migration_content(**kwargs)
+
+    # --- Pure-rename smart defaults -----------------------------------------
+
+    def test_pure_rename_prefills_each_node_with_original_subcontext(self):
+        """The headline scenario — Social → People preserving 5 subcontexts."""
+        nodes = [
+            self._ns('A', subcontext='Dating'),
+            self._ns('B', subcontext='Morality'),
+            self._ns('C', subcontext='Influence'),
+            self._ns('D', subcontext='Relationships'),
+            self._ns('E', subcontext='Psychology'),
+        ]
+        children, mapping = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['People'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'People': ['Dating', 'Morality', 'Influence',
+                                               'Relationships', 'Psychology']},
+            rename_map={'Social': 'People'},
+        )
+        sels = self._walk(children)
+        for i, n in enumerate(nodes):
+            assert sels[('migration-cgc-node', i)]['value'] == 'People'
+            assert sels[('migration-cgs-node', i)]['value'] == n.subcontext
+
+    def test_rename_clears_subcontext_absent_from_new_context(self):
+        """A node tagged with a subcontext the new context doesn't have
+        should default to __clear__, not to a random first-of-list."""
+        nodes = [
+            self._ns('Keep', subcontext='Dating'),
+            self._ns('Drop', subcontext='Vanished'),
+        ]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['People'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'People': ['Dating']},
+            rename_map={'Social': 'People'},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-cgs-node', 0)]['value'] == 'Dating'
+        assert sels[('migration-cgs-node', 1)]['value'] == '__clear__'
+
+    def test_rename_with_node_having_no_subcontext_uses_fallback(self):
+        nodes = [self._ns('NoSub', subcontext=None)]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['People'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'People': ['Dating', 'Friends']},
+            rename_map={'Social': 'People'},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-cgc-node', 0)]['value'] == 'People'
+        # Fallback should be the first available sub for the new context
+        assert sels[('migration-cgs-node', 0)]['value'] == 'Dating'
+
+    def test_rename_with_no_subcontexts_under_new_context(self):
+        """Renamed-to has no subs at all → fallback is __keep__."""
+        nodes = [self._ns('NoSub', subcontext=None)]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['People'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'People': []},
+            rename_map={'Social': 'People'},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-cgs-node', 0)]['value'] == '__keep__'
+
+    # --- No-rename fallback --------------------------------------------------
+
+    def test_no_rename_falls_back_to_first_new_ctx_uniformly(self):
+        """When detect_context_renames returned {}, every per-node row
+        should default to (first_new_ctx, first_sub) — the user can adjust."""
+        nodes = [self._ns('A', subcontext='Dating'),
+                 self._ns('B', subcontext='Morality')]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['Mind', 'Body'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'Mind': ['Sleep'], 'Body': ['Strength']},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        for i in range(2):
+            assert sels[('migration-cgc-node', i)]['value'] == 'Mind'
+            assert sels[('migration-cgs-node', i)]['value'] == 'Sleep'
+
+    def test_no_rename_with_empty_new_contexts(self):
+        nodes = [self._ns('A', subcontext='Dating')]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': [], 'subcontext': [], 'type': []},
+            subcontexts_by_context={},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-cgc-node', 0)]['value'] == '__keep__'
+
+    # --- Subcontext-orphan smart default ------------------------------------
+
+    def test_subcontext_orphan_smart_default_when_unique_new_parent(self):
+        """`Old › Sub` label and `Sub` lives under exactly one new ctx →
+        pre-pick that (parent, sub) pair on every node row."""
+        nodes = [self._ns('A', context='STEM'),
+                 self._ns('B', context='STEM')]
+        children, _ = self._build(
+            orphans_by_field={'subcontext': {'STEM › Psychology': nodes}},
+            new_values_by_field={'context': ['STEM', 'Social'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'STEM': ['Math'], 'Social': ['Psychology']},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        for i in range(2):
+            assert sels[('migration-sgc-node', i)]['value'] == 'Social'
+            assert sels[('migration-sgs-node', i)]['value'] == 'Psychology'
+
+    def test_subcontext_orphan_falls_back_when_sub_under_multiple_parents(self):
+        """`Sub` under multiple new parents → can't auto-pick → __keep__."""
+        nodes = [self._ns('A', context='STEM')]
+        children, _ = self._build(
+            orphans_by_field={'subcontext': {'STEM › Psychology': nodes}},
+            new_values_by_field={'context': ['Social', 'Mind'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'Social': ['Psychology'], 'Mind': ['Psychology']},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-sgc-node', 0)]['value'] == '__keep__'
+        assert sels[('migration-sgs-node', 0)]['value'] == '__keep__'
+
+    def test_subcontext_orphan_falls_back_when_sub_under_no_new_parent(self):
+        nodes = [self._ns('A', context='STEM')]
+        children, _ = self._build(
+            orphans_by_field={'subcontext': {'STEM › Vanished': nodes}},
+            new_values_by_field={'context': ['STEM'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'STEM': ['Math']},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-sgc-node', 0)]['value'] == '__keep__'
+
+    # --- Mapping store shape -------------------------------------------------
+
+    def test_mapping_ctx_nodes_indexed_to_match_dropdown_indices(self):
+        nodes = [self._ns('A', subcontext='Dating'),
+                 self._ns('B', subcontext='Morality'),
+                 self._ns('C', subcontext='Influence')]
+        _, mapping = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['People'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'People': ['Dating', 'Morality', 'Influence']},
+            rename_map={'Social': 'People'},
+        )
+        assert len(mapping['ctx_nodes']) == 3
+        for i, n in enumerate(nodes):
+            assert mapping['ctx_nodes'][i]['node_name'] == n.name
+            assert mapping['ctx_nodes'][i]['old_value'] == 'Social'
+            assert mapping['ctx_nodes'][i]['group_idx'] == 0
+            assert mapping['ctx_nodes'][i]['field'] == 'context'
+
+    def test_multiple_ctx_orphan_groups_get_distinct_group_idx(self):
+        """Two old contexts removed → two cards, each entry tagged with its group_idx."""
+        social = [self._ns('A', subcontext='Dating')]
+        hobbies = [self._ns('X', subcontext='Reading'),
+                   self._ns('Y', subcontext='Reading')]
+        _, mapping = self._build(
+            orphans_by_field={'context': {'Social': social, 'Hobbies': hobbies}},
+            new_values_by_field={'context': ['Mind'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'Mind': ['Sleep']},
+            rename_map={},
+        )
+        assert len(mapping['ctx_nodes']) == 3
+        groups = {e['old_value']: e['group_idx'] for e in mapping['ctx_nodes']}
+        assert groups['Social'] != groups['Hobbies']
+
+    def test_no_orphans_returns_empty_lists(self):
+        children, mapping = self._build(
+            orphans_by_field={},
+            new_values_by_field={'context': [], 'subcontext': [], 'type': []},
+            subcontexts_by_context={},
+            rename_map={},
+        )
+        assert children == []
+        assert mapping == {'type': [], 'ctx_nodes': [], 'sub_nodes': []}
+
+    def test_type_orphans_use_per_node_dropdowns_unchanged(self):
+        """Type path is untouched — each node still gets a migration-dropdown."""
+        nodes = [self._ns('A'), self._ns('B')]
+        children, mapping = self._build(
+            orphans_by_field={'type': {'OldType': nodes}},
+            new_values_by_field={'context': [], 'subcontext': [], 'type': ['NewType']},
+            subcontexts_by_context={},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        assert ('migration-dropdown', 0) in sels
+        assert ('migration-dropdown', 1) in sels
+        assert all(s['value'] == 'NewType' for s in sels.values()
+                   if s['value'] not in ('__keep__', '__clear__', None))
+        assert len(mapping['type']) == 2
+        assert mapping['type'][0]['node_name'] == 'A'
+
+    def test_default_rename_map_arg_is_treated_as_empty(self):
+        """rename_map=None should behave the same as rename_map={}."""
+        nodes = [self._ns('A', subcontext='Dating')]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['People'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'People': ['Dating']},
+            rename_map=None,
+        )
+        sels = self._walk(children)
+        # No rename → fallback default ctx (first new), not preserve original sub
+        assert sels[('migration-cgc-node', 0)]['value'] == 'People'
+
+    # --- Bulk row presence and defaults -------------------------------------
+
+    def test_bulk_row_renders_per_group_with_renamed_default(self):
+        nodes = [self._ns('A', subcontext='Dating')]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes}},
+            new_values_by_field={'context': ['People'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'People': ['Dating']},
+            rename_map={'Social': 'People'},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-bulk-cgc', 0)]['value'] == 'People'
+        # Bulk apply button is also rendered
+        assert ('migration-bulk-cg-apply', 0) in sels
+
+    def test_bulk_row_renders_for_subcontext_orphan_groups(self):
+        nodes = [self._ns('A', context='STEM')]
+        children, _ = self._build(
+            orphans_by_field={'subcontext': {'STEM › Psychology': nodes}},
+            new_values_by_field={'context': ['Social'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'Social': ['Psychology']},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        assert sels[('migration-bulk-sgc', 0)]['value'] == 'Social'
+        assert ('migration-bulk-sg-apply', 0) in sels
+
+
+class TestBuildRenameMapFromPerNodeChoices:
+    """Majority-vote rename-map builder used to feed _migrate_context_weights
+    after a heterogeneous per-node migration."""
+
+    def _build(self, ctx_nodes, cgc_values):
+        from settings_callbacks import _build_rename_map_from_per_node_choices
+        return _build_rename_map_from_per_node_choices(ctx_nodes, cgc_values)
+
+    @staticmethod
+    def _entries(old, names):
+        return [{'field': 'context', 'old_value': old, 'node_name': n,
+                 'group_idx': 0} for n in names]
+
+    def test_unanimous_choice_wins(self):
+        entries = self._entries('Social', ['A', 'B', 'C'])
+        assert self._build(entries, ['People', 'People', 'People']) == {'Social': 'People'}
+
+    def test_clear_majority_wins(self):
+        entries = self._entries('Social', ['A', 'B', 'C', 'D', 'E'])
+        # 3 People, 2 Mind → People wins
+        assert self._build(entries, ['People', 'People', 'People', 'Mind', 'Mind']) == {'Social': 'People'}
+
+    def test_two_way_tie_drops_old(self):
+        entries = self._entries('Social', ['A', 'B'])
+        assert self._build(entries, ['People', 'Mind']) == {}
+
+    def test_three_way_tie_drops_old(self):
+        entries = self._entries('Social', ['A', 'B', 'C'])
+        assert self._build(entries, ['People', 'Mind', 'Body']) == {}
+
+    def test_plurality_with_tie_for_top_drops_old(self):
+        # 2 People, 2 Mind, 1 Body → tie at top → drop
+        entries = self._entries('Social', ['A', 'B', 'C', 'D', 'E'])
+        assert self._build(entries, ['People', 'People', 'Mind', 'Mind', 'Body']) == {}
+
+    def test_keep_and_clear_dont_count_toward_majority(self):
+        # 1 People, 1 Mind, 3 __keep__ → 1-1 tie → drop
+        entries = self._entries('Social', ['A', 'B', 'C', 'D', 'E'])
+        assert self._build(entries, ['People', 'Mind', '__keep__', '__keep__', '__keep__']) == {}
+
+    def test_keep_filtered_lets_real_majority_emerge(self):
+        # 2 People + 1 Mind (the Mind is a vote, not __keep__) → People wins
+        entries = self._entries('Social', ['A', 'B', 'C'])
+        assert self._build(entries, ['People', 'People', 'Mind']) == {'Social': 'People'}
+
+    def test_all_keep_yields_empty_map(self):
+        entries = self._entries('Social', ['A', 'B'])
+        assert self._build(entries, ['__keep__', '__keep__']) == {}
+
+    def test_all_clear_yields_empty_map(self):
+        entries = self._entries('Social', ['A', 'B'])
+        assert self._build(entries, ['__clear__', '__clear__']) == {}
+
+    def test_multiple_old_groups_voted_independently(self):
+        entries = (
+            self._entries('Social', ['A', 'B'])
+            + [{'field': 'context', 'old_value': 'Hobbies', 'node_name': n,
+                'group_idx': 1} for n in ['X', 'Y', 'Z']]
+        )
+        # Social: unanimous People; Hobbies: tie Mind/Body/Body
+        cgc = ['People', 'People', 'Mind', 'Body', 'Body']
+        assert self._build(entries, cgc) == {'Social': 'People', 'Hobbies': 'Body'}
+
+    def test_empty_entries_returns_empty_map(self):
+        assert self._build([], []) == {}
+
+    def test_cgc_values_shorter_than_entries_is_graceful(self):
+        """Defensive — Dash shouldn't deliver mismatched lengths but the
+        helper must not crash if it does."""
+        entries = self._entries('Social', ['A', 'B', 'C'])
+        # Only first 2 values present; 3rd entry has no choice → ignored
+        assert self._build(entries, ['People', 'People']) == {'Social': 'People'}
+
+    def test_cgc_values_longer_than_entries_is_graceful(self):
+        entries = self._entries('Social', ['A'])
+        # Trailing values beyond entries are ignored
+        assert self._build(entries, ['People', 'Mind', 'Body']) == {'Social': 'People'}
+
+    def test_none_value_is_ignored(self):
+        entries = self._entries('Social', ['A', 'B'])
+        # A None in cgc shouldn't count or crash
+        assert self._build(entries, [None, 'People']) == {'Social': 'People'}
+
+
+class TestApplyPerNodeMigrations:
+    """Per-node ctx/sub remap iteration. Uses the temp_database fixture so
+    actual DB writes can be observed."""
+
+    def _apply(self, manager, entries, ctx_vals, sub_vals, new_subcontexts=None):
+        from settings_callbacks import _apply_per_node_migrations
+        _apply_per_node_migrations(manager, entries, ctx_vals, sub_vals,
+                                    new_subcontexts or {})
+
+    @staticmethod
+    def _entry(name, old='Social'):
+        return {'field': 'context', 'old_value': old, 'node_name': name,
+                'group_idx': 0}
+
+    def test_per_node_ctx_change_writes_each_node_independently(self, mgr):
+        """The whole point of the redesign — different nodes go to different ctx."""
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        mgr.add_node(_make_node('B', context='Social', subcontext='Morality'))
+        mgr.add_node(_make_node('C', context='Social', subcontext='Influence'))
+        entries = [self._entry('A'), self._entry('B'), self._entry('C')]
+        new_subs = {'Mind': ['Focus'], 'Body': ['Strength']}
+        self._apply(mgr, entries, ['Mind', 'Body', 'Mind'],
+                    ['Focus', 'Strength', 'Focus'], new_subs)
+        nodes = {n.name: n for n in mgr.get_all_nodes()}
+        assert nodes['A'].context == 'Mind' and nodes['A'].subcontext == 'Focus'
+        assert nodes['B'].context == 'Body' and nodes['B'].subcontext == 'Strength'
+        assert nodes['C'].context == 'Mind' and nodes['C'].subcontext == 'Focus'
+
+    def test_keep_sentinel_skips_dimension(self, mgr):
+        """`__keep__` must not call apply_node_migration for that field."""
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        entries = [self._entry('A')]
+        # Change ctx but keep sub
+        self._apply(mgr, entries, ['Mind'], ['__keep__'],
+                    {'Mind': ['Dating', 'Other']})
+        n = mgr.get_node('A')
+        assert n.context == 'Mind'
+        assert n.subcontext == 'Dating'  # preserved
+
+    def test_keep_for_ctx_only_changes_sub(self, mgr):
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        entries = [self._entry('A')]
+        self._apply(mgr, entries, ['__keep__'], ['Morality'],
+                    {'Social': ['Morality']})
+        n = mgr.get_node('A')
+        assert n.context == 'Social'
+        assert n.subcontext == 'Morality'
+
+    def test_clear_sentinel_nullifies_field(self, mgr):
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        entries = [self._entry('A')]
+        self._apply(mgr, entries, ['__keep__'], ['__clear__'])
+        n = mgr.get_node('A')
+        assert n.subcontext is None
+
+    def test_both_keep_is_no_op(self, mgr):
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        entries = [self._entry('A')]
+        self._apply(mgr, entries, ['__keep__'], ['__keep__'])
+        n = mgr.get_node('A')
+        assert n.context == 'Social'
+        assert n.subcontext == 'Dating'
+
+    def test_ctx_change_clears_sub_when_invalid_under_new_ctx(self, mgr):
+        """`apply_node_migration` already clears sub when it's invalid under
+        the new ctx — verify the per-node loop preserves that contract."""
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        entries = [self._entry('A')]
+        # Mind has its own subs; Dating isn't one of them
+        new_subs = {'Mind': ['Focus', 'Sleep']}
+        self._apply(mgr, entries, ['Mind'], ['__keep__'], new_subs)
+        n = mgr.get_node('A')
+        assert n.context == 'Mind'
+        assert n.subcontext is None
+
+    def test_empty_entries_is_no_op(self, mgr):
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        self._apply(mgr, [], [], [])
+        n = mgr.get_node('A')
+        assert n.context == 'Social'
+
+    def test_mismatched_value_lengths_handled_gracefully(self, mgr):
+        """If Dash delivers a shorter values list than entries, extra entries
+        are skipped (defensive — shouldn't normally happen)."""
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        mgr.add_node(_make_node('B', context='Social', subcontext='Morality'))
+        entries = [self._entry('A'), self._entry('B')]
+        # Only A has a value; B should be untouched
+        self._apply(mgr, entries, ['Mind'], ['Focus'], {'Mind': ['Focus']})
+        nodes = {n.name: n for n in mgr.get_all_nodes()}
+        assert nodes['A'].context == 'Mind'
+        assert nodes['B'].context == 'Social'  # untouched
+
+    def test_none_values_treated_as_no_change(self, mgr):
+        mgr.add_node(_make_node('A', context='Social', subcontext='Dating'))
+        entries = [self._entry('A')]
+        self._apply(mgr, entries, [None], [None])
+        n = mgr.get_node('A')
+        assert n.context == 'Social'
+        assert n.subcontext == 'Dating'
+
+    def test_subcontext_only_remap_via_sub_nodes_entries(self, mgr):
+        """sub_nodes entries are also dicts with 'node_name' — same helper handles them."""
+        mgr.add_node(_make_node('A', context='STEM', subcontext='Psychology'))
+        # field is 'subcontext' for sub_nodes entries, but the helper only
+        # uses node_name regardless of field
+        entries = [{'field': 'subcontext', 'old_value': 'STEM › Psychology',
+                    'node_name': 'A', 'group_idx': 0}]
+        self._apply(mgr, entries, ['Social'], ['Psychology'],
+                    {'STEM': [], 'Social': ['Psychology']})
+        n = mgr.get_node('A')
+        assert n.context == 'Social'
+        assert n.subcontext == 'Psychology'
 
 
 class TestFindOrphanedSubcontextPairs:

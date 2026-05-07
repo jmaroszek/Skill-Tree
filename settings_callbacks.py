@@ -10,7 +10,7 @@ from graph_manager import GraphManager
 from config import ConfigManager, sort_subcontexts
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
-from callback_helpers import get_trigger_id, build_context_weight_rows
+from callback_helpers import get_trigger_id, build_context_weight_rows, detect_context_renames
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,50 @@ def _migrate_context_weights(old_weights: dict, pending_weights: dict,
         if abs(target_w - 1.0) < 1e-9 and abs(source_w - 1.0) >= 1e-9:
             final_weights[new_name] = source_w
     return final_weights
+
+
+def _build_rename_map_from_per_node_choices(ctx_nodes: list, cgc_node_values: list) -> dict:
+    """Build {old_ctx: new_ctx} from per-node ctx selections in the migration modal.
+
+    With per-node migration, nodes from the same old group can target different
+    new contexts. The most-chosen new context per old group wins. Ties (no
+    clear majority) drop the old weight — consult the caller (`_migrate_context_weights`).
+    `__keep__` and `__clear__` selections don't count toward any majority.
+    """
+    from collections import Counter
+    by_old: dict = {}
+    for i, entry in enumerate(ctx_nodes):
+        old_name = entry.get('old_value')
+        new_name = cgc_node_values[i] if i < len(cgc_node_values) else None
+        if old_name and new_name and new_name not in ('__keep__', '__clear__'):
+            by_old.setdefault(old_name, []).append(new_name)
+    rename_map: dict = {}
+    for old_name, choices in by_old.items():
+        counts = Counter(choices)
+        top_name, top_count = counts.most_common(1)[0]
+        if list(counts.values()).count(top_count) == 1:
+            rename_map[old_name] = top_name
+    return rename_map
+
+
+def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals: list,
+                                new_subcontexts: dict) -> None:
+    """Apply per-node ctx/sub remaps via `manager.apply_node_migration`.
+
+    Each `entries[i]` carries a 'node_name' field; ctx_vals[i] and sub_vals[i]
+    are the chosen new values from the modal's per-node dropdowns.
+    `__keep__` is a no-op; `__clear__` clears the field (handled inside
+    `apply_node_migration` via the sentinel).
+    """
+    for i, entry in enumerate(entries):
+        ctx_val = ctx_vals[i] if i < len(ctx_vals) else None
+        sub_val = sub_vals[i] if i < len(sub_vals) else None
+        if ctx_val and ctx_val != '__keep__':
+            manager.apply_node_migration(entry['node_name'], 'context',
+                                         ctx_val, new_subcontexts)
+        if sub_val and sub_val != '__keep__':
+            manager.apply_node_migration(entry['node_name'], 'subcontext',
+                                         sub_val, new_subcontexts)
 
 
 def register_settings_callbacks(app):
@@ -450,15 +494,26 @@ def register_settings_callbacks(app):
             orphans = {}
             type_orphans = manager.find_orphaned_nodes('type', old_types, new_types)
             if type_orphans:
-                orphans['type'] = {k: [n.name for n in v] for k, v in type_orphans.items()}
+                orphans['type'] = {
+                    k: [{'name': n.name} for n in v]
+                    for k, v in type_orphans.items()
+                }
             ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
             if ctx_orphans:
-                orphans['context'] = {k: [n.name for n in v] for k, v in ctx_orphans.items()}
+                # Carry each node's current subcontext so the modal can pre-fill
+                # per-node defaults that preserve subcontexts during a rename.
+                orphans['context'] = {
+                    k: [{'name': n.name, 'subcontext': n.subcontext} for n in v]
+                    for k, v in ctx_orphans.items()
+                }
             sub_orphans = manager.find_orphaned_subcontext_pairs(
                 old_subcontexts, new_subcontexts, new_contexts
             )
             if sub_orphans:
-                orphans['subcontext'] = {k: [n.name for n in v] for k, v in sub_orphans.items()}
+                orphans['subcontext'] = {
+                    k: [{'name': n.name, 'context': n.context} for n in v]
+                    for k, v in sub_orphans.items()
+                }
 
             if orphans:
                 pending_shapes = {}
@@ -521,7 +576,11 @@ def register_settings_callbacks(app):
                         'type': new_types,
                         'context': new_contexts,
                         'subcontext': new_sub_flat,
-                    }
+                    },
+                    'rename_map': detect_context_renames(
+                        old_contexts, new_contexts,
+                        old_subcontexts, new_subcontexts,
+                    ),
                 }
                 return "Migration required \u2014 check the migration dialog.", pending, False, 0, dash.no_update
 
@@ -692,18 +751,20 @@ def register_settings_callbacks(app):
         Input('btn-migration-skip', 'n_clicks'),
         Input('btn-migration-cancel', 'n_clicks'),
         State({"type": "migration-dropdown", "index": dash.ALL}, "value"),
-        State({"type": "migration-cgc", "index": dash.ALL}, "value"),
-        State({"type": "migration-cgs", "index": dash.ALL}, "value"),
-        State({"type": "migration-sgc", "index": dash.ALL}, "value"),
-        State({"type": "migration-sgs", "index": dash.ALL}, "value"),
+        State({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
+        State({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
+        State({"type": "migration-sgc-node", "index": dash.ALL}, "value"),
+        State({"type": "migration-sgs-node", "index": dash.ALL}, "value"),
         State('migration-mapping-store', 'data'),
         State('pending-settings-store', 'data'),
         prevent_initial_call=True
     )
     def handle_migration(pending_data, apply_clicks, skip_clicks, cancel_clicks,
-                         type_dropdown_values, cgc_values, cgs_values, sgc_values, sgs_values,
+                         type_dropdown_values, cgc_node_values, cgs_node_values,
+                         sgc_node_values, sgs_node_values,
                          mapping_data, pending_state):
         from layout import build_migration_content
+        from types import SimpleNamespace
 
         trigger_id = get_trigger_id()
 
@@ -711,14 +772,18 @@ def register_settings_callbacks(app):
             orphans = pending_data.get('orphans', {})
             new_values = pending_data.get('new_values', {})
             subcontexts_by_context = pending_data.get('subcontexts', {})
+            rename_map = pending_data.get('rename_map', {})
 
             orphans_for_ui = {}
             for field, val_map in orphans.items():
                 orphans_for_ui[field] = {}
-                for old_val, node_names in val_map.items():
-                    orphans_for_ui[field][old_val] = [type('N', (), {'name': n})() for n in node_names]
+                for old_val, node_dicts in val_map.items():
+                    orphans_for_ui[field][old_val] = [SimpleNamespace(**d) for d in node_dicts]
 
-            children, mapping = build_migration_content(orphans_for_ui, new_values, subcontexts_by_context)
+            children, mapping = build_migration_content(
+                orphans_for_ui, new_values, subcontexts_by_context,
+                rename_map=rename_map,
+            )
             return True, children, mapping, dash.no_update, dash.no_update
 
         if trigger_id == 'btn-migration-cancel':
@@ -764,12 +829,9 @@ def register_settings_callbacks(app):
                 # means "don't migrate", so filter-only (empty rename_map).
                 rename_map: dict = {}
                 if trigger_id == 'btn-migration-apply' and isinstance(mapping_data, dict):
-                    ctx_groups = mapping_data.get('ctx_groups', [])
-                    for i, group in enumerate(ctx_groups):
-                        old_name = group.get('old_value')
-                        new_name = cgc_values[i] if i < len(cgc_values) else None
-                        if old_name and new_name and new_name not in ('__keep__', '__clear__'):
-                            rename_map[old_name] = new_name
+                    rename_map = _build_rename_map_from_per_node_choices(
+                        mapping_data.get('ctx_nodes', []), cgc_node_values,
+                    )
                 ConfigManager.set_context_weights(_migrate_context_weights(
                     old_weights, pending_weights, new_contexts or [], rename_map,
                 ))
@@ -796,28 +858,20 @@ def register_settings_callbacks(app):
             if trigger_id == 'btn-migration-apply' and mapping_data:
                 new_subcontexts = pending_state.get('subcontexts', {})
 
-                type_entries = mapping_data.get('type', []) if isinstance(mapping_data, dict) else mapping_data
+                type_entries = mapping_data.get('type', []) if isinstance(mapping_data, dict) else []
                 for i, entry in enumerate(type_entries):
                     if i >= len(type_dropdown_values) or not type_dropdown_values[i]:
                         continue
                     manager.apply_node_migration(entry['node_name'], entry['field'],
                                                  type_dropdown_values[i], new_subcontexts)
 
-                def _apply_group(groups, ctx_vals, sub_vals):
-                    for i, group in enumerate(groups):
-                        ctx_val = ctx_vals[i] if i < len(ctx_vals) else None
-                        sub_val = sub_vals[i] if i < len(sub_vals) else None
-                        for node_name in group['node_names']:
-                            if ctx_val and ctx_val not in ('__keep__',):
-                                manager.apply_node_migration(node_name, 'context', ctx_val, new_subcontexts)
-                            if sub_val and sub_val not in ('__keep__',):
-                                manager.apply_node_migration(node_name, 'subcontext', sub_val, new_subcontexts)
+                ctx_nodes = mapping_data.get('ctx_nodes', []) if isinstance(mapping_data, dict) else []
+                _apply_per_node_migrations(manager, ctx_nodes, cgc_node_values,
+                                            cgs_node_values, new_subcontexts)
 
-                ctx_groups = mapping_data.get('ctx_groups', []) if isinstance(mapping_data, dict) else []
-                _apply_group(ctx_groups, cgc_values, cgs_values)
-
-                sub_groups = mapping_data.get('sub_groups', []) if isinstance(mapping_data, dict) else []
-                _apply_group(sub_groups, sgc_values, sgs_values)
+                sub_nodes = mapping_data.get('sub_nodes', []) if isinstance(mapping_data, dict) else []
+                _apply_per_node_migrations(manager, sub_nodes, sgc_node_values,
+                                            sgs_node_values, new_subcontexts)
 
             return False, [], None, dash.no_update, dash.no_update
 
@@ -835,57 +889,175 @@ def register_settings_callbacks(app):
         default = subs[0] if subs else "__keep__"
         return opts, default
 
-    # --- Migration: filter subcontext options for context-change groups ---
-    @app.callback(
-        Output({"type": "migration-cgs", "index": dash.ALL}, "options"),
-        Output({"type": "migration-cgs", "index": dash.ALL}, "value"),
-        Input({"type": "migration-cgc", "index": dash.ALL}, "value"),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def filter_cgs_options(cgc_values, pending_data):
-        if not cgc_values:
+    def _per_row_filter(ctx_vals, sub_vals, pending_data):
+        """Shared body for per-node ctx→sub cascading callbacks.
+
+        Updates only the triggered row's options. Preserves the row's current
+        sub value when it remains valid under the new ctx — this is what
+        keeps bulk-apply from being clobbered when its programmatic ctx writes
+        re-trigger this callback.
+        """
+        if not ctx_vals:
             return dash.no_update, dash.no_update
         triggered = ctx.triggered_id
         if not isinstance(triggered, dict):
-            return [dash.no_update] * len(cgc_values), [dash.no_update] * len(cgc_values)
+            return [dash.no_update] * len(ctx_vals), [dash.no_update] * len(ctx_vals)
         triggered_idx = triggered.get('index')
         subcontexts_map = (pending_data or {}).get('subcontexts', {})
-        new_opts = [dash.no_update] * len(cgc_values)
-        new_vals = [dash.no_update] * len(cgc_values)
+        new_opts = [dash.no_update] * len(ctx_vals)
+        new_vals = [dash.no_update] * len(ctx_vals)
         for pos, inp in enumerate(ctx.inputs_list[0]):
             if inp.get('id', {}).get('index') == triggered_idx:
-                opts, default = _filtered_sub_options(cgc_values[pos], subcontexts_map)
+                opts, default = _filtered_sub_options(ctx_vals[pos], subcontexts_map)
+                new_opts[pos] = opts
+                current_sub = sub_vals[pos] if pos < len(sub_vals) else None
+                valid_subs = {o['value'] for o in opts}
+                new_vals[pos] = dash.no_update if current_sub in valid_subs else default
+                break
+        return new_opts, new_vals
+
+    # --- Migration: per-node cascading filter for context-orphan section ---
+    @app.callback(
+        Output({"type": "migration-cgs-node", "index": dash.ALL}, "options"),
+        Output({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
+        Input({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
+        State({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def filter_cgs_node_options(cgc_vals, cgs_vals, pending_data):
+        return _per_row_filter(cgc_vals, cgs_vals, pending_data)
+
+    # --- Migration: per-node cascading filter for subcontext-orphan section ---
+    @app.callback(
+        Output({"type": "migration-sgs-node", "index": dash.ALL}, "options"),
+        Output({"type": "migration-sgs-node", "index": dash.ALL}, "value"),
+        Input({"type": "migration-sgc-node", "index": dash.ALL}, "value"),
+        State({"type": "migration-sgs-node", "index": dash.ALL}, "value"),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def filter_sgs_node_options(sgc_vals, sgs_vals, pending_data):
+        return _per_row_filter(sgc_vals, sgs_vals, pending_data)
+
+    def _bulk_cascading(bulk_ctx_vals, pending_data):
+        """Cascading filter for the per-group bulk-apply ctx → sub dropdown."""
+        if not bulk_ctx_vals:
+            return dash.no_update, dash.no_update
+        triggered = ctx.triggered_id
+        if not isinstance(triggered, dict):
+            return ([dash.no_update] * len(bulk_ctx_vals),
+                    [dash.no_update] * len(bulk_ctx_vals))
+        triggered_idx = triggered.get('index')
+        subcontexts_map = (pending_data or {}).get('subcontexts', {})
+        new_opts = [dash.no_update] * len(bulk_ctx_vals)
+        new_vals = [dash.no_update] * len(bulk_ctx_vals)
+        for pos, inp in enumerate(ctx.inputs_list[0]):
+            if inp.get('id', {}).get('index') == triggered_idx:
+                opts, default = _filtered_sub_options(bulk_ctx_vals[pos], subcontexts_map)
                 new_opts[pos] = opts
                 new_vals[pos] = default
                 break
         return new_opts, new_vals
 
-    # --- Migration: filter subcontext options for subcontext-change groups ---
+    # --- Migration: cascading filter for ctx-orphan bulk row ---
     @app.callback(
-        Output({"type": "migration-sgs", "index": dash.ALL}, "options"),
-        Output({"type": "migration-sgs", "index": dash.ALL}, "value"),
-        Input({"type": "migration-sgc", "index": dash.ALL}, "value"),
+        Output({"type": "migration-bulk-cgs", "index": dash.ALL}, "options"),
+        Output({"type": "migration-bulk-cgs", "index": dash.ALL}, "value"),
+        Input({"type": "migration-bulk-cgc", "index": dash.ALL}, "value"),
         State('pending-settings-store', 'data'),
         prevent_initial_call=True,
     )
-    def filter_sgs_options(sgc_values, pending_data):
-        if not sgc_values:
-            return dash.no_update, dash.no_update
+    def filter_bulk_cgs_options(bulk_ctx_vals, pending_data):
+        return _bulk_cascading(bulk_ctx_vals, pending_data)
+
+    # --- Migration: cascading filter for sub-orphan bulk row ---
+    @app.callback(
+        Output({"type": "migration-bulk-sgs", "index": dash.ALL}, "options"),
+        Output({"type": "migration-bulk-sgs", "index": dash.ALL}, "value"),
+        Input({"type": "migration-bulk-sgc", "index": dash.ALL}, "value"),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def filter_bulk_sgs_options(bulk_ctx_vals, pending_data):
+        return _bulk_cascading(bulk_ctx_vals, pending_data)
+
+    def _bulk_apply(entries_key, ctx_dd_type, sub_dd_type,
+                    bulk_ctx_vals, bulk_sub_vals, mapping_data, pending_data,
+                    n_ctx_outputs):
+        """Push a single (ctx, sub) pair to every per-node row in the
+        triggered group. Returns (ctx_values, sub_values, sub_options) lists
+        sized to the per-node dropdowns; rows outside the group get no_update.
+        """
         triggered = ctx.triggered_id
-        if not isinstance(triggered, dict):
-            return [dash.no_update] * len(sgc_values), [dash.no_update] * len(sgc_values)
-        triggered_idx = triggered.get('index')
+        if not isinstance(triggered, dict) or n_ctx_outputs == 0:
+            return ([dash.no_update] * n_ctx_outputs,
+                    [dash.no_update] * n_ctx_outputs,
+                    [dash.no_update] * n_ctx_outputs)
+        group_i = triggered.get('index')
+        entries = (mapping_data or {}).get(entries_key, [])
+        # Bulk dropdowns are indexed per group; pick the values for THIS group.
+        new_ctx = bulk_ctx_vals[group_i] if group_i < len(bulk_ctx_vals) else None
+        new_sub = bulk_sub_vals[group_i] if group_i < len(bulk_sub_vals) else None
+        if not new_ctx:
+            return ([dash.no_update] * n_ctx_outputs,
+                    [dash.no_update] * n_ctx_outputs,
+                    [dash.no_update] * n_ctx_outputs)
         subcontexts_map = (pending_data or {}).get('subcontexts', {})
-        new_opts = [dash.no_update] * len(sgc_values)
-        new_vals = [dash.no_update] * len(sgc_values)
-        for pos, inp in enumerate(ctx.inputs_list[0]):
-            if inp.get('id', {}).get('index') == triggered_idx:
-                opts, default = _filtered_sub_options(sgc_values[pos], subcontexts_map)
-                new_opts[pos] = opts
-                new_vals[pos] = default
+        sub_opts, _ = _filtered_sub_options(new_ctx, subcontexts_map)
+        ctx_out = [dash.no_update] * n_ctx_outputs
+        sub_out = [dash.no_update] * n_ctx_outputs
+        opts_out = [dash.no_update] * n_ctx_outputs
+        for i, entry in enumerate(entries):
+            if i >= n_ctx_outputs:
                 break
-        return new_opts, new_vals
+            if entry.get('group_idx') == group_i:
+                ctx_out[i] = new_ctx
+                sub_out[i] = new_sub
+                opts_out[i] = sub_opts
+        return ctx_out, sub_out, opts_out
+
+    # --- Migration: bulk apply for ctx-orphan group ---
+    @app.callback(
+        Output({"type": "migration-cgc-node", "index": dash.ALL}, "value", allow_duplicate=True),
+        Output({"type": "migration-cgs-node", "index": dash.ALL}, "value", allow_duplicate=True),
+        Output({"type": "migration-cgs-node", "index": dash.ALL}, "options", allow_duplicate=True),
+        Input({"type": "migration-bulk-cg-apply", "index": dash.ALL}, "n_clicks"),
+        State({"type": "migration-bulk-cgc", "index": dash.ALL}, "value"),
+        State({"type": "migration-bulk-cgs", "index": dash.ALL}, "value"),
+        State({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
+        State('migration-mapping-store', 'data'),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def bulk_apply_cg(n_clicks_list, bulk_ctx_vals, bulk_sub_vals,
+                      cgc_node_vals, mapping_data, pending_data):
+        if not any(n_clicks_list):
+            return (dash.no_update, dash.no_update, dash.no_update)
+        return _bulk_apply('ctx_nodes', 'migration-cgc-node', 'migration-cgs-node',
+                           bulk_ctx_vals, bulk_sub_vals, mapping_data, pending_data,
+                           len(cgc_node_vals))
+
+    # --- Migration: bulk apply for sub-orphan group ---
+    @app.callback(
+        Output({"type": "migration-sgc-node", "index": dash.ALL}, "value", allow_duplicate=True),
+        Output({"type": "migration-sgs-node", "index": dash.ALL}, "value", allow_duplicate=True),
+        Output({"type": "migration-sgs-node", "index": dash.ALL}, "options", allow_duplicate=True),
+        Input({"type": "migration-bulk-sg-apply", "index": dash.ALL}, "n_clicks"),
+        State({"type": "migration-bulk-sgc", "index": dash.ALL}, "value"),
+        State({"type": "migration-bulk-sgs", "index": dash.ALL}, "value"),
+        State({"type": "migration-sgc-node", "index": dash.ALL}, "value"),
+        State('migration-mapping-store', 'data'),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def bulk_apply_sg(n_clicks_list, bulk_ctx_vals, bulk_sub_vals,
+                      sgc_node_vals, mapping_data, pending_data):
+        if not any(n_clicks_list):
+            return (dash.no_update, dash.no_update, dash.no_update)
+        return _bulk_apply('sub_nodes', 'migration-sgc-node', 'migration-sgs-node',
+                           bulk_ctx_vals, bulk_sub_vals, mapping_data, pending_data,
+                           len(sgc_node_vals))
 
     # --- Settings: Auto-dismiss status message ---
     @app.callback(
