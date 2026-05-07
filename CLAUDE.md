@@ -41,6 +41,11 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 
 - **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop).
 - **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
+
+**Direction convention (read this carefully — it is the most error-prone semantic in the codebase):** `A --[Needs_Hard|Needs_Soft]--> B` means **A unlocks B**: A is the prerequisite, B is the dependent. B is blocked until A is Done. Read the arrow as "leads to" / "comes before" / "unlocks." Worked example: `Statistics → Regression Hard` means complete Statistics first; Regression unblocks once Statistics is Done. The visual arrowhead in the Cytoscape graph points from prereq to dependent — visually identical to the data direction.
+
+**Hard edges encode two distinct things, both valid:** (a) genuine logical prerequisites ("you need linear algebra before deep learning"), and (b) the user's personal sequencing preference for what to study first ("I want to do supervised learning before deep learning, even though deep learning is technically a kind of supervised learning"). When auditing, **don't "correct" edges that look weird from a pure-taxonomy standpoint** — they may be deliberate sequencing preference. When the direction looks surprising, ask before flipping.
+
 - **`Helps`** (Synergy) — *mutual multiplicative reinforcement*, not a lesser Soft. Doing both is significantly more valuable than the sum of doing each alone (e.g., concepts that blend unusually well). Bidirectional, non-transitive (no chains). Synergy contributes via two paths: a small **pair bonus** `d_Syn_pair * tv(partner)` pre-completion, and a **multiplicative kick on intrinsic value** `iv * (1 + d_Syn_mul * sqrt(count_done_partners))` once partners are Done. The sqrt is a diminishing-returns cap so a hub of N synergy partners gives ~`sqrt(N)`× the boost, not N× — keeps "more partners = more boost" without unbounded inflation. Multiplier applies to intrinsic only — not to the cascade or the pair bonus. See [`scoring.py`](scoring.py)'s `total_value` for the implementation.
 
 ## Where to look
