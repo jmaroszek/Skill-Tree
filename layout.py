@@ -1360,6 +1360,48 @@ def build_app_layout(initial_elements, env="production"):
         }
     )
 
+    # --- Goal sidebar: rank popover (click rank badge / hover star) ---
+    _floating_menu_style = {
+        "display": "none",
+        "position": "fixed",
+        "zIndex": 10001,
+        "backgroundColor": "#2b3035",
+        "border": "1px solid #495057",
+        "borderRadius": "6px",
+        "padding": "4px 0",
+        "minWidth": "140px",
+        "boxShadow": "0 4px 16px rgba(0,0,0,0.4)",
+    }
+
+    goal_rank_popover = html.Div(
+        id="goal-rank-popover",
+        children=[
+            html.Div("Priority 1", id="goal-rank-set-1", className="ctx-menu-item"),
+            html.Div("Priority 2", id="goal-rank-set-2", className="ctx-menu-item"),
+            html.Div("Priority 3", id="goal-rank-set-3", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
+            html.Div("Clear", id="goal-rank-clear", className="ctx-menu-item"),
+        ],
+        style=_floating_menu_style,
+    )
+
+    # --- Goal sidebar: right-click context menu ---
+    goal_context_menu = html.Div(
+        id="goal-context-menu",
+        children=[
+            html.Div("Edit", id="goal-ctx-edit", className="ctx-menu-item"),
+            html.Div("Details", id="goal-ctx-details", className="ctx-menu-item"),
+            html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
+            html.Div("Set Priority 1", id="goal-ctx-set-1", className="ctx-menu-item"),
+            html.Div("Set Priority 2", id="goal-ctx-set-2", className="ctx-menu-item"),
+            html.Div("Set Priority 3", id="goal-ctx-set-3", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
+            html.Div("Clear Priority", id="goal-ctx-clear", className="ctx-menu-item"),
+        ],
+        style={**_floating_menu_style, "minWidth": "180px"},
+    )
+
     # --- Tab Navigation (toolbar: left buttons | centered tabs | right buttons) ---
     main_tabs = html.Div([
         # LEFT: Node Editor + Goals + Events (open left-side sidebars)
@@ -1497,6 +1539,8 @@ def build_app_layout(initial_elements, env="production"):
         edit_trigger,
         toggle_trigger,
         context_menu,
+        goal_rank_popover,
+        goal_context_menu,
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),

@@ -355,6 +355,20 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     color: #fff;
 }
 
+/* --- Goal sidebar rank trigger (clickable rank badge) --- */
+
+.goal-rank-trigger {
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.goal-rank-trigger:hover {
+    filter: brightness(1.25);
+}
+
 /* --- Next tab — suggestion bar rows --- */
 
 .suggestion-bar-row {

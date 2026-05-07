@@ -841,6 +841,48 @@ def register_details_callbacks(app):
         next_tab = "tab-details" if active_tab != "tab-details" else no_update
         return node_name, next_tab
 
+    # --- Goal Sidebar: Priority Change (from rank popover or context menu) ---
+    @app.callback(
+        Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Input('goal-priority-trigger-input', 'value'),
+        prevent_initial_call=True,
+    )
+    def handle_goal_priority_change(payload):
+        if not payload:
+            return no_update
+        parts = payload.split('|')
+        if len(parts) < 2:
+            return no_update
+        goal_name, action = parts[0], parts[1]
+        if not goal_name:
+            return no_update
+        priority_goals = ConfigManager.get_priority_goals()
+        if goal_name in priority_goals:
+            priority_goals.remove(goal_name)
+        if action in ('1', '2', '3'):
+            rank_idx = min(int(action) - 1, len(priority_goals))
+            priority_goals.insert(rank_idx, goal_name)
+        ConfigManager.set_priority_goals(priority_goals)
+        import time as _time
+        return f'goal-priority-{_time.time()}'
+
+    # --- Goal Sidebar: Context Menu → Open in Details ---
+    @app.callback(
+        Output("details-node-select", "value", allow_duplicate=True),
+        Output("main-tabs", "active_tab", allow_duplicate=True),
+        Input("goal-details-trigger-input", "value"),
+        State("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+    def goal_ctx_to_details(payload, active_tab):
+        if not payload:
+            return no_update, no_update
+        goal_name = payload.split('|')[0]
+        if not goal_name:
+            return no_update, no_update
+        next_tab = "tab-details" if active_tab != "tab-details" else no_update
+        return goal_name, next_tab
+
     # --- Goal Drag Reorder ---
     @app.callback(
         Output("details-goal-order-store", "data"),
