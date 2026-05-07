@@ -109,7 +109,7 @@ class TestComputeOverview:
         result = _compute_overview([], [])
         assert result['active_count'] == 0
         assert result['blocked_pct'] == 0
-        assert result['remaining_time'] == 0
+        assert result['milestone_count'] == 0
 
 
 # ============================================================================

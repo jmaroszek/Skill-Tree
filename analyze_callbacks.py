@@ -74,14 +74,14 @@ def _build_adjacency(edges):
 def _compute_overview(nodes, edges):
     active = [n for n in nodes if n.status != STATUS_DONE]
     blocked = [n for n in active if n.status == STATUS_BLOCKED]
-    remaining_time = sum(n.time for n in nodes if n.status != STATUS_DONE)
     goals = [n for n in nodes if n.type == 'Goal']
+    milestones = [n for n in nodes if n.type == 'Milestone']
     return {
         'active_count': len(active),
         'blocked_count': len(blocked),
         'blocked_pct': round(len(blocked) / len(active) * 100) if active else 0,
-        'remaining_time': remaining_time,
         'goal_count': len(goals),
+        'milestone_count': len(milestones),
         'done_count': len([n for n in nodes if n.status == STATUS_DONE]),
         'total_count': len(nodes),
     }
@@ -242,9 +242,13 @@ def _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits):
 
 
 def _compute_risk(nodes, limits):
+    # Skip inherited-time containers: their `time` property short-circuits to 0
+    # (models.py), so the expected-value marker would land outside the o→p band.
     candidates = [
         n for n in nodes
-        if n.status != STATUS_DONE and n.time_o > 0 and n.time_p > 0
+        if n.status != STATUS_DONE
+        and n.time_o > 0 and n.time_p > 0
+        and n.time_mode != 'inherited'
     ]
     results = []
     for n in candidates:
@@ -537,13 +541,12 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, heig
 # ---------------------------------------------------------------------------
 
 def _render_overview(metrics):
-    fmt = ConfigManager.format_time_friendly
     cards = [
         ('Goals', str(metrics['goal_count']), '#ffc107'),
+        ('Milestones', str(metrics['milestone_count']), '#0dcaf0'),
         ('Active Nodes', str(metrics['active_count']), '#0d6efd'),
         (STATUS_DONE, str(metrics['done_count']), '#198754'),
         (STATUS_BLOCKED, f"{metrics['blocked_pct']}%", '#dc3545'),
-        ('Remaining Time', fmt(metrics['remaining_time']), '#0dcaf0'),
     ]
     cols = []
     for label, value, color in cards:
@@ -724,30 +727,41 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
                         f"Shared: {matrix[i][j]} nodes"
                     )
 
-        # Reorder matrix rows to match bar chart y-axis (y_order = pct ascending)
-        reorder_idx = [gnames.index(name) if name in gnames else -1 for name in y_order]
-        reordered_matrix = []
-        reordered_hover = []
-        for ri in reorder_idx:
-            if ri >= 0:
-                reordered_matrix.append(matrix[ri])
-                reordered_hover.append(hover_matrix[ri])
-            else:
-                reordered_matrix.append([0] * n)
-                reordered_hover.append([''] * n)
+        # Use y_order (pct ascending) for BOTH axes so the diagonal aligns
+        # top-left to bottom-right; mask the upper-right triangle since the
+        # matrix is symmetric. Plotly renders None cells as transparent.
+        ordered_matrix = []
+        ordered_hover = []
+        for i, name_i in enumerate(y_order):
+            src_i = idx.get(name_i)
+            row, hover_row = [], []
+            for j, name_j in enumerate(y_order):
+                src_j = idx.get(name_j)
+                if src_i is None or src_j is None or i < j:
+                    row.append(None)
+                    hover_row.append('')
+                else:
+                    row.append(matrix[src_i][src_j])
+                    hover_row.append(hover_matrix[src_i][src_j])
+            ordered_matrix.append(row)
+            ordered_hover.append(hover_row)
 
         hm_fig = go.Figure(go.Heatmap(
-            z=reordered_matrix, x=gnames, y=y_order,
+            z=ordered_matrix, x=y_order, y=y_order,
             colorscale=[[0, _BG], [0.25, '#162d50'], [0.5, '#1a5276'], [0.75, '#2185d0'], [1, '#54b8ff']],
-            hovertext=reordered_hover, hoverinfo='text',
+            hovertext=ordered_hover, hoverinfo='text',
             showscale=False,
         ))
         hm_fig.update_layout(**_base_layout(
             height=shared_height,
             margin=shared_margin,
             xaxis=dict(automargin=True, tickangle=-45, side='bottom',
-                       **_label_axis(gnames)),
+                       showgrid=False, zeroline=False,
+                       categoryorder='array', categoryarray=y_order,
+                       **_label_axis(y_order)),
             yaxis=dict(automargin=True, ticksuffix="  ",
+                       showgrid=False, zeroline=False,
+                       autorange='reversed',
                        categoryorder='array', categoryarray=y_order,
                        **_label_axis(y_order)),
         ))
@@ -849,7 +863,7 @@ def _render_dep_charts(dep_data, total_height=None):
 
     sections = []
     chart_data = [
-        ("Deepest Nodes", deepest, 'prereq_count', '#0dcaf0'),
+        ("Deepest Nodes", deepest, 'prereq_count', '#6f42c1'),
         ("Most Connected", most_connected, 'degree', '#6f42c1'),
     ]
     for idx, (label, items, key, color) in enumerate(chart_data):
@@ -942,16 +956,36 @@ def _render_ratings_chart(data):
     ])
 
 
-def _coverage_color_hours(time):
-    """Return a color based on total hours: gray for empty, red for sparse, yellow for moderate, green for rich."""
-    if time == 0:
-        return '#495057'   # empty -- dark gray
-    elif time < 50:
-        return '#dc3545'   # sparse -- red
-    elif time < 200:
-        return '#ffc107'   # moderate -- yellow
-    else:
-        return '#198754'   # rich -- green
+def _tercile_colors(values):
+    """Color each value by tercile of the non-zero distribution.
+
+    Linear-interpolated 1/3 and 2/3 quantiles of the non-zero subset; zero
+    values fall in the bottom tercile naturally. Returns a per-value color
+    list. With <2 non-zero values the distribution is degenerate, so all
+    bars get the neutral chart color (purple).
+    """
+    nonzero = sorted(v for v in values if v > 0)
+    n = len(nonzero)
+    if n < 2:
+        return ['#6f42c1'] * len(values)
+
+    def _q(q):
+        pos = q * (n - 1)
+        lo = int(pos)
+        hi = min(lo + 1, n - 1)
+        frac = pos - lo
+        return nonzero[lo] * (1 - frac) + nonzero[hi] * frac
+
+    low_t, high_t = _q(1/3), _q(2/3)
+
+    def _color(v):
+        if v < low_t:
+            return '#dc3545'   # red \u2014 bottom tercile
+        if v < high_t:
+            return '#ffc107'   # yellow \u2014 middle tercile
+        return '#198754'       # green \u2014 top tercile
+
+    return [_color(v) for v in values]
 
 
 def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
@@ -963,7 +997,7 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
     if ctx_data:
         names = [d['context'] for d in ctx_data]
         hours = [d['time'] for d in ctx_data]
-        colors = [_coverage_color_hours(d['time']) for d in ctx_data]
+        colors = ['#6f42c1'] * len(ctx_data)
         hover = [
             f"<b>{d['context']}</b><br>"
             f"Weight: \u00d7{d['weight']:.2f}<br>"
@@ -996,7 +1030,7 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
         sorted_sub = sorted(subctx_data, key=lambda d: d['time'], reverse=True)
         names = [d['label'] for d in sorted_sub]
         hours = [d['time'] for d in sorted_sub]
-        colors = [_coverage_color_hours(d['time']) for d in sorted_sub]
+        colors = _tercile_colors(hours)
         hover = [
             f"<b>{d['label']}</b><br>"
             f"Time: {fmt(d['time'])}<br>"
@@ -1021,23 +1055,14 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
 
         sections_sub.append(html.H6("By Subcontext", className="text-muted mb-1 mt-3"))
         sections_sub.append(dcc.Graph(figure=fig, config=_CHART_CFG))
-
-    # Legend (add to whichever has content, prefer subctx since it's below)
-    legend = html.Div([
-        html.Span("\u2588 ", style={"color": "#dc3545"}),
-        html.Span("< 50h", className="text-muted small me-3"),
-        html.Span("\u2588 ", style={"color": "#ffc107"}),
-        html.Span("50\u2013199h", className="text-muted small me-3"),
-        html.Span("\u2588 ", style={"color": "#198754"}),
-        html.Span("200h+", className="text-muted small me-3"),
-        html.Span("\u2588 ", style={"color": "#495057"}),
-        html.Span("Empty", className="text-muted small"),
-    ], className="mt-1")
-
-    if sections_sub:
-        sections_sub.append(legend)
-    elif sections_ctx:
-        sections_ctx.append(legend)
+        sections_sub.append(html.Div([
+            html.Span("\u2588 ", style={"color": "#dc3545"}),
+            html.Span("Low", className="text-muted small me-3"),
+            html.Span("\u2588 ", style={"color": "#ffc107"}),
+            html.Span("Mid", className="text-muted small me-3"),
+            html.Span("\u2588 ", style={"color": "#198754"}),
+            html.Span("High", className="text-muted small"),
+        ], className="mt-1"))
 
     ctx_chart = html.Div(sections_ctx) if sections_ctx else html.P("No contexts configured.", className="text-muted small")
     subctx_chart = html.Div(sections_sub) if sections_sub else html.Div()
