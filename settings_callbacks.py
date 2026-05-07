@@ -353,6 +353,23 @@ def register_settings_callbacks(app):
             pass
         return dash.no_update, dash.no_update
 
+    @app.callback(
+        Output('hp-goal-boost-description', 'children'),
+        Input('hp-goal-boost', 'value'),
+    )
+    def update_goal_boost_description(boost):
+        try:
+            b = float(boost) if boost is not None else 1.5
+        except (ValueError, TypeError):
+            b = 1.5
+        rank2 = 1 + (b - 1) * 0.66
+        rank3 = 1 + (b - 1) * 0.33
+        return (
+            "Multiplier applied to nodes in a priority goal's subtree. "
+            f"Rank #1 gets the full boost, #2 gets {rank2:.2f} (66%), "
+            f"#3 gets {rank3:.2f} (33%)."
+        )
+
     # --- Settings: Save ---
     @app.callback(
         Output('settings-save-status', 'children'),

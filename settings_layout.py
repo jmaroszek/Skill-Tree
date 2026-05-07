@@ -300,8 +300,7 @@ def build_settings_tab_content():
                             ], width=2),
                             dbc.Col([
                                 html.Small(
-                                    "Multiplier applied to nodes in a priority goal's subtree. "
-                                    "Rank #1 gets the full boost, #2 gets 66%, #3 gets 33%.",
+                                    id="hp-goal-boost-description",
                                     className="text-muted d-block"),
                             ], width=10),
                         ], className="mb-2"),
