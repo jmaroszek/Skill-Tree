@@ -157,6 +157,19 @@ class Node:
             
         return round((1 - w) * e_arith + w * e_log, 2)
 
+    @property
+    def is_container(self) -> bool:
+        """True when both ratings and time inherit from descendants.
+
+        A pure structural conduit: contributes no own intrinsic value, no
+        own effort, and no own time to scoring. Such nodes are skipped by
+        the recommender entirely — their children, if any, are surfaced
+        instead. Cascade still flows through them (`_tv_dag` still walks
+        their H/S edges), so they can act as connective tissue without
+        ever being recommended themselves.
+        """
+        return self.value_mode == 'inherited' and self.time_mode == 'inherited'
+
     def to_dict(self):
         d = asdict(self)
         d['time'] = self.time  # include the derived blended PERT estimate

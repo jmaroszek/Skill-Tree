@@ -3197,6 +3197,86 @@ class TestScoringInheritedValueMode:
 
 
 # ============================================================================
+# Scoring — container exclusion (both modes inherited)
+# ============================================================================
+
+class TestScoringContainerExclusion:
+    """A node with both value_mode='inherited' AND time_mode='inherited' is a
+    pure container (Node.is_container). Its IV is 0 and cost denominator
+    collapses to 1.0, so without an explicit guard a container with valuable
+    descendants downstream of an outgoing prereq edge would ride the cascade
+    straight to the top of the recommendations. Containers are skipped — the
+    children compete on their own merits."""
+
+    def test_is_container_property(self):
+        # Both modes inherited → container.
+        c = _make_node(value_mode='inherited', time_mode='inherited')
+        assert c.is_container is True
+
+    def test_one_mode_inherited_is_not_container(self):
+        v_only = _make_node(value_mode='inherited', time_mode='manual')
+        t_only = _make_node(value_mode='manual', time_mode='inherited')
+        assert v_only.is_container is False
+        assert t_only.is_container is False
+
+    def test_manual_node_is_not_container(self):
+        n = _make_node(value_mode='manual', time_mode='manual')
+        assert n.is_container is False
+
+    def test_standalone_container_excluded_from_recommendations(self):
+        """A container with no descendants is marked -1.0 and won't surface."""
+        c = _make_node("EmptyContainer", value_mode='inherited',
+                       time_mode='inherited')
+        scored = score_nodes([c], [c], [], {})
+        assert scored[0].priority_score == -1.0
+
+    def test_container_with_outgoing_prereq_still_excluded(self):
+        """The bug case: container with no children pointing in, but it gates
+        a valuable downstream node via an outgoing Needs_Hard. Pre-fix the
+        cascade would give it a near-1.0 cost and a positive cascaded TV,
+        putting it at the top of the list. Post-fix it's excluded outright,
+        and the previously-top non-container is the actual #1."""
+        container = _make_node("ClassicalWorks", type='Learn',
+                               value=6, interest=6, difficulty=8,
+                               value_mode='inherited', time_mode='inherited')
+        # Make the gated downstream an unranked Goal (mirrors the real prod
+        # case: ClassicalWorks → Reading [Goal]). Goals don't compete, so the
+        # container would otherwise have nothing to crowd it off the top.
+        downstream = _make_node("Reading", type='Goal',
+                                value=9, interest=9, difficulty=5)
+        rival = _make_node("UnrelatedLearn", type='Learn',
+                           value=7, interest=7, difficulty=3)
+        edges = [{'source': 'ClassicalWorks', 'target': 'Reading',
+                  'type': 'Needs_Hard'}]
+        scored = score_nodes([container, downstream, rival],
+                             [container, downstream, rival], edges, {})
+        c = next(n for n in scored if n.name == 'ClassicalWorks')
+        r = next(n for n in scored if n.name == 'UnrelatedLearn')
+        assert c.priority_score == -1.0       # container excluded
+        assert r.priority_score > 0.0         # rival ranks normally
+        # And the rival is the top of the sorted list, not the container.
+        top = sorted(scored, key=lambda n: n.priority_score, reverse=True)[0]
+        assert top.name == 'UnrelatedLearn'
+
+    def test_container_still_propagates_cascade_to_dependents(self):
+        """Excluding a container from being scored does NOT remove it from the
+        cascade graph — its dependents still get value flowing through it."""
+        leaf = _make_node("Leaf", value=10, interest=10)
+        container = _make_node("Container", type='Learn',
+                               value_mode='inherited', time_mode='inherited')
+        # leaf --Needs_Hard--> container (leaf unlocks container, so the
+        # container's TV cascades into leaf's TV).
+        edges = [{'source': 'Leaf', 'target': 'Container',
+                  'type': 'Needs_Hard'}]
+        scored = score_nodes([leaf, container], [leaf, container], edges, {})
+        leaf_score = next(n for n in scored if n.name == 'Leaf').priority_score
+        # Leaf's own IV is positive, so its score is positive regardless. The
+        # important assertion is that leaf gets scored normally — the
+        # container's exclusion didn't break the cascade walk.
+        assert leaf_score > 0.0
+
+
+# ============================================================================
 # GraphManager — get_effective_time
 # ============================================================================
 

@@ -203,6 +203,17 @@ def test_milestone_node_reports_reason():
     assert breakdown['block_reason'] == "Milestones are not ranked"
 
 
+def test_container_node_reports_reason():
+    """A node with both modes inherited is a pure container — explain_score
+    surfaces it as ineligible with a dedicated reason so the user sees why
+    they aren't getting a score (and the children rank instead)."""
+    nodes = [_node("C", value_mode="inherited", time_mode="inherited")]
+    breakdown = explain_score("C", nodes, [], HYPERS)
+    assert breakdown['eligible'] is False
+    assert breakdown['block_reason'] == "Container — children are recommended instead"
+    assert breakdown['score'] == -1.0
+
+
 def test_missing_hard_prereqs_are_listed():
     nodes = [
         _node("S"),
