@@ -822,25 +822,6 @@ def register_details_callbacks(app):
             ))
         return cards
 
-    # --- Goal Card Click → Select in Details + switch tab ---
-    @app.callback(
-        Output("details-node-select", "value", allow_duplicate=True),
-        Output("main-tabs", "active_tab", allow_duplicate=True),
-        Input({"type": "goal-card", "index": ALL}, "n_clicks"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def goal_card_to_details(n_clicks_list, active_tab):
-        if not any(n_clicks_list):
-            return no_update, no_update
-        triggered = ctx.triggered_id
-        if not triggered:
-            return no_update, no_update
-        node_name = triggered["index"]
-        # Switch to details tab if not already there
-        next_tab = "tab-details" if active_tab != "tab-details" else no_update
-        return node_name, next_tab
-
     # --- Goal Sidebar: Priority Change (from rank popover or context menu) ---
     @app.callback(
         Output('details-refresh-trigger', 'data', allow_duplicate=True),

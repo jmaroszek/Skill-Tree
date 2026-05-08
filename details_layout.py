@@ -831,7 +831,6 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
        className="mb-2 goal-card rounded",
        **{"data-goal-name": name},
        style={
-           "cursor": "pointer",
            "border": border_style,
            "backgroundColor": "#2b3035" if is_selected else "#212529",
            "transition": "border-color 0.2s, background-color 0.2s",
