@@ -474,18 +474,28 @@ class TestEdgeOperations:
         assert len(mgr.get_edges()) == 0
 
     def test_pair_conflict_rejected(self, mgr):
-        """Fix 6: only one edge type allowed per unordered pair."""
+        """Directional edges (Hard/Soft) on a pair are mutually exclusive."""
         mgr.add_node(_make_node("A"))
         mgr.add_node(_make_node("B"))
         mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-        # Same direction, different type — caught by pair-conflict check.
-        with pytest.raises(ValueError, match="already exists"):
-            mgr.add_edge("A", "B", EDGE_HELPS)
         # Opposite direction Hard/Soft is rejected as a cycle, before
         # reaching the pair-conflict check; either way the new row is denied.
         with pytest.raises(ValueError, match="cycle|already exists"):
             mgr.add_edge("B", "A", EDGE_NEEDS_SOFT)
         assert len(mgr.get_edges()) == 1
+
+    def test_helps_coexists_with_directional_edge(self, mgr):
+        """Per design (composite PK on source/target/type), Helps may coexist
+        with a Hard or Soft prereq on the same pair — a node that unlocks
+        another can also synergize with it."""
+        mgr.add_node(_make_node("A"))
+        mgr.add_node(_make_node("B"))
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+        mgr.add_edge("A", "B", EDGE_HELPS)  # should NOT raise
+        edges = mgr.get_edges()
+        assert len(edges) == 2
+        types = {e['type'] for e in edges}
+        assert types == {EDGE_NEEDS_HARD, EDGE_HELPS}
 
     def test_helps_canonicalization_collapses_reverse_insert(self, mgr):
         """Fix 6: (A,B,Helps) and (B,A,Helps) are the same fact — only one row."""

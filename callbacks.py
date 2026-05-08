@@ -1695,8 +1695,8 @@ def register_callbacks(app):
                         rank_idx = min(rank_idx, len(priority_goals))
                         priority_goals.insert(rank_idx, name)
                     ConfigManager.set_priority_goals(priority_goals)
-            except (ValueError, TypeError):
-                msg = "Error: Please check your mathematical inputs."
+            except (ValueError, TypeError) as e:
+                msg = f"Error: {e}"
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
             except Exception as e:
                 msg = f"Error: {e}"

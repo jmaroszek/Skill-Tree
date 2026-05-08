@@ -389,11 +389,14 @@ class GraphManager:
         return source, target
 
     def _check_pair_conflict(self, cursor, source: str, target: str, edge_type: str) -> None:
-        """Raise if any other edge already exists between this unordered pair.
+        """Raise if a CONFLICTING edge already exists between this pair.
 
-        Only one edge type is permitted per {A, B} — Hard, Soft, and Helps
-        are mutually exclusive. A duplicate of the exact same row is a no-op
-        (handled separately by sqlite3.IntegrityError in the INSERT).
+        Helps is bidirectional and the schema's composite PK on (source,
+        target, type) explicitly allows a directional Hard/Soft prereq to
+        coexist with a Helps synergy on the same pair. Only the four
+        directional buckets (Hard/Soft in either direction) are mutually
+        exclusive. A duplicate of the exact same row is a no-op (handled
+        separately by sqlite3.IntegrityError in the INSERT).
         """
         cursor.execute(
             "SELECT source, target, type FROM Edges "
@@ -403,10 +406,12 @@ class GraphManager:
         for ex_src, ex_tgt, ex_type in cursor.fetchall():
             if ex_src == source and ex_tgt == target and ex_type == edge_type:
                 continue  # exact duplicate — INSERT will be a no-op via PK
+            if EDGE_HELPS in (ex_type, edge_type):
+                continue  # Helps coexists with directional edges on the same pair
             raise ValueError(
                 f"An edge already exists between '{source}' and '{target}' "
                 f"({ex_src} -> {ex_tgt}, type={ex_type}). "
-                "Only one edge type is allowed per pair of nodes."
+                "Only one directional edge type is allowed per pair of nodes."
             )
 
     def add_edge(self, source: str, target: str, edge_type: str):
@@ -458,11 +463,13 @@ class GraphManager:
         supports_soft = supports_soft or []
         helps = helps or []
 
-        # Validate the form upfront: each pair {node_name, other} can carry
-        # at most one edge type across all five buckets. Catches conflicts
+        # Validate the form upfront: catch directional conflicts on a pair
         # before any DB mutation so the user sees a single clear error
-        # instead of a partial save.
-        pair_to_bucket: Dict[frozenset, str] = {}
+        # instead of a partial save. Helps is bidirectional and the schema's
+        # composite PK on (source, target, type) explicitly allows a Hard/Soft
+        # prereq edge to coexist with a Helps synergy on the same pair, so we
+        # only reject conflicts among the four directional buckets.
+        pair_to_buckets: Dict[frozenset, set] = {}
         bucket_pairs = [
             ('needs_hard', needs_hard),
             ('needs_soft', needs_soft),
@@ -477,13 +484,18 @@ class GraphManager:
                         f"Self-loop edge on '{node_name}' (in {bucket_name}) is not allowed."
                     )
                 pair = frozenset({node_name, other})
-                prior = pair_to_bucket.get(pair)
-                if prior is not None and prior != bucket_name:
+                existing = pair_to_buckets.setdefault(pair, set())
+                for prior in existing:
+                    if prior == bucket_name:
+                        continue
+                    if 'helps' in (prior, bucket_name):
+                        continue  # helps coexists with directional edges
                     raise ValueError(
                         f"Edge between '{node_name}' and '{other}' declared in both "
-                        f"'{prior}' and '{bucket_name}'. Only one edge type is allowed per pair."
+                        f"'{prior}' and '{bucket_name}'. Only one edge type is allowed "
+                        f"per pair (except Helps, which may coexist with directional edges)."
                     )
-                pair_to_bucket[pair] = bucket_name
+                existing.add(bucket_name)
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
