@@ -530,7 +530,7 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, heig
     fig.update_layout(**_base_layout(
         height=height,
         margin=dict(l=10, r=20, t=10, b=30),
-        yaxis=dict(automargin=True, ticksuffix="  ", **_label_axis(names)),
+        yaxis=dict(automargin=True, ticklabelstandoff=8, **_label_axis(names)),
         xaxis=xaxis,
     ))
     return fig
@@ -690,7 +690,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     fig.update_layout(**_base_layout(
         barmode='stack', height=shared_height,
         margin=shared_margin,
-        yaxis=dict(automargin=True, ticksuffix="  ",
+        yaxis=dict(automargin=True, ticklabelstandoff=8,
                    categoryorder='array', categoryarray=bar_names,
                    **_label_axis(bar_names)),
         xaxis=dict(title="Completion %", range=[0, 100]),
@@ -759,7 +759,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
                        showgrid=False, zeroline=False,
                        categoryorder='array', categoryarray=y_order,
                        **_label_axis(y_order)),
-            yaxis=dict(automargin=True, ticksuffix="  ",
+            yaxis=dict(automargin=True, ticklabelstandoff=8,
                        showgrid=False, zeroline=False,
                        autorange='reversed',
                        categoryorder='array', categoryarray=y_order,
@@ -835,7 +835,7 @@ def _render_risk_chart(data):
         xaxis=dict(automargin=True, tickangle=-45,
                    categoryorder='array', categoryarray=full_names,
                    **_label_axis(full_names)),
-        yaxis=dict(title="Hours"),
+        yaxis=dict(title="Hours", automargin=True, ticklabelstandoff=8),
     ))
     # Add a legend note
     return html.Div([
@@ -947,7 +947,7 @@ def _render_ratings_chart(data):
     fig.update_layout(**_base_layout(
         height=height,
         margin=dict(l=10, r=20, t=10, b=30),
-        yaxis=dict(automargin=True, ticksuffix="  ", **_label_axis(contexts)),
+        yaxis=dict(automargin=True, ticklabelstandoff=8, **_label_axis(contexts)),
         xaxis=dict(side='bottom'),
     ))
     return html.Div([
@@ -1050,7 +1050,7 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
             xaxis=dict(automargin=True, tickangle=-45,
                        categoryorder='array', categoryarray=names,
                        **_label_axis(names)),
-            yaxis=dict(title="Hours"),
+            yaxis=dict(title="Hours", automargin=True, ticklabelstandoff=8),
         ))
 
         sections_sub.append(html.H6("By Subcontext", className="text-muted mb-1 mt-3"))
