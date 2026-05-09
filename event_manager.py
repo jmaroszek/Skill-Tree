@@ -167,6 +167,24 @@ class EventManager:
             cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
             conn.commit()
 
+    def detach_node_from_all_events(self, node_name: str):
+        """Severs a node's event associations and flips it back to active.
+
+        Distinct from `remove_node_from_event`, which deletes the node entirely
+        — this preserves the node, removes any EventNodes rows, sets
+        dormant=0, and re-runs the status cascade so the node's Open/Blocked
+        state reflects current edges. Called from the editor's Dormant
+        toggle-off flow when the user wants to bring a deferred node back
+        without losing it.
+        """
+        from graph_manager import GraphManager
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM EventNodes WHERE node_name=?", (node_name,))
+            cursor.execute("UPDATE Nodes SET dormant=0 WHERE name=?", (node_name,))
+            conn.commit()
+        GraphManager()._update_node_state(node_name)
+
     def get_event_nodes(self, event_name: str) -> List[Dict]:
         """Returns list of {node, delay_days, activation_date, activated,
         override_on_trigger, override_mode} for an event."""

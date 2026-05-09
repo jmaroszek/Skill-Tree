@@ -88,6 +88,16 @@ def _server_boot_id():
     return SERVER_BOOT_ID
 
 if __name__ == '__main__':
+    # Optional --port flag so a sandbox instance can run alongside production
+    # without colliding on 8050.
+    _port = 8050
+    if "--port" in sys.argv:
+        _i = sys.argv.index("--port")
+        if _i + 1 < len(sys.argv):
+            try:
+                _port = int(sys.argv[_i + 1])
+            except ValueError:
+                pass
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        threading.Timer(0.5, webbrowser.open, args=["http://127.0.0.1:8050"]).start()
-    app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False)
+        threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()
+    app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False, port=_port)

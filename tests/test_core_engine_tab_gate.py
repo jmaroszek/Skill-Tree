@@ -63,9 +63,9 @@ def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "main-tabs")
     # core_engine accepts positional args from Inputs + States; supply Nones and
     # let the guard fire before any of them are used.
-    args = [None] * 83
+    args = [None] * 84
     # active_tab sits at positional index 38
-    args[38] = tab
+    args[39] = tab
     result = cb(*args)
     assert len(result) == _CORE_ENGINE_NUM_OUTPUTS
     assert all(r is dash.no_update for r in result), (
@@ -78,8 +78,8 @@ def test_core_engine_runs_on_graph_tabs(monkeypatch, tab):
     """Graph-facing tabs (Next, Nodes, Details) must NOT short-circuit."""
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "main-tabs")
-    args = [None] * 83
-    args[38] = tab
+    args = [None] * 84
+    args[39] = tab
     # The rest of core_engine can fail downstream on None args — we only need
     # to verify the guard does NOT trigger. Catch the downstream exception and
     # assert it isn't a "tuple mismatch" / doesn't return the no_update tuple.
@@ -97,8 +97,8 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     """Data-mutation triggers (save, toggle-done) must run regardless of active_tab."""
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-save")
-    args = [None] * 83
-    args[38] = "tab-settings"  # even though tab is non-graph, trigger is not main-tabs
+    args = [None] * 84
+    args[39] = "tab-settings"  # even though tab is non-graph, trigger is not main-tabs
     try:
         result = cb(*args)
     except Exception:
@@ -140,10 +140,10 @@ def test_edit_trigger_short_circuits_and_opens_editor(monkeypatch, trigger):
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({trigger}))
-    args = [None] * 83
-    # edit_trigger_data / details_edit_trigger_data positional indexes: 32, 33
-    args[32] = "NodeX|123"
+    args = [None] * 84
+    # edit_trigger_data / details_edit_trigger_data positional indexes: 33, 34
     args[33] = "NodeX|123"
+    args[34] = "NodeX|123"
     result = cb(*args)
     assert len(result) == _CORE_ENGINE_NUM_OUTPUTS
     ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
@@ -161,7 +161,7 @@ def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-goals-toggle")
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({"btn-goals-toggle"}))
-    args = [None] * 83
+    args = [None] * 84
     result = cb(*args)
     ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
     assert isinstance(ed, dict)
@@ -175,7 +175,7 @@ def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({"btn-close-editor"}))
     # Stub out the unsaved-changes check — a blank form, no pending nav.
     monkeypatch.setattr(callbacks, "is_form_dirty_vs_snapshot", lambda *a, **kw: False)
-    args = [None] * 83
+    args = [None] * 84
     result = cb(*args)
     ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
     assert isinstance(ed, dict)
@@ -189,8 +189,8 @@ def test_edit_trigger_batched_with_other_input_does_not_short_circuit(monkeypatc
     # Simulate batched fire: edit-trigger AND search-node both triggered.
     monkeypatch.setattr(callbacks, "get_all_triggered_ids",
                          lambda: frozenset({"edit-trigger-input", "search-node"}))
-    args = [None] * 83
-    args[32] = "NodeX|123"
+    args = [None] * 84
+    args[33] = "NodeX|123"
     try:
         result = cb(*args)
     except Exception:

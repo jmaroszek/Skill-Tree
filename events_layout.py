@@ -72,6 +72,108 @@ def build_events_tab_content():
     dormant_node_modal = dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Add Dormant Node", id="modal-dormant-node-title")),
         dbc.ModalBody([
+            # Mode toggle: New node (full editor) vs Existing nodes (picker).
+            # Hidden during edit — editing only operates on a single dormant node.
+            html.Div(id="dormant-mode-toggle-wrapper", children=[
+                dbc.RadioItems(
+                    id="dormant-node-mode",
+                    options=[
+                        {"label": "New node", "value": "new"},
+                        {"label": "Existing nodes", "value": "existing"},
+                    ],
+                    value="new",
+                    inline=True,
+                    className="mb-2",
+                ),
+                html.Hr(className="my-2"),
+            ]),
+
+            # Existing-nodes mode: pick active non-dormant nodes to convert.
+            html.Div(id="dormant-mode-existing-fields", style={"display": "none"}, children=[
+                dbc.Label("Convert these nodes to dormant"),
+                html.Div(
+                    dcc.Dropdown(
+                        id="dormant-existing-picker",
+                        multi=True,
+                        placeholder="Select existing nodes…",
+                        options=[],
+                    ),
+                    className="text-dark",
+                ),
+                # Event target sub-section: visible only when no event is currently selected.
+                html.Div(id="dormant-event-target-wrapper", style={"display": "none"}, children=[
+                    html.Hr(className="my-2"),
+                    html.H5("Add to event", className="mt-2 mb-1"),
+                    dbc.RadioItems(
+                        id="dormant-event-target-mode",
+                        options=[
+                            {"label": "New event", "value": "new"},
+                            {"label": "Existing event", "value": "existing"},
+                        ],
+                        value="new",
+                        inline=True,
+                        className="mb-2",
+                    ),
+                    html.Div(id="dormant-new-event-section", children=[
+                        dbc.Label("Event Name"),
+                        dbc.Input(id="dormant-new-event-name", type="text"),
+                        dbc.Label("Description", className="mt-2"),
+                        dbc.Textarea(id="dormant-new-event-desc", rows=2,
+                                     style={"height": "60px", "resize": "vertical"}),
+                        dbc.Label("Trigger Type", className="mt-2 mb-1"),
+                        dbc.RadioItems(
+                            id="dormant-new-event-trigger-type",
+                            options=[
+                                {"label": "Manual", "value": "manual"},
+                                {"label": "Date", "value": "date"},
+                                {"label": "Node Completion", "value": "node"},
+                            ],
+                            value="manual",
+                            inline=True,
+                            className="mb-2",
+                        ),
+                        html.Div(id="dormant-new-event-date-section",
+                                 style={"display": "none"}, children=[
+                            html.Div([
+                                dbc.Input(id="dormant-new-event-trigger-date", type="date",  # type: ignore[reportArgumentType]
+                                          style={"maxWidth": "200px"}),
+                                html.Small("Auto-triggers on or after this date.",
+                                           className="text-muted ms-2 align-self-center",
+                                           style={"fontSize": "0.8rem"}),
+                            ], className="d-flex align-items-center mb-2"),
+                        ]),
+                        html.Div(id="dormant-new-event-node-section",
+                                 style={"display": "none"}, children=[
+                            html.Div(
+                                dcc.Dropdown(
+                                    id="dormant-new-event-trigger-node",
+                                    placeholder="Select a node...",
+                                    options=[],
+                                ),
+                                className="text-dark mb-2",
+                                style={"maxWidth": "350px"},
+                            ),
+                            html.Small("Auto-triggers when the selected node is marked complete.",
+                                       className="text-muted d-block mb-2",
+                                       style={"fontSize": "0.8rem"}),
+                        ]),
+                    ]),
+                    html.Div(id="dormant-existing-event-section", style={"display": "none"}, children=[
+                        dbc.Label("Pending Event"),
+                        html.Div(
+                            dcc.Dropdown(
+                                id="dormant-existing-event-picker",
+                                placeholder="Select event…",
+                                options=[],
+                            ),
+                            className="text-dark",
+                        ),
+                    ]),
+                ]),
+            ]),
+
+            # New-node mode: full node editor (Name through External Resources).
+            html.Div(id="dormant-mode-new-fields", children=[
             dbc.Label("Name"),
             dbc.Input(id="dormant-node-name", type="text"),
 
@@ -270,7 +372,9 @@ def build_events_tab_content():
                 dbc.Button("+", id="btn-dormant-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
             ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='dormant-website-links-container'),
+            ]),  # end dormant-mode-new-fields
 
+            # Activation Delay — common to both new and existing modes.
             html.Hr(className="my-2"),
             html.H5("Activation Delay", className="mt-2 mb-1"),
             html.Small("How long after the event triggers before this node becomes active.",

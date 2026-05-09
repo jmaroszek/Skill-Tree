@@ -140,7 +140,7 @@ sidebar_content = html.Div(
 
             html.Div(id="auto-status-display", className="d-none"),
 
-            # --- Section: Done toggle + Time Estimates (Learn, Goal, Resource) ---
+            # --- Section: Done + Dormant toggles + Time Estimates ---
             html.Div(id="section-done-time", children=[
                 html.Div([
                     dbc.Checklist(
@@ -149,7 +149,15 @@ sidebar_content = html.Div(
                         id="node-status-done",
                         switch=True,
                     ),
-                ], className="d-flex justify-content-start mt-3"),
+                    dbc.Checklist(
+                        options=[{"label": "Dormant", "value": "dormant"}],
+                        value=[],
+                        id="node-dormant",
+                        switch=True,
+                    ),
+                ], className="d-flex justify-content-start gap-3 mt-3"),
+                html.Div(id="node-dormant-event-info",
+                         className="small text-muted mt-1"),
             ]),
 
             # Numeric inputs (shared by all types)
@@ -558,9 +566,15 @@ def build_filters_content():
 
         html.Div([
             dbc.Checklist(
-                options=[{"label": "Hide Done", "value": "hide_done"}],
+                options=[{"label": "Done", "value": "show_done"}],
                 value=f["done"],
                 id="filter-done",
+                switch=True,
+            ),
+            dbc.Checklist(
+                options=[{"label": "Dormant", "value": "show_dormant"}],
+                value=f.get("show_dormant", []),
+                id="filter-dormant",
                 switch=True,
             ),
             dbc.Checklist(
@@ -569,7 +583,18 @@ def build_filters_content():
                 id="filter-remember",
                 switch=True,
             ),
-        ], className="d-flex gap-4"),
+        ], className="d-flex gap-3 flex-wrap"),
+        dbc.Tooltip(
+            "Show Done nodes on the canvas. Off = hide them.",
+            target="filter-done", placement="top",
+            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+        ),
+        dbc.Tooltip(
+            "Show dormant (event-deferred) nodes on the canvas. Off = hide them. "
+            "The events tab graph always shows them regardless.",
+            target="filter-dormant", placement="top",
+            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+        ),
         dbc.Tooltip(
             "Remember main canvas filters across sessions and browser refreshes. "
             "When off, filters reset to defaults on app start.",
@@ -647,6 +672,29 @@ next_view = html.Div([
 
 # --- Migration Modal ---
 
+def _orphan_name_label(n):
+    """Returns the display label for an orphan node in the migration modal.
+
+    Plain string for active nodes; a Span with a muted "(dormant — in event: X)"
+    suffix for dormant orphans so the user understands they're remapping nodes
+    that aren't currently on the canvas.
+    """
+    is_dormant = bool(getattr(n, 'dormant', False))
+    if not is_dormant:
+        return n.name
+    events = getattr(n, 'events', None) or []
+    if events:
+        suffix = f" (dormant — in event: {', '.join(events)})"
+    else:
+        suffix = " (dormant)"
+    return html.Span([
+        n.name,
+        html.Span(suffix,
+                  className="text-muted small ms-1",
+                  style={"fontStyle": "italic"}),
+    ])
+
+
 def build_migration_content(orphans_by_field, new_values_by_field,
                             subcontexts_by_context=None, rename_map=None):
     """Build dynamic migration modal body from orphan data.
@@ -701,7 +749,7 @@ def build_migration_content(orphans_by_field, new_values_by_field,
                     ], className="mb-2"),
                     *[
                         dbc.Row([
-                            dbc.Col(html.Span(n.name, className="small",
+                            dbc.Col(html.Span(_orphan_name_label(n), className="small",
                                               style={"lineHeight": "38px"}), width=5),
                             dbc.Col(dbc.Select(
                                 id={"type": "migration-dropdown", "index": type_idx + i},
@@ -809,7 +857,7 @@ def build_migration_content(orphans_by_field, new_values_by_field,
                     node_default_ctx = bulk_ctx_default
                     sub_opts, node_default_sub = _sub_options_for(node_default_ctx)
                 node_rows.append(_per_node_row(
-                    node_idx, n.name, "migration-cgc-node", "migration-cgs-node",
+                    node_idx, _orphan_name_label(n), "migration-cgc-node", "migration-cgs-node",
                     node_default_ctx, sub_opts, node_default_sub,
                 ))
                 ctx_node_entries.append({
@@ -859,7 +907,7 @@ def build_migration_content(orphans_by_field, new_values_by_field,
             for n in nodes:
                 node_idx = len(sub_node_entries)
                 node_rows.append(_per_node_row(
-                    node_idx, n.name, "migration-sgc-node", "migration-sgs-node",
+                    node_idx, _orphan_name_label(n), "migration-sgc-node", "migration-sgs-node",
                     default_ctx, sub_opts, default_sub,
                 ))
                 sub_node_entries.append({
@@ -950,6 +998,20 @@ undo_done_confirm_modal = dbc.Modal([
         dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
     ], className="d-flex"),
 ], id="modal-undo-done-confirm", size="md", is_open=False, centered=True)
+
+
+# Confirms detaching a dormant node from its event(s) and flipping it active.
+# Triggered by toggling the editor's Dormant switch off. Distinct from the
+# events-tab "Delete event" flow — this preserves the node, only severs the
+# event association and clears dormant=1.
+dormant_deactivate_confirm_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Make active?")),
+    dbc.ModalBody(id="dormant-deactivate-confirm-body"),
+    dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-dormant-deactivate-cancel", color="secondary", className="flex-fill me-2"),
+        dbc.Button("Make active", id="btn-dormant-deactivate-confirm", color="primary", className="flex-fill"),
+    ], className="d-flex"),
+], id="modal-dormant-deactivate-confirm", size="md", is_open=False, centered=True)
 
 
 # Suggestion modal that fires when the last hard prerequisite of a Goal or
@@ -1340,12 +1402,13 @@ def build_app_layout(initial_elements, env="production"):
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
             html.Div("Details", id="ctx-menu-details", className="ctx-menu-item"),
-            html.Div(STATUS_DONE, id="ctx-menu-toggle-done", className="ctx-menu-item"),
+            html.Div("Event", id="ctx-menu-add-to-event", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Drive", id="ctx-menu-drive", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
-            html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item", style={"color": ConfigManager.get_danger_color()}),
+            html.Div(STATUS_DONE, id="ctx-menu-toggle-done", className="ctx-menu-item"),
+            html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item"),
         ],
         style={
             "display": "none",
@@ -1551,6 +1614,13 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='pending-navigation-store', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
+        # Set by context_menu.js when "Add to event…" is clicked. Carries a
+        # JSON-encoded list of selected node IDs plus a "|<timestamp>" suffix.
+        dcc.Input(id='dormant-existing-trigger-input', type='text', value='', style={'display': 'none'}),
+        # Holds the node name whose dormant state is being toggled while the
+        # confirm/Add-to-Event modal is open, so the post-modal sync can revert
+        # the switch on cancel and the confirm callback knows what to detach.
+        dcc.Store(id='pending-dormant-toggle-store', data=None),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         html.Div(id='tooltip-config', style={'display': 'none'}, **{  # type: ignore[reportArgumentType]
             'data-show': str(TOOLTIP_SHOW_DELAY_MS),
@@ -1562,6 +1632,7 @@ def build_app_layout(initial_elements, env="production"):
         unsaved_changes_modal,
         delete_confirm_modal,
         undo_done_confirm_modal,
+        dormant_deactivate_confirm_modal,
         auto_done_suggestion_modal,
         group_delete_confirm_modal,
         override_conflict_modal,

@@ -276,7 +276,10 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
                         (only show edges that touch the active node).
     """
     if filters is None: filters = {}
-    nodes = manager.get_all_nodes()
+    # Always fetch dormant nodes too — filter_nodes decides whether to keep
+    # them based on the `show_dormant` filter. Fetching unconditionally keeps
+    # the include/exclude decision in one place (the filter pipeline).
+    nodes = manager.get_all_nodes(include_dormant=True)
     filtered_nodes = manager.filter_nodes(nodes, filters)
 
     if community_names is not None:
@@ -341,8 +344,13 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
             },
             'selected': node.name == active_node_id if active_node_id else False
         }
+        node_classes = []
         if node.name in trigger_names:
-            node_data['classes'] = 'trigger'
+            node_classes.append('trigger')
+        if node.dormant:
+            node_classes.append('dormant')
+        if node_classes:
+            node_data['classes'] = ' '.join(node_classes)
         elements.append(node_data)
 
     for e in edges:
@@ -408,12 +416,13 @@ def register_callbacks(app):
         Output('filter-time', 'value'),
         Output('filter-time-unit', 'value'),
         Output('filter-done', 'value', allow_duplicate=True),
+        Output('filter-dormant', 'value', allow_duplicate=True),
         Input('btn-clear-filters', 'n_clicks'),
         Input('btn-details-focus', 'n_clicks'),
         prevent_initial_call=True,
     )
     def clear_filters(_clear_clicks, _focus_clicks):
-        return [], [], 'components', 'All', 1, 1, 10, None, 'hours', ['hide_done']
+        return [], [], 'components', 'All', 1, 1, 10, None, 'hours', [], []
 
     # Clientside reset of filter-subcontext.value on Clear Filters / Focus.
     # Server-side reset would put a callback Output on this prop, which Dash
@@ -1409,6 +1418,7 @@ def register_callbacks(app):
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
+         Input('filter-dormant', 'value'),
          Input('search-node', 'value'),
          Input('cytoscape-graph', 'tapNodeData'),
          Input('filter-community', 'value'), Input('community-method', 'value'),
@@ -1472,7 +1482,7 @@ def register_callbacks(app):
          State('node-habit-intensity-unit', 'value')],
         prevent_initial_call='initial_duplicate'
     )
-    def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, search_val,
+    def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_time_unit, f_difficulty, sugg_count,
                      btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_open, migration_open, btn_toggle_done,
@@ -1561,7 +1571,7 @@ def register_callbacks(app):
         _event_mgr.check_pending_activations()
         _event_mgr.check_scheduled_triggers()
 
-        filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit)
+        filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant)
 
         # Editor Sidebar State — delegate to the shared helper so both the
         # short-circuit path above and the full path below compute sidebars
@@ -2359,10 +2369,11 @@ def register_callbacks(app):
         State('filter-time', 'value'),
         State('filter-time-unit', 'value'),
         State('filter-done', 'value'),
+        State('filter-dormant', 'value'),
         prevent_initial_call=True,
     )
     def persist_remember_filters(val, f_type, f_ctx, f_sub, f_comm_method,
-                                 f_comm, f_val, f_int, f_diff, f_time, f_time_unit, f_done):
+                                 f_comm, f_val, f_int, f_diff, f_time, f_time_unit, f_done, f_show_dormant):
         enabled = bool(val and "enabled" in val)
         ConfigManager.set_remember_filters(enabled)
         # When the user flips Memory ON, snapshot the *current* sidebar state
@@ -2381,6 +2392,7 @@ def register_callbacks(app):
                 "time": f_time if f_time is not None else "",
                 "time_unit": f_time_unit or "hours",
                 "done": f_done or [],
+                "show_dormant": f_show_dormant or [],
             })
         return no_update
 
@@ -2397,9 +2409,10 @@ def register_callbacks(app):
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
         Input('filter-done', 'value'),
+        Input('filter-dormant', 'value'),
     )
     def persist_filters(f_type, f_ctx, f_sub, f_comm_method, f_comm,
-                        f_val, f_int, f_diff, f_time, f_time_unit, f_done):
+                        f_val, f_int, f_diff, f_time, f_time_unit, f_done, f_show_dormant):
         if not ConfigManager.get_remember_filters():
             return no_update
         ConfigManager.set_filters({
@@ -2414,6 +2427,7 @@ def register_callbacks(app):
             "time": f_time if f_time is not None else "",
             "time_unit": f_time_unit or "hours",
             "done": f_done or [],
+            "show_dormant": f_show_dormant or [],
         })
         return no_update
 

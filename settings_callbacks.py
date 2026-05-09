@@ -508,11 +508,25 @@ def register_settings_callbacks(app):
 
             new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
 
+            # Annotate dormant orphans with their event names so the migration
+            # modal can show "(dormant — in event: X)" — gives the user context
+            # for nodes that aren't currently on the canvas but still hold the
+            # stale config value.
+            from event_manager import EventManager
+            _em = EventManager()
+
+            def _annotate(node):
+                base = {'name': node.name}
+                if node.dormant:
+                    base['dormant'] = True
+                    base['events'] = _em.get_events_for_node(node.name)
+                return base
+
             orphans = {}
             type_orphans = manager.find_orphaned_nodes('type', old_types, new_types)
             if type_orphans:
                 orphans['type'] = {
-                    k: [{'name': n.name} for n in v]
+                    k: [_annotate(n) for n in v]
                     for k, v in type_orphans.items()
                 }
             ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
@@ -520,7 +534,7 @@ def register_settings_callbacks(app):
                 # Carry each node's current subcontext so the modal can pre-fill
                 # per-node defaults that preserve subcontexts during a rename.
                 orphans['context'] = {
-                    k: [{'name': n.name, 'subcontext': n.subcontext} for n in v]
+                    k: [{**_annotate(n), 'subcontext': n.subcontext} for n in v]
                     for k, v in ctx_orphans.items()
                 }
             sub_orphans = manager.find_orphaned_subcontext_pairs(
@@ -528,7 +542,7 @@ def register_settings_callbacks(app):
             )
             if sub_orphans:
                 orphans['subcontext'] = {
-                    k: [{'name': n.name, 'context': n.context} for n in v]
+                    k: [{**_annotate(n), 'context': n.context} for n in v]
                     for k, v in sub_orphans.items()
                 }
 

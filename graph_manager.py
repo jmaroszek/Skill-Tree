@@ -964,7 +964,14 @@ class GraphManager:
 
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         result = nodes
-        
+
+        # Dormant gate: hide dormant nodes unless the show_dormant filter is on.
+        # Single point of dormant inclusion/exclusion for the whole filter
+        # pipeline — generate_elements always fetches with include_dormant=True
+        # and lets this gate decide.
+        if not filters.get('show_dormant'):
+            result = [n for n in result if not n.dormant]
+
         if 'context_subcontext_union' in filters:
             # Selective union: each pair is (context, subcontexts_or_None).
             # None means no subcontext restriction for that context.
@@ -1111,12 +1118,17 @@ class GraphManager:
 
         Returns a dict mapping each removed value to the list of nodes that still reference it.
         Only includes entries where at least one node is affected.
+
+        Includes dormant nodes — they reference config values too, and silently
+        leaving them out means a context/type/subcontext can be deleted while
+        dormant nodes still hold the stale value, only surfacing as broken
+        config when the event later triggers them back to active.
         """
         removed = set(old_values) - set(new_values)
         if not removed:
             return {}
 
-        all_nodes = self.get_all_nodes()
+        all_nodes = self.get_all_nodes(include_dormant=True)
         orphans = {}
         for val in removed:
             affected = [n for n in all_nodes if getattr(n, field, None) == val]
@@ -1131,13 +1143,17 @@ class GraphManager:
         Subcontext identity is the (context, subcontext) tuple, not the bare name —
         moving a subcontext between parents leaves the bare name in the flat list but
         invalidates the pair. Returns a dict keyed by 'ctx › sub' display labels.
+
+        Includes dormant nodes for the same reason as find_orphaned_nodes: their
+        stale (context, subcontext) pair would survive a config delete and only
+        manifest as a broken reference at event-trigger time.
         """
         from callback_helpers import compute_orphaned_subcontext_pairs
         pairs = compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts)
         if not pairs:
             return {}
 
-        all_nodes = self.get_all_nodes()
+        all_nodes = self.get_all_nodes(include_dormant=True)
         orphans = {}
         for ctx, sub in pairs:
             affected = [n for n in all_nodes if n.context == ctx and n.subcontext == sub]

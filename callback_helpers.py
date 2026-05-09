@@ -229,9 +229,16 @@ def node_options(nodes, exclude=None):
 
 def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
                   f_time=None, f_difficulty="All", f_node_types=None,
-                  f_time_unit="hours"):
+                  f_time_unit="hours", f_show_dormant=None):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
+
+    # Show-dormant gate: when the sidebar's "Show Dormant" switch is on, this
+    # flag flows into filter_nodes which then keeps dormant rows in the
+    # filtered set. Default off matches the original "dormant nodes are
+    # hidden from the main canvas" behavior.
+    if f_show_dormant and "show_dormant" in f_show_dormant:
+        filters['show_dormant'] = True
 
     contexts = []
     if f_context and f_context != "All":

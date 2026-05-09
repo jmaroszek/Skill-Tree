@@ -15,6 +15,7 @@
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
+        var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
 
         if (!cyWrapper || !menu || !obsidianItem || !deleteItem || !detailsItem) {
@@ -115,15 +116,39 @@
                 return;
             }
             var clickedId = _currentNodeData.id;
+            // Read selection from whichever canvas raised the menu (main or any
+            // mini-graph) so bulk toggle works on Details/Goal/Events tabs too.
+            var sourceCy = _menuCy || _mainCy;
             var selectedIds = [];
-            if (_mainCy) {
-                _mainCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
+            if (sourceCy) {
+                sourceCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
             }
             // Bulk mode only when right-clicking within an existing multi-selection.
             var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
                 ? selectedIds
                 : [clickedId];
             _setHiddenInput('toggle-done-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
+        }
+
+        function triggerAddToEvent() {
+            hideMenu();
+            if (!_currentNodeData || !_currentNodeData.id) return;
+            var clickedId = _currentNodeData.id;
+            // Read selection from whichever canvas raised the menu — main
+            // canvas, Details mini-graph, Goal mini-graph, or Events mini-graph.
+            // Falls back to _mainCy when null (e.g. menu raised from a non-cy
+            // source like the suggestion-bar) but in that case the clickedId
+            // won't be among _mainCy's selection, so bulk mode is skipped.
+            var sourceCy = _menuCy || _mainCy;
+            var selectedIds = [];
+            if (sourceCy) {
+                sourceCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
+            }
+            // Bulk mode when right-clicking inside a multi-selection; otherwise just the clicked node.
+            var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
+                ? selectedIds
+                : [clickedId];
+            _setHiddenInput('dormant-existing-trigger-input', JSON.stringify(targetIds));
         }
 
         function openInObsidian(path) {
@@ -158,9 +183,52 @@
         // handlers (keydown, click, etc.) close over this single variable so
         // they don't need to be re-registered when dash-cytoscape swaps cy.
         var _mainCy = null;
+        // The cy instance that raised the currently-displayed context menu.
+        // Used by handlers that need to read the active selection on whichever
+        // canvas the user right-clicked (main canvas or any mini-graph), so
+        // bulk-mode actions work on the Details/Goal/Events tabs too.
+        var _menuCy = null;
+
+        // Adds Ctrl/Cmd+click additive multi-select to a Cytoscape instance.
+        // Default tap behavior (selectionType='single') unselects others when
+        // tapping a node. We capture the prior selection in `tapstart` if a
+        // modifier is held, then restore those nodes in `tap` after Cytoscape
+        // has done its single-select. Toggling: if the clicked node was already
+        // selected, we deselect it on the second click.
+        function enableCtrlClickMultiSelect(cy) {
+            var prevSelection = null;
+            var clickedId = null;
+            var wasSelected = false;
+            cy.on('tapstart', 'node', function (evt) {
+                var oe = evt.originalEvent;
+                if (oe && (oe.ctrlKey || oe.metaKey)) {
+                    prevSelection = cy.$('node:selected').map(function (n) { return n.id(); });
+                    clickedId = evt.target.id();
+                    wasSelected = evt.target.selected();
+                } else {
+                    prevSelection = null;
+                }
+            });
+            cy.on('tap', 'node', function (evt) {
+                if (prevSelection === null) return;
+                var prev = prevSelection;
+                var cid = clickedId;
+                var wasSel = wasSelected;
+                prevSelection = null;
+                // Re-select the previously-selected nodes that Cytoscape's
+                // default single-select just cleared.
+                prev.forEach(function (id) {
+                    if (id !== cid) cy.getElementById(id).select();
+                });
+                // Toggle: if the clicked node was already selected pre-tap, deselect it.
+                if (wasSel) evt.target.unselect();
+            });
+        }
 
         function bindCyEvents(cy) {
             _mainCy = cy;
+
+            enableCtrlClickMultiSelect(cy);
 
             // --- Right-click context menu on nodes ---
             cy.on('cxttap', 'node', function (evt) {
@@ -182,6 +250,7 @@
                 var nodeData = evt.target.data();
                 var pos = evt.originalEvent;
                 _menuSource = 'main';
+                _menuCy = cy;
                 showMenu(pos.clientX, pos.clientY, nodeData);
             });
 
@@ -256,6 +325,10 @@
                 google_drive_path: rowEl.getAttribute('data-google-drive-path') || null,
             };
             _menuSource = 'main';
+            // Suggestion-bar rows aren't tied to a cy — clear so bulk-aware
+            // handlers (Add to event, etc.) don't read a stale main-canvas
+            // selection and incorrectly act on multiple nodes.
+            _menuCy = null;
             showMenu(evt.clientX, evt.clientY, nodeData);
         });
 
@@ -277,7 +350,9 @@
         }
 
         if (toggleDoneItem) toggleDoneItem.addEventListener('click', triggerToggleDone);
-        
+
+        if (addToEventItem) addToEventItem.addEventListener('click', triggerAddToEvent);
+
         if (obsidianItem) {
             obsidianItem.addEventListener('click', function () {
                 if (_currentNodeData) openInObsidian(_getFirstLink(_currentNodeData.obsidian_path));
@@ -314,6 +389,8 @@
             wrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
             function bind(cy) {
+                enableCtrlClickMultiSelect(cy);
+
                 cy.on('cxttap', 'node', function (evt) {
                     evt.originalEvent.preventDefault();
                     if (window.SkillTree && window.SkillTree.tooltip) {
@@ -326,6 +403,7 @@
                     var nodeData = evt.target.data();
                     var pos = evt.originalEvent;
                     _menuSource = sourceName;
+                    _menuCy = cy;
                     showMenu(pos.clientX, pos.clientY, nodeData);
                 });
                 cy.on('tap', function (evt) {

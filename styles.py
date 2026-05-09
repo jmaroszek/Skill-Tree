@@ -96,6 +96,19 @@ stylesheet = [
             'background-position-y': '0%',
         }
     },
+    {
+        # Dormant: muted ghost effect with a high-contrast dashed border.
+        # Light gray contrasts against every node fill (especially Learn,
+        # which previously made the old blue ring invisible). Reduced
+        # opacity reads as "asleep / not part of the active workspace".
+        'selector': '.dormant',
+        'style': {
+            'border-width': 2,
+            'border-color': '#adb5bd',
+            'border-style': 'dashed',
+            'opacity': 0.6,
+        }
+    },
 ]
 
 # --- Mini Graph Stylesheet (smaller nodes for embedded views) ---
@@ -130,16 +143,9 @@ def _build_mini_stylesheet():
 
 mini_stylesheet = _build_mini_stylesheet()
 
-# --- Event graph stylesheet: mini + dormant-node visual distinction ---
-
-events_graph_stylesheet = stylesheet + [
-    {
-        'selector': '.dormant',
-        'style': {
-            'border-width': 2,
-            'border-color': '#0d6efd',
-            'border-style': 'dashed',
-        }
-    },
-]
+# --- Event graph stylesheet ---
+# The .dormant rule now lives on the base stylesheet so all canvases
+# (main, details, events) render dormant nodes consistently. Kept as a
+# separate alias for any future events-only style overrides.
+events_graph_stylesheet = stylesheet
 
