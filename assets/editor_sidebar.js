@@ -11,6 +11,8 @@
  * btn-new-node, btn-close-editor, btn-save-close, etc. stay server-only —
  * they need form state (unsaved-changes modal, validation, pending nav).
  */
+// NOTE: 350px must match config.SIDEBAR_WIDTH on the Python side. If you
+// change the sidebar width, update both. Same applies to filters_sidebar.js.
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.editor = window.dash_clientside.editor || {};
 
@@ -19,15 +21,15 @@ window.dash_clientside.editor = window.dash_clientside.editor || {};
         position: "absolute",
         top: "0",
         left: "0",
-        width: "380px",
-        minWidth: "380px",
+        width: "350px",
+        minWidth: "350px",
         height: "100%",
         zIndex: 1000,
         overflowX: "hidden",
         overflowY: "auto",
         borderRight: "1px solid #495057",
         transition: "transform 0.3s ease",
-        transform: "translateX(-380px)",
+        transform: "translateX(-350px)",
         willChange: "transform",
         backgroundColor: "#212529"
     };
@@ -41,11 +43,11 @@ window.dash_clientside.editor = window.dash_clientside.editor || {};
 
         var nextGoal = NO;
         var nextEvents = NO;
-        if (goalStyle && (goalStyle.left || "-380px") === "0px") {
-            nextGoal = Object.assign({}, goalStyle, { left: "-380px" });
+        if (goalStyle && (goalStyle.left || "-350px") === "0px") {
+            nextGoal = Object.assign({}, goalStyle, { left: "-350px" });
         }
-        if (eventsStyle && (eventsStyle.left || "-380px") === "0px") {
-            nextEvents = Object.assign({}, eventsStyle, { left: "-380px" });
+        if (eventsStyle && (eventsStyle.left || "-350px") === "0px") {
+            nextEvents = Object.assign({}, eventsStyle, { left: "-350px" });
         }
 
         return [style, nextGoal, nextEvents];

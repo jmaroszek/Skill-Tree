@@ -16,7 +16,8 @@ import dash_bootstrap_components as dbc
 
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import (ConfigManager, badge_style, sort_subcontexts)
+from config import (ConfigManager, badge_style, sort_subcontexts,
+                    SIDEBAR_WIDTH_PX, SIDEBAR_WIDTH_NEG_PX, SIDEBAR_TRANSLATE_CLOSED)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
@@ -134,11 +135,11 @@ def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_even
 
 
 _DEFAULT_EDITOR_SIDEBAR_STYLE = {
-    "position": "absolute", "top": "0", "left": "0", "width": "380px",
-    "minWidth": "380px", "height": "100%", "zIndex": 1000,
+    "position": "absolute", "top": "0", "left": "0", "width": SIDEBAR_WIDTH_PX,
+    "minWidth": SIDEBAR_WIDTH_PX, "height": "100%", "zIndex": 1000,
     "overflowX": "hidden", "overflowY": "auto",
     "borderRight": "1px solid #495057", "transition": "transform 0.3s ease",
-    "transform": "translateX(-380px)", "willChange": "transform",
+    "transform": SIDEBAR_TRANSLATE_CLOSED, "willChange": "transform",
     "backgroundColor": "#212529",
 }
 
@@ -171,7 +172,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     elif should_open_editor(all_triggered_ids, trigger_id, search_val):
         next_ed_style['transform'] = "translateX(0px)"
     elif trigger_id == 'btn-goals-toggle':
-        next_ed_style['transform'] = "translateX(-380px)"
+        next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
     elif trigger_id == 'btn-save':
         # Save only — keep editor open, don't change transform
         next_ed_style['transform'] = "translateX(0px)"
@@ -181,7 +182,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
         # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
         if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store == '__background__':
             # User dismissed via canvas click — close the editor after save/discard.
-            next_ed_style['transform'] = "translateX(-380px)"
+            next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
         elif trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
             pass  # Keep editor open — pending navigation will load the next node
         elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not form_state.get('name') or not form_state.get('n_type')):
@@ -216,9 +217,9 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
                 'aliases': form_state.get('alias_values'),
             })
             if not form_has_content:
-                next_ed_style['transform'] = "translateX(-380px)"
+                next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
         else:
-            next_ed_style['transform'] = "translateX(-380px)"
+            next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
     else:
         # Race-prevention guard: if the trigger has nothing to do with the
         # editor (tab switches, refresh triggers, filter changes, etc.),
@@ -234,12 +235,12 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     next_events_sidebar_style = dash.no_update
     if isinstance(next_ed_style, dict) and next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
         # Editor is opening — ensure goal sidebar is closed
-        if goal_sidebar_style and goal_sidebar_style.get('left', '-380px') == '0px':
+        if goal_sidebar_style and goal_sidebar_style.get('left', SIDEBAR_WIDTH_NEG_PX) == '0px':
             next_goal_style = dict(goal_sidebar_style)
-            next_goal_style['left'] = '-380px'
-        if events_sidebar_style and events_sidebar_style.get('left', '-380px') == '0px':
+            next_goal_style['left'] = SIDEBAR_WIDTH_NEG_PX
+        if events_sidebar_style and events_sidebar_style.get('left', SIDEBAR_WIDTH_NEG_PX) == '0px':
             next_events_sidebar_style = dict(events_sidebar_style)
-            next_events_sidebar_style['left'] = '-380px'
+            next_events_sidebar_style['left'] = SIDEBAR_WIDTH_NEG_PX
     return next_ed_style, next_goal_style, next_events_sidebar_style
 
 
@@ -1642,7 +1643,7 @@ def register_callbacks(app):
                     msg = "Error: Node name is required."
                     return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
                 else:
-                    next_ed_style['transform'] = "translateX(-380px)"
+                    next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
                     return _core_engine_save_error_tuple("", next_ed_style, next_goal_style, next_events_sidebar_style)
             if not n_type:
                 msg = "Error: Node type is required."
@@ -2826,7 +2827,7 @@ def register_callbacks(app):
     # trigger_id='main-tabs', which doesn't match any editor-open branch, so
     # it returned the State-cached ed_style — racing with the open-editor
     # output from the Edit-trigger run and sometimes clobbering it back to
-    # translateX(-380px). Only writing when the tab actually needs to change
+    # the closed translateX. Only writing when the tab actually needs to change
     # avoids the spurious re-fire.
     @app.callback(
         Output('main-tabs', 'active_tab', allow_duplicate=True),

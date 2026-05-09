@@ -13,8 +13,8 @@ window.dash_clientside.filters = window.dash_clientside.filters || {};
     var BASE_SIDEBAR_STYLE = {
         position: "absolute",
         top: "0",
-        right: "-320px",
-        width: "320px",
+        right: "-350px",
+        width: "350px",
         height: "100%",
         zIndex: 100,
         overflowX: "hidden",
@@ -43,9 +43,9 @@ window.dash_clientside.filters = window.dash_clientside.filters || {};
         var style = Object.assign({}, BASE_SIDEBAR_STYLE, currentStyle || {});
 
         if (trigger === "btn-filters-toggle") {
-            style.right = (style.right || "-320px") === "0px" ? "-320px" : "0px";
+            style.right = (style.right || "-350px") === "0px" ? "-350px" : "0px";
         } else if (trigger === "btn-close-filters") {
-            style.right = "-320px";
+            style.right = "-350px";
         } else {
             return NO;
         }

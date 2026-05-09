@@ -42,60 +42,70 @@ def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
 # ============================================================================
 
 class TestBuildFilters:
+    # "Show Done" semantics: f_done = ["show_done"] means done is shown (no
+    # hide_done filter); f_done = [] (or any legacy value) means done is
+    # hidden. Tests that used to pass [] and expect {} now pass ["show_done"]
+    # to signal "no filters at all".
+
     def test_all_defaults_empty_dict(self):
-        result = build_filters("All", "All", [])
+        result = build_filters("All", "All", ["show_done"])
         assert result == {}
 
     def test_empty_lists_empty_dict(self):
-        result = build_filters([], [], [])
+        result = build_filters([], [], ["show_done"])
         assert result == {}
 
     def test_context_filter(self):
-        result = build_filters("Mind", "All", [])
+        result = build_filters("Mind", "All", ["show_done"])
         assert result == {"context": ["Mind"]}
 
     def test_context_filter_multi(self):
-        result = build_filters(["Mind", "Body"], [], [])
+        result = build_filters(["Mind", "Body"], [], ["show_done"])
         assert result == {"context": ["Mind", "Body"]}
 
     def test_none_context_maps_to_none(self):
-        result = build_filters("None", "All", [])
+        result = build_filters("None", "All", ["show_done"])
         assert result == {"context": [None]}
 
-    def test_hide_done(self):
-        result = build_filters("All", "All", ["hide_done"])
+    def test_show_done_off_hides_done(self):
+        # f_done empty (Show Done switch off) → hide_done filter applied.
+        result = build_filters("All", "All", [])
         assert result == {"hide_done": True}
 
+    def test_show_done_on_does_not_hide(self):
+        result = build_filters("All", "All", ["show_done"])
+        assert result == {}
+
     def test_min_value(self):
-        result = build_filters("All", "All", [], f_value=5)
+        result = build_filters("All", "All", ["show_done"], f_value=5)
         assert result == {"min_value": 5}
 
     def test_min_interest(self):
-        result = build_filters("All", "All", [], f_interest=3)
+        result = build_filters("All", "All", ["show_done"], f_interest=3)
         assert result == {"min_interest": 3}
 
     def test_max_time(self):
-        result = build_filters("All", "All", [], f_time=10)
+        result = build_filters("All", "All", ["show_done"], f_time=10)
         assert result == {"max_time": 10.0}
 
     def test_max_difficulty(self):
-        result = build_filters("All", "All", [], f_difficulty="7")
+        result = build_filters("All", "All", ["show_done"], f_difficulty="7")
         assert result == {"max_difficulty": 7}
 
     def test_invalid_time_ignored(self):
-        result = build_filters("All", "All", [], f_time="abc")
+        result = build_filters("All", "All", ["show_done"], f_time="abc")
         assert "max_time" not in result
 
     def test_subcontext_filter(self):
-        result = build_filters("All", "Rational", [])
+        result = build_filters("All", "Rational", ["show_done"])
         assert result == {"subcontext": ["Rational"]}
 
     def test_subcontext_filter_multi(self):
-        result = build_filters("All", ["Rational", "Creative"], [])
+        result = build_filters("All", ["Rational", "Creative"], ["show_done"])
         assert result == {"subcontext": ["Rational", "Creative"]}
 
     def test_subcontext_all_ignored(self):
-        result = build_filters("All", "All", [])
+        result = build_filters("All", "All", ["show_done"])
         assert "subcontext" not in result
 
     def test_composite_subcontext_multi_context_multi_sub(self):
@@ -106,7 +116,7 @@ class TestBuildFilters:
         result = build_filters(
             ["Mind", "STEM"],
             ["Mind::Rational", "STEM::Math", "STEM::Data Science"],
-            [],
+            ["show_done"],
         )
         assert result == {
             "context_subcontext_union": [
@@ -117,7 +127,7 @@ class TestBuildFilters:
 
     def test_composite_subcontext_selective_union_fallback(self):
         # Mind has no subs in the selection → falls back to None (show all Mind).
-        result = build_filters(["Mind", "STEM"], ["STEM::Math"], [])
+        result = build_filters(["Mind", "STEM"], ["STEM::Math"], ["show_done"])
         assert result == {
             "context_subcontext_union": [("Mind", None), ("STEM", ["Math"])]
         }
@@ -125,14 +135,14 @@ class TestBuildFilters:
     def test_composite_subcontext_without_context_flattens(self):
         # No context selected → flatten to a plain subcontext filter (name-only).
         result = build_filters(
-            [], ["Mind::Rational", "STEM::Math"], []
+            [], ["Mind::Rational", "STEM::Math"], ["show_done"]
         )
         assert result == {"subcontext": ["Rational", "Math"]}
 
     def test_legacy_plain_subcontext_with_context(self):
         # Legacy state (plain subcontext names, no "::") — apply the list to
         # every selected context.
-        result = build_filters(["Mind"], ["Rational"], [])
+        result = build_filters(["Mind"], ["Rational"], ["show_done"])
         assert result == {"context_subcontext_union": [("Mind", ["Rational"])]}
 
 
@@ -142,12 +152,12 @@ class TestBuildFilters:
 
 class TestIsFiltersActive:
     def test_all_defaults_inactive(self):
-        # Mirrors the "Clear Filters" reset state.
+        # Mirrors the "Clear Filters" reset state under new "Show Done" semantics.
         assert is_filters_active(
             node_type=[], context=[], subcontext=[],
             community="All", community_method="components",
             value=1, interest=1, difficulty=10, time=None,
-            done=["hide_done"],
+            done=[],
         ) is False
 
     def test_no_args_inactive(self):
@@ -200,11 +210,12 @@ class TestIsFiltersActive:
         assert is_filters_active(time=0) is False
 
     def test_done_default_inactive(self):
-        assert is_filters_active(done=["hide_done"]) is False
+        # New default: empty list = "Show Done" off = done hidden = inactive.
+        assert is_filters_active(done=[]) is False
 
-    def test_done_toggled_off_active(self):
+    def test_done_toggled_on_active(self):
         # Showing completed tasks is a deviation from the default.
-        assert is_filters_active(done=[]) is True
+        assert is_filters_active(done=["show_done"]) is True
 
 
 # ============================================================================

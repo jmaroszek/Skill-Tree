@@ -301,7 +301,9 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
                 filters['node_types'] = f_node_types
         elif f_node_types != "All":
             filters['node_types'] = [f_node_types]
-    if f_done and "hide_done" in f_done:
+    # "Show Done" switch: ON ("show_done" in f_done) = no filter; OFF
+    # (empty list, or any legacy value) = hide done. Default is hidden.
+    if not (f_done and "show_done" in f_done):
         filters['hide_done'] = True
     if f_value and f_value > 1:
         filters['min_value'] = f_value
@@ -348,7 +350,10 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
         return True
     if time:
         return True
-    if done is not None and list(done) != ["hide_done"]:
+    # New default for done is empty list ("Show Done" off → done hidden).
+    # Anything non-default — including legacy "hide_done" left over from
+    # before the relabel — is treated as user-touched.
+    if done is not None and list(done) != []:
         return True
     return False
 

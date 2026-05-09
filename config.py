@@ -27,6 +27,16 @@ TOOLTIP_SHOW_DELAY_MS = 700
 TOOLTIP_HIDE_DELAY_MS = 100
 TOOLTIP_NODE_HIDE_DELAY_MS = 300  # Cytoscape node cursor-tooltip lingers slightly longer to avoid flicker
 
+# --- Sidebar geometry ---
+# Shared width for the editor (left), goals (left), events (left), and
+# filters (right) sidebars. Keep them visually consistent with one knob.
+# Anything in JS that closes a sidebar by transform/translate must keep its
+# magic number in sync (see assets/editor_sidebar.js, filters_sidebar.js).
+SIDEBAR_WIDTH = 350
+SIDEBAR_WIDTH_PX = f"{SIDEBAR_WIDTH}px"
+SIDEBAR_WIDTH_NEG_PX = f"-{SIDEBAR_WIDTH}px"
+SIDEBAR_TRANSLATE_CLOSED = f"translateX(-{SIDEBAR_WIDTH}px)"
+
 DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
 
 # Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
@@ -677,14 +687,24 @@ class ConfigManager:
         "difficulty": 10,
         "time": "",
         "time_unit": "hours",
-        "done": ["hide_done"],
+        # Default off (empty list) means done is hidden — opt in via the
+        # "Show Done" switch to reveal it. Symmetric with show_dormant below.
+        "done": [],
+        # When ["show_dormant"], reveal dormant nodes on the main canvas + any
+        # surface that runs through filter_nodes (Details tab, etc.). Default
+        # empty (off). The events tab graph ignores this filter and always
+        # shows its event's dormant nodes.
+        "show_dormant": [],
     }
 
     @classmethod
     def get_remember_filters(cls) -> bool:
         val = cls._get_db_value("REMEMBER_FILTERS")
         if val is None:
-            return True
+            # Default off so a fresh session starts with every filter switch
+            # off — consistent with the opt-in framing of "Show Done" /
+            # "Show Dormant". User can flip Memory on to retain filters.
+            return False
         return val == "1"
 
     @classmethod
@@ -699,6 +719,17 @@ class ConfigManager:
             try:
                 stored = json.loads(val)
                 if isinstance(stored, dict):
+                    # Migrate legacy "hide_done" persistence to the new
+                    # "show_done" semantics. Old: ["hide_done"] = hide done,
+                    # [] = show done. New: [] = hide done (default),
+                    # ["show_done"] = show done. Strip any legacy "hide_done"
+                    # entries — they collapse to [] (the new default), which
+                    # preserves the legacy hidden-by-default behavior. Users
+                    # who previously had done shown (legacy []) will need to
+                    # re-flip the new switch on; the visual default still
+                    # matches the most common case.
+                    if "done" in stored and isinstance(stored["done"], list):
+                        stored["done"] = [v for v in stored["done"] if v == "show_done"]
                     merged.update({k: v for k, v in stored.items() if k in cls._FILTER_DEFAULTS})
             except (ValueError, TypeError):
                 pass

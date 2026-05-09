@@ -10,7 +10,8 @@ import numpy as np
 import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import (ConfigManager, badge_style, sort_subcontexts)
+from config import (ConfigManager, badge_style, sort_subcontexts,
+                    SIDEBAR_WIDTH_NEG_PX)
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table, build_goal_card,
                              _build_suggestion_row, build_details_suggestions,
@@ -747,7 +748,7 @@ def register_details_callbacks(app):
         if not n_clicks:
             return no_update, no_update, no_update
         goal_style = dict(goal_sidebar_style) if goal_sidebar_style else {}
-        goal_style["left"] = "-380px"
+        goal_style["left"] = SIDEBAR_WIDTH_NEG_PX
         ed_style = dict(editor_style) if editor_style else {}
         ed_style["transform"] = "translateX(0px)"
         return goal_style, "Goal", ed_style
@@ -923,7 +924,7 @@ def register_details_callbacks(app):
             return empty_fig, {"display": "none"}, {"display": "block"}
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
-                                       f_node_types)
+                                       f_node_types, f_show_dormant=f_show_dormant)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         return _run_simulation(node_name, include_soft_val, include_synergies_val,

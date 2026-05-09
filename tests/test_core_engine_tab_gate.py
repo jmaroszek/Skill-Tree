@@ -157,7 +157,7 @@ def test_edit_trigger_short_circuits_and_opens_editor(monkeypatch, trigger):
 
 
 def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
-    """btn-goals-toggle alone short-circuits and closes the editor (translateX(-380px))."""
+    """btn-goals-toggle alone short-circuits and closes the editor (SIDEBAR_TRANSLATE_CLOSED)."""
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-goals-toggle")
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({"btn-goals-toggle"}))
@@ -165,7 +165,7 @@ def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
     result = cb(*args)
     ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
     assert isinstance(ed, dict)
-    assert ed.get('transform') == 'translateX(-380px)'
+    assert ed.get('transform') == callbacks.SIDEBAR_TRANSLATE_CLOSED
 
 
 def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch):
@@ -179,7 +179,7 @@ def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch)
     result = cb(*args)
     ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
     assert isinstance(ed, dict)
-    assert ed.get('transform') == 'translateX(-380px)'
+    assert ed.get('transform') == callbacks.SIDEBAR_TRANSLATE_CLOSED
 
 
 def test_edit_trigger_batched_with_other_input_does_not_short_circuit(monkeypatch):

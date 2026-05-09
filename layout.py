@@ -12,6 +12,9 @@ from config import (
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     TOOLTIP_NODE_HIDE_DELAY_MS,
+    SIDEBAR_WIDTH_PX,
+    SIDEBAR_WIDTH_NEG_PX,
+    SIDEBAR_TRANSLATE_CLOSED,
     sort_subcontexts,
 )
 from events_layout import build_events_tab_content, build_events_sidebar_content
@@ -399,7 +402,7 @@ sidebar_content = html.Div(
         ])
     ],
     className="ps-3 pe-4 pb-2 pt-0",
-    style={"width": "380px", "minWidth": "380px"}
+    style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX}
 )
 
 
@@ -610,7 +613,7 @@ def build_filters_content():
                         target="btn-sidebar-relayout", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex gap-2 mb-3"),
-    ], className="px-3 pb-2 pt-0", style={"width": "320px", "minWidth": "320px"})
+    ], className="px-3 pb-2 pt-0", style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX})
 
 
 _section_title_style = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -1701,15 +1704,15 @@ def build_app_layout(initial_elements, env="production"):
                     "position": "absolute",
                     "top": "0",
                     "left": "0",
-                    "width": "380px",
-                    "minWidth": "380px",
+                    "width": SIDEBAR_WIDTH_PX,
+                    "minWidth": SIDEBAR_WIDTH_PX,
                     "height": "100%",
                     "zIndex": 1000,
                     "overflowX": "hidden",
                     "overflowY": "auto",
                     "borderRight": "1px solid #495057",
                     "transition": "transform 0.3s ease",
-                    "transform": "translateX(-380px)",
+                    "transform": SIDEBAR_TRANSLATE_CLOSED,
                     "willChange": "transform",
                     "backgroundColor": "#212529"
                 }
@@ -1765,8 +1768,8 @@ def build_app_layout(initial_elements, env="production"):
                 style={
                     "position": "absolute",
                     "top": "0",
-                    "left": "-380px",
-                    "width": "380px",
+                    "left": SIDEBAR_WIDTH_NEG_PX,
+                    "width": SIDEBAR_WIDTH_PX,
                     "height": "100%",
                     "zIndex": 100,
                     "overflowX": "hidden",
@@ -1785,8 +1788,8 @@ def build_app_layout(initial_elements, env="production"):
                 style={
                     "position": "absolute",
                     "top": "0",
-                    "left": "-380px",
-                    "width": "380px",
+                    "left": SIDEBAR_WIDTH_NEG_PX,
+                    "width": SIDEBAR_WIDTH_PX,
                     "height": "100%",
                     "zIndex": 100,
                     "overflowX": "hidden",
@@ -1805,8 +1808,8 @@ def build_app_layout(initial_elements, env="production"):
                 style={
                     "position": "absolute",
                     "top": "0",
-                    "right": "-320px",
-                    "width": "320px",
+                    "right": SIDEBAR_WIDTH_NEG_PX,
+                    "width": SIDEBAR_WIDTH_PX,
                     "height": "100%",
                     "zIndex": 100,
                     "overflowX": "hidden",

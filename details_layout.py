@@ -465,8 +465,8 @@ def build_details_tab_content():
             ),
             dbc.Checklist(
                 id=f"details-hide-done{suffix}",
-                options=[{"label": "Hide Done", "value": "hide_done"}],
-                value=["hide_done"],
+                options=[{"label": "Show Done", "value": "show_done"}],
+                value=[],
                 switch=True,
                 style={"fontSize": "0.82rem"},
             ),

@@ -168,8 +168,7 @@ plus a `Self` tile (`#685e52` warm sand) for the node itself.
 
 | Element | Value |
 |---------|-------|
-| Editor sidebar width | `380px` |
-| Filters panel width | `320px` |
+| Sidebar width (editor / goals / events / filters) | `350px` (`config.SIDEBAR_WIDTH`) |
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
 
