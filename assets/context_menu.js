@@ -233,6 +233,32 @@
             cyWrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });
         }
 
+        // --- Right-click context menu on Next-tab suggestion rows ---
+        // Document-level delegation survives Dash re-renders of the table.
+        document.addEventListener('contextmenu', function (evt) {
+            var rowEl = evt.target.closest && evt.target.closest('.suggestion-bar-row');
+            if (!rowEl) return;
+            var nodeName = null;
+            try {
+                var parsed = JSON.parse(rowEl.id);
+                nodeName = parsed && parsed.index;
+            } catch (e) {
+                return;
+            }
+            if (!nodeName) return;
+            evt.preventDefault();
+            if (window.SkillTree && window.SkillTree.tooltip) {
+                window.SkillTree.tooltip.hide();
+            }
+            var nodeData = {
+                id: nodeName,
+                obsidian_path: rowEl.getAttribute('data-obsidian-path') || null,
+                google_drive_path: rowEl.getAttribute('data-google-drive-path') || null,
+            };
+            _menuSource = 'main';
+            showMenu(evt.clientX, evt.clientY, nodeData);
+        });
+
         document.addEventListener('click', function (e) {
             if (!menu.contains(e.target)) hideMenu();
         });

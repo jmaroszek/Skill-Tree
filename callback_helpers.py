@@ -846,7 +846,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
         ctx_text = str(s.context) if s.context else ""
         sub_text = str(s.subcontext) if s.subcontext else ""
         if ctx_text and sub_text:
-            ctx_children = [html.Span(ctx_text), html.Span(" · ", style={"opacity": 0.5}), html.Span(sub_text)]
+            ctx_children = [html.Span(ctx_text), html.Span("·", style={"opacity": 0.5, "padding": "0 4px"}), html.Span(sub_text)]
         elif ctx_text:
             ctx_children = [html.Span(ctx_text)]
         elif sub_text:
@@ -858,11 +858,9 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             html.Div(
                 html.Span(
                     s.name,
-                    id={"type": "suggestion-name-link", "index": s.name},
-                    title="Open in Details tab",
                     style={
                         "fontSize": "14.5px", "color": "#dee2e6",
-                        "cursor": "pointer", "lineHeight": "1.35",
+                        "lineHeight": "1.35",
                     },
                 ),
                 style={"minWidth": 0, "overflow": "hidden",
@@ -952,6 +950,10 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             id={"type": "suggestion-row", "index": s.name},
             className="suggestion-bar-row",
             style=row_style,
+            **{
+                "data-obsidian-path": s.obsidian_path or "",
+                "data-google-drive-path": s.google_drive_path or "",
+            },  # type: ignore[reportArgumentType]
         ))
 
     bar_list = html.Div(rows, style={"flex": "4 1 0", "minWidth": "0"})

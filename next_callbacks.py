@@ -95,18 +95,3 @@ def register_next_callbacks(app):
         if trigger_id and isinstance(trigger_id, dict) and 'index' in trigger_id:
             return trigger_id['index']
         return dash.no_update
-
-    # --- Suggestion Name Click -> Navigate to Details Tab ---
-    @app.callback(
-        Output('main-tabs', 'active_tab', allow_duplicate=True),
-        Output('details-node-select', 'value', allow_duplicate=True),
-        Input({'type': 'suggestion-name-link', 'index': ALL}, 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def navigate_to_suggestion_node(n_clicks_list):
-        if not any(n_clicks_list):
-            return dash.no_update, dash.no_update
-        trigger = ctx.triggered_id
-        if trigger and isinstance(trigger, dict) and 'index' in trigger:
-            return 'tab-details', trigger['index']
-        return dash.no_update, dash.no_update
