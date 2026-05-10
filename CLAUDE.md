@@ -4,7 +4,7 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 
 ## Must-know rules
 
-- **Always launch the app in sandbox mode**: `python app.py -sandbox`. Never run `python app.py` (production) unless the user explicitly asks.
+- **Always launch the app in sandbox mode**: `python app.py --sandbox`. Never run `python app.py` (production) unless the user explicitly asks.
 - **Production DB (`data/skilltree.db`)** — reads and writes are allowed when the user is asking for graph review or programmatic node/edge changes against their real data. Do **not** use it as a scratchpad: no exploratory writes, no test fixtures, no app launches against it. When in doubt about whether a write is "graph editing the user asked for" vs "experimentation", confirm first.
 - **Sandbox DB (`data/sandbox_skilltree.db`)** is the target for any app-launch testing or experimentation.
 - **Port is 8050.**
@@ -43,6 +43,18 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 - **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
 
 **Direction convention (read this carefully — it is the most error-prone semantic in the codebase):** `A --[Needs_Hard|Needs_Soft]--> B` means **A unlocks B**: A is the prerequisite, B is the dependent. B is blocked until A is Done. Read the arrow as "leads to" / "comes before" / "unlocks." Worked example: `Statistics → Regression Hard` means complete Statistics first; Regression unblocks once Statistics is Done. The visual arrowhead in the Cytoscape graph points from prereq to dependent — visually identical to the data direction.
+
+**Scoring cascade direction (do not get this wrong — it has caused repeated bugs):** the scoring module walks **forward along arrows**. `total_value(n)` sums what `n` *unlocks* via `H_out[n]` / `S_out[n]`, discounted per hop. Concrete consequences:
+
+- A node mid-chain (incoming prereqs AND outgoing dependents, e.g. `ML Fundamentals`) has high TV because the downstream cascade adds up. This is the "intrinsic" use case for TV — what does completing this unlock?
+- A Goal that is a **sink** (only incoming edges, e.g. `Satisfaction`: 23 in, 0 out) has TV ≈ its own IV. There are no descendants to cascade. Most user-level Goals fall in this bucket.
+- A leaf prereq deep in a chain accumulates the discounted value of every node downstream that depends on it. This is why the Next-tab ranker, which uses forward TV, surfaces leaf actions and not Goals.
+
+**To rank by "value of the prerequisite subtree" (everything that flows INTO a node), invert the Hard/Soft edges before calling `total_value`** — see [`analyze_callbacks._rank_goals`](analyze_callbacks.py) for the worked pattern. Don't try to invent a new traversal; just flip source ↔ target on Hard/Soft, keep Helps symmetric, rebuild adjacency, and the existing scoring machinery does the right thing against the flipped graph.
+
+**Eligibility is the OPPOSITE direction:** a node is Blocked until every name in `Hard_in[node]` (incoming hard edges) has status Done. So eligibility walks against arrows; TV walks along them.
+
+**Vocabulary trap:** when a Goal sits visually "at the top" of a tree, the things "below it" are *prereqs flowing in* — which in graph-theory terms are the Goal's **ancestors** (they precede it in topological order), NOT its descendants. The Goal is the descendant of its prereqs. To avoid confusion, prefer "prereqs" / "dependents" over "ancestors" / "descendants" in code, comments, and conversation.
 
 **Hard edges encode two distinct things, both valid:** (a) genuine logical prerequisites ("you need linear algebra before deep learning"), and (b) the user's personal sequencing preference for what to study first ("I want to do supervised learning before deep learning, even though deep learning is technically a kind of supervised learning"). When auditing, **don't "correct" edges that look weird from a pure-taxonomy standpoint** — they may be deliberate sequencing preference. When the direction looks surprising, ask before flipping.
 

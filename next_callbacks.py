@@ -7,6 +7,7 @@ from dash import Input, Output, State, ALL, ctx
 from graph_manager import GraphManager
 from config import ConfigManager
 from callback_helpers import get_trigger_id
+from models import STATUS_DONE
 
 manager = GraphManager()
 
@@ -55,6 +56,39 @@ def get_suggestions(filters=None, count=5, exclude_override=False):
         scored = manager.calculate_priority_scores(filtered_nodes, priority_goals=priority_goals)
         valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
         return valid[:count]
+
+
+def get_container_suggestions(count=5, exclude_names=None):
+    """Retrieve top-N container nodes ranked by total_value.
+
+    A "container" here means any node with ``time_mode='inherited'``
+    — broader than ``Node.is_container`` (which requires both modes
+    inherited). The intent is "structurally rich nodes worth examining
+    in the Details tab," not "what to do next."
+
+    Milestones are excluded: per the framework they are single-event
+    checkpoints, not capacity containers — the work happens upstream
+    in their prereq Goals, and Milestones offer no internal structure
+    worth examining.
+
+    Also excludes Done and dormant nodes, plus any names in
+    ``exclude_names`` (used by the Details empty state to dedupe
+    against the override and priority-goal sections).
+    """
+    exclude_names = set(exclude_names or [])
+    nodes = manager.get_all_nodes()
+    scored = manager.calculate_priority_scores(nodes)
+
+    containers = [
+        n for n in scored
+        if n.time_mode == 'inherited'
+        and n.type != 'Milestone'
+        and n.status != STATUS_DONE
+        and not getattr(n, 'dormant', False)
+        and n.name not in exclude_names
+    ]
+    containers.sort(key=lambda n: getattr(n, 'total_value', 0.0), reverse=True)
+    return containers[:count]
 
 
 def get_override_set():

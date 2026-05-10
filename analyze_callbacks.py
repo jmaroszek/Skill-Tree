@@ -10,7 +10,7 @@ from collections import defaultdict
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
-from scoring import intrinsic_value
+from scoring import build_adjacency as _scoring_build_adjacency, total_value
 
 graph_manager = GraphManager()
 
@@ -135,13 +135,28 @@ def _get_limits():
     return ConfigManager.get_analyze_limits()
 
 
-def _rank_goals(goals, priority_goals, hp):
-    """Rank goals using intrinsic value from the scoring algorithm, boosted by priority rank.
+def _rank_goals(goals, all_nodes, edges, priority_goals, hp):
+    """Rank goals by the discounted value of their prerequisite subtree.
 
+    Goals are sinks in the prereq DAG (work flows into them), so the
+    scoring module's forward ``total_value`` (which cascades through
+    outgoing Hard/Soft edges) collapses to a Goal's own intrinsic value.
+    For the Analyze "Goals" chart the meaningful question is "how much
+    work / value does this Goal subsume?" — so we invert Hard/Soft edges
+    and apply the same ``total_value`` machinery against the flipped
+    graph. The result is: IV(goal) + Σ d_H^depth * IV(prereq) over the
+    Hard subtree (+ analogous Soft + Helps contributions).
+
+    Boosted by the priority-rank multiplier (rank 1 gets the full
+    ``goal_boost``, rank 2 gets 66% of the bump, rank 3 gets 33%).
     Returns goals sorted by rank score descending.
     """
     w_v = hp.get('w_v', 1.0)
     w_i = hp.get('w_i', 1.0)
+    d_H = hp.get('d_H', 0.6)
+    d_S = hp.get('d_S', 0.25)
+    d_Syn_pair = hp.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hp.get('d_Syn_mul', 0.40)
     goal_boost = hp.get('goal_boost', 1.5)
     rank_multipliers = [
         goal_boost,
@@ -149,27 +164,45 @@ def _rank_goals(goals, priority_goals, hp):
         1 + (goal_boost - 1) * 0.33,
     ]
 
+    # Invert Hard/Soft edges so the cascade walks upstream toward prereqs.
+    # Helps is symmetric (bidirectional), so leave it alone.
+    inverted = []
+    for e in edges:
+        if e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+            inverted.append({'source': e['target'], 'target': e['source'],
+                             'type': e['type']})
+        else:
+            inverted.append(e)
+
+    all_nodes_dict = {n.name: n for n in all_nodes}
+    H_out, S_out, Syn, _ = _scoring_build_adjacency(
+        inverted, set(all_nodes_dict.keys()))
+
+    memo: dict = {}
     scored = []
     for g in goals:
-        iv = intrinsic_value(g, w_v, w_i)
-        # Apply priority rank boost
+        tv = total_value(
+            g.name, set(), all_nodes_dict, H_out, S_out, Syn,
+            w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+        )
         if g.name in priority_goals:
             rank_idx = priority_goals.index(g.name)
             if rank_idx < 3:
-                iv *= rank_multipliers[rank_idx]
-        scored.append((g, iv))
+                tv *= rank_multipliers[rank_idx]
+        scored.append((g, tv))
 
     scored.sort(key=lambda x: x[1], reverse=True)
     return [g for g, _ in scored]
 
 
-def _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits):
+def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
     """Compute goal stats and pairwise overlap using in-memory adjacency.
 
-    Ranks goals by intrinsic value (from scoring algorithm) boosted by priority rank,
-    then caps to keep visualizations readable. Progress is computed over hard
-    prerequisites only (those gate completion); pairwise overlap is computed over
-    hard + soft prerequisites (the full body of prep work shared between goals).
+    Ranks goals by total_value (intrinsic value + cascaded descendant value
+    through Hard/Soft edges) boosted by priority rank, then caps to keep
+    visualizations readable. Progress is computed over hard prerequisites
+    only (those gate completion); pairwise overlap is computed over hard
+    + soft prerequisites (the full body of prep work shared between goals).
     """
     all_goals = [n for n in nodes if n.type == 'Goal']
     node_map = {n.name: n for n in nodes}
@@ -177,7 +210,7 @@ def _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits):
     hp = ConfigManager.get_hyperparams()
 
     # Rank and cap
-    ranked = _rank_goals(all_goals, priority_goals, hp)
+    ranked = _rank_goals(all_goals, nodes, edges, priority_goals, hp)
     goals = ranked[:limits.get('goals', 75)]
     total_goal_count = len(all_goals)
 
@@ -1102,7 +1135,7 @@ def register_analyze_callbacks(app):
         bottlenecks = _compute_bottlenecks(nodes, hard_fwd, limits)
         top_nodes = _compute_top_time_sinks(nodes, limits)
         ratings_data = _compute_ratings(nodes)
-        goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, hard_rev, prereq_rev, limits)
+        goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits)
         risk_data = _compute_risk(nodes, limits)
         dep_data = _compute_dependency_structure(nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits)
         ctx_coverage, subctx_coverage = _compute_context_coverage(nodes)

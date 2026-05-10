@@ -202,14 +202,14 @@ def _compute_priority_score(
     node_to_boost: Dict[str, float],
     n_active_map: Dict[Tuple[Optional[str], Optional[str]], int],
     memo: Optional[Dict[str, float]] = None,
-) -> float:
+) -> Tuple[float, float]:
     """Single source of truth for the per-node ROI formula.
 
     Used by both ``score_nodes`` (batch ranking) and ``explain_score``
     (per-node breakdown) so the two paths can never drift on the order or
-    composition of cost / TV / boost / density / weight. Returns the final
-    rounded priority score; callers handle ineligibility / Goal / Done /
-    Blocked filtering before calling this.
+    composition of cost / TV / boost / density / weight. Returns a tuple
+    of (final rounded priority score, raw total_value); callers handle
+    ineligibility / Goal / Done / Blocked filtering before calling this.
     """
     w_v = hyperparams.get('w_v', 1.0)
     w_i = hyperparams.get('w_i', 1.0)
@@ -246,7 +246,7 @@ def _compute_priority_score(
     if weight != 1.0 or density_mult != 1.0:
         score = round(score * weight * density_mult, 2)
 
-    return score
+    return score, tv
 
 
 def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
@@ -340,10 +340,17 @@ def score_nodes(
 
     t2 = time.perf_counter() if time_phases else 0.0
 
+    def _tv_for(name: str) -> float:
+        return total_value(
+            name, set(), all_nodes_dict, H_out, S_out, Syn,
+            w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+        )
+
     scored_nodes = []
     for node in active_nodes:
         if node.type in ('Goal', 'Milestone'):
             node.priority_score = -1.0
+            node.total_value = _tv_for(node.name)
             scored_nodes.append(node)
             continue
 
@@ -353,20 +360,23 @@ def score_nodes(
         # cost denominator (1.0) — see Node.is_container.
         if node.is_container:
             node.priority_score = -1.0
+            node.total_value = _tv_for(node.name)
             scored_nodes.append(node)
             continue
 
         if node.status in (STATUS_DONE, STATUS_BLOCKED):
             node.priority_score = -1.0
+            node.total_value = _tv_for(node.name)
             scored_nodes.append(node)
             continue
 
         if not is_eligible(node.name, Hard_in, all_nodes_dict):
             node.priority_score = -1.0
+            node.total_value = _tv_for(node.name)
             scored_nodes.append(node)
             continue
 
-        node.priority_score = _compute_priority_score(
+        node.priority_score, node.total_value = _compute_priority_score(
             node,
             all_nodes_dict=all_nodes_dict,
             H_out=H_out, S_out=S_out, Syn=Syn,

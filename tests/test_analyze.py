@@ -234,7 +234,7 @@ class TestComputeGoalComparison:
         edges = mgr.get_edges()
         _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         goal_rows, overlap_rows, total = _compute_goal_comparison(
-            nodes, hard_rev, prereq_rev, {'goals': 25})
+            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
         assert total == 1
         assert goal_rows[0]['done'] == 1
         assert goal_rows[0]['total'] == 2
@@ -247,7 +247,7 @@ class TestComputeGoalComparison:
         edges = mgr.get_edges()
         _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         goal_rows, _, total = _compute_goal_comparison(
-            nodes, hard_rev, prereq_rev, {'goals': 3})
+            nodes, edges, hard_rev, prereq_rev, {'goals': 3})
         assert total == 10
         assert len(goal_rows) == 3
 
@@ -264,7 +264,7 @@ class TestComputeGoalComparison:
         edges = mgr.get_edges()
         _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         _, overlap_rows, _ = _compute_goal_comparison(
-            nodes, hard_rev, prereq_rev, {'goals': 25})
+            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
         assert len(overlap_rows) == 1
         assert overlap_rows[0]['shared'] == 1
 
@@ -285,7 +285,7 @@ class TestComputeGoalComparison:
         edges = mgr.get_edges()
         _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         goal_rows, overlap_rows, _ = _compute_goal_comparison(
-            nodes, hard_rev, prereq_rev, {'goals': 25})
+            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
         # Overlap counts both hard- and soft-shared prereqs
         assert overlap_rows[0]['shared'] == 2
         # But completion stats stay hard-only: each goal's total is just HardShared
@@ -306,8 +306,48 @@ class TestComputeGoalComparison:
         edges = mgr.get_edges()
         _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
         _, overlap_rows, _ = _compute_goal_comparison(
-            nodes, hard_rev, prereq_rev, {'goals': 25})
+            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
         assert overlap_rows == []
+
+    def test_ranks_by_prereq_subtree_value(self, mgr):
+        """A goal with a rich Hard-prereq subtree outranks one with high own-rating but a sparse subtree."""
+        # GoalSparse: high own value, no prereqs — subtree value ≈ IV alone.
+        # GoalRich:   modest own value, but several high-value Hard prereqs
+        #             feeding the inverted cascade — subtree value > IV(GoalSparse).
+        _setup_graph(mgr, [
+            _make_node("GoalSparse", type="Goal",
+                       time_mode='inherited', value=10, interest=10),
+            _make_node("GoalRich", type="Goal",
+                       time_mode='inherited', value=3, interest=3),
+            _make_node("RC1", value=10, interest=10),
+            _make_node("RC2", value=10, interest=10),
+            _make_node("RC3", value=10, interest=10),
+            _make_node("RC4", value=10, interest=10),
+        ], [
+            ("RC1", "GoalRich", EDGE_NEEDS_HARD),
+            ("RC2", "GoalRich", EDGE_NEEDS_HARD),
+            ("RC3", "GoalRich", EDGE_NEEDS_HARD),
+            ("RC4", "GoalRich", EDGE_NEEDS_HARD),
+        ])
+        nodes = mgr.get_all_nodes()
+        edges = mgr.get_edges()
+        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
+        goal_rows, _, _ = _compute_goal_comparison(
+            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
+        # goal_rows is sorted by completion pct, not rank, so the order of
+        # goal_rows itself isn't the ranking signal — but the ranking
+        # determined which goals were included (top-N). Both make the cap
+        # of 25; assert the rich one is present and the TV-based ordering
+        # is reflected in _rank_goals directly.
+        from analyze_callbacks import _rank_goals
+        hp = ConfigManager.get_hyperparams()
+        ranked = _rank_goals(
+            [n for n in nodes if n.type == 'Goal'],
+            nodes, edges,
+            ConfigManager.get_priority_goals(), hp,
+        )
+        names = [g.name for g in ranked]
+        assert names.index("GoalRich") < names.index("GoalSparse")
 
 
 # ============================================================================

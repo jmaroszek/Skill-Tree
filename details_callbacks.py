@@ -1057,7 +1057,7 @@ def register_details_callbacks(app):
         Input("details-selected-node-store", "data"),
     )
     def build_empty_state_suggestions(_refresh, _version, _override_data, _selected):
-        from next_callbacks import get_suggestions
+        from next_callbacks import get_container_suggestions
 
         seen = set()
 
@@ -1080,23 +1080,19 @@ def register_details_callbacks(app):
                 goal_name, str(i + 1), "warning"))
             seen.add(goal_name)
 
-        rec_nodes = []
-        for n in get_suggestions(filters=None, count=8, exclude_override=True):
-            if n.name in seen:
-                continue
-            rec_nodes.append(n)
+        rec_nodes = get_container_suggestions(count=5, exclude_names=seen)
+        for n in rec_nodes:
             seen.add(n.name)
-            if len(rec_nodes) >= 5:
-                break
 
-        max_score = max((getattr(n, "priority_score", 0) for n in rec_nodes),
-                        default=0)
+        max_tv = max((getattr(n, "total_value", 0) for n in rec_nodes),
+                     default=0)
         rec_rows = []
-        tooltip_text = ("Normalized priority score (0–100) from the priority "
-                        "scoring algorithm.")
+        tooltip_text = ("Normalized total value (0–100) from the priority "
+                        "scoring algorithm — cascade-driven score for this "
+                        "container.")
         for i, n in enumerate(rec_nodes):
-            raw = getattr(n, "priority_score", 0)
-            normalized = round((raw / max_score) * 100) if max_score else 0
+            raw = getattr(n, "total_value", 0)
+            normalized = round((raw / max_tv) * 100) if max_tv else 0
             rec_rows.append(_build_suggestion_row(
                 n.name, str(normalized), "info",
                 badge_id=f"details-sugg-rec-badge-{i}",
