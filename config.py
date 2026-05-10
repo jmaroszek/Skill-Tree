@@ -114,10 +114,10 @@ def sort_contexts(ctxs, mode=None):
         mode = ConfigManager.get_context_sort_mode()
     items = list(ctxs)
     if mode == CONTEXT_SORT_LENGTH:
-        # "Life" renders visibly narrower than other 4-char contexts (Mind, STEM)
+        # "Self" renders visibly narrower than other 4-char contexts (STEM, etc.)
         # in proportional fonts — pin it ahead of same-length peers so the visual
         # order matches a true shortest-first read of the user's actual contexts.
-        return sorted(items, key=lambda s: (len(s), 0 if s == 'Life' else 1))
+        return sorted(items, key=lambda s: (len(s), 0 if s == 'Self' else 1))
     if mode == CONTEXT_SORT_ALPHABETICAL:
         return sorted(items, key=lambda s: s.lower())
     return items
