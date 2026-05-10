@@ -800,19 +800,45 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
 
-    raw_scores = [getattr(s, 'priority_score', 0) for s in suggs]
-    max_score = max(raw_scores)
+    # When an override pin is active and the suggestion list mixes priority
+    # and non-priority nodes, normalize each tier separately so that no
+    # non-priority row can display a higher score than the lowest priority
+    # row. This is a display-only transform — `priority_score` values and
+    # row ordering are unchanged. Tier 1 (overrides) maps to its own
+    # [min%, 100] range; tier 2 (non-overrides) maps to [0, tier1_min% - 2],
+    # so after rounding the highest non-priority row sits at least one
+    # point below the lowest priority row.
+    override_names = override_set or set()
+    tier1_raw = [getattr(s, 'priority_score', 0) for s in suggs if s.name in override_names]
+    tier2_raw = [getattr(s, 'priority_score', 0) for s in suggs if s.name not in override_names]
 
-    def normalize(score):
-        if max_score == 0:
-            return 0.0
-        return round((score / max_score) * 100, 1)
+    if tier1_raw and tier2_raw:
+        tier1_max = max(tier1_raw)
+        tier1_min = min(tier1_raw)
+        tier2_max = max(tier2_raw)
+        tier1_min_displayed = (tier1_min / tier1_max * 100) if tier1_max > 0 else 0.0
+        tier2_ceiling = max(0.0, tier1_min_displayed - 2.0)
+
+        def normalize(score, is_override):
+            if is_override:
+                return round((score / tier1_max) * 100, 1) if tier1_max > 0 else 0.0
+            return round((score / tier2_max) * tier2_ceiling, 1) if tier2_max > 0 else 0.0
+    else:
+        max_score = max(tier1_raw + tier2_raw) if (tier1_raw or tier2_raw) else 0
+
+        def normalize(score, is_override=False):
+            if max_score == 0:
+                return 0.0
+            return round((score / max_score) * 100, 1)
 
     edges = manager.get_edges()
     all_nodes = manager.get_all_nodes()
     resource_names = {n.name for n in all_nodes if n.type == 'Resource'}
 
-    normalized_scores = [normalize(getattr(s, 'priority_score', 0)) for s in suggs]
+    normalized_scores = [
+        normalize(getattr(s, 'priority_score', 0), s.name in override_names)
+        for s in suggs
+    ]
     max_priority = max(normalized_scores) if normalized_scores else 0
 
     # Bar colors come from the static BADGE_PALETTE (in config.py), NOT the
@@ -837,7 +863,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             if e['target'] == s.name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
         )
 
-        priority_int = round(normalize(getattr(s, 'priority_score', 0)))
+        priority_int = round(normalize(getattr(s, 'priority_score', 0), is_override))
         if max_priority > 0:
             bar_width_pct = max(8.0, (priority_int / max_priority) * 100.0)
         else:
