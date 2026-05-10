@@ -27,6 +27,10 @@ TOOLTIP_SHOW_DELAY_MS = 700
 TOOLTIP_HIDE_DELAY_MS = 100
 TOOLTIP_NODE_HIDE_DELAY_MS = 300  # Cytoscape node cursor-tooltip lingers slightly longer to avoid flicker
 
+# --- Toast / banner clear timing ---
+TOAST_CLEAR_INTERVAL_MS = 3000
+LOCATE_TOAST_CLEAR_INTERVAL_MS = 4000  # Locate-node banner lingers slightly longer
+
 # --- Sidebar geometry ---
 # Shared width for the editor (left), goals (left), events (left), and
 # filters (right) sidebars. Keep them visually consistent with one knob.
@@ -348,9 +352,10 @@ DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
     'w_i': 1.00,
     'd_H': 0.60,
-    'd_S': 0.25,
+    'd_S': 0.40,
     'd_Syn_pair': 0.10,
     'd_Syn_mul': 0.40,
+    'cross_context_mult': 1.00,
     'w_e': 2.50,
     'w_t': 1.00,
     'beta': 0.85,
@@ -361,17 +366,40 @@ DEFAULT_HYPERPARAMS = {
 PROFILES = {
     'Default': DEFAULT_HYPERPARAMS,
     'Curious': {
-        'w_v': 1.00, 'w_i': 1.50, 'd_H': 0.75, 'd_S': 0.35,
+        'w_v': 1.00, 'w_i': 1.50, 'd_H': 0.60, 'd_S': 0.40,
         'd_Syn_pair': 0.15, 'd_Syn_mul': 0.60,
-        'w_e': 1.00, 'w_t': 2.50, 'beta': 0.50,
-        'goal_boost': 1.50, 'alpha': 0.40,
+        'cross_context_mult': 1.00,
+        'w_e': 2.50, 'w_t': 1.00, 'beta': 0.85,
+        'goal_boost': 1.50, 'alpha': 0.30,
     },
-    'Industrious': {
-        'w_v': 1.50, 'w_i': 1.00, 'd_H': 0.50, 'd_S': 0.15,
+    'Compounder': {
+        'w_v': 1.00, 'w_i': 1.00, 'd_H': 0.80, 'd_S': 0.50,
+        'd_Syn_pair': 0.10, 'd_Syn_mul': 0.40,
+        'cross_context_mult': 1.00,
+        'w_e': 1.50, 'w_t': 0.85, 'beta': 0.70,
+        'goal_boost': 1.50, 'alpha': 0.20,
+    },
+    'Pragmatic': {
+        'w_v': 1.50, 'w_i': 1.00, 'd_H': 0.65, 'd_S': 0.20,
         'd_Syn_pair': 0.05, 'd_Syn_mul': 0.25,
-        'w_e': 4.00, 'w_t': 3.00, 'beta': 0.70,
-        'goal_boost': 2.00, 'alpha': 0.20,
-    }
+        'cross_context_mult': 1.00,
+        'w_e': 2.50, 'w_t': 1.50, 'beta': 0.85,
+        'goal_boost': 2.50, 'alpha': 0.20,
+    },
+    'Creator': {
+        'w_v': 1.00, 'w_i': 1.00, 'd_H': 0.60, 'd_S': 0.40,
+        'd_Syn_pair': 0.25, 'd_Syn_mul': 0.80,
+        'cross_context_mult': 2.00,
+        'w_e': 2.50, 'w_t': 1.00, 'beta': 0.85,
+        'goal_boost': 1.50, 'alpha': 0.30,
+    },
+    'Sprinter': {
+        'w_v': 1.00, 'w_i': 1.00, 'd_H': 0.45, 'd_S': 0.30,
+        'd_Syn_pair': 0.05, 'd_Syn_mul': 0.20,
+        'cross_context_mult': 1.00,
+        'w_e': 3.50, 'w_t': 4.00, 'beta': 0.95,
+        'goal_boost': 1.50, 'alpha': 0.30,
+    },
 }
 
 class ConfigManager:
@@ -680,7 +708,15 @@ class ConfigManager:
     @classmethod
     def get_hp_profile(cls) -> str:
         val = cls._get_db_value("HP_PROFILE")
-        return val if val else "Default"
+        if not val:
+            return "Default"
+        # Industrious was renamed to Pragmatic in 2026-05; quietly translate
+        # any leftover DB value so the dropdown stays populated and the
+        # profile keeps working.
+        if val == "Industrious":
+            cls._set_db_value("HP_PROFILE", "Pragmatic")
+            return "Pragmatic"
+        return val
 
     @classmethod
     def set_hp_profile(cls, profile: str):

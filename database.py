@@ -48,6 +48,14 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Schema version stamp. v3.0 establishes the baseline; future versions can
+    # branch migration behavior on this number. A higher value means the DB
+    # was last touched by a newer app build than this one.
+    current_v = cursor.execute("PRAGMA user_version").fetchone()[0]
+    if current_v > 3:
+        print(f"WARNING: SQLite DB user_version={current_v} is newer than app's 3. "
+              "Some columns may be unrecognized.")
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Nodes (
             name TEXT PRIMARY KEY,
@@ -198,6 +206,9 @@ def init_db():
         conn.commit()
     except Exception:
         pass
+
+    cursor.execute("PRAGMA user_version = 3")
+    conn.commit()
 
     conn.close()
     _initialized = True

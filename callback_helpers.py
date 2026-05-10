@@ -6,11 +6,14 @@ the callback registration files focused on Dash I/O wiring.
 """
 
 import json
+import logging
 
 import dash
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
+
+logger = logging.getLogger(__name__)
 
 from config import BADGE_PALETTE, ConfigManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_DONE
@@ -313,10 +316,12 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
         try:
             multiplier = ConfigManager.get_time_multiplier(f_time_unit or "hours")
             filters['max_time'] = float(f_time) * multiplier
-        except (ValueError, TypeError): pass
+        except (ValueError, TypeError) as e:
+            logger.warning("Invalid max_time filter (%r, unit=%r): %s", f_time, f_time_unit, e)
     if f_difficulty and f_difficulty != "All":
         try: filters['max_difficulty'] = int(f_difficulty)
-        except (ValueError, TypeError): pass
+        except (ValueError, TypeError) as e:
+            logger.warning("Invalid max_difficulty filter (%r): %s", f_difficulty, e)
     return filters
 
 

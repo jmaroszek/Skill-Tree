@@ -6,7 +6,7 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
-from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOAST_CLEAR_INTERVAL_MS
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator
 
@@ -605,7 +605,7 @@ def build_events_tab_content():
         # so opening doesn't block the animation on a graph regen.
         dcc.Store(id='events-ui-refresh-trigger', data=0),
         dcc.Store(id='event-order-store', data=[], storage_type='local'),
-        dcc.Interval(id='event-clear-interval', interval=3000, n_intervals=0, disabled=True),
+        dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
         # Hidden input: context-menu Edit on a dormant node routes here (set by context_menu.js)

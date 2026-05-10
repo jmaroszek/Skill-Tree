@@ -43,7 +43,10 @@ ConfigManager.ensure_milestone_type()
 # would derive from current Needs_Hard edges. Covers cases where a mutation
 # path bypassed _update_node_state (e.g. add_edge IntegrityError, direct SQL).
 from graph_manager import GraphManager
-GraphManager().recompute_all_statuses()
+_logger = logging.getLogger(__name__)
+_repaired = GraphManager().recompute_all_statuses()
+if _repaired:
+    _logger.info("Startup safety-net repaired %d node status(es).", _repaired)
 
 app = dash.Dash(__name__, external_stylesheets=[
     dbc.themes.DARKLY,

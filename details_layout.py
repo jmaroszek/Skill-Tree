@@ -536,11 +536,22 @@ def build_details_tab_content():
         html.Div(id="details-sim-results",
                  style={"display": "none", "flex": "1", "minHeight": "0"},
                  children=[
-            dcc.Graph(
-                id="details-sim-chart",
-                config={"displayModeBar": False},
-                responsive=True,
-                style={"height": "100%", "minHeight": "350px"},
+            dcc.Loading(
+                id="details-sim-loading",
+                type="circle",
+                color="#1e90ff",
+                # No spinner flash on fast machines; only shows once a sim
+                # takes longer than half a second.
+                delay_show=500,
+                parent_style={"height": "100%", "minHeight": "0"},
+                children=[
+                    dcc.Graph(
+                        id="details-sim-chart",
+                        config={"displayModeBar": False},
+                        responsive=True,
+                        style={"height": "100%", "minHeight": "350px"},
+                    ),
+                ],
             ),
         ]),
     ], id="details-sim-section",

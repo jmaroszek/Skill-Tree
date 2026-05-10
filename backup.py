@@ -30,14 +30,21 @@ def run_backup():
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         backup_path = os.path.join(BACKUP_DIR, f"skilltree_{timestamp}.db")
+        tmp_path = f"{backup_path}.tmp"
 
-        if os.path.exists(backup_path):
-            os.remove(backup_path)
-            log(f"INFO: Existing backup for {timestamp} removed for overwrite.")
+        # Clean any stale .tmp from a prior crashed run; VACUUM INTO requires
+        # the target path to not exist.
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
         conn = sqlite3.connect(f"file:{db_source}?mode=ro", uri=True)
-        conn.execute(f"VACUUM INTO '{backup_path}'")
+        conn.execute(f"VACUUM INTO '{tmp_path}'")
         conn.close()
+
+        # Atomic swap: if VACUUM above failed, the previous good backup is
+        # still intact at backup_path. os.replace is atomic on the same
+        # filesystem on Windows (Python >= 3.3).
+        os.replace(tmp_path, backup_path)
 
         log(f"SUCCESS: Created backup at {backup_path}")
 

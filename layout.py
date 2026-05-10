@@ -12,6 +12,8 @@ from config import (
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     TOOLTIP_NODE_HIDE_DELAY_MS,
+    TOAST_CLEAR_INTERVAL_MS,
+    LOCATE_TOAST_CLEAR_INTERVAL_MS,
     SIDEBAR_WIDTH_PX,
     SIDEBAR_WIDTH_NEG_PX,
     SIDEBAR_TRANSLATE_CLOSED,
@@ -58,7 +60,7 @@ sidebar_content = html.Div(
                         target="btn-locate-node", placement="right",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             html.Div(id="locate-message", className="text-warning small mt-1"),
-            dcc.Interval(id='locate-clear-interval', interval=4000, n_intervals=0, disabled=True),
+            dcc.Interval(id='locate-clear-interval', interval=LOCATE_TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
             dcc.Store(id='locate-animate-trigger', data=None),
 
             html.H5("General", className="mt-3 mb-1"),
@@ -397,7 +399,7 @@ sidebar_content = html.Div(
             dbc.Tooltip("Create a new node", target="btn-new-node", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
-            dcc.Interval(id='clear-interval', interval=3000, n_intervals=0, disabled=True),
+            dcc.Interval(id='clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
             dcc.Store(id='node-time-unit-prev', data='weeks'),
             dcc.Store(id='node-original-name', data=None)
         ])
@@ -1686,7 +1688,7 @@ def build_app_layout(initial_elements, env="production"):
         # ConfigManager whenever any sidebar control changes; this Store
         # exists only to give that callback a valid Output target.
         dcc.Store(id='filter-persist-sink', data=None),
-        dcc.Interval(id='settings-clear-interval', interval=3000, n_intervals=0, disabled=True),
+        dcc.Interval(id='settings-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
 
         main_tabs,
         # Tab content wrapper — only one tab visible at a time
