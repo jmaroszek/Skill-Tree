@@ -94,8 +94,9 @@
                 // Events tab dormant node: route to the dormant-specific modal
                 // instead of the generic sidebar editor (which refuses dormant nodes).
                 _setHiddenInput('dormant-edit-trigger-input', _currentNodeData.id);
-            } else if ((_menuSource === 'details' || _menuSource === 'events') && _currentNodeData && _currentNodeData.id) {
-                // On the details or events tab: open the editor in place without switching tabs
+            } else if ((_menuSource === 'details' || _menuSource === 'events' || _menuSource === 'next') && _currentNodeData && _currentNodeData.id) {
+                // On the details, events, or next tab: open the editor in place without switching tabs.
+                // edit-trigger-input would force a switch to tab-canvas (see handle_edit_trigger).
                 _setHiddenInput('details-edit-trigger-input', _currentNodeData.id);
             } else if (_currentNodeData && _currentNodeData.id) {
                 // Main canvas or goals tab: use edit-trigger-input which carries the
@@ -324,7 +325,7 @@
                 obsidian_path: rowEl.getAttribute('data-obsidian-path') || null,
                 google_drive_path: rowEl.getAttribute('data-google-drive-path') || null,
             };
-            _menuSource = 'main';
+            _menuSource = 'next';
             // Suggestion-bar rows aren't tied to a cy — clear so bulk-aware
             // handlers (Add to event, etc.) don't read a stale main-canvas
             // selection and incorrectly act on multiple nodes.
