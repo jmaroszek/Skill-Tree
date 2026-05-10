@@ -72,7 +72,7 @@ There is intentionally **no build step** on the front end. The JS in `assets/` i
 
 #### Entry point
 
-- [`app.py`](app.py) — Reads the `-sandbox` CLI flag into `config.ENVIRONMENT` **before** anything else imports `database` (the DB path depends on it). Initializes Dash with the DARKLY Bootstrap theme, builds the layout, and wires every tab's callbacks by calling its `register_*_callbacks(app)` function. Also defines a single Flask route, `/open-obsidian`, which resolves a relative vault path and launches the Obsidian URL scheme via `subprocess.Popen`.
+- [`app.py`](app.py) — Reads the `--sandbox` CLI flag into `config.ENVIRONMENT` **before** anything else imports `database` (the DB path depends on it). Initializes Dash with the DARKLY Bootstrap theme, builds the layout, and wires every tab's callbacks by calling its `register_*_callbacks(app)` function. Also defines a single Flask route, `/open-obsidian`, which resolves a relative vault path and launches the Obsidian URL scheme via `subprocess.Popen`.
 
 #### Layout
 
@@ -135,9 +135,9 @@ Vanilla JS files in `assets/` are auto-loaded by Dash. Each one attaches listene
 
 ## 3. The data lifecycle: boot to first render
 
-Tracing what happens from `python app.py -sandbox` to the moment you can click a node:
+Tracing what happens from `python app.py --sandbox` to the moment you can click a node:
 
-1. **CLI parsing.** `app.py` inspects `sys.argv` for `-sandbox`. If present, it mutates `config.ENVIRONMENT = "sandbox"` **before** anything else imports `database`. This ordering matters: `database.get_db_path()` reads `ENVIRONMENT` at call time to decide between `data/skilltree.db` and `data/sandbox_skilltree.db`.
+1. **CLI parsing.** `app.py` inspects `sys.argv` for `--sandbox`. If present, it mutates `config.ENVIRONMENT = "sandbox"` **before** anything else imports `database`. This ordering matters: `database.get_db_path()` reads `ENVIRONMENT` at call time to decide between `data/skilltree.db` and `data/sandbox_skilltree.db`.
 2. **Schema init.** Every `GraphManager` / `EventManager` constructor (or direct call) invokes `database.init_db()`. That function is guarded by a module-level `_initialized` flag — it runs once per process, creates all five tables (`Nodes`, `Edges`, `Events`, `EventNodes`, `Aliases`, `Settings`) with `CREATE TABLE IF NOT EXISTS`, and attempts the additive migrations (`ALTER TABLE ... ADD COLUMN`) inside `try/except` so they're no-ops on an up-to-date DB.
 3. **Default seeding.** `ConfigManager.ensure_action_type()` and `ensure_goal_type()` make sure the built-in node types exist in Settings. Any missing `Settings` key falls back to a `DEFAULT_*` constant from `config.py`.
 4. **Layout construction.** `build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)` runs. `generate_elements()` is the **single source of truth** for the Nodes-tab graph: it reads all nodes + edges from SQLite, applies any filters, and returns a flat list of Cytoscape element dicts. The layout tree includes this initial snapshot so the first paint has data.

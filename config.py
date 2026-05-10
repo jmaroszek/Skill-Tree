@@ -4,7 +4,7 @@ Configuration and persistent settings.
 The module holds:
   - Global defaults (DEFAULT_*) used when the DB has no stored value.
   - `ENVIRONMENT` — switched to "sandbox" by app.py when invoked with
-    `-sandbox`; determines which SQLite file database.py opens.
+    `--sandbox`; determines which SQLite file database.py opens.
   - `ConfigManager` — a classmethod-only gateway to the Settings table
     (a simple key/value JSON store), plus a few semantic helpers
     (rename propagation, hyperparameter profiles, time formatting).

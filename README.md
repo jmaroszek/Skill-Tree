@@ -456,7 +456,7 @@ conda env create -f environment.yml
 conda activate skill-tree
 
 # Launch in sandbox mode (uses the example dataset — safe to mess around)
-python app.py -sandbox
+python app.py --sandbox
 ```
 
 The app opens automatically at `http://127.0.0.1:8050`.
@@ -466,7 +466,7 @@ The app opens automatically at `http://127.0.0.1:8050`.
 - **Sandbox** uses `data/sandbox_skilltree.db` — the example dataset described throughout this README.
 - **Production** uses `data/skilltree.db` — your real life, once you've built it.
 
-To launch production, drop the `-sandbox` flag:
+To launch production, drop the `--sandbox` flag:
 
 ```bash
 python app.py
