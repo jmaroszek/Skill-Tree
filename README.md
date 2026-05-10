@@ -176,7 +176,7 @@ Quick rule of thumb: *if you'd describe a node as "the topic itself,"* leave Inh
 These three relationship types aren't just "stronger" and "weaker" versions of the same idea — they encode genuinely different kinds of connections, and the scoring algorithm treats each one differently. Worth understanding before you draw a lot of arrows.
 
 - **Hard** — a *must-do* prerequisite. The knowledge from A is required for B, or A is just the order that makes most sense to do things in. *Example: algebra has to come before calculus; an introductory book before a reference text.* Hard edges are the only ones that gate eligibility — a node with an incomplete hard prereq is automatically Blocked. The scoring algorithm propagates value strongly through Hard edges (and transitively, so a node sitting upstream of a long Hard chain inherits real weight).
-- **Soft** — *helpful, but not required*. Provides value to the dependent task; you could complete the dependent without it and probably do okay on intuition alone. *Example: learning UX design before setting up a website.* Soft edges propagate value too, but with a smaller per-hop discount than Hard. The Curious profile leans into Soft edges; Industrious leans away from them, since Industrious is built around the critical path.
+- **Soft** — *helpful, but not required*. Provides value to the dependent task; you could complete the dependent without it and probably do okay on intuition alone. *Example: learning UX design before setting up a website.* Soft edges propagate value too, but with a smaller per-hop discount than Hard — meaningful for one to three hops back, then fading out. The Compounder profile lets Soft propagate further; Pragmatic dials it down to focus on the critical path.
 - **Supports / Synergy** — *mutual multiplicative reinforcement*, not a weaker prereq. Two nodes that, done together, are significantly more valuable than the sum of their parts. *Example: Zen and Taoism — learning more about either one deepens your understanding of the other.* Synergy is bidirectional and lateral; it does *not* sit on the same "necessity" axis as Hard and Soft. The scoring algorithm reflects this with two distinct effects: a small **pair bonus** that co-promotes synergy partners into joint consideration before either is started, and a larger **completion multiplier** that boosts a node's intrinsic value once a synergy partner is Done. (More on the multiplier in Settings → Scoring.)
 
 The visual treatment in the subtasks table mirrors this: Hard and Soft sit in the same cool-blue family with different intensities (necessity gradient), while Synergy lands in a distinct teal because it's a categorically different relationship.
@@ -309,11 +309,14 @@ Just like the Details tab, the Events tab has its own mini-graph showing the eve
 
 ### Algorithm profiles
 
-Four presets, plus custom:
+Each profile leans on one axis of the scoring formula. Pick the one that matches your current mindset, or use Custom for full control.
 
-- **Default** — balanced across everything.
-- **Curious** — weights Interest more heavily than Value, good when you want the algorithm to push "fun" stuff up the list.
-- **Industrious** — weights Value and Effort more, for when you want to grind through the hard-but-important stuff.
+- **Default** — balanced across everything. Equal weight on Value and Interest; cascade reaches moderately along Hard and lightly along Soft; cost is balanced between effort and time.
+- **Curious** — Interest weighted over Value. Good when you want the algorithm to push "fun" stuff up the list. Synergy bonuses also lean a bit higher so connected interests cluster together.
+- **Compounder** — long-horizon cascade. A foundational task that unlocks a deep subtree of dependents reaches further up the ranking. Big upfront tasks are punished less because their payoff compounds. Use when you're willing to invest now for downstream payoff.
+- **Pragmatic** — value emphasis plus heavy Priority-Goal weighting. Soft edges and synergies are dialed down; the algorithm focuses on the critical-path prereqs of whatever you've flagged as priority. Pick this when you have a goal and want to grind toward it without distraction. *(Formerly called Industrious.)*
+- **Creator** — synergy and cross-context emphasis. Helps edges carry more weight in general, and Helps edges that span two different contexts (e.g., a Math node linked to a Music node) get an extra multiplier. Use when you're chasing unusual connections across domains.
+- **Sprinter** — strong time penalty, near-linear. Big tasks are heavily deprioritized regardless of payoff; short tasks dominate the top of the list. Pick this when you want quick wins.
 - **Custom** — full manual control of every hyperparameter.
 
 The custom inputs include:
@@ -325,6 +328,7 @@ The custom inputs include:
 - **Soft prerequisite boost** — same but for soft edges.
 - **Pending Bonus** — a small extra weight applied to synergy partners regardless of completion state. Co-promotes synergy pairs so they tend to surface together in the ranking before any work starts. Keep this small — typical values 0.05–0.15.
 - **Done Multiplier** — the multiplicative kick applied to a node's intrinsic value once a synergy partner is Done. Each Done partner adds this much to the multiplier (e.g. 0.40 means one Done partner makes the node 40% more valuable; two Done partners makes it 80% more valuable). This is what captures the "doing both is more than the sum of the parts" intent.
+- **Cross-Context Boost** — multiplier applied to the Pending Bonus when a synergy partner lives in a different context from the node being scored. 1.0 means off; the Creator profile uses 2.0 to reward lateral cross-domain links over within-domain synergies.
 - **Goal boost** — how much extra nudge a Priority Goal gets.
 - **Time estimate weight** — how heavily the time estimate affects cost.
 - **Time mode** — how the three PERT numbers blend.

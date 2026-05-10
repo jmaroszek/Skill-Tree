@@ -131,6 +131,7 @@ def register_settings_callbacks(app):
         Output('hp-ds', 'value'),
         Output('hp-dsyn-pair', 'value'),
         Output('hp-dsyn-mul', 'value'),
+        Output('hp-cross-context-mult', 'value'),
         Output('hp-we', 'value'),
         Output('hp-wt', 'value'),
         Output('hp-beta', 'value'),
@@ -176,7 +177,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 46
+            return (dash.no_update,) * 47
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -281,8 +282,9 @@ def register_settings_callbacks(app):
 
         return (
             hp.get('w_v', 1.0), hp.get('w_i', 1.0),
-            hp.get('d_H', 0.6), hp.get('d_S', 0.25),
+            hp.get('d_H', 0.6), hp.get('d_S', 0.40),
             hp.get('d_Syn_pair', 0.10), hp.get('d_Syn_mul', 0.40),
+            hp.get('cross_context_mult', 1.0),
             hp.get('w_e', 2.5), hp.get('w_t', 1.0), hp.get('beta', 0.85),
             hp.get('goal_boost', 1.5),
             hp.get('alpha', 0.3),
@@ -331,6 +333,7 @@ def register_settings_callbacks(app):
         Output('hp-ds', 'value', allow_duplicate=True),
         Output('hp-dsyn-pair', 'value', allow_duplicate=True),
         Output('hp-dsyn-mul', 'value', allow_duplicate=True),
+        Output('hp-cross-context-mult', 'value', allow_duplicate=True),
         Output('hp-we', 'value', allow_duplicate=True),
         Output('hp-wt', 'value', allow_duplicate=True),
         Output('hp-beta', 'value', allow_duplicate=True),
@@ -345,9 +348,10 @@ def register_settings_callbacks(app):
             p = PROFILES[profile_val]
             return (p['w_v'], p['w_i'], p['d_H'], p['d_S'],
                     p['d_Syn_pair'], p['d_Syn_mul'],
+                    p.get('cross_context_mult', 1.0),
                     p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5),
                     p.get('alpha', 0.3))
-        return (dash.no_update,) * 11
+        return (dash.no_update,) * 12
 
     # --- Settings: Sync Time Estimates ---
     @app.callback(
@@ -398,6 +402,7 @@ def register_settings_callbacks(app):
         State('hp-wv', 'value'), State('hp-wi', 'value'),
         State('hp-dh', 'value'), State('hp-ds', 'value'),
         State('hp-dsyn-pair', 'value'), State('hp-dsyn-mul', 'value'),
+        State('hp-cross-context-mult', 'value'),
         State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
         State('hp-goal-boost', 'value'),
         State('hp-alpha', 'value'),
@@ -439,7 +444,9 @@ def register_settings_callbacks(app):
         State('setting-context-sort-mode', 'value'),
         prevent_initial_call=True,
     )
-    def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul, we, wt, beta, goal_boost,
+    def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul,
+                      cross_context_mult,
+                      we, wt, beta, goal_boost,
                       alpha,
                       n_types_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
@@ -472,6 +479,7 @@ def register_settings_callbacks(app):
                 'w_v': float(wv), 'w_i': float(wi),
                 'd_H': float(dh), 'd_S': float(ds),
                 'd_Syn_pair': float(dsyn_pair), 'd_Syn_mul': float(dsyn_mul),
+                'cross_context_mult': float(cross_context_mult) if cross_context_mult is not None else 1.0,
                 'w_e': float(we), 'w_t': float(wt), 'beta': float(beta),
                 'goal_boost': float(goal_boost) if goal_boost is not None else 1.5,
                 'alpha': _clamp(alpha, 0.0, 1.5, 0.3),

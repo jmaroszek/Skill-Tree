@@ -133,6 +133,7 @@ def total_value(
     w_v: float, w_i: float, d_H: float, d_S: float,
     d_Syn_pair: float, d_Syn_mul: float,
     memo: Optional[dict] = None,
+    cross_context_mult: float = 1.0,
 ) -> float:
     """Computes Total Value = scaled intrinsic + DAG cascade + Syn pair bonus.
 
@@ -177,11 +178,19 @@ def total_value(
     for z in Syn.get(node_name, set()):
         if z in visited or z == node_name:
             continue
-        syn_additive += d_Syn_pair * _tv_dag(
+        z_node = all_nodes.get(z)
+        # Cross-context Helps edges get a multiplier — the Creator profile
+        # uses this to reward lateral cross-domain links over within-domain
+        # synergies. Applies to the pair bonus only (the multiplicative kick
+        # on intrinsic is a node-level scalar and stays context-blind).
+        ctx_mult = 1.0
+        if cross_context_mult != 1.0 and z_node is not None and node.context is not None \
+                and z_node.context is not None and z_node.context != node.context:
+            ctx_mult = cross_context_mult
+        syn_additive += ctx_mult * d_Syn_pair * _tv_dag(
             z, all_nodes, H_out, S_out,
             w_v, w_i, d_H, d_S, memo, computing,
         )
-        z_node = all_nodes.get(z)
         if z_node is not None and z_node.status == STATUS_DONE:
             done_syn += 1
 
@@ -214,9 +223,10 @@ def _compute_priority_score(
     w_v = hyperparams.get('w_v', 1.0)
     w_i = hyperparams.get('w_i', 1.0)
     d_H = hyperparams.get('d_H', 0.6)
-    d_S = hyperparams.get('d_S', 0.25)
+    d_S = hyperparams.get('d_S', 0.40)
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -234,6 +244,7 @@ def _compute_priority_score(
     tv = total_value(
         node.name, set(), all_nodes_dict, H_out, S_out, Syn,
         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+        cross_context_mult=cross_context_mult,
     )
     score = round(tv / cost, 2) if cost > 0 else 0.0
 
@@ -280,9 +291,10 @@ def score_nodes(
     w_v = hyperparams.get('w_v', 1.0)
     w_i = hyperparams.get('w_i', 1.0)
     d_H = hyperparams.get('d_H', 0.6)
-    d_S = hyperparams.get('d_S', 0.25)
+    d_S = hyperparams.get('d_S', 0.40)
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -344,6 +356,7 @@ def score_nodes(
         return total_value(
             name, set(), all_nodes_dict, H_out, S_out, Syn,
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+            cross_context_mult=cross_context_mult,
         )
 
     scored_nodes = []
@@ -459,6 +472,8 @@ def _reachable_topo(start: str, H_out: dict, S_out: dict, Syn: dict) -> List[str
 def _contribution_weights(
     start: str, H_out: dict, S_out: dict, Syn: dict,
     d_H: float, d_S: float, d_Syn_pair: float,
+    all_nodes_dict: Optional[Dict] = None,
+    cross_context_mult: float = 1.0,
 ) -> Dict[str, float]:
     """Forward-propagate discount weights from `start`.
 
@@ -468,12 +483,26 @@ def _contribution_weights(
     portion of TV, `contribution(D) = W(D) * IV(D)` and the contributions
     sum to (intrinsic + cascade + syn_additive). The synergy multiplier
     on intrinsic is a node-level scalar, applied separately by callers.
+
+    `cross_context_mult` mirrors the same logic in `total_value`: when a
+    synergy partner is in a different context from `start`, its seed
+    weight gets multiplied. Requires `all_nodes_dict` to look up contexts;
+    falls back to no-multiplier behavior if not supplied (e.g. legacy
+    callers).
     """
     topo = _reachable_topo(start, H_out, S_out, Syn)
     W: Dict[str, float] = {start: 1.0}
+    start_node = all_nodes_dict.get(start) if all_nodes_dict else None
+    start_ctx = start_node.context if start_node is not None else None
     for z in Syn.get(start, set()):
-        if z != start:
-            W[z] = W.get(z, 0.0) + d_Syn_pair
+        if z == start:
+            continue
+        ctx_mult = 1.0
+        if cross_context_mult != 1.0 and start_ctx is not None and all_nodes_dict is not None:
+            z_node = all_nodes_dict.get(z)
+            if z_node is not None and z_node.context is not None and z_node.context != start_ctx:
+                ctx_mult = cross_context_mult
+        W[z] = W.get(z, 0.0) + ctx_mult * d_Syn_pair
 
     for n in topo:
         w = W.get(n, 0.0)
@@ -561,9 +590,10 @@ def explain_score(
     w_v = hyperparams.get('w_v', 1.0)
     w_i = hyperparams.get('w_i', 1.0)
     d_H = hyperparams.get('d_H', 0.6)
-    d_S = hyperparams.get('d_S', 0.25)
+    d_S = hyperparams.get('d_S', 0.40)
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -600,7 +630,9 @@ def explain_score(
                           time_override=t_override, effort_override=e_override)
 
     # Contribution weights + per-node metadata
-    W = _contribution_weights(node_name, H_out, S_out, Syn, d_H, d_S, d_Syn_pair)
+    W = _contribution_weights(node_name, H_out, S_out, Syn, d_H, d_S, d_Syn_pair,
+                              all_nodes_dict=all_nodes_dict,
+                              cross_context_mult=cross_context_mult)
     depth, via = _depth_and_via(node_name, H_out, S_out, Syn, W)
 
     # Synergy multiplier on intrinsic: kicks in when partners are Done.
@@ -729,6 +761,7 @@ def explain_score(
             'w_v': w_v, 'w_i': w_i, 'w_e': w_e, 'w_t': w_t, 'beta': beta,
             'd_H': d_H, 'd_S': d_S,
             'd_Syn_pair': d_Syn_pair, 'd_Syn_mul': d_Syn_mul,
+            'cross_context_mult': cross_context_mult,
             'goal_boost': goal_boost,
             'alpha': alpha,
         },

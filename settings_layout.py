@@ -256,7 +256,10 @@ def build_settings_tab_content():
                                 dbc.Select(id="setting-hp-profile", options=[
                                     {"label": "Default", "value": "Default"},
                                     {"label": "Curious", "value": "Curious"},
-                                    {"label": "Industrious", "value": "Industrious"},
+                                    {"label": "Compounder", "value": "Compounder"},
+                                    {"label": "Pragmatic", "value": "Pragmatic"},
+                                    {"label": "Creator", "value": "Creator"},
+                                    {"label": "Sprinter", "value": "Sprinter"},
                                     {"label": "Custom", "value": "Custom"}
                                 ], value="Default"),
                             ], width=4),
@@ -280,7 +283,7 @@ def build_settings_tab_content():
                                 "The node's worth on its own, before any cascade or synergy.",
                             ], className="text-muted")),
                             dbc.Col(html.Small(
-                                "Hard/Soft: value kept per cascade hop. Pending Bonus: additive boost each gets before either is done. Done Multiplier: multiplicative boost the other gets when one is done.",
+                                "Hard/Soft: value kept per cascade hop. Pending Bonus: additive boost each gets before either is done. Done Multiplier: multiplicative boost the other gets when one is done. Cross-Context Boost: scales the Pending Bonus when synergy partners live in different contexts (1.0 = off).",
                                 className="text-muted")),
                             dbc.Col(html.Small([
                                 html.Span("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2",
@@ -309,6 +312,8 @@ def build_settings_tab_content():
                                 dbc.Input(id="hp-dsyn-pair", type="number", step="any"),
                                 dbc.Label("Done Multiplier", className="mt-2"),
                                 dbc.Input(id="hp-dsyn-mul", type="number", step="any"),
+                                dbc.Label("Cross-Context Boost", className="mt-2"),
+                                dbc.Input(id="hp-cross-context-mult", type="number", step="any"),
                             ]),
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step="any")]),
                         ], className="mb-2"),

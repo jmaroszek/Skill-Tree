@@ -154,9 +154,10 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp):
     w_v = hp.get('w_v', 1.0)
     w_i = hp.get('w_i', 1.0)
     d_H = hp.get('d_H', 0.6)
-    d_S = hp.get('d_S', 0.25)
+    d_S = hp.get('d_S', 0.40)
     d_Syn_pair = hp.get('d_Syn_pair', 0.10)
     d_Syn_mul = hp.get('d_Syn_mul', 0.40)
+    cross_context_mult = hp.get('cross_context_mult', 1.0)
     goal_boost = hp.get('goal_boost', 1.5)
     rank_multipliers = [
         goal_boost,
@@ -184,6 +185,7 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp):
         tv = total_value(
             g.name, set(), all_nodes_dict, H_out, S_out, Syn,
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+            cross_context_mult=cross_context_mult,
         )
         if g.name in priority_goals:
             rank_idx = priority_goals.index(g.name)

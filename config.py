@@ -48,7 +48,7 @@ DB_FILENAME = "skilltree.db"
 
 # --- Weekly backup script (backup.py, invoked by Windows Task Scheduler) ---
 BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
-BACKUP_LOG_FILE = r'C:\Users\jonah\Documents\Code\Skill Tree\data\backup_log.txt'
+BACKUP_LOG_FILE = r'C:\Users\jonah\Documents\Code\Skill Tree\data\backup_log.log'
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 DEFAULT_CONTEXTS = [
