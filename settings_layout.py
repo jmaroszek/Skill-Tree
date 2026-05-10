@@ -11,6 +11,9 @@ from config import (
     SUBCONTEXT_SORT_DEFINITION,
     SUBCONTEXT_SORT_LENGTH,
     SUBCONTEXT_SORT_ALPHABETICAL,
+    CONTEXT_SORT_DEFINITION,
+    CONTEXT_SORT_LENGTH,
+    CONTEXT_SORT_ALPHABETICAL,
 )
 
 _RESTORE_ICON = "\u21ba"  # ↺ anticlockwise open circle arrow
@@ -193,7 +196,28 @@ def build_settings_tab_content():
                         # --- Context definitions ---
                         html.H5("Definitions", className="mt-2 mb-1"),
                         html.Small("One context per line. Optionally add a colon and comma-separated subcontexts.", className="text-muted d-block mb-1"),
-                        dbc.Textarea(id="setting-subcontexts", rows=8, placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial"),
+                        dbc.Textarea(
+                            id="setting-subcontexts",
+                            rows=3,
+                            placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial",
+                            style={"resize": "none", "overflow": "hidden"},
+                        ),
+
+                        # --- Context dropdown sort order ---
+                        dbc.Label("Context Dropdown Order", className="mt-2"),
+                        dbc.RadioItems(
+                            id="setting-context-sort-mode",
+                            options=[
+                                {"label": "None", "value": CONTEXT_SORT_DEFINITION},
+                                {"label": "Length", "value": CONTEXT_SORT_LENGTH},
+                                {"label": "Alphabetical", "value": CONTEXT_SORT_ALPHABETICAL},
+                            ],
+                            value=CONTEXT_SORT_DEFINITION,
+                            inline=True,
+                        ),
+                        html.Small(
+                            "None keeps the order defined above. Length sorts shortest first. Alphabetical sorts A–Z.",
+                            className="text-muted d-block mb-1"),
 
                         # --- Subcontext dropdown sort order ---
                         dbc.Label("Subcontext Dropdown Order", className="mt-2"),

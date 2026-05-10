@@ -76,6 +76,17 @@ SUBCONTEXT_SORT_MODES = (
 )
 DEFAULT_SUBCONTEXT_SORT_MODE = SUBCONTEXT_SORT_DEFINITION
 
+# Sort modes for context dropdown menus. Same three modes as subcontexts.
+CONTEXT_SORT_DEFINITION = 'definition'
+CONTEXT_SORT_LENGTH = 'length'
+CONTEXT_SORT_ALPHABETICAL = 'alphabetical'
+CONTEXT_SORT_MODES = (
+    CONTEXT_SORT_DEFINITION,
+    CONTEXT_SORT_LENGTH,
+    CONTEXT_SORT_ALPHABETICAL,
+)
+DEFAULT_CONTEXT_SORT_MODE = CONTEXT_SORT_DEFINITION
+
 
 def sort_subcontexts(subs, mode=None):
     """Return a list of subcontexts sorted by the user's configured mode.
@@ -90,6 +101,24 @@ def sort_subcontexts(subs, mode=None):
     if mode == SUBCONTEXT_SORT_LENGTH:
         return sorted(items, key=len)
     if mode == SUBCONTEXT_SORT_ALPHABETICAL:
+        return sorted(items, key=lambda s: s.lower())
+    return items
+
+
+def sort_contexts(ctxs, mode=None):
+    """Return a list of contexts sorted by the user's configured mode.
+
+    Mirrors `sort_subcontexts`. `None` falls back to the live ConfigManager value.
+    """
+    if mode is None:
+        mode = ConfigManager.get_context_sort_mode()
+    items = list(ctxs)
+    if mode == CONTEXT_SORT_LENGTH:
+        # "Life" renders visibly narrower than other 4-char contexts (Mind, STEM)
+        # in proportional fonts — pin it ahead of same-length peers so the visual
+        # order matches a true shortest-first read of the user's actual contexts.
+        return sorted(items, key=lambda s: (len(s), 0 if s == 'Life' else 1))
+    if mode == CONTEXT_SORT_ALPHABETICAL:
         return sorted(items, key=lambda s: s.lower())
     return items
 
@@ -425,6 +454,19 @@ class ConfigManager:
         if mode not in SUBCONTEXT_SORT_MODES:
             mode = DEFAULT_SUBCONTEXT_SORT_MODE
         cls._set_db_value("SUBCONTEXT_SORT_MODE", mode)
+
+    @classmethod
+    def get_context_sort_mode(cls) -> str:
+        val = cls._get_db_value("CONTEXT_SORT_MODE")
+        if val in CONTEXT_SORT_MODES:
+            return val
+        return DEFAULT_CONTEXT_SORT_MODE
+
+    @classmethod
+    def set_context_sort_mode(cls, mode: str):
+        if mode not in CONTEXT_SORT_MODES:
+            mode = DEFAULT_CONTEXT_SORT_MODE
+        cls._set_db_value("CONTEXT_SORT_MODE", mode)
 
     @classmethod
     def get_node_colors(cls):

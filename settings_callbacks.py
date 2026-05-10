@@ -7,7 +7,7 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
-from config import ConfigManager, sort_subcontexts
+from config import ConfigManager, sort_subcontexts, sort_contexts
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import get_trigger_id, build_context_weight_rows, detect_context_renames
@@ -108,6 +108,21 @@ def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals:
 
 def register_settings_callbacks(app):
 
+    # --- Settings: Auto-resize the Definitions textarea to fit its line count ---
+    # Bounds [3, 10] rows. Fires on every keystroke; runs in the browser so
+    # no server round-trip. Mirrors the manual-resize disable in the layout's
+    # textarea style.
+    app.clientside_callback(
+        """
+        function(value) {
+            var n = (value || '').split('\\n').length;
+            return Math.max(3, Math.min(10, n));
+        }
+        """,
+        Output('setting-subcontexts', 'rows'),
+        Input('setting-subcontexts', 'value'),
+    )
+
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
         Output('hp-wv', 'value'),
@@ -155,12 +170,13 @@ def register_settings_callbacks(app):
         Output('setting-analyze-connected', 'value'),
         Output('setting-show-scoring-perf', 'value'),
         Output('setting-subcontext-sort-mode', 'value'),
+        Output('setting-context-sort-mode', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 45
+            return (dash.no_update,) * 46
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -247,7 +263,7 @@ def register_settings_callbacks(app):
 
         type_color_rows = [_type_color_row(t) for t in display_types]
 
-        weight_rows = build_context_weight_rows(contexts, ctx_weights)
+        weight_rows = build_context_weight_rows(sort_contexts(contexts), ctx_weights)
 
         ts = ConfigManager.get_time_settings()
         from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
@@ -304,6 +320,7 @@ def register_settings_callbacks(app):
             al.get('connected', DEFAULT_ANALYZE_LIMITS['connected']),
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
             ConfigManager.get_subcontext_sort_mode(),
+            ConfigManager.get_context_sort_mode(),
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -419,6 +436,7 @@ def register_settings_callbacks(app):
         State('setting-analyze-connected', 'value'),
         State('setting-show-scoring-perf', 'value'),
         State('setting-subcontext-sort-mode', 'value'),
+        State('setting-context-sort-mode', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul, we, wt, beta, goal_boost,
@@ -434,7 +452,8 @@ def register_settings_callbacks(app):
                       egl_edge_length, egl_gravity, egl_repulsion,
                       al_bottlenecks, al_goals, al_risk,
                       al_time_sinks, al_deepest, al_connected,
-                      show_scoring_perf_val, subcontext_sort_mode_val):
+                      show_scoring_perf_val, subcontext_sort_mode_val,
+                      context_sort_mode_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -447,6 +466,8 @@ def register_settings_callbacks(app):
             )
             if subcontext_sort_mode_val:
                 ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
+            if context_sort_mode_val:
+                ConfigManager.set_context_sort_mode(context_sort_mode_val)
             new_hp = {
                 'w_v': float(wv), 'w_i': float(wi),
                 'd_H': float(dh), 'd_S': float(ds),
@@ -689,7 +710,7 @@ def register_settings_callbacks(app):
 
             saved_contexts = new_contexts if new_contexts else ConfigManager.get_contexts()
             refreshed_weight_rows = build_context_weight_rows(
-                saved_contexts, ConfigManager.get_context_weights()
+                sort_contexts(saved_contexts), ConfigManager.get_context_weights()
             )
             return "Settings saved", dash.no_update, False, 0, refreshed_weight_rows
 

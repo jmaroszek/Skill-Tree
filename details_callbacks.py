@@ -10,7 +10,7 @@ import numpy as np
 import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import (ConfigManager, badge_style, sort_subcontexts,
+from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
                     SIDEBAR_WIDTH_NEG_PX)
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table, build_goal_card,
@@ -1184,7 +1184,7 @@ def register_details_callbacks(app):
             return (no_update,) * 44
 
         types = ConfigManager.get_node_types()
-        contexts = ConfigManager.get_contexts()
+        contexts = sort_contexts(ConfigManager.get_contexts())
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": c, "value": c} for c in contexts]
 

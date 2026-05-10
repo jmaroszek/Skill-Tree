@@ -16,6 +16,7 @@ from config import (
     SIDEBAR_WIDTH_NEG_PX,
     SIDEBAR_TRANSLATE_CLOSED,
     sort_subcontexts,
+    sort_contexts,
 )
 from events_layout import build_events_tab_content, build_events_sidebar_content
 from details_layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
@@ -26,7 +27,7 @@ from models import STATUS_DONE
 
 # These are only used for the initial render; core_engine refreshes them dynamically.
 NODE_TYPES = ConfigManager.get_node_types()
-CONTEXTS = ConfigManager.get_contexts()
+CONTEXTS = sort_contexts(ConfigManager.get_contexts())
 _TED = ConfigManager.get_time_estimate_defaults()
 
 # --- Sidebar (Node Editor) ---

@@ -16,7 +16,7 @@ import dash_bootstrap_components as dbc
 
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import (ConfigManager, badge_style, sort_subcontexts,
+from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
                     SIDEBAR_WIDTH_PX, SIDEBAR_WIDTH_NEG_PX, SIDEBAR_TRANSLATE_CLOSED)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from next_callbacks import get_suggestions, get_override_set
@@ -1880,9 +1880,9 @@ def register_callbacks(app):
             for alias, node_name in manager.get_all_aliases().items():
                 search_options.append({'label': f"{alias} \u2192 {node_name}", 'value': f"alias:{alias}"})
 
-            # Populate dynamic contexts datalists from DB + Config preserving defined order
-            base_ctx = ConfigManager.get_contexts()
-            
+            # Populate dynamic contexts datalists from DB + Config, sorted per user setting.
+            base_ctx = sort_contexts(ConfigManager.get_contexts())
+
             ctx_list = [{"label": c, "value": c} for c in base_ctx]
             f_ctx_list = [{"label": c, "value": c} for c in base_ctx]
 
