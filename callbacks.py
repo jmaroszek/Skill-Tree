@@ -32,6 +32,7 @@ from callback_helpers import (
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state,
     habit_to_hours, compute_habit_time_omp, resolve_time_mode,
+    resolve_locked_time_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -1058,11 +1059,11 @@ def register_callbacks(app):
     # --- Locked Inherit toggle for Goal / Milestone ---
     # Container types must always inherit time from their children. This callback
     # forces 'inherited' ON whenever the type is Goal or Milestone, and reveals an
-    # inline warning if the user attempts to toggle it off. The trigger-id check
-    # distinguishes user-initiated toggles from system-induced bounce-backs:
-    # the bounce-back fires the same Input again with value=['inherited'], and
-    # we use no_update for the warning in that second cycle so we don't clobber
-    # the message we just made visible.
+    # inline warning if the user attempts to toggle it off. We use the full set
+    # of triggered IDs (not just triggered[0]) to distinguish user-initiated
+    # toggles from form-populate cycles: when only node-time-mode is in the
+    # trigger set it's a real toggle / bounce-back; when node-type also fires
+    # it's a type change or full form populate and the warning should clear.
     @app.callback(
         Output('node-time-mode', 'value', allow_duplicate=True),
         Output('time-mode-warning', 'style'),
@@ -1072,32 +1073,8 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def enforce_locked_time_mode(time_mode_val, node_type):
-        hidden = {"display": "none"}
-        visible = {"display": "block", "color": "#dc3545", "fontSize": "0.85rem"}
-        trig = get_trigger_id()
-
-        if node_type not in ('Goal', 'Milestone'):
-            # Type isn't a container — clear any lingering warning, no force.
-            return time_mode_val, hidden, ""
-
-        inherited_on = bool(time_mode_val and 'inherited' in time_mode_val)
-        if inherited_on:
-            # Already correct. If the trigger is a type change (just switched
-            # into Goal/Milestone), clear any stale warning. If the trigger is
-            # node-time-mode, we are in the second cycle of a bounce-back —
-            # preserve the warning we just set visible (no_update).
-            if trig == 'node-type':
-                return no_update, hidden, ""
-            return no_update, no_update, no_update
-
-        # Inherited is OFF and type requires it ON — force back.
-        msg = (f"Inherit mode is required for {node_type} nodes — "
-               "their time is the sum of their children's.")
-        if trig == 'node-time-mode':
-            # User-initiated toggle-off — bounce back AND show warning.
-            return ['inherited'], visible, msg
-        # System-induced (type change with form value not yet inherited) — silent.
-        return ['inherited'], hidden, ""
+        only_time_mode = (get_all_triggered_ids() == {'node-time-mode'})
+        return resolve_locked_time_mode(time_mode_val, node_type, only_time_mode)
 
     # --- Live total-hours preview for habit mode ---
     @app.callback(

@@ -190,6 +190,34 @@ def get_all_triggered_ids(triggered_props=None):
     return {t['prop_id'].split('.')[0] for t in triggered_props}
 
 
+def resolve_locked_time_mode(time_mode_val, node_type, only_time_mode_triggered):
+    """Pure logic for the Goal/Milestone locked-inherit callback.
+
+    Returns ``(new_time_mode, warning_style, warning_text)``. ``dash.no_update``
+    sentinels are passed through. ``only_time_mode_triggered`` should be True
+    iff the set of triggered Input IDs is exactly ``{'node-time-mode'}`` — that
+    distinguishes a real user toggle / bounce-back from a form-populate cycle
+    where ``node-type`` also fires.
+    """
+    hidden = {"display": "none"}
+    visible = {"display": "block", "color": "#dc3545", "fontSize": "0.85rem"}
+
+    if node_type not in ('Goal', 'Milestone'):
+        return time_mode_val, hidden, ""
+
+    inherited_on = bool(time_mode_val and 'inherited' in time_mode_val)
+    if inherited_on:
+        if only_time_mode_triggered:
+            return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, hidden, ""
+
+    msg = (f"Inherit mode is required for {node_type} nodes — "
+           "their time is the sum of their children's.")
+    if only_time_mode_triggered:
+        return ['inherited'], visible, msg
+    return ['inherited'], hidden, ""
+
+
 def should_open_editor(all_triggered_ids, trigger_id, search_val):
     """Decide whether the sidebar editor should slide open.
 
