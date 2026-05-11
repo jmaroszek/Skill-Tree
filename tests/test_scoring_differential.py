@@ -63,6 +63,7 @@ def _baseline_score_nodes(
     d_S = hyperparams.get('d_S', 0.25)
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -121,7 +122,8 @@ def _baseline_score_nodes(
                               time_override=t_override, effort_override=e_override)
         # CRITICAL: memo=None — replicates pre-Phase-E behavior.
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn,
-                         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None)
+                         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None,
+                         cross_context_mult=cross_context_mult)
         score = round(tv / cost, 2)
         if node.name in node_to_boost:
             score = round(score * node_to_boost[node.name], 2)
