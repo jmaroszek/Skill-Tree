@@ -2080,6 +2080,10 @@ class TestTimeMultiplier:
         assert ConfigManager.get_time_multiplier('weeks') == 20
         assert ConfigManager.get_time_multiplier('months') == 80
 
+    def test_years_returns_thirteen_months(self):
+        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        assert ConfigManager.get_time_multiplier('years') == 13 * 80
+
 
 # ============================================================================
 # ConfigManager — format_time_friendly
@@ -2123,6 +2127,24 @@ class TestFormatTimeFriendly:
         ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
         result = ConfigManager.format_time_friendly(320.0)
         assert result == "2m"
+
+    def test_years_format(self):
+        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
+        # 13 months = 1 year; 2 years = 26 months = 4160 hours
+        result = ConfigManager.format_time_friendly(4160.0)
+        assert result == "2y"
+
+    def test_exactly_one_year(self):
+        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        # 1 year = 13 × 80 = 1040h
+        result = ConfigManager.format_time_friendly(1040.0)
+        assert result == "1y"
+
+    def test_year_threshold_just_under(self):
+        # Just below 1 year should still display as months.
+        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        result = ConfigManager.format_time_friendly(1039.0)
+        assert result.endswith("m")
 
 
 # ============================================================================

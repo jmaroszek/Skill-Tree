@@ -58,6 +58,10 @@ class TestHabitToHours:
         # 1 month (30-day approx) × 30 min/day = 15 h
         assert habit_to_hours(1, 'months', 30, 'min_per_day') == 15.0
 
+    def test_years_unit(self):
+        # 1 year (365-day approx) × 30 min/day = 182.5 h
+        assert habit_to_hours(1, 'years', 30, 'min_per_day') == 182.5
+
     def test_none_intensity_unit_defaults_to_min_per_day(self):
         # None falls back to 'min_per_day' via the `or` clause.
         assert habit_to_hours(6, 'weeks', 30, None) == 21.0

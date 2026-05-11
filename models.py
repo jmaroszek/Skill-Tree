@@ -67,7 +67,7 @@ class Node:
     # canonical hours used by scoring still live in time_o/m/p; these are
     # the source of truth for repopulating the habit form.
     habit_duration: float = 0.0
-    habit_duration_unit: str = 'weeks'         # 'days' | 'weeks' | 'months'
+    habit_duration_unit: str = 'weeks'         # 'days' | 'weeks' | 'months' | 'years'
     habit_intensity_o: float = 0.0
     habit_intensity_m: float = 0.0
     habit_intensity_p: float = 0.0
@@ -93,7 +93,7 @@ class Node:
         self.habit_intensity_o = float(self.habit_intensity_o) if self.habit_intensity_o else 0.0
         self.habit_intensity_m = float(self.habit_intensity_m) if self.habit_intensity_m else 0.0
         self.habit_intensity_p = float(self.habit_intensity_p) if self.habit_intensity_p else 0.0
-        if self.habit_duration_unit not in ('days', 'weeks', 'months'):
+        if self.habit_duration_unit not in ('days', 'weeks', 'months', 'years'):
             self.habit_duration_unit = 'weeks'
         if self.habit_intensity_unit not in (
             'min_per_day', 'hr_per_day', 'min_per_week', 'hr_per_week'

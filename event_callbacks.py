@@ -1107,6 +1107,8 @@ def register_event_callbacks(app):
                 delay_days_val = delay_value_int * 7
             elif delay_unit == "months":
                 delay_days_val = delay_value_int * 30
+            elif delay_unit == "years":
+                delay_days_val = delay_value_int * 365
             else:
                 delay_days_val = delay_value_int
 
@@ -1174,6 +1176,8 @@ def register_event_callbacks(app):
             delay_days = delay_value * 7
         elif delay_unit == "months":
             delay_days = delay_value * 30
+        elif delay_unit == "years":
+            delay_days = delay_value * 365
         else:
             delay_days = delay_value
 

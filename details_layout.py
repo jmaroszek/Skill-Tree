@@ -1091,6 +1091,7 @@ def _build_add_node_modal(ted):
                         {"label": "Hours", "value": "hours"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
+                        {"label": "Years", "value": "years"},
                     ], value=ted.get('unit', 'weeks'), size="sm",
                         style={"width": "100px"})
                 ], className="d-flex align-items-center mb-2"),
@@ -1121,6 +1122,7 @@ def _build_add_node_modal(ted):
                                 {"label": "Days", "value": "days"},
                                 {"label": "Weeks", "value": "weeks"},
                                 {"label": "Months", "value": "months"},
+                                {"label": "Years", "value": "years"},
                             ], value="weeks"),
                         ], width=4),
                     ], className="mb-2"),

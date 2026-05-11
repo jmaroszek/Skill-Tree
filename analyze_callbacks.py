@@ -531,10 +531,58 @@ def _integer_dtick(max_val):
     return max(1, round(max_val / 6))
 
 
-def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, height=None, integer_x=False):
+def _friendly_xticks(max_val: float) -> tuple[list, list]:
+    """Return (tickvals, ticktext) for an hours-valued axis with friendly labels.
+
+    Picks a step that scales with the user's productivity settings — years for
+    very large ranges, then months, weeks, hours — and labels each tick via
+    ``ConfigManager.format_time_friendly`` so the axis reads "1y" / "2m" /
+    "3w" / "8h" instead of raw hour counts.
+    """
+    if max_val <= 0:
+        return [0], ["0h"]
+    settings = ConfigManager.get_time_settings()
+    hw = max(1, settings.get('hours_per_week', 40))
+    hm = max(1, settings.get('hours_per_month', 160))
+    hy = ConfigManager.HOURS_PER_YEAR_MULT * hm
+
+    # Pick a step that gives roughly 4-7 ticks for the visible range.
+    if max_val >= 4 * hy:
+        step = hy
+    elif max_val >= 1.5 * hy:
+        step = hy / 2
+    elif max_val >= 4 * hm:
+        step = hm
+    elif max_val >= 1.5 * hm:
+        step = hm / 2
+    elif max_val >= 4 * hw:
+        step = hw
+    elif max_val >= 1.5 * hw:
+        step = hw / 2
+    elif max_val >= 20:
+        step = 5
+    elif max_val >= 10:
+        step = 2
+    else:
+        step = 1
+
+    tickvals = [0]
+    v = step
+    while v <= max_val * 1.05:
+        tickvals.append(round(v, 4))
+        v += step
+    ticktext = [ConfigManager.format_time_friendly(t) for t in tickvals]
+    return tickvals, ticktext
+
+
+def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None,
+                height=None, integer_x=False, friendly_x=False):
     """Create a standard horizontal bar chart figure.
 
-    integer_x: when True, force integer-only x-axis ticks (for counts, not hours).
+    integer_x: force integer-only x-axis ticks (for counts, not hours).
+    friendly_x: when the x values are hours, render ticks via
+        ConfigManager.format_time_friendly (e.g. "1y", "2m") instead of raw
+        hour counts. Mutually exclusive with integer_x.
     """
     if not names:
         return None
@@ -562,6 +610,11 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None, heig
         xaxis['tick0'] = 0
         xaxis['dtick'] = _integer_dtick(max(values))
         xaxis['tickformat'] = 'd'
+    elif friendly_x and values:
+        tickvals, ticktext = _friendly_xticks(max(values))
+        xaxis['tickmode'] = 'array'
+        xaxis['tickvals'] = tickvals
+        xaxis['ticktext'] = ticktext
     fig.update_layout(**_base_layout(
         height=height,
         margin=dict(l=10, r=20, t=10, b=30),
@@ -649,7 +702,7 @@ def _render_time_distribution(ctx_chart, subctx_chart, top_nodes, risk_data, row
             for n in top_nodes
         ]
         fig = _hbar_chart(names, values, colors='#6f42c1', hover_texts=hover,
-                          x_title="Hours", height=row_height)
+                          friendly_x=True, height=row_height)
         top_cols.append(dbc.Col([
             html.H6("Longest Projects", className="text-muted mb-1"),
             dcc.Graph(figure=fig, config=_CHART_CFG),
@@ -1048,7 +1101,7 @@ def _render_context_coverage(ctx_data, subctx_data, chart_height=None):
         ]
         height = chart_height or max(180, len(names) * 28 + 60)
         fig = _hbar_chart(names, hours, colors=colors, hover_texts=hover,
-                          x_title="Hours", height=height)
+                          friendly_x=True, height=height)
         # Override the reversal -- data is already sorted ascending (sparsest at top).
         # Plotly trace attribute types are stricter than runtime; the ignores below are false positives.
         fig.data[0].y = names  # pyright: ignore[reportOptionalMemberAccess]

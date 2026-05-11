@@ -248,13 +248,14 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
 def _friendly_time_estimates(time_o, time_m, time_p):
     """Convert stored hour values for display in the node editor.
 
-    Uses weeks as the maximum unit — never months — so the editor always
-    shows values in hours or weeks regardless of magnitude.  Returns (o, m, p, unit_string).
+    Uses weeks as the maximum unit — never months or years — so the editor
+    always shows values in hours or weeks regardless of magnitude. Returns
+    (o, m, p, unit_string).
     """
     max_hours = max(time_o or 0, time_m or 0, time_p or 0)
     _, unit = ConfigManager.hours_to_friendly_unit(max_hours)
-    # Cap at weeks: months is too coarse for direct editing
-    if unit == 'months':
+    # Cap at weeks: months/years are too coarse for direct editing
+    if unit in ('months', 'years'):
         unit = 'weeks'
     multiplier = ConfigManager.get_time_multiplier(unit)
     def _convert(h):

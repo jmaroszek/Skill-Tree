@@ -279,6 +279,7 @@ sidebar_content = html.Div(
                         {"label": "Hours", "value": "hours"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
+                        {"label": "Years", "value": "years"},
                     ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"}),
                 ], className="d-flex align-items-center mb-2"),
                 html.Div(id="time-mode-warning",
@@ -307,6 +308,7 @@ sidebar_content = html.Div(
                                 {"label": "Days", "value": "days"},
                                 {"label": "Weeks", "value": "weeks"},
                                 {"label": "Months", "value": "months"},
+                                {"label": "Years", "value": "years"},
                             ], value="weeks"),
                         ], width=4),
                     ], className="mb-2"),
@@ -552,6 +554,7 @@ def build_filters_content():
                 {"label": "Hours", "value": "hours"},
                 {"label": "Weeks", "value": "weeks"},
                 {"label": "Months", "value": "months"},
+                {"label": "Years", "value": "years"},
             ], value=f["time_unit"], size="sm", style={"width": "100px"}),
         ], className="d-flex gap-2"),
 

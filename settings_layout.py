@@ -476,7 +476,9 @@ def build_settings_tab_content():
                                 dbc.Label("Hours per Week"),
                                 dbc.Input(id="setting-hpw", type="number", min=1, step=1, className="mb-2"),
                                 dbc.Label("Hours per Month"),
-                                dbc.Input(id="setting-hpm", type="number", min=1, step=1),
+                                dbc.Input(id="setting-hpm", type="number", min=1, step=1, className="mb-2"),
+                                dbc.Label("Hours per Year"),
+                                dbc.Input(id="setting-hpy", type="number", min=1, step=1),
                             ], width=4),
                             dbc.Col(style={"borderLeft": "1px solid #444", "paddingLeft": "1.5rem"}, children=[
                                 html.Small("Pre-filled values when creating new nodes.", className="text-muted d-block mb-2"),
@@ -487,6 +489,7 @@ def build_settings_tab_content():
                                             {"label": "Hours", "value": "hours"},
                                             {"label": "Weeks", "value": "weeks"},
                                             {"label": "Months", "value": "months"},
+                                            {"label": "Years", "value": "years"},
                                         ]),
                                     ], width=4),
                                 ], className="mb-2"),

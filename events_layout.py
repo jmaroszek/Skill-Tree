@@ -289,6 +289,7 @@ def build_events_tab_content():
                     {"label": "Hours", "value": "hours"},
                     {"label": "Weeks", "value": "weeks"},
                     {"label": "Months", "value": "months"},
+                    {"label": "Years", "value": "years"},
                 ], value=_ted.get('unit', 'weeks'), size="sm", style={"width": "100px"})
             ], className="d-flex align-items-center mb-2"),
             html.Div(id="dormant-node-time-omp", children=[
@@ -311,6 +312,7 @@ def build_events_tab_content():
                             {"label": "Days", "value": "days"},
                             {"label": "Weeks", "value": "weeks"},
                             {"label": "Months", "value": "months"},
+                            {"label": "Years", "value": "years"},
                         ], value="weeks"),
                     ], width=4),
                 ], className="mb-2"),
@@ -388,6 +390,7 @@ def build_events_tab_content():
                         {"label": "Days", "value": "days"},
                         {"label": "Weeks", "value": "weeks"},
                         {"label": "Months", "value": "months"},
+                        {"label": "Years", "value": "years"},
                     ], value="days"),
                 ], width=6),
             ]),
@@ -712,9 +715,11 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
 def _delay_days_to_form(delay_days: int) -> tuple[int, str]:
     """Invert a delay_days integer back to the (value, unit) pair used by
     the Dormant Node modal's delay input. Mirrors save_dormant_node's
-    forward arithmetic: months × 30, weeks × 7, else days."""
+    forward arithmetic: years × 365, months × 30, weeks × 7, else days."""
     if delay_days == 0:
         return 0, "days"
+    if delay_days % 365 == 0 and delay_days >= 365:
+        return delay_days // 365, "years"
     if delay_days % 30 == 0 and delay_days >= 30:
         return delay_days // 30, "months"
     if delay_days % 7 == 0 and delay_days >= 7:

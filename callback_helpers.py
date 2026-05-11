@@ -399,9 +399,9 @@ def habit_to_hours(duration: float, duration_unit: str,
     """Convert a (duration, intensity) habit estimate to total hours.
 
     intensity_unit is '{min|hr}_per_{day|week}'. duration_unit is one of
-    'days' / 'weeks' / 'months'. Months use a 30-day approximation — the
-    blend is for ROI cost, not calendar precision. Returns 0.0 if either
-    side is zero.
+    'days' / 'weeks' / 'months' / 'years'. Months use a 30-day approximation
+    and years use 365 — the blend is for ROI cost, not calendar precision.
+    Returns 0.0 if either side is zero.
     """
     if not duration or not intensity:
         return 0.0
@@ -409,6 +409,8 @@ def habit_to_hours(duration: float, duration_unit: str,
         days = float(duration) * 7
     elif duration_unit == 'months':
         days = float(duration) * 30
+    elif duration_unit == 'years':
+        days = float(duration) * 365
     else:
         days = float(duration)
     parts = (intensity_unit or 'min_per_day').split('_per_')

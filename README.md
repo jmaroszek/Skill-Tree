@@ -154,7 +154,7 @@ Working top to bottom:
 **[SCREENSHOT: the Ratings popup showing what each number on the Value scale means.]**
 
 - **Status.** Open, Blocked, or Done. (Blocked sets automatically if a hard prerequisite isn't done, but you can override.)
-- **Time Estimates.** Three numbers — *Optimistic* (if everything goes right), *Expected* (most likely), *Pessimistic* (if it goes sideways). Pick your unit — Hours, Days, Weeks, or Months. The app blends these three numbers into a single expected duration using a method called PERT estimation. If you'd rather skip the three-number thing, choose **Inherit** and the node will pull its time from whatever feeds into it.
+- **Time Estimates.** Three numbers — *Optimistic* (if everything goes right), *Expected* (most likely), *Pessimistic* (if it goes sideways). Pick your unit — Hours, Weeks, Months, or Years. The app blends these three numbers into a single expected duration using a method called PERT estimation. If you'd rather skip the three-number thing, choose **Inherit** and the node will pull its time from whatever feeds into it.
 
 #### When to use which Inherit toggle
 
@@ -347,7 +347,7 @@ When you create a new node, these are the values pre-filled in its PERT fields (
 
 ### Time conversion
 
-Set how many **hours per week** and **hours per month** you expect to work on Skill Tree tasks. This is what turns a "14 hour" estimate into "roughly 2 weeks of your real life" in tooltips.
+Set how many **hours per week** and **hours per month** you expect to work on Skill Tree tasks. This is what turns a "14 hour" estimate into "roughly 2 weeks of your real life" in tooltips. One **year** is defined as 13 months (≈ 52 weeks) of productivity — once an estimate crosses that threshold, the friendly format switches from months to years.
 
 ### Node type manager
 

@@ -148,6 +148,7 @@ def register_settings_callbacks(app):
         Output('setting-context-weights-container', 'children'),
         Output('setting-hpw', 'value'),
         Output('setting-hpm', 'value'),
+        Output('setting-hpy', 'value'),
         Output('setting-default-time-unit', 'value'),
         Output('setting-default-time-o', 'value'),
         Output('setting-default-time-m', 'value'),
@@ -177,7 +178,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 47
+            return (dash.no_update,) * 48
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -299,6 +300,7 @@ def register_settings_callbacks(app):
             weight_rows,
             ts.get('hours_per_week', 40),
             ts.get('hours_per_month', 160),
+            ConfigManager.get_hours_per_year(),
             ted.get('unit', DEFAULT_TIME_ESTIMATE_DEFAULTS['unit']),
             ted.get('optimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic']),
             ted.get('expected', DEFAULT_TIME_ESTIMATE_DEFAULTS['expected']),
@@ -354,25 +356,33 @@ def register_settings_callbacks(app):
         return (dash.no_update,) * 12
 
     # --- Settings: Sync Time Estimates ---
+    # 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see ConfigManager.HOURS_PER_YEAR_MULT).
     @app.callback(
         Output('setting-hpw', 'value', allow_duplicate=True),
         Output('setting-hpm', 'value', allow_duplicate=True),
+        Output('setting-hpy', 'value', allow_duplicate=True),
         Input('setting-hpw', 'value'),
         Input('setting-hpm', 'value'),
+        Input('setting-hpy', 'value'),
         prevent_initial_call=True,
     )
-    def sync_time_settings(hpw, hpm):
+    def sync_time_settings(hpw, hpm, hpy):
         triggered = ctx.triggered_id
         if not triggered:
-            return dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update
         try:
             if triggered == 'setting-hpw' and hpw is not None:
-                return dash.no_update, round(float(hpw) * 4.0, 2)
+                w = float(hpw)
+                return dash.no_update, round(w * 4.0, 2), round(w * 52.0, 2)
             elif triggered == 'setting-hpm' and hpm is not None:
-                return round(float(hpm) / 4.0, 2), dash.no_update
+                m = float(hpm)
+                return round(m / 4.0, 2), dash.no_update, round(m * 13.0, 2)
+            elif triggered == 'setting-hpy' and hpy is not None:
+                y = float(hpy)
+                return round(y / 52.0, 2), round(y / 13.0, 2), dash.no_update
         except Exception:
             pass
-        return dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
 
     @app.callback(
         Output('hp-goal-boost-description', 'children'),
