@@ -6,7 +6,7 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
-from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOAST_CLEAR_INTERVAL_MS
+from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOAST_CLEAR_INTERVAL_MS, badge_style
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator
 
@@ -643,20 +643,20 @@ def _event_trigger_type(event):
 
 
 def _event_badge(status, trigger_date, trigger_node=None):
-    """Returns (badge_text, badge_color) for an event."""
+    """Returns (badge_text, badge_palette_name) for an event."""
     if status == "Triggered":
-        return "Triggered", "success"
+        return "Triggered", "EventTriggered"
     if trigger_node:
-        return "On Completion", "warning"
+        return "Completion", "EventTrigger"
     if trigger_date:
-        return "Scheduled", "info"
-    return "Manual", "secondary"
+        return "Scheduled", "EventTrigger"
+    return "Manual", "EventTrigger"
 
 
 def build_event_card(event_name, description, status, node_count, is_selected=False,
                      trigger_date=None, trigger_node=None):
     """Builds a single event card for the list."""
-    badge_text, badge_color = _event_badge(status, trigger_date, trigger_node)
+    badge_text, badge_name = _event_badge(status, trigger_date, trigger_node)
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
     drag_handle = html.Span(
@@ -671,8 +671,8 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
                 drag_handle,
                 html.H6(event_name, className="mb-0", style={"fontWeight": "500"}),
             ], className="d-flex align-items-center"),
-            dbc.Badge(badge_text, color=badge_color, className="ms-2",
-                      style={"fontSize": "0.7rem"}),
+            html.Span(badge_text, className="badge ms-2",
+                      style=badge_style(badge_name, font_size="0.7rem")),
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
     if description:

@@ -93,6 +93,21 @@ goal via a Hard edge.
 The explain-modal contributors chart and legend use the same edge palette
 plus a `Self` tile (`#685e52` warm sand) for the node itself.
 
+### Event-card badge palette
+
+Used on Events-tab event cards. The three trigger-type labels (Manual,
+Scheduled, Completion) **all share a single neutral pewter tile** —
+they are peer categories and the text inside the badge already carries
+the type, so adding hue would only introduce false hierarchy or echo
+node-type colors. The `EventTriggered` tile deliberately matches the
+`Done` status badge (`#148a68`) so "fired / complete" reads as one
+consistent meaning across the app.
+
+| Tile           | Background | Text      | Notes                                                              |
+|----------------|-----------|-----------|--------------------------------------------------------------------|
+| EventTrigger   | `#56575a` | `#dcdcdd` | Pewter — used for Manual / Scheduled / Completion uniformly.       |
+| EventTriggered | `#148a68` | `#ffffff` | Matches `Done`. Used once the event has fired.                     |
+
 ### Selection (Cytoscape)
 | Token           | Hex       |
 |-----------------|-----------|
@@ -221,8 +236,8 @@ html.Span(rel, className="badge",
 ```
 
 Valid names: `Override`, `Goal`, `Priority`, `Action`, `Learn`, `Resource`,
-`Open`, `Done`, `Blocked`, `HardRelPri`, `SoftRelPri`. Unknown names fall
-back to a neutral gray.
+`Open`, `Done`, `Blocked`, `HardRelPri`, `SoftRelPri`, `EventTrigger`,
+`EventTriggered`. Unknown names fall back to a neutral gray.
 
 ## Tooltips (hover)
 

@@ -185,6 +185,14 @@ BADGE_PALETTE = {
     # Relationship-priority badges — match the subtasks-table relationship tiles.
     'HardRelPri': ('#2a4d6e', '#d6e0ee'),
     'SoftRelPri': ('#414f5c', '#d0d6dc'),
+    # Event-card badges. The three trigger-type labels (Manual, Scheduled,
+    # Completion) deliberately share a single neutral pewter — they are
+    # peer categories and the text inside the badge already carries the
+    # type information, so color would only introduce false hierarchy.
+    # EventTriggered shares STATUS_DONE's value so "fired / complete"
+    # speaks one vocabulary across the app.
+    'EventTrigger':   ('#56575a', '#dcdcdd'),
+    'EventTriggered': ('#148a68', '#ffffff'),
 }
 
 
