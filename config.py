@@ -368,7 +368,7 @@ PROFILES = {
     'Curious': {
         'w_v': 1.00, 'w_i': 1.50, 'd_H': 0.60, 'd_S': 0.40,
         'd_Syn_pair': 0.15, 'd_Syn_mul': 0.60,
-        'cross_context_mult': 1.00,
+        'cross_context_mult': 1.50,
         'w_e': 2.50, 'w_t': 1.00, 'beta': 0.85,
         'goal_boost': 1.50, 'alpha': 0.30,
     },
@@ -616,12 +616,21 @@ class ConfigManager:
     def set_goal_order(cls, order: list):
         cls._set_db_value("GOAL_ORDER", json.dumps(order))
 
+    # One year of productivity = 13 months (≈ 52 weeks) by definition. Built
+    # off hours_per_month so a user-tuned monthly rate flows through to years
+    # consistently. Not a stored setting — derived on demand.
+    HOURS_PER_YEAR_MULT = 13  # × hours_per_month
+
+    @classmethod
+    def get_hours_per_year(cls) -> float:
+        return cls.HOURS_PER_YEAR_MULT * cls.get_time_settings().get('hours_per_month', 160)
+
     @classmethod
     def get_time_multiplier(cls, unit: str) -> float:
         """Returns the hours-per-unit multiplier for time input conversion.
 
         Args:
-            unit: 'hours', 'weeks', or 'months'
+            unit: 'hours', 'weeks', 'months', or 'years'
 
         Returns:
             Multiplier to convert from the given unit to hours.
@@ -630,6 +639,8 @@ class ConfigManager:
             return cls.get_time_settings().get('hours_per_week', 40.0)
         elif unit == 'months':
             return cls.get_time_settings().get('hours_per_month', 160.0)
+        elif unit == 'years':
+            return cls.get_hours_per_year()
         return 1.0
 
     @classmethod
@@ -648,8 +659,14 @@ class ConfigManager:
         settings = cls.get_time_settings()
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)
+        hy = cls.HOURS_PER_YEAR_MULT * hm
 
-        if hm > 0 and hours >= hm:
+        if hy > 0 and hours >= hy:
+            years = round(hours / hy, 1)
+            if years.is_integer() and not force_one_decimal:
+                years = int(years)
+            return f"{years}y"
+        elif hm > 0 and hours >= hm:
             months = round(hours / hm, 1)
             if months.is_integer() and not force_one_decimal:
                 months = int(months)
@@ -677,8 +694,12 @@ class ConfigManager:
         settings = cls.get_time_settings()
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)
+        hy = cls.HOURS_PER_YEAR_MULT * hm
 
-        if hm > 0 and hours >= hm:
+        if hy > 0 and hours >= hy:
+            val = round(hours / hy, 2)
+            return (val, 'years')
+        elif hm > 0 and hours >= hm:
             val = round(hours / hm, 2)
             return (val, 'months')
         elif hw > 0 and hours >= hw:
