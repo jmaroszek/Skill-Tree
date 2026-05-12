@@ -18,7 +18,7 @@ from typing import List, Dict, Optional, Set, Tuple
 
 
 # Fields whose mutation changes a node's priority_score. Anything else
-# (description, paths, context, aliases, competence) is cosmetic
+# (description, paths, context, aliases) is cosmetic
 # for scoring purposes and must not invalidate the scoring memo.
 _SCORING_RELEVANT_FIELDS = frozenset({
     'type', 'value', 'interest', 'difficulty',
@@ -99,8 +99,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, competence, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :competence, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -123,7 +123,7 @@ class GraphManager:
             cursor.execute('''
                 UPDATE Nodes
                 SET type=:type, description=:description, value=:value, time_o=:time_o, time_m=:time_m, time_p=:time_p,
-                    interest=:interest, difficulty=:difficulty, competence=:competence,
+                    interest=:interest, difficulty=:difficulty,
                     context=:context, subcontext=:subcontext, status=:status,
                     obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
                     website=:website,

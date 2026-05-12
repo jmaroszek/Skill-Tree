@@ -571,7 +571,6 @@ def register_event_callbacks(app):
         Output("dormant-node-supports-hard", "value", allow_duplicate=True),
         Output("dormant-node-supports-soft", "value", allow_duplicate=True),
         Output("dormant-node-helps", "value", allow_duplicate=True),
-        Output("dormant-node-competence", "value", allow_duplicate=True),
         Output("dormant-node-time-mode", "value", allow_duplicate=True),
         Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
         Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
@@ -617,7 +616,7 @@ def register_event_callbacks(app):
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 56
+            return (no_update,) * 55
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -634,7 +633,7 @@ def register_event_callbacks(app):
                 _ted.get('unit', 'weeks'),
                 node_opts, node_opts, node_opts, node_opts, node_opts,
                 [], [], [], [], [],
-                "", [], False,
+                [], False,
                 [''], [''], [''],
                 False,
                 5, 5, 5,
@@ -996,7 +995,6 @@ def register_event_callbacks(app):
         State("dormant-node-context", "value"),
         State("dormant-node-subcontext", "value"),
         State("dormant-node-desc", "value"),
-        State("dormant-node-competence", "value"),
         State("dormant-node-value", "value"),
         State("dormant-node-interest", "value"),
         State("dormant-node-difficulty", "value"),
@@ -1042,7 +1040,7 @@ def register_event_callbacks(app):
     )
     def save_dormant_node(n_clicks, selected_event,
                           event_name_val, event_desc_val, event_date_val,
-                          name, node_type, context, subcontext, desc, competence,
+                          name, node_type, context, subcontext, desc,
                           value, interest, difficulty, time_o, time_m, time_p, time_unit,
                           time_mode_val,
                           time_habit_mode_val,
@@ -1209,7 +1207,6 @@ def register_event_callbacks(app):
             status=STATUS_OPEN,
             context=context or None,
             subcontext=(subcontext or '').strip() or None,
-            competence=competence or None,
             obsidian_path=serialize_links(obsidian_vals) or None,
             google_drive_path=serialize_links(drive_vals) or None,
             website=serialize_links(website_vals) or None,
@@ -1402,7 +1399,6 @@ def register_event_callbacks(app):
         Output("dormant-node-subcontext", "options", allow_duplicate=True),
         Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
         Output("dormant-node-desc", "value", allow_duplicate=True),
-        Output("dormant-node-competence", "value", allow_duplicate=True),
         Output("dormant-node-value", "value", allow_duplicate=True),
         Output("dormant-node-interest", "value", allow_duplicate=True),
         Output("dormant-node-difficulty", "value", allow_duplicate=True),
@@ -1446,7 +1442,7 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
-        _N = 49
+        _N = 48
         if not selected_event:
             return (no_update,) * _N
         triggered = ctx.triggered_id
@@ -1535,7 +1531,6 @@ def register_event_callbacks(app):
             subctx_opts,                       # subcontext options
             subcollapse_open,                  # collapse-dormant-subcontext is_open
             node.description or "",            # desc
-            node.competence or "",             # competence
             node.value or 5,                   # value
             node.interest or 5,                # interest
             node.difficulty or 5,              # difficulty

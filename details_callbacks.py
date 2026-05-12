@@ -1150,8 +1150,6 @@ def register_details_callbacks(app):
         Output("details-add-supports-hard", "value"),
         Output("details-add-supports-soft", "value"),
         Output("details-add-helps", "value"),
-        # Competence reset
-        Output("details-add-competence", "value"),
         # Time mode + subcontext collapse reset
         Output("details-add-time-mode", "value"),
         Output("collapse-details-add-subcontext", "is_open"),
@@ -1177,7 +1175,7 @@ def register_details_callbacks(app):
     )
     def open_add_node_modal(n_clicks, selected_node):
         if not n_clicks:
-            return (no_update,) * 44
+            return (no_update,) * 43
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -1205,8 +1203,6 @@ def register_details_callbacks(app):
             # Relationship dropdown options + values (cleared)
             node_opts, node_opts, node_opts, node_opts, node_opts,
             [], [], [], [], [],
-            # Competence reset
-            "",
             # Time mode + subcontext collapse reset
             [], False,
             # Reset external resource stores
@@ -1462,7 +1458,6 @@ def register_details_callbacks(app):
         State("details-add-context", "value"),
         State("details-add-subcontext", "value"),
         State("details-add-desc", "value"),
-        State("details-add-competence", "value"),
         State("details-add-value", "value"),
         State("details-add-interest", "value"),
         State("details-add-difficulty", "value"),
@@ -1497,7 +1492,7 @@ def register_details_callbacks(app):
     )
     def save_add_node(n_clicks, selected_node, mode,
                       link_node, link_edge_type,
-                      name, node_type, context, subcontext, desc, competence,
+                      name, node_type, context, subcontext, desc,
                       value, interest, difficulty,
                       time_o, time_m, time_p, time_unit, time_mode_val,
                       value_mode_val,
@@ -1557,7 +1552,6 @@ def register_details_callbacks(app):
                 status=STATUS_OPEN,
                 context=context or None,
                 subcontext=(subcontext or "").strip() or None,
-                competence=competence or None,
                 obsidian_path=obs_path,
                 google_drive_path=drive_path,
                 website=web_path,

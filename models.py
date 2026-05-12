@@ -53,7 +53,6 @@ class Node:
     interest: int           # 1-10
     difficulty: int         # 1-10
     status: str             # [Open, Blocked, Done]
-    competence: Optional[str] = None
     context: Optional[str] = None
     subcontext: Optional[str] = None
     obsidian_path: Optional[str] = None

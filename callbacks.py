@@ -214,7 +214,6 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
                 'habit_intensity_unit': form_state.get('habit_int_unit'),
                 'value_mode': form_state.get('value_mode_val'),
                 'priority_rank': form_state.get('priority_rank_val'),
-                'competence': form_state.get('competence_val'),
                 'aliases': form_state.get('alias_values'),
             })
             if not form_has_content:
@@ -581,7 +580,6 @@ def register_callbacks(app):
          Output('search-node', 'value', allow_duplicate=True),
          Output('node-priority-rank', 'value'),
          Output('node-time-mode', 'value'),
-         Output('node-competence', 'value'),
          Output('aliases-store', 'data'),
          Output('pending-navigation-store', 'data'),
          Output('modal-unsaved-changes', 'is_open', allow_duplicate=True),
@@ -620,7 +618,7 @@ def register_callbacks(app):
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
          State('node-time-mode', 'value'),
-         State('node-priority-rank', 'value'), State('node-competence', 'value'),
+         State('node-priority-rank', 'value'),
          State({'type': 'alias-input', 'index': ALL}, 'value'),
          State('pending-navigation-store', 'data'),
          State('editor-pristine-snapshot', 'data'),
@@ -642,7 +640,7 @@ def register_callbacks(app):
                         cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
                         cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
                         cur_obs, cur_drive, cur_website,
-                        cur_time_mode, cur_priority_rank, cur_competence,
+                        cur_time_mode, cur_priority_rank,
                         cur_aliases,
                         pending_nav, pristine_snapshot,
                         cur_value_mode,
@@ -667,7 +665,6 @@ def register_callbacks(app):
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
             "none",  # node-priority-rank
             [],  # node-time-mode
-            "",  # node-competence
             [''],  # aliases-store
             None,  # pending-navigation-store
             False,  # modal-unsaved-changes
@@ -702,7 +699,7 @@ def register_callbacks(app):
                 'habit_intensity_p': cur_habit_int_p,
                 'habit_intensity_unit': cur_habit_int_unit,
                 'value_mode': cur_value_mode,
-                'priority_rank': cur_priority_rank, 'competence': cur_competence,
+                'priority_rank': cur_priority_rank,
                 'aliases': cur_aliases,
             })
 
@@ -710,9 +707,9 @@ def register_callbacks(app):
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
                 # Show unsaved modal; store 'new-node' as pending action
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
-                no_change[34] = '__new_node__'  # pending-navigation-store (special sentinel)
-                no_change[35] = True            # modal-unsaved-changes
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                no_change[33] = '__new_node__'  # pending-navigation-store (special sentinel)
+                no_change[34] = True            # modal-unsaved-changes
                 return no_change
             # No unsaved changes — clear and reset (don't clear search-node;
             # that would re-trigger core_engine and overwrite the editor-open state)
@@ -724,9 +721,9 @@ def register_callbacks(app):
             if trigger_id == 'background-click-input':
                 editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
                 if editor_open and _has_unsaved_changes():
-                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
-                    no_change[34] = '__background__'  # pending-navigation-store sentinel
-                    no_change[35] = True              # modal-unsaved-changes
+                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                    no_change[33] = '__background__'  # pending-navigation-store sentinel
+                    no_change[34] = True              # modal-unsaved-changes
                     return no_change
             # Clear search bar on reset triggers — but NOT for btn-add, because
             # setting search-node to None re-triggers core_engine via the callback
@@ -761,10 +758,9 @@ def register_callbacks(app):
             tapped_id = data.get('id')
             if editor_open and tapped_id and tapped_id != original_name and _has_unsaved_changes():
                 # Store the pending target and show unsaved modal instead of populating
-                # 18 form fields + 5 edge options + 13 remaining = 36 total outputs
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
-                no_change[34] = tapped_id  # pending-navigation-store (index 34)
-                no_change[35] = True       # modal-unsaved-changes (index 35)
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                no_change[33] = tapped_id  # pending-navigation-store
+                no_change[34] = True       # modal-unsaved-changes
                 return no_change
 
         name = None
@@ -778,13 +774,13 @@ def register_callbacks(app):
                     # Dormant nodes have their own editor (Events-tab dormant modal).
                     # Defense-in-depth: if any code path forwards a dormant name here,
                     # don't load it into the generic sidebar.
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
                 if node:
                     name = node.name
                     data = node.to_dict()
                     data['id'] = name
                 else:
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
         elif trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
@@ -799,13 +795,13 @@ def register_callbacks(app):
                 resolved_name = resolved if resolved is not None else search_val
             node = manager.get_node(resolved_name)
             if node and node.dormant:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
             if node:
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -816,7 +812,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
 
         edges = manager.get_edges()
 
@@ -890,7 +886,6 @@ def register_callbacks(app):
             name if (trigger_id in ('edit-trigger-input', 'details-edit-trigger-input') or (ed_style and ed_style.get('transform', '') == 'translateX(0px)')) else dash.no_update,  # search-node — update when editor is open or edit-trigger
             rank_value,  # node-priority-rank
             time_mode_val,  # node-time-mode
-            data.get('competence') or '',  # node-competence
             manager.get_aliases(name) or [''],  # aliases-store
             None,  # pending-navigation-store — clear on successful populate
             False,  # modal-unsaved-changes — close on successful populate
@@ -938,7 +933,6 @@ def register_callbacks(app):
          State({'type': 'website-link', 'index': ALL}, 'value'),
          State('node-time-mode', 'value'),
          State('node-priority-rank', 'value'),
-         State('node-competence', 'value'),
          State('node-value-mode', 'value'),
          State('node-time-habit-mode', 'value'),
          State('node-habit-duration', 'value'),
@@ -956,7 +950,7 @@ def register_callbacks(app):
                                       cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
                                       cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
                                       cur_obs, cur_drive, cur_website,
-                                      cur_time_mode, cur_priority_rank, cur_competence,
+                                      cur_time_mode, cur_priority_rank,
                                       cur_value_mode,
                                       cur_time_habit_mode,
                                       cur_habit_duration, cur_habit_duration_unit,
@@ -998,7 +992,7 @@ def register_callbacks(app):
             'habit_intensity_p': cur_habit_int_p,
             'habit_intensity_unit': cur_habit_int_unit,
             'value_mode': cur_value_mode,
-            'priority_rank': cur_priority_rank, 'competence': cur_competence,
+            'priority_rank': cur_priority_rank,
         }
         snapshot = snapshot_from_form_state(form_values, linted, linted_aliases)
         return linted, linted, linted_aliases, snapshot
@@ -1444,7 +1438,6 @@ def register_callbacks(app):
          State('node-original-name', 'data'),
          State('node-time-mode', 'value'),
          State('node-priority-rank', 'value'),
-         State('node-competence', 'value'),
          State('details-goal-sidebar', 'style'),
          State('events-sidebar-container', 'style'),
          State('pending-navigation-store', 'data'),
@@ -1476,7 +1469,7 @@ def register_callbacks(app):
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                      obs_link_values, drive_link_values, website_link_values,
                      current_elements, ed_style, original_name,
-                     time_mode_val, priority_rank_val, competence_val,
+                     time_mode_val, priority_rank_val,
                      goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values,
                      pristine_snapshot, pending_undo_done,
                      value_mode_val,
@@ -1530,7 +1523,6 @@ def register_callbacks(app):
                 'habit_int_unit': habit_int_unit,
                 'value_mode_val': value_mode_val,
                 'priority_rank_val': priority_rank_val,
-                'competence_val': competence_val,
                 'alias_values': alias_values,
                 'pristine_snapshot': pristine_snapshot,
             }
@@ -1570,7 +1562,6 @@ def register_callbacks(app):
             'time_mode_val': time_mode_val,
             'value_mode_val': value_mode_val,
             'priority_rank_val': priority_rank_val,
-            'competence_val': competence_val,
             'alias_values': alias_values,
         }
         next_ed_style, next_goal_style, next_events_sidebar_style = _compute_sidebar_styles(
@@ -1662,7 +1653,6 @@ def register_callbacks(app):
                                   e_supp_h, e_supp_s, e_helps,
                                   time_mode=time_mode,
                                   value_mode=value_mode,
-                                  competence=competence_val,
                                   habit_duration=habit_duration or 0,
                                   habit_duration_unit=habit_duration_unit or 'weeks',
                                   habit_intensity_o=habit_int_o or 0,
@@ -2155,7 +2145,7 @@ def register_callbacks(app):
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
          State('node-time-mode', 'value'),
-         State('node-priority-rank', 'value'), State('node-competence', 'value'),
+         State('node-priority-rank', 'value'),
          State({'type': 'alias-input', 'index': ALL}, 'value'),
          State('node-original-name', 'data'),
          State('editor-pristine-snapshot', 'data'),
@@ -2168,7 +2158,7 @@ def register_callbacks(app):
                               time_o, time_m, time_p, time_unit,
                               e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                               obs_link_values, drive_link_values, website_link_values,
-                              time_mode_val, priority_rank_val, competence_val,
+                              time_mode_val, priority_rank_val,
                               alias_values, original_name, pristine_snapshot,
                               value_mode_val):
         if get_trigger_id() != 'btn-close-editor':
@@ -2186,7 +2176,7 @@ def register_callbacks(app):
             'website_links': website_link_values,
             'time_mode': time_mode_val,
             'value_mode': value_mode_val,
-            'priority_rank': priority_rank_val, 'competence': competence_val,
+            'priority_rank': priority_rank_val,
             'aliases': alias_values,
         })
 
@@ -3240,40 +3230,5 @@ def register_callbacks(app):
             })
         ConfigManager.set_ratings_definitions(new_defs)
         return build_popup_table_rows(new_defs), False
-
-    # --- Competence Editor ---
-
-    @app.callback(
-        Output("modal-competence-editor", "is_open"),
-        Output("competence-editor-body", "children"),
-        Input("btn-competence-edit", "n_clicks"),
-        Input("btn-competence-editor-cancel", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def toggle_competence_editor(edit_clicks, cancel_clicks):
-        from layout import build_competence_editor_table
-        if ctx.triggered_id == "btn-competence-edit":
-            defs = ConfigManager.get_competence_definitions()
-            return True, build_competence_editor_table(defs)
-        return False, no_update
-
-    @app.callback(
-        Output("competence-popup-table-body", "children"),
-        Output("modal-competence-editor", "is_open", allow_duplicate=True),
-        Input("btn-competence-editor-save", "n_clicks"),
-        State({"type": "competence-edit-essence", "index": ALL}, "value"),
-        prevent_initial_call=True,
-    )
-    def save_competence_definitions(n_clicks, essences):
-        from layout import build_competence_popup_table_rows
-        defs = ConfigManager.get_competence_definitions()
-        new_defs = []
-        for i, d in enumerate(defs):
-            new_defs.append({
-                "stage": d["stage"],
-                "essence": essences[i] if i < len(essences) else d["essence"],
-            })
-        ConfigManager.set_competence_definitions(new_defs)
-        return build_competence_popup_table_rows(new_defs), False
 
 

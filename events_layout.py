@@ -199,35 +199,6 @@ def build_events_tab_content():
             dbc.Textarea(id="dormant-node-desc",
                          style={"height": "80px", "resize": "vertical"}),
 
-            html.Div([
-                dbc.Label("Competence", className="mb-0"),
-                html.Button(
-                    html.I(className="bi bi-info-circle"),
-                    id="btn-dormant-competence-info",
-                    style={
-                        "background": "none", "border": "none", "padding": "0 0 0 6px",
-                        "color": "#6c757d", "cursor": "pointer", "fontSize": "0.8rem",
-                        "lineHeight": "1", "position": "relative", "top": "1px"
-                    }
-                ),
-                dbc.Tooltip("Competence reference", target="btn-dormant-competence-info", placement="right",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            ], className="d-flex align-items-center mt-2"),
-            dbc.Select(
-                id="dormant-node-competence",
-                options=[
-                    {"label": "\u2014", "value": ""},
-                    {"label": "Outsider", "value": "outsider"},
-                    {"label": "Reciter", "value": "reciter"},
-                    {"label": "Processor", "value": "processor"},
-                    {"label": "Thinker", "value": "thinker"},
-                    {"label": "Creator", "value": "creator"},
-                    {"label": "Master", "value": "master"},
-                    {"label": "Innovator", "value": "innovator"},
-                ],
-                value="",
-            ),
-
             html.Hr(className="my-2"),
             html.Div([
                 html.H5("Priority Override", className="mb-0"),

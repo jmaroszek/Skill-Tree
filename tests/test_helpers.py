@@ -536,15 +536,6 @@ class TestIsFormDirtyVsSnapshot:
         form['aliases'] = ['AlphaAlias']
         assert is_form_dirty_vs_snapshot(snap, form)
 
-    def test_competence_change_detected(self):
-        from graph_manager import GraphManager
-        mgr = GraphManager()
-        node = self._seed(mgr)
-        snap = build_editor_snapshot(mgr, node.name)
-        form = self._form_from_snapshot(snap)
-        form['competence'] = 'Expert'
-        assert is_form_dirty_vs_snapshot(snap, form)
-
     def test_description_change_detected(self):
         from graph_manager import GraphManager
         mgr = GraphManager()
@@ -669,7 +660,6 @@ class TestSnapshotFromFormState:
             'obs_links': [''], 'drive_links': [''], 'website_links': [''],
             'time_mode': [],
             'priority_rank': 'none',
-            'competence': '',
             'aliases': [''],
         }
         base.update(overrides)
@@ -756,7 +746,7 @@ class TestSnapshotFromFormState:
         """A form with None in optional fields should produce a snapshot
         with the same sensible defaults the dirty check uses."""
         form = self._form(
-            desc=None, context=None, subctx=None, competence=None,
+            desc=None, context=None, subctx=None,
             obs_links=None, drive_links=None, website_links=None,
             aliases=None, status_done=None, time_mode=None,
         )
@@ -775,7 +765,7 @@ class TestSnapshotFromFormState:
         # input components emit) and confirm not dirty.
         form_for_check = dict(form)
         form_for_check.update({
-            'desc': '', 'context': '', 'subctx': '', 'competence': '',
+            'desc': '', 'context': '', 'subctx': '',
             'obs_links': [''], 'drive_links': [''], 'website_links': [''],
             'aliases': [''], 'status_done': [], 'time_mode': [],
         })

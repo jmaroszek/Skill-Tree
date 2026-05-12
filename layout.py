@@ -101,35 +101,6 @@ sidebar_content = html.Div(
             dbc.Label("Description", className="mt-2"),
             dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
 
-            html.Div([
-                dbc.Label("Competence", className="mb-0"),
-                html.Button(
-                    html.I(className="bi bi-info-circle"),
-                    id="btn-competence-info",
-                    style={
-                        "background": "none", "border": "none", "padding": "0 0 0 6px",
-                        "color": "#6c757d", "cursor": "pointer", "fontSize": "0.8rem",
-                        "lineHeight": "1", "position": "relative", "top": "1px"
-                    }
-                ),
-                dbc.Tooltip("Competence reference", target="btn-competence-info", placement="right",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            ], className="d-flex align-items-center mt-2"),
-            dbc.Select(
-                id="node-competence",
-                options=[
-                    {"label": "\u2014", "value": ""},
-                    {"label": "Outsider", "value": "outsider"},
-                    {"label": "Reciter", "value": "reciter"},
-                    {"label": "Processor", "value": "processor"},
-                    {"label": "Thinker", "value": "thinker"},
-                    {"label": "Creator", "value": "creator"},
-                    {"label": "Master", "value": "master"},
-                    {"label": "Innovator", "value": "innovator"},
-                ],
-                value="",
-            ),
-
             html.Div(id="section-priority-rank", style={"display": "none"}, children=[
                 dbc.Label("Priority Rank", className="mt-2"),
                 dbc.Select(
@@ -1281,125 +1252,6 @@ ratings_editor_modal = dbc.Modal([
 ], id="modal-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
-def build_competence_popup_table_rows(defs):
-    """Build the competence popup table rows from a list of definition dicts."""
-    return [
-        html.Tr([
-            html.Td(d['stage'], style={
-                **_cell_style, "fontWeight": "700", "color": "#adb5bd",
-                "width": "100px", "whiteSpace": "nowrap",
-                "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
-            }),
-            html.Td(d['essence'], style={
-                **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
-            }),
-        ])
-        for i, d in enumerate(defs)
-    ]
-
-
-def build_competence_editor_table(defs):
-    """Build the full editor table (with header) for the competence editor modal."""
-    return html.Table([
-        html.Thead(html.Tr([
-            html.Th("Stage", style={**_header_cell_style, "width": "100px"}),
-            html.Th("Essence", style=_header_cell_style),
-        ])),
-        html.Tbody(build_competence_editor_rows(defs)),
-    ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"})
-
-
-def build_competence_editor_rows(defs):
-    """Build the editor modal rows (textareas) from a list of definition dicts."""
-    from dash import dcc
-    rows = []
-    for i, d in enumerate(defs):
-        rows.append(html.Tr([
-            html.Td(d['stage'], style={
-                **_cell_style, "fontWeight": "700", "color": "#adb5bd",
-                "width": "100px", "whiteSpace": "nowrap",
-            }),
-            html.Td(dcc.Textarea(
-                id={"type": "competence-edit-essence", "index": i},
-                value=d['essence'],
-                style={"width": "100%", "height": "120px", "resize": "vertical",
-                       "backgroundColor": "#2b3035", "color": "#dee2e6",
-                       "border": "1px solid #495057", "borderRadius": "4px",
-                       "padding": "4px", "fontSize": "0.8rem"},
-            ), style=_cell_style),
-        ]))
-    return rows
-
-
-competence_popup = html.Div([
-    # Draggable header
-    html.Div([
-        html.Span("Competence Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
-        html.Button(html.I(className="bi bi-pencil"), id="btn-competence-edit", style={
-            "background": "none", "border": "none", "color": "#adb5bd",
-            "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
-            "padding": "0 6px", "marginLeft": "8px",
-        }, title="Edit definitions"),
-        html.Button("\u00d7", id="btn-competence-close", style={
-            "background": "none", "border": "none", "color": "#adb5bd",
-            "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
-            "padding": "0", "marginLeft": "auto",
-        }),
-    ], id="competence-popup-header", className="d-flex align-items-center", style={
-        "cursor": "move",
-        "padding": "8px 10px",
-        "backgroundColor": "#2b3035",
-        "borderBottom": "1px solid #495057",
-        "borderRadius": "6px 6px 0 0",
-        "flexShrink": "0",
-        "userSelect": "none",
-    }),
-    # Scrollable body
-    html.Div([
-        html.Table([
-            html.Thead(html.Tr([
-                html.Th("Stage", style={**_header_cell_style, "width": "100px"}),
-                html.Th("Essence", style=_header_cell_style),
-            ])),
-            html.Tbody(
-                id="competence-popup-table-body",
-                children=build_competence_popup_table_rows(ConfigManager.get_competence_definitions()),
-            ),
-        ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
-    ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
-], id="competence-popup", style={
-    "display": "none",
-    "flexDirection": "column",
-    "position": "fixed",
-    "top": "140px",
-    "left": "460px",
-    "width": "720px",
-    "height": "560px",
-    "minWidth": "400px",
-    "minHeight": "200px",
-    "zIndex": 9998,
-    "backgroundColor": "#212529",
-    "border": "1px solid #495057",
-    "borderRadius": "6px",
-    "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
-    "resize": "both",
-    "overflow": "hidden",
-})
-
-
-competence_editor_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Edit Competence Definitions")),
-    dbc.ModalBody(
-        html.Div(id="competence-editor-body"),
-        style={"maxHeight": "70vh", "overflowY": "auto"},
-    ),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-competence-editor-cancel", color="secondary", className="me-auto"),
-        dbc.Button("Save", id="btn-competence-editor-save", color="primary"),
-    ]),
-], id="modal-competence-editor", size="xl", is_open=False, scrollable=True)
-
-
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
     
@@ -1607,7 +1459,6 @@ def build_app_layout(initial_elements, env="production"):
     return html.Div([
         hover_tooltip,
         ratings_popup,
-        competence_popup,
         edit_trigger,
         toggle_trigger,
         context_menu,
@@ -1647,7 +1498,6 @@ def build_app_layout(initial_elements, env="production"):
         override_conflict_modal,
         override_untoggle_modal,
         ratings_editor_modal,
-        competence_editor_modal,
         dbc.Modal([
             dbc.ModalHeader(dbc.ModalTitle("Events Triggered Since Last Launch")),
             dbc.ModalBody(id="event-announcements-body"),

@@ -483,7 +483,7 @@ NEW_NODE_SNAPSHOT = {
     'habit_intensity_o': 0, 'habit_intensity_m': 0, 'habit_intensity_p': 0,
     'habit_intensity_unit': 'min_per_day',
     'value_mode': [],
-    'priority_rank': 'none', 'competence': '',
+    'priority_rank': 'none',
     'aliases': [''],
 }
 
@@ -580,7 +580,6 @@ def build_editor_snapshot(manager, node_name):
         'habit_intensity_unit': node.habit_intensity_unit or 'min_per_day',
         'value_mode': ['inherited'] if node.value_mode == 'inherited' else [],
         'priority_rank': priority_rank,
-        'competence': node.competence or '',
         'aliases': aliases,
     }
 
@@ -629,7 +628,6 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'habit_intensity_unit': form_values.get('habit_intensity_unit') or 'min_per_day',
         'value_mode': form_values.get('value_mode') or [],
         'priority_rank': form_values.get('priority_rank') or 'none',
-        'competence': form_values.get('competence') or '',
         'aliases': linted_aliases or [''],
     }
 
@@ -647,7 +645,7 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
         return False
 
     # Scalar string fields — strip whitespace before comparing.
-    for k in ('name', 'desc', 'context', 'subctx', 'competence'):
+    for k in ('name', 'desc', 'context', 'subctx'):
         if _norm_str(form_values.get(k)) != _norm_str(snapshot.get(k)):
             return True
 
@@ -695,7 +693,7 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                time_mode='manual', value_mode='manual', competence=None,
+                time_mode='manual', value_mode='manual',
                 habit_duration=0.0, habit_duration_unit='weeks',
                 habit_intensity_o=0.0, habit_intensity_m=0.0, habit_intensity_p=0.0,
                 habit_intensity_unit='min_per_day'):
@@ -727,7 +725,6 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         website=(website_path or '').strip() or None,
         time_mode=time_mode,
         value_mode=value_mode,
-        competence=competence or None,
         habit_duration=habit_duration or 0,
         habit_duration_unit=habit_duration_unit or 'weeks',
         habit_intensity_o=habit_intensity_o or 0,

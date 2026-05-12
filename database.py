@@ -67,7 +67,6 @@ def init_db():
             time_p REAL NOT NULL,
             interest INTEGER NOT NULL,
             difficulty INTEGER NOT NULL,
-            competence TEXT,
             context TEXT,
             subcontext TEXT,
             status TEXT NOT NULL,
