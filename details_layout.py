@@ -956,6 +956,10 @@ def _build_add_node_modal(ted):
                 dbc.Label("Type", className="mt-2"),
                 dbc.Select(id="details-add-type", options=[], value="Learn"),
 
+                dbc.Label("Description", className="mt-2"),
+                dbc.Textarea(id="details-add-desc",
+                             style={"height": "80px", "resize": "vertical"}),
+
                 dbc.Label("Context", className="mt-2"),
                 html.Div([
                     dbc.Select(id="details-add-context",
@@ -970,10 +974,6 @@ def _build_add_node_modal(ted):
                                className="mt-1"),
                     id="collapse-details-add-subcontext", is_open=False,
                 ),
-
-                dbc.Label("Description", className="mt-2"),
-                dbc.Textarea(id="details-add-desc",
-                             style={"height": "80px", "resize": "vertical"}),
 
                 html.Hr(className="my-2"),
                 html.Div([

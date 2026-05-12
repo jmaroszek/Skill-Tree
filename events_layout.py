@@ -180,6 +180,10 @@ def build_events_tab_content():
             dbc.Label("Type", className="mt-2"),
             dbc.Select(id="dormant-node-type", options=[], value="Learn"),
 
+            dbc.Label("Description", className="mt-2"),
+            dbc.Textarea(id="dormant-node-desc",
+                         style={"height": "80px", "resize": "vertical"}),
+
             dbc.Label("Context", className="mt-2"),
             html.Div([
                 dbc.Select(id="dormant-node-context",
@@ -194,10 +198,6 @@ def build_events_tab_content():
                            className="mt-1"),
                 id="collapse-dormant-subcontext", is_open=False,
             ),
-
-            dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="dormant-node-desc",
-                         style={"height": "80px", "resize": "vertical"}),
 
             html.Hr(className="my-2"),
             html.Div([

@@ -91,15 +91,15 @@ sidebar_content = html.Div(
             dbc.Label("Type", className="mt-2"),
             dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES]),
 
+            dbc.Label("Description", className="mt-2"),
+            dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
+
             dbc.Label("Context", className="mt-2"),
             html.Div([
                 dbc.Select(id="node-context", options=[{"label": c, "value": c} for c in CONTEXTS], value="", style={'flex': 1}),  # type: ignore[reportArgumentType]
                 dbc.Button("▾", id="btn-subcontext-toggle", color="light", className="ms-1 px-2")
             ], className="d-flex"),
             dbc.Collapse(dbc.Select(id="node-subcontext", options=[], className="mt-1"), id="collapse-subcontext", is_open=False),
-
-            dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
 
             html.Div(id="section-priority-rank", style={"display": "none"}, children=[
                 dbc.Label("Priority Rank", className="mt-2"),
