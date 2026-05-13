@@ -2674,7 +2674,7 @@ def register_callbacks(app):
                 if not any(browse_clicks):
                     return dash.no_update
                 abs_path = spawn_local_file_picker(
-                    initial_dir=r"G:\\My Drive",
+                    initial_dir=ConfigManager.get_gdrive_path() or '',
                     title="Select Google Drive File",
                     filetypes_list=[("All files", "*.*")]
                 )

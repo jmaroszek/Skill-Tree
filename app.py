@@ -3,6 +3,8 @@ import sys
 import os
 import ctypes
 import uuid
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 # Set environment before importing modules that read config.ENVIRONMENT (e.g. database.py)
 import config
@@ -10,6 +12,43 @@ import config
 if "--sandbox" in sys.argv:
     config.ENVIRONMENT = "sandbox"
 ENVIRONMENT = config.ENVIRONMENT
+
+
+def _configure_logging() -> None:
+    """Send INFO+ logs to stderr AND a rotating file in data/.
+
+    Sandbox and production write to separate log files so the two never
+    interleave. File rotates at 5 MB with 3 backups kept (~20 MB ceiling).
+    Werkzeug's request log inherits this config since it propagates to root.
+    """
+    fmt = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+    formatter = logging.Formatter(fmt, datefmt='%Y-%m-%d %H:%M:%S')
+
+    log_dir = Path(__file__).parent / 'data'
+    log_dir.mkdir(exist_ok=True)
+    log_name = 'sandbox_app.log' if ENVIRONMENT == 'sandbox' else 'app.log'
+
+    file_handler = RotatingFileHandler(
+        log_dir / log_name,
+        maxBytes=5_000_000,
+        backupCount=3,
+        encoding='utf-8',
+    )
+    file_handler.setFormatter(formatter)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    # basicConfig elsewhere is a no-op once handlers exist; clear any prior
+    # handlers in case this module is re-imported (test harness, REPL).
+    root.handlers.clear()
+    root.addHandler(file_handler)
+    root.addHandler(stream_handler)
+
+
+_configure_logging()
 
 import dash
 import dash_cytoscape as cyto
@@ -26,8 +65,6 @@ from next_callbacks import register_next_callbacks
 from settings_callbacks import register_settings_callbacks
 from analyze_callbacks import register_analyze_callbacks
 from config import ConfigManager
-
-logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s: %(message)s')
 
 # Fix blurry file explorer on high-DPI Windows displays.
 try:

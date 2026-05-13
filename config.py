@@ -14,6 +14,7 @@ so a single import is shared across all callback modules.
 """
 
 import json
+from pathlib import Path
 from typing import Optional
 from database import get_connection
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
@@ -48,7 +49,9 @@ DB_FILENAME = "skilltree.db"
 
 # --- Weekly backup script (backup.py, invoked by Windows Task Scheduler) ---
 BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
-BACKUP_LOG_FILE = r'C:\Users\jonah\Documents\Code\Skill Tree\data\backup_log.log'
+# Relative to this file so the path stays valid if the project is moved or
+# the username changes. Resolves to <project>/data/backup_log.log.
+BACKUP_LOG_FILE = str(Path(__file__).parent / 'data' / 'backup_log.log')
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 DEFAULT_CONTEXTS = [
