@@ -1014,6 +1014,23 @@ def register_details_callbacks(app):
             return no_update, no_update
         return "tab-details", node_name
 
+    # --- Context Menu "Explain" → select node + open modal (stay on current tab) ---
+    # The modal renders via React Portal (dbc.Modal uses createPortal), so it is
+    # visible from any tab even though it lives inside details-tab-content.
+    @app.callback(
+        Output("details-node-select", "value", allow_duplicate=True),
+        Output("modal-details-explain", "is_open", allow_duplicate=True),
+        Input("details-explain-trigger-input", "value"),
+        prevent_initial_call=True,
+    )
+    def context_menu_explain_open(trigger_val):
+        if not trigger_val:
+            return no_update, no_update
+        node_name = trigger_val.split('|')[0].strip()
+        if not node_name:
+            return no_update, no_update
+        return node_name, True
+
     # --- Subtask Name Click → Select that node in Details ---
     @app.callback(
         Output("details-node-select", "value", allow_duplicate=True),
