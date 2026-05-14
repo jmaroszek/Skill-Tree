@@ -123,6 +123,16 @@ def register_settings_callbacks(app):
         Input('setting-subcontexts', 'value'),
     )
 
+    # --- Settings: Toggle the Algorithm Profile info popover ---
+    @app.callback(
+        Output("popover-hp-profile-info", "is_open"),
+        Input("btn-hp-profile-info", "n_clicks"),
+        State("popover-hp-profile-info", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_hp_profile_info_popover(_n_clicks, is_open):
+        return not is_open
+
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
         Output('hp-wv', 'value'),

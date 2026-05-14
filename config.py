@@ -358,8 +358,8 @@ DEFAULT_HYPERPARAMS = {
 }
 
 PROFILES = {
-    'Default': DEFAULT_HYPERPARAMS,
-    'Curious': {
+    'Sage': DEFAULT_HYPERPARAMS,
+    'Explorer': {
         'w_v': 1.00, 'w_i': 1.50, 'd_H': 0.60, 'd_S': 0.40,
         'd_Syn_pair': 0.15, 'd_Syn_mul': 0.60,
         'cross_context_mult': 1.50,
@@ -373,7 +373,7 @@ PROFILES = {
         'w_e': 1.50, 'w_t': 0.85, 'beta': 0.70,
         'goal_boost': 1.50, 'alpha': 0.20,
     },
-    'Pragmatic': {
+    'Pragmatist': {
         'w_v': 1.50, 'w_i': 1.00, 'd_H': 0.65, 'd_S': 0.20,
         'd_Syn_pair': 0.05, 'd_Syn_mul': 0.25,
         'cross_context_mult': 1.00,
@@ -387,7 +387,7 @@ PROFILES = {
         'w_e': 2.50, 'w_t': 1.00, 'beta': 0.85,
         'goal_boost': 1.50, 'alpha': 0.30,
     },
-    'Sprinter': {
+    'Glider': {
         'w_v': 1.00, 'w_i': 1.00, 'd_H': 0.45, 'd_S': 0.30,
         'd_Syn_pair': 0.05, 'd_Syn_mul': 0.20,
         'cross_context_mult': 1.00,
@@ -710,13 +710,27 @@ class ConfigManager:
     def get_hp_profile(cls) -> str:
         val = cls._get_db_value("HP_PROFILE")
         if not val:
-            return "Default"
-        # Industrious was renamed to Pragmatic in 2026-05; quietly translate
-        # any leftover DB value so the dropdown stays populated and the
-        # profile keeps working.
-        if val == "Industrious":
-            cls._set_db_value("HP_PROFILE", "Pragmatic")
-            return "Pragmatic"
+            return "Sage"
+        # Profile renames over time — quietly translate any leftover DB
+        # value so the dropdown stays populated and the profile keeps
+        # working. Each branch persists the new name so the upgrade is
+        # one-time.
+        #   Industrious → Pragmatic → Pragmatist (2026-05)
+        #   Default     → Sage                   (2026-05)
+        #   Curious     → Explorer               (2026-05)
+        #   Sprinter    → Glider                 (2026-05)
+        if val == "Industrious" or val == "Pragmatic":
+            cls._set_db_value("HP_PROFILE", "Pragmatist")
+            return "Pragmatist"
+        if val == "Default":
+            cls._set_db_value("HP_PROFILE", "Sage")
+            return "Sage"
+        if val == "Curious":
+            cls._set_db_value("HP_PROFILE", "Explorer")
+            return "Explorer"
+        if val == "Sprinter":
+            cls._set_db_value("HP_PROFILE", "Glider")
+            return "Glider"
         return val
 
     @classmethod

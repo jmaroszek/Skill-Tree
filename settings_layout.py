@@ -252,16 +252,88 @@ def build_settings_tab_content():
                         html.H5("Priorities", className="mt-2 mb-1"),
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Algorithm Profile"),
+                                html.Div([
+                                    dbc.Label("Algorithm Profile", className="mb-0"),
+                                    html.Button(
+                                        html.I(className="bi bi-info-circle"),
+                                        id="btn-hp-profile-info",
+                                        style={
+                                            "background": "none", "border": "none",
+                                            "padding": "0 0 0 6px",
+                                            "color": "#6c757d", "cursor": "pointer",
+                                            "fontSize": "0.95rem", "lineHeight": "1",
+                                            "position": "relative", "top": "1px",
+                                        },
+                                    ),
+                                    dbc.Popover(
+                                        [
+                                            dbc.PopoverHeader("Scoring Profiles"),
+                                            dbc.PopoverBody(
+                                                dbc.Table(
+                                                    [
+                                                        html.Thead(html.Tr([
+                                                            html.Th("Profile"),
+                                                            html.Th("What it does"),
+                                                            html.Th("Use when"),
+                                                        ])),
+                                                        html.Tbody([
+                                                            html.Tr([
+                                                                html.Td(html.Strong("Sage")),
+                                                                html.Td("Balanced across all five factors. The sensible baseline."),
+                                                                html.Td("No strong reason to pick something else."),
+                                                            ]),
+                                                            html.Tr([
+                                                                html.Td(html.Strong("Explorer")),
+                                                                html.Td("Interest weighted over Value. Synergies hit harder. Cross-context links are rewarded."),
+                                                                html.Td("You want to follow rabbit holes and let enjoyable, exploratory work surface."),
+                                                            ]),
+                                                            html.Tr([
+                                                                html.Td(html.Strong("Compounder")),
+                                                                html.Td("The cascade is amplified; time is less punishing."),
+                                                                html.Td("You're willing to invest now for downstream payoff — sabbatical months, quiet quarters."),
+                                                            ]),
+                                                            html.Tr([
+                                                                html.Td(html.Strong("Pragmatist")),
+                                                                html.Td("Value beats Interest. Priority-Goal boost is dialed way up; synergies and Soft edges are minimized."),
+                                                                html.Td("You have a clear Goal and want the algorithm to drive everything toward it."),
+                                                            ]),
+                                                            html.Tr([
+                                                                html.Td(html.Strong("Creator")),
+                                                                html.Td("Synergies are massively amplified, especially across contexts."),
+                                                                html.Td("You're synthesizing across domains — writing, designing, building something new."),
+                                                            ]),
+                                                            html.Tr([
+                                                                html.Td(html.Strong("Glider")),
+                                                                html.Td("Time and effort weigh more heavily, so short and easy work rises. Cascade and synergies are dialed back."),
+                                                                html.Td("Light-effort days — keep moving, but coast for a bit."),
+                                                            ]),
+                                                        ]),
+                                                    ],
+                                                    bordered=False,
+                                                    color="dark",
+                                                    hover=False,
+                                                    size="sm",
+                                                    className="mb-0",
+                                                ),
+                                                style={"padding": "0.5rem"},
+                                            ),
+                                        ],
+                                        id="popover-hp-profile-info",
+                                        target="btn-hp-profile-info",
+                                        is_open=False,
+                                        placement="bottom",
+                                        style={"maxWidth": "640px", "minWidth": "560px"},
+                                    ),
+                                ], className="d-flex align-items-center mb-1"),
                                 dbc.Select(id="setting-hp-profile", options=[
-                                    {"label": "Default", "value": "Default"},
-                                    {"label": "Curious", "value": "Curious"},
+                                    {"label": "Sage", "value": "Sage"},
+                                    {"label": "Explorer", "value": "Explorer"},
                                     {"label": "Compounder", "value": "Compounder"},
-                                    {"label": "Pragmatic", "value": "Pragmatic"},
+                                    {"label": "Pragmatist", "value": "Pragmatist"},
                                     {"label": "Creator", "value": "Creator"},
-                                    {"label": "Sprinter", "value": "Sprinter"},
+                                    {"label": "Glider", "value": "Glider"},
                                     {"label": "Custom", "value": "Custom"}
-                                ], value="Default"),
+                                ], value="Sage"),
                             ], width=4),
                         ], className="mt-1"),
 
@@ -344,7 +416,7 @@ def build_settings_tab_content():
                                 html.Small(
                                     "Normalizes scores by (context, subcontext) bucket size "
                                     "(score \u00d7 1 / n^\u03b1). Higher values penalize larger "
-                                    "buckets more. Range: 0 disables; 0.3 (Default profile) "
+                                    "buckets more. Range: 0 disables; 0.3 (Sage profile) "
                                     "compensates mildly; 1.0 fully cancels size bias.",
                                     className="text-muted d-block"),
                             ], width=10),
