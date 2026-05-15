@@ -581,6 +581,30 @@ def build_settings_tab_content():
                                 ]),
                             ], width=8),
                         ], className="mt-1"),
+
+                        # --- Time Calibration section ---
+                        html.Hr(className="my-2"),
+                        html.H5("Time Calibration", className="mt-2 mb-1"),
+                        html.Small("When a node is marked Done, prompt for how long it actually took.",
+                                   className="text-muted d-block mb-2"),
+                        dbc.Checklist(
+                            id="setting-time-calibration-enabled",
+                            options=[{"label": "Ask for actual time on completion", "value": "enabled"}],
+                            value=["enabled"],
+                            switch=True,
+                            className="mb-2",
+                        ),
+                        dbc.Label("Excluded from review", className="mt-1"),
+                        html.Small("Nodes marked \"Don't ask again\" during "
+                                   "calibration review — restore one to include "
+                                   "it in the cycle again.",
+                                   className="text-muted d-block mb-1"),
+                        dbc.Button(id="btn-calibration-dismissed-toggle",
+                                   color="link", size="sm",
+                                   className="p-0 text-decoration-none mb-1"),
+                        dbc.Collapse(
+                            html.Div(id="setting-calibration-dismissed-list"),
+                            id="calibration-dismissed-collapse", is_open=False),
                     ], className="p-2")
                 ]),
             ]),

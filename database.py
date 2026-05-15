@@ -192,6 +192,32 @@ def init_db():
         except Exception:
             pass
 
+    # Time-calibration columns: actual time spent, captured when a node is
+    # marked Done. Nullable with no default — NULL is meaningful here
+    # (= "not captured" / skipped / feature off), distinct from 0. Values are
+    # stored in canonical hours; actual_time_unit preserves the unit the user
+    # entered, for display round-trip.
+    for stmt in (
+        "ALTER TABLE Nodes ADD COLUMN actual_time_lower REAL",
+        "ALTER TABLE Nodes ADD COLUMN actual_time_upper REAL",
+        "ALTER TABLE Nodes ADD COLUMN actual_time_point REAL",
+        "ALTER TABLE Nodes ADD COLUMN actual_time_unit TEXT",
+    ):
+        try:
+            cursor.execute(stmt)
+            conn.commit()
+        except Exception:
+            pass
+
+    # Time-calibration review: marks a node permanently excluded from the
+    # calibration review cycle ("Don't ask again"). Boolean-style, mirrors
+    # `dormant`.
+    try:
+        cursor.execute("ALTER TABLE Nodes ADD COLUMN calibration_dismissed INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
+
     # One-time data migration: Goal nodes must use time_mode='inherited' (the
     # editor enforces this for new saves; this catches pre-existing rows).
     # Idempotent — once flipped, the WHERE clause matches no rows. time_o/m/p

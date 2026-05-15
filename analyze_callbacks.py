@@ -3,6 +3,7 @@ Callback definitions for the Analyze tab.
 Computes and renders aggregate analytics about the graph.
 """
 
+import math
 from dash import html, dcc, Input, Output, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
@@ -128,6 +129,33 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
 def _compute_top_time_sinks(nodes, limits):
     active = [n for n in nodes if n.status != STATUS_DONE]
     return sorted(active, key=lambda n: n.time, reverse=True)[:limits.get('time_sinks', 10)]
+
+
+def _compute_estimation_accuracy(nodes):
+    """Pair each completed node's forecast estimate against its captured
+    actual time. Both figures run through the same `blend_time_estimate`
+    blend so they are directly comparable. Nodes with no actual-time data,
+    or with no own estimate (inherited-time Goals), are skipped."""
+    from models import blend_time_estimate
+    rows = []
+    for n in nodes:
+        if n.status != STATUS_DONE:
+            continue
+        lo, mid, hi = n.actual_time_lower, n.actual_time_point, n.actual_time_upper
+        if lo is None and mid is None and hi is None:
+            continue
+        estimate = n.time
+        if estimate <= 0:
+            continue
+        actual = blend_time_estimate(lo, mid, hi)
+        rows.append({
+            'name': n.name,
+            'type': n.type,
+            'context': n.context,
+            'estimate': estimate,
+            'actual': actual,
+        })
+    return rows
 
 
 def _get_limits():
@@ -575,6 +603,30 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     return tickvals, ticktext
 
 
+def _log_time_ticks(min_val: float, max_val: float) -> tuple[list, list]:
+    """Return (tickvals, ticktext) for a log-scaled hours axis, placing ticks
+    at 1-2-5 ×10^k values within range and labelling each via
+    ``ConfigManager.format_time_friendly``."""
+    import math as _math
+    if max_val <= 0:
+        return [1.0], [ConfigManager.format_time_friendly(1.0)]
+    lo = max(0.5, min_val)
+    vals = []
+    k = _math.floor(_math.log10(lo))
+    while True:
+        for base in (1, 2, 5):
+            # 10.0 ** k keeps v a float — format_time_friendly rounds with
+            # ndigits, which leaves ints unchanged, and int.is_integer()
+            # only exists on Python 3.12+.
+            v = base * (10.0 ** k)
+            if v < lo / 1.5:
+                continue
+            if v > max_val * 1.5:
+                return vals, [ConfigManager.format_time_friendly(x) for x in vals]
+            vals.append(v)
+        k += 1
+
+
 def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None,
                 height=None, integer_x=False, friendly_x=False):
     """Create a standard horizontal bar chart figure.
@@ -937,6 +989,143 @@ def _render_risk_chart(data):
     ])
 
 
+def _render_estimation_accuracy(rows):
+    """Scatter of estimated vs. actual time for completed nodes, with a y=x
+    reference line. Points above the line overran the estimate."""
+    if not rows:
+        return html.P(
+            "No completed nodes have actual-time data yet. Mark nodes Done "
+            "with Time Calibration enabled to populate this chart.",
+            className="text-muted small")
+
+    fmt = ConfigManager.format_time_friendly
+    colors = ConfigManager.get_node_colors()
+
+    all_vals = [r['estimate'] for r in rows] + [r['actual'] for r in rows]
+    lo = min(v for v in all_vals if v > 0) * 0.7
+    hi = max(all_vals) * 1.4
+
+    fig = go.Figure()
+    # y = x reference line \u2014 perfect estimation.
+    fig.add_trace(go.Scatter(
+        x=[lo, hi], y=[lo, hi], mode='lines',
+        line=dict(color='#6c757d', dash='dash', width=1),
+        hoverinfo='skip', showlegend=False,
+    ))
+    # One marker trace per node type so the legend doubles as a colour key.
+    by_type = defaultdict(list)
+    for r in rows:
+        by_type[r['type']].append(r)
+    for ntype, trows in sorted(by_type.items()):
+        hover = []
+        for r in trows:
+            ratio = r['actual'] / r['estimate']
+            hover.append(
+                f"<b>{r['name']}</b><br>"
+                f"Estimated: {fmt(r['estimate'])}<br>"
+                f"Actual: {fmt(r['actual'])}<br>"
+                f"{ratio:.1f}\u00d7 estimate ({'over' if ratio >= 1 else 'under'})"
+            )
+        fig.add_trace(go.Scatter(
+            x=[r['estimate'] for r in trows],
+            y=[r['actual'] for r in trows],
+            mode='markers', name=ntype,
+            marker=dict(size=9, color=colors.get(ntype, '#0d6efd'),
+                        line=dict(width=1, color=_BG)),
+            hovertext=hover, hoverinfo='text',
+        ))
+
+    tickvals, ticktext = _log_time_ticks(lo, hi)
+    axis = dict(type='log', range=[math.log10(lo), math.log10(hi)],
+                tickvals=tickvals, ticktext=ticktext,
+                gridcolor='#343a40', automargin=True)
+    fig.update_layout(**_base_layout(
+        height=420, showlegend=True,
+        margin=dict(l=50, r=20, t=10, b=45),
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
+        xaxis=dict(title="Estimated", **axis),
+        yaxis=dict(title="Actual", **axis),
+    ))
+    return html.Div([
+        dcc.Graph(figure=fig, config=_CHART_CFG),
+        html.P("Points above the dashed line took longer than estimated; "
+               "points below were finished faster.",
+               className="text-muted small mt-1"),
+    ])
+
+
+_CTX_ACCURACY_MIN_N = 3  # min completed nodes for a context to get a box
+
+
+def _render_context_accuracy_boxplot(rows):
+    """Per-context box plots of the actual/estimate ratio. One box per context
+    with at least `_CTX_ACCURACY_MIN_N` completed nodes; the dashed line marks
+    a perfect 1× estimate. The ratio axis is log-scaled so 2× over and 0.5×
+    under read as symmetric distances from centre."""
+    import statistics
+    by_ctx = defaultdict(list)
+    for r in rows:
+        if r.get('context'):
+            by_ctx[r['context']].append(r['actual'] / r['estimate'])
+    qualifying = {c: v for c, v in by_ctx.items()
+                  if len(v) >= _CTX_ACCURACY_MIN_N}
+    hidden = len(by_ctx) - len(qualifying)
+    if not qualifying:
+        return html.P(
+            f"Not enough completed nodes per context yet — a context needs "
+            f"at least {_CTX_ACCURACY_MIN_N} with captured actual time.",
+            className="text-muted small")
+
+    # Ascending median order: the most chronically-underestimated context
+    # lands at the top of the horizontal layout.
+    ordered = sorted(qualifying.items(),
+                     key=lambda kv: statistics.median(kv[1]))
+
+    # Soft filled boxes in a single blue; the 1× reference line conveys
+    # over- vs. under-estimation by position.
+    line_c = '#4f9ed9'
+    fill_c = 'rgba(79,158,217,0.22)'
+
+    fig = go.Figure()
+    for ctx, ratios in ordered:
+        fig.add_trace(go.Box(
+            x=ratios, name=ctx, orientation='h',
+            boxpoints='all', jitter=0.4, pointpos=0, whiskerwidth=0.5,
+            marker=dict(color=line_c, size=4, opacity=0.45),
+            line=dict(color=line_c, width=1.5), fillcolor=fill_c,
+            hoveron='boxes+points', text=[ctx] * len(ratios),
+        ))
+
+    all_ratios = [x for _, v in ordered for x in v]
+    rmin, rmax = min(all_ratios), max(all_ratios)
+    ticks = [t for t in (0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16)
+             if rmin / 1.3 <= t <= rmax * 1.3]
+    if 1 not in ticks:
+        ticks = sorted(ticks + [1])
+
+    # Aim near the scatter's 420px so the two charts sit level side-by-side,
+    # growing only when there are many contexts.
+    height = max(420, len(ordered) * 42 + 80)
+    fig.update_layout(**_base_layout(
+        height=height, showlegend=False,
+        margin=dict(l=10, r=20, t=10, b=40),
+        xaxis=dict(type='log', title="Actual ÷ Estimated",
+                   tickvals=ticks, ticktext=[f"{t:g}×" for t in ticks],
+                   gridcolor='#343a40', automargin=True),
+        yaxis=dict(automargin=True),
+    ))
+    fig.add_vline(x=1, line=dict(color='#6c757d', dash='dash', width=1))
+
+    note = "Boxes right of the 1× line ran over estimate; left, came in under."
+    if hidden:
+        note += (f" {hidden} context(s) hidden — fewer than "
+                 f"{_CTX_ACCURACY_MIN_N} completed nodes.")
+    return html.Div([
+        dcc.Graph(figure=fig, config=_CHART_CFG),
+        html.P(note, className="text-muted small mt-1"),
+    ])
+
+
 def _render_dep_charts(dep_data, total_height=None):
     """Render deepest nodes + most connected bar charts stacked vertically.
 
@@ -1192,6 +1381,7 @@ def register_analyze_callbacks(app):
         ratings_data = _compute_ratings(nodes)
         goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits)
         risk_data = _compute_risk(nodes, limits)
+        est_accuracy = _compute_estimation_accuracy(nodes)
         dep_data = _compute_dependency_structure(nodes, hard_fwd, hard_rev, all_fwd, all_rev, edges, limits)
         ctx_coverage, subctx_coverage = _compute_context_coverage(nodes)
         # Shared height for Hours by Context + Longest Projects row
@@ -1224,6 +1414,18 @@ def register_analyze_callbacks(app):
             # -- Time --
             html.H5("Time", className="mb-1"),
             _render_time_distribution(ctx_chart, subctx_chart, top_nodes, risk_data, row_height=time_row_height),
+            html.Hr(className="my-3"),
+
+            # -- Estimation Accuracy --
+            html.H5("Estimation Accuracy", className="mb-1"),
+            html.P("Estimated vs. actual time for completed nodes with "
+                   "captured calibration data.", className="text-muted small"),
+            dbc.Row([
+                dbc.Col([html.H6("By node", className="text-muted mb-1"),
+                         _render_estimation_accuracy(est_accuracy)], width=6),
+                dbc.Col([html.H6("By context", className="text-muted mb-1"),
+                         _render_context_accuracy_boxplot(est_accuracy)], width=6),
+            ], className="g-3"),
             html.Hr(className="my-3"),
 
             # -- Graph Structure --

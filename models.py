@@ -27,6 +27,58 @@ STATUS_DONE = 'Done'
 ALL_STATUSES = (STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE)
 
 
+def blend_time_estimate(o: float, m: float, p: float) -> float:
+    """Blend optimistic / most-likely / pessimistic values into one expected
+    figure. Shared by the forecast estimate (`Node.time`) and the captured
+    actual time so both are computed identically and stay comparable.
+
+    - Only M supplied: return M.
+    - Only O and P (two-point): geometric mean ``sqrt(O*P)``.
+    - All three: weighted blend of the arithmetic and geometric PERT means,
+      shifting toward geometric as the P/O uncertainty ratio grows.
+    - Nothing supplied: return 1.0.
+
+    Accepts None for any argument (treated as 0) so it can take nullable
+    actual-time fields directly.
+    """
+    o = o or 0.0
+    m = m or 0.0
+    p = p or 0.0
+
+    # Fallback 1: Only M is provided
+    if m > 0 and o == 0 and p == 0:
+        return m
+
+    # Fallback 2: Only O and P are provided
+    if m == 0 and o > 0 and p > 0:
+        return math.sqrt(o * p)
+
+    # Fallback 3: All missing
+    if o == 0 and m == 0 and p == 0:
+        return 1.0
+
+    if o <= 0: o = 0.1
+    if m < o: m = o
+    if p < m: p = m
+
+    e_arith = (o + 4*m + p) / 6.0
+    try:
+        e_log = math.exp((math.log(o) + 4*math.log(m) + math.log(p)) / 6.0)
+    except ValueError:
+        e_log = e_arith
+
+    ratio = p / o
+
+    if ratio <= 2:
+        w = 0
+    elif 2 < ratio < 10:
+        w = (math.log(ratio) - math.log(2)) / (math.log(10) - math.log(2))
+    else:
+        w = 1
+
+    return round((1 - w) * e_arith + w * e_log, 2)
+
+
 @dataclass
 class Node:
     """A task, goal, or reference in the graph.
@@ -71,6 +123,16 @@ class Node:
     habit_intensity_m: float = 0.0
     habit_intensity_p: float = 0.0
     habit_intensity_unit: str = 'min_per_day'  # '{min|hr}_per_{day|week}'
+    # Time-calibration — actual time spent, captured when the node is marked
+    # Done. Stored in canonical hours; None means "not captured". actual_time_unit
+    # preserves the unit the user entered, for display round-trip.
+    actual_time_lower: Optional[float] = None
+    actual_time_upper: Optional[float] = None
+    actual_time_point: Optional[float] = None
+    actual_time_unit: Optional[str] = None
+    # Set when the user picks "Don't ask again" in calibration review — the
+    # node is then permanently excluded from the review cycle.
+    calibration_dismissed: int = 0
     priority_score: Optional[float] = None
 
     def __post_init__(self):
@@ -84,6 +146,7 @@ class Node:
         self.interest = max(1, min(10, self.interest))
         self.difficulty = max(1, min(10, self.difficulty))
         self.dormant = int(self.dormant) if self.dormant is not None else 0
+        self.calibration_dismissed = int(self.calibration_dismissed) if self.calibration_dismissed else 0
         if self.time_mode not in ('manual', 'inherited', 'habit'):
             self.time_mode = 'manual'
         if self.value_mode not in ('manual', 'inherited'):
@@ -108,53 +171,11 @@ class Node:
 
     @property
     def time(self) -> float:
-        """Calculates blended PERT time estimation.
-
-        Uses a weighted blend of arithmetic and logarithmic (geometric) means:
-        - Low uncertainty (P/O <= 2): pure arithmetic PERT mean
-        - High uncertainty (P/O >= 10): pure geometric PERT mean
-        - Medium: smooth log-interpolation between the two
-
-        Includes fallbacks when only partial estimates are provided.
-        """
+        """Blended PERT time estimate (in hours), or 0 for inherited-mode
+        nodes. See `blend_time_estimate` for the blend rules."""
         if self.time_mode == 'inherited':
             return 0.0
-        o, m, p = self.time_o, self.time_m, self.time_p
-        
-        # Fallback 1: Only M is provided
-        if m > 0 and o == 0 and p == 0:
-            return m
-            
-        # Fallback 2: Only O and P are provided
-        if m == 0 and o > 0 and p > 0:
-            return math.sqrt(o * p)
-            
-        # Fallback 3: All missing
-        if o == 0 and m == 0 and p == 0:
-            return 1.0
-
-        if o <= 0: o = 0.1
-        if m < o: m = o
-        if p < m: p = m
-            
-        e_arith = (o + 4*m + p) / 6.0
-        try:
-            e_log = math.exp((math.log(o) + 4*math.log(m) + math.log(p)) / 6.0)
-        except ValueError:
-            e_log = e_arith
-            
-        # `o > 0` is guaranteed by the clamp on line 97; the conditional was
-        # dead code preserved from earlier defensive patterns.
-        ratio = p / o
-        
-        if ratio <= 2:
-            w = 0
-        elif 2 < ratio < 10:
-            w = (math.log(ratio) - math.log(2)) / (math.log(10) - math.log(2))
-        else:
-            w = 1
-            
-        return round((1 - w) * e_arith + w * e_log, 2)
+        return blend_time_estimate(self.time_o, self.time_m, self.time_p)
 
     @property
     def is_container(self) -> bool:

@@ -342,6 +342,8 @@ DEFAULT_TITLECASE_LINTER = {
 
 DEFAULT_SHOW_SCORING_PERF = True
 
+DEFAULT_TIME_CALIBRATION_ENABLED = True
+
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
     'w_i': 1.00,
@@ -1108,6 +1110,18 @@ class ConfigManager:
     @classmethod
     def set_show_scoring_perf(cls, enabled: bool):
         cls._set_db_value("SHOW_SCORING_PERF", "1" if enabled else "0")
+
+    @classmethod
+    def get_time_calibration_enabled(cls) -> bool:
+        """Whether to prompt for actual time spent when a node is marked Done."""
+        val = cls._get_db_value("TIME_CALIBRATION_ENABLED")
+        if val is None:
+            return DEFAULT_TIME_CALIBRATION_ENABLED
+        return val == "1"
+
+    @classmethod
+    def set_time_calibration_enabled(cls, enabled: bool):
+        cls._set_db_value("TIME_CALIBRATION_ENABLED", "1" if enabled else "0")
 
     @classmethod
     def apply_titlecase_linter(cls, name: str) -> str:

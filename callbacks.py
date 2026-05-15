@@ -41,10 +41,10 @@ manager = GraphManager()
 event_manager = EventManager()
 
 
-# core_engine has 24 outputs; this constant + helper let the tab-gating guard
+# core_engine has 28 outputs; this constant + helper let the tab-gating guard
 # return a no_update tuple of the correct arity. test_core_engine_arity verifies
 # that it stays in sync with the actual callback registration.
-_CORE_ENGINE_NUM_OUTPUTS = 23
+_CORE_ENGINE_NUM_OUTPUTS = 28
 
 # Tabs whose own callbacks already refresh their content; switching to them
 # should NOT trigger a graph regen via core_engine.
@@ -64,8 +64,8 @@ _EDITOR_UI_ONLY_TRIGGERS = frozenset({
 # magic numbers. Must stay in sync with the Output list at the callback
 # decoration site.
 _SIDEBAR_EDITOR_STYLE_IDX = 11
-_DETAILS_GOAL_SIDEBAR_STYLE_IDX = 19
-_EVENTS_SIDEBAR_STYLE_IDX = 20
+_DETAILS_GOAL_SIDEBAR_STYLE_IDX = 18
+_EVENTS_SIDEBAR_STYLE_IDX = 19
 
 
 def _core_engine_noop_tuple():
@@ -85,10 +85,15 @@ def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_s
     return tuple(out)
 
 
-# Output slot indices for the new undo-Done modal outputs (added in Group 3).
-_UNDO_DONE_MODAL_IDX = 21
-_UNDO_DONE_BODY_IDX = 22
-_PENDING_UNDO_DONE_IDX = 23
+# Output slot indices for the undo-Done modal outputs.
+_UNDO_DONE_MODAL_IDX = 20
+_UNDO_DONE_BODY_IDX = 21
+_PENDING_UNDO_DONE_IDX = 22
+
+# Output slot indices for the time-calibration modal outputs.
+_TIME_CALIB_MODAL_IDX = 23
+_TIME_CALIB_REFERENCE_IDX = 24
+_TIME_CALIB_PENDING_IDX = 25
 
 
 def _build_undo_done_body(target_names, downstream_done):
@@ -115,6 +120,48 @@ def _build_undo_done_body(target_names, downstream_done):
     if overflow is not None:
         children.append(overflow)
     return children
+
+
+def _calibration_modal_text(node):
+    """Returns (title, prompt) for the time-calibration modal: the node name
+    goes in the modal title, the prompt recalls its original estimate so the
+    user can calibrate actual against estimated time."""
+    est = getattr(node, 'time', 0) or 0
+    if est > 0:
+        prompt = (f"You estimated this project would take "
+                  f"{ConfigManager.format_time_friendly(est)}. "
+                  f"How long did it actually take?")
+    else:
+        prompt = "How long did it actually take?"
+    return node.name, prompt
+
+
+def _calibration_review_queue(manager):
+    """Names of completed nodes eligible for the calibration review cycle:
+    status Done, an own time estimate (> 0, so inherited-time Goals are
+    excluded), no actual time captured yet, and not permanently dismissed.
+    Returned in stable name order."""
+    queue = []
+    for n in manager.get_all_nodes():
+        if n.status != STATUS_DONE:
+            continue
+        if (n.actual_time_lower is not None or n.actual_time_point is not None
+                or n.actual_time_upper is not None):
+            continue
+        if n.calibration_dismissed:
+            continue
+        if n.time <= 0:
+            continue
+        queue.append(n.name)
+    return sorted(queue)
+
+
+def _calibration_unit_for(hours):
+    """The Unit-dropdown value matching the friendly formatter's choice for
+    `hours` (e.g. a ~3.5w estimate → 'weeks'). Years cap to 'months' — the
+    modal dropdown offers only hours / weeks / months."""
+    _, unit = ConfigManager.hours_to_friendly_unit(hours or 0)
+    return 'months' if unit == 'years' else unit
 
 
 def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_style):
@@ -1387,7 +1434,12 @@ def register_callbacks(app):
          Output('events-sidebar-container', 'style', allow_duplicate=True),
          Output('modal-undo-done-confirm', 'is_open'),
          Output('undo-done-confirm-body', 'children'),
-         Output('pending-undo-done-store', 'data')],
+         Output('pending-undo-done-store', 'data'),
+         Output('modal-time-calibration', 'is_open'),
+         Output('time-calibration-reference', 'children'),
+         Output('time-calibration-pending-store', 'data'),
+         Output('time-calibration-unit', 'value', allow_duplicate=True),
+         Output('time-calibration-title', 'children', allow_duplicate=True)],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -1618,9 +1670,15 @@ def register_callbacks(app):
                 msg = "Error: Node type is required."
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
             try:
-                # Track if this save marks the node Done (for event completion check)
+                # Track if this save marks the node Done. Only count a true
+                # Open/Blocked → Done transition (or a brand-new node created
+                # Done) — re-saving an already-Done node must not re-trigger
+                # the time-calibration modal.
                 if status_done and STATUS_DONE in (status_done or []):
-                    completion_check_node = name
+                    _prior_for_completion = manager.get_node(name)
+                    if not (_prior_for_completion
+                            and _prior_for_completion.status == STATUS_DONE):
+                        completion_check_node = name
 
                 multiplier = ConfigManager.get_time_multiplier(time_unit)
                 t_o = float(time_o or 0) * multiplier
@@ -1989,12 +2047,29 @@ def register_callbacks(app):
             # still run at the top of core_engine because they're polling and
             # don't have a single transition point to hook into.
 
-        # Last 3 outputs are the undo-Done modal trio. The full path either
-        # opens the modal earlier (return short-circuit in the toggle branch)
-        # or runs to completion when no confirmation is needed; on this final
-        # return the modal stays closed and the pending store is cleared so
-        # any prior open state from a now-resolved flow is reset.
-        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style, False, "", None)
+        # Time-calibration: when an explicit single-node completion just
+        # happened and the feature is enabled, open the modal to capture how
+        # long the work actually took. completion_check_node is set only on
+        # the explicit single-node completion paths (graph tap, context-menu,
+        # editor save) — auto-cascade and bulk completion never set it.
+        tc_modal_open = False
+        tc_reference = ""
+        tc_pending = None
+        tc_unit = no_update  # only set the dropdown when the modal opens
+        tc_title = no_update
+        if completion_check_node and ConfigManager.get_time_calibration_enabled():
+            _tc_node = manager.get_node(completion_check_node)
+            if _tc_node is not None:
+                tc_modal_open = True
+                tc_title, tc_reference = _calibration_modal_text(_tc_node)
+                tc_pending = {'mode': 'single', 'node': completion_check_node}
+                tc_unit = _calibration_unit_for(_tc_node.time)
+
+        # Last 6 outputs: the undo-Done modal trio followed by the
+        # time-calibration modal trio. The undo-Done path either opens its
+        # modal earlier (return short-circuit in the toggle branch) or, as
+        # here, leaves it closed with the pending store cleared.
+        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style, False, "", None, tc_modal_open, tc_reference, tc_pending, tc_unit, tc_title)
 
     # --- Filters Sidebar Toggle (CLIENTSIDE) ---
     # Handled entirely in the browser via assets/filters_sidebar.js. Previously
@@ -2040,6 +2115,219 @@ def register_callbacks(app):
         modal/store cleanup so the next toggle starts fresh.
         """
         return False, None
+
+    # --- Time-Calibration Modal: Submit / Skip / Don't ask again ---
+    # The modal serves two flows, distinguished by the 'mode' in
+    # time-calibration-pending-store:
+    #   'single' — opened by core_engine after one explicit completion.
+    #   'review' — opened by the review-launch callback; cycles a queue of
+    #              completed nodes, advancing on each Submit/Skip/Dismiss.
+    # Submit writes actual_time_* (canonical hours); Skip leaves them NULL;
+    # "Don't ask again" sets calibration_dismissed. Inputs reset between nodes.
+    @app.callback(
+        Output('modal-time-calibration', 'is_open', allow_duplicate=True),
+        Output('time-calibration-pending-store', 'data', allow_duplicate=True),
+        Output('save-output', 'children', allow_duplicate=True),
+        Output('time-calibration-lower', 'value'),
+        Output('time-calibration-point', 'value'),
+        Output('time-calibration-upper', 'value'),
+        Output('time-calibration-unit', 'value'),
+        Output('time-calibration-reference', 'children', allow_duplicate=True),
+        Output('calibration-review-progress', 'value', allow_duplicate=True),
+        Output('calibration-review-progress', 'label', allow_duplicate=True),
+        Output('time-calibration-complete', 'children', allow_duplicate=True),
+        Output('time-calibration-title', 'children', allow_duplicate=True),
+        Input('btn-time-calibration-submit', 'n_clicks'),
+        Input('btn-time-calibration-skip', 'n_clicks'),
+        Input('btn-time-calibration-dismiss', 'n_clicks'),
+        State('time-calibration-lower', 'value'),
+        State('time-calibration-point', 'value'),
+        State('time-calibration-upper', 'value'),
+        State('time-calibration-unit', 'value'),
+        State('time-calibration-pending-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def handle_time_calibration(_submit, _skip, _dismiss, lower, point, upper,
+                                unit, pending):
+        reset = (None, None, None, 'hours')  # cleared inputs for the next node
+        trig = get_trigger_id()
+        pending = pending if isinstance(pending, dict) else {}
+        mode = pending.get('mode')
+
+        if mode == 'review':
+            queue = pending.get('queue', [])
+            idx = pending.get('index', 0)
+            node_name = queue[idx] if 0 <= idx < len(queue) else None
+        elif mode == 'single':
+            queue, idx = [], 0
+            node_name = pending.get('node')
+        else:
+            # Stale / no pending node — just close.
+            return (False, None, no_update, *reset,
+                    no_update, no_update, no_update, no_update, no_update)
+
+        node = manager.get_node(node_name) if node_name else None
+
+        # Apply the chosen action to the current node.
+        if node is not None:
+            if trig == 'btn-time-calibration-submit':
+                mult = ConfigManager.get_time_multiplier(unit or 'hours')
+
+                def _to_hours(v):
+                    return float(v) * mult if v not in (None, '') else None
+
+                node.actual_time_lower = _to_hours(lower)
+                node.actual_time_point = _to_hours(point)
+                node.actual_time_upper = _to_hours(upper)
+                node.actual_time_unit = unit or 'hours'
+                manager.update_node(node)
+            elif trig == 'btn-time-calibration-dismiss':
+                node.calibration_dismissed = 1
+                manager.update_node(node)
+            # Skip: no write.
+
+        if mode == 'single':
+            msg = (f"Logged actual time for '{node.name}'."
+                   if (trig == 'btn-time-calibration-submit' and node) else no_update)
+            return (False, None, msg, *reset,
+                    no_update, no_update, no_update, no_update, no_update)
+
+        # Review mode — advance to the next node, or finish.
+        n = len(queue)
+        next_idx = idx + 1
+        if next_idx < n:
+            nxt = manager.get_node(queue[next_idx])
+            if nxt is not None:
+                next_title, ref = _calibration_modal_text(nxt)
+            else:
+                next_title, ref = "", ""
+            new_store = {'mode': 'review', 'queue': queue, 'index': next_idx}
+            human = next_idx + 1  # 1-based node number now showing
+            pct = round(human / n * 100)
+            next_unit = _calibration_unit_for(nxt.time) if nxt else 'hours'
+            return (True, new_store, no_update, None, None, None, next_unit,
+                    ref, pct, f"{human} / {n}", no_update, next_title)
+        # Last node done — switch to the completion screen (stays open).
+        complete_msg = html.Div([
+            html.Div("✓", className="text-success",
+                     style={"fontSize": "2.4rem", "lineHeight": "1"}),
+            html.H5("All projects reviewed", className="mt-2 mb-1"),
+            html.P(f"You cycled through {n} completed node(s).",
+                   className="text-muted small mb-0"),
+        ])
+        return (True, {'mode': 'complete'},
+                f"Calibration review complete — {n} node(s).",
+                *reset, no_update, 100, f"{n} / {n}", complete_msg,
+                "Review complete")
+
+    # --- Calibration Review: launch the cycle ---
+    @app.callback(
+        Output('modal-time-calibration', 'is_open', allow_duplicate=True),
+        Output('time-calibration-pending-store', 'data', allow_duplicate=True),
+        Output('time-calibration-reference', 'children', allow_duplicate=True),
+        Output('calibration-review-progress', 'value', allow_duplicate=True),
+        Output('calibration-review-progress', 'label', allow_duplicate=True),
+        Output('calibration-review-toast', 'is_open'),
+        Output('calibration-review-toast', 'children'),
+        Output('time-calibration-unit', 'value', allow_duplicate=True),
+        Output('time-calibration-title', 'children', allow_duplicate=True),
+        Input('btn-calibration-review', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def launch_calibration_review(_n):
+        queue = _calibration_review_queue(manager)
+        if not queue:
+            return (no_update, no_update, no_update, no_update, no_update,
+                    True, "All completed nodes are already rated or dismissed.",
+                    no_update, no_update)
+        first = manager.get_node(queue[0])
+        title, ref = _calibration_modal_text(first) if first else ("", "")
+        store = {'mode': 'review', 'queue': queue, 'index': 0}
+        n = len(queue)
+        unit = _calibration_unit_for(first.time) if first else 'hours'
+        return (True, store, ref, round(1 / n * 100), f"1 / {n}", False,
+                no_update, unit, title)
+
+    # --- Calibration Review: close the completion screen ---
+    @app.callback(
+        Output('modal-time-calibration', 'is_open', allow_duplicate=True),
+        Input('btn-time-calibration-done', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def close_calibration_review(_n):
+        return False
+
+    # --- Calibration modal chrome: mode-dependent buttons / progress / panels ---
+    @app.callback(
+        Output('btn-time-calibration-dismiss', 'style'),
+        Output('btn-time-calibration-skip', 'style'),
+        Output('btn-time-calibration-submit', 'style'),
+        Output('btn-time-calibration-done', 'style'),
+        Output('calibration-review-progress-wrap', 'style'),
+        Output('time-calibration-active', 'style'),
+        Output('time-calibration-complete', 'style'),
+        Output('btn-time-calibration-skip', 'children'),
+        Input('time-calibration-pending-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def _calibration_modal_chrome(pending):
+        mode = pending.get('mode') if isinstance(pending, dict) else None
+        hide = {"display": "none"}
+        if mode == 'complete':
+            # Completion screen: only "Done", progress + completion panel.
+            return (hide, hide, hide, {}, {}, hide, {}, "Skip")
+        if mode == 'review':
+            return ({}, {}, {}, hide, {}, {}, hide, "Skip for now")
+        # single (or cleared) — completion-modal layout.
+        return (hide, {}, {}, hide, hide, {}, hide, "Skip")
+
+    # --- Calibration modal cleanup: clear state when the modal closes ---
+    # Covers the corner-X abort (which closes the modal without firing any
+    # footer button) so a half-finished review queue isn't left in the store.
+    @app.callback(
+        Output('time-calibration-pending-store', 'data', allow_duplicate=True),
+        Output('time-calibration-lower', 'value', allow_duplicate=True),
+        Output('time-calibration-point', 'value', allow_duplicate=True),
+        Output('time-calibration-upper', 'value', allow_duplicate=True),
+        Output('time-calibration-unit', 'value', allow_duplicate=True),
+        Input('modal-time-calibration', 'is_open'),
+        State('time-calibration-pending-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def _calibration_modal_closed(is_open, pending):
+        if is_open or pending is None:
+            return (no_update,) * 5
+        return None, None, None, None, 'hours'
+
+    # --- Calibration review button: hidden when the feature is off ---
+    # Re-evaluated on load and on every tab switch — a tab switch is the
+    # natural action after toggling the setting in Settings, and it happens
+    # after the save has committed, so there's no read-before-write race.
+    @app.callback(
+        Output('btn-calibration-review', 'style'),
+        Input('app-load-interval', 'n_intervals'),
+        Input('main-tabs', 'active_tab'),
+    )
+    def _calibration_review_button_visibility(_n, _active_tab):
+        if ConfigManager.get_time_calibration_enabled():
+            return {"display": "inline-block"}
+        return {"display": "none"}
+
+    # --- Calibration: editor read-only "excluded" badge ---
+    # Keyed off node-original-name (set when a node loads into the editor) so
+    # it stays decoupled from the large populate_editor callback.
+    @app.callback(
+        Output('node-calibration-dismissed-badge', 'children'),
+        Output('node-calibration-dismissed-badge', 'style'),
+        Input('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+    def _calibration_editor_badge(original_name):
+        node = manager.get_node(original_name) if original_name else None
+        if node is not None and node.calibration_dismissed:
+            return ("Excluded from calibration review — restore in Settings.",
+                    {"display": "block"})
+        return "", {"display": "none"}
 
     # --- Auto-Done Suggestion Modal ---
     # Single orchestrator that drains GraphManager's auto-done candidate queue

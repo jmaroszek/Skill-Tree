@@ -99,8 +99,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -130,7 +130,10 @@ class GraphManager:
                     dormant=:dormant, time_mode=:time_mode, value_mode=:value_mode,
                     habit_duration=:habit_duration, habit_duration_unit=:habit_duration_unit,
                     habit_intensity_o=:habit_intensity_o, habit_intensity_m=:habit_intensity_m,
-                    habit_intensity_p=:habit_intensity_p, habit_intensity_unit=:habit_intensity_unit
+                    habit_intensity_p=:habit_intensity_p, habit_intensity_unit=:habit_intensity_unit,
+                    actual_time_lower=:actual_time_lower, actual_time_upper=:actual_time_upper,
+                    actual_time_point=:actual_time_point, actual_time_unit=:actual_time_unit,
+                    calibration_dismissed=:calibration_dismissed
                 WHERE name=:name
             ''', data)
             conn.commit()

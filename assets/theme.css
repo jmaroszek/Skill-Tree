@@ -387,3 +387,12 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     transition: opacity 0.25s ease, max-height 0.3s ease;
     overflow: hidden;
 }
+
+/* --- Calibration "Don't ask again": styled like Skip, subtly red on hover
+   to flag it as the more serious (permanent) choice. --- */
+
+#btn-time-calibration-dismiss:hover {
+    background-color: #8c4a4a;
+    border-color: #8c4a4a;
+    color: #fff;
+}

@@ -737,6 +737,11 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         # Preserve fields that aren't represented in the editor form, otherwise
         # update_node would overwrite them with the Node dataclass defaults.
         node.dormant = existing.dormant
+        node.actual_time_lower = existing.actual_time_lower
+        node.actual_time_upper = existing.actual_time_upper
+        node.actual_time_point = existing.actual_time_point
+        node.actual_time_unit = existing.actual_time_unit
+        node.calibration_dismissed = existing.calibration_dismissed
         manager.update_node(node)
         msg = f"Updated node '{name}'"
     else:

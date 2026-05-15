@@ -135,6 +135,11 @@ sidebar_content = html.Div(
                 ], className="d-flex justify-content-start gap-3 mt-3"),
                 html.Div(id="node-dormant-event-info",
                          className="small text-muted mt-1"),
+                # Read-only badge — shown only when the node was excluded from
+                # the calibration review cycle ("Don't ask again").
+                html.Div(id="node-calibration-dismissed-badge",
+                         className="small text-warning mt-1",
+                         style={"display": "none"}),
             ]),
 
             # Numeric inputs (shared by all types)
@@ -1007,6 +1012,83 @@ auto_done_suggestion_modal = dbc.Modal([
 ], id="modal-auto-done-suggestion", size="sm", is_open=False, centered=True)
 
 
+# Time-calibration modal: pops after an explicit single-node completion to
+# capture how long the work actually took. Submit persists the values onto the
+# node; Skip leaves the actual_time_* fields NULL. The reference div is filled
+# by core_engine with the node name and its original estimate. Input fields are
+# static (the app doesn't suppress callback exceptions, so State-referenced IDs
+# must exist in the initial layout); they are reset on close.
+time_calibration_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Time Calibration", id="time-calibration-title")),
+    dbc.ModalBody([
+        # Progress bar — shown in review + completion (chrome callback toggles).
+        html.Div(id="calibration-review-progress-wrap", style={"display": "none"},
+                 className="mb-3", children=[
+            dbc.Progress(id="calibration-review-progress", value=0, label="",
+                         style={"height": "20px"}),
+        ]),
+        # Active rating form — hidden on the completion screen.
+        html.Div(id="time-calibration-active", children=[
+            html.Div(id="time-calibration-reference", className="text-muted small mb-3"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Lower Bound"),
+                    dbc.Input(id="time-calibration-lower", type="number", min=0),
+                ], width=4),
+                dbc.Col([
+                    dbc.Label("Best Estimate"),
+                    dbc.Input(id="time-calibration-point", type="number", min=0),
+                ], width=4),
+                dbc.Col([
+                    dbc.Label("Upper Bound"),
+                    dbc.Input(id="time-calibration-upper", type="number", min=0),
+                ], width=4),
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Unit", className="mt-2"),
+                    dbc.Select(id="time-calibration-unit", value="hours", options=[
+                        {"label": "Hours", "value": "hours"},
+                        {"label": "Weeks", "value": "weeks"},
+                        {"label": "Months", "value": "months"},
+                    ]),
+                ], width=4),
+            ], className="mt-1"),
+        ]),
+        # Completion screen — shown only after the last node of a review cycle.
+        html.Div(id="time-calibration-complete", style={"display": "none"},
+                 className="text-center py-3"),
+    ]),
+    dbc.ModalFooter([
+        # Dismiss / Done are shown contextually by the chrome callback.
+        dbc.Button("Don't ask again", id="btn-time-calibration-dismiss",
+                   color="secondary", className="flex-fill me-2",
+                   style={"display": "none"}),
+        dbc.Button("Skip", id="btn-time-calibration-skip",
+                   color="secondary", className="flex-fill me-2"),
+        dbc.Button("Submit", id="btn-time-calibration-submit",
+                   color="primary", className="flex-fill"),
+        dbc.Button("Done", id="btn-time-calibration-done",
+                   color="primary", className="flex-fill",
+                   style={"display": "none"}),
+    ], className="d-flex"),
+], id="modal-time-calibration", size="md", is_open=False, centered=True)
+
+
+# Brief notification shown when calibration review is launched but every
+# completed node is already rated or dismissed.
+calibration_review_toast = dbc.Toast(
+    id="calibration-review-toast",
+    header="Time Calibration",
+    is_open=False,
+    dismissable=True,
+    duration=4000,
+    icon="info",
+    style={"position": "fixed", "top": 66, "right": 12,
+           "width": 340, "zIndex": 1100},
+)
+
+
 # Used by the canvas context menu and Delete-key hotkey — handles one or many
 # nodes. Distinct from the node-editor delete flow above, which always targets
 # the single node currently open in the editor.
@@ -1365,6 +1447,11 @@ def build_app_layout(initial_elements, env="production"):
             dbc.Button(html.I(className="bi bi-filter"), id="btn-filters-toggle", color="secondary", size="sm"),
             dbc.Tooltip("Filters", target="btn-filters-toggle", placement="bottom",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            dbc.Button(html.I(className="bi bi-clock-history"), id="btn-calibration-review",
+                       color="secondary", size="sm", className="ms-2",
+                       style={"display": "none"}),
+            dbc.Tooltip("Review actual times", target="btn-calibration-review", placement="bottom",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
     ], className="d-flex align-items-center",
@@ -1494,6 +1581,8 @@ def build_app_layout(initial_elements, env="production"):
         undo_done_confirm_modal,
         dormant_deactivate_confirm_modal,
         auto_done_suggestion_modal,
+        time_calibration_modal,
+        calibration_review_toast,
         group_delete_confirm_modal,
         override_conflict_modal,
         override_untoggle_modal,
@@ -1530,6 +1619,9 @@ def build_app_layout(initial_elements, env="production"):
         # modal is open. Read by the modal-confirm callback to perform the
         # actual toggle once the user has acknowledged the downstream impact.
         dcc.Store(id='pending-undo-done-store', data=None),
+        # Holds the name of the node awaiting time-calibration input while the
+        # modal is open. Read by handle_time_calibration on Submit.
+        dcc.Store(id='time-calibration-pending-store', data=None),
         # Queue of Goal/Milestone names whose hard prereqs just became all
         # Done. Drained from GraphManager._auto_done_candidates whenever the
         # graph version bumps, then surfaced one at a time by the auto-Done

@@ -17,6 +17,35 @@ logger = logging.getLogger(__name__)
 manager = GraphManager()
 
 
+_RESTORE_ICON = "↺"  # ↺ — matches the restore buttons in settings_layout
+
+
+def _build_calibration_dismissed_view():
+    """Returns (list-children, toggle-button-label) for the Settings 'excluded
+    from review' section: one row per node marked "Don't ask again", each with
+    a Restore button. The list is collapsed by default — the label carries the
+    count so it stays scannable even when the list is long."""
+    dismissed = sorted(n.name for n in manager.get_all_nodes(include_dormant=True)
+                       if n.calibration_dismissed)
+    label = (f"{len(dismissed)} node(s) excluded — show / hide" if dismissed
+             else "No nodes excluded")
+    if not dismissed:
+        return html.Small("Nothing excluded.", className="text-muted d-block"), label
+    rows = []
+    for name in dismissed:
+        rows.append(html.Div([
+            html.Span(name, className="flex-grow-1 text-truncate"),
+            dbc.Button(_RESTORE_ICON,
+                       id={'type': 'calibration-restore', 'index': name},
+                       color="link", size="sm", className="p-0 ms-2",
+                       style={"fontSize": "1.1rem", "lineHeight": "1",
+                              "color": "#adb5bd"}),
+            dbc.Tooltip("Restore", target={'type': 'calibration-restore', 'index': name},
+                        placement="left"),
+        ], className="d-flex align-items-center mb-1"))
+    return html.Div(rows), label
+
+
 def _clamp(val, lo, hi, default):
     """Clamp a numeric value to [lo, hi], falling back to default if None."""
     try:
@@ -183,12 +212,13 @@ def register_settings_callbacks(app):
         Output('setting-show-scoring-perf', 'value'),
         Output('setting-subcontext-sort-mode', 'value'),
         Output('setting-context-sort-mode', 'value'),
+        Output('setting-time-calibration-enabled', 'value'),
         Input('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
     def load_settings(active_tab: str) -> Tuple[Any, ...]:
         if active_tab != 'tab-settings':
-            return (dash.no_update,) * 48
+            return (dash.no_update,) * 49
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -335,7 +365,47 @@ def register_settings_callbacks(app):
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
             ConfigManager.get_subcontext_sort_mode(),
             ConfigManager.get_context_sort_mode(),
+            ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
         )
+
+    # --- Settings: calibration "excluded from review" list ---
+    # Loaded when the Settings tab opens; kept separate from the big
+    # load_settings callback. The list is collapsed by default.
+    @app.callback(
+        Output('setting-calibration-dismissed-list', 'children'),
+        Output('btn-calibration-dismissed-toggle', 'children'),
+        Input('main-tabs', 'active_tab'),
+        prevent_initial_call=True,
+    )
+    def load_calibration_dismissed_list(active_tab):
+        if active_tab != 'tab-settings':
+            return dash.no_update, dash.no_update
+        return _build_calibration_dismissed_view()
+
+    @app.callback(
+        Output('calibration-dismissed-collapse', 'is_open'),
+        Input('btn-calibration-dismissed-toggle', 'n_clicks'),
+        State('calibration-dismissed-collapse', 'is_open'),
+        prevent_initial_call=True,
+    )
+    def toggle_calibration_dismissed_collapse(_n, is_open):
+        return not is_open
+
+    @app.callback(
+        Output('setting-calibration-dismissed-list', 'children', allow_duplicate=True),
+        Output('btn-calibration-dismissed-toggle', 'children', allow_duplicate=True),
+        Input({'type': 'calibration-restore', 'index': ALL}, 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def restore_calibration_node(clicks):
+        trig = ctx.triggered_id
+        if not trig or not any(clicks):
+            return dash.no_update, dash.no_update
+        node = manager.get_node(trig['index'])
+        if node and node.calibration_dismissed:
+            node.calibration_dismissed = 0
+            manager.update_node(node)
+        return _build_calibration_dismissed_view()
 
     # --- Settings: Apply Hyperparameter Profile ---
     @app.callback(
@@ -462,6 +532,7 @@ def register_settings_callbacks(app):
         State('setting-show-scoring-perf', 'value'),
         State('setting-subcontext-sort-mode', 'value'),
         State('setting-context-sort-mode', 'value'),
+        State('setting-time-calibration-enabled', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul,
@@ -480,7 +551,7 @@ def register_settings_callbacks(app):
                       al_bottlenecks, al_goals, al_risk,
                       al_time_sinks, al_deepest, al_connected,
                       show_scoring_perf_val, subcontext_sort_mode_val,
-                      context_sort_mode_val):
+                      context_sort_mode_val, time_calibration_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -490,6 +561,9 @@ def register_settings_callbacks(app):
             # whether a type/context migration is pending.
             ConfigManager.set_show_scoring_perf(
                 bool(show_scoring_perf_val and "enabled" in show_scoring_perf_val)
+            )
+            ConfigManager.set_time_calibration_enabled(
+                bool(time_calibration_val and "enabled" in time_calibration_val)
             )
             if subcontext_sort_mode_val:
                 ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
