@@ -812,7 +812,7 @@ def _suggestion_micro_bar(val, label):
 
 
 def _suggestion_dot(on, label, fill_color):
-    """One R/O/D indicator dot (filled when flag true, hollow with muted border otherwise)."""
+    """One link-presence indicator dot (filled when a link is set, hollow otherwise)."""
     border_color = fill_color if on else "#6c757d"
     return html.Span(
         title=label,
@@ -832,7 +832,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
       - rank (two-digit monospace label, leftmost)
       - name + context line
       - priority bar (color = type, or override color if pinned; length = priority/maxPriority)
-      - time + V/I/E micro-chart + R/O/D indicator dots
+      - time + V/I/E micro-chart + Obsidian/Drive/Website link dots
     """
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
@@ -868,10 +868,6 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
                 return 0.0
             return round((score / max_score) * 100, 1)
 
-    edges = manager.get_edges()
-    all_nodes = manager.get_all_nodes()
-    resource_names = {n.name for n in all_nodes if n.type == 'Resource'}
-
     normalized_scores = [
         normalize(getattr(s, 'priority_score', 0), s.name in override_names)
         for s in suggs
@@ -894,11 +890,6 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
         is_override = bool(override_set and s.name in override_set)
 
         eff_time = manager.get_effective_time(s.name)
-        has_resource = s.type == 'Resource' or any(
-            e['source'] in resource_names
-            for e in edges
-            if e['target'] == s.name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
-        )
 
         priority_int = round(normalize(getattr(s, 'priority_score', 0), is_override))
         if max_priority > 0:
@@ -999,9 +990,9 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
         })
 
         dots = html.Span([
-            _suggestion_dot(has_resource, "Resources", "#dee2e6"),
             _suggestion_dot(bool(getattr(s, 'obsidian_path', None)), "Obsidian", "#dee2e6"),
             _suggestion_dot(bool(getattr(s, 'google_drive_path', None)), "Drive", "#dee2e6"),
+            _suggestion_dot(bool(getattr(s, 'website', None)), "Website", "#dee2e6"),
         ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
