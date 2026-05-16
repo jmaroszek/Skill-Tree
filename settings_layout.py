@@ -284,7 +284,7 @@ def build_settings_tab_content():
                                                             ]),
                                                             html.Tr([
                                                                 html.Td(html.Strong("Explorer")),
-                                                                html.Td("Interest weighted over Value. Synergies hit harder. Cross-context links are rewarded."),
+                                                                html.Td("Interest weighted over Value. Synergies hit harder. Cross-context links are rewarded. Sparser subcontexts get a fairer shot at surfacing."),
                                                                 html.Td("You want to follow rabbit holes and let enjoyable, exploratory work surface."),
                                                             ]),
                                                             html.Tr([
@@ -294,7 +294,7 @@ def build_settings_tab_content():
                                                             ]),
                                                             html.Tr([
                                                                 html.Td(html.Strong("Pragmatist")),
-                                                                html.Td("Value beats Interest. Priority-Goal boost is dialed way up; synergies and Soft edges are minimized."),
+                                                                html.Td("Value beats Interest. Priority-Goal boost is dialed up; synergies and Soft edges are minimized."),
                                                                 html.Td("You have a clear Goal and want the algorithm to drive everything toward it."),
                                                             ]),
                                                             html.Tr([
@@ -304,8 +304,8 @@ def build_settings_tab_content():
                                                             ]),
                                                             html.Tr([
                                                                 html.Td(html.Strong("Glider")),
-                                                                html.Td("Time and effort weigh more heavily, so short and easy work rises. Cascade and synergies are dialed back."),
-                                                                html.Td("Light-effort days — keep moving, but coast for a bit."),
+                                                                html.Td("Time and effort weigh more heavily, so short and easy work rises. Cascade, synergies, and the Priority-Goal boost are all dialed back — non-priority work gets a fair chance to surface."),
+                                                                html.Td("Light-effort days — a break from the priority grind, or just a lap through small things."),
                                                             ]),
                                                         ]),
                                                     ],
@@ -424,7 +424,7 @@ def build_settings_tab_content():
 
                         html.Hr(className="my-3"),
                         html.Small(
-                            "Context priority weights also affect scoring \u2014 set them in the Contexts tab.",
+                            "Reminder: context weights also affect scoring \u2014 set them in the Contexts tab.",
                             className="text-muted d-block mt-2 mb-2",
                             style={"fontStyle": "italic"},
                         ),

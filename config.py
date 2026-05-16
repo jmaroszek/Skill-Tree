@@ -366,7 +366,7 @@ PROFILES = {
         'd_Syn_pair': 0.15, 'd_Syn_mul': 0.60,
         'cross_context_mult': 1.50,
         'w_e': 2.50, 'w_t': 1.00, 'beta': 0.85,
-        'goal_boost': 1.50, 'alpha': 0.30,
+        'goal_boost': 1.50, 'alpha': 0.40,
     },
     'Compounder': {
         'w_v': 1.00, 'w_i': 1.00, 'd_H': 0.80, 'd_S': 0.50,
@@ -380,7 +380,7 @@ PROFILES = {
         'd_Syn_pair': 0.05, 'd_Syn_mul': 0.25,
         'cross_context_mult': 1.00,
         'w_e': 2.50, 'w_t': 1.50, 'beta': 0.85,
-        'goal_boost': 2.50, 'alpha': 0.20,
+        'goal_boost': 2.00, 'alpha': 0.20,
     },
     'Creator': {
         'w_v': 1.00, 'w_i': 1.00, 'd_H': 0.60, 'd_S': 0.40,
@@ -394,7 +394,7 @@ PROFILES = {
         'd_Syn_pair': 0.05, 'd_Syn_mul': 0.20,
         'cross_context_mult': 1.00,
         'w_e': 3.50, 'w_t': 4.00, 'beta': 0.95,
-        'goal_boost': 1.50, 'alpha': 0.30,
+        'goal_boost': 1.00, 'alpha': 0.40,
     },
 }
 
