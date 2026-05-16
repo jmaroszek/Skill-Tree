@@ -12,8 +12,10 @@
 
         var editItem = document.getElementById('ctx-menu-edit');
         var detailsItem = document.getElementById('ctx-menu-details');
+        var explainItem = document.getElementById('ctx-menu-explain');
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
+        var linksDivider = document.getElementById('ctx-menu-links-divider');
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
         var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
@@ -44,25 +46,15 @@
             _currentNodeData = nodeData;
 
             var hasObsidian = _getFirstLink(nodeData.obsidian_path);
-            if (hasObsidian) {
-                obsidianItem.style.opacity = '1';
-                obsidianItem.style.cursor = 'pointer';
-                obsidianItem.style.pointerEvents = 'auto';
-            } else {
-                obsidianItem.style.opacity = '0.4';
-                obsidianItem.style.cursor = 'default';
-                obsidianItem.style.pointerEvents = 'none';
-            }
+            obsidianItem.style.display = hasObsidian ? '' : 'none';
 
             var hasDrive = _getFirstLink(nodeData.google_drive_path);
-            if (hasDrive) {
-                driveItem.style.opacity = '1';
-                driveItem.style.cursor = 'pointer';
-                driveItem.style.pointerEvents = 'auto';
-            } else {
-                driveItem.style.opacity = '0.4';
-                driveItem.style.cursor = 'default';
-                driveItem.style.pointerEvents = 'none';
+            driveItem.style.display = hasDrive ? '' : 'none';
+
+            // Collapse the upper divider when neither link is present, so the
+            // remaining (lower) Hr doesn't sit doubled-up against this one.
+            if (linksDivider) {
+                linksDivider.style.display = (hasObsidian || hasDrive) ? '' : 'none';
             }
 
             var rect = menu.getBoundingClientRect();
@@ -346,6 +338,15 @@
                 hideMenu();
                 if (_currentNodeData && _currentNodeData.id) {
                     _setHiddenInput('details-navigate-trigger-input', _currentNodeData.id);
+                }
+            });
+        }
+
+        if (explainItem) {
+            explainItem.addEventListener('click', function () {
+                hideMenu();
+                if (_currentNodeData && _currentNodeData.id) {
+                    _setHiddenInput('details-explain-trigger-input', _currentNodeData.id);
                 }
             });
         }

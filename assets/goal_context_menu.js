@@ -138,6 +138,11 @@
             // switch to the canvas tab via handle_edit_trigger in callbacks.py).
             setHiddenInput('details-edit-trigger-input', name + '|' + Date.now());
         });
+        bindMenuItem('goal-ctx-explain', function (name) {
+            // details-explain-trigger-input selects the node + opens the
+            // Explain modal (renders via React Portal, visible from any tab).
+            setHiddenInput('details-explain-trigger-input', name + '|' + Date.now());
+        });
         bindMenuItem('goal-ctx-details', function (name) {
             setHiddenInput('goal-details-trigger-input', name + '|' + Date.now());
         });

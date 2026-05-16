@@ -1344,14 +1344,15 @@ def build_app_layout(initial_elements, env="production"):
         id="node-context-menu",
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
+            html.Div("Explain", id="ctx-menu-explain", className="ctx-menu-item"),
             html.Div("Details", id="ctx-menu-details", className="ctx-menu-item"),
             html.Div("Event", id="ctx-menu-add-to-event", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
+            html.Hr(id="ctx-menu-links-divider", style={"margin": "2px"}),
             html.Div("Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Drive", id="ctx-menu-drive", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div(STATUS_DONE, id="ctx-menu-toggle-done", className="ctx-menu-item"),
-            html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item"),
+            html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item ctx-menu-item-danger"),
         ],
         style={
             "display": "none",
@@ -1396,6 +1397,7 @@ def build_app_layout(initial_elements, env="production"):
         id="goal-context-menu",
         children=[
             html.Div("Edit", id="goal-ctx-edit", className="ctx-menu-item"),
+            html.Div("Explain", id="goal-ctx-explain", className="ctx-menu-item"),
             html.Div("Details", id="goal-ctx-details", className="ctx-menu-item"),
             html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
@@ -1561,6 +1563,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='pending-navigation-store', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='details-explain-trigger-input', type='text', value='', style={'display': 'none'}),
         # Set by context_menu.js when "Add to event…" is clicked. Carries a
         # JSON-encoded list of selected node IDs plus a "|<timestamp>" suffix.
         dcc.Input(id='dormant-existing-trigger-input', type='text', value='', style={'display': 'none'}),

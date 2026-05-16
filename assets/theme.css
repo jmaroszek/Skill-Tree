@@ -355,6 +355,15 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     color: #fff;
 }
 
+.ctx-menu-item-danger {
+    color: #c94c4c;
+}
+
+.ctx-menu-item-danger:hover {
+    background-color: #5a2828;
+    color: #e08585;
+}
+
 /* --- Goal sidebar rank trigger (clickable rank badge) --- */
 
 .goal-rank-trigger {
