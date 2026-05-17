@@ -1217,11 +1217,17 @@ def _explain_summary_table(breakdown: dict, normalized):
     muted style; inherited-time nodes annotate the Cost row; `normalized`
     may be None (displays '—') when the caller could not determine a
     normalization base.
+
+    Goal breakdowns (`is_goal`, produced by analyze_callbacks.explain_goal)
+    are scored on the inverted prereq graph: the cascade rows describe the
+    prerequisite subtree rather than what the node unlocks, and the Cost
+    section reports beta-compressed prereq-subtree time.
     """
     comp = breakdown['composition']
     cost_info = breakdown['cost']
     boost = breakdown['goal_boost']
     eligible = breakdown['eligible']
+    is_goal = breakdown.get('is_goal', False)
     downstream = comp['hard_cascade'] + comp['soft_cascade'] + comp['synergy']
 
     header_style = {
@@ -1271,7 +1277,10 @@ def _explain_summary_table(breakdown: dict, normalized):
             _num_cell(iv_mult_contribution),
         ]))
 
-    rows.append(html.Tr([html.Td("Downstream"), _num_cell(downstream)]))
+    # For a Goal the cascade walks the *inverted* graph, so these rows are
+    # the value of its prerequisite subtree rather than what it unlocks.
+    cascade_label = "Prerequisite subtree" if is_goal else "Downstream"
+    rows.append(html.Tr([html.Td(cascade_label), _num_cell(downstream)]))
     for label, value in (
         ("via Hard", comp['hard_cascade']),
         ("via Soft", comp['soft_cascade']),
@@ -1289,14 +1298,32 @@ def _explain_summary_table(breakdown: dict, normalized):
 
     # --- Cost section -------------------------------------------------
     rows.append(html.Tr([html.Td("Cost", colSpan=2, style=header_style)]))
-    cost_label = [html.Span("Perceived cost")]
-    if cost_info['time_overridden']:
-        cost_label.append(html.Span(" (container — inherited time treated as 0)",
-                                    style={**muted_style, "marginLeft": "4px"}))
-    rows.append(html.Tr([
-        html.Td(cost_label),
-        _num_cell(cost_info['cost']),
-    ]))
+    if is_goal:
+        # A Goal's own perceived cost is meaningless (its time is inherited
+        # from children). Cost is instead the time still owed across its
+        # hard-prerequisite subtree, beta-compressed — see _rank_goals.
+        rows.append(html.Tr([
+            html.Td([html.Span("Remaining hard-prereq time"),
+                     html.Span(" (summed over the prereq subtree)",
+                               style={**muted_style, "marginLeft": "4px"})]),
+            html.Td(_fmt(cost_info.get('remaining_time', 0.0)),
+                    style=muted_num_style),
+        ]))
+        rows.append(html.Tr([
+            html.Td([html.Span("Perceived cost"),
+                     html.Span(" (compressed prereq time)",
+                               style={**muted_style, "marginLeft": "4px"})]),
+            _num_cell(cost_info['cost']),
+        ]))
+    else:
+        cost_label = [html.Span("Perceived cost")]
+        if cost_info['time_overridden']:
+            cost_label.append(html.Span(" (container — inherited time treated as 0)",
+                                        style={**muted_style, "marginLeft": "4px"}))
+        rows.append(html.Tr([
+            html.Td(cost_label),
+            _num_cell(cost_info['cost']),
+        ]))
 
     # --- Adjustments section (shown only if any multiplier is non-trivial) --
     ctx_adj = breakdown.get('context_adjustment') or {}

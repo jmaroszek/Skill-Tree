@@ -310,20 +310,35 @@ class TestComputeGoalComparison:
         assert overlap_rows == []
 
     def test_ranks_by_prereq_subtree_value(self, mgr):
-        """A goal with a rich Hard-prereq subtree outranks one with high own-rating but a sparse subtree."""
-        # GoalSparse: high own value, no prereqs — subtree value ≈ IV alone.
-        # GoalRich:   modest own value, but several high-value Hard prereqs
-        #             feeding the inverted cascade — subtree value > IV(GoalSparse).
+        """With cost held equal, a goal with a higher-value Hard-prereq
+        subtree outranks one with high own-rating but low-value prereqs.
+
+        _rank_goals scores ROI = subtree value / subtree-time cost. To
+        isolate the *value* axis, both goals get four Hard prereqs with
+        identical (default) time, so their costs match exactly and the
+        ranking turns purely on prereq-subtree value.
+        """
+        # GoalSparse: high own rating, but four low-value prereqs.
+        # GoalRich:   modest own rating, but four high-value prereqs whose
+        #             intrinsic value cascades up the inverted graph.
         _setup_graph(mgr, [
             _make_node("GoalSparse", type="Goal",
                        time_mode='inherited', value=10, interest=10),
             _make_node("GoalRich", type="Goal",
                        time_mode='inherited', value=3, interest=3),
+            _make_node("SP1", value=1, interest=1),
+            _make_node("SP2", value=1, interest=1),
+            _make_node("SP3", value=1, interest=1),
+            _make_node("SP4", value=1, interest=1),
             _make_node("RC1", value=10, interest=10),
             _make_node("RC2", value=10, interest=10),
             _make_node("RC3", value=10, interest=10),
             _make_node("RC4", value=10, interest=10),
         ], [
+            ("SP1", "GoalSparse", EDGE_NEEDS_HARD),
+            ("SP2", "GoalSparse", EDGE_NEEDS_HARD),
+            ("SP3", "GoalSparse", EDGE_NEEDS_HARD),
+            ("SP4", "GoalSparse", EDGE_NEEDS_HARD),
             ("RC1", "GoalRich", EDGE_NEEDS_HARD),
             ("RC2", "GoalRich", EDGE_NEEDS_HARD),
             ("RC3", "GoalRich", EDGE_NEEDS_HARD),
@@ -331,23 +346,62 @@ class TestComputeGoalComparison:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
-        goal_rows, _, _ = _compute_goal_comparison(
-            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
-        # goal_rows is sorted by completion pct, not rank, so the order of
-        # goal_rows itself isn't the ranking signal — but the ranking
-        # determined which goals were included (top-N). Both make the cap
-        # of 25; assert the rich one is present and the TV-based ordering
-        # is reflected in _rank_goals directly.
         from analyze_callbacks import _rank_goals
         hp = ConfigManager.get_hyperparams()
         ranked = _rank_goals(
             [n for n in nodes if n.type == 'Goal'],
             nodes, edges,
             ConfigManager.get_priority_goals(), hp,
+            with_components=True,
         )
-        names = [g.name for g in ranked]
-        assert names.index("GoalRich") < names.index("GoalSparse")
+        comps = {g.name: c for g, c in ranked}
+        # Costs match (four equal-time prereqs each), so ROI is value-driven.
+        assert comps["GoalRich"]["cost"] == pytest.approx(comps["GoalSparse"]["cost"])
+        assert comps["GoalRich"]["score"] > comps["GoalSparse"]["score"]
+
+    def test_explain_goal_matches_rank_goals(self, mgr):
+        """analyze_callbacks.explain_goal reports the same headline score
+        _rank_goals ranks by, and flags the breakdown as a goal."""
+        _setup_graph(mgr, [
+            _make_node("G", type="Goal", time_mode='inherited',
+                       value=4, interest=4),
+            _make_node("P1", value=8, interest=8),
+            _make_node("P2", value=6, interest=6),
+        ], [
+            ("P1", "G", EDGE_NEEDS_HARD),
+            ("P2", "G", EDGE_NEEDS_SOFT),
+        ])
+        nodes = mgr.get_all_nodes()
+        edges = mgr.get_edges()
+        hp = ConfigManager.get_hyperparams()
+        pgoals = ConfigManager.get_priority_goals()
+
+        from analyze_callbacks import _rank_goals, explain_goal
+        ranked = dict(
+            (g.name, c) for g, c in _rank_goals(
+                [n for n in nodes if n.type == 'Goal'],
+                nodes, edges, pgoals, hp, with_components=True)
+        )
+        bd, normalized = explain_goal("G", nodes, edges, hp, pgoals)
+        assert bd['is_goal'] is True
+        assert bd['eligible'] is True
+        assert bd['score'] == round(ranked["G"]["score"], 2)
+        # Prereq subtree value flows into the cascade rows; G alone (no
+        # prereqs) would have a zero cascade.
+        cascade = (bd['composition']['hard_cascade']
+                   + bd['composition']['soft_cascade'])
+        assert cascade > 0
+        # Sole ranked goal -> normalized to the top (100).
+        assert normalized == 100
+
+    def test_explain_goal_rejects_non_goal(self, mgr):
+        """explain_goal returns None for a non-Goal node."""
+        _setup_graph(mgr, [_make_node("L", type="Learn")])
+        nodes = mgr.get_all_nodes()
+        from analyze_callbacks import explain_goal
+        assert explain_goal("L", nodes, mgr.get_edges(),
+                            ConfigManager.get_hyperparams(),
+                            ConfigManager.get_priority_goals()) is None
 
 
 # ============================================================================

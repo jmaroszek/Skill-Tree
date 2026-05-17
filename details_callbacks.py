@@ -1904,27 +1904,42 @@ def register_details_callbacks(app):
         priority_goals = ConfigManager.get_priority_goals()
         hypers = ConfigManager.get_hyperparams()
         hypers['context_weights'] = ConfigManager.get_context_weights()
-        breakdown = explain_score(
-            node_name,
-            all_nodes,
-            graph_manager.get_edges(),
-            hypers,
-            priority_goals=priority_goals,
-        )
-        # Match the Next-tab suggestion table: normalize this node's
-        # priority_score against the max across all eligible active nodes.
-        # (see callback_helpers.format_suggestions_table)
+        node = next((n for n in all_nodes if n.name == node_name), None)
+        is_goal = node is not None and node.type == 'Goal'
+
         normalized = None
-        if breakdown and breakdown['eligible'] and breakdown['score'] > 0:
-            scored = graph_manager.calculate_priority_scores(
-                all_nodes, priority_goals=priority_goals,
+        if is_goal:
+            # Goals are sinks in the prereq DAG: explain_score's forward
+            # cascade collapses to ~nothing and would mark them ineligible.
+            # explain_goal recomputes the breakdown on the inverted prereq
+            # graph and pulls the headline score from _rank_goals, so the
+            # modal matches the Goals-sidebar ranking exactly.
+            from analyze_callbacks import explain_goal
+            result = explain_goal(node_name, all_nodes,
+                                  graph_manager.get_edges(),
+                                  hypers, priority_goals)
+            breakdown, normalized = result if result else (None, None)
+        else:
+            breakdown = explain_score(
+                node_name,
+                all_nodes,
+                graph_manager.get_edges(),
+                hypers,
+                priority_goals=priority_goals,
             )
-            valid_scores = [n.priority_score for n in scored
-                            if getattr(n, 'priority_score', -1) > 0]
-            if valid_scores:
-                top = max(valid_scores)
-                if top > 0:
-                    normalized = round((breakdown['score'] / top) * 100)
+            # Match the Next-tab suggestion table: normalize this node's
+            # priority_score against the max across all eligible active
+            # nodes (see callback_helpers.format_suggestions_table).
+            if breakdown and breakdown['eligible'] and breakdown['score'] > 0:
+                scored = graph_manager.calculate_priority_scores(
+                    all_nodes, priority_goals=priority_goals,
+                )
+                valid_scores = [n.priority_score for n in scored
+                                if getattr(n, 'priority_score', -1) > 0]
+                if valid_scores:
+                    top = max(valid_scores)
+                    if top > 0:
+                        normalized = round((breakdown['score'] / top) * 100)
         title = node_name if breakdown else "Node not found"
         contributors = breakdown['contributors'] if breakdown else []
         # Reset count to default only when the modal opens — not when the
@@ -1991,15 +2006,32 @@ def register_details_callbacks(app):
             ranked_targets.append((len(ranked_targets) + 1, name))
             if len(ranked_targets) >= k_int:
                 break
+        all_nodes_fc = graph_manager.get_all_nodes()
+        node_fc = next((n for n in all_nodes_fc if n.name == selected_node), None)
+        is_goal_fc = node_fc is not None and node_fc.type == 'Goal'
+        edges_fc = graph_manager.get_edges()
+        if is_goal_fc:
+            # A Goal's contributors are its prerequisites (upstream), so the
+            # paths to them run against the arrows — walk the inverted
+            # Hard/Soft graph. Helps is symmetric and left alone.
+            edges_fc = [
+                {'source': e['target'], 'target': e['source'], 'type': e['type']}
+                if e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) else e
+                for e in edges_fc
+            ]
         pi = shortest_paths_focus_data(
-            selected_node, ranked_targets,
-            graph_manager.get_all_nodes(),
-            graph_manager.get_edges(),
+            selected_node, ranked_targets, all_nodes_fc, edges_fc,
         )
+        edge_rank_items = list(pi['edge_rank'].items())
+        if is_goal_fc:
+            # Flip keys back to real edge orientation so the canvas matches
+            # them against actual prereq -> dependent edges.
+            edge_rank_items = [((t, s, etype), r)
+                               for (s, t, etype), r in edge_rank_items]
         # Serialize edge_rank keys for JSON compatibility in dcc.Store.
         edge_rank_str = {
             f"{s}|{t}|{etype}": r
-            for (s, t, etype), r in pi['edge_rank'].items()
+            for (s, t, etype), r in edge_rank_items
         }
         return (
             {"node": selected_node,

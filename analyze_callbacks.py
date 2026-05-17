@@ -11,7 +11,9 @@ from collections import defaultdict
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
-from scoring import build_adjacency as _scoring_build_adjacency, total_value
+from scoring import (
+    build_adjacency as _scoring_build_adjacency, total_value, explain_score,
+)
 
 graph_manager = GraphManager()
 
@@ -163,7 +165,8 @@ def _get_limits():
     return ConfigManager.get_analyze_limits()
 
 
-def _rank_goals(goals, all_nodes, edges, priority_goals, hp, with_scores=False):
+def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
+                with_scores=False, with_components=False):
     """Rank goals by ROI — prerequisite-subtree value per unit of time,
     scaled by priority-rank boost and context weight.
 
@@ -246,20 +249,115 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp, with_scores=False):
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
             cross_context_mult=cross_context_mult,
         )
-        cost = 1.0 + w_t * (_hard_subtree_remaining(g.name) ** beta)
-        score = tv / cost
+        remaining_time = _hard_subtree_remaining(g.name)
+        cost = 1.0 + w_t * (remaining_time ** beta)
+        raw = tv / cost
+        rank_mult = 1.0
+        rank_idx = None
         if g.name in priority_goals:
-            rank_idx = priority_goals.index(g.name)
-            if rank_idx < 3:
-                score *= rank_multipliers[rank_idx]
-        if g.context:
-            score *= context_weights.get(g.context, 1.0)
-        scored.append((g, score))
+            ri = priority_goals.index(g.name)
+            if ri < 3:
+                rank_mult = rank_multipliers[ri]
+                rank_idx = ri
+        context_weight = context_weights.get(g.context, 1.0) if g.context else 1.0
+        score = raw * rank_mult * context_weight
+        scored.append((g, score, {
+            'score': score, 'raw': raw, 'tv': tv, 'cost': cost,
+            'remaining_time': remaining_time, 'rank_mult': rank_mult,
+            'rank_idx': rank_idx, 'context_weight': context_weight,
+        }))
 
     scored.sort(key=lambda x: x[1], reverse=True)
+    if with_components:
+        return [(g, comp) for g, _, comp in scored]
     if with_scores:
-        return scored
-    return [g for g, _ in scored]
+        return [(g, s) for g, s, _ in scored]
+    return [g for g, _, _ in scored]
+
+
+def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
+    """Explain-modal breakdown for a Goal node.
+
+    ``scoring.explain_score`` walks the prereq DAG *forward*, summing what a
+    node unlocks. Goals are sinks (work flows into them, nothing flows out),
+    so that forward cascade collapses to the Goal's own intrinsic value and
+    explain_score correctly reports them as not-ranked. The meaningful
+    question for a Goal is the inverse: how much prerequisite value/work
+    does it subsume, and what is that worth per unit of remaining time —
+    exactly what ``_rank_goals`` scores.
+
+    This stitches the two correct halves together:
+
+      * value composition + contributors — ``explain_score`` run on the
+        Hard/Soft-*inverted* edge set, so its forward cascade now walks the
+        prerequisite subtree. Helps edges are symmetric and left alone.
+      * headline score + cost — taken straight from ``_rank_goals`` so the
+        modal's number matches the Goals sidebar and Analyze tab exactly.
+
+    Fields that have no meaning for a Goal are neutralised rather than left
+    showing stale forward-graph values: eligibility is forced True (Goals
+    *are* ranked, just on the inverted graph) and density adjustment is
+    dropped (Goals are excluded from density buckets in ``score_nodes``).
+
+    Returns ``(breakdown, normalized)``; ``normalized`` is the 0-100 score
+    against the top-ranked Goal. Returns ``None`` if ``goal_name`` is not a
+    Goal in ``all_nodes``.
+    """
+    node = next((n for n in all_nodes if n.name == goal_name), None)
+    if node is None or node.type != 'Goal':
+        return None
+
+    goals = [n for n in all_nodes if n.type == 'Goal']
+    comps = {g.name: c for g, c in _rank_goals(
+        goals, all_nodes, edges, priority_goals, hp, with_components=True)}
+    me = comps.get(goal_name)
+    if me is None:
+        return None
+
+    valid = [c['score'] for c in comps.values() if c['score'] >= 0]
+    top = max(valid) if valid else 0.0
+    normalized = round(me['score'] / top * 100) if top > 0 else None
+
+    # Invert Hard/Soft so explain_score's forward cascade walks prereqs.
+    inverted = []
+    for e in edges:
+        if e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+            inverted.append({'source': e['target'], 'target': e['source'],
+                             'type': e['type']})
+        else:
+            inverted.append(e)
+
+    bd = explain_score(goal_name, all_nodes, inverted, hp, priority_goals)
+    if bd is None:
+        return None
+
+    bd['is_goal'] = True
+    bd['eligible'] = True
+    bd['block_reason'] = None
+    bd['score'] = round(me['score'], 2)
+    bd['raw_score'] = me['raw']
+    bd['cost'] = {
+        'goal': True,
+        'remaining_time': me['remaining_time'],
+        'cost': me['cost'],
+        'time_overridden': False,
+    }
+    if me['rank_idx'] is not None:
+        bd['goal_boost'] = {
+            'multiplier': me['rank_mult'],
+            'goal': goal_name,
+            'rank': me['rank_idx'] + 1,
+        }
+    else:
+        bd['goal_boost'] = None
+    bd['context_adjustment'] = {
+        'weight': me['context_weight'],
+        'n_bucket': 1,
+        'alpha': 0.0,
+        'density_mult': 1.0,
+        'combined_multiplier': me['context_weight'],
+    }
+    return bd, normalized
 
 
 def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
