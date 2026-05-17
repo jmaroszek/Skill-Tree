@@ -117,8 +117,10 @@ sidebar_content = html.Div(
 
             html.Div(id="auto-status-display", className="d-none"),
 
-            # --- Section: Done + Dormant toggles + Time Estimates ---
+            # --- Section: Status (Done + Dormant toggles) ---
             html.Div(id="section-done-time", children=[
+                html.Hr(className="my-2"),
+                html.H5("Status", className="mt-2 mb-2"),
                 html.Div([
                     dbc.Checklist(
                         options=[{"label": STATUS_DONE, "value": STATUS_DONE}],
@@ -264,9 +266,9 @@ sidebar_content = html.Div(
                          children=""),
                 html.Div(id="section-time-omp", children=[
                     dbc.Row([
-                        dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
+                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
                         dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
-                        dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
+                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
                     ]),
                     html.Div(id="time-validation-error", children="",
                              style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
@@ -290,11 +292,11 @@ sidebar_content = html.Div(
                     ], className="mb-2"),
                     dbc.Label("Intensity", className="mb-0 mt-2"),
                     dbc.Row([
-                        dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
+                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
                                  dbc.Input(id="node-habit-intensity-o", type="number", min=0)]),
                         dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
                                  dbc.Input(id="node-habit-intensity-m", type="number", min=0)]),
-                        dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
+                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
                                  dbc.Input(id="node-habit-intensity-p", type="number", min=0)]),
                     ]),
                     dbc.RadioItems(
@@ -536,6 +538,24 @@ def build_filters_content():
 
         html.Hr(className="my-3"),
 
+        html.H5("Status", className="mt-2 mb-1"),
+        html.Div([
+            dbc.Checklist(
+                options=[{"label": "Show Done", "value": "show_done"}],
+                value=f["done"],
+                id="filter-done",
+                switch=True,
+            ),
+            dbc.Checklist(
+                options=[{"label": "Show Dormant", "value": "show_dormant"}],
+                value=f.get("show_dormant", []),
+                id="filter-dormant",
+                switch=True,
+            ),
+        ], className="d-flex gap-3 flex-wrap"),
+
+        html.Hr(className="my-3"),
+
         html.H5("Communities", className="mt-2 mb-1"),
         dbc.Label("Detection Method", className="mt-2"),
         dbc.Select(id="community-method", options=[
@@ -550,18 +570,6 @@ def build_filters_content():
         html.Hr(className="my-3"),
 
         html.Div([
-            dbc.Checklist(
-                options=[{"label": "Done", "value": "show_done"}],
-                value=f["done"],
-                id="filter-done",
-                switch=True,
-            ),
-            dbc.Checklist(
-                options=[{"label": "Dormant", "value": "show_dormant"}],
-                value=f.get("show_dormant", []),
-                id="filter-dormant",
-                switch=True,
-            ),
             dbc.Checklist(
                 options=[{"label": "Memory", "value": "enabled"}],
                 value=["enabled"] if ConfigManager.get_remember_filters() else [],
@@ -1685,7 +1693,7 @@ def build_app_layout(initial_elements, env="production"):
                         html.Span("\u00d7", id="btn-details-goals-close",
                                    className="fs-3 text-white",
                                    style={"cursor": "pointer"}),
-                    ], className="d-flex justify-content-between align-items-center mb-3 mt-2 px-3"),
+                    ], className="d-flex justify-content-between align-items-center mb-2 mt-2 px-3"),
 
                     html.Div(
                         dbc.Input(id="details-goal-search", type="text",
@@ -1701,16 +1709,16 @@ def build_app_layout(initial_elements, env="production"):
 
                     html.Div(
                         dbc.Select(id="details-goal-sort", options=[
-                            {"label": "A \u2192 Z", "value": "alpha-asc"},
-                            {"label": "Z \u2192 A", "value": "alpha-desc"},
-                            {"label": "Time \u2191", "value": "time-asc"},
-                            {"label": "Time \u2193", "value": "time-desc"},
+                            {"label": "Priority", "value": "priority"},
+                            {"label": "Time", "value": "time-desc"},
                             {"label": "Manual", "value": "manual"},
-                        ], value="manual", size="sm",
+                            {"label": "Alphabetical", "value": "alpha-asc"},
+                        ], value="priority", size="sm",
+                            persistence=True, persistence_type="local",
                             style={"flex": "1", "backgroundColor": "#2b3035",
                                    "border": "1px solid #495057",
                                    "color": "#dee2e6", "fontSize": "0.8rem"}),
-                        style={"padding": "0 12px", "marginBottom": "8px"},
+                        style={"padding": "0 12px", "marginBottom": "12px"},
                     ),
 
                     html.Div(id="details-goal-list-container",

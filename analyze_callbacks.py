@@ -163,21 +163,28 @@ def _get_limits():
     return ConfigManager.get_analyze_limits()
 
 
-def _rank_goals(goals, all_nodes, edges, priority_goals, hp):
-    """Rank goals by the discounted value of their prerequisite subtree.
+def _rank_goals(goals, all_nodes, edges, priority_goals, hp, with_scores=False):
+    """Rank goals by ROI — prerequisite-subtree value per unit of time,
+    scaled by priority-rank boost and context weight.
 
     Goals are sinks in the prereq DAG (work flows into them), so the
-    scoring module's forward ``total_value`` (which cascades through
-    outgoing Hard/Soft edges) collapses to a Goal's own intrinsic value.
-    For the Analyze "Goals" chart the meaningful question is "how much
-    work / value does this Goal subsume?" — so we invert Hard/Soft edges
-    and apply the same ``total_value`` machinery against the flipped
-    graph. The result is: IV(goal) + Σ d_H^depth * IV(prereq) over the
-    Hard subtree (+ analogous Soft + Helps contributions).
+    scoring module's forward ``total_value`` collapses to a Goal's own
+    intrinsic value. We invert Hard/Soft edges and run the same
+    ``total_value`` machinery on the flipped graph instead, yielding
+    IV(goal) + Σ d_H^depth * IV(prereq) over the prereq subtree.
 
-    Boosted by the priority-rank multiplier (rank 1 gets the full
-    ``goal_boost``, rank 2 gets 66% of the bump, rank 3 gets 33%).
-    Returns goals sorted by rank score descending.
+    That raw value is extensive — it grows with subtree size — so alone
+    it just ranks goals by how big they are. Dividing by the goal's
+    aggregate cost turns it into a priority signal. Cost is the
+    beta-compressed sum of remaining hard-prereq time, mirroring the
+    time term of ``perceived_cost`` (effort is omitted — a 1-10 rating
+    has no meaningful subtree aggregate). Final score:
+
+        TV / (1 + w_t * remaining_time^beta) * rank_boost * context_weight
+
+    rank_boost gives priority rank 1 the full ``goal_boost``, rank 2 66%
+    of the bump, rank 3 33%. Returns goals sorted by score descending;
+    with ``with_scores`` returns ``(goal, score)`` tuples instead.
     """
     w_v = hp.get('w_v', 1.0)
     w_i = hp.get('w_i', 1.0)
@@ -186,12 +193,15 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp):
     d_Syn_pair = hp.get('d_Syn_pair', 0.10)
     d_Syn_mul = hp.get('d_Syn_mul', 0.40)
     cross_context_mult = hp.get('cross_context_mult', 1.0)
+    w_t = hp.get('w_t', 1.0)
+    beta = hp.get('beta', 0.85)
     goal_boost = hp.get('goal_boost', 1.5)
     rank_multipliers = [
         goal_boost,
         1 + (goal_boost - 1) * 0.66,
         1 + (goal_boost - 1) * 0.33,
     ]
+    context_weights = ConfigManager.get_context_weights() or {}
 
     # Invert Hard/Soft edges so the cascade walks upstream toward prereqs.
     # Helps is symmetric (bidirectional), so leave it alone.
@@ -207,6 +217,27 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp):
     H_out, S_out, Syn, _ = _scoring_build_adjacency(
         inverted, set(all_nodes_dict.keys()))
 
+    def _hard_subtree_remaining(goal_name):
+        """Sum of remaining (non-Done) time over the hard-prereq subtree.
+        Inverted H_out walks goal -> prereqs, so this is the whole body
+        of hard work still owed before the goal can complete."""
+        visited = set()
+        queue = list(H_out.get(goal_name, []))
+        while queue:
+            cur = queue.pop()
+            if cur in visited:
+                continue
+            visited.add(cur)
+            for nxt in H_out.get(cur, []):
+                if nxt not in visited:
+                    queue.append(nxt)
+        total = 0.0
+        for name in visited:
+            n = all_nodes_dict.get(name)
+            if n is not None and n.status != STATUS_DONE:
+                total += n.time
+        return total
+
     memo: dict = {}
     scored = []
     for g in goals:
@@ -215,24 +246,31 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp):
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
             cross_context_mult=cross_context_mult,
         )
+        cost = 1.0 + w_t * (_hard_subtree_remaining(g.name) ** beta)
+        score = tv / cost
         if g.name in priority_goals:
             rank_idx = priority_goals.index(g.name)
             if rank_idx < 3:
-                tv *= rank_multipliers[rank_idx]
-        scored.append((g, tv))
+                score *= rank_multipliers[rank_idx]
+        if g.context:
+            score *= context_weights.get(g.context, 1.0)
+        scored.append((g, score))
 
     scored.sort(key=lambda x: x[1], reverse=True)
+    if with_scores:
+        return scored
     return [g for g, _ in scored]
 
 
 def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
     """Compute goal stats and pairwise overlap using in-memory adjacency.
 
-    Ranks goals by total_value (intrinsic value + cascaded descendant value
-    through Hard/Soft edges) boosted by priority rank, then caps to keep
-    visualizations readable. Progress is computed over hard prerequisites
-    only (those gate completion); pairwise overlap is computed over hard
-    + soft prerequisites (the full body of prep work shared between goals).
+    Ranks goals via _rank_goals (prereq-subtree value per unit of remaining
+    time, boosted by priority rank and context weight), then caps to the top
+    N to keep visualizations readable. Progress is computed over hard
+    prerequisites only (those gate completion); pairwise overlap is computed
+    over hard + soft prerequisites (the full body of prep work shared between
+    goals).
     """
     all_goals = [n for n in nodes if n.type == 'Goal']
     node_map = {n.name: n for n in nodes}
@@ -281,7 +319,8 @@ def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
         })
         # Hard + soft subtree drives shared-prerequisite overlap.
         prereq_subtrees[g.name] = _walk_back(g.name, prereq_rev)
-    goal_rows.sort(key=lambda r: r['pct'])
+    # goal_rows stays in _rank_goals ROI order (highest priority first) — both
+    # the completion chart and the overlap heatmap render in that order.
 
     # Pairwise overlap (only among top goals) — uses combined hard + soft prereqs
     overlap_rows = []
@@ -795,8 +834,9 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     sections_right = []
 
     # --- Shared y-axis order (used by both charts) ---
-    # goal_rows is sorted by pct ascending; we want least complete at top
-    y_order = [g['name'] for g in goal_rows]  # bottom-to-top in Plotly
+    # goal_rows is in ROI order (highest priority first); both charts place
+    # the highest-priority goal at the top.
+    y_order = [g['name'] for g in goal_rows]
     n_goals = len(y_order)
     shared_height = max(300, n_goals * 32 + 80)
     shared_margin = dict(l=10, r=20, t=30, b=30)
@@ -833,7 +873,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
         yaxis=dict(automargin=True, ticklabelstandoff=8,
                    categoryorder='array', categoryarray=bar_names,
                    **_label_axis(bar_names)),
-        xaxis=dict(title="Completion %", range=[0, 100]),
+        xaxis=dict(title="Completion %", range=[0, 100], showgrid=False),
     ))
     sections_left.append(html.H6("Completion", className="text-muted mb-1"))
     sections_left.append(html.Small(
@@ -867,7 +907,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
                         f"Shared: {matrix[i][j]} nodes"
                     )
 
-        # Use y_order (pct ascending) for BOTH axes so the diagonal aligns
+        # Use y_order (ROI order) for BOTH axes so the diagonal aligns
         # top-left to bottom-right; mask the upper-right triangle since the
         # matrix is symmetric. Plotly renders None cells as transparent.
         ordered_matrix = []
@@ -943,9 +983,9 @@ def _render_risk_chart(data):
 
     hover = [
         f"<b>{d['name']}</b><br>"
-        f"Optimistic: {fmt(d['optimistic'])}<br>"
+        f"Lower: {fmt(d['optimistic'])}<br>"
         f"Expected: {fmt(d['expected'])}<br>"
-        f"Pessimistic: {fmt(d['pessimistic'])}<br>"
+        f"Upper: {fmt(d['pessimistic'])}<br>"
         f"Spread: {fmt(d['spread'])} ({d['ratio']}x)"
         for d in data
     ]
@@ -984,7 +1024,7 @@ def _render_risk_chart(data):
             html.Span("\u25c6 ", style={"color": "#ffc107"}),
             html.Span("Expected", className="text-muted small me-3"),
             html.Span("\u2588 ", style={"color": "#dc3545", "opacity": "0.7"}),
-            html.Span("Optimistic \u2192 Pessimistic range", className="text-muted small"),
+            html.Span("Lower \u2192 Upper range", className="text-muted small"),
         ], className="mt-1"),
     ])
 

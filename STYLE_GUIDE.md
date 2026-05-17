@@ -140,7 +140,7 @@ consistent meaning across the app.
 |---------|---------|-------|
 | Top-level settings label | `dbc.Label("Name", className="fw-bold mt-2")` | Section-level fields in Settings Nodes tab (Node Types, Contexts) |
 | Standard input label | `dbc.Label("Name", className="mt-2")` | Form fields in sidebars, modals, and under section headers (Name, Type, Hours per Week) |
-| Compact inline label | `dbc.Label("Name", className="small text-muted mb-0")` | Grouped inputs in a Row (Optimistic, Expected, Pessimistic) |
+| Compact inline label | `dbc.Label("Name", className="small text-muted mb-0")` | Grouped inputs in a Row (Lower, Expected, Upper) |
 | Subsection helper | `html.Small("description", className="text-muted d-block mb-1")` | Under settings section headers |
 | Helper text (paragraph) | `html.P("description", className="text-muted small")` | After textarea inputs in settings |
 | Formula | `html.Small("formula", className="text-muted d-block mb-1", style={"fontFamily": "monospace"})` | Algorithm formulas |

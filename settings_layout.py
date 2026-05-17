@@ -567,7 +567,7 @@ def build_settings_tab_content():
                                 ], className="mb-2"),
                                 dbc.Row([
                                     dbc.Col([
-                                        dbc.Label("Optimistic"),
+                                        dbc.Label("Lower"),
                                         dbc.Input(id="setting-default-time-o", type="number", min=0, step=1),
                                     ], width=4),
                                     dbc.Col([
@@ -575,7 +575,7 @@ def build_settings_tab_content():
                                         dbc.Input(id="setting-default-time-m", type="number", min=0, step=1),
                                     ], width=4),
                                     dbc.Col([
-                                        dbc.Label("Pessimistic"),
+                                        dbc.Label("Upper"),
                                         dbc.Input(id="setting-default-time-p", type="number", min=0, step=1),
                                     ], width=4),
                                 ]),

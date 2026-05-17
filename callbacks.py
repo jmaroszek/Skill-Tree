@@ -1186,7 +1186,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def validate_time_estimates(time_o, time_m, time_p):
-        """Enforce Optimistic <= Expected <= Pessimistic and disable Save on violation."""
+        """Enforce Lower <= Expected <= Upper and disable Save on violation."""
         o = float(time_o or 0)
         m = float(time_m or 0)
         p = float(time_p or 0)
@@ -1199,11 +1199,11 @@ def register_callbacks(app):
 
         errors = []
         if o > 0 and m > 0 and o > m:
-            errors.append("Optimistic must be ≤ Expected")
+            errors.append("Lower must be ≤ Expected")
         if m > 0 and p > 0 and m > p:
-            errors.append("Expected must be ≤ Pessimistic")
+            errors.append("Expected must be ≤ Upper")
         if o > 0 and p > 0 and o > p:
-            errors.append("Optimistic must be ≤ Pessimistic")
+            errors.append("Lower must be ≤ Upper")
 
         if errors:
             return "; ".join(errors), visible, True, True

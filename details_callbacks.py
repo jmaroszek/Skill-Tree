@@ -785,15 +785,36 @@ def register_details_callbacks(app):
         for g in goals:
             completion_cache[g.name] = graph_manager.get_goal_completion(g.name, include_soft=False)
 
+        def _is_done(g):
+            c = completion_cache[g.name]
+            return g.status == STATUS_DONE or (c.get("pct", 0) == 100 and c.get("total", 0) > 0)
+
+        # Done goals are hidden from the sidebar.
+        goals = [g for g in goals if not _is_done(g)]
+
+        if not goals:
+            return html.Div(
+                html.P("No goals to show.", className="text-muted"),
+                className="text-center py-5"
+            )
+
         sort_mode = sort_mode or "manual"
         is_manual = sort_mode == "manual"
 
-        if sort_mode == "alpha-asc":
+        score_map = {}
+        if sort_mode == "priority":
+            # Goals are sinks, so the forward priority_score collapses to
+            # ~nothing. _rank_goals ranks them by ROI on the inverted prereq
+            # graph — subtree value per unit of remaining time, boosted by
+            # priority rank and context weight.
+            from analyze_callbacks import _rank_goals
+            ranked = _rank_goals(goals, all_nodes, graph_manager.get_edges(),
+                                 priority_goals, ConfigManager.get_hyperparams(),
+                                 with_scores=True)
+            goals = [g for g, _ in ranked]
+            score_map = {g.name: sc for g, sc in ranked}
+        elif sort_mode == "alpha-asc":
             goals.sort(key=lambda g: g.name.lower())
-        elif sort_mode == "alpha-desc":
-            goals.sort(key=lambda g: g.name.lower(), reverse=True)
-        elif sort_mode == "time-asc":
-            goals.sort(key=lambda g: completion_cache[g.name].get("remaining_time", 0))
         elif sort_mode == "time-desc":
             goals.sort(key=lambda g: completion_cache[g.name].get("remaining_time", 0),
                        reverse=True)
@@ -801,16 +822,36 @@ def register_details_callbacks(app):
             order_map = {name: idx for idx, name in enumerate(manual_order)}
             goals.sort(key=lambda g: order_map.get(g.name, 999))
 
-        # Pin priority 1-3 at the top
-        pinned = []
-        unpinned = []
+        # Pin priority 1-3 at the top; Done goals always sink to the bottom so
+        # they don't compete with active goals for the top slots.
+        pinned, unpinned, done = [], [], []
         for g in goals:
-            if g.name in priority_goals[:3]:
+            if _is_done(g):
+                done.append(g)
+            elif g.name in priority_goals[:3]:
                 pinned.append(g)
             else:
                 unpinned.append(g)
         pinned.sort(key=lambda g: priority_goals.index(g.name))
-        goals = pinned + unpinned
+        goals = pinned + unpinned + done
+
+        # Sort-dependent top-right corner indicator (open goals only).
+        # Priority -> normalized score 0-100; Manual -> displayed rank.
+        # Time/Alphabetical -> nothing (time is already on the stats line,
+        # alphabetical order carries no rank meaning).
+        corner_map = {}
+        active = pinned + unpinned
+        if sort_mode == "priority":
+            scores = [score_map[g.name] for g in active if score_map.get(g.name, -1) >= 0]
+            max_score = max(scores) if scores else 0
+            if max_score > 0:
+                for g in active:
+                    s = score_map.get(g.name, -1)
+                    if s >= 0:
+                        corner_map[g.name] = str(round(s / max_score * 100))
+        elif is_manual:
+            for idx, g in enumerate(active):
+                corner_map[g.name] = str(idx + 1)
 
         cards = []
         for goal in goals:
@@ -824,6 +865,7 @@ def register_details_callbacks(app):
                 is_selected=(goal.name == selected_node),
                 priority_rank=rank,
                 show_order_buttons=is_manual,
+                corner_text=corner_map.get(goal.name),
             ))
         return cards
 
@@ -1111,7 +1153,8 @@ def register_details_callbacks(app):
             raw = getattr(n, "total_value", 0)
             normalized = round((raw / max_tv) * 100) if max_tv else 0
             rec_rows.append(_build_suggestion_row(
-                n.name, str(normalized), "info",
+                n.name, str(normalized),
+                badge_style(STATUS_OPEN)["backgroundColor"],
                 badge_id=f"details-sugg-rec-badge-{i}",
                 tooltip_text=tooltip_text,
             ))

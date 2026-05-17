@@ -265,9 +265,9 @@ def build_events_tab_content():
             ], className="d-flex align-items-center mb-2"),
             html.Div(id="dormant-node-time-omp", children=[
                 dbc.Row([
-                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=_ted.get('optimistic', 0))]),
+                    dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=_ted.get('optimistic', 0))]),
                     dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=_ted.get('expected', 0))]),
-                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=_ted.get('pessimistic', 0))]),
+                    dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=_ted.get('pessimistic', 0))]),
                 ]),
             ]),
             html.Div(id="section-dormant-node-time-habit",
@@ -289,11 +289,11 @@ def build_events_tab_content():
                 ], className="mb-2"),
                 dbc.Label("Intensity", className="mb-0 mt-2"),
                 dbc.Row([
-                    dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
+                    dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
                              dbc.Input(id="dormant-node-habit-intensity-o", type="number", min=0, value=0)]),
                     dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
                              dbc.Input(id="dormant-node-habit-intensity-m", type="number", min=0, value=0)]),
-                    dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
+                    dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
                              dbc.Input(id="dormant-node-habit-intensity-p", type="number", min=0, value=0)]),
                 ]),
                 dbc.RadioItems(

@@ -710,7 +710,9 @@ def _build_suggestion_row(node_name, badge_text, badge_color,
     badge_style = {"fontSize": "0.7rem", "color": "#ffffff"}
     badge_kwargs = {"id": badge_id} if badge_id else {}
     if badge_color == "pink":
-        badge_style.update({"backgroundColor": "#e83e8c"})
+        badge_color = "#e83e8c"
+    if badge_color.startswith("#"):
+        badge_style.update({"backgroundColor": badge_color})
         badge = html.Span(badge_text, className="badge",
                           style=badge_style, **badge_kwargs)
     else:
@@ -774,7 +776,8 @@ def build_details_suggestions(override_row, goal_rows, rec_rows):
 
 
 def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,
-                    show_order_buttons: bool = False, is_first: bool = False, is_last: bool = False):
+                    show_order_buttons: bool = False, is_first: bool = False, is_last: bool = False,
+                    corner_text: Optional[str] = None):
     """Builds a single goal card for the goal sidebar list."""
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
@@ -807,6 +810,24 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
                "marginRight": "8px", "userSelect": "none"},
     ) if show_order_buttons else None
 
+    # Top-right indicator: a green "Done" badge for completed goals, otherwise
+    # the sort-dependent corner text (priority score / manual rank). Open goals
+    # carry no badge under sorts where order is arbitrary (alphabetical).
+    _badge_cls = "badge ms-1" if priority_rank is not None else "badge"
+    if effective_status == STATUS_DONE:
+        corner_badge = html.Span(
+            STATUS_DONE, className=_badge_cls,
+            style={**badge_style(STATUS_DONE, font_size="0.7rem"),
+                   "width": "62px", "textAlign": "center", "display": "inline-block"})
+    elif corner_text:
+        corner_badge = html.Span(
+            corner_text, className=_badge_cls,
+            style={**badge_style(STATUS_OPEN, font_size="0.7rem"),
+                   "minWidth": "34px", "textAlign": "center",
+                   "display": "inline-block"})
+    else:
+        corner_badge = None
+
     children: List[Any] = [
         hidden_buttons,
         html.Div([
@@ -821,18 +842,15 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
                     className="goal-rank-trigger",
                     **{"data-goal-name": name},
                 ) if priority_rank is not None else None,
-                html.Span(effective_status,
-                          className="badge ms-1" if priority_rank is not None else "badge",
-                          style={**badge_style(effective_status, font_size="0.7rem"),
-                                 "width": "62px", "textAlign": "center",
-                                 "display": "inline-block"}),
+                corner_badge,
             ], className="d-flex align-items-center ms-2 gap-1"),
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
 
     # Stats line
     if total > 0:
-        stats_text = f"{done}/{total} hard subtasks \u00b7 {pct}% \u00b7 {formatted_time}"
+        _sep = "\u00a0\u00a0\u00b7\u00a0\u00a0"
+        stats_text = f"{done}/{total} hard subtasks{_sep}{pct}%{_sep}{formatted_time}"
     else:
         stats_text = "No subtasks yet"
 
@@ -1068,13 +1086,13 @@ def _build_add_node_modal(ted):
                 ], className="d-flex align-items-center mb-2"),
                 html.Div(id="details-add-time-omp", children=[
                     dbc.Row([
-                        dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
+                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
                                  dbc.Input(id="details-add-time-o", type="number", min=0,
                                            value=ted.get('optimistic', 2))]),
                         dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
                                  dbc.Input(id="details-add-time-m", type="number", min=0,
                                            value=ted.get('expected', 4))]),
-                        dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
+                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
                                  dbc.Input(id="details-add-time-p", type="number", min=0,
                                            value=ted.get('pessimistic', 6))]),
                     ]),
@@ -1099,13 +1117,13 @@ def _build_add_node_modal(ted):
                     ], className="mb-2"),
                     dbc.Label("Intensity", className="mb-0 mt-2"),
                     dbc.Row([
-                        dbc.Col([dbc.Label("Optimistic", className="small text-muted mb-0"),
+                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
                                  dbc.Input(id="details-add-habit-intensity-o",
                                            type="number", min=0, value=0)]),
                         dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
                                  dbc.Input(id="details-add-habit-intensity-m",
                                            type="number", min=0, value=0)]),
-                        dbc.Col([dbc.Label("Pessimistic", className="small text-muted mb-0"),
+                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
                                  dbc.Input(id="details-add-habit-intensity-p",
                                            type="number", min=0, value=0)]),
                     ]),
