@@ -176,7 +176,7 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
     fig.add_trace(go.Bar(
         x=centers, y=counts, width=width,
         marker_color='#0d6efd', opacity=0.85,
-        hovertemplate='%{x:.1f}h<br>%{y}<extra></extra>',
+        hoverinfo='skip',
     ))
 
     for label, val, color in [
@@ -198,7 +198,10 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
         margin=dict(l=40, r=20, t=20, b=40),
         xaxis_title="Hours",
         yaxis_title="Frequency",
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=False),
         showlegend=False,
+        hovermode=False,
         bargap=0,
     )
 

@@ -253,9 +253,7 @@ def build_details_tab_content():
         # Description
         html.Div(id="details-node-description",
                  className="text-muted mb-2",
-                 style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap",
-                        "maxHeight": "160px", "overflowY": "auto",
-                        "minHeight": "40px"}),
+                 style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap"}),
 
         # Progress bar
         html.Div(id="details-progress-section", style={"display": "none"}, children=[
