@@ -2,7 +2,50 @@
 
 *A developer's map of the Skill Tree codebase.*
 
-This document is intended for anyone who wants to understand how the app actually works under the hood, beyond what individual file names and docstrings can tell you. It complements [`README.md`](README.md) (feature tour) and [`STYLE_GUIDE.md`](STYLE_GUIDE.md) (UI conventions).
+This document is intended for anyone who wants to understand how the app actually works under the hood, beyond what individual file names and docstrings can tell you. It complements [`README.md`](../README.md) (feature tour) and [`STYLE_GUIDE.md`](../STYLE_GUIDE.md) (UI conventions).
+
+---
+
+## Getting started
+
+### First-time setup
+
+```bash
+# Install dependencies (Python 3.10)
+conda env create -f environment.yml
+conda activate skill-tree
+```
+
+### Launching
+
+```bash
+# Sandbox mode — uses the example dataset (data/sandbox_skilltree.db).
+# Safe to experiment with: edits don't touch the production graph.
+python app.py --sandbox
+
+# Production mode — uses data/skilltree.db.
+python app.py
+```
+
+The app starts a local web server and auto-opens your browser at `http://127.0.0.1:8050`. The window title displays **"Skill Tree (Sandbox)"** in sandbox mode and **"Skill Tree"** in production, so you always know which database is live.
+
+### Where the data lives
+
+| File | Role |
+|---|---|
+| `data/skilltree.db` | Production database. Your real graph. |
+| `data/sandbox_skilltree.db` | Sandbox database — a worked example dataset (currently ~750 nodes across eight life-area contexts). |
+| `data/sandbox_skilltree.db` and `data/skilltree.db` schema | Identical — managed by `database.py`'s migrations. |
+
+Both databases live under `data/` and are SQLite files. Everything — nodes, edges, events, settings, hyperparameters — is in one DB; no cache layer, no separate config file.
+
+### Running tests
+
+```bash
+pytest
+```
+
+Tests use a `temp_database` fixture that monkeypatches `database.get_db_path()` to a per-test `tmp_path`. No test touches the sandbox or production DBs. Coverage spans 600+ tests across scoring math, graph mutations, event lifecycle, and UI helpers.
 
 ---
 
@@ -118,18 +161,24 @@ Vanilla JS files in `assets/` are auto-loaded by Dash. Each one attaches listene
 | File | Role |
 |---|---|
 | `context_menu.js` | Right-click menus on nodes (Edit / Details / Obsidian / Drive / Toggle Done / Delete) |
+| `goal_context_menu.js` | Right-click menu specifically for Goal nodes in the Goals sidebar (set/clear Priority Goal slot, etc.) |
 | `tooltip.js` | Hover tooltips with time/stats; show/hide delays, reposition to stay on-screen |
-| `competence_popup.js` | The seven-level competence popup in the editor |
 | `ratings_popup.js` | Value/Interest/Effort descriptions popup |
 | `fullscreen.js` | Fullscreen toggle for any Cytoscape container |
 | `resize_handle.js` | Drag-to-resize handles (horizontal and vertical) |
 | `details_resize.js` | Multi-way resize coordinator for the Details tab |
 | `details_goal_sortable.js`, `event_sortable.js` | Drag-to-reorder the goal / event lists |
+| `freeze_positions.js` | Persists per-canvas drag positions so the physics engine doesn't reshuffle hand-arranged corners on relayout |
 | `drag_coordinator.js` | Single source of truth for "who is currently dragging" to stop two drag gestures from fighting |
 | `cyto_lifecycle.js` | Rebinds Cytoscape listeners when Dash re-renders the canvas |
 | `editor_sidebar.js`, `events_sidebar.js`, `filters_sidebar.js`, `goals_sidebar.js` | Sidebar open/close with CSS transitions |
 | `link_open_visibility.js` | Disables the Open buttons on link rows when the URL/path field is empty |
 | `locate_node.js` | Pan/zoom the graph to center a named node |
+| `graph_settings_dismiss.js` | Click-outside-to-close behavior for the per-canvas layout-settings popovers |
+| `disable_number_wheel.js` | Stops scroll-wheel from inadvertently incrementing numeric inputs in the editor |
+| `hard_reload_on_restart.js` | Forces a full page reload when the dev server restarts (catches edits to non-Dash assets that wouldn't otherwise hot-reload) |
+| `custom.css`, `theme.css` | Global styling; see [`STYLE_GUIDE.md`](../STYLE_GUIDE.md) for the conventions they enforce |
+| `trigger_badge.svg` | Static asset — badge shown on event tiles. |
 
 ---
 
@@ -138,8 +187,8 @@ Vanilla JS files in `assets/` are auto-loaded by Dash. Each one attaches listene
 Tracing what happens from `python app.py --sandbox` to the moment you can click a node:
 
 1. **CLI parsing.** `app.py` inspects `sys.argv` for `--sandbox`. If present, it mutates `config.ENVIRONMENT = "sandbox"` **before** anything else imports `database`. This ordering matters: `database.get_db_path()` reads `ENVIRONMENT` at call time to decide between `data/skilltree.db` and `data/sandbox_skilltree.db`.
-2. **Schema init.** Every `GraphManager` / `EventManager` constructor (or direct call) invokes `database.init_db()`. That function is guarded by a module-level `_initialized` flag — it runs once per process, creates all five tables (`Nodes`, `Edges`, `Events`, `EventNodes`, `Aliases`, `Settings`) with `CREATE TABLE IF NOT EXISTS`, and attempts the additive migrations (`ALTER TABLE ... ADD COLUMN`) inside `try/except` so they're no-ops on an up-to-date DB.
-3. **Default seeding.** `ConfigManager.ensure_action_type()` and `ensure_goal_type()` make sure the built-in node types exist in Settings. Any missing `Settings` key falls back to a `DEFAULT_*` constant from `config.py`.
+2. **Schema init.** Every `GraphManager` / `EventManager` constructor (or direct call) invokes `database.init_db()`. That function is guarded by a module-level `_initialized` flag — it runs once per process, creates all six tables (`Nodes`, `Edges`, `Events`, `EventNodes`, `Aliases`, `Settings`) with `CREATE TABLE IF NOT EXISTS`, and attempts the additive migrations (`ALTER TABLE ... ADD COLUMN`) inside `try/except` so they're no-ops on an up-to-date DB.
+3. **Default seeding.** `ConfigManager.ensure_action_type()`, `ensure_goal_type()`, and `ensure_milestone_type()` make sure the four built-in node types beyond Resource (`Learn` is in `DEFAULT_NODE_TYPES`; `Action`, `Goal`, `Milestone` are seeded into the Settings table at startup if missing) exist. Any missing `Settings` key falls back to a `DEFAULT_*` constant from `config.py`.
 4. **Layout construction.** `build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)` runs. `generate_elements()` is the **single source of truth** for the Nodes-tab graph: it reads all nodes + edges from SQLite, applies any filters, and returns a flat list of Cytoscape element dicts. The layout tree includes this initial snapshot so the first paint has data.
 5. **Callback wiring.** Six `register_*_callbacks(app)` calls attach every Dash callback. Each registration is independent — no callback function is shared across modules.
 6. **HTTP server.** `app.run(debug=True, dev_tools_ui=False)` starts Flask on port 8050. `app.py` spawns a 0.5-second-delayed `webbrowser.open` so the tab pops up automatically.
@@ -164,7 +213,7 @@ score = eligibility
 
 - **Eligibility** is 1 if every hard prerequisite is Done, else 0. A zero-eligibility node is pushed to the bottom of the list.
 - **Intrinsic value** of a node is `w_v * value + w_i * interest`, with `w_v` and `w_i` configurable hyperparameters. Short-circuits to `0` when `value_mode='inherited'` (see Container modes below).
-- **Total value** is intrinsic value *plus* a recursive discounted sum over Hard/Soft prereqs (the DAG cascade), plus an M3 hybrid synergy contribution. The synergy contribution has two parts: a small **additive pair bonus** `d_Syn_pair × tv(partner)` summed over immediate synergy neighbors regardless of their state, and a **multiplicative kick on intrinsic value** that fires when a synergy partner is Done — `intrinsic × (1 + d_Syn_mul × sqrt(count_done_partners))`. The sqrt is a diminishing-returns cap: 1 partner gives the full d_Syn_mul kick, 4 partners give 2×, 16 give 4× — preserving "more partners = more boost" while keeping dense synergy hubs from running away. The multiplier applies to *intrinsic only*, not to the cascade. Two hyperparameters (`d_Syn_pair` ≈ 0.10, `d_Syn_mul` ≈ 0.40 in the Default profile) replace the single old `d_Syn`. The asymmetry encodes the semantic distinction: synergy is a *categorically different* relationship from Hard/Soft (mutual reinforcement, not directional dependency), so it doesn't sit on the same "necessity" axis. The pair-bonus term can be further scaled by `cross_context_mult` when the synergy partner sits in a different context from the node being scored — this is the Creator profile's lever for rewarding lateral cross-domain links over within-domain synergies. Defaults to 1.0 (off) for every other profile.
+- **Total value** is intrinsic value *plus* a recursive discounted sum over Hard/Soft prereqs (the DAG cascade), plus an M3 hybrid synergy contribution. The synergy contribution has two parts: a small **additive pair bonus** `d_Syn_pair × tv(partner)` summed over immediate synergy neighbors regardless of their state, and a **multiplicative kick on intrinsic value** that fires when a synergy partner is Done — `intrinsic × (1 + d_Syn_mul × sqrt(count_done_partners))`. The sqrt is a diminishing-returns cap: 1 partner gives the full d_Syn_mul kick, 4 partners give 2×, 16 give 4× — preserving "more partners = more boost" while keeping dense synergy hubs from running away. The multiplier applies to *intrinsic only*, not to the cascade. Two hyperparameters (`d_Syn_pair` ≈ 0.10, `d_Syn_mul` ≈ 0.40 in the Sage profile) replace the single old `d_Syn`. The asymmetry encodes the semantic distinction: synergy is a *categorically different* relationship from Hard/Soft (mutual reinforcement, not directional dependency), so it doesn't sit on the same "necessity" axis. The pair-bonus term can be further scaled by `cross_context_mult` when the synergy partner sits in a different context from the node being scored — this is the Creator profile's lever for rewarding lateral cross-domain links over within-domain synergies. Defaults to 1.0 (off) for every other profile.
 - **Perceived cost** is `1 + w_e * difficulty + w_t * (time ** beta)`, where `beta < 1` makes the time penalty sub-linear (a 100-hour task is expensive but not 100× worse than a 1-hour task). The difficulty term short-circuits to `0` when `value_mode='inherited'`; the time term short-circuits to `0` when `time_mode='inherited'` (see Container modes below).
 - **Goal boost.** The top three Priority Goals each multiply the scores of everything in their hard-prerequisite subtree — the #1 goal at full strength, #2 at ~66%, #3 at ~33%. Highest-rank boost wins if a node belongs to multiple priority subtrees.
 - **Context weight.** User-assigned per parent context; defaults to 1.0. Subcontexts inherit their parent's weight. Lets the user state cross-context importance explicitly ("Health > abstract math") even before decomposing those areas. Persisted under the `CONTEXT_WEIGHTS` Settings key.
@@ -233,7 +282,34 @@ The Total Value recursion has gone through three stages as the graph grew. Each 
 
 Stage 3's cost grows linearly, Stage 1/2's grows worse than linearly and is dominated by a constant-factor `b^d` term that inflates as the graph gets more connected. At 487 nodes / 832 edges the actual observed speedup was ~4000× (30 s → 7 ms).
 
-**Memo invalidation is narrow.** `GraphManager.calculate_priority_scores` caches the per-node TV memo across calls and invalidates it only when (a) the graph mutates (`_scoring_version` bumps) or (b) a *TV-affecting* hyperparameter changes. The cache key includes only `w_v, w_i, d_H, d_S, d_Syn` — the parameters that actually feed into `total_value`. Everything else (`w_e, w_t, beta, goal_boost, alpha, context_weights`) is either a cost term or a post-score multiplier, so changing any of them re-ranks cheaply without re-walking the cascade. This is what lets the user tune density normalization or adjust context weights in the Settings tab without paying the first-batch cost.
+**Memo invalidation is narrow.** `GraphManager.calculate_priority_scores` caches the per-node TV memo across calls and invalidates it only when (a) the graph mutates (`_scoring_version` bumps) or (b) a *TV-affecting* hyperparameter changes. The cache key set (`TV_AFFECTING_KEYS` in `graph_manager.py`) is `('w_v', 'w_i', 'd_H', 'd_S', 'd_Syn_pair', 'd_Syn_mul', 'cross_context_mult')` — exactly the parameters that feed into `total_value`. Everything else (`w_e, w_t, beta, goal_boost, alpha, context_weights`) is either a cost term or a post-score multiplier, so changing any of them re-ranks cheaply without re-walking the cascade. This is what lets the user tune density normalization or adjust context weights in the Settings tab without paying the first-batch cost.
+
+### Scoring profiles (`config.PROFILES`)
+
+Hyperparameters are bundled into six named profiles defined in [`config.py`](config.py). Each profile is a dict from knob name to value; switching the active profile is a one-key write to the `HP_PROFILE` Settings row, plus a write to `HYPERPARAMS` storing the resolved knob values (so user-customized overrides persist even after a profile switch). The active hyperparams flow into `scoring.score_nodes` via the `hyperparams` argument that `GraphManager.calculate_priority_scores` assembles per call.
+
+| Profile | Lean | What changes vs. Sage |
+|---|---|---|
+| `Sage` | Balanced baseline | — |
+| `Explorer` | Interest over Value | `w_i = 1.5`, synergy params up (`d_Syn_pair = 0.15`, `d_Syn_mul = 0.60`), `cross_context_mult = 1.5`, `alpha = 0.40` (heavier density haircut lets sparse subcontexts surface) |
+| `Compounder` | Deep cascade, light cost | `d_H = 0.80`, `d_S = 0.50`, `w_e = 1.5`, `w_t = 0.85`, `beta = 0.70`, `alpha = 0.20` |
+| `Pragmatist` | Value + Goal-boost | `w_v = 1.5`, `d_S = 0.20`, synergy params halved, `w_t = 1.5`, `goal_boost = 2.0`, `alpha = 0.20` |
+| `Creator` | Cross-context synergy | `d_Syn_pair = 0.25`, `d_Syn_mul = 0.80`, `cross_context_mult = 2.0` |
+| `Glider` | Time-penalty maximalist | `w_e = 3.5`, `w_t = 4.0`, `beta = 0.95`, cascade dampened (`d_H = 0.45`, `d_S = 0.30`), synergies minimal, `goal_boost = 1.0` (priority-subtree boost off), `alpha = 0.40` |
+
+User-facing prose on when to use each lives in [`README.md`](../README.md#scoring-profiles-the-knobs-by-profile); this doc treats the profiles as code-level constants. Adding a new profile is: add a key to `PROFILES`, add a label to the dropdown in `settings_layout.py`, and write a regression test that locks the new defaults in `test_scoring_differential.py`.
+
+### `explain_score` — per-node breakdown for the UI popup
+
+[`scoring.explain_score(node_name, all_nodes, edges, hyperparams, priority_goals)`](scoring.py) returns a dict that decomposes a single node's priority score into its constituent parts: intrinsic value (with the synergy completion multiplier broken out), perceived cost (with override flags for inherited modes), the breakdown of total value by cascade path (`hard_cascade` / `soft_cascade` / `synergy`), the goal-boost record if applicable, the per-context adjustment (weight × density multiplier), and a sorted list of every descendant whose IV propagates into this node — with `depth`, first-hop `via` (`Self`/`Hard`/`Soft`/`Synergy`), per-contributor weight, and percentage-of-TV.
+
+The forward propagation of weights from a starting node is done by `_contribution_weights`, which walks the DAG in topological order and accumulates `W(name) = sum over paths of product of edge discounts`. By linearity, `contribution(D) = W(D) × IV(D)` and the contributions sum to `intrinsic + cascade + syn_additive` exactly — which is how the popup's breakdown table can sum to the displayed TV without drifting from `score_nodes`. The synergy completion multiplier is a node-level scalar applied separately and reported in its own row.
+
+The popup also surfaces an **eligible / block_reason** field: ineligible nodes (Done, Blocked, Goal, Milestone, container, missing prereqs) still get a full breakdown so users can see *why* a node is currently parked at score `-1.0`.
+
+### Shortest-path focus (`shortest_paths_focus_data`)
+
+For the Details tab's "show me how this node reaches my top recommendations" feature: given a source and a ranked list of `(rank, target_name)` tuples, this returns the BFS shortest paths from source to each target (Hard + Soft + a depth-1 Helps seed), plus per-node and per-edge `min_rank` annotations so the Cytoscape stylesheet can color shared segments by the most-valuable path that uses them. Shares the same edge set as `explain_score`'s contribution graph; the Helps seed matches the single-hop pair-bonus rule.
 
 ### Cascade status (`graph_manager._update_node_state`)
 
@@ -250,6 +326,30 @@ The Details tab's relationship column uses set arithmetic to label Synergy nodes
 ### PERT time (`models.Node.time`)
 
 The `time` property on a Node blends three estimates (optimistic, most likely, pessimistic) into one number. Low-uncertainty estimates (pessimistic/optimistic ratio ≤ 2) use the classic arithmetic PERT mean `(o + 4m + p) / 6`. High-uncertainty estimates (ratio ≥ 10) use the geometric/log mean. Between those bounds, it smoothly interpolates. There are also fallbacks for when only partial estimates are provided. The result is what shows up everywhere in the UI as "Time."
+
+The property short-circuits to `0` when `time_mode='inherited'` so the cost denominator of an inherited-time container is `1 + 0 + 0 = 1` (its priority falls out of the cascade entirely). It also short-circuits to `0` when the three-point fields are all zero (a defensive guard against stored-but-empty rows).
+
+### Habit mode (`callback_helpers.habit_to_hours`)
+
+When `time_mode='habit'`, the canonical `time_o/m/p` hours stored on the node are derived from `habit_duration × habit_intensity_{o,m,p}`, expressed via the unit fields. The conversion lives in `callback_helpers.habit_to_hours` and runs whenever the user edits a habit-mode node:
+
+- **Duration unit** → days. `'days'` = 1, `'weeks'` = 7, `'months'` = 30, `'years'` = 365.
+- **Intensity unit** → hours/day. `'min_per_day'` = intensity/60, `'hr_per_day'` = intensity, `'min_per_week'` = intensity/(60×7), `'hr_per_week'` = intensity/7.
+- **Total hours** = `duration_days × intensity_hours_per_day`.
+
+So `4 weeks × 15 min/day` ≈ `28 × 0.25 = 7 hours` for the expected leg. The three intensity values produce three hours values (`time_o`, `time_m`, `time_p`), which then flow through the standard PERT blend like any manual estimate. From scoring's perspective Habit mode is invisible: by the time `score_nodes` runs, the hours are already canonical fields.
+
+Why the indirection? "10 minutes a day for 8 weeks" is a more honest UI for recurring practice than "9 hours total," and the structure is preserved across mode toggles (`models.Node` keeps the habit fields populated even when `time_mode='manual'`, so a user who toggles can restore their input). The intensity-unit set covers the four natural cadence patterns (minutes/hours × per-day/per-week) — daily quick practices, daily deeper sessions, weekly time-blocks, etc.
+
+### Time-unit conversion (`config.ConfigManager.get_time_multiplier`)
+
+The editor's time-input control lets the user enter values in **hours**, **weeks**, **months**, or **years**. `get_time_multiplier(unit)` resolves each into a multiplier-to-hours using two persisted settings (`hours_per_week`, `hours_per_month` from the `TIME_SETTINGS` Settings row, with defaults of 40 and 160 respectively) plus a derived hours-per-year:
+
+```
+hours_per_year = HOURS_PER_YEAR_MULT × hours_per_month   # HOURS_PER_YEAR_MULT = 13
+```
+
+The `13` constant encodes "one year is 13 nominal months of productivity" — that's ≈ 52 weeks after vacation/overhead adjustment. Hours-per-year is **not** stored as its own Settings row; it derives at read time so changing `hours_per_month` flows through to year-denominated displays consistently. The same multiplier set drives the friendly time-unit display in the Next tab, tooltip strings, and Analyze chart x-axes (`ConfigManager.format_time_friendly` picks the largest unit whose value reads as a tidy number — hours → weeks → months → years).
 
 ### Event activation (`event_manager.check_pending_activations` + `check_scheduled_triggers`)
 
@@ -273,8 +373,8 @@ For a target node, BFS walks backward through the dependency graph (hard by defa
 
 | Field | Type | Notes |
 |---|---|---|
-| `name` | str | Primary key. Renaming cascades through edges, events, aliases, and overrides. |
-| `type` | str | One of `Learn`, `Action`, `Goal`, `Resource` (user-extensible in Settings). |
+| `name` | str | Primary key. Renaming cascades through edges, events, aliases, and overrides via `GraphManager.rename_node`. |
+| `type` | str | One of `Learn`, `Action`, `Goal`, `Resource`, `Milestone` (user-extensible in Settings — additional types get their own color/shape in the Node Types manager). |
 | `description` | str | Free-text user notes. |
 | `value` | int 1-10 | User rating — how important is this? |
 | `interest` | int 1-10 | User rating — how fun/engaging? |
@@ -282,15 +382,20 @@ For a target node, BFS walks backward through the dependency graph (hard by defa
 | `time_o` | float | Optimistic estimate, in hours. |
 | `time_m` | float | Most-likely estimate, in hours. |
 | `time_p` | float | Pessimistic estimate, in hours. |
-| `time_mode` | str | `'manual'` (use the three-point fields) or `'inherited'` (zero own time in cost; aggregate from hard children). See *Container modes* in the algorithm section. |
+| `time_mode` | str | `'manual'` (use the three-point fields), `'inherited'` (zero own time in cost; aggregate from hard children), or `'habit'` (compute hours from duration × intensity — see *Habit mode* below). Drives `Node.time` short-circuiting. |
 | `value_mode` | str | `'manual'` (use own ratings) or `'inherited'` (zero own intrinsic value and effort in scoring; rely entirely on cascade from descendants). Independent of `time_mode`. See *Container modes*. |
-| `status` | str | `Open`, `Blocked`, or `Done`. `Blocked` is derived from prereq state. |
-| `competence` | Optional[str] | Seven-level skill tier (`Outsider` → `Innovator`). |
-| `context` / `subcontext` | Optional[str] | Life area and sub-area (Health → Exercise, etc.). |
+| `habit_duration` | float | Habit mode: how long the habit runs. Unit in `habit_duration_unit`. Inert when `time_mode != 'habit'` but preserved across mode toggles so re-enabling Habit restores the user's last input. |
+| `habit_duration_unit` | str | One of `'days'`, `'weeks'`, `'months'`, `'years'`. |
+| `habit_intensity_o` / `_m` / `_p` | float | Habit mode: three-point estimate of intensity (e.g. minutes/day) used to derive `time_o`/`time_m`/`time_p` in hours. Same three-point shape as manual mode, expressed at the habit level. |
+| `habit_intensity_unit` | str | One of `'min_per_day'`, `'hr_per_day'`, `'min_per_week'`, `'hr_per_week'`. Combined with `habit_duration_unit` to yield hours. |
+| `status` | str | `Open`, `Blocked`, or `Done`. `Blocked` is derived from prereq state by `_update_node_state`. |
+| `context` / `subcontext` | Optional[str] | Life area and sub-area (Health → Exercise, etc.). `(context, None)` is a meaningful bucket meaning "broad area, not a specific subarea." `context = None` is uncategorized (rejected at add-time by current builds, but legacy rows may exist). |
 | `obsidian_path` / `google_drive_path` / `website` | Optional[str] | Legacy single-link fields. Multi-link data now lives in Dash stores. |
 | `dormant` | int | `1` while attached to a pending event; `0` once active. |
 | `priority_score` | Optional[float] | Populated by `scoring.score_nodes()`; not persisted. |
-| `time` | float (`@property`) | Computed blended PERT estimate. Not a stored field. |
+| `total_value` | Optional[float] | Populated by `scoring.score_nodes()`; not persisted. |
+| `time` | float (`@property`) | Computed blended PERT estimate. Not a stored field. Short-circuits to `0` when `time_mode='inherited'`. |
+| `is_container` | bool (`@property`) | True when **both** `time_mode='inherited'` and `value_mode='inherited'` — the node is a pure structural conduit and is excluded from Next-tab ranking. |
 
 ### Edges
 
@@ -300,8 +405,18 @@ Stored as plain `dict` rows `{'source': str, 'target': str, 'type': str}` with c
 |---|---|
 | `Needs_Hard` | **Must-do prerequisite.** Target is Blocked until source is Done; gates eligibility in scoring. Strongest, transitive value flow (`d_H` per hop). Use when the knowledge from A is required for B, or when the order is genuinely forced. |
 | `Needs_Soft` | **Helpful but not required.** Source provides discounted value to target without blocking it. Weaker, transitive value flow (`d_S` per hop). Use when A would meaningfully improve B but B is doable without it. |
-| `Helps` (Synergy) | **Lateral mutual reinforcement.** Symmetric — one row expresses the whole relationship. Non-transitive (no chains). Two distinct scoring effects: a small **pair bonus** `d_Syn_pair × tv(partner)` co-promotes synergy partners pre-completion, and a **completion multiplier** `(1 + d_Syn_mul × done_partners)` scales intrinsic value once partners are Done. Use when two nodes have a genuine multiplicative effect on each other (e.g., concepts that blend unusually well, where doing both is meaningfully more than the sum of doing each alone). |
+| `Helps` (Synergy) | **Lateral mutual reinforcement.** Symmetric — one row expresses the whole relationship. Non-transitive (no chains). Two distinct scoring effects: a small **pair bonus** `d_Syn_pair × tv(partner)` co-promotes synergy partners pre-completion, and a **completion multiplier** `(1 + d_Syn_mul × √done_partners)` scales intrinsic value once partners are Done. The sqrt is a diminishing-returns cap. Use when two nodes have a genuine multiplicative effect on each other (e.g., concepts that blend unusually well, where doing both is meaningfully more than the sum of doing each alone). |
 | `Resource` | **Deprecated.** Migrated to `Needs_Soft` at startup; constant kept only for legacy rows. |
+
+### `Aliases` table
+
+Each node can carry zero or more alternate names. The table is a simple `(alias TEXT, node_name TEXT)` mapping with `alias` as the primary key (every alias resolves to exactly one node, but a node can have many aliases). Aliases are used by:
+
+- **Search** — the editor's search box and the Nodes-tab locate-bar match against aliases as well as canonical names.
+- **Auto-complete and dropdowns** — pickers that resolve a typed string to a node consult aliases.
+- **Rename hardening** — `GraphManager.rename_node` does NOT touch aliases (renaming the node leaves its aliases pointing to the new canonical name, since the FK is enforced via the atomic rename pattern).
+
+Aliases are managed in the node editor's collapsible "Aliases" panel under the Name field. There's no UI to list all aliases globally; the table is queried via `GraphManager.get_aliases(node_name)`.
 
 ### `Event` (dataclass) + `EventNodes` table
 
@@ -338,6 +453,46 @@ Manual, date, and node triggers are distinguished by which of `trigger_date` / `
 
 **Settings** are stored in a tiny `Settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)` table, where `value` is JSON. `ConfigManager.get_*` parses on read, `set_*` serializes on write — no in-process cache, which is what keeps multi-instance consistency painless.
 
+#### Settings keys you'll encounter
+
+| Key | Stored value | What it controls |
+|---|---|---|
+| `HP_PROFILE` | str (e.g. `"Sage"`, `"Explorer"`) | Active scoring profile. Picked from `config.PROFILES`. |
+| `HYPERPARAMS` | dict of knob → number | Resolved scoring hyperparameters. Overlays the profile defaults so per-knob customizations persist. |
+| `CONTEXT_WEIGHTS` | dict[context → float] | Per-context multipliers applied after raw score. Default 1.0 for any context not listed. |
+| `CONTEXTS` | list[str] | Ordered list of contexts. Edited via Settings → Contexts. Renames flow through the migration modal. |
+| `SUBCONTEXTS` | dict[context → list[str]] | Per-context subcontext lists. |
+| `CONTEXT_SORT_MODE` / `SUBCONTEXT_SORT_MODE` | str | Display sort for dropdowns: `'definition'` / `'alphabetical'` / `'length'`. |
+| `NODE_TYPES` | list[str] | Active node types. `Learn` is in `DEFAULT_NODE_TYPES`; `Action`/`Goal`/`Milestone` are seeded by `ensure_*_type()` at startup. |
+| `NODE_COLORS` / `NODE_SHAPES` | dict[type → str] | Per-type style. |
+| `PRIORITY_GOALS` | list[str] (up to 3) | Ranked Priority Goals — drives the `goal_boost` cascade. |
+| `GOAL_ORDER` | list[str] | Full Goal display order in the Details → Goals sidebar (drag-to-reorder writes here). |
+| `OVERRIDE` | dict | Manual override metadata for the Next tab's MANUAL OVERRIDE block. |
+| `TIME_SETTINGS` | dict (`hours_per_week`, `hours_per_month`) | The two persisted time-conversion ratios. Hours-per-year derives from `hours_per_month × 13`. |
+| `TIME_ESTIMATE_DEFAULTS` | dict | Prefill values for new-node time-estimate fields plus the default time mode (`'manual'` / `'inherited'` / `'habit'`). |
+| `GRAPH_LAYOUT_DEFAULTS`, `DETAILS_GRAPH_LAYOUT_DEFAULTS`, `EVENTS_GRAPH_LAYOUT_DEFAULTS` | dict | Per-canvas physics tuning (edge length, gravity, repulsion). |
+| `FILTERS` / `REMEMBER_FILTERS` | dict / bool | Last-applied filter set on the Next tab and whether to restore it on reload. |
+| `ANALYZE_LIMITS` | dict | Per-section row limits for the Analyze tab charts. |
+| `TITLECASE_LINTER` | dict (`enabled`, `exclusions`) | Optional title-case validator for new node names. |
+| `OBSIDIAN_VAULT`, `GDRIVE_ROOT_PATH` | str | Root paths for resolving relative Obsidian/Drive links. |
+| `SHOW_SCORING_PERF` | bool | Whether to display the scoring-perf timings strip at the bottom of the Next tab. |
+
+Every key has a getter/setter pair on `ConfigManager` (see [`config.py`](config.py)). New keys: add a `DEFAULT_*` constant and matching `get_*`/`set_*` methods; the table auto-stores on first write.
+
+### Community detection (`graph_manager.detect_communities`)
+
+The Analyze tab and the Filters panel consume clustering results from `GraphManager.detect_communities(method=...)`:
+
+- `method="components"` — connected components of the underlying undirected projection. Use for "Islands."
+- `method="louvain"` — Louvain community detection via `networkx.algorithms.community.louvain_communities(subgraph, seed=42)`. The fixed seed makes results stable across reloads of the same graph.
+- **Orphans** are computed separately by walking nodes with degree 0 in the same projection.
+
+Results are memoized at `_community_cache`, keyed by `(method, sorted_allowed_names, _graph_version)`, so re-querying communities during a session of pure scoring tweaks is free (only graph mutations invalidate). Community names are auto-derived by `name_community` — it picks the most common shared context/subcontext among the cluster's members, or falls back to a top-keyword heuristic over the cluster's node names.
+
+### Migration helper (renamed contexts and types)
+
+When a user renames a context, subcontext, or node type that has active nodes attached, `settings_callbacks` opens a **migration modal**: each affected node gets dropdowns to pick its new context/subcontext (or type). The flow runs `_apply_per_node_migrations` over the user's selections, which calls `GraphManager.apply_node_migration(node_name, field, new_value)` per row. A sentinel value lets the user explicitly mark a node as needing a different category than the bulk default. `_migrate_context_weights` (`settings_callbacks.py`) handles the related question "should the old context's `CONTEXT_WEIGHTS` entry follow the rename or be dropped?" by inspecting how the user mapped nodes. The whole batch is committed atomically; canceling the modal touches nothing.
+
 ---
 
 ## 6. The JS–Dash bridge
@@ -360,8 +515,34 @@ When you see a hidden `<input id="edit-trigger-input">` or `<input id="delete-tr
 ## 7. Testing
 
 - Tests live in `tests/` and use a `temp_database` fixture (`monkeypatch` points `database.get_db_path` at a per-test `tmp_path`). Production and sandbox DB files are never touched.
-- Suites are organized by module: `test_backend.py` (Node/Graph/scoring), `test_callbacks.py` (handler shims), `test_events.py`, `test_helpers.py`, `test_simulation.py`, `test_analyze.py`, plus regression tests like `test_generate_elements_regression.py` and `test_populate_editor_arity.py`.
-- Run with `pytest` from the repo root. The suite currently has 600+ tests and runs in ~20 seconds.
+- Run with `pytest` from the repo root. The suite has 600+ tests and runs in ~20 seconds.
+
+### Suite layout
+
+| File | Coverage |
+|---|---|
+| `test_backend.py` | Core: Node, GraphManager, ConfigManager, edge mutations, cascade status, rename atomicity. The biggest single file. |
+| `test_callbacks.py` | Stateless callback handlers (`handle_save`, `handle_delete`, `handle_toggle_done`, `handle_group_delete`) extracted from the Dash-context shims. |
+| `test_helpers.py` | `callback_helpers` utilities: link row serialization, filter builders, habit→hours conversion, formatters. |
+| `test_simulation.py` | Monte Carlo: PERT-Beta sampling shape, percentile calculations, serial-sum semantics, edge cases (no estimates, single-node chains). |
+| `test_analyze.py` | Pure `_compute_*` functions powering the Analyze charts: time sinks, bottlenecks, goal-risk, context coverage. |
+| `test_events.py`, `test_events_improvements.py` | Event lifecycle: manual/date/node triggers, dormant-node activation, delay handling, scheduled-trigger sweeps. |
+| `test_override.py` | Manual override modes and the four override-scope choices (node only, +hard, +soft, +all). |
+| `test_habit.py` | Habit-mode conversion (`habit_to_hours`) and round-tripping `time_mode='habit'` through CRUD. |
+| `test_details_graph.py` | Details-tab subgraph derivation (`get_goal_subtree` with various edge-type sets), depth-limiting, neighbor-links toggle. |
+| `test_container_suggestions.py` | "Suggested next" container-style nodes on the Next tab. |
+| `test_scoring_explanation.py` | `explain_score`: composition adds up, contributor ordering, ineligibility paths. |
+| `test_scoring_context_adjustment.py` | Context weight × density normalization math; bucket counting; `(context, None)` semantics. |
+| `test_scoring_cross_context.py` | `cross_context_mult` flow through both `total_value` and `explain_score`. |
+| `test_scoring_differential.py` | Correctness guard: memoized `score_nodes` must produce byte-equal outputs to an inline unmemoized baseline across randomized graphs, pathological shapes (self-loops, cycles, bidirectional pairs), and real sandbox/production DBs under multiple hyperparameter profiles. The harness threads the active profile (including `cross_context_mult`) into the baseline scorer so the comparison is apples-to-apples. |
+| `test_scoring_memo_and_community_cache.py` | Memo invalidation (`TV_AFFECTING_KEYS`) and `_community_cache` reuse semantics. |
+| `test_scoring_perf.py` | Linear-in-graph-size scaling smoke checks. |
+| `test_edges_indexes.py` | SQLite index coverage on the Edges table. |
+| `test_layout_smoke.py`, `test_app_smoke.py` | Layout builds without errors at boot; smoke tests for the full app. |
+| `test_tab_toggle.py`, `test_state_drift_cleanup.py` | Tab-switch state continuity; cleanup invariants. |
+| `test_core_engine_tab_gate.py` | "Don't compute analyze charts if the user hasn't opened the tab" laziness. |
+| `test_generate_elements_regression.py` | Locks `generate_elements()` output shape against the legacy formatter. |
+| `test_populate_editor_arity.py` | Ensures the node-editor populate callback's signature matches its registered Inputs. |
 
 ---
 

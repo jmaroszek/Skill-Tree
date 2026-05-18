@@ -64,7 +64,7 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 
 Don't duplicate these in this file — they're the source of truth for their respective topics:
 
-- [`technical_overview.md`](technical_overview.md) — architecture, module responsibilities, data lifecycle, algorithms, data structures, JS-Dash bridge.
+- [`docs/technical_overview.md`](docs/technical_overview.md) — architecture, module responsibilities, data lifecycle, algorithms, data structures, JS-Dash bridge.
 - [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.
 
