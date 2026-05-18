@@ -7,6 +7,7 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOAST_CLEAR_INTERVAL_MS, badge_style
+from models import STATUS_DONE
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator
 
@@ -67,6 +68,9 @@ def build_events_sidebar_content():
 def build_events_tab_content():
     """Builds the Events tab UI (right panel only — list is now in the global sidebar)."""
     _ted = ConfigManager.get_time_estimate_defaults()
+    # Triggering an event is its "done" moment — tint the button with the
+    # node-status Done color rather than a loud default green.
+    _done_color = ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")
 
     # --- Node Editor Modal for Dormant Nodes ---
     dormant_node_modal = dbc.Modal([
@@ -403,12 +407,27 @@ def build_events_tab_content():
                 dbc.Badge(id="event-status-badge", children="Pending", color="primary",
                           style={"display": "none"}),
 
-                # --- Name ---
-                dbc.Input(id="event-name", type="text", placeholder="Event Name",
-                          className="mt-3 mb-1",
-                          style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
-                                 "border": "none", "borderBottom": "1px solid #495057", "color": "#dee2e6",
-                                 "borderRadius": "0", "paddingLeft": "0"}),
+                # --- Name + event actions ---
+                # Delete/Save act on the whole event, so they sit with the
+                # event's title rather than on a line of their own. The
+                # event-trigger-section wrapper still governs their visibility
+                # (hidden for new + triggered events) and feeds the mirror
+                # callback that shows/hides the relocated Trigger button.
+                html.Div([
+                    dbc.Input(id="event-name", type="text", placeholder="Event Name",
+                              className="flex-grow-1",
+                              style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
+                                     "border": "none", "color": "#dee2e6",
+                                     "borderRadius": "0", "paddingLeft": "0"}),
+                    html.Div(id="event-trigger-section", className="d-flex align-items-center ms-3", children=[
+                        dbc.Button("Delete", id="btn-event-delete", color="danger", size="sm",
+                                   className="me-2",
+                                   style={"backgroundColor": ConfigManager.get_danger_color(),
+                                          "borderColor": ConfigManager.get_danger_color()}),
+                        dbc.Button("Save", id="btn-event-save", color="primary", size="sm"),
+                    ]),
+                ], className="d-flex align-items-center mt-3 mb-1",
+                   style={"borderBottom": "1px solid #495057"}),
 
                 html.Div(id="event-save-status", className="text-success mb-2",
                          style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
@@ -458,18 +477,6 @@ def build_events_tab_content():
                                style={"fontSize": "0.8rem"}),
                 ]),
 
-                # --- Action Buttons (right-aligned: Delete | Save | Trigger) ---
-                html.Div([
-                    html.Div(id="event-trigger-section", className="d-flex align-items-center", children=[
-                        dbc.Button("Delete", id="btn-event-delete", color="danger", size="sm",
-                                   className="me-2",
-                                   style={"backgroundColor": ConfigManager.get_danger_color(),
-                                          "borderColor": ConfigManager.get_danger_color()}),
-                        dbc.Button("Save", id="btn-event-save", color="primary", size="sm", className="me-2"),
-                        dbc.Button("Trigger", id="btn-trigger-event", color="success", size="sm"),
-                    ]),
-                ], className="d-flex justify-content-end mb-3 mt-2"),
-
                 html.Hr(className="my-3"),
 
                 # Dormant Nodes Section
@@ -479,9 +486,16 @@ def build_events_tab_content():
                         dbc.Button("+", id="btn-add-dormant-node", color="link",
                                    className="p-0 ms-2 text-decoration-none text-muted",
                                    style={"fontSize": "1.2rem", "lineHeight": "1"}),
-                        dbc.Tooltip("Add dormant node", target="btn-add-dormant-node", placement="right",
+                        dbc.Tooltip("Add a dormant node to this event", target="btn-add-dormant-node", placement="right",
                                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                     ], className="d-flex align-items-center"),
+                    # Trigger acts on the dormant nodes — placed here, not with
+                    # Save/Delete. Visibility mirrors event-trigger-section.
+                    html.Div(
+                        dbc.Button("Trigger", id="btn-trigger-event", color="success", size="sm",
+                                   style={"backgroundColor": _done_color, "borderColor": _done_color}),
+                        id="event-trigger-btn-wrapper", className="ms-auto",
+                    ),
                 ], className="d-flex align-items-center mb-3"),
 
                 html.Div(id="dormant-nodes-table-container"),
@@ -491,15 +505,17 @@ def build_events_tab_content():
                         html.P("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
                         dbc.Switch(
                             id="manual-override-trigger-toggle",
-                            label="Pin activated nodes to top of Next suggestions",
+                            label="Activate all nodes with an override status",
                             value=False,
                             className="mt-2",
                         ),
                     ]),
                     dbc.ModalFooter([
                         dbc.Button("Cancel", id="btn-trigger-cancel", color="secondary", className="me-auto"),
-                        dbc.Button("Trigger Checked", id="btn-trigger-confirm", color="success", className="me-2"),
-                        dbc.Button("Trigger All", id="btn-trigger-all-confirm", color="success"),
+                        dbc.Button("Trigger Checked", id="btn-trigger-confirm", color="success", className="me-2",
+                                   style={"backgroundColor": _done_color, "borderColor": _done_color}),
+                        dbc.Button("Trigger All", id="btn-trigger-all-confirm", color="success",
+                                   style={"backgroundColor": _done_color, "borderColor": _done_color}),
                     ]),
                 ], id="modal-confirm-trigger", is_open=False, centered=True),
                 dbc.Modal([
@@ -511,7 +527,7 @@ def build_events_tab_content():
                 ], id="modal-confirm-delete", is_open=False, centered=True),
             ], style={"maxWidth": "650px"}),
         ]),
-    ], style={
+    ], id="events-detail-panel", style={
         "flex": "0 0 698px",
         "maxWidth": "698px",
         "padding": "0 24px",
@@ -567,8 +583,21 @@ def build_events_tab_content():
         "minWidth": "0",
         "display": "flex",
         "flexDirection": "column",
-        "borderLeft": "1px solid #495057",
     })
+
+    # Draggable handle between the event detail panel and the event graph.
+    # Wired by assets/events_resize.js; mirrors the details-tab vertical drag.
+    v_drag_handle = html.Div(
+        id="events-v-drag",
+        style={
+            "width": "6px",
+            "cursor": "col-resize",
+            "backgroundColor": "transparent",
+            "borderLeft": "1px solid #495057",
+            "flexShrink": "0",
+            "transition": "background-color 0.15s",
+        },
+    )
 
     return html.Div([
         dcc.Store(id='selected-event-store', data=None),
@@ -587,6 +616,7 @@ def build_events_tab_content():
         dormant_node_modal,
         html.Div([
             event_detail_panel,
+            v_drag_handle,
             event_graph_panel,
         ], id="events-tab-inner", style={
             "display": "flex",
@@ -750,18 +780,26 @@ def build_dormant_nodes_table(event_nodes, event_status):
 
         action_btns = None
         if not activated and event_status != "Triggered":
+            edit_id = {"type": "btn-edit-dormant-node", "index": node.name}
+            remove_id = {"type": "btn-remove-dormant-node", "index": node.name}
             edit_btn = dbc.Button(
-                "✎",
-                id={"type": "btn-edit-dormant-node", "index": node.name},
-                color="secondary", size="sm",
-                style={"fontSize": "0.7rem", "padding": "1px 6px", "lineHeight": "1"}
+                "✎", id=edit_id, color="link",
+                className="p-0 text-decoration-none text-muted",
+                style={"fontSize": "1rem", "lineHeight": "1"},
             )
             remove_btn = dbc.Button(
-                "x", id={"type": "btn-remove-dormant-node", "index": node.name},
-                color="danger", size="sm",
-                style={"fontSize": "0.7rem", "padding": "1px 6px", "lineHeight": "1"}
+                "×", id=remove_id, color="link",
+                className="p-0 text-decoration-none text-muted",
+                style={"fontSize": "1.1rem", "lineHeight": "1"},
             )
-            action_btns = html.Div([edit_btn, remove_btn], className="d-flex gap-1 justify-content-end")
+            action_btns = html.Div([
+                edit_btn,
+                dbc.Tooltip("Edit dormant node", target=edit_id, placement="left",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                remove_btn,
+                dbc.Tooltip("Remove dormant node", target=remove_id, placement="left",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            ], className="d-flex gap-2 justify-content-end align-items-center")
 
         rows.append(html.Tr([
             html.Td(trigger_checkbox, style={"verticalAlign": "middle", "width": "32px"}),
@@ -779,7 +817,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
             html.Th("Type"),
             html.Th("Delay"),
             html.Th("Status"),
-            html.Th("", style={"width": "40px"}),
+            html.Th("", style={"width": "60px"}),
         ])),
         html.Tbody(rows),
     ], bordered=False, hover=True, responsive=True, size="sm",

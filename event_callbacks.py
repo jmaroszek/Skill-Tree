@@ -442,6 +442,18 @@ def register_event_callbacks(app):
             return True
         return False
 
+    # The Trigger button was relocated to the Dormant Nodes header, but its
+    # show/hide is still governed by event-trigger-section (hidden for new and
+    # already-triggered events). Mirror that section's style onto the button's
+    # wrapper so the four callbacks driving event-trigger-section need no change.
+    @app.callback(
+        Output("event-trigger-btn-wrapper", "style"),
+        Input("event-trigger-section", "style"),
+        prevent_initial_call=True,
+    )
+    def mirror_trigger_button_visibility(section_style):
+        return section_style
+
     @app.callback(
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
