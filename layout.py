@@ -1197,6 +1197,15 @@ _header_cell_style = {
 }
 
 
+def _ratings_cell_children(text):
+    """Render a definition string with its leading keyword (up to the first
+    colon) bolded for quick scanning."""
+    head, sep, tail = text.partition(':')
+    if not sep:
+        return text
+    return [html.Strong(head + sep), tail]
+
+
 def build_popup_table_rows(defs):
     """Build the ratings popup table rows from a list of definition dicts."""
     return [
@@ -1205,13 +1214,13 @@ def build_popup_table_rows(defs):
                 **_cell_style, "fontWeight": "700", "color": "#adb5bd",
                 "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
             }),
-            html.Td(d['value'], style={
+            html.Td(_ratings_cell_children(d['value']), style={
                 **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
             }),
-            html.Td(d['interest'], style={
+            html.Td(_ratings_cell_children(d['interest']), style={
                 **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
             }),
-            html.Td(d['effort'], style={
+            html.Td(_ratings_cell_children(d['effort']), style={
                 **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
             }),
         ])
@@ -1316,7 +1325,8 @@ ratings_popup = html.Div([
     "top": "120px",
     "left": "420px",
     "width": "960px",
-    "height": "710px",
+    "height": "auto",
+    "maxHeight": "calc(100vh - 160px)",
     "minWidth": "400px",
     "minHeight": "200px",
     "zIndex": 9998,

@@ -3,7 +3,7 @@
     // These are reapplied each time the popup is opened so a prior drag/resize
     // doesn't persist across reopenings.
     var DEFAULT_WIDTH = '960px';
-    var DEFAULT_HEIGHT = '710px';
+    var DEFAULT_HEIGHT = 'auto';
     var DEFAULT_LEFT = '420px';
     var DEFAULT_TOP = '120px';
 
