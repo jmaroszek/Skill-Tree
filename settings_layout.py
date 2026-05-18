@@ -339,11 +339,12 @@ def build_settings_tab_content():
 
                         html.Hr(className="my-3"),
 
-                        # --- Three-column layout: IV | VP | PC (subsections of Priorities) ---
+                        # --- Four-column layout: IV | Cascade | Synergy | PC (subsections of Priorities) ---
                         # Headings row — H6 so they read as subsections of the Priorities H5
                         dbc.Row([
                             dbc.Col(html.H6("Intrinsic Value", className="mt-2 mb-1")),
-                            dbc.Col(html.H6("Value Propagation", className="mt-2 mb-1")),
+                            dbc.Col(html.H6("Cascade", className="mt-2 mb-1")),
+                            dbc.Col(html.H6("Synergy", className="mt-2 mb-1")),
                             dbc.Col(html.H6("Perceived Cost", className="mt-2 mb-1")),
                         ], className="mt-2"),
                         # Descriptions row — Bootstrap flex makes all cols equal height
@@ -355,7 +356,10 @@ def build_settings_tab_content():
                                 "The node's worth on its own, before any cascade or synergy.",
                             ], className="text-muted")),
                             dbc.Col(html.Small(
-                                "Hard/Soft: value kept per cascade hop. Pending Bonus: additive boost each gets before either is done. Done Multiplier: multiplicative boost the other gets when one is done. Cross-Context Boost: scales the Pending Bonus when synergy partners live in different contexts (1.0 = off).",
+                                "Fraction of value kept per cascade hop along prerequisite edges. Hard edges propagate more strongly than Soft.",
+                                className="text-muted")),
+                            dbc.Col(html.Small(
+                                "Pending Bonus: additive boost each partner gets before either is done. Done Multiplier: multiplicative boost the other gets when one is done.",
                                 className="text-muted")),
                             dbc.Col(html.Small([
                                 html.Span("C = 1 + w_e \u00b7 E + w_t \u00b7 T^\u03b2",
@@ -368,25 +372,21 @@ def build_settings_tab_content():
                         dbc.Row([
                             dbc.Col([dbc.Label("Value Weight", className="mt-2"), dbc.Input(id="hp-wv", type="number", step="any")]),
                             dbc.Col([dbc.Label("Hard Need", className="mt-2"), dbc.Input(id="hp-dh", type="number", step="any")]),
+                            dbc.Col([dbc.Label("Pending Bonus", className="mt-2"), dbc.Input(id="hp-dsyn-pair", type="number", step="any")]),
                             dbc.Col([dbc.Label("Effort Weight", className="mt-2"), dbc.Input(id="hp-we", type="number", step="any")]),
                         ]),
                         # Row 2
                         dbc.Row([
                             dbc.Col([dbc.Label("Interest Weight", className="mt-2"), dbc.Input(id="hp-wi", type="number", step="any")]),
                             dbc.Col([dbc.Label("Soft Need", className="mt-2"), dbc.Input(id="hp-ds", type="number", step="any")]),
+                            dbc.Col([dbc.Label("Done Multiplier", className="mt-2"), dbc.Input(id="hp-dsyn-mul", type="number", step="any")]),
                             dbc.Col([dbc.Label("Time Weight", className="mt-2"), dbc.Input(id="hp-wt", type="number", step="any")]),
                         ]),
-                        # Row 3 (IV column empty; VP carries the two synergy params stacked)
+                        # Row 3 (only Perceived Cost carries a third param)
                         dbc.Row([
                             dbc.Col([]),
-                            dbc.Col([
-                                dbc.Label("Pending Bonus", className="mt-2"),
-                                dbc.Input(id="hp-dsyn-pair", type="number", step="any"),
-                                dbc.Label("Done Multiplier", className="mt-2"),
-                                dbc.Input(id="hp-dsyn-mul", type="number", step="any"),
-                                dbc.Label("Cross-Context Boost", className="mt-2"),
-                                dbc.Input(id="hp-cross-context-mult", type="number", step="any"),
-                            ]),
+                            dbc.Col([]),
+                            dbc.Col([]),
                             dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step="any")]),
                         ], className="mb-2"),
 
@@ -398,12 +398,26 @@ def build_settings_tab_content():
                         dbc.Row([
                             dbc.Col([
                                 dbc.Input(id="hp-goal-boost", type="number", step="any"),
-                            ], width=2),
+                            ], width=3),
                             dbc.Col([
                                 html.Small(
                                     id="hp-goal-boost-description",
                                     className="text-muted d-block"),
-                            ], width=10),
+                            ], width=9),
+                        ], className="mb-2"),
+
+                        html.H6("Cross-Context Boost", className="mt-3 mb-1"),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Input(id="hp-cross-context-mult", type="number", step="any"),
+                            ], width=3),
+                            dbc.Col([
+                                html.Small(
+                                    "Scales the synergy Pending Bonus when partners live in "
+                                    "different contexts. 1.0 = off; higher rewards "
+                                    "cross-domain synergies.",
+                                    className="text-muted d-block"),
+                            ], width=9),
                         ], className="mb-2"),
 
                         html.H6("Context Density", className="mt-3 mb-1"),
@@ -411,15 +425,15 @@ def build_settings_tab_content():
                             dbc.Col([
                                 dbc.Input(id="hp-alpha", type="number",
                                           min=0, max=1.5, step="any"),
-                            ], width=2),
+                            ], width=3),
                             dbc.Col([
                                 html.Small(
                                     "Normalizes scores by (context, subcontext) bucket size "
                                     "(score \u00d7 1 / n^\u03b1). Higher values penalize larger "
-                                    "buckets more. Range: 0 disables; 0.3 (Sage profile) "
+                                    "buckets more. 0 disables; 0.3 (Sage profile) "
                                     "compensates mildly; 1.0 fully cancels size bias.",
                                     className="text-muted d-block"),
-                            ], width=10),
+                            ], width=9),
                         ], className="mb-2"),
 
                         html.Hr(className="my-3"),
@@ -529,7 +543,7 @@ def build_settings_tab_content():
                         ]),
                     ], className="p-2")
                 ]),
-                dbc.Tab(label="Personal", tab_id="tab-personal", children=[
+                dbc.Tab(label="Paths", tab_id="tab-paths", children=[
                     html.Div([
                         # --- Paths group ---
                         html.H5("Paths", className="mt-2 mb-1"),
@@ -538,9 +552,11 @@ def build_settings_tab_content():
 
                         dbc.Label("Google Drive Root Path"),
                         dbc.Input(id="setting-gdrive-path", type="text"),
-
+                    ], className="p-2")
+                ]),
+                dbc.Tab(label="Time", tab_id="tab-time", children=[
+                    html.Div([
                         # --- Time Estimates section (merged with defaults) ---
-                        html.Hr(className="my-2"),
                         html.H5("Time Estimates", className="mt-2 mb-1"),
                         dbc.Row([
                             dbc.Col([
