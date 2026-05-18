@@ -54,6 +54,8 @@ import dash
 import dash_cytoscape as cyto
 import webbrowser
 import threading
+import urllib.error
+import urllib.request
 import dash_bootstrap_components as dbc
 from layout import build_app_layout
 
@@ -127,17 +129,45 @@ SERVER_BOOT_ID = uuid.uuid4().hex
 def _server_boot_id():
     return SERVER_BOOT_ID
 
+
+def _parse_port(argv) -> int:
+    """Return the requested app port, defaulting to the project standard."""
+    port = 8050
+    if "--port" in argv:
+        i = argv.index("--port")
+        if i + 1 < len(argv):
+            try:
+                port = int(argv[i + 1])
+            except ValueError:
+                pass
+    return port
+
+
+def _existing_skill_tree_server(port: int) -> bool:
+    """True when a Skill Tree server is already answering on this port."""
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/_server_boot_id",
+            timeout=0.35,
+        ) as response:
+            body = response.read(128).decode("utf-8", errors="ignore").strip()
+            return response.status == 200 and bool(body)
+    except (OSError, urllib.error.URLError, TimeoutError):
+        return False
+
+
+def _existing_instance_running(port: int) -> bool:
+    """True when this launch should exit because the app is already running."""
+    return _existing_skill_tree_server(port)
+
+
 if __name__ == '__main__':
     # Optional --port flag so a sandbox instance can run alongside production
     # without colliding on 8050.
-    _port = 8050
-    if "--port" in sys.argv:
-        _i = sys.argv.index("--port")
-        if _i + 1 < len(sys.argv):
-            try:
-                _port = int(sys.argv[_i + 1])
-            except ValueError:
-                pass
+    _port = _parse_port(sys.argv)
+    if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and _existing_instance_running(_port):
+        _logger.info("Skill Tree is already running on port %d; exiting duplicate launch.", _port)
+        sys.exit(0)
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()
     app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False, port=_port)

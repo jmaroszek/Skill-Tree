@@ -2547,9 +2547,6 @@ def register_callbacks(app):
         t = GraphManager._last_perf_timings
         if not t:
             return dash.no_update
-        # Consume the stashed startup timings — toast renders exactly once
-        # and stays visible until the next app start.
-        GraphManager._last_perf_timings = None
         return (f"{t['n_nodes']} nodes \u00b7 {t['n_edges']} edges \u00b7 "
                 f"{t['total_ms']:.0f}ms")
 

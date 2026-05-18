@@ -46,3 +46,19 @@ def test_app_callback_map_has_many_callbacks(isolated_app_import):
 def test_app_title_reflects_environment(isolated_app_import):
     app_module = isolated_app_import
     assert app_module.app.title in {"Skill Tree", "Skill Tree (Sandbox)"}
+
+
+def test_parse_port_defaults_and_accepts_override(isolated_app_import):
+    app_module = isolated_app_import
+    assert app_module._parse_port(["app.py"]) == 8050
+    assert app_module._parse_port(["app.py", "--port", "8060"]) == 8060
+    assert app_module._parse_port(["app.py", "--port", "nope"]) == 8050
+
+
+def test_existing_instance_running_checks_skill_tree_endpoint(monkeypatch, isolated_app_import):
+    app_module = isolated_app_import
+
+    monkeypatch.setattr(app_module, "_existing_skill_tree_server", lambda port: port == 8050)
+
+    assert app_module._existing_instance_running(8050) is True
+    assert app_module._existing_instance_running(8060) is False
