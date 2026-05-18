@@ -359,6 +359,40 @@ class TestComputeGoalComparison:
         assert comps["GoalRich"]["cost"] == pytest.approx(comps["GoalSparse"]["cost"])
         assert comps["GoalRich"]["score"] > comps["GoalSparse"]["score"]
 
+    def test_rank_goals_treats_milestones_as_transparent_checkpoints(self, mgr):
+        """Milestones should pass through upstream work without adding own ROI."""
+        _setup_graph(mgr, [
+            _make_node("G", type="Goal", time_mode='inherited',
+                       value=1, interest=1),
+            _make_node("M", type="Milestone", time_mode='manual',
+                       value=10, interest=10,
+                       time_o=100.0, time_m=100.0, time_p=100.0),
+            _make_node("Work", value=10, interest=10),
+        ], [
+            ("Work", "M", EDGE_NEEDS_HARD),
+            ("M", "G", EDGE_NEEDS_HARD),
+        ])
+        nodes = mgr.get_all_nodes()
+        edges = mgr.get_edges()
+        hp = ConfigManager.get_hyperparams()
+
+        from analyze_callbacks import _rank_goals
+        ranked = _rank_goals(
+            [n for n in nodes if n.type == 'Goal'],
+            nodes, edges,
+            ConfigManager.get_priority_goals(), hp,
+            with_components=True,
+        )
+        comps = {g.name: c for g, c in ranked}
+        work = next(n for n in nodes if n.name == "Work")
+
+        expected_tv = (
+            hp['w_v'] * 1 + hp['w_i'] * 1
+            + (hp['d_H'] ** 2) * (hp['w_v'] * 10 + hp['w_i'] * 10)
+        )
+        assert comps["G"]["tv"] == pytest.approx(expected_tv)
+        assert comps["G"]["remaining_time"] == pytest.approx(work.time)
+
     def test_explain_goal_matches_rank_goals(self, mgr):
         """analyze_callbacks.explain_goal reports the same headline score
         _rank_goals ranks by, and flags the breakdown as a goal."""
