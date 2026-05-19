@@ -23,18 +23,20 @@ SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
 
 
 def build_context_weight_rows(contexts, ctx_weights):
-    """Build the per-context weight input rows for the Contexts settings tab."""
+    """Build the per-context weight input rows for the Scoring settings tab."""
     rows = []
     for ctx_name in contexts:
-        rows.append(dbc.Row([
-            dbc.Col(dbc.Label(ctx_name, className="mb-0"), width=4,
-                    className="d-flex align-items-center"),
-            dbc.Col(dbc.Input(
+        rows.append(html.Div([
+            html.Div(dbc.Label(ctx_name, className="mb-0"),
+                     className="d-flex align-items-center",
+                     style={"width": "110px", "flex": "0 0 auto"}),
+            dbc.Input(
                 id={"type": "setting-context-weight", "index": ctx_name},
                 type="number", min=0, max=10, step="any",
                 value=float(ctx_weights.get(ctx_name, 1.0)),
-            ), width=4),
-        ], className="mb-2"))
+                style={"width": "120px"},
+            ),
+        ], className="d-flex align-items-center gap-2 mb-2"))
     return rows
 
 

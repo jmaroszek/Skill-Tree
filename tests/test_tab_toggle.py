@@ -5,16 +5,15 @@ import pytest
 from event_callbacks import register_event_callbacks
 
 
-TAB_IDS = ["tab-next", "tab-canvas", "tab-details", "tab-events", "tab-settings", "tab-analyze"]
+TAB_IDS = ["tab-next", "tab-canvas", "tab-details", "tab-events", "tab-analyze"]
 
-# index positions in the callback's 6-tuple output
+# index positions in the callback's 5-tuple output
 TAB_INDEX = {
     "tab-next": 0,
     "tab-canvas": 1,
     "tab-details": 2,
     "tab-events": 3,
-    "tab-settings": 4,
-    "tab-analyze": 5,
+    "tab-analyze": 4,
 }
 
 
@@ -35,7 +34,7 @@ def _toggle_fn():
 def test_toggle_tab_content_only_target_visible(active_tab):
     fn = _toggle_fn()
     styles = fn(active_tab)
-    assert len(styles) == 6
+    assert len(styles) == 5
     for idx, style in enumerate(styles):
         is_target = idx == TAB_INDEX[active_tab]
         if is_target:
@@ -58,7 +57,7 @@ def test_toggle_tab_content_preserves_position_keys(active_tab):
         assert style.get("left") == "0"
 
 
-def test_toggle_tab_content_returns_six_styles():
+def test_toggle_tab_content_returns_five_styles():
     fn = _toggle_fn()
     styles = fn("tab-next")
-    assert isinstance(styles, tuple) and len(styles) == 6
+    assert isinstance(styles, tuple) and len(styles) == 5

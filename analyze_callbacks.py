@@ -1207,22 +1207,34 @@ def _render_hours_by_context(ctx_data):
 def register_analyze_callbacks(app):
 
     @app.callback(
-        Output("analyze-content-container", "children"),
+        Output("analyze-overview-content", "children"),
+        Output("analyze-goals-content", "children"),
+        Output("analyze-time-content", "children"),
+        Output("analyze-graph-content", "children"),
+        Output("analyze-contexts-content", "children"),
         Input("main-tabs", "active_tab"),
+        Input("setting-analyze-bottlenecks", "value"),
+        Input("setting-analyze-goals", "value"),
         prevent_initial_call=True,
     )
-    def refresh_analyze_tab(active_tab):
+    def refresh_analyze_tab(active_tab, bottlenecks, goals):
         if active_tab != "tab-analyze":
-            return no_update
+            return (no_update,) * 5
+
+        # Persist any limit changes made via the gear popovers before rendering.
+        al = ConfigManager.get_analyze_limits()
+        if bottlenecks is not None:
+            al['bottlenecks'] = int(bottlenecks)
+        if goals is not None:
+            al['goals'] = int(goals)
+        ConfigManager.set_analyze_limits(al)
 
         nodes = graph_manager.get_all_nodes(include_dormant=False)
         edges = graph_manager.get_edges()
 
         if not nodes:
-            return html.Div([
-                html.H5("Analyze", className="text-muted"),
-                html.P("No nodes in the graph yet.", className="text-muted small"),
-            ], style={"textAlign": "center", "marginTop": "20%"})
+            empty = html.P("No nodes in the graph yet.", className="text-muted small")
+            return empty, "", "", "", ""
 
         hard_fwd, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
 
@@ -1238,23 +1250,18 @@ def register_analyze_callbacks(app):
         # Goal names for heatmap axis ordering
         goal_names_ordered = [g['name'] for g in goal_rows]
 
-        # Render all sections
-        return [
-            _render_overview(overview),
-            html.Hr(className="my-3"),
+        overview_content = _render_overview(overview)
 
-            # -- Goals --
-            html.H5("Goals", className="mb-1"),
+        goals_content = [
             html.P(
                 f"Top {len(goal_rows)} of {total_goal_count} goals, ranked by scoring algorithm."
                 if total_goal_count > len(goal_rows)
                 else "Side-by-side progress and overlap for all goals.",
                 className="text-muted small"),
             _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered),
-            html.Hr(className="my-3"),
+        ]
 
-            # -- Time --
-            html.H5("Time", className="mb-1"),
+        time_content = [
             _render_hours_by_context(ctx_coverage),
             html.P("Estimated vs. actual time for completed nodes with "
                    "captured calibration data.",
@@ -1263,14 +1270,11 @@ def register_analyze_callbacks(app):
                 dbc.Col(_render_estimation_accuracy(est_accuracy), width=6),
                 dbc.Col(_render_context_accuracy_boxplot(est_accuracy), width=6),
             ], className="g-3"),
-            html.Hr(className="my-3"),
-
-            # -- Graph Structure --
-            html.H5("Graph Structure", className="mb-1"),
-            _render_bottleneck_chart(bottlenecks),
-            html.Hr(className="my-3"),
-
-            # -- Contexts --
-            html.H5("Contexts", className="mb-1"),
-            html.Div([_render_ratings_chart(ratings_data)], style={"maxWidth": "600px"}),
         ]
+
+        graph_content = _render_bottleneck_chart(bottlenecks)
+
+        contexts_content = html.Div([_render_ratings_chart(ratings_data)],
+                                    style={"maxWidth": "600px"})
+
+        return overview_content, goals_content, time_content, graph_content, contexts_content

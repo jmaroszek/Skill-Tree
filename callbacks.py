@@ -48,7 +48,7 @@ _CORE_ENGINE_NUM_OUTPUTS = 28
 
 # Tabs whose own callbacks already refresh their content; switching to them
 # should NOT trigger a graph regen via core_engine.
-_NON_GRAPH_TABS = frozenset({"tab-settings", "tab-events", "tab-analyze"})
+_NON_GRAPH_TABS = frozenset({"tab-events", "tab-analyze"})
 
 # Triggers that only open/close the editor sidebar without touching graph data,
 # filters, or focus. When core_engine fires on one of these (and nothing else
@@ -1537,8 +1537,8 @@ def register_callbacks(app):
                      
         trigger_id = get_trigger_id()
 
-        # Tab-switch gate: switching to Settings/Events/Analyze doesn't need a
-        # graph regen — those tabs have their own refresh callbacks. Short-circuit
+        # Tab-switch gate: switching to Events/Analyze doesn't need a graph
+        # regen — those tabs have their own refresh callbacks. Short-circuit
         # to no_update so we skip the scoring + generate_elements cycle.
         if trigger_id == 'main-tabs' and active_tab in _NON_GRAPH_TABS:
             return _core_engine_noop_tuple()

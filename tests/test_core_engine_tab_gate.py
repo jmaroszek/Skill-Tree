@@ -1,8 +1,8 @@
 """Tests for the Phase D core_engine tab-switch short-circuit guard.
 
-Switching to Settings / Events / Analyze shouldn't trigger a full graph regen —
-those tabs have their own refresh callbacks. The guard short-circuits to
-no_update when the trigger is `main-tabs` and the destination tab is non-graph.
+Switching to Events / Analyze shouldn't trigger a full graph regen — those
+tabs have their own refresh callbacks. The guard short-circuits to no_update
+when the trigger is `main-tabs` and the destination tab is non-graph.
 """
 
 import dash
@@ -53,10 +53,10 @@ def test_noop_tuple_arity():
 
 
 def test_non_graph_tabs_set_content():
-    assert _NON_GRAPH_TABS == frozenset({"tab-settings", "tab-events", "tab-analyze"})
+    assert _NON_GRAPH_TABS == frozenset({"tab-events", "tab-analyze"})
 
 
-@pytest.mark.parametrize("tab", ["tab-settings", "tab-events", "tab-analyze"])
+@pytest.mark.parametrize("tab", ["tab-events", "tab-analyze"])
 def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     """Switching to a non-graph tab short-circuits to all no_update."""
     cb, _ = _core_engine_fn()
@@ -98,7 +98,7 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-save")
     args = [None] * 83
-    args[39] = "tab-settings"  # even though tab is non-graph, trigger is not main-tabs
+    args[39] = "tab-analyze"  # even though tab is non-graph, trigger is not main-tabs
     try:
         result = cb(*args)
     except Exception:

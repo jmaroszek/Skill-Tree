@@ -216,6 +216,17 @@ input[type=number] {
     color: #dee2e6 !important;
 }
 
+/* Settings modal: width (between Bootstrap's lg 800px and xl 1140px) is set
+   via the Modal's dialog_style prop in settings_layout.py. Number-input
+   widths are set per-section in the layout, not capped globally. */
+/* Narrower selects for the algorithm profile and the default time unit. */
+#setting-hp-profile {
+    max-width: 150px;
+}
+#setting-default-time-unit {
+    max-width: 140px;
+}
+
 /* Event drag-and-drop styles */
 .event-sortable-ghost {
     opacity: 0.3;

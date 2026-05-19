@@ -284,10 +284,6 @@ DEFAULT_EVENTS_GRAPH_LAYOUT = {
 DEFAULT_ANALYZE_LIMITS = {
     'bottlenecks': 25,
     'goals': 75,
-    'risk': 25,
-    'time_sinks': 10,
-    'deepest': 10,
-    'connected': 10,
 }
 
 DEFAULT_RATINGS_DEFINITIONS = [

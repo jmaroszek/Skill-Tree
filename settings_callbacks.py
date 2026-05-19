@@ -152,6 +152,16 @@ def register_settings_callbacks(app):
         Input('setting-subcontexts', 'value'),
     )
 
+    # --- Settings: Open the Settings modal from the toolbar gear button ---
+    @app.callback(
+        Output("settings-modal", "is_open"),
+        Input("btn-settings-toggle", "n_clicks"),
+        State("settings-modal", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_settings_modal(_n_clicks, is_open):
+        return not is_open
+
     # --- Settings: Toggle the Algorithm Profile info popover ---
     @app.callback(
         Output("popover-hp-profile-info", "is_open"),
@@ -203,22 +213,16 @@ def register_settings_callbacks(app):
         Output('setting-events-graph-edge-length', 'value'),
         Output('setting-events-graph-gravity', 'value'),
         Output('setting-events-graph-repulsion', 'value'),
-        Output('setting-analyze-bottlenecks', 'value'),
-        Output('setting-analyze-goals', 'value'),
-        Output('setting-analyze-risk', 'value'),
-        Output('setting-analyze-time-sinks', 'value'),
-        Output('setting-analyze-deepest', 'value'),
-        Output('setting-analyze-connected', 'value'),
         Output('setting-show-scoring-perf', 'value'),
         Output('setting-subcontext-sort-mode', 'value'),
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
-        Input('main-tabs', 'active_tab'),
+        Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
-    def load_settings(active_tab: str) -> Tuple[Any, ...]:
-        if active_tab != 'tab-settings':
-            return (dash.no_update,) * 49
+    def load_settings(is_open: bool) -> Tuple[Any, ...]:
+        if not is_open:
+            return (dash.no_update,) * 43
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -255,32 +259,37 @@ def register_settings_callbacks(app):
         ]
         shape_rows = []
         for t in display_types:
-            shape_rows.append(dbc.Row([
-                dbc.Col(dbc.Label(t, className="mb-0"), width=4, className="d-flex align-items-center"),
-                dbc.Col(dbc.Select(
+            shape_rows.append(html.Div([
+                html.Div(dbc.Label(t, className="mb-0"),
+                         className="d-flex align-items-center",
+                         style={"width": "92px", "flex": "0 0 auto"}),
+                dbc.Select(
                     id={"type": "setting-shape", "index": t},
                     options=shape_options,
                     value=shapes.get(t, "ellipse"),
-                ), width=8),
-            ], className="mb-2"))
+                    style={"width": "156px"},
+                ),
+            ], className="d-flex align-items-center gap-2 mb-2"))
 
         colors = ConfigManager.get_node_colors()
 
         def _color_row(label, key):
-            return dbc.Row([
-                dbc.Col(dbc.Label(label, className="mb-0"), width=4, className="d-flex align-items-center"),
-                dbc.Col(dbc.Input(
+            return html.Div([
+                html.Div(dbc.Label(label, className="mb-0"),
+                         className="d-flex align-items-center",
+                         style={"width": "92px", "flex": "0 0 auto"}),
+                dbc.Input(
                     id={"type": "setting-color", "index": key},
                     type="color",
                     value=colors.get(key, "#6c757d"),
-                    style={"height": "38px", "padding": "2px"},
-                ), width=4),
-                dbc.Col(html.Small(
+                    style={"height": "38px", "width": "52px", "padding": "2px"},
+                ),
+                html.Small(
                     colors.get(key, "#6c757d"),
-                    className="text-muted d-flex align-items-center",
+                    className="text-muted",
                     style={"fontSize": "0.8rem"},
-                ), width=4),
-            ], className="mb-2")
+                ),
+            ], className="d-flex align-items-center gap-2 mb-2")
 
         status_color_rows = [
             _color_row(STATUS_DONE, STATUS_DONE),
@@ -289,19 +298,19 @@ def register_settings_callbacks(app):
         ]
         def _type_color_row(key):
             color_val = colors.get(key, "#6c757d")
-            return dbc.Row([
-                dbc.Col(dbc.Input(
+            return html.Div([
+                dbc.Input(
                     id={"type": "setting-color", "index": key},
                     type="color",
                     value=color_val,
-                    style={"height": "38px", "padding": "2px"},
-                ), width=4),
-                dbc.Col(html.Small(
+                    style={"height": "38px", "width": "52px", "padding": "2px"},
+                ),
+                html.Small(
                     color_val,
-                    className="text-muted d-flex align-items-center",
+                    className="text-muted",
                     style={"fontSize": "0.8rem"},
-                ), width=8),
-            ], className="mb-2")
+                ),
+            ], className="d-flex align-items-center gap-2 mb-2")
 
         type_color_rows = [_type_color_row(t) for t in display_types]
 
@@ -315,11 +324,10 @@ def register_settings_callbacks(app):
         linter_enabled_val = ["enabled"] if linter.get('enabled', True) else []
         linter_exclusions_val = ', '.join(linter.get('exclusions', []))
 
-        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT, DEFAULT_ANALYZE_LIMITS
+        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
         gl = ConfigManager.get_graph_layout_defaults()
         dgl = ConfigManager.get_details_graph_layout_defaults()
         egl = ConfigManager.get_events_graph_layout_defaults()
-        al = ConfigManager.get_analyze_limits()
 
         return (
             hp.get('w_v', 1.0), hp.get('w_i', 1.0),
@@ -356,12 +364,6 @@ def register_settings_callbacks(app):
             egl.get('edge_length', DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length']),
             egl.get('gravity', DEFAULT_EVENTS_GRAPH_LAYOUT['gravity']),
             egl.get('repulsion', DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion']),
-            al.get('bottlenecks', DEFAULT_ANALYZE_LIMITS['bottlenecks']),
-            al.get('goals', DEFAULT_ANALYZE_LIMITS['goals']),
-            al.get('risk', DEFAULT_ANALYZE_LIMITS['risk']),
-            al.get('time_sinks', DEFAULT_ANALYZE_LIMITS['time_sinks']),
-            al.get('deepest', DEFAULT_ANALYZE_LIMITS['deepest']),
-            al.get('connected', DEFAULT_ANALYZE_LIMITS['connected']),
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
             ConfigManager.get_subcontext_sort_mode(),
             ConfigManager.get_context_sort_mode(),
@@ -374,11 +376,11 @@ def register_settings_callbacks(app):
     @app.callback(
         Output('setting-calibration-dismissed-list', 'children'),
         Output('btn-calibration-dismissed-toggle', 'children'),
-        Input('main-tabs', 'active_tab'),
+        Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
-    def load_calibration_dismissed_list(active_tab):
-        if active_tab != 'tab-settings':
+    def load_calibration_dismissed_list(is_open):
+        if not is_open:
             return dash.no_update, dash.no_update
         return _build_calibration_dismissed_view()
 
@@ -523,12 +525,6 @@ def register_settings_callbacks(app):
         State('setting-events-graph-edge-length', 'value'),
         State('setting-events-graph-gravity', 'value'),
         State('setting-events-graph-repulsion', 'value'),
-        State('setting-analyze-bottlenecks', 'value'),
-        State('setting-analyze-goals', 'value'),
-        State('setting-analyze-risk', 'value'),
-        State('setting-analyze-time-sinks', 'value'),
-        State('setting-analyze-deepest', 'value'),
-        State('setting-analyze-connected', 'value'),
         State('setting-show-scoring-perf', 'value'),
         State('setting-subcontext-sort-mode', 'value'),
         State('setting-context-sort-mode', 'value'),
@@ -548,8 +544,6 @@ def register_settings_callbacks(app):
                       gl_edge_length, gl_gravity, gl_repulsion,
                       dgl_edge_length, dgl_gravity, dgl_repulsion,
                       egl_edge_length, egl_gravity, egl_repulsion,
-                      al_bottlenecks, al_goals, al_risk,
-                      al_time_sinks, al_deepest, al_connected,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val):
         if not n_clicks:
@@ -717,14 +711,6 @@ def register_settings_callbacks(app):
                     'shapes': pending_shapes,
                     'colors': pending_colors,
                     'linter': new_linter,
-                    'al': {
-                        'bottlenecks': int(al_bottlenecks) if al_bottlenecks is not None else 25,
-                        'goals': int(al_goals) if al_goals is not None else 75,
-                        'risk': int(al_risk) if al_risk is not None else 25,
-                        'time_sinks': int(al_time_sinks) if al_time_sinks is not None else 10,
-                        'deepest': int(al_deepest) if al_deepest is not None else 10,
-                        'connected': int(al_connected) if al_connected is not None else 10,
-                    },
                     'orphans': orphans,
                     'new_values': {
                         'type': new_types,
@@ -798,17 +784,6 @@ def register_settings_callbacks(app):
                 'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
             }
             ConfigManager.set_titlecase_linter(new_linter)
-
-            from config import DEFAULT_ANALYZE_LIMITS
-            new_al = {
-                'bottlenecks': int(al_bottlenecks) if al_bottlenecks is not None else DEFAULT_ANALYZE_LIMITS['bottlenecks'],
-                'goals': int(al_goals) if al_goals is not None else DEFAULT_ANALYZE_LIMITS['goals'],
-                'risk': int(al_risk) if al_risk is not None else DEFAULT_ANALYZE_LIMITS['risk'],
-                'time_sinks': int(al_time_sinks) if al_time_sinks is not None else DEFAULT_ANALYZE_LIMITS['time_sinks'],
-                'deepest': int(al_deepest) if al_deepest is not None else DEFAULT_ANALYZE_LIMITS['deepest'],
-                'connected': int(al_connected) if al_connected is not None else DEFAULT_ANALYZE_LIMITS['connected'],
-            }
-            ConfigManager.set_analyze_limits(new_al)
 
             saved_contexts = new_contexts if new_contexts else ConfigManager.get_contexts()
             refreshed_weight_rows = build_context_weight_rows(
@@ -1004,8 +979,6 @@ def register_settings_callbacks(app):
                     ConfigManager.set_details_graph_layout_defaults(pending_state['dgl'])
                 if 'egl' in pending_state:
                     ConfigManager.set_events_graph_layout_defaults(pending_state['egl'])
-                if 'al' in pending_state:
-                    ConfigManager.set_analyze_limits(pending_state['al'])
             except Exception:
                 logger.exception("Failed to save pending settings")
 

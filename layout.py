@@ -22,7 +22,7 @@ from config import (
 )
 from events_layout import build_events_tab_content, build_events_sidebar_content
 from details_layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
-from settings_layout import build_settings_tab_content
+from settings_layout import build_settings_modal
 from analyze_layout import build_analyze_tab_content
 from styles import stylesheet
 from models import STATUS_DONE
@@ -1454,7 +1454,6 @@ def build_app_layout(initial_elements, env="production"):
                 dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
                 dbc.Tab(label="Analyze", tab_id="tab-analyze"),
-                dbc.Tab(label="Settings", tab_id="tab-settings"),
             ],
             className="px-3 pt-1 justify-content-center",
             style={"flex": "1", "backgroundColor": "#1a1d21", "borderBottom": "none"}
@@ -1466,6 +1465,9 @@ def build_app_layout(initial_elements, env="production"):
                        className="me-2", style={"display": "none"}),
             dbc.Button(html.I(className="bi bi-filter"), id="btn-filters-toggle", color="secondary", size="sm"),
             dbc.Tooltip("Filters", target="btn-filters-toggle", placement="bottom",
+                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            dbc.Button(html.I(className="bi bi-gear"), id="btn-settings-toggle", color="secondary", size="sm", className="ms-2"),
+            dbc.Tooltip("Settings", target="btn-settings-toggle", placement="bottom",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button(html.I(className="bi bi-clock-history"), id="btn-calibration-review",
                        color="secondary", size="sm", className="ms-2",
@@ -1547,14 +1549,6 @@ def build_app_layout(initial_elements, env="production"):
                "position": "absolute", "top": "0", "left": "0"}
     )
 
-    # --- Settings Tab Content (hidden by default) ---
-    settings_tab_content = html.Div(
-        id="settings-tab-content",
-        children=[build_settings_tab_content()],
-        style={"display": "none", "width": "100%", "height": "100%", "overflow": "auto",
-               "position": "absolute", "top": "0", "left": "0"}
-    )
-
     # --- Analyze Tab Content (hidden by default) ---
     analyze_tab_content = html.Div(
         id="analyze-tab-content",
@@ -1614,6 +1608,7 @@ def build_app_layout(initial_elements, env="production"):
             dbc.ModalFooter(dbc.Button("Dismiss", id="btn-event-announcements-dismiss",
                                        color="primary")),
         ], id="modal-event-announcements", is_open=False, centered=True, size="lg"),
+        build_settings_modal(),
         dcc.Interval(id='app-load-interval', interval=500, n_intervals=0, max_intervals=1),
 
         dcc.Store(id='override-store', data={"parent": None, "mode": "hard"}),
@@ -1663,7 +1658,6 @@ def build_app_layout(initial_elements, env="production"):
             canvas_tab_content,
             details_tab_content,
             events_tab_content,
-            settings_tab_content,
             analyze_tab_content,
             # --- SHARED NODE EDITOR SIDEBAR (overlay, accessible from any tab) ---
             html.Div(

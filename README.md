@@ -664,167 +664,55 @@ The right side of the tab shows a mini-graph of the selected event's dormant nod
 ## Event Announcements
 When an event triggers — whether on its own (a date arrives, a node is completed) or because you clicked **Trigger** — an **Announcements modal** pops up the next time you open the app, confirming what just woke up and which nodes were activated or scheduled. It's a gentle nudge rather than a silent change, so you always know when the graph has shifted under you.
 
-# Analyze — the "zoom out" tab
+# Analyze Tab
 
-The Analyze tab is the bird's-eye view of your whole portfolio. Instead of "what do I do next," it answers questions like "am I over-loaded in Health right now?", "which goals share the most prerequisites?", and "what's the one node, that if I cleared it, would unblock the most downstream work?" The charts are diagnostic — they catch problems that are invisible at the per-node level.
-
-**[SCREENSHOT: the Analyze tab with multiple charts visible.]**
+The Analyze tab gives you a bird's eye view of your entire network. Here, you can find helpful information such as your goal progress, time allocation, and much more. These charts are intended to be diagnostic, allowing you to catch mistakes early, and avoid spending your time unwisely. 
 
 ## The Overview strip
 
-At the top, an Overview strip summarizes the whole graph at a glance. For the current sandbox it reads roughly:
+At the top, an Overview strip summarizes the current non-dormant graph: total Goals, Milestones, active nodes, Done nodes, and the percentage of active nodes that are Blocked. This gives you a quick overview of the size and status of your graph. 
 
-| Metric | Sandbox value |
-|---|---|
-| Goals | 70 |
-| Milestones | 8 |
-| Active nodes (Open, not dormant, not container) | 405 |
-| Done | 154 |
-| Blocked | 185 |
-| Dormant | 39 |
-| Total remaining time | ~45,600 hours (~285 months at 160h/month, or ~22 years of full-time work) |
+**Screenshot**
 
-That last number is honest and humbling. It reflects what the user has *budgeted* across all their interests, not what's realistically achievable on any timescale. The point isn't to plan to finish it — it's to make the tradeoffs across all of that visible, so the algorithm can rank the slice that's worth doing right now. Time displays in friendly units throughout (hours / weeks / months / years), using your Settings → Time Conversion ratios.
+## Goals
 
-## Goals — completion bars and the overlap heatmap
+The Goals section puts two views side by side. The gear icon next to the section title opens a small display-limit control, letting you choose how many top-ranked Goals are rendered without leaving the Analyze tab.
 
-The Goals section has two views. The first is a row of completion bars: each Goal with its percentage done, sorted however you want. The second is the more interesting one: an **overlap heatmap** showing how many prerequisites each pair of Goals shares.
+**Screenshot**
 
-The heatmap is where you find structural surprises. In the sandbox, the highest-overlap pairs are:
+On the left, **Completion** shows each Goal's hard-prerequisite progress as a stacked horizontal bar: Done work in green, remaining work as a faint gray. The hover text gives the hard-prerequisite count, remaining estimated time, blocked count, and priority rank when the Goal is promoted. 
 
-| Goal pair | Shared prerequisites |
-|---|---|
-| Health ↔ Exercise | 74 |
-| STEM ↔ Career | 48 |
-| STEM ↔ Computers | 43 |
-| Humanities ↔ Literature | 38 |
-| STEM ↔ Physics | 31 |
-| Data Science ↔ STEM | 30 |
-| Data Science ↔ Career | 30 |
-| Health ↔ Stress | 28 |
-| Health ↔ Body Composition | 27 |
+The order is not alphabetical. Goals are ranked intelligently according to their total value and the remaining time required to finish it. Milestones are treated as transparent checkpoints for this ranking, so they pass value through without pretending that the checkpoint itself is the work.
 
-The first row is doing real work: *Health* and *Exercise* share 74 prereqs, which strongly suggests *Exercise* is a sub-Goal of *Health*, not a peer. Modeling it that way (an Exercise → Health Hard edge) tidies up the cascade. The fourth and sixth rows (*Humanities* ↔ *Literature*, *Data Science* ↔ *STEM*) tell the same story for those areas. The heatmap is a structural-debt detector: high-overlap pairs that *aren't* in a parent-child relationship are usually a missed hard-link.
+On the right, **Shared Prerequisites** is a heatmap over those same ranked Goals. It counts the number of shared hard and soft prerequisites, so bright cells imply that two Goals are drawing from the same body of work. This suggests two goals share a set of foundational skills. 
 
-## Top time sinks
+## Time
 
-The longest individual tasks in the active graph. In the sandbox, the top of the list is dominated by long reading commitments:
+The first Time chart is **Hours by Context**. Each context is one horizontal stacked bar, and each segment is a subcontext. Hover a segment to see its subcontext name, node count, and estimated time. This makes the context view more useful than a plain context-total chart: you can see not only that STEM or Health is large, but which internal area is creating the mass.
 
-| Node | Estimated hours |
-|---|---|
-| How to Read a Book | 316h |
-| On Writing Well | 296h |
-| 48 Laws of Power | 287h |
-| Tao Te Ching | 240h |
-| Rationality (Pinker) | 237h |
-| Principles (Dalio) | 216h |
-| 12 Rules for Life | 205h |
-| Marketing | 205h |
-| Writing Tools | 204h |
+**Screenshot**
 
-These are all Resources with deliberately generous PERT estimates because the user prefers depth over speed. The list is mostly *useful* — it shows where time will go if priorities don't change. But it's also a sanity check: if you spot something at the top that you haven't actually committed to, that's a signal to either trim the estimate or rethink the priority.
+Below that are the calibration charts, populated from completed nodes with actual-time data. The first chart shows a scatter plot with a dashed $y = x$ reference line. Points above the line took longer than expected, and points below the line were completed faster than expected. The plot on the right rolls those same ratios up into per-context box plots (once a context has enough completed nodes) making chronic context bias clear. Perhaps, for example, you are good at estimating STEM work, but not humanities work. 
 
-## Bottlenecks — what's blocking the most downstream work
+**Screenshot**
 
-The bottleneck chart ranks nodes by how many downstream tasks depend on them transitively. Clearing a high-bottleneck node has fan-out: finishing one task can unblock many others at once.
+## Graph Structure
 
-| Node | Downstream nodes unblocked when this is Done |
-|---|---|
-| Probability | 25 |
-| Mind Illuminated Theory — 1 | 22 |
-| Mind Illuminated Theory — 2 | 19 |
-| Mind Illuminated Action — 1 | 18 |
-| Linear Algebra | 16 |
-| Mind Illuminated Action — 2 | 16 |
-| Clustering | 14 |
-| Dimensionality Reduction | 14 |
-| Regression | 14 |
-| Functions | 13 |
+The sole visual in this section shows which nodes unlock the most downstream work. The gear icon next to the section title controls how many bottleneck nodes are shown.
 
-The top of this list is the user's biggest leverage: *Probability* alone unblocks 25 things, mostly downstream STEM topics. *Linear Algebra* unblocks 16. The Mind Illuminated meditation modules unblock cascades of practice protocols. If you're going to invest a long stretch of time, this is where the leveraged compounding is.
+The chart distinguishes direct unlocks from the full downstream cascade in hover text, and it colors Blocked bottlenecks red so you can separate "high leverage and available" from "high leverage but waiting on something else."
 
-## Ratings breakdown by context
+This is the leverage view. A large bottleneck may not be the highest ROI item by itself, but clearing it changes the frontier: whole chains become eligible, and the Next tab has better candidates to choose from.
 
-A quick health check on whether the *kinds* of tasks in each context match how you actually feel about them. In the sandbox:
+## Contexts
 
-| Context | Avg V | Avg I | Avg D | Count |
-|---|---|---|---|---|
-| Thinking | 7.4 | 6.8 | 5.2 | 29 |
-| Money | 7.3 | 6.2 | 4.5 | 51 |
-| Self | 7.3 | 6.5 | 4.2 | 59 |
-| People | 7.2 | 7.3 | 4.9 | 34 |
-| Health | 6.6 | 6.4 | 4.7 | 61 |
-| STEM | 6.5 | 6.7 | 5.3 | 67 |
-| Wisdom | 6.4 | 6.4 | 5.2 | 43 |
-| Humanities | 6.1 | 6.1 | 5.0 | 86 |
+The Contexts section shows a **Ratings** heatmap for active nodes grouped by context. This is a quick taste check. A context with high Value and low Interest may represent duty-heavy work. A context with high Interest and low Value may be a play/exploration area. A high Difficulty column is not a problem by itself, but it is a warning that the app may be accurately recommending less from that context unless the value, interest, or prerequisite cascade compensates.
 
-Money has the second-highest average value but the second-lowest average interest — a classic "I should do this" pattern. If that gap is uncomfortable, it's a prompt to find Money topics you genuinely engage with (or accept the discrepancy as honest self-knowledge).
+# Settings Modal
 
-## Goal risk
-
-Goals whose prerequisite chain has the most Blocked or high-uncertainty (wide PERT spread) nodes. High-risk Goals are the ones whose timelines could most easily slip. Useful when committing to anything externally — "I'll finish this by Q3" is a softer claim if the underlying chain is full of Blocked links.
-
-## Dependency structure
-
-Stats on the graph itself: total node count, average out-degree, max depth from any leaf, and a list of **orphan nodes** (nodes with no edges of any kind). Orphans almost always indicate either a missing link you forgot to draw, or a node that shouldn't be in the graph at all. The current sandbox keeps the orphan count below 5; a healthy graph has maybe 1–2% orphans.
-
-## Context coverage by time
-
-How your estimated remaining time is distributed across contexts. The sandbox skews heavily toward STEM:
-
-| Context | Remaining time | At 160 h/month |
-|---|---|---|
-| STEM | 13,486h | 84 months |
-| Wisdom | 6,978h | 44 months |
-| Humanities | 6,757h | 42 months |
-| Self | 4,382h | 27 months |
-| People | 3,875h | 24 months |
-| Money | 3,504h | 22 months |
-| Thinking | 3,314h | 21 months |
-| Health | 3,275h | 21 months |
-
-STEM holds nearly four times the time-budget of Health, which is more about STEM's scope (it includes math, computers, data science, biology, physics, chemistry) than about neglecting Health. Still, seeing the distribution explicitly is a prompt: is this the shape you want? If not, the easiest correction is to trim STEM estimates or beef up the sparser areas.
-
----
-
-# Settings Tab
+Meta: only go through the important, non-obvious stuff here. 
 
 **[SCREENSHOT: the top of the Settings tab showing the Algorithm Profile dropdown.]**
-
-## Algorithm profiles
-
-Each profile leans on **one axis** of the scoring formula. Pick the one that matches your current mindset, or use Custom for full control.
-
-| Profile | The lean | Pick it when… |
-|---|---|---|
-| Sage | Balanced across everything: equal weight on Value and Interest; moderate Hard cascade; light Soft cascade; cost balanced between effort and time. | No strong reason to pick something else. |
-| Explorer | Interest weighted over Value; synergy bonuses dialed up; cross-context synergies get a 1.5× boost (Creator goes further at 2.0×). Density penalty is dialed up so sparser subcontexts get a fairer chance to surface. | You want the algorithm to push enjoyable, exploratory stuff and reward following rabbit holes across domains. |
-| Compounder | Long-horizon cascade. Foundational tasks that unlock deep subtrees reach further up; big upfront tasks are punished less because their payoff compounds. | You're willing to invest now for downstream payoff. |
-| Pragmatist | Value emphasis plus heavy Priority-Goal weighting. Soft edges and synergies dialed down; the algorithm focuses on the critical-path prereqs of your flagged priorities. | You have a clear goal and want to grind toward it without distraction. |
-| Creator | Synergy and cross-context emphasis. Helps edges carry significantly more weight; Helps that span two contexts get an extra multiplier. | You're chasing unusual connections across domains. |
-| Glider | Strong, near-linear time penalty. Big tasks are heavily deprioritized regardless of payoff. Priority-Goal boost is turned off entirely, so non-priority short tasks get a fair shot too. Density penalty is dialed up so the small tasks come from across the graph, not just dense subtrees. | Light-effort days — you want a break from the priority grind and to coast through small things from anywhere in the graph. |
-| Custom | Full manual control of every hyperparameter. | None of the named profiles match. |
-
-Each profile's effects on the Next tab can be dramatic. Switching from Sage to Creator typically reshuffles the top 20 substantially — synergy-rich nodes with cross-context partners climb, isolated nodes drop. The [Scoring Profiles](#scoring-profiles-the-knobs-by-profile) section below has a full side-by-side breakdown of what each profile actually changes.
-
-The custom inputs include:
-
-| Input | What it does |
-|---|---|
-| Value emphasis | How much your Value rating matters. |
-| Interest emphasis | How much your Interest rating matters. |
-| Effort penalty | How much harder tasks get deprioritized. |
-| Time weight | How heavily time affects cost. |
-| Time sensitivity | How sub-linearly time scales (lower numbers = a 100-hour task feels less than 10× as expensive as a 10-hour one). |
-| Hard prerequisite boost | How much value cascades along Hard edges per hop. |
-| Soft prerequisite boost | Same but for Soft edges. |
-| Synergy pending bonus | Small extra weight applied to synergy partners regardless of completion state — co-promotes synergy pairs before either is started. Typical 0.05–0.25. |
-| Synergy done multiplier | Multiplicative kick applied to a node's intrinsic value once a synergy partner is Done. Square-root accumulation, so 4 Done partners give ~2× the kick of 1, not 4×. |
-| Cross-context boost | Multiplier on the pending bonus when a synergy partner is in a different context. 1.0 = off; Explorer uses 1.5×; Creator 2.0×. |
-| Goal boost | How much extra nudge a Priority Goal subtree gets. |
-| Context density exponent | How aggressively to counteract over-decomposition (see Next tab above). |
-
-Each input has a small **↺** (restore) button to revert to the profile's default. Picking a named profile resets all knobs at once.
 
 **[SCREENSHOT: the hyperparameter section of Settings showing several inputs.]**
 
@@ -852,66 +740,14 @@ Add, delete, or reorder node types. Each type has a color (color picker) and a s
 
 The eight sandbox contexts (STEM, Humanities, Health, Wisdom, Self, Money, People, Thinking) are editable here. So are the subcontexts under each. In the sandbox, *Health* has subcontexts *Exercise*, *Nutrition*, *Stress*, *Rhythms* (sleep / energy), and others; *Humanities* has *Literature*, *History*, *Music*, *Video*; etc. Add or remove as your interests evolve. If you rename or delete one with active nodes attached, a **migration modal** opens — every affected node gets its own dropdown so you can either move the whole group to a new bucket or fan them out individually. Nothing is touched until you confirm; cancel leaves the old taxonomy intact.
 
-## Status colors
-
-Customize the Open / Blocked / Done / Goal / Override colors directly. Restore defaults any time.
-
 ## Linter
-
 A toggle for the optional **title-case linter** — when on, it flags node names that don't follow consistent title case, with an editable list of exclusions (small words like "a", "the", "and", "is", "or" that stay lowercase even in titles).
 
-## Analyze tab options
+--
 
-Configure how many items each section of the Analyze tab shows. Cap the top-time-sinks list at 5, 10, or all of them — same for bottlenecks, goal-risk, etc.
+## A comparison five sandbox tasks
 
----
-
-<!-- SLATED FOR REPLACEMENT: This entire section is the old technical version. It will be merged into / replaced by the new high-level "# Priority Scoring" section at the top (around line 196). Worked Compound Lifts example below is the single piece most worth preserving in some form. -->
-
-## Perceived cost
-
-The denominator answers: *how aversive is this task, really?* Two things drive that — how hard it feels (Difficulty) and how long it takes (Time):
-
-```
-cost = 1 + (effort weight × Difficulty) + (time weight × Time^sensitivity)
-```
-
-At the Sage profile, effort weight is 2.5, time weight is 1.0, and sensitivity is 0.85:
-
-| Task | Calculation | Cost |
-|---|---|---|
-| 1-hour easy | `1 + 2.5×1 + 1×1^0.85` | 4.5 |
-| 100-hour medium-difficulty | `1 + 2.5×5 + 1×100^0.85` | 63.5 |
-| 100-hour brutal | `1 + 2.5×10 + 1×100^0.85` | 76 |
-
-
-
-## Intrinsic value
-
-The numerator starts with how much the task is worth to *you* — a weighted sum of Value and Interest:
-
-```
-intrinsic value = (value weight × Value) + (interest weight × Interest)
-```
-
-At the Sage profile, both weights are 1.0, so it's just `V + I`. A 9/8 node has an intrinsic value of 17. A 5/5 node has 10.
-
-Profiles rebalance this. Explorer sets the interest weight to 1.5 (so interest counts 1.5×), pushing fun stuff up; Pragmatist sets the value weight to 1.5, pushing high-value-regardless-of-fun up.
-
-## Total value — three sources of "what this is worth to do"
-
-The full numerator adds three things to the intrinsic value:
-
-
-
-```
-intrinsic value × (1 + synergy strength × √(count of Done partners))
-```
-
-At the Sage profile, the synergy strength is 0.40. With 4 Done partners: `intrinsic value × (1 + 0.40 × 2) = intrinsic value × 1.8`. The square root keeps a node with 16 Done synergy partners from getting a 16× boost — it caps out near 4×. "More partners = more boost" without runaway inflation.
-
-
-## A real comparison on five sandbox tasks
+This could be moved to the more detailed section on scoring in the technical_overview
 
 Made-up examples can't really demonstrate what profile shifts feel like. Below are five actual sandbox nodes computed under each profile, with *Financial Independence* set as the user's #1 Priority Goal (so the goal-boost lever has something to amplify). Each task exercises a different axis:
 
@@ -945,45 +781,8 @@ A few specific shifts worth noticing:
 The shifts are usually subtle for individual nodes but compound across hundreds of candidates: a profile change reshuffles the *top of the Next tab*, which is what you actually see every morning.
 ton next to each input resets that one knob to its profile default if you want to walk things back.
 
----
-
-# Building your first graph
-
-<!-- TEMPORARY PARK: building-is-the-value paragraph, lifted from the deleted "Introducing Skill Tree" section. Revisit final placement during polish pass. -->
-
-What's surprising is how much of the value is in the *building*, not the using. The first time I sat down to draw out the prereqs of "get strong," I learned more about how I'd been deceiving myself than any to-do list had ever shown me. The act of asking *what really comes before this?* — and being forced to type the answer in — is where the cognitive offload actually happens.
-
-Want to walk through building a small new domain from scratch? See [`docs/tutorial.md`](docs/tutorial.md) — a ~fifteen-minute build of a Photography subgraph that exercises every node type, both edge types, Habit-mode time estimates, and Priority Goal promotion, with screenshots at each step.
-
-The short version of the workflow: start with an umbrella Goal, decompose it into Learns or sub-Goals, hard-link them up, add Resources and Actions where they fit, draw synergies sparingly, and promote the umbrella to a Priority Goal to bias the Next tab toward it. Then keep iterating — the graph grows as you notice gaps.
-
----
-
-# Keyboard shortcuts and global controls
-
-| Shortcut | Action |
-|---|---|
-| Right-click node | Context menu (Edit, Details, Toggle Done, Delete, Explain, plus Open in Obsidian / Drive if linked) |
-| Right-click + drag | Pan the canvas |
-| Scroll | Zoom in / out |
-| Ctrl + Click | Multi-select |
-| Delete / Backspace | Delete selected (with confirmation) |
-| Ctrl + S | Save in the node editor |
-| Left-click background | Deselect all |
-| Esc | Exit fullscreen, dismiss modal |
-
-Most tabs have collapsible sidebars (Filters, Goals, Events, Node Editor) that you toggle with a small button. When a sidebar is open, the main canvas gets a drag-to-resize handle so you can balance the space however you want. The three Cytoscape views (Nodes, Details sub-graph, Events sub-graph) each have a Fullscreen button; Esc exits.
-
-**[SCREENSHOT: mid-drag on a resize handle, showing the cursor and the subtle highlight.]**
-
----
-
-# Where to go from here
-
+# Next Steps
 | If you want… | Go to |
 |---|---|
-| To install and run the app | [`docs/technical_overview.md`](docs/technical_overview.md) — covers install (conda env, Python 3.10), the sandbox-vs-production launch flags, the port, where the SQLite databases live, architecture, and the developer-facing testing setup. |
-| To design UI changes or check visual style | [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — color palette, typography, spacing conventions, Cytoscape stylesheet. |
-| The math at full precision | The [scoring section above](#the-scoring-algorithm) is the user-facing version; the canonical reference is the docstrings in [`scoring.py`](scoring.py). |
-
-If you're a friend or family member poking through this for the first time, the best entry point is the sandbox — open it, click around, hover the priority scores, switch a profile, drag-to-reorder a Goal. The graph is the point; the app just makes it legible. Thanks for taking the time to look.
+| To understand the technical details | [`docs/technical_overview.md`](docs/technical_overview.md) — covers the app's architecture and math |
+| The math at full precision | The [scoring](#the-scoring-algorithm) section above is the user-facing version; the canonical reference is the docstrings in [`scoring.py`](scoring.py). |

@@ -120,7 +120,7 @@ There is intentionally **no build step** on the front end. The JS in `assets/` i
 #### Layout
 
 - [`layout.py`](layout.py) — Top-level window: the tab bar, the main canvas, global `dcc.Store` components that every tab reads/writes, modals, and the editor sidebar. Delegates per-tab content to the smaller `*_layout.py` modules.
-- [`details_layout.py`](details_layout.py), [`events_layout.py`](events_layout.py), [`settings_layout.py`](settings_layout.py), [`analyze_layout.py`](analyze_layout.py) — One file per tab, exposing a `build_*_tab_content()` that returns the Dash element tree.
+- [`details_layout.py`](details_layout.py), [`events_layout.py`](events_layout.py), [`settings_layout.py`](settings_layout.py), [`analyze_layout.py`](analyze_layout.py) — One file per tab, each exposing a `build_*` entry point that returns the Dash element tree. Settings is not a tab — `settings_layout.build_settings_modal()` returns a `dbc.Modal` opened by the toolbar gear button.
 
 #### Callbacks
 
@@ -192,7 +192,7 @@ Tracing what happens from `python app.py --sandbox` to the moment you can click 
 4. **Layout construction.** `build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)` runs. `generate_elements()` is the **single source of truth** for the Nodes-tab graph: it reads all nodes + edges from SQLite, applies any filters, and returns a flat list of Cytoscape element dicts. The layout tree includes this initial snapshot so the first paint has data.
 5. **Callback wiring.** Six `register_*_callbacks(app)` calls attach every Dash callback. Each registration is independent — no callback function is shared across modules.
 6. **HTTP server.** `app.run(debug=True, dev_tools_ui=False)` starts Flask on port 8050. `app.py` spawns a 0.5-second-delayed `webbrowser.open` so the tab pops up automatically.
-7. **First HTTP request.** Dash serves the initial HTML + the bundled `assets/*.js`. The client-side JS modules attach their listeners. Cytoscape reads the seeded elements and renders the graph. The Next tab is the default active tab (tab order: Next → Nodes → Details → Events → Analyze → Settings).
+7. **First HTTP request.** Dash serves the initial HTML + the bundled `assets/*.js`. The client-side JS modules attach their listeners. Cytoscape reads the seeded elements and renders the graph. The Next tab is the default active tab (tab order: Next → Nodes → Details → Events → Analyze). Settings is a modal, not a tab — opened by the gear button in the top-right toolbar.
 8. **Interactive loop.** After first render, every user action triggers one or more `@app.callback`s. Most mutations end with a call to `generate_elements()` again, which Dash diffs into the Cytoscape component. The JS files keep running quietly, reacting to events the Python side doesn't know about (right-click menus, hover tooltips, drag gestures).
 
 ---

@@ -29,7 +29,7 @@ def _collect_ids(component):
     return found
 
 
-def test_build_app_layout_returns_six_tab_containers():
+def test_build_app_layout_returns_tab_containers_and_settings_modal():
     from layout import build_app_layout
     root = build_app_layout(initial_elements=[], env="sandbox")
     ids = _collect_ids(root)
@@ -39,7 +39,7 @@ def test_build_app_layout_returns_six_tab_containers():
         "details-tab-content",
         "events-tab-content",
         "analyze-tab-content",
-        "settings-tab-content",
+        "settings-modal",
     ):
         assert tab_id in ids, f"{tab_id!r} missing from layout; found ids (sample): {sorted(ids)[:20]}"
 
@@ -54,7 +54,7 @@ def test_build_app_layout_has_main_tabs_and_default_next():
 @pytest.mark.parametrize("import_path,func_name", [
     ("details_layout", "build_details_tab_content"),
     ("events_layout", "build_events_tab_content"),
-    ("settings_layout", "build_settings_tab_content"),
+    ("settings_layout", "build_settings_modal"),
     ("analyze_layout", "build_analyze_tab_content"),
 ])
 def test_tab_builder_smoke(import_path, func_name):

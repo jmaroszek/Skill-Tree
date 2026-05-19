@@ -93,7 +93,6 @@ def register_event_callbacks(app):
         Output("canvas-tab-content", "style"),
         Output("details-tab-content", "style"),
         Output("events-tab-content", "style"),
-        Output("settings-tab-content", "style"),
         Output("analyze-tab-content", "style"),
         Input("main-tabs", "active_tab"),
     )
@@ -112,13 +111,10 @@ def register_event_callbacks(app):
         events_style = {**base,
                         "display": "flex" if active_tab == "tab-events" else "none",
                         "visibility": "visible" if active_tab == "tab-events" else "hidden"}
-        settings_style = {**base, "overflow": "auto",
-                          "display": "block" if active_tab == "tab-settings" else "none",
-                          "visibility": "visible" if active_tab == "tab-settings" else "hidden"}
         analyze_style = {**base, "overflow": "auto",
                          "display": "block" if active_tab == "tab-analyze" else "none",
                          "visibility": "visible" if active_tab == "tab-analyze" else "hidden"}
-        return next_style, canvas_style, details_style, events_style, settings_style, analyze_style
+        return next_style, canvas_style, details_style, events_style, analyze_style
 
     # --- Events List Rendering ---
     @app.callback(
