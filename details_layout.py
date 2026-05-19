@@ -64,18 +64,24 @@ def build_graph_settings_panel(
     gl = defaults_getter()
     p = prefix
     reset_btn_id = f"btn-reset-{p}"
+    close_btn_id = f"btn-close-{p}"
 
     children = [
         html.Div([
-            html.Span("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem"}),
-            dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
-                       className="ms-2 p-0",
-                       style={"fontSize": "1.1rem", "lineHeight": "1",
-                              "color": "#adb5bd", "position": "relative",
-                              "top": "0px", "textDecoration": "none"}),
-            dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-        ], className="d-flex align-items-center",
+            html.Div([
+                html.Span("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem"}),
+                dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
+                           className="ms-2 p-0",
+                           style={"fontSize": "1.1rem", "lineHeight": "1",
+                                  "color": "#adb5bd", "position": "relative",
+                                  "top": "0px", "textDecoration": "none"}),
+                dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            ], className="d-flex align-items-center"),
+            html.Span("\u00d7", id=close_btn_id,
+                      className="fs-4 text-white",
+                      style={"cursor": "pointer", "lineHeight": "1"}),
+        ], className="d-flex justify-content-between align-items-center",
            style={"marginBottom": "12px"}),
     ]
 
@@ -371,7 +377,7 @@ def build_details_tab_content():
             dbc.Button(html.I(className="bi bi-gear"),
                        id="btn-details-graph-settings",
                        color="secondary", size="sm",
-                       className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
+                       className="btn-canvas-overlay btn-canvas-bottom-right"),
             dbc.Tooltip("Graph settings", target="btn-details-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _freeze_indicator("details-freeze-indicator"),
@@ -389,7 +395,7 @@ def build_details_tab_content():
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-details-graph-fullscreen",
                        color="secondary", size="sm",
-                       className="btn-canvas-overlay btn-canvas-bottom-right"),
+                       className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             dbc.Tooltip("Toggle fullscreen", target="btn-details-graph-fullscreen", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             html.Div(id="details-canvas-node-count", className="canvas-stats-overlay"),

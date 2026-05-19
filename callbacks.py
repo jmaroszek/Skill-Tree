@@ -2071,35 +2071,8 @@ def register_callbacks(app):
         # here, leaves it closed with the pending store cleared.
         return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style, False, "", None, tc_modal_open, tc_reference, tc_pending, tc_unit, tc_title)
 
-    # --- Filters Sidebar Toggle (CLIENTSIDE) ---
-    # Handled entirely in the browser via assets/filters_sidebar.js. Previously
-    # this toggle went through core_engine, whose expensive graph-regen branch
-    # delayed the CSS transition by 500ms-2s on each click.
-    app.clientside_callback(
-        ClientsideFunction(namespace='filters', function_name='toggle_sidebar'),
-        Output('sidebar-filters-container', 'style'),
-        Input('btn-filters-toggle', 'n_clicks'),
-        Input('btn-close-filters', 'n_clicks'),
-        State('sidebar-filters-container', 'style'),
-        prevent_initial_call=True,
-    )
-
-    # --- Editor Sidebar Fast-Path (CLIENTSIDE) ---
-    # Starts the open-editor CSS transition immediately on btn-add, in parallel
-    # with core_engine's form-population work. core_engine still sets the same
-    # open-transform value server-side as a safety net. Close/save/new-node
-    # stay server-side because they depend on form state.
-    app.clientside_callback(
-        ClientsideFunction(namespace='editor', function_name='open_on_add'),
-        Output('sidebar-editor-container', 'style', allow_duplicate=True),
-        Output('details-goal-sidebar', 'style', allow_duplicate=True),
-        Output('events-sidebar-container', 'style', allow_duplicate=True),
-        Input('btn-add', 'n_clicks'),
-        State('sidebar-editor-container', 'style'),
-        State('details-goal-sidebar', 'style'),
-        State('events-sidebar-container', 'style'),
-        prevent_initial_call=True,
-    )
+    # The filters-sidebar toggle and editor-sidebar fast-path clientside
+    # callbacks live in sidebars_callbacks.register_sidebars_callbacks.
 
     @app.callback(
         Output('modal-undo-done-confirm', 'is_open', allow_duplicate=True),
@@ -3102,10 +3075,11 @@ def register_callbacks(app):
     @app.callback(
         Output('graph-settings-panel', 'style'),
         Input('btn-graph-settings', 'n_clicks'),
+        Input('btn-close-graph-settings', 'n_clicks'),
         State('graph-settings-panel', 'style'),
         prevent_initial_call=True,
     )
-    def toggle_graph_settings(_n, current_style):
+    def toggle_graph_settings(_n_open, _n_close, current_style):
         style = dict(current_style) if current_style else {}
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style

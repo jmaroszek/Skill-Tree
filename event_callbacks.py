@@ -1805,10 +1805,11 @@ def register_event_callbacks(app):
     @app.callback(
         Output('events-graph-settings-panel', 'style'),
         Input('btn-events-graph-settings', 'n_clicks'),
+        Input('btn-close-events-graph-settings', 'n_clicks'),
         State('events-graph-settings-panel', 'style'),
         prevent_initial_call=True,
     )
-    def toggle_events_graph_settings(_n, current_style):
+    def toggle_events_graph_settings(_n_open, _n_close, current_style):
         style = dict(current_style) if current_style else {}
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style

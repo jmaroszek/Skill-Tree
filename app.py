@@ -66,6 +66,7 @@ from details_callbacks import register_details_callbacks
 from next_callbacks import register_next_callbacks
 from settings_callbacks import register_settings_callbacks
 from analyze_callbacks import register_analyze_callbacks
+from sidebars_callbacks import register_sidebars_callbacks
 from config import ConfigManager
 
 # Fix blurry file explorer on high-DPI Windows displays.
@@ -99,6 +100,7 @@ register_details_callbacks(app)
 register_next_callbacks(app)
 register_settings_callbacks(app)
 register_analyze_callbacks(app)
+register_sidebars_callbacks(app)
 
 @app.server.route('/open-obsidian')
 def open_obsidian_route():
