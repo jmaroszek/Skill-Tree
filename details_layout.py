@@ -817,7 +817,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
             STATUS_DONE, className=_badge_cls,
             style={**badge_style(STATUS_DONE, font_size="0.7rem"),
                    "width": "62px", "textAlign": "center", "display": "inline-block"})
-    elif corner_text:
+    elif corner_text and priority_rank is None:
         corner_badge = html.Span(
             corner_text, className=_badge_cls,
             style={**badge_style(STATUS_OPEN, font_size="0.7rem"),
@@ -836,7 +836,9 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
             html.Div([
                 html.Span(
                     dbc.Badge(str(priority_rank), color="warning",
-                              style={"fontSize": "0.7rem", "color": "#ffffff"}),
+                              style={"fontSize": "0.7rem", "color": "#ffffff",
+                                     "minWidth": "34px", "textAlign": "center",
+                                     "display": "inline-block"}),
                     className="goal-rank-trigger",
                     **{"data-goal-name": name},
                 ) if priority_rank is not None else None,

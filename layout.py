@@ -1410,6 +1410,18 @@ def build_app_layout(initial_elements, env="production"):
         style=_floating_menu_style,
     )
 
+    # --- Events sidebar: right-click context menu ---
+    event_context_menu = html.Div(
+        id="event-context-menu",
+        children=[
+            html.Div("Edit", id="event-ctx-edit", className="ctx-menu-item"),
+            html.Div("Trigger", id="event-ctx-trigger", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
+            html.Div("Delete", id="event-ctx-delete", className="ctx-menu-item"),
+        ],
+        style=_floating_menu_style,
+    )
+
     # --- Goal sidebar: right-click context menu ---
     goal_context_menu = html.Div(
         id="goal-context-menu",
@@ -1565,6 +1577,8 @@ def build_app_layout(initial_elements, env="production"):
         context_menu,
         goal_rank_popover,
         goal_context_menu,
+        event_context_menu,
+        dcc.Input(id='event-ctx-action-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),

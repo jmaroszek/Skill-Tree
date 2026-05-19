@@ -139,8 +139,6 @@ def register_event_callbacks(app):
         # Apply ordering based on sort mode
         if sort_mode == "az":
             events = sorted(events, key=lambda e: (e.name or "").lower())
-        elif sort_mode == "za":
-            events = sorted(events, key=lambda e: (e.name or "").lower(), reverse=True)
         else:
             # Manual: apply drag-and-drop order from store
             stored_order = event_order or []
@@ -168,6 +166,7 @@ def register_event_callbacks(app):
                 className="text-center py-5"
             )
 
+        is_manual = sort_mode != "az"
         cards = []
         for event in events:
             counts = event_manager.get_event_node_count(event.name)
@@ -176,6 +175,7 @@ def register_event_callbacks(app):
                 is_selected=(event.name == selected_event),
                 trigger_date=event.trigger_date,
                 trigger_node=event.trigger_node,
+                show_drag_handle=is_manual,
             ))
         return cards
 
@@ -323,6 +323,53 @@ def register_event_callbacks(app):
             event.trigger_node or None,
             "tab-events" if active_tab != "tab-events" else no_update,
         )
+
+    # --- Event Context Menu (right-click on event card) ---
+    @app.callback(
+        *_DETAIL_OUTPUTS,
+        Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
+        Output("modal-confirm-delete", "is_open", allow_duplicate=True),
+        Input("event-ctx-action-input", "value"),
+        State("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+    def handle_event_context_action(action_value, active_tab):
+        if not action_value:
+            return (no_update,) * (_N_DETAIL + 2)
+        parts = action_value.split("|")
+        if len(parts) < 2:
+            return (no_update,) * (_N_DETAIL + 2)
+        event_name, action = parts[0], parts[1]
+        event = event_manager.get_event(event_name)
+        if not event:
+            return (no_update,) * (_N_DETAIL + 2)
+
+        event_nodes = event_manager.get_event_nodes(event_name)
+        trigger_style = {"display": "none"} if event.status == "Triggered" else {
+            "display": "flex", "alignItems": "center"
+        }
+        t_type = _event_trigger_type(event)
+
+        detail = (
+            event_name,
+            f"ctx-{action}-{event_name}-{time.time()}",
+            {"display": "none"},
+            {"display": "block"},
+            event.name,
+            event.description,
+            "", "primary", _badge_hidden,
+            build_dormant_nodes_table(event_nodes, event.status),
+            trigger_style,
+            "",
+            event.trigger_date or "",
+            t_type,
+            event.trigger_node or None,
+            "tab-events" if active_tab != "tab-events" else no_update,
+        )
+
+        open_trigger = action == "trigger" and event.status != "Triggered"
+        open_delete = action == "delete"
+        return (*detail, open_trigger, open_delete)
 
     # --- Save Event ---
     @app.callback(

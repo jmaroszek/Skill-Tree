@@ -46,7 +46,6 @@ def build_events_sidebar_content():
                     options=[
                         {"label": "Manual", "value": "manual"},
                         {"label": "A\u2013Z", "value": "az"},
-                        {"label": "Z\u2013A", "value": "za"},
                     ],
                     value="manual",
                     inline=True,
@@ -655,7 +654,7 @@ def _event_badge(status, trigger_date, trigger_node=None):
 
 
 def build_event_card(event_name, description, status, node_count, is_selected=False,
-                     trigger_date=None, trigger_node=None):
+                     trigger_date=None, trigger_node=None, show_drag_handle=True):
     """Builds a single event card for the list."""
     badge_text, badge_name = _event_badge(status, trigger_date, trigger_node)
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
@@ -664,7 +663,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
         "\u2630", className="event-drag-handle",
         style={"cursor": "grab", "color": "#6c757d", "fontSize": "0.9rem",
                "marginRight": "8px", "userSelect": "none"},
-    )
+    ) if show_drag_handle else None
 
     children: List[Any] = [
         html.Div([
