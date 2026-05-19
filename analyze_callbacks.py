@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from collections import defaultdict
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from config import ConfigManager
+from config import ConfigManager, BADGE_PALETTE
 from scoring import (
     build_adjacency as _scoring_build_adjacency, total_value, explain_score,
 )
@@ -572,7 +572,6 @@ def _card(children):
     with a soft border and rounded corners, matching the overview tiles."""
     return html.Div(children, style={
         "backgroundColor": _BG,
-        "border": f"1px solid {_BORDER}",
         "borderRadius": "6px",
         "padding": "12px 16px",
     })
@@ -736,7 +735,7 @@ def _render_overview(metrics):
                 html.Div(label, className="text-muted small"),
             ], style={
                 "padding": "14px 18px", "borderRadius": "6px",
-                "border": f"1px solid {_BORDER}", "backgroundColor": _CARD_BG,
+                "backgroundColor": _CARD_BG,
                 "textAlign": "center",
             }),
             style={"flex": "1 1 0", "minWidth": "0"},
@@ -755,11 +754,11 @@ def _render_bottleneck_chart(data, height=None):
     fmt = ConfigManager.format_time_friendly
     names = [d['name'] for d in data]
     values = [d['cascade'] for d in data]
-    # Blocked nodes flag red; everything else takes its node-type colour.
-    node_colors = ConfigManager.get_node_colors()
+    # Blocked nodes flag red; open nodes take the muted Next-tab badge
+    # palette colour for their type.
     colors = [
         _STATUS_COLORS[STATUS_BLOCKED] if d['status'] == STATUS_BLOCKED
-        else node_colors.get(d['type'], '#6c757d')
+        else BADGE_PALETTE.get(d['type'], ('#6c757d', '#fff'))[0]
         for d in data
     ]
     hover = [
@@ -767,7 +766,6 @@ def _render_bottleneck_chart(data, height=None):
         f"Cascade: {d['cascade']}<br>"
         f"Direct unlocks: {d['direct_unlocks']}<br>"
         f"Type: {d['type']}<br>"
-        f"Status: {d['status']}<br>"
         f"Time: {fmt(d['time'])}"
         for d in data
     ]
@@ -808,6 +806,10 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
         + (f"<br>Priority #{g['priority_rank']}" if g['priority_rank'] else "")
         for g in sorted_goals
     ]
+    hover_remaining = [
+        f"<b>{g['name']}</b><br>Remaining: {100 - g['pct']}%"
+        for g in sorted_goals
+    ]
     fig = go.Figure()
     fig.add_trace(go.Bar(
         y=bar_names, x=done_pcts, orientation='h',
@@ -819,7 +821,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
     fig.add_trace(go.Bar(
         y=bar_names, x=remaining_pcts, orientation='h',
         marker_color='#495057', opacity=0.15, name='Remaining',
-        hovertext=hover_done, hoverinfo='text',
+        hovertext=hover_remaining, hoverinfo='text',
     ))
     fig.update_layout(**_base_layout(
         barmode='stack', height=shared_height,
@@ -927,7 +929,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
 def _render_estimation_accuracy(rows):
     """Scatter of estimated vs. actual time for completed nodes, with a y=x
     reference line. Points above the line overran the estimate."""
-    title = html.H6("Estimation Accuracy By Node", className="text-muted mb-1")
+    title = html.H6("By Node", className="text-muted mb-1")
     if not rows:
         return _card([title, html.P(
             "No completed nodes have actual-time data yet. Mark nodes Done "
@@ -960,7 +962,7 @@ def _render_estimation_accuracy(rows):
                 f"<b>{r['name']}</b><br>"
                 f"Estimated: {fmt(r['estimate'])}<br>"
                 f"Actual: {fmt(r['actual'])}<br>"
-                f"{ratio:.1f}\u00d7 estimate ({'over' if ratio >= 1 else 'under'})"
+                f"{ratio:.1f}\u00d7 estimate"
             )
         fig.add_trace(go.Scatter(
             x=[r['estimate'] for r in trows],
@@ -985,9 +987,6 @@ def _render_estimation_accuracy(rows):
     return _card([
         title,
         dcc.Graph(figure=fig, config=_CHART_CFG),
-        html.P("Points above the dashed line took longer than estimated; "
-               "points below were finished faster.",
-               className="text-muted small mt-1"),
     ])
 
 
@@ -1007,7 +1006,7 @@ def _render_context_accuracy_boxplot(rows):
     qualifying = {c: v for c, v in by_ctx.items()
                   if len(v) >= _CTX_ACCURACY_MIN_N}
     hidden = len(by_ctx) - len(qualifying)
-    title = html.H6("Estimation Accuracy By Context", className="text-muted mb-1")
+    title = html.H6("By Context", className="text-muted mb-1")
     if not qualifying:
         return _card([title, html.P(
             f"Not enough completed nodes per context yet — a context needs "
@@ -1061,21 +1060,22 @@ def _render_context_accuracy_boxplot(rows):
     ))
     fig.add_vline(x=1, line=dict(color='#6c757d', dash='dash', width=1))
 
-    note = "Boxes right of the 1× line ran over estimate; left, came in under."
-    if hidden:
-        note += (f" {hidden} context(s) hidden — fewer than "
-                 f"{_CTX_ACCURACY_MIN_N} completed nodes.")
-    return _card([
+    children = [
         title,
         dcc.Graph(figure=fig, config=_CHART_CFG),
-        html.P(note, className="text-muted small mt-1"),
-    ])
+    ]
+    if hidden:
+        children.append(html.P(
+            f"{hidden} context(s) hidden — fewer than "
+            f"{_CTX_ACCURACY_MIN_N} completed nodes.",
+            className="text-muted small mt-1"))
+    return _card(children)
 
 
-def _render_ratings_chart(data):
+def _render_ratings_chart(data, height=None):
     if not data:
         return _card([
-            html.H6("Ratings", className="text-muted mb-1"),
+            html.H6("Ratings by Context", className="text-muted mb-1"),
             html.P("No active nodes.", className="text-muted small"),
         ])
 
@@ -1092,12 +1092,12 @@ def _render_ratings_chart(data):
             row_hover.append(
                 f"<b>{d['context']}</b><br>"
                 f"{label}: {d[attr]}<br>"
-                f"{d['count']} active nodes<br>"
-                f"Completion: {d['completion_pct']}%"
+                f"{d['count']} active nodes"
             )
         hover.append(row_hover)
 
-    height = max(200, len(contexts) * 32 + 80)
+    if height is None:
+        height = max(200, len(contexts) * 32 + 80)
 
     fig = go.Figure(go.Heatmap(
         z=z,
@@ -1117,7 +1117,7 @@ def _render_ratings_chart(data):
         xaxis=dict(side='bottom'),
     ))
     return _card([
-        html.H6("Ratings", className="text-muted mb-1"),
+        html.H6("Ratings by Context", className="text-muted mb-1"),
         dcc.Graph(figure=fig, config=_CHART_CFG),
     ])
 
@@ -1133,7 +1133,7 @@ _SUBCONTEXT_PALETTE = [
 _NO_SUBCONTEXT_COLOR = '#495057'
 
 
-def _render_hours_by_context(ctx_data):
+def _render_hours_by_context(ctx_data, height=None):
     """Single stacked horizontal bar: one bar per context, segmented by
     subcontext. No legend \u2014 each segment's name, node count, and hours
     surface on hover. Segment times sum to the context total, so a bar's
@@ -1185,7 +1185,8 @@ def _render_hours_by_context(ctx_data):
 
     tickvals, ticktext = _friendly_xticks(
         max((d['time'] for d in ctx_data), default=0))
-    height = max(180, len(ctx_names) * 28 + 60)
+    if height is None:
+        height = max(180, len(ctx_names) * 28 + 60)
     fig.update_layout(**_base_layout(
         barmode='stack', height=height,
         margin=dict(l=10, r=20, t=10, b=30),
@@ -1262,19 +1263,39 @@ def register_analyze_callbacks(app):
         ]
 
         time_content = [
-            _render_hours_by_context(ctx_coverage),
-            html.P("Estimated vs. actual time for completed nodes with "
-                   "captured calibration data.",
-                   className="text-muted small mt-3"),
+            html.P(
+                "On the By Node scatter, points above the dashed line took "
+                "longer than estimated; points below were finished faster. "
+                "On the By Context box plots, boxes right of the 1× line ran "
+                "over estimate; left, came in under.",
+                className="text-muted small"),
             dbc.Row([
                 dbc.Col(_render_estimation_accuracy(est_accuracy), width=6),
                 dbc.Col(_render_context_accuracy_boxplot(est_accuracy), width=6),
             ], className="g-3"),
         ]
 
-        graph_content = _render_bottleneck_chart(bottlenecks)
+        graph_content = [
+            html.P("Nodes whose completion would unlock the largest "
+                   "downstream cascade.",
+                   className="text-muted small"),
+            dbc.Row([
+                dbc.Col(_render_bottleneck_chart(bottlenecks), width=6),
+            ], className="g-3"),
+        ]
 
-        contexts_content = html.Div([_render_ratings_chart(ratings_data)],
-                                    style={"maxWidth": "600px"})
+        ctx_height = max(180, len(ctx_coverage) * 28 + 60)
+        contexts_content = [
+            html.P("Active node distribution and average ratings across "
+                   "your contexts.",
+                   className="text-muted small"),
+            dbc.Row([
+                dbc.Col(_render_hours_by_context(ctx_coverage,
+                                                 height=ctx_height), width=6),
+                dbc.Col(html.Div(
+                    _render_ratings_chart(ratings_data, height=ctx_height),
+                    style={"maxWidth": "750px"}), width=6),
+            ], className="g-3"),
+        ]
 
         return overview_content, goals_content, time_content, graph_content, contexts_content

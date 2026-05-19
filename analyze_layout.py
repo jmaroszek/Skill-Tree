@@ -56,7 +56,11 @@ def build_analyze_tab_content():
         html.Div(id="analyze-goals-content"),
         html.Hr(className="my-3"),
 
-        _plain_header("Time"),
+        _plain_header("Contexts"),
+        html.Div(id="analyze-contexts-content"),
+        html.Hr(className="my-3"),
+
+        _plain_header("Time Estimation Accuracy"),
         html.Div(id="analyze-time-content"),
         html.Hr(className="my-3"),
 
@@ -64,8 +68,4 @@ def build_analyze_tab_content():
                      "popover-analyze-bottlenecks", "Nodes shown",
                      "setting-analyze-bottlenecks", 5, 100, al.get('bottlenecks', 25)),
         html.Div(id="analyze-graph-content"),
-        html.Hr(className="my-3"),
-
-        _plain_header("Contexts"),
-        html.Div(id="analyze-contexts-content"),
     ], className="px-4 pt-3 pb-4")
