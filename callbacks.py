@@ -17,7 +17,9 @@ import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
-                    SIDEBAR_WIDTH_PX, SIDEBAR_WIDTH_NEG_PX, SIDEBAR_TRANSLATE_CLOSED)
+                    SIDEBAR_WIDTH_PX, SIDEBAR_WIDTH_NEG_PX, SIDEBAR_TRANSLATE_CLOSED,
+                    DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
+                    DEFAULT_EVENTS_GRAPH_LAYOUT)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
@@ -3109,9 +3111,9 @@ def register_callbacks(app):
         gl = ConfigManager.get_graph_layout_defaults()
         return (
             0, True, True,
-            gl.get('edge_length', 100),
-            gl.get('gravity', 0.25),
-            gl.get('repulsion', 4500),
+            gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
+            gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
+            gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
             False,
         )
 
@@ -3257,8 +3259,8 @@ def register_callbacks(app):
                 animate: !!animate,
                 randomize: is_relayout,
                 idealEdgeLength: edge_length || 100,
-                nodeRepulsion: repulsion || 4500,
-                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0.25,
+                nodeRepulsion: repulsion || 50000,
+                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0,
                 numIter: 2500,
             };
         }

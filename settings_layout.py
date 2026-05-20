@@ -14,6 +14,9 @@ from config import (
     CONTEXT_SORT_DEFINITION,
     CONTEXT_SORT_LENGTH,
     CONTEXT_SORT_ALPHABETICAL,
+    DEFAULT_GRAPH_LAYOUT,
+    DEFAULT_DETAILS_GRAPH_LAYOUT,
+    DEFAULT_EVENTS_GRAPH_LAYOUT,
 )
 
 _RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
@@ -52,18 +55,21 @@ def _build_graph_layout_defaults_row():
         _data_row("Nodes",
                   ["setting-graph-edge-length", "setting-graph-gravity",
                    "setting-graph-repulsion"],
-                  [gl.get('edge_length', 100), gl.get('gravity', 0.25),
-                   gl.get('repulsion', 4500)]),
+                  [gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
+                   gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
+                   gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion'])]),
         _data_row("Details",
                   ["setting-details-graph-edge-length", "setting-details-graph-gravity",
                    "setting-details-graph-repulsion"],
-                  [dgl.get('edge_length', 100), dgl.get('gravity', 0.25),
-                   dgl.get('repulsion', 4500)]),
+                  [dgl.get('edge_length', DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length']),
+                   dgl.get('gravity', DEFAULT_DETAILS_GRAPH_LAYOUT['gravity']),
+                   dgl.get('repulsion', DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion'])]),
         _data_row("Events",
                   ["setting-events-graph-edge-length", "setting-events-graph-gravity",
                    "setting-events-graph-repulsion"],
-                  [egl.get('edge_length', 50), egl.get('gravity', 0.25),
-                   egl.get('repulsion', 4500)], last=True),
+                  [egl.get('edge_length', DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length']),
+                   egl.get('gravity', DEFAULT_EVENTS_GRAPH_LAYOUT['gravity']),
+                   egl.get('repulsion', DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion'])], last=True),
     ])
 
 

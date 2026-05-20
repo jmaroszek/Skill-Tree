@@ -20,6 +20,98 @@ manager = GraphManager()
 _RESTORE_ICON = "↺"  # ↺ — matches the restore buttons in settings_layout
 
 
+def _display_types_from_config():
+    display_types = ConfigManager.get_node_types().copy()
+    if "Goal" not in display_types:
+        display_types.append("Goal")
+    return display_types
+
+
+def _display_types_from_text(types_text):
+    types = [c.strip() for c in (types_text or "").split(",") if c.strip()]
+    if not types:
+        return _display_types_from_config()
+    if "Goal" not in types:
+        types.append("Goal")
+    return types
+
+
+def _shape_options():
+    return [
+        {"label": s.title(), "value": s}
+        for s in [
+            "ellipse", "triangle", "rectangle", "star", "pentagon", "hexagon",
+            "diamond", "octagon", "round-rectangle", "vee",
+        ]
+    ]
+
+
+def _build_shape_rows(display_types, shapes):
+    return [
+        html.Div([
+            html.Div(dbc.Label(t, className="mb-0"),
+                     className="d-flex align-items-center",
+                     style={"width": "92px", "flex": "0 0 auto"}),
+            dbc.Select(
+                id={"type": "setting-shape", "index": t},
+                options=_shape_options(),
+                value=shapes.get(t, "ellipse"),
+                style={"width": "156px"},
+            ),
+        ], className="d-flex align-items-center gap-2 mb-2")
+        for t in display_types
+    ]
+
+
+def _build_color_row(label, key, colors):
+    color_val = colors.get(key, "#6c757d")
+    return html.Div([
+        html.Div(dbc.Label(label, className="mb-0"),
+                 className="d-flex align-items-center",
+                 style={"width": "92px", "flex": "0 0 auto"}),
+        dbc.Input(
+            id={"type": "setting-color", "index": key},
+            type="color",
+            value=color_val,
+            style={"height": "38px", "width": "52px", "padding": "2px"},
+        ),
+        html.Small(
+            color_val,
+            className="text-muted",
+            style={"fontSize": "0.8rem"},
+        ),
+    ], className="d-flex align-items-center gap-2 mb-2")
+
+
+def _build_status_color_rows(colors):
+    return [
+        _build_color_row(STATUS_DONE, STATUS_DONE, colors),
+        _build_color_row(STATUS_BLOCKED, STATUS_BLOCKED, colors),
+        _build_color_row("Override", "Override", colors),
+        _build_color_row("Active", "Active", colors),
+    ]
+
+
+def _build_type_color_rows(display_types, colors):
+    rows = []
+    for t in display_types:
+        color_val = colors.get(t, "#6c757d")
+        rows.append(html.Div([
+            dbc.Input(
+                id={"type": "setting-color", "index": t},
+                type="color",
+                value=color_val,
+                style={"height": "38px", "width": "52px", "padding": "2px"},
+            ),
+            html.Small(
+                color_val,
+                className="text-muted",
+                style={"fontSize": "0.8rem"},
+            ),
+        ], className="d-flex align-items-center gap-2 mb-2"))
+    return rows
+
+
 def _build_calibration_dismissed_view():
     """Returns (list-children, toggle-button-label) for the Settings 'excluded
     from review' section: one row per node marked "Don't ask again", each with
@@ -248,73 +340,11 @@ def register_settings_callbacks(app):
         sub_val = '\n'.join(sub_lines)
 
         shapes = ConfigManager.get_node_shapes()
-        display_types = node_types.copy()
-        for ft in ["Goal"]:
-            if ft not in display_types:
-                display_types.append(ft)
-
-        shape_options = [
-            {"label": s.title(), "value": s}
-            for s in ["ellipse", "triangle", "rectangle", "star", "pentagon", "hexagon",
-                       "diamond", "octagon", "round-rectangle", "vee"]
-        ]
-        shape_rows = []
-        for t in display_types:
-            shape_rows.append(html.Div([
-                html.Div(dbc.Label(t, className="mb-0"),
-                         className="d-flex align-items-center",
-                         style={"width": "92px", "flex": "0 0 auto"}),
-                dbc.Select(
-                    id={"type": "setting-shape", "index": t},
-                    options=shape_options,
-                    value=shapes.get(t, "ellipse"),
-                    style={"width": "156px"},
-                ),
-            ], className="d-flex align-items-center gap-2 mb-2"))
-
+        display_types = _display_types_from_config()
+        shape_rows = _build_shape_rows(display_types, shapes)
         colors = ConfigManager.get_node_colors()
-
-        def _color_row(label, key):
-            return html.Div([
-                html.Div(dbc.Label(label, className="mb-0"),
-                         className="d-flex align-items-center",
-                         style={"width": "92px", "flex": "0 0 auto"}),
-                dbc.Input(
-                    id={"type": "setting-color", "index": key},
-                    type="color",
-                    value=colors.get(key, "#6c757d"),
-                    style={"height": "38px", "width": "52px", "padding": "2px"},
-                ),
-                html.Small(
-                    colors.get(key, "#6c757d"),
-                    className="text-muted",
-                    style={"fontSize": "0.8rem"},
-                ),
-            ], className="d-flex align-items-center gap-2 mb-2")
-
-        status_color_rows = [
-            _color_row(STATUS_DONE, STATUS_DONE),
-            _color_row(STATUS_BLOCKED, STATUS_BLOCKED),
-            _color_row("Override", "Override"),
-            _color_row("Active", "Active"),
-        ]
-        def _type_color_row(key):
-            color_val = colors.get(key, "#6c757d")
-            return html.Div([
-                dbc.Input(
-                    id={"type": "setting-color", "index": key},
-                    type="color",
-                    value=color_val,
-                    style={"height": "38px", "width": "52px", "padding": "2px"},
-                ),
-                html.Small(
-                    color_val,
-                    className="text-muted",
-                    style={"fontSize": "0.8rem"},
-                ),
-            ], className="d-flex align-items-center gap-2 mb-2")
-
-        type_color_rows = [_type_color_row(t) for t in display_types]
+        status_color_rows = _build_status_color_rows(colors)
+        type_color_rows = _build_type_color_rows(display_types, colors)
 
         weight_rows = build_context_weight_rows(sort_contexts(contexts), ctx_weights)
 
@@ -715,6 +745,7 @@ def register_settings_callbacks(app):
                     'shapes': pending_shapes,
                     'colors': pending_colors,
                     'linter': new_linter,
+                    'next_table_rows': int(next_table_rows_val) if next_table_rows_val is not None else None,
                     'orphans': orphans,
                     'new_values': {
                         'type': new_types,
@@ -986,6 +1017,8 @@ def register_settings_callbacks(app):
                     ConfigManager.set_details_graph_layout_defaults(pending_state['dgl'])
                 if 'egl' in pending_state:
                     ConfigManager.set_events_graph_layout_defaults(pending_state['egl'])
+                if pending_state.get('next_table_rows') is not None:
+                    ConfigManager.set_next_table_rows(int(pending_state['next_table_rows']))
             except Exception:
                 logger.exception("Failed to save pending settings")
 
@@ -1205,6 +1238,43 @@ def register_settings_callbacks(app):
             return "", True
         return dash.no_update, dash.no_update
 
+    # --- Settings: Apply saved Next Table default immediately ---
+    @app.callback(
+        Output('suggestion-count-store', 'data', allow_duplicate=True),
+        Output('suggestion-count-display', 'children', allow_duplicate=True),
+        Input('settings-save-status', 'children'),
+        State('setting-next-table-rows', 'value'),
+        prevent_initial_call=True,
+    )
+    def apply_next_table_default(status, next_table_rows_val):
+        if status != "Settings saved" or next_table_rows_val is None:
+            return dash.no_update, dash.no_update
+        try:
+            count = max(1, min(100, int(next_table_rows_val)))
+        except (TypeError, ValueError):
+            return dash.no_update, dash.no_update
+        return count, str(count)
+
+    @app.callback(
+        Output('suggestion-count-store', 'data', allow_duplicate=True),
+        Output('suggestion-count-display', 'children', allow_duplicate=True),
+        Input('btn-migration-apply', 'n_clicks'),
+        Input('btn-migration-skip', 'n_clicks'),
+        State('pending-settings-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def apply_pending_next_table_default(_apply_clicks, _skip_clicks, pending_state):
+        if get_trigger_id() not in ('btn-migration-apply', 'btn-migration-skip'):
+            return dash.no_update, dash.no_update
+        count_val = (pending_state or {}).get('next_table_rows')
+        if count_val is None:
+            return dash.no_update, dash.no_update
+        try:
+            count = max(1, min(100, int(count_val)))
+        except (TypeError, ValueError):
+            return dash.no_update, dash.no_update
+        return count, str(count)
+
     # --- Settings: Restore Default Graph Layout ---
     @app.callback(
         Output('setting-graph-edge-length', 'value', allow_duplicate=True),
@@ -1252,53 +1322,34 @@ def register_settings_callbacks(app):
     def apply_graph_defaults_to_sliders(n_clicks):
         if not n_clicks:
             return (dash.no_update,) * 9
+        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
         gl = ConfigManager.get_graph_layout_defaults()
         dgl = ConfigManager.get_details_graph_layout_defaults()
         egl = ConfigManager.get_events_graph_layout_defaults()
         return (
-            gl.get('edge_length', 100),
-            gl.get('gravity', 0.25),
-            gl.get('repulsion', 4500),
-            dgl.get('edge_length', 100),
-            dgl.get('gravity', 0.25),
-            dgl.get('repulsion', 4500),
-            egl.get('edge_length', 50),
-            egl.get('gravity', 0.25),
-            egl.get('repulsion', 4500),
+            gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
+            gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
+            gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
+            dgl.get('edge_length', DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length']),
+            dgl.get('gravity', DEFAULT_DETAILS_GRAPH_LAYOUT['gravity']),
+            dgl.get('repulsion', DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion']),
+            egl.get('edge_length', DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length']),
+            egl.get('gravity', DEFAULT_EVENTS_GRAPH_LAYOUT['gravity']),
+            egl.get('repulsion', DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion']),
         )
 
     # --- Settings: Restore Default Shapes ---
     @app.callback(
         Output('setting-node-shapes-container', 'children', allow_duplicate=True),
         Input('btn-restore-shapes', 'n_clicks'),
+        State('setting-node-types', 'value'),
         prevent_initial_call=True,
     )
-    def restore_default_shapes(n_clicks):
+    def restore_default_shapes(n_clicks, types_text):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_SHAPES
-        node_types = ConfigManager.get_node_types()
-        display_types = node_types.copy()
-        for ft in ["Goal"]:
-            if ft not in display_types:
-                display_types.append(ft)
-
-        shape_options = [
-            {"label": s.title(), "value": s}
-            for s in ["ellipse", "triangle", "rectangle", "star", "pentagon", "hexagon",
-                       "diamond", "octagon", "round-rectangle", "vee"]
-        ]
-        shape_rows = []
-        for t in display_types:
-            shape_rows.append(dbc.Row([
-                dbc.Col(dbc.Label(t, className="mb-0"), width=4, className="d-flex align-items-center"),
-                dbc.Col(dbc.Select(
-                    id={"type": "setting-shape", "index": t},
-                    options=shape_options,
-                    value=DEFAULT_NODE_SHAPES.get(t, "ellipse"),
-                ), width=8),
-            ], className="mb-2"))
-        return shape_rows
+        return _build_shape_rows(_display_types_from_text(types_text), DEFAULT_NODE_SHAPES)
 
     # --- Settings: Restore Default Status Colors ---
     @app.callback(
@@ -1310,61 +1361,18 @@ def register_settings_callbacks(app):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_COLORS
-
-        def _color_row(label, key):
-            return dbc.Row([
-                dbc.Col(dbc.Label(label, className="mb-0"), width=4, className="d-flex align-items-center"),
-                dbc.Col(dbc.Input(
-                    id={"type": "setting-color", "index": key},
-                    type="color",
-                    value=DEFAULT_NODE_COLORS.get(key, "#6c757d"),
-                    style={"height": "38px", "padding": "2px"},
-                ), width=4),
-                dbc.Col(html.Small(
-                    DEFAULT_NODE_COLORS.get(key, "#6c757d"),
-                    className="text-muted d-flex align-items-center",
-                    style={"fontSize": "0.8rem"},
-                ), width=4),
-            ], className="mb-2")
-
-        return [
-            _color_row(STATUS_DONE, STATUS_DONE),
-            _color_row(STATUS_BLOCKED, STATUS_BLOCKED),
-            _color_row("Override", "Override"),
-            _color_row("Active", "Active"),
-        ]
+        return _build_status_color_rows(DEFAULT_NODE_COLORS)
 
     # --- Settings: Restore Default Type Colors ---
     @app.callback(
         Output('setting-node-type-colors-container', 'children', allow_duplicate=True),
         Input('btn-restore-type-colors', 'n_clicks'),
+        State('setting-node-types', 'value'),
         prevent_initial_call=True,
     )
-    def restore_default_type_colors(n_clicks):
+    def restore_default_type_colors(n_clicks, types_text):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_COLORS
-
-        node_types = ConfigManager.get_node_types()
-        display_types = node_types.copy()
-        if "Goal" not in display_types:
-            display_types.append("Goal")
-
-        rows = []
-        for t in display_types:
-            color_val = DEFAULT_NODE_COLORS.get(t, "#6c757d")
-            rows.append(dbc.Row([
-                dbc.Col(dbc.Input(
-                    id={"type": "setting-color", "index": t},
-                    type="color",
-                    value=color_val,
-                    style={"height": "38px", "padding": "2px"},
-                ), width=4),
-                dbc.Col(html.Small(
-                    color_val,
-                    className="text-muted d-flex align-items-center",
-                    style={"fontSize": "0.8rem"},
-                ), width=8),
-            ], className="mb-2"))
-        return rows
+        return _build_type_color_rows(_display_types_from_text(types_text), DEFAULT_NODE_COLORS)
 

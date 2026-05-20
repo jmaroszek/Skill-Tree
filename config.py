@@ -278,7 +278,7 @@ DEFAULT_TIME_ESTIMATE_DEFAULTS = {
 
 DEFAULT_GRAPH_LAYOUT = {
     'edge_length': 100,
-    'gravity': 5,
+    'gravity': 0,
     'repulsion': 50000,
 }
 

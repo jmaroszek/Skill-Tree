@@ -296,10 +296,15 @@
 
         // --- Ctrl+S to save (settings tab or node editor) ---
         document.addEventListener('keydown', function (e) {
-            if (!((e.ctrlKey || e.metaKey) && e.key === 's')) return;
+            if (!((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's')) return;
             e.preventDefault();
-            var activeTab = document.querySelector('#main-tabs .nav-link.active');
-            if (activeTab && activeTab.textContent.trim() === 'Settings') {
+            var settingsModal = document.getElementById('settings-modal');
+            var settingsOpen = settingsModal && (
+                settingsModal.classList.contains('show') ||
+                settingsModal.getAttribute('aria-modal') === 'true' ||
+                settingsModal.style.display === 'block'
+            );
+            if (settingsOpen) {
                 _clickDashBtn('btn-settings-save');
             } else {
                 _clickDashBtn('btn-save');
