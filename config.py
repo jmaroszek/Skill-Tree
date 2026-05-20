@@ -136,10 +136,10 @@ DEFAULT_NODE_COLORS = {
     STATUS_OPEN: '#0d6efd',
     STATUS_DONE: '#198754',
     'Goal': '#d3c41d',
-    'Action': '#9047b8',
+    'Action': '#fd7e14',
     'Learn': '#0d6efd',
-    'Resource': '#17a2b8',
-    'Milestone': '#fd7e14',
+    'Resource': '#9047b8',
+    'Milestone': '#17a2b8',
     'Override': '#e83e8c',
     'Active': '#ffd000',
 }
