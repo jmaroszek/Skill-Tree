@@ -367,8 +367,8 @@ def _expected_bar_color(type_or_override: str) -> str:
 
 
 def _get_first_row(result):
-    """Walk the new layout: [flex_row(rows_container, desc)] -> first row Div."""
-    rows_container = result[0].children[0]
+    """Walk the layout: [rows_container] -> first row Div."""
+    rows_container = result[0]
     return rows_container.children[0]
 
 
