@@ -349,6 +349,8 @@ DEFAULT_TITLECASE_LINTER = {
     'exclusions': DEFAULT_TITLECASE_EXCLUSIONS,
 }
 
+DEFAULT_NEXT_TABLE_ROWS = 10
+
 DEFAULT_SHOW_SCORING_PERF = True
 
 DEFAULT_TIME_CALIBRATION_ENABLED = True
@@ -1106,8 +1108,22 @@ class ConfigManager:
         return DEFAULT_TITLECASE_LINTER.copy()
 
     @classmethod
-    def set_titlecase_linter(cls, linter: dict):
-        cls._set_db_value("TITLECASE_LINTER", json.dumps(linter))
+    def set_titlecase_linter(cls, settings: dict):
+        cls._set_db_value("TITLECASE_LINTER", json.dumps(settings))
+
+    @classmethod
+    def get_next_table_rows(cls) -> int:
+        val = cls._get_db_value("NEXT_TABLE_ROWS")
+        if val:
+            try:
+                return int(val)
+            except ValueError:
+                pass
+        return DEFAULT_NEXT_TABLE_ROWS
+
+    @classmethod
+    def set_next_table_rows(cls, count: int):
+        cls._set_db_value("NEXT_TABLE_ROWS", str(count))
 
     @classmethod
     def get_show_scoring_perf(cls) -> bool:

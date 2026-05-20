@@ -155,6 +155,20 @@ def _build_appearance_tab():
                          placeholder="e.g. a, an, the, and, or, of"),
             html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
 
+            # --- Next Table group ---
+            html.Hr(className="my-3"),
+            html.H5("Next Table", className="mt-2 mb-1"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Default Rows", className="mb-0 mt-1"),
+                ], width="auto", className="pe-1"),
+                dbc.Col([
+                    dbc.Input(id="setting-next-table-rows", type="number", min=1, max=100, step=1,
+                              style={"width": "80px"}, size="sm"),
+                ], width="auto"),
+            ], className="g-1 align-items-center mb-1"),
+            html.Small("Number of suggestion rows to display in the Next tab by default.", className="text-muted d-block mb-1"),
+
             # --- Repair Graph group ---
             html.Hr(className="my-2"),
             html.H5("Repair Graph", className="mt-2 mb-1"),

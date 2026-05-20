@@ -204,6 +204,7 @@ def register_settings_callbacks(app):
         Output('setting-default-time-p', 'value'),
         Output('setting-linter-enabled', 'value'),
         Output('setting-linter-exclusions', 'value'),
+        Output('setting-next-table-rows', 'value'),
         Output('setting-graph-edge-length', 'value'),
         Output('setting-graph-gravity', 'value'),
         Output('setting-graph-repulsion', 'value'),
@@ -222,7 +223,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 43
+            return (dash.no_update,) * 44
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -356,6 +357,7 @@ def register_settings_callbacks(app):
             ted.get('pessimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic']),
             linter_enabled_val,
             linter_exclusions_val,
+            ConfigManager.get_next_table_rows(),
             gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
             gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
             gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
@@ -517,6 +519,7 @@ def register_settings_callbacks(app):
         State('setting-hp-profile', 'value'),
         State('setting-linter-enabled', 'value'),
         State('setting-linter-exclusions', 'value'),
+        State('setting-next-table-rows', 'value'),
         State('setting-graph-edge-length', 'value'),
         State('setting-graph-gravity', 'value'),
         State('setting-graph-repulsion', 'value'),
@@ -541,7 +544,7 @@ def register_settings_callbacks(app):
                       ctx_weight_values, ctx_weight_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
-                      linter_enabled_val, linter_exclusions_val,
+                      linter_enabled_val, linter_exclusions_val, next_table_rows_val,
                       gl_edge_length, gl_gravity, gl_repulsion,
                       dgl_edge_length, dgl_gravity, dgl_repulsion,
                       egl_edge_length, egl_gravity, egl_repulsion,
@@ -785,6 +788,9 @@ def register_settings_callbacks(app):
                 'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
             }
             ConfigManager.set_titlecase_linter(new_linter)
+
+            if next_table_rows_val is not None:
+                ConfigManager.set_next_table_rows(int(next_table_rows_val))
 
             saved_contexts = new_contexts if new_contexts else ConfigManager.get_contexts()
             refreshed_weight_rows = build_context_weight_rows(

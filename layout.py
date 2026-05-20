@@ -107,7 +107,7 @@ description_view = html.Div([
 # --- Next View ---
 
 next_view = html.Div([
-    dcc.Store(id='suggestion-count-store', data=10),
+    dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
     
     # "Now" section — currently-active nodes (cap = ACTIVE_NODE_CAP).
     # Heading + rows are emitted together by populate_now_section. The
