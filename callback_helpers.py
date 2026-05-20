@@ -1058,7 +1058,7 @@ def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=Non
 
     heading = html.Div([
         html.H6("Now", className="text-muted mb-0", style=SECTION_TITLE_STYLE),
-    ], className="d-flex align-items-center mb-3", style={"gap": "12px"})
+    ], className="d-flex align-items-center", style={"gap": "12px", "marginBottom": "0.75rem"})
 
     cards = []
     for n in active_nodes:
@@ -1158,7 +1158,7 @@ def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=Non
     cards_row = html.Div(cards, style={
         "display": "flex",
         "gap": "1rem",
-        "marginBottom": "2.5rem",
+        "marginBottom": "1.5rem",
     })
 
     return [heading, cards_row]
