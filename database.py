@@ -52,8 +52,8 @@ def init_db():
     # branch migration behavior on this number. A higher value means the DB
     # was last touched by a newer app build than this one.
     current_v = cursor.execute("PRAGMA user_version").fetchone()[0]
-    if current_v > 3:
-        print(f"WARNING: SQLite DB user_version={current_v} is newer than app's 3. "
+    if current_v > 4:
+        print(f"WARNING: SQLite DB user_version={current_v} is newer than app's 4. "
               "Some columns may be unrecognized.")
 
     cursor.execute('''
@@ -218,6 +218,27 @@ def init_db():
     except Exception:
         pass
 
+    # Active-flag + lifecycle dates + reflection-rating columns. `active` is
+    # an orthogonal boolean (separate from status) marking nodes the user is
+    # currently working on. start_date/done_date are auto-stamped by
+    # GraphManager.update_node on first activation / first Done transition.
+    # reflect_value/interest/difficulty are nullable mirrors of the original
+    # ratings, populated retrospectively (UI for entry lands in a later
+    # feature alongside the time-reflection rework).
+    for stmt in (
+        "ALTER TABLE Nodes ADD COLUMN active INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE Nodes ADD COLUMN start_date TEXT",
+        "ALTER TABLE Nodes ADD COLUMN done_date TEXT",
+        "ALTER TABLE Nodes ADD COLUMN reflect_value INTEGER",
+        "ALTER TABLE Nodes ADD COLUMN reflect_interest INTEGER",
+        "ALTER TABLE Nodes ADD COLUMN reflect_difficulty INTEGER",
+    ):
+        try:
+            cursor.execute(stmt)
+            conn.commit()
+        except Exception:
+            pass
+
     # One-time data migration: Goal nodes must use time_mode='inherited' (the
     # editor enforces this for new saves; this catches pre-existing rows).
     # Idempotent — once flipped, the WHERE clause matches no rows. time_o/m/p
@@ -232,7 +253,7 @@ def init_db():
     except Exception:
         pass
 
-    cursor.execute("PRAGMA user_version = 3")
+    cursor.execute("PRAGMA user_version = 4")
     conn.commit()
 
     conn.close()

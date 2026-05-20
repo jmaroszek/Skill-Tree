@@ -27,6 +27,22 @@ stylesheet = [
         }
     },
     {
+        # Active flag: nodes the user is currently working on. Layered ON
+        # TOP of the status color via a border. Placed BEFORE :selected so
+        # selection feedback (white border) wins during click interaction —
+        # an active node briefly shows the white border on click, returns
+        # to amber when deselected. The color is sourced per-element via
+        # data(active_color) so the settings-modal color picker can change
+        # it without restyling the canvas. The pulse animation is driven
+        # separately by assets/active_pulse.js.
+        'selector': '.active',
+        'style': {
+            'border-width': 5,
+            'border-color': 'data(active_color)',
+            'border-opacity': 1,
+        }
+    },
+    {
         # Selection indicator: thick white border, no background override.
         # Previously used cyan #0dcaf0 as the bg, which clashed with the
         # Milestone type color (teal #17a2b8) — the two looked nearly

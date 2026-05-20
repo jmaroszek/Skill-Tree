@@ -398,8 +398,14 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
             node_classes.append('trigger')
         if node.dormant:
             node_classes.append('dormant')
-        if node_classes:
-            node_data['classes'] = ' '.join(node_classes)
+        if node.active:
+            node_classes.append('active')
+            node_data['data']['active_color'] = colors.get('Active', '#ffd000')
+        # Always emit `classes` (possibly empty) so Cytoscape's element diff
+        # actually clears the class when a node loses it — omitting the key
+        # leaves the prior value in place and a deactivated node would keep
+        # its pulse.
+        node_data['classes'] = ' '.join(node_classes)
         elements.append(node_data)
 
     for e in edges:
@@ -1464,6 +1470,7 @@ def register_callbacks(app):
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value'),
          Input('toggle-done-trigger-input', 'value'),
+         Input('node-active-trigger-input', 'value'),
          Input('events-refresh-trigger', 'data'),
          Input('details-refresh-trigger', 'data'),
          Input('background-click-input', 'value'),
@@ -1513,7 +1520,7 @@ def register_callbacks(app):
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      focus_goal,
-                     edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _events_refresh, _details_refresh, _bg_click,
+                     edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_active_trigger, _events_refresh, _details_refresh, _bg_click,
                      gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout,
                      btn_undo_done_confirm,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
@@ -3489,5 +3496,123 @@ def register_callbacks(app):
             })
         ConfigManager.set_ratings_definitions(new_defs)
         return build_popup_table_rows(new_defs), False
+
+    # --- Editor Active Toggle: populate switch from DB on node change ---
+    # Mirrors the dormant-toggle population pattern (event_callbacks.py).
+    # The DB is the source of truth; the switch never holds a value the DB
+    # doesn't agree with.
+    @app.callback(
+        Output("node-active", "value"),
+        Input("node-original-name", "data"),
+        Input("node-active-trigger-input", "value"),
+    )
+    def populate_node_active_state(node_name, _trigger):
+        if not node_name:
+            return []
+        node = manager.get_node(node_name)
+        if not node:
+            return []
+        return ["active"] if node.active else []
+
+    # --- Editor Active Toggle: dispatcher ---
+    # User flipped the switch — compare to the loaded node's DB state. On a
+    # real transition, write the new value directly to the DB and bump the
+    # node-active-trigger-input so core_engine re-renders the canvas with
+    # the new amber border. No modal: active is a low-friction state flip,
+    # unlike dormant which involves event-attachment logic.
+    @app.callback(
+        Output("node-active-trigger-input", "value", allow_duplicate=True),
+        Output("active-cap-refused-trigger", "value", allow_duplicate=True),
+        Input("node-active", "value"),
+        State("node-original-name", "data"),
+        prevent_initial_call=True,
+    )
+    def dispatch_active_toggle(toggle_val, node_name):
+        import time as _time
+        from config import ACTIVE_NODE_CAP
+        if not node_name:
+            return no_update, no_update
+        node = manager.get_node(node_name)
+        if not node:
+            return no_update, no_update
+        wants_active = bool(toggle_val and "active" in toggle_val)
+        is_active = bool(node.active)
+        if wants_active == is_active:
+            # Toggle already matches DB — this fire was the populate sync,
+            # not a user click. Don't bump the trigger.
+            return no_update, no_update
+        # Cap enforcement on activation only — deactivation is always allowed.
+        # On refusal we bump node-active-trigger-input so populate re-syncs
+        # and bounces the switch back to off, AND bump the cap-refused
+        # trigger so the toast pops.
+        if wants_active and not is_active:
+            current_count = len(manager.get_active_nodes())
+            if current_count >= ACTIVE_NODE_CAP:
+                ts = int(_time.time() * 1000)
+                return f"refused|{ts}", f"refused|{ts}"
+        node.active = 1 if wants_active else 0
+        manager.update_node(node)
+        return f"{node_name}|{int(_time.time() * 1000)}", no_update
+
+    # --- Context-Menu Active Toggle ---
+    # Right-click → "Active" on the canvas / mini-graphs / goal sidebar
+    # writes a JSON list of names + timestamp to toggle-active-trigger-input.
+    # Flip each node's active flag, then bump node-active-trigger-input to
+    # cause the canvas to re-render. Bulk operation supported for parity
+    # with toggle-done, though active's soft cap of 3 makes bulk unlikely.
+    @app.callback(
+        Output("node-active-trigger-input", "value", allow_duplicate=True),
+        Output("active-cap-refused-trigger", "value", allow_duplicate=True),
+        Input("toggle-active-trigger-input", "value"),
+        prevent_initial_call=True,
+    )
+    def handle_active_trigger(trigger_data):
+        import time as _time
+        from config import ACTIVE_NODE_CAP
+        if not trigger_data:
+            return no_update, no_update
+        try:
+            raw = trigger_data.split('|')[0]
+            names = json.loads(raw) if raw else []
+        except (ValueError, json.JSONDecodeError):
+            return no_update, no_update
+        if not names:
+            return no_update, no_update
+        # Track count locally so a bulk activation stops at the cap. Pull
+        # the live count once, then update it as we flip — get_active_nodes
+        # would re-query the DB each iteration and miss our pending writes.
+        current_count = len(manager.get_active_nodes())
+        refused_any = False
+        for name in names:
+            node = manager.get_node(name)
+            if not node:
+                continue
+            if node.active:
+                # Deactivation is always allowed.
+                node.active = 0
+                current_count -= 1
+            else:
+                if current_count >= ACTIVE_NODE_CAP:
+                    refused_any = True
+                    continue  # Cap reached — skip this activation.
+                node.active = 1
+                current_count += 1
+            manager.update_node(node)
+        ts = int(_time.time() * 1000)
+        refused_out = f"refused|{ts}" if refused_any else no_update
+        return f"ctx|{ts}", refused_out
+
+    # --- Active cap toast ---
+    # Pops a transient warning when an activation is refused for hitting the
+    # cap. Both the editor dispatcher and the context-menu handler bump
+    # active-cap-refused-trigger on refusal; this callback flips is_open and
+    # dbc.Toast's `duration` auto-dismisses after 5s.
+    @app.callback(
+        Output("active-cap-toast", "is_open"),
+        Input("active-cap-refused-trigger", "value"),
+        prevent_initial_call=True,
+    )
+    def show_active_cap_toast(trigger):
+        return bool(trigger)
 
 

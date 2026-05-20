@@ -133,6 +133,20 @@ class Node:
     # Set when the user picks "Don't ask again" in calibration review — the
     # node is then permanently excluded from the review cycle.
     calibration_dismissed: int = 0
+    # Active flag: 1 when the user is currently working on this node.
+    # Orthogonal to status — an Open or Blocked node can be Active. The flag
+    # also drives the "Now" section on the Next tab and the amber border
+    # encoding on every canvas. start_date/done_date are auto-stamped by
+    # GraphManager.update_node: start_date on the first 0→1 active flip,
+    # done_date on the first transition to Done. Re-activation does not
+    # touch dates. reflect_value/interest/difficulty are nullable mirror
+    # columns for retrospective re-rating (schema only; UI lands later).
+    active: int = 0
+    start_date: Optional[str] = None
+    done_date: Optional[str] = None
+    reflect_value: Optional[int] = None
+    reflect_interest: Optional[int] = None
+    reflect_difficulty: Optional[int] = None
     priority_score: Optional[float] = None
 
     def __post_init__(self):
@@ -147,6 +161,7 @@ class Node:
         self.difficulty = max(1, min(10, self.difficulty))
         self.dormant = int(self.dormant) if self.dormant is not None else 0
         self.calibration_dismissed = int(self.calibration_dismissed) if self.calibration_dismissed else 0
+        self.active = int(self.active) if self.active is not None else 0
         if self.time_mode not in ('manual', 'inherited', 'habit'):
             self.time_mode = 'manual'
         if self.value_mode not in ('manual', 'inherited'):

@@ -393,6 +393,12 @@ def register_details_callbacks(app):
         badges.append(html.Span(node.status, className="badge",
                                 style=badge_style(node.status)))
 
+        # 2b. Active (if currently being worked on). Uses the same
+        # configurable color as the canvas border encoding.
+        if node.active:
+            badges.append(html.Span("Active", className="badge",
+                                    style=badge_style('Active')))
+
         # 3. Priority (Priority N for priority Goals)
         if is_priority_goal:
             rank = priority_goals.index(node_name) + 1
@@ -1955,8 +1961,16 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 'time_p': node.time_p,
             },
         }
+        node_classes = []
         if name in trigger_names:
-            element['classes'] = 'trigger'
+            node_classes.append('trigger')
+        if node.active:
+            node_classes.append('active')
+            element['data']['active_color'] = colors.get('Active', '#ffd000')
+        # Always emit `classes` (possibly empty) — see the comment in
+        # callbacks.py:generate_elements for why omission leaves a stale
+        # class on the live element.
+        element['classes'] = ' '.join(node_classes)
         elements.append(element)
 
     edges = graph_manager.get_edges()

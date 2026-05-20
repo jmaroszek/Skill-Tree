@@ -9,6 +9,7 @@ counters that let the higher-level callback caches know when to rebuild.
 
 import sqlite3
 import threading
+from datetime import date
 import database
 import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
@@ -99,8 +100,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, active, start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :active, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -115,6 +116,23 @@ class GraphManager:
                 "Uncategorized nodes are no longer permitted."
             )
         prior = self.get_node(node.name)
+        # --- Auto-stamp lifecycle dates and auto-deactivate on completion ---
+        # Re-activation is intentionally a no-op for dates: start_date is
+        # only set when prior.start_date is None (first time ever); done_date
+        # only on the first Open/Blocked→Done transition. When the user marks
+        # the node Done while it is currently active, we flip active off
+        # automatically (the user's mental model: active until Done).
+        if prior is not None:
+            today_iso = date.today().isoformat()
+            if (node.active == 1 and prior.active == 0
+                    and prior.start_date is None):
+                node.start_date = today_iso
+            if (node.status == STATUS_DONE
+                    and prior.status != STATUS_DONE):
+                if prior.done_date is None:
+                    node.done_date = today_iso
+                if node.active == 1:
+                    node.active = 0
         with self.get_connection() as conn:
             cursor = conn.cursor()
             data = node.to_dict()
@@ -133,7 +151,10 @@ class GraphManager:
                     habit_intensity_p=:habit_intensity_p, habit_intensity_unit=:habit_intensity_unit,
                     actual_time_lower=:actual_time_lower, actual_time_upper=:actual_time_upper,
                     actual_time_point=:actual_time_point, actual_time_unit=:actual_time_unit,
-                    calibration_dismissed=:calibration_dismissed
+                    calibration_dismissed=:calibration_dismissed,
+                    active=:active, start_date=:start_date, done_date=:done_date,
+                    reflect_value=:reflect_value, reflect_interest=:reflect_interest,
+                    reflect_difficulty=:reflect_difficulty
                 WHERE name=:name
             ''', data)
             conn.commit()
@@ -375,6 +396,19 @@ class GraphManager:
                 cursor.execute("SELECT * FROM Nodes")
             else:
                 cursor.execute("SELECT * FROM Nodes WHERE dormant = 0")
+            return [Node(**dict(row)) for row in cursor.fetchall()]
+
+    def get_active_nodes(self) -> List[Node]:
+        """Return all nodes flagged active (currently being worked on).
+
+        Dormant nodes are excluded — a shelved node should not also be
+        "currently being worked on", and the Now section should never
+        surface one.
+        """
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM Nodes WHERE active = 1 AND dormant = 0")
             return [Node(**dict(row)) for row in cursor.fetchall()]
 
     # --- Edge Operations ---

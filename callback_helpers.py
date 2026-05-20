@@ -744,6 +744,16 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         node.actual_time_point = existing.actual_time_point
         node.actual_time_unit = existing.actual_time_unit
         node.calibration_dismissed = existing.calibration_dismissed
+        # The active flag is mutated by dispatch_active_toggle (a direct DB
+        # write outside this form), so preserve the latest DB value. Same
+        # for the lifecycle dates and reflection columns — set elsewhere or
+        # not yet wired into the editor.
+        node.active = existing.active
+        node.start_date = existing.start_date
+        node.done_date = existing.done_date
+        node.reflect_value = existing.reflect_value
+        node.reflect_interest = existing.reflect_interest
+        node.reflect_difficulty = existing.reflect_difficulty
         manager.update_node(node)
         msg = f"Updated node '{name}'"
     else:
@@ -1047,6 +1057,118 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     })
 
     return [table_row]
+
+
+def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=None):
+    """Render the 'Now' section for the Next tab.
+
+    Returns a list of components: a "Now" heading and a row per currently-
+    active node. Designed to sit above the Next/Suggestions table. Rows show
+    rank → name+context → time + V/I/E micro-chart + link dots; the priority
+    bar from format_suggestions_table is intentionally omitted (no useful
+    cross-ranking among the ≤3 things the user is already doing).
+
+    When there are no active nodes the section is suppressed entirely —
+    return [] so the Next heading sits at the top of the tab.
+
+    The `cap` argument is accepted for forward-compatibility but no longer
+    surfaced — the cap is enforced in the toggle/context-menu callbacks.
+    """
+    if not active_nodes:
+        return []
+
+    heading = html.Div([
+        html.H6("Now", className="text-muted mb-0", style=SECTION_TITLE_STYLE),
+    ], className="d-flex align-items-center mb-2", style={"gap": "12px"})
+
+    name_col_width = 250
+    rows = []
+    for rank, n in enumerate(active_nodes, start=1):
+        is_selected = (n.name == selected_node_id)
+        eff_time = manager.get_effective_time(n.name)
+
+        rank_col = html.Div(
+            str(rank),
+            style={
+                "fontFamily": _MONO_FONT, "fontSize": "20px",
+                "color": "#6c757d", "textAlign": "center",
+                "lineHeight": "1",
+            },
+        )
+
+        ctx_text = str(n.context) if n.context else ""
+        sub_text = str(n.subcontext) if n.subcontext else ""
+        if ctx_text and sub_text:
+            ctx_children = [html.Span(ctx_text), html.Span("·", style={"opacity": 0.5, "padding": "0 4px"}), html.Span(sub_text)]
+        elif ctx_text:
+            ctx_children = [html.Span(ctx_text)]
+        elif sub_text:
+            ctx_children = [html.Span(sub_text)]
+        else:
+            ctx_children = []
+
+        name_col = html.Div([
+            html.Div(
+                html.Span(
+                    n.name,
+                    style={"fontSize": "14.5px", "color": "#dee2e6", "lineHeight": "1.35"},
+                ),
+                style={"minWidth": 0, "overflow": "hidden", "whiteSpace": "nowrap",
+                       "textOverflow": "ellipsis", "lineHeight": "1.35", "marginBottom": "1px"},
+            ),
+            html.Div(ctx_children, style={
+                "fontSize": "12px", "color": "#6c757d", "fontFamily": _MONO_FONT,
+                "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
+                "lineHeight": "1.35",
+            }),
+        ], style={"minWidth": 0, "overflow": "hidden"})
+
+        time_label = html.Span(
+            ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
+            style={"color": "#adb5bd", "minWidth": "52px", "textAlign": "right",
+                   "fontSize": "15px"},
+        )
+
+        v_val = n.value if n.value is not None else 0
+        i_val = getattr(n, 'interest', None) if getattr(n, 'interest', None) is not None else 0
+        e_val = n.difficulty if n.difficulty is not None else 0
+        micro_chart = html.Span([
+            _suggestion_micro_bar(v_val, "Value"),
+            _suggestion_micro_bar(i_val, "Interest"),
+            _suggestion_micro_bar(e_val, "Effort"),
+        ], style={"display": "inline-flex", "alignItems": "flex-end",
+                  "gap": "3px", "height": "22px"})
+
+        dots = html.Span([
+            _suggestion_dot(bool(getattr(n, 'obsidian_path', None)), "Obsidian", "#dee2e6"),
+            _suggestion_dot(bool(getattr(n, 'google_drive_path', None)), "Drive", "#dee2e6"),
+            _suggestion_dot(bool(getattr(n, 'website', None)), "Website", "#dee2e6"),
+        ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
+
+        meta_col = html.Div([time_label, micro_chart, dots], style={
+            "display": "flex", "alignItems": "center", "gap": "32px",
+            "fontFamily": _MONO_FONT, "fontSize": "11px",
+        })
+
+        row_style = {
+            "display": "grid",
+            "gridTemplateColumns": f"32px {name_col_width}px 1fr auto",
+            "alignItems": "center",
+            "gap": "14px",
+            "padding": "9px 12px",
+            "borderBottom": "1px solid #343a40",
+        }
+        if is_selected:
+            row_style["backgroundColor"] = "#2b3035"
+
+        rows.append(html.Div(
+            [rank_col, name_col, meta_col],
+            id={"type": "active-row", "index": n.name},
+            className="suggestion-bar-row",
+            style=row_style,
+        ))
+
+    return [heading, html.Div(rows, style={"marginBottom": "2.5rem"})]
 
 
 def format_traversal_ui(tapped_node, active_node_id, manager):

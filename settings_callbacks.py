@@ -295,6 +295,7 @@ def register_settings_callbacks(app):
             _color_row(STATUS_DONE, STATUS_DONE),
             _color_row(STATUS_BLOCKED, STATUS_BLOCKED),
             _color_row("Override", "Override"),
+            _color_row("Active", "Active"),
         ]
         def _type_color_row(key):
             color_val = colors.get(key, "#6c757d")
@@ -1324,6 +1325,7 @@ def register_settings_callbacks(app):
             _color_row(STATUS_DONE, STATUS_DONE),
             _color_row(STATUS_BLOCKED, STATUS_BLOCKED),
             _color_row("Override", "Override"),
+            _color_row("Active", "Active"),
         ]
 
     # --- Settings: Restore Default Type Colors ---

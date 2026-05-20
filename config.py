@@ -141,7 +141,14 @@ DEFAULT_NODE_COLORS = {
     'Resource': '#17a2b8',
     'Milestone': '#fd7e14',
     'Override': '#e83e8c',
+    'Active': '#ffd000',
 }
+
+# Soft cap on simultaneously-active nodes. The cap is informational —
+# the Now section header counter turns warning-colored when exceeded,
+# but the toggle remains free. Default 3 keeps focus tight without
+# blocking brief overlap during handoffs.
+ACTIVE_NODE_CAP = 3
 
 DEFAULT_NODE_SHAPES = {
     'Learn': 'ellipse',
@@ -203,8 +210,14 @@ def _resolved_badge_colors(name: str) -> tuple[str, str]:
     """Return (bg, fg) for a badge by direct lookup in BADGE_PALETTE.
 
     Unknown names fall back to a neutral gray. The palette is the single
-    source of truth — there is no Settings → Type Colors override path.
+    source of truth for all badges EXCEPT 'Active' — that one is
+    intentionally coupled to the user-configurable canvas color so the
+    border on the canvas and the badge in the Details panel stay visually
+    consistent under a custom color choice.
     """
+    if name == 'Active':
+        bg = ConfigManager.get_node_colors().get('Active', '#ffd000')
+        return (bg, '#ffffff')
     return BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
 
 

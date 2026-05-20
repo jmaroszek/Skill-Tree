@@ -16,6 +16,7 @@
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
         var linksDivider = document.getElementById('ctx-menu-links-divider');
+        var toggleActiveItem = document.getElementById('ctx-menu-toggle-active');
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
         var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
@@ -121,6 +122,21 @@
                 ? selectedIds
                 : [clickedId];
             _setHiddenInput('toggle-done-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
+        }
+
+        function triggerToggleActive() {
+            hideMenu();
+            if (!_currentNodeData || !_currentNodeData.id) return;
+            var clickedId = _currentNodeData.id;
+            var sourceCy = _menuCy || _mainCy;
+            var selectedIds = [];
+            if (sourceCy) {
+                sourceCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
+            }
+            var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
+                ? selectedIds
+                : [clickedId];
+            _setHiddenInput('toggle-active-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 
         function triggerAddToEvent() {
@@ -350,6 +366,8 @@
                 }
             });
         }
+
+        if (toggleActiveItem) toggleActiveItem.addEventListener('click', triggerToggleActive);
 
         if (toggleDoneItem) toggleDoneItem.addEventListener('click', triggerToggleDone);
 

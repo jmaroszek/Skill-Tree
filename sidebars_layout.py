@@ -122,11 +122,17 @@ node_editor_content = html.Div(
 
             html.Div(id="auto-status-display", className="d-none"),
 
-            # --- Section: Status (Done + Dormant toggles) ---
+            # --- Section: Status (Active + Done + Dormant toggles) ---
             html.Div(id="section-done-time", children=[
                 html.Hr(className="my-2"),
                 html.H5("Status", className="mt-2 mb-2"),
                 html.Div([
+                    dbc.Checklist(
+                        options=[{"label": "Active", "value": "active"}],
+                        value=[],
+                        id="node-active",
+                        switch=True,
+                    ),
                     dbc.Checklist(
                         options=[{"label": STATUS_DONE, "value": STATUS_DONE}],
                         value=[],

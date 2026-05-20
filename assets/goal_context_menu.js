@@ -146,6 +146,10 @@
         bindMenuItem('goal-ctx-details', function (name) {
             setHiddenInput('goal-details-trigger-input', name + '|' + Date.now());
         });
+        bindMenuItem('goal-ctx-toggle-active', function (name) {
+            setHiddenInput('toggle-active-trigger-input',
+                JSON.stringify([name]) + '|' + Date.now());
+        });
         bindMenuItem('goal-ctx-toggle-done', function (name) {
             setHiddenInput('toggle-done-trigger-input',
                 JSON.stringify([name]) + '|' + Date.now());

@@ -1757,8 +1757,13 @@ def register_event_callbacks(app):
                 classes.append("dormant")
             if name in trigger_names:
                 classes.append("trigger")
-            if classes:
-                element["classes"] = " ".join(classes)
+            if node.active:
+                classes.append("active")
+                element["data"]["active_color"] = node_colors.get("Active", "#ffd000")
+            # Always emit `classes` (possibly empty) so Cytoscape's diff
+            # clears the class when it leaves the new render — see
+            # callbacks.py:generate_elements for the rationale.
+            element["classes"] = " ".join(classes)
             elements.append(element)
 
         for e in all_edges:

@@ -108,8 +108,14 @@ description_view = html.Div([
 
 next_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=10),
+    # "Now" section — currently-active nodes (cap = ACTIVE_NODE_CAP).
+    # Heading + rows are emitted together by populate_now_section. The
+    # section collapses to zero height when there are no active nodes, so
+    # the Next heading floats to the top of the tab. No outer margin —
+    # format_active_nodes_section adds its own bottom spacing when filled.
+    html.Div(id="active-nodes-table"),
     html.Div([
-        html.H6("Suggestions", className="text-muted mb-0", style=_section_title_style),
+        html.H6("Next", className="text-muted mb-0", style=_section_title_style),
         dbc.ButtonGroup([
             dbc.Button("−", id="btn-sugg-minus", color="secondary", size="sm",
                        style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
@@ -839,6 +845,7 @@ def build_app_layout(initial_elements, env="production"):
             html.Div("Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Drive", id="ctx-menu-drive", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
+            html.Div("Active", id="ctx-menu-toggle-active", className="ctx-menu-item"),
             html.Div(STATUS_DONE, id="ctx-menu-toggle-done", className="ctx-menu-item"),
             html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item ctx-menu-item-danger"),
         ],
@@ -899,6 +906,7 @@ def build_app_layout(initial_elements, env="production"):
             html.Div("Edit", id="goal-ctx-edit", className="ctx-menu-item"),
             html.Div("Explain", id="goal-ctx-explain", className="ctx-menu-item"),
             html.Div("Details", id="goal-ctx-details", className="ctx-menu-item"),
+            html.Div("Active", id="goal-ctx-toggle-active", className="ctx-menu-item"),
             html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Set Priority 1", id="goal-ctx-set-1", className="ctx-menu-item"),
@@ -1056,6 +1064,40 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='group-delete-pending-store', data=None),
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
+        # Written by dispatch_active_toggle after a direct DB flip of the
+        # `active` flag — feeds core_engine so the canvas re-renders to show
+        # the new amber border.
+        dcc.Input(id='node-active-trigger-input', type='text', value='', style={'display': 'none'}),
+        # Written by context-menu "Active" items (canvas + goal sidebar)
+        # carrying a JSON list of node names + timestamp. A dedicated callback
+        # flips active for each named node and re-bumps node-active-trigger-
+        # input to refresh the canvas.
+        dcc.Input(id='toggle-active-trigger-input', type='text', value='', style={'display': 'none'}),
+        # Bumped by both the editor dispatcher and the context-menu handler
+        # whenever an activation is refused for hitting ACTIVE_NODE_CAP.
+        # show_active_cap_toast listens and pops a transient warning toast.
+        dcc.Input(id='active-cap-refused-trigger', type='text', value='', style={'display': 'none'}),
+        # Transient "active cap reached" toast — auto-dismisses after 5s.
+        # Fixed top-right, anchored just below the tab bar (the row holding
+        # the Filters / Calibration / Settings icons sits at ~48px tall, so
+        # top:60px clears it with a touch of breathing room). zIndex above
+        # context menus (10000–10002).
+        dbc.Toast(
+            "3 active nodes is the cap. Deactivate one to make room.",
+            id="active-cap-toast",
+            header="Active Cap Reached",
+            is_open=False,
+            duration=5000,
+            dismissable=True,
+            icon="warning",
+            style={
+                "position": "fixed",
+                "top": "60px",
+                "right": "20px",
+                "minWidth": "320px",
+                "zIndex": 10010,
+            },
+        ),
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='pending-navigation-store', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
