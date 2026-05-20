@@ -976,6 +976,7 @@ def build_app_layout(initial_elements, env="production"):
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button(html.I(className="bi bi-gear"), id="btn-settings-toggle", color="secondary", size="sm", className="ms-2"),
             dbc.Tooltip("Settings", target="btn-settings-toggle", placement="bottom",
+                        trigger="hover",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
