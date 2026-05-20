@@ -311,10 +311,10 @@
             cyWrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });
         }
 
-        // --- Right-click context menu on Next-tab suggestion rows ---
+        // --- Right-click context menu on Next-tab suggestion rows and Now cards ---
         // Document-level delegation survives Dash re-renders of the table.
         document.addEventListener('contextmenu', function (evt) {
-            var rowEl = evt.target.closest && evt.target.closest('.suggestion-bar-row');
+            var rowEl = evt.target.closest && (evt.target.closest('.suggestion-bar-row') || evt.target.closest('.now-card'));
             if (!rowEl) return;
             var nodeName = null;
             try {

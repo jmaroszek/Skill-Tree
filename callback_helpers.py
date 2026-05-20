@@ -15,7 +15,7 @@ import plotly.graph_objects as go
 
 logger = logging.getLogger(__name__)
 
-from config import BADGE_PALETTE, ConfigManager
+from config import BADGE_PALETTE, ConfigManager, badge_style
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_DONE
 
 
@@ -1034,39 +1034,18 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             },  # type: ignore[reportArgumentType]
         ))
 
-    bar_list = html.Div(rows, style={"flex": "4 1 0", "minWidth": "0"})
+    bar_list = html.Div(rows, style={"flex": "1", "minWidth": "0"})
 
-    node = None
-    if selected_node_id:
-        node = next((n for n in suggs if n.name == selected_node_id), None)
-        if not node:
-            node = manager.get_node(selected_node_id)
-
-    if not selected_node_id:
-        desc_content = "Click a row to see its description"
-    else:
-        desc_content = node.description.strip() if node and node.description and node.description.strip() else "None"
-
-    desc_area = html.Div([
-        html.H6("Description", className="text-muted mb-2", style=SECTION_TITLE_STYLE),
-        html.Div(desc_content, style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
-    ], style={"flex": "1 1 0", "minWidth": "200px", "maxWidth": "800px"})
-
-    table_row = html.Div([bar_list, desc_area], style={
-        "display": "flex", "alignItems": "flex-start", "gap": "4rem",
-    })
-
-    return [table_row]
+    return [bar_list]
 
 
 def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=None):
-    """Render the 'Now' section for the Next tab.
+    """Render the 'Now' section for the Next tab as a row of rich cards.
 
-    Returns a list of components: a "Now" heading and a row per currently-
-    active node. Designed to sit above the Next/Suggestions table. Rows show
-    rank → name+context → time + V/I/E micro-chart + link dots; the priority
-    bar from format_suggestions_table is intentionally omitted (no useful
-    cross-ranking among the ≤3 things the user is already doing).
+    Each active node gets a wide horizontal card with a left accent bar in
+    the node's type color, the name + context/subcontext, a type badge pill,
+    time estimate, V/I/E micro-chart, and Obsidian/Drive/Website link dots.
+    Cards sit in a responsive flex row (1–3 items).
 
     When there are no active nodes the section is suppressed entirely —
     return [] so the Next heading sits at the top of the tab.
@@ -1079,27 +1058,23 @@ def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=Non
 
     heading = html.Div([
         html.H6("Now", className="text-muted mb-0", style=SECTION_TITLE_STYLE),
-    ], className="d-flex align-items-center mb-2", style={"gap": "12px"})
+    ], className="d-flex align-items-center mb-3", style={"gap": "12px"})
 
-    name_col_width = 250
-    rows = []
-    for rank, n in enumerate(active_nodes, start=1):
+    cards = []
+    for n in active_nodes:
         is_selected = (n.name == selected_node_id)
         eff_time = manager.get_effective_time(n.name)
+        accent_color = BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]
 
-        rank_col = html.Div(
-            str(rank),
-            style={
-                "fontFamily": _MONO_FONT, "fontSize": "20px",
-                "color": "#6c757d", "textAlign": "center",
-                "lineHeight": "1",
-            },
-        )
-
+        # --- Context / subcontext line ---
         ctx_text = str(n.context) if n.context else ""
         sub_text = str(n.subcontext) if n.subcontext else ""
         if ctx_text and sub_text:
-            ctx_children = [html.Span(ctx_text), html.Span("·", style={"opacity": 0.5, "padding": "0 4px"}), html.Span(sub_text)]
+            ctx_children = [
+                html.Span(ctx_text),
+                html.Span("·", style={"opacity": 0.5, "padding": "0 4px"}),
+                html.Span(sub_text),
+            ]
         elif ctx_text:
             ctx_children = [html.Span(ctx_text)]
         elif sub_text:
@@ -1107,68 +1082,86 @@ def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=Non
         else:
             ctx_children = []
 
-        name_col = html.Div([
+        # --- Time estimate ---
+        time_label = html.Span(
+            ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
+            style={"color": "#adb5bd", "fontSize": "17px",
+                   "fontFamily": _MONO_FONT, "fontWeight": "500",
+                   "flexShrink": "0"},
+        )
+
+        # --- Top row: name + time ---
+        top_row = html.Div([
             html.Div(
                 html.Span(
                     n.name,
-                    style={"fontSize": "14.5px", "color": "#dee2e6", "lineHeight": "1.35"},
+                    style={"fontSize": "18px", "color": "#dee2e6",
+                           "fontWeight": "700", "lineHeight": "1.3"},
                 ),
                 style={"minWidth": 0, "overflow": "hidden", "whiteSpace": "nowrap",
-                       "textOverflow": "ellipsis", "lineHeight": "1.35", "marginBottom": "1px"},
+                       "textOverflow": "ellipsis", "flex": "1"},
             ),
-            html.Div(ctx_children, style={
-                "fontSize": "12px", "color": "#6c757d", "fontFamily": _MONO_FONT,
-                "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
-                "lineHeight": "1.35",
-            }),
-        ], style={"minWidth": 0, "overflow": "hidden"})
-
-        time_label = html.Span(
-            ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
-            style={"color": "#adb5bd", "minWidth": "52px", "textAlign": "right",
-                   "fontSize": "15px"},
-        )
-
-        v_val = n.value if n.value is not None else 0
-        i_val = getattr(n, 'interest', None) if getattr(n, 'interest', None) is not None else 0
-        e_val = n.difficulty if n.difficulty is not None else 0
-        micro_chart = html.Span([
-            _suggestion_micro_bar(v_val, "Value"),
-            _suggestion_micro_bar(i_val, "Interest"),
-            _suggestion_micro_bar(e_val, "Effort"),
-        ], style={"display": "inline-flex", "alignItems": "flex-end",
-                  "gap": "3px", "height": "22px"})
-
-        dots = html.Span([
-            _suggestion_dot(bool(getattr(n, 'obsidian_path', None)), "Obsidian", "#dee2e6"),
-            _suggestion_dot(bool(getattr(n, 'google_drive_path', None)), "Drive", "#dee2e6"),
-            _suggestion_dot(bool(getattr(n, 'website', None)), "Website", "#dee2e6"),
-        ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
-
-        meta_col = html.Div([time_label, micro_chart, dots], style={
-            "display": "flex", "alignItems": "center", "gap": "32px",
-            "fontFamily": _MONO_FONT, "fontSize": "11px",
+            time_label,
+        ], style={
+            "display": "flex", "alignItems": "baseline", "gap": "12px",
+            "marginBottom": "4px",
         })
 
-        row_style = {
-            "display": "grid",
-            "gridTemplateColumns": f"32px {name_col_width}px 1fr auto",
-            "alignItems": "center",
-            "gap": "14px",
-            "padding": "9px 12px",
-            "borderBottom": "1px solid #343a40",
-        }
-        if is_selected:
-            row_style["backgroundColor"] = "#2b3035"
+        # --- Context subtitle ---
+        ctx_line = html.Div(ctx_children, style={
+            "fontSize": "12.5px", "color": "#6c757d", "fontFamily": _MONO_FONT,
+            "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
+            "lineHeight": "1.35",
+            "minHeight": "17px",
+        }) if ctx_children else html.Div(style={"minHeight": "17px"})
 
-        rows.append(html.Div(
-            [rank_col, name_col, meta_col],
+        # --- Card body (right of the accent bar) ---
+        card_body = html.Div(
+            [top_row, ctx_line],
+            style={"flex": "1", "minWidth": 0, "overflow": "hidden"},
+        )
+
+        # --- Accent bar (left edge) ---
+        accent_bar = html.Div(style={
+            "width": "4px",
+            "borderRadius": "2px",
+            "backgroundColor": accent_color,
+            "alignSelf": "stretch",
+            "flexShrink": "0",
+        })
+
+        # --- Card container ---
+        card_style = {
+            "display": "flex",
+            "gap": "14px",
+            "padding": "16px 20px",
+            "borderRadius": "6px",
+            "backgroundColor": "#2b3035" if is_selected else "#212529",
+            "border": f"2px solid #0d6efd" if is_selected else "1px solid #495057",
+            "cursor": "pointer",
+            "transition": "background-color 0.2s, border-color 0.2s",
+            "flex": "0 0 310px",
+            "width": "310px",
+        }
+
+        cards.append(html.Div(
+            [accent_bar, card_body],
             id={"type": "active-row", "index": n.name},
-            className="suggestion-bar-row",
-            style=row_style,
+            className="now-card",
+            style=card_style,
+            **{
+                "data-obsidian-path": n.obsidian_path or "",
+                "data-google-drive-path": n.google_drive_path or "",
+            },  # type: ignore[reportArgumentType]
         ))
 
-    return [heading, html.Div(rows, style={"marginBottom": "2.5rem"})]
+    cards_row = html.Div(cards, style={
+        "display": "flex",
+        "gap": "1rem",
+        "marginBottom": "1.5rem",
+    })
+
+    return [heading, cards_row]
 
 
 def format_traversal_ui(tapped_node, active_node_id, manager):

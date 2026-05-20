@@ -108,30 +108,45 @@ description_view = html.Div([
 
 next_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=10),
+    
     # "Now" section — currently-active nodes (cap = ACTIVE_NODE_CAP).
     # Heading + rows are emitted together by populate_now_section. The
     # section collapses to zero height when there are no active nodes, so
-    # the Next heading floats to the top of the tab. No outer margin —
-    # format_active_nodes_section adds its own bottom spacing when filled.
+    # the Next heading floats to the top of the tab.
     html.Div(id="active-nodes-table"),
+    
     html.Div([
         html.H6("Next", className="text-muted mb-0", style=_section_title_style),
         dbc.ButtonGroup([
-            dbc.Button("−", id="btn-sugg-minus", color="secondary", size="sm",
-                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
+            dbc.Button("−", id="btn-sugg-minus", color="link", size="sm",
+                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 6px",
+                              "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
             html.Span(id="suggestion-count-display", children="10",
-                       className="align-self-center mx-2",
+                       className="align-self-center mx-1",
                        style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
                               "textAlign": "center"}),
-            dbc.Button("+", id="btn-sugg-plus", color="secondary", size="sm",
-                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 8px"}),
+            dbc.Button("+", id="btn-sugg-plus", color="link", size="sm",
+                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 6px",
+                              "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
         ], className="align-middle"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
+    
     dcc.Store(id='selected-suggestion-store', data=None),
     dcc.Store(id='focus-goal-store', data=None),
-    html.Div(id="suggestions-table", children=[
-        html.P("Loading suggestions...", className="text-muted mt-3")
-    ]),
+    
+    # Next Table and Description side-by-side
+    html.Div([
+        html.Div(id="suggestions-table", children=[
+            html.P("Loading suggestions...", className="text-muted mt-3")
+        ], style={"flex": "4 1 0", "minWidth": 0}),
+        
+        # Description area — populated when clicking a Now card or Next row.
+        html.Div(id="next-description-area", children=[
+            html.H6("Description", className="text-muted mb-2", style=_section_title_style),
+            html.Div("Click a card or row to see its description",
+                     style={"color": "#6c757d", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
+        ], style={"flex": "1 1 0", "maxWidth": "800px"}),
+    ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
 ])
 
 
@@ -839,6 +854,7 @@ def build_app_layout(initial_elements, env="production"):
         children=[
             html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
             html.Div("Explain", id="ctx-menu-explain", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
             html.Div("Details", id="ctx-menu-details", className="ctx-menu-item"),
             html.Div("Event", id="ctx-menu-add-to-event", className="ctx-menu-item"),
             html.Hr(id="ctx-menu-links-divider", style={"margin": "2px"}),
@@ -940,8 +956,8 @@ def build_app_layout(initial_elements, env="production"):
             active_tab="tab-next",
             children=[
                 dbc.Tab(label="Next", tab_id="tab-next"),
-                dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Nodes", tab_id="tab-canvas"),
+                dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
                 dbc.Tab(label="Analyze", tab_id="tab-analyze"),
             ],

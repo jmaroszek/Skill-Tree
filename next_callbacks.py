@@ -3,10 +3,10 @@ Callback definitions for the Next tab (priority suggestions).
 """
 
 import dash
-from dash import Input, Output, State, ALL, ctx
+from dash import Input, Output, State, ALL, ctx, html
 from graph_manager import GraphManager
 from config import ConfigManager, ACTIVE_NODE_CAP
-from callback_helpers import get_trigger_id, format_active_nodes_section
+from callback_helpers import get_trigger_id, format_active_nodes_section, SECTION_TITLE_STYLE
 from models import STATUS_DONE
 
 manager = GraphManager()
@@ -121,14 +121,15 @@ def register_next_callbacks(app):
             count = max(1, count - 1)
         return count, str(count)
 
-    # --- Suggestion Row Selection ---
+    # --- Suggestion Row / Now Card Selection ---
     @app.callback(
         Output('selected-suggestion-store', 'data'),
         Input({'type': 'suggestion-row', 'index': ALL}, 'n_clicks'),
+        Input({'type': 'active-row', 'index': ALL}, 'n_clicks'),
         prevent_initial_call=True
     )
-    def update_selected_suggestion(n_clicks_list):
-        if not any(n_clicks_list):
+    def update_selected_suggestion(sugg_clicks, active_clicks):
+        if not any(sugg_clicks or []) and not any(active_clicks or []):
             return dash.no_update
         trigger_id = ctx.triggered_id
         if trigger_id and isinstance(trigger_id, dict) and 'index' in trigger_id:
@@ -152,3 +153,29 @@ def register_next_callbacks(app):
             manager=manager,
             selected_node_id=selected_node_id,
         )
+
+    # --- Description area: populate from selected suggestion/card ---
+    @app.callback(
+        Output('next-description-area', 'children'),
+        Input('selected-suggestion-store', 'data'),
+        Input('graph-version-store', 'data'),
+    )
+    def populate_description_area(selected_node_id, _version):
+        title = html.H6("Description", className="text-muted mb-2",
+                        style=SECTION_TITLE_STYLE)
+        if not selected_node_id:
+            return [
+                title,
+                html.Div("Click a card or row to see its description",
+                         style={"color": "#6c757d", "whiteSpace": "pre-wrap",
+                                "fontSize": "0.95rem"}),
+            ]
+        node = manager.get_node(selected_node_id)
+        desc = (node.description.strip()
+                if node and node.description and node.description.strip()
+                else "No description")
+        return [
+            title,
+            html.Div(desc, style={"color": "#dee2e6", "whiteSpace": "pre-wrap",
+                                  "fontSize": "0.95rem"}),
+        ]

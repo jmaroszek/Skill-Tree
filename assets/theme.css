@@ -388,6 +388,13 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     background-color: rgba(255, 255, 255, 0.025);
 }
 
+/* --- Next tab — Now section cards --- */
+
+.now-card:hover {
+    background-color: #2b3035 !important;
+    border-color: #6c757d !important;
+}
+
 /* --- Type-adaptive editor section transitions --- */
 
 #section-done-time,
