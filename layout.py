@@ -151,10 +151,6 @@ next_view = html.Div([
 ])
 
 
-
-
-
-
 # --- Migration Modal ---
 
 def _orphan_name_label(n):
