@@ -379,7 +379,7 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
 
 .ctx-menu-caret {
     color: #adb5bd;
-    font-size: 0.85rem;
+    font-size: 1.1rem;
     margin-left: 12px;
     line-height: 1;
 }
