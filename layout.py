@@ -913,20 +913,25 @@ def build_app_layout(initial_elements, env="production"):
     )
 
     # --- Goal sidebar: right-click context menu ---
+    # Section layout mirrors the canvas context menu so right-click feels
+    # consistent app-wide: edit/explain → navigation → priority → state/delete.
     goal_context_menu = html.Div(
         id="goal-context-menu",
         children=[
             html.Div("Edit", id="goal-ctx-edit", className="ctx-menu-item"),
             html.Div("Explain", id="goal-ctx-explain", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
             html.Div("Details", id="goal-ctx-details", className="ctx-menu-item"),
-            html.Div("Active", id="goal-ctx-toggle-active", className="ctx-menu-item"),
-            html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
+            html.Div("Event", id="goal-ctx-event", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Set Priority 1", id="goal-ctx-set-1", className="ctx-menu-item"),
             html.Div("Set Priority 2", id="goal-ctx-set-2", className="ctx-menu-item"),
             html.Div("Set Priority 3", id="goal-ctx-set-3", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
             html.Div("Clear Priority", id="goal-ctx-clear", className="ctx-menu-item"),
+            html.Hr(style={"margin": "2px"}),
+            html.Div("Active", id="goal-ctx-toggle-active", className="ctx-menu-item"),
+            html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
+            html.Div("Delete", id="goal-ctx-delete", className="ctx-menu-item ctx-menu-item-danger"),
         ],
         style={**_floating_menu_style, "minWidth": "180px"},
     )

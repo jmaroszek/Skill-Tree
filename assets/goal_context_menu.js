@@ -154,6 +154,18 @@
             setHiddenInput('toggle-done-trigger-input',
                 JSON.stringify([name]) + '|' + Date.now());
         });
+        bindMenuItem('goal-ctx-event', function (name) {
+            // Routes to the same hidden input the canvas "Event" item uses —
+            // opens the add-to-event modal pre-populated with this goal.
+            setHiddenInput('dormant-existing-trigger-input',
+                JSON.stringify([name]));
+        });
+        bindMenuItem('goal-ctx-delete', function (name) {
+            // Routes to the same hidden input the canvas "Delete" item uses —
+            // opens the group-delete confirmation modal.
+            setHiddenInput('group-delete-request-input',
+                JSON.stringify([name]) + '|' + Date.now());
+        });
         bindMenuItem('goal-ctx-set-1', setPriority('1'));
         bindMenuItem('goal-ctx-set-2', setPriority('2'));
         bindMenuItem('goal-ctx-set-3', setPriority('3'));
