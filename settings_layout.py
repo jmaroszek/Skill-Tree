@@ -348,24 +348,18 @@ def _build_scoring_tab():
             ], className="mt-2"),
             # Descriptions row — Bootstrap flex makes all cols equal height
             dbc.Row([
-                dbc.Col(html.Small([
-                    html.Span("IV = w_v · V + w_i · I",
-                              style={"fontFamily": "monospace"}),
-                    html.Br(),
+                dbc.Col(html.Small(
                     "The node's worth on its own, before any cascade or synergy.",
-                ], className="text-muted")),
+                    className="text-muted")),
                 dbc.Col(html.Small(
                     "Fraction of value kept per cascade hop along prerequisite edges. Hard edges propagate more strongly than Soft.",
                     className="text-muted")),
                 dbc.Col(html.Small(
                     "Pending Bonus: additive boost each partner gets before either is done. Done Multiplier: multiplicative boost the other gets when one is done.",
                     className="text-muted")),
-                dbc.Col(html.Small([
-                    html.Span("C = 1 + w_e · E + w_t · T^β",
-                              style={"fontFamily": "monospace"}),
-                    html.Br(),
-                    "β controls the time penalty. At β = 1, a 4× longer task costs 4× more. Lower β softens this so long tasks don't carry proportional cost.",
-                ], className="text-muted")),
+                dbc.Col(html.Small(
+                    "Effort and time weights are linear. The time dampener (β) is exponential; a lower β softens the penalty for long tasks.",
+                    className="text-muted")),
             ], className="mb-2"),
             # Row 1
             dbc.Row([
