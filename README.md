@@ -1,13 +1,6 @@
 # Skill Tree
 
-
 ![Python 3.10](https://img.shields.io/badge/Python-3.10-blue) ![Dash](https://img.shields.io/badge/Dash-Plotly-purple) ![SQLite](https://img.shields.io/badge/Database-SQLite-green)
-
-# Meta 
-- I have not talked about the goals sidebar yet. I am not sure where to introduce that. 
-  - Also the annoucement feature where the app asks you if you want to mark a goal done after its last hard prereq is done
-
----
 
 # Contents
 
@@ -25,7 +18,7 @@ Five factors, three roles. Value and interest are the benefits. Time and difficu
 
 My advice: start at the fundamentals or you will have to start over. And there is nothing more fundamental than deciding what you should do and why. That is the one and only purpose of Skill Tree. 
 
-## The Failure of To-Do Lists and Other Project Management Tools
+## The Failure of Other Project Management Tools
 Every project management tool I've used has assumed the hard part is execution. It is not. The hard part is deciding what to do. 
 
 [example]
@@ -557,17 +550,50 @@ Pick a detection method, then a specific community from the list. Community name
 The Next tab tells you *what* to work on. The Details tab is where you go afterward to actually understand the thing — what it depends on, how far along it is, how long it will take, and why the algorithm scored it the way it did.
 
 ## Populating the Details Tab with Data
-The Details tab is empty by default, because it doesn't know what you want details *for*. There are three ways to tell it:
+The Details tab is empty by default, because it doesn't know what you want details *for*. There are four ways to tell it:
 
 | Path | How it works |
 |---|---|
 | Search | Type a node name into the search bar at the top of the left panel. Best when you already have a specific project in mind. |
 | Click a suggestion | When nothing is selected, the left panel shows a suggestion list so you always have a starting point. It has up to three sections: a **Manual Override** (if one is active), your top three **Priority Goals**, and five **Top Recommendations** — the [containers](#containers) with the highest total value. |
 | Jump from another tab | On the Next or Nodes tab, open a node's [context menu](#context-menu) and click **Details**. The app switches here with that node already loaded. |
+| Pick from the Goals sidebar | Open the Goals sidebar (star icon, top-left) and click any goal card. The Details tab loads that goal. See [Goals Sidebar](#goals-sidebar) below. |
 
 **Big Picture Screenshot of the details tab with a node selected**
 
 Once a node is loaded, the tab is divided into four panels: the **Node Information** panel and **Mini-Canvas** on top, the **Subtasks** table and **Time Simulation** chart below. Let's go through them one by one.
+
+## Goals Sidebar
+Most node types — Learn, Action, Resource — are ranked the way the Next tab handles everything else: the algorithm scores them and the top of the list bubbles up. Goals are different. Because a Goal sits at the top of a subtree rather than being a discrete piece of work, the algorithm doesn't recommend Goals directly. Instead, *you* decide which Goals matter most right now, and the app uses that ranking to bias the rest of the graph through the [Goal Priority Boost](#goal-priority-boosts). This is what the Goals sidebar is for.
+
+Open the sidebar from the star icon in the top-left of the app. It lists every Goal in the graph as a card showing the Goal's name, its rank (if any), a status badge, and a stats line — completion percentage, hard-subtask count, and remaining time. Click a card to load that Goal into the Details tab.
+
+**[SCREENSHOT: the Goals sidebar open with priority goals at the top.]**
+
+### Setting priority Goals
+Your top three Goals are the **Priority Goals**, and they're what the algorithm boosts. There are two ways to set them. The most direct is the **rank badge** on each card — click the gold "1", "2", or "3" badge (or the empty slot where it would be) to open a small popover with Priority 1 / 2 / 3 / Clear. The other way is the **context menu**, covered below.
+
+### The context menu
+Right-click any goal card to open its context menu. The items mirror the canvas context menu so the experience is consistent — same sections, same order — with a priority section dropped in the middle:
+
+| Section | Items | What they do |
+|---|---|---|
+| Edit | Edit, Explain | Open the node editor in place, or open the [Explain modal](#explain-modal) for this Goal. |
+| Navigate | Details, Event | Load the Goal into the Details tab, or wrap it into an event as a dormant node. |
+| Priority | Set Priority 1 / 2 / 3, Clear Priority | Set or clear this Goal's priority rank. |
+| State | Active, Done, Delete | Flip the Goal back to Active, mark it Done, or delete it. |
+
+### Sorting
+The sort dropdown above the list controls the card order. Four modes:
+
+| Mode | Order |
+|---|---|
+| Priority | Your three Priority Goals first (in rank order), then every other Goal by its scored priority. The default. |
+| Time | Goals with the most remaining time first — useful for spotting your heaviest open commitments. |
+| Manual | A custom order you set by dragging the cards. The drag handle appears on each card whenever this mode is active. |
+| Alphabetical | A→Z by name. |
+
+The **+** next to the "Goals" header creates a brand-new Goal and opens it in the editor.
 
 ## Node Information Panel
 The left panel provides a summary for the selected node. Most of the information is self explanatory, but there are a few unique things to point out. 
@@ -708,7 +734,18 @@ This is the leverage view. A large bottleneck may not be the highest ROI item by
 
 The Contexts section shows a **Ratings** heatmap for active nodes grouped by context. This is a quick taste check. A context with high Value and low Interest may represent duty-heavy work. A context with high Interest and low Value may be a play/exploration area. A high Difficulty column is not a problem by itself, but it is a warning that the app may be accurately recommending less from that context unless the value, interest, or prerequisite cascade compensates.
 
-# Settings Modal
+# Settings
+The Settings modal is where you tune how the app looks, scores, and behaves. It's organized into five tabs, each grouping a different kind of knob. I've already touched on most of the interesting settings in the relevant sections above — this is just a map of where to find them.
+
+| Tab | What lives here |
+|---|---|
+| Appearance | Visual customization — node colors and shapes per type, badge colors, and a handful of convienences, like the name linter. |
+| Contexts | Add, rename, delete, and reorder contexts. The powerful context migration feature makes this process easy. You will not have to go back and re-edit each node manually. |
+| Scoring | Contains the [scoring algorithm's](#scoring) hyperparameters, [profile selector](#scoring-profiles), and controls for benchmarking the algorithms performance.  |
+| Time | This is where you enter how much time you have to work on projects for any given time interval (week, month, year). You can also choose whether the app populates newly create nodes with any default value you choose.  |
+| Paths | Local filesystem paths. This is how the Obsidian and Google Drive integrations work. |
+
+Most settings are safe to experiment with — none of them touch your graph data, and the Scoring tab in particular is built for fiddling. If you ever wander too far, every tab has a "reset to defaults" option
 
 # Next Steps
 | If you want… | Go to |
