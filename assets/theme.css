@@ -364,6 +364,60 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     color: #e08585;
 }
 
+/* --- Submenu (flyout) on a context-menu item -------------------------- */
+/* The parent row anchors the submenu; the caret hints that hovering will
+   reveal more. goal_context_menu.js flips left/right via a class when the
+   submenu would render off-screen, and a small JS timeout tolerates the
+   diagonal mouse drift between parent and submenu. */
+
+.ctx-menu-submenu-parent {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ctx-menu-caret {
+    color: #adb5bd;
+    font-size: 0.85rem;
+    margin-left: 12px;
+    line-height: 1;
+}
+
+.ctx-menu-submenu {
+    display: none;
+    position: absolute;
+    top: -1px;            /* 1px overlap bridges the hover gap between menus */
+    left: 100%;
+    margin-left: 0;       /* shared edge — no horizontal gap to drift across */
+    background-color: #2b3035;
+    border: 1px solid #495057;
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 160px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    z-index: 1;
+}
+
+/* Flip the submenu to the left when there's no room on the right;
+   goal_context_menu.js toggles this class on hover based on viewport space. */
+.ctx-menu-submenu-parent.ctx-menu-submenu-flip .ctx-menu-submenu {
+    left: auto;
+    right: 100%;
+}
+
+.ctx-menu-submenu-parent:hover > .ctx-menu-submenu,
+.ctx-menu-submenu-parent.ctx-menu-submenu-open > .ctx-menu-submenu {
+    display: block;
+}
+
+/* Keep the parent row visually "active" while its submenu is open, so the
+   user doesn't see the highlight drop the moment they cross into the submenu. */
+.ctx-menu-submenu-parent.ctx-menu-submenu-open {
+    background-color: #495057;
+    color: #fff;
+}
+
 /* --- Goal sidebar rank trigger (clickable rank badge) --- */
 
 .goal-rank-trigger {

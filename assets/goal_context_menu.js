@@ -119,6 +119,52 @@
         window.addEventListener('blur', hideAll);
         window.addEventListener('resize', hideAll);
 
+        // --- Submenu flip + hover-gap tolerance ---
+        // Pure CSS handles the open-on-hover case, but two things still need
+        // JS: (1) flip left vs right when the submenu would render off-screen,
+        // and (2) keep the submenu open for ~150ms after the mouse leaves the
+        // parent so a diagonal drift toward the submenu doesn't close it.
+        var priorityParent = document.getElementById('goal-ctx-priority-parent');
+        var prioritySubmenu = document.getElementById('goal-ctx-priority-submenu');
+        if (priorityParent && prioritySubmenu) {
+            var openTimer = null;
+            var closeTimer = null;
+
+            function openSubmenu() {
+                if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+                // Decide flip direction by measuring against the viewport.
+                // Reset the flip class first so the natural rect is right-side.
+                priorityParent.classList.remove('ctx-menu-submenu-flip');
+                var parentRect = priorityParent.getBoundingClientRect();
+                // Submenu may be display:none until the class flips it on, so
+                // we read its intrinsic min-width from the CSS-driven measure
+                // by temporarily forcing layout via offsetWidth on a clone-free
+                // path: just use a conservative width estimate.
+                var submenuWidth = prioritySubmenu.offsetWidth || 170;
+                if (parentRect.right + submenuWidth > window.innerWidth - 4) {
+                    priorityParent.classList.add('ctx-menu-submenu-flip');
+                }
+                priorityParent.classList.add('ctx-menu-submenu-open');
+            }
+
+            function scheduleClose() {
+                if (openTimer) { clearTimeout(openTimer); openTimer = null; }
+                if (closeTimer) clearTimeout(closeTimer);
+                closeTimer = setTimeout(function () {
+                    priorityParent.classList.remove('ctx-menu-submenu-open');
+                    closeTimer = null;
+                }, 150);
+            }
+
+            priorityParent.addEventListener('mouseenter', openSubmenu);
+            priorityParent.addEventListener('mouseleave', scheduleClose);
+            // Hovering the submenu itself counts as still being inside.
+            prioritySubmenu.addEventListener('mouseenter', function () {
+                if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+            });
+            prioritySubmenu.addEventListener('mouseleave', scheduleClose);
+        }
+
         // --- Rank popover items ---
         function setPriority(rank) {
             return function (name) {

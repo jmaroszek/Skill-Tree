@@ -915,6 +915,8 @@ def build_app_layout(initial_elements, env="production"):
     # --- Goal sidebar: right-click context menu ---
     # Section layout mirrors the canvas context menu so right-click feels
     # consistent app-wide: edit/explain → navigation → priority → state/delete.
+    # The Priority section is a single parent row with a hover-out submenu;
+    # CSS handles the flyout and goal_context_menu.js handles off-screen flip.
     goal_context_menu = html.Div(
         id="goal-context-menu",
         children=[
@@ -924,10 +926,24 @@ def build_app_layout(initial_elements, env="production"):
             html.Div("Details", id="goal-ctx-details", className="ctx-menu-item"),
             html.Div("Event", id="goal-ctx-event", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
-            html.Div("Set Priority 1", id="goal-ctx-set-1", className="ctx-menu-item"),
-            html.Div("Set Priority 2", id="goal-ctx-set-2", className="ctx-menu-item"),
-            html.Div("Set Priority 3", id="goal-ctx-set-3", className="ctx-menu-item"),
-            html.Div("Clear Priority", id="goal-ctx-clear", className="ctx-menu-item"),
+            html.Div(
+                id="goal-ctx-priority-parent",
+                className="ctx-menu-item ctx-menu-submenu-parent",
+                children=[
+                    html.Span("Set Priority"),
+                    html.Span("▸", className="ctx-menu-caret"),
+                    html.Div(
+                        id="goal-ctx-priority-submenu",
+                        className="ctx-menu-submenu",
+                        children=[
+                            html.Div("Set Priority 1", id="goal-ctx-set-1", className="ctx-menu-item"),
+                            html.Div("Set Priority 2", id="goal-ctx-set-2", className="ctx-menu-item"),
+                            html.Div("Set Priority 3", id="goal-ctx-set-3", className="ctx-menu-item"),
+                            html.Div("Clear Priority", id="goal-ctx-clear", className="ctx-menu-item"),
+                        ],
+                    ),
+                ],
+            ),
             html.Hr(style={"margin": "2px"}),
             html.Div("Active", id="goal-ctx-toggle-active", className="ctx-menu-item"),
             html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
