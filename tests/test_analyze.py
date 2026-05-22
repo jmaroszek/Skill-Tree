@@ -410,6 +410,183 @@ class TestComputeGoalComparison:
 
 
 # ============================================================================
+# _rank_goals — Goal-level density normalization (alpha_goal)
+# ============================================================================
+
+class TestGoalDensityNormalization:
+    """Goal scores are damped by a delta_g = 1 / max(1, |B_goals|)^alpha_goal
+    correction, mirroring the leaf-node alpha density correction. Buckets are
+    keyed by (context, subcontext) and count open Goals only.
+    """
+
+    def _rank_with(self, mgr, hp_overrides=None):
+        """Helper: get _rank_goals component dicts keyed by Goal name, with
+        an optional hp_overrides dict patched onto the default hyperparams.
+        """
+        nodes = mgr.get_all_nodes()
+        edges = mgr.get_edges()
+        hp = ConfigManager.get_hyperparams()
+        if hp_overrides:
+            hp = {**hp, **hp_overrides}
+        from analyze_callbacks import _rank_goals
+        return {
+            g.name: c for g, c in _rank_goals(
+                [n for n in nodes if n.type == 'Goal'],
+                nodes, edges,
+                ConfigManager.get_priority_goals(), hp,
+                with_components=True,
+            )
+        }
+
+    def test_solo_goal_in_bucket_unaffected(self, mgr):
+        """A Goal alone in its (ctx, subctx) bucket gets density_mult = 1.0."""
+        _setup_graph(mgr, [
+            _make_node("G", type="Goal", time_mode='inherited',
+                       value=5, interest=5, context="STEM", subcontext="Math"),
+        ])
+        comps = self._rank_with(mgr)
+        assert comps["G"]["bucket_count"] == 1
+        assert comps["G"]["density_mult"] == pytest.approx(1.0)
+
+    def test_sibling_goals_in_same_bucket_damped(self, mgr):
+        """Multiple open Goals sharing (ctx, subctx) get damped together."""
+        _setup_graph(mgr, [
+            _make_node(f"G{i}", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math")
+            for i in range(4)
+        ])
+        comps = self._rank_with(mgr)
+        for i in range(4):
+            assert comps[f"G{i}"]["bucket_count"] == 4
+            # 4 ** -0.20 ≈ 0.7579
+            assert comps[f"G{i}"]["density_mult"] == pytest.approx(4 ** -0.20)
+
+    def test_alpha_goal_zero_disables(self, mgr):
+        """alpha_goal=0 returns density_mult=1.0 regardless of bucket size."""
+        _setup_graph(mgr, [
+            _make_node(f"G{i}", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math")
+            for i in range(5)
+        ])
+        comps = self._rank_with(mgr, hp_overrides={'alpha_goal': 0.0})
+        for i in range(5):
+            assert comps[f"G{i}"]["density_mult"] == pytest.approx(1.0)
+
+    def test_done_goals_excluded_from_bucket_count(self, mgr):
+        """A Done Goal doesn't crowd its bucketmates."""
+        _setup_graph(mgr, [
+            _make_node("Open1", type="Goal", time_mode='inherited',
+                       value=5, interest=5, status="Open",
+                       context="STEM", subcontext="Math"),
+            _make_node("Open2", type="Goal", time_mode='inherited',
+                       value=5, interest=5, status="Open",
+                       context="STEM", subcontext="Math"),
+            _make_node("DoneOne", type="Goal", time_mode='inherited',
+                       value=5, interest=5, status="Done",
+                       context="STEM", subcontext="Math"),
+        ])
+        comps = self._rank_with(mgr)
+        # Bucket sees Open1 + Open2 only; Done is excluded.
+        assert comps["Open1"]["bucket_count"] == 2
+        assert comps["Open2"]["bucket_count"] == 2
+
+    def test_different_subcontexts_dont_share_bucket(self, mgr):
+        """Same context but different subcontext = different buckets."""
+        _setup_graph(mgr, [
+            _make_node("GMath", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math"),
+            _make_node("GPhys", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Physics"),
+        ])
+        comps = self._rank_with(mgr)
+        assert comps["GMath"]["bucket_count"] == 1
+        assert comps["GPhys"]["bucket_count"] == 1
+        assert comps["GMath"]["density_mult"] == pytest.approx(1.0)
+        assert comps["GPhys"]["density_mult"] == pytest.approx(1.0)
+
+    def test_none_subcontext_is_its_own_bucket(self, mgr):
+        """Goals with explicit subcontext=None form a single bucket, distinct
+        from Goals in named subcontexts within the same context."""
+        _setup_graph(mgr, [
+            _make_node("GBroad1", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext=None),
+            _make_node("GBroad2", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext=None),
+            _make_node("GMath", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math"),
+        ])
+        comps = self._rank_with(mgr)
+        assert comps["GBroad1"]["bucket_count"] == 2
+        assert comps["GBroad2"]["bucket_count"] == 2
+        assert comps["GMath"]["bucket_count"] == 1
+
+    def test_scored_nodes_dont_inflate_goal_bucket(self, mgr):
+        """Leaf-node siblings in the same (ctx, subctx) don't count toward the
+        Goal density bucket — only Goals do."""
+        _setup_graph(mgr, [
+            _make_node("G", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math"),
+        ] + [
+            _make_node(f"L{i}", type="Learn", value=5, interest=5,
+                       context="STEM", subcontext="Math")
+            for i in range(10)
+        ])
+        comps = self._rank_with(mgr)
+        # 10 leaf Learns share the bucket but the Goal sees count = 1.
+        assert comps["G"]["bucket_count"] == 1
+        assert comps["G"]["density_mult"] == pytest.approx(1.0)
+
+    def test_density_changes_final_ranking(self, mgr):
+        """Two Goals with equal intrinsic worth — one alone in its bucket, one
+        with three siblings — should rank the lone Goal higher."""
+        _setup_graph(mgr, [
+            _make_node("Solo", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="Self", subcontext="Creativity"),
+        ] + [
+            _make_node(f"Crowd{i}", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math")
+            for i in range(4)
+        ])
+        comps = self._rank_with(mgr)
+        # Raw ROI is identical (same value/interest, same inherited cost
+        # structure). Density is the tiebreaker.
+        assert comps["Solo"]["raw"] == pytest.approx(comps["Crowd0"]["raw"])
+        assert comps["Solo"]["score"] > comps["Crowd0"]["score"]
+
+    def test_explain_goal_reports_density(self, mgr):
+        """explain_goal's context_adjustment now reflects the live Goal
+        bucket count and alpha_goal, not the old hardcoded neutral values."""
+        _setup_graph(mgr, [
+            _make_node("G1", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math"),
+            _make_node("G2", type="Goal", time_mode='inherited',
+                       value=5, interest=5,
+                       context="STEM", subcontext="Math"),
+        ])
+        nodes = mgr.get_all_nodes()
+        edges = mgr.get_edges()
+        hp = ConfigManager.get_hyperparams()
+        from analyze_callbacks import explain_goal
+        bd, _ = explain_goal("G1", nodes, edges, hp,
+                             ConfigManager.get_priority_goals())
+        ca = bd['context_adjustment']
+        assert ca['n_bucket'] == 2
+        assert ca['alpha'] == pytest.approx(hp['alpha_goal'])
+        assert ca['density_mult'] == pytest.approx(2 ** -hp['alpha_goal'])
+
+
+# ============================================================================
 # _compute_context_coverage
 # ============================================================================
 

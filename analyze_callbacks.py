@@ -193,7 +193,13 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
     time term of ``perceived_cost`` (effort is omitted — a 1-10 rating
     has no meaningful subtree aggregate). Final score:
 
-        TV / (1 + w_t * remaining_time^beta) * rank_boost * context_weight
+        TV / cost * rank_boost * context_weight * density_mult
+
+    where density_mult = 1 / max(1, |B_goals|)^alpha_goal damps Goals
+    sharing a (context, subcontext) bucket with other open Goals — the
+    Goal-level analogue of the leaf-node ``alpha`` density correction.
+    Bucket counts use Goal headcount only (not scored nodes) and exclude
+    Done goals. alpha_goal=0 disables the correction.
 
     rank_boost gives priority rank 1 the full ``goal_boost``, rank 2 66%
     of the bump, rank 3 33%. Returns goals sorted by score descending;
@@ -209,12 +215,23 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
     w_t = hp.get('w_t', 1.0)
     beta = hp.get('beta', 0.85)
     goal_boost = hp.get('goal_boost', 1.5)
+    alpha_goal = hp.get('alpha_goal', 0.20)
     rank_multipliers = [
         goal_boost,
         1 + (goal_boost - 1) * 0.66,
         1 + (goal_boost - 1) * 0.33,
     ]
     context_weights = ConfigManager.get_context_weights() or {}
+
+    # Goal-only bucket counts for the density correction. Done Goals are
+    # excluded — they're not competing for sidebar attention. Null-context
+    # Goals (rare) keep their own bucket via the None key, mirroring how
+    # scored-node bucketing treats (None, None) below.
+    goal_bucket_counts: dict = defaultdict(int)
+    for g in all_nodes:
+        if g.type != 'Goal' or g.status == STATUS_DONE:
+            continue
+        goal_bucket_counts[(g.context, g.subcontext)] += 1
 
     # Invert Hard/Soft edges so the cascade walks upstream toward prereqs.
     # Helps is symmetric (bidirectional), so leave it alone.
@@ -271,11 +288,20 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
                 rank_mult = rank_multipliers[ri]
                 rank_idx = ri
         context_weight = context_weights.get(g.context, 1.0) if g.context else 1.0
-        score = raw * rank_mult * context_weight
+        bucket_count = goal_bucket_counts.get((g.context, g.subcontext), 1)
+        # Done Goals are excluded from the bucket count, so they would key to
+        # 0 (defaultdict default) if requested directly — but Done Goals also
+        # rarely flow into _rank_goals callers. Floor at 1 to mirror the
+        # max(1, ...) guard in scoring.score_nodes.
+        bucket_count = max(1, bucket_count)
+        density_mult = 1.0 / (bucket_count ** alpha_goal) if alpha_goal > 0 else 1.0
+        score = raw * rank_mult * context_weight * density_mult
         scored.append((g, score, {
             'score': score, 'raw': raw, 'tv': tv, 'cost': cost,
             'remaining_time': remaining_time, 'rank_mult': rank_mult,
             'rank_idx': rank_idx, 'context_weight': context_weight,
+            'bucket_count': bucket_count, 'alpha_goal': alpha_goal,
+            'density_mult': density_mult,
         }))
 
     scored.sort(key=lambda x: x[1], reverse=True)
@@ -307,8 +333,9 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
 
     Fields that have no meaning for a Goal are neutralised rather than left
     showing stale forward-graph values: eligibility is forced True (Goals
-    *are* ranked, just on the inverted graph) and density adjustment is
-    dropped (Goals are excluded from density buckets in ``score_nodes``).
+    *are* ranked, just on the inverted graph). The density adjustment is
+    populated from ``_rank_goals`` (Goal-only bucket count + ``alpha_goal``),
+    not from ``score_nodes`` (which excludes Goals from leaf-level buckets).
 
     Returns ``(breakdown, normalized)``; ``normalized`` is the 0-100 score
     against the top-ranked Goal. Returns ``None`` if ``goal_name`` is not a
@@ -364,10 +391,10 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
         bd['goal_boost'] = None
     bd['context_adjustment'] = {
         'weight': me['context_weight'],
-        'n_bucket': 1,
-        'alpha': 0.0,
-        'density_mult': 1.0,
-        'combined_multiplier': me['context_weight'],
+        'n_bucket': me['bucket_count'],
+        'alpha': me['alpha_goal'],
+        'density_mult': me['density_mult'],
+        'combined_multiplier': me['context_weight'] * me['density_mult'],
     }
     return bd, normalized
 

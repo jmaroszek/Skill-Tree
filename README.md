@@ -75,7 +75,7 @@ The description area is a free-form text input field that allows you to type not
 
 Every project *must* belong to a context, and optionally, a subcontext. Contexts are necessary for three reasons. First, it enables powerful filter features that make it easier to examine subportions of your graph. Second, the Analyze tab shows you details about your projects by context, allowing you to see if you are over or under concentrated in any particular area. Finally, context influences project recommendations through two methods.
 
- The Creator and Explorer scoring profile boost synergistic edges across contexts, since that fits the nature of inspiration and curiosity. The algorithm will also intelligently adjust its recommendations based on the size of the context for any profile. Without this feature, a strongly decomposed context will always outweigh one with fewer but more important nodes. For technical details on how contexts influence scoring, you can see [`docs/technical_overview.md`](docs/technical_overview.md).
+ The Creator and Explorer scoring profile boost synergistic edges across contexts, since that fits the nature of inspiration and curiosity. The algorithm will also intelligently adjust its recommendations based on the size of the context for any profile. Without this feature, a strongly decomposed context will always outweigh one with fewer but more important nodes. For technical details on how contexts influence scoring, you can see [`docs/algorithms.md`](docs/algorithms.md).
 
 **INSERT THE SVG VISUALATION HERE, AND TRIM THE CONENT BELOW**
 
@@ -317,7 +317,7 @@ Cascade total: about 19.
 
 **Total value** lands around 40.
 
-**Perceived cost** is a weighted blend of D=5 and 83 hours — difficulty counts somewhat more, and time scales sub-linearly — and works out to about 56. The exact formula lives in [`docs/technical_overview.md`](docs/technical_overview.md) for the curious.
+**Perceived cost** is a weighted blend of D=5 and 83 hours — difficulty counts somewhat more, and time scales sub-linearly — and works out to about 56. The exact formula lives in [`docs/algorithms.md`](docs/algorithms.md) for the curious.
 
 The **base score** is total value ÷ perceived cost: 40 / 56 ≈ **0.71**. One thing worth flagging here: the absolute value of this number isn't meaningful. It isn't a percentage and it isn't bounded to a 0-to-1 range — only its size *relative to other nodes' base scores* matters. A node with a base score of 1.4 ranks above a node with a base score of 0.71; the gap is what tells you something, not the number on its own.
 
@@ -356,7 +356,7 @@ A **Custom** profile is also available if you want to tune every knob yourself.
 
 I pick sage as my baseline and switch profiles as the mood strikes. 
 
-The full numerical knob table for each profile lives in [`docs/technical_overview.md`](docs/technical_overview.md). 
+The full numerical knob table for each profile lives in [`docs/algorithms.md`](docs/algorithms.md). 
 
 # A Tour Through the Tabs
 
@@ -750,5 +750,7 @@ Most settings are safe to experiment with — none of them touch your graph data
 # Next Steps
 | If you want… | Go to |
 |---|---|
-| To understand the technical details | [`docs/technical_overview.md`](docs/technical_overview.md) — covers the app's architecture and math |
+| To understand the app's architecture | [`docs/app_architecture.md`](docs/app_architecture.md) — modules, tab callbacks, Cytoscape pipeline, persistence and caching |
+| To understand the math behind the recommendations | [`docs/algorithms.md`](docs/algorithms.md) — scoring, profiles, goal ranking, explainability, status cascade |
+| To understand how time estimates are computed | [`docs/time.md`](docs/time.md) — the PERT blend and the Monte Carlo simulator |
 | The math at full precision | The [scoring](#the-scoring-algorithm) section above is the user-facing version; the canonical reference is the docstrings in [`scoring.py`](scoring.py). |
