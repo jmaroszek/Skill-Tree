@@ -218,15 +218,34 @@ def init_db():
     except Exception:
         pass
 
-    # Active-flag + lifecycle dates + reflection-rating columns. `active` is
-    # an orthogonal boolean (separate from status) marking nodes the user is
+    # "Now" flag + lifecycle dates + reflection-rating columns. `now` is an
+    # orthogonal boolean (separate from status) marking nodes the user is
     # currently working on. start_date/done_date are auto-stamped by
     # GraphManager.update_node on first activation / first Done transition.
     # reflect_value/interest/difficulty are nullable mirrors of the original
     # ratings, populated retrospectively (UI for entry lands in a later
     # feature alongside the time-reflection rework).
+    #
+    # The `now` flag was originally named `active`. Three possible states
+    # of a legacy DB: (a) has `active` only — rename to `now`; (b) has both
+    # `active` and `now` — copy values from `active` then drop it; (c) has
+    # `now` only — already migrated, no-op.
+    existing_cols = {row[1] for row in cursor.execute("PRAGMA table_info(Nodes)").fetchall()}
+    if 'active' in existing_cols and 'now' in existing_cols:
+        try:
+            cursor.execute('UPDATE Nodes SET "now" = active')
+            cursor.execute('ALTER TABLE Nodes DROP COLUMN active')
+            conn.commit()
+        except Exception:
+            pass
+    elif 'active' in existing_cols:
+        try:
+            cursor.execute('ALTER TABLE Nodes RENAME COLUMN active TO "now"')
+            conn.commit()
+        except Exception:
+            pass
     for stmt in (
-        "ALTER TABLE Nodes ADD COLUMN active INTEGER NOT NULL DEFAULT 0",
+        'ALTER TABLE Nodes ADD COLUMN "now" INTEGER NOT NULL DEFAULT 0',
         "ALTER TABLE Nodes ADD COLUMN start_date TEXT",
         "ALTER TABLE Nodes ADD COLUMN done_date TEXT",
         "ALTER TABLE Nodes ADD COLUMN reflect_value INTEGER",

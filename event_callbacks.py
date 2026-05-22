@@ -989,15 +989,15 @@ def register_event_callbacks(app):
             payload = json.dumps([node_name]) + "|" + str(int(time.time() * 1000))
             return payload, no_update, no_update, node_name
 
-        # Make-active: open confirm modal.
+        # Wake: open confirm modal.
         events = event_manager.get_events_for_node(node_name)
         if events:
-            body = f"Remove '{node_name}' from event{'s' if len(events) != 1 else ''} '{', '.join(events)}' and make it active?"
+            body = f"Remove '{node_name}' from event{'s' if len(events) != 1 else ''} '{', '.join(events)}' and wake it?"
         else:
-            body = f"'{node_name}' is dormant but not linked to any event. Make it active?"
+            body = f"'{node_name}' is dormant but not linked to any event. Wake it?"
         return no_update, True, body, node_name
 
-    # --- Editor Dormant Toggle: confirm make-active ---
+    # --- Editor Dormant Toggle: confirm wake ---
     @app.callback(
         Output("modal-dormant-deactivate-confirm", "is_open", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
@@ -1006,7 +1006,7 @@ def register_event_callbacks(app):
         State("pending-dormant-toggle-store", "data"),
         prevent_initial_call=True,
     )
-    def confirm_make_active(n_clicks, pending_node):
+    def confirm_wake(n_clicks, pending_node):
         if not n_clicks or not pending_node:
             return no_update, no_update, no_update
         try:
@@ -1016,7 +1016,7 @@ def register_event_callbacks(app):
             return False, no_update, None
         return False, f"detach-{pending_node}-{int(time.time())}", None
 
-    # --- Editor Dormant Toggle: cancel make-active ---
+    # --- Editor Dormant Toggle: cancel wake ---
     # Just closes the modal; populate_node_dormant_state will re-sync the
     # toggle to the DB's actual (still-dormant) state.
     @app.callback(
@@ -1025,7 +1025,7 @@ def register_event_callbacks(app):
         Input("btn-dormant-deactivate-cancel", "n_clicks"),
         prevent_initial_call=True,
     )
-    def cancel_make_active(n_clicks):
+    def cancel_wake(n_clicks):
         if not n_clicks:
             return no_update, no_update
         return False, None
@@ -1757,9 +1757,9 @@ def register_event_callbacks(app):
                 classes.append("dormant")
             if name in trigger_names:
                 classes.append("trigger")
-            if node.active:
-                classes.append("active")
-                element["data"]["active_color"] = node_colors.get("Active", "#ffd000")
+            if node.now:
+                classes.append("now")
+                element["data"]["now_color"] = node_colors.get("Now", "#ffd000")
             # Always emit `classes` (possibly empty) so Cytoscape's diff
             # clears the class when it leaves the new render — see
             # callbacks.py:generate_elements for the rationale.

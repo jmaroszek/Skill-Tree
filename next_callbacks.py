@@ -5,8 +5,8 @@ Callback definitions for the Next tab (priority suggestions).
 import dash
 from dash import Input, Output, State, ALL, ctx, html
 from graph_manager import GraphManager
-from config import ConfigManager, ACTIVE_NODE_CAP
-from callback_helpers import get_trigger_id, format_active_nodes_section, SECTION_TITLE_STYLE
+from config import ConfigManager, NOW_NODE_CAP
+from callback_helpers import get_trigger_id, format_now_nodes_section, SECTION_TITLE_STYLE
 from models import STATUS_DONE
 
 manager = GraphManager()
@@ -26,11 +26,11 @@ def get_suggestions(filters=None, count=5, exclude_override=False):
     if filters is None:
         filters = {}
     nodes = manager.get_all_nodes()
-    # Active nodes live exclusively in the "Now" section on the Next tab —
+    # Now nodes live exclusively in the "Now" section on the Next tab —
     # exclude them here so they don't duplicate in the Suggestions/Next
     # table below. Filtering at the top covers both override and normal
     # tiers without special-casing.
-    nodes = [n for n in nodes if not n.active]
+    nodes = [n for n in nodes if not n.now]
     filtered_nodes = manager.filter_nodes(nodes, filters)
     priority_goals = ConfigManager.get_priority_goals()
 
@@ -125,31 +125,31 @@ def register_next_callbacks(app):
     @app.callback(
         Output('selected-suggestion-store', 'data'),
         Input({'type': 'suggestion-row', 'index': ALL}, 'n_clicks'),
-        Input({'type': 'active-row', 'index': ALL}, 'n_clicks'),
+        Input({'type': 'now-row', 'index': ALL}, 'n_clicks'),
         prevent_initial_call=True
     )
-    def update_selected_suggestion(sugg_clicks, active_clicks):
-        if not any(sugg_clicks or []) and not any(active_clicks or []):
+    def update_selected_suggestion(sugg_clicks, now_clicks):
+        if not any(sugg_clicks or []) and not any(now_clicks or []):
             return dash.no_update
         trigger_id = ctx.triggered_id
         if trigger_id and isinstance(trigger_id, dict) and 'index' in trigger_id:
             return trigger_id['index']
         return dash.no_update
 
-    # --- Now Section: populate active-nodes-table ---
+    # --- Now Section: populate now-nodes-table ---
     # Listens to graph-version-store so the section refreshes whenever any
-    # node mutates (including a flip of the active flag, which goes through
+    # node mutates (including a flip of the Now flag, which goes through
     # update_node and bumps graph_version).
     @app.callback(
-        Output('active-nodes-table', 'children'),
+        Output('now-nodes-table', 'children'),
         Input('graph-version-store', 'data'),
         Input('selected-suggestion-store', 'data'),
     )
     def populate_now_section(_version, selected_node_id):
-        active_nodes = manager.get_active_nodes()
-        return format_active_nodes_section(
-            active_nodes,
-            cap=ACTIVE_NODE_CAP,
+        now_nodes = manager.get_now_nodes()
+        return format_now_nodes_section(
+            now_nodes,
+            cap=NOW_NODE_CAP,
             manager=manager,
             selected_node_id=selected_node_id,
         )

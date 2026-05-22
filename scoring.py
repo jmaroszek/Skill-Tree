@@ -209,7 +209,7 @@ def _compute_priority_score(
     H_out: dict, S_out: dict, Syn: dict,
     hyperparams: dict,
     node_to_boost: Dict[str, float],
-    n_active_map: Dict[Tuple[Optional[str], Optional[str]], int],
+    n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int],
     memo: Optional[Dict[str, float]] = None,
 ) -> Tuple[float, float]:
     """Single source of truth for the per-node ROI formula.
@@ -252,7 +252,7 @@ def _compute_priority_score(
         score = round(score * node_to_boost[node.name], 2)
 
     weight = context_weights.get(node.context, 1.0) if node.context else 1.0
-    n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
+    n_bucket = max(1, n_per_bucket.get((node.context, node.subcontext), 1))
     density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
     if weight != 1.0 or density_mult != 1.0:
         score = round(score * weight * density_mult, 2)
@@ -276,13 +276,13 @@ def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
 
 
 def score_nodes(
-    active_nodes: List[Node], all_nodes: List[Node],
+    nodes_to_score: List[Node], all_nodes: List[Node],
     edges: List[Dict], hyperparams: dict,
     priority_goals: Optional[List[str]] = None,
     external_memo: Optional[Dict[str, float]] = None,
     time_phases: bool = False,
 ) -> Union[List[Node], Tuple[List[Node], Dict[str, float]]]:
-    """Scores active nodes by priority (TV / Cost) and returns them sorted descending.
+    """Scores nodes by priority (TV / Cost) and returns them sorted descending.
 
     When `time_phases` is True, also returns a dict of per-phase timings
     (adj_ms, goals_ms, score_ms, rank_ms, total_ms, n_nodes, n_edges). The
@@ -314,8 +314,8 @@ def score_nodes(
     # specific subarea" — so subcontext being None doesn't disqualify.
     # context=None is rejected at add_node; defensively skip if any legacy
     # row slipped through.
-    n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
-    for n in active_nodes:
+    n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int] = {}
+    for n in nodes_to_score:
         if n.type in ('Goal', 'Milestone') or n.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
         if n.is_container:
@@ -323,7 +323,7 @@ def score_nodes(
         if n.context is None:
             continue
         key = (n.context, n.subcontext)
-        n_active_map[key] = n_active_map.get(key, 0) + 1
+        n_per_bucket[key] = n_per_bucket.get(key, 0) + 1
 
     # Outer-call memo for total_value. When external_memo is supplied (by
     # GraphManager), reuse its cached values across score_nodes invocations
@@ -360,7 +360,7 @@ def score_nodes(
         )
 
     scored_nodes = []
-    for node in active_nodes:
+    for node in nodes_to_score:
         if node.type in ('Goal', 'Milestone'):
             node.priority_score = -1.0
             node.total_value = _tv_for(node.name)
@@ -395,7 +395,7 @@ def score_nodes(
             H_out=H_out, S_out=S_out, Syn=Syn,
             hyperparams=hyperparams,
             node_to_boost=node_to_boost,
-            n_active_map=n_active_map,
+            n_per_bucket=n_per_bucket,
             memo=memo,
         )
         scored_nodes.append(node)
@@ -610,7 +610,7 @@ def explain_score(
 
     # Bucket counts match score_nodes: exclude Goal/Done/Blocked AND
     # uncategorized (context=None) from density. See score_nodes for rationale.
-    n_active_map: Dict[Tuple[Optional[str], Optional[str]], int] = {}
+    n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int] = {}
     for n_ in all_nodes:
         if n_.type in ('Goal', 'Milestone') or n_.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
@@ -619,7 +619,7 @@ def explain_score(
         if n_.context is None:
             continue
         key = (n_.context, n_.subcontext)
-        n_active_map[key] = n_active_map.get(key, 0) + 1
+        n_per_bucket[key] = n_per_bucket.get(key, 0) + 1
 
     iv = intrinsic_value(node, w_v, w_i)
     time_overridden = (node.time_mode == 'inherited')
@@ -738,7 +738,7 @@ def explain_score(
 
     # Context-aware adjustments (mirrors score_nodes).
     ctx_weight = context_weights.get(node.context, 1.0) if node.context else 1.0
-    n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
+    n_bucket = max(1, n_per_bucket.get((node.context, node.subcontext), 1))
     density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
     combined_ctx_mult = ctx_weight * density_mult
 

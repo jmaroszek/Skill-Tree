@@ -100,8 +100,8 @@ class GraphManager:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, active, start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :active, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
@@ -116,23 +116,23 @@ class GraphManager:
                 "Uncategorized nodes are no longer permitted."
             )
         prior = self.get_node(node.name)
-        # --- Auto-stamp lifecycle dates and auto-deactivate on completion ---
-        # Re-activation is intentionally a no-op for dates: start_date is
+        # --- Auto-stamp lifecycle dates and clear Now on completion ---
+        # Re-flipping Now is intentionally a no-op for dates: start_date is
         # only set when prior.start_date is None (first time ever); done_date
         # only on the first Open/Blocked→Done transition. When the user marks
-        # the node Done while it is currently active, we flip active off
-        # automatically (the user's mental model: active until Done).
+        # the node Done while it is currently flagged Now, we clear the flag
+        # automatically (the user's mental model: Now until Done).
         if prior is not None:
             today_iso = date.today().isoformat()
-            if (node.active == 1 and prior.active == 0
+            if (node.now == 1 and prior.now == 0
                     and prior.start_date is None):
                 node.start_date = today_iso
             if (node.status == STATUS_DONE
                     and prior.status != STATUS_DONE):
                 if prior.done_date is None:
                     node.done_date = today_iso
-                if node.active == 1:
-                    node.active = 0
+                if node.now == 1:
+                    node.now = 0
         with self.get_connection() as conn:
             cursor = conn.cursor()
             data = node.to_dict()
@@ -152,7 +152,7 @@ class GraphManager:
                     actual_time_lower=:actual_time_lower, actual_time_upper=:actual_time_upper,
                     actual_time_point=:actual_time_point, actual_time_unit=:actual_time_unit,
                     calibration_dismissed=:calibration_dismissed,
-                    active=:active, start_date=:start_date, done_date=:done_date,
+                    "now"=:now, start_date=:start_date, done_date=:done_date,
                     reflect_value=:reflect_value, reflect_interest=:reflect_interest,
                     reflect_difficulty=:reflect_difficulty
                 WHERE name=:name
@@ -398,8 +398,8 @@ class GraphManager:
                 cursor.execute("SELECT * FROM Nodes WHERE dormant = 0")
             return [Node(**dict(row)) for row in cursor.fetchall()]
 
-    def get_active_nodes(self) -> List[Node]:
-        """Return all nodes flagged active (currently being worked on).
+    def get_now_nodes(self) -> List[Node]:
+        """Return all nodes flagged Now (currently being worked on).
 
         Dormant nodes are excluded — a shelved node should not also be
         "currently being worked on", and the Now section should never
@@ -408,7 +408,7 @@ class GraphManager:
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM Nodes WHERE active = 1 AND dormant = 0")
+            cursor.execute('SELECT * FROM Nodes WHERE "now" = 1 AND dormant = 0')
             return [Node(**dict(row)) for row in cursor.fetchall()]
 
     # --- Edge Operations ---
@@ -777,7 +777,7 @@ class GraphManager:
 
     # --- Logic ---
 
-    def calculate_priority_scores(self, active_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
+    def calculate_priority_scores(self, now_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
         """Delegates scoring to the scoring module.
 
         Reuses a per-manager total_value memo across calls: a filter toggle,
@@ -804,7 +804,7 @@ class GraphManager:
         if ConfigManager.get_show_scoring_perf() and not GraphManager._startup_perf_recorded:
             from perf import append_perf_log
             scored, timings = score_nodes(
-                active_nodes, self.get_all_nodes(),
+                now_nodes, self.get_all_nodes(),
                 self.get_edges(), hypers,
                 priority_goals=priority_goals,
                 external_memo=memo,
@@ -816,7 +816,7 @@ class GraphManager:
             return scored
 
         return score_nodes(
-            active_nodes, self.get_all_nodes(),
+            now_nodes, self.get_all_nodes(),
             self.get_edges(), hypers,
             priority_goals=priority_goals,
             external_memo=memo,
@@ -1160,7 +1160,7 @@ class GraphManager:
         Includes dormant nodes — they reference config values too, and silently
         leaving them out means a context/type/subcontext can be deleted while
         dormant nodes still hold the stale value, only surfacing as broken
-        config when the event later triggers them back to active.
+        config when the event later triggers them back into play.
         """
         removed = set(old_values) - set(new_values)
         if not removed:

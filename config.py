@@ -141,14 +141,14 @@ DEFAULT_NODE_COLORS = {
     'Resource': '#9047b8',
     'Milestone': '#17a2b8',
     'Override': '#e83e8c',
-    'Active': '#ffd000',
+    'Now': '#ffd000',
 }
 
-# Soft cap on simultaneously-active nodes. The cap is informational —
+# Soft cap on simultaneously-Now nodes. The cap is informational —
 # the Now section header counter turns warning-colored when exceeded,
 # but the toggle remains free. Default 3 keeps focus tight without
 # blocking brief overlap during handoffs.
-ACTIVE_NODE_CAP = 3
+NOW_NODE_CAP = 3
 
 DEFAULT_NODE_SHAPES = {
     'Learn': 'ellipse',
@@ -210,13 +210,13 @@ def _resolved_badge_colors(name: str) -> tuple[str, str]:
     """Return (bg, fg) for a badge by direct lookup in BADGE_PALETTE.
 
     Unknown names fall back to a neutral gray. The palette is the single
-    source of truth for all badges EXCEPT 'Active' — that one is
+    source of truth for all badges EXCEPT 'Now' — that one is
     intentionally coupled to the user-configurable canvas color so the
     border on the canvas and the badge in the Details panel stay visually
     consistent under a custom color choice.
     """
-    if name == 'Active':
-        bg = ConfigManager.get_node_colors().get('Active', '#ffd000')
+    if name == 'Now':
+        bg = ConfigManager.get_node_colors().get('Now', '#ffd000')
         return (bg, '#ffffff')
     return BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
 
@@ -512,7 +512,12 @@ class ConfigManager:
     def get_node_colors(cls):
         val = cls._get_db_value("NODE_COLORS")
         if val:
-            return {**DEFAULT_NODE_COLORS, **json.loads(val)}
+            stored = json.loads(val)
+            # Legacy rename: 'Active' → 'Now'. Migrate in-memory so consumers
+            # see the new key without forcing a write on every read.
+            if 'Active' in stored and 'Now' not in stored:
+                stored['Now'] = stored.pop('Active')
+            return {**DEFAULT_NODE_COLORS, **stored}
         return DEFAULT_NODE_COLORS
 
     @classmethod

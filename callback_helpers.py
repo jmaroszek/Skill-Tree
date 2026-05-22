@@ -744,11 +744,11 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         node.actual_time_point = existing.actual_time_point
         node.actual_time_unit = existing.actual_time_unit
         node.calibration_dismissed = existing.calibration_dismissed
-        # The active flag is mutated by dispatch_active_toggle (a direct DB
+        # The Now flag is mutated by dispatch_now_toggle (a direct DB
         # write outside this form), so preserve the latest DB value. Same
         # for the lifecycle dates and reflection columns — set elsewhere or
         # not yet wired into the editor.
-        node.active = existing.active
+        node.now = existing.now
         node.start_date = existing.start_date
         node.done_date = existing.done_date
         node.reflect_value = existing.reflect_value
@@ -1039,21 +1039,21 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     return [bar_list]
 
 
-def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=None):
+def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     """Render the 'Now' section for the Next tab as a row of rich cards.
 
-    Each active node gets a wide horizontal card with a left accent bar in
+    Each Now node gets a wide horizontal card with a left accent bar in
     the node's type color, the name + context/subcontext, a type badge pill,
     time estimate, V/I/E micro-chart, and Obsidian/Drive/Website link dots.
     Cards sit in a responsive flex row (1–3 items).
 
-    When there are no active nodes the section is suppressed entirely —
+    When there are no Now nodes the section is suppressed entirely —
     return [] so the Next heading sits at the top of the tab.
 
     The `cap` argument is accepted for forward-compatibility but no longer
     surfaced — the cap is enforced in the toggle/context-menu callbacks.
     """
-    if not active_nodes:
+    if not now_nodes:
         return []
 
     heading = html.Div([
@@ -1061,7 +1061,7 @@ def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=Non
     ], className="d-flex align-items-center", style={"gap": "12px", "marginBottom": "0.75rem"})
 
     cards = []
-    for n in active_nodes:
+    for n in now_nodes:
         is_selected = (n.name == selected_node_id)
         eff_time = manager.get_effective_time(n.name)
         accent_color = BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]
@@ -1146,7 +1146,7 @@ def format_active_nodes_section(active_nodes, cap, manager, selected_node_id=Non
 
         cards.append(html.Div(
             [accent_bar, card_body],
-            id={"type": "active-row", "index": n.name},
+            id={"type": "now-row", "index": n.name},
             className="now-card",
             style=card_style,
             **{

@@ -4,8 +4,10 @@ Event + dormant-node persistence and activation logic.
 An Event has one of three trigger types — manual (user clicks "trigger"),
 date-based (an ISO date is reached), or node-based (a specific node flips
 to Done). Each Event owns zero or more *dormant* nodes that are not part
-of the live graph until the event fires, at which point they are flipped
-to active (with an optional per-node delay) via check_pending_events().
+of the live graph until the event fires, at which point they are awakened
+into the live graph (with an optional per-node delay) via
+check_pending_events(). "Activation" in this module refers exclusively to
+this awakening — it does NOT touch the orthogonal Node.now flag.
 """
 
 import sqlite3
@@ -168,7 +170,7 @@ class EventManager:
             conn.commit()
 
     def detach_node_from_all_events(self, node_name: str):
-        """Severs a node's event associations and flips it back to active.
+        """Severs a node's event associations and brings it back into play.
 
         Distinct from `remove_node_from_event`, which deletes the node entirely
         — this preserves the node, removes any EventNodes rows, sets

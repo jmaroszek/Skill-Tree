@@ -1,21 +1,21 @@
 /**
- * Continuous border-width pulse for `.active` nodes on every Cytoscape canvas.
+ * Continuous border-width pulse for `.now` nodes on every Cytoscape canvas.
  *
  * Pattern mirrors `locate_node.js`: walk each canvas, find matching nodes,
  * drive a recursive `.animate()` loop. Differences from locate:
- *   - persistent (every active node pulses for as long as the class is set)
- *   - per-node self-termination via `hasClass('active')` check on each cycle
+ *   - persistent (every Now node pulses for as long as the class is set)
+ *   - per-node self-termination via `hasClass('now')` check on each cycle
  *   - keyed registry to avoid double-starting the same node
  *
- * A 1s periodic scan picks up newly-active nodes after element updates without
- * requiring an explicit clientside-callback hook. The cost is trivial (three
- * cy lookups + a forEach per second).
+ * A 1s periodic scan picks up newly-flagged-Now nodes after element updates
+ * without requiring an explicit clientside-callback hook. The cost is trivial
+ * (three cy lookups + a forEach per second).
  */
 (function () {
     var CANVAS_IDS = ['cytoscape-graph', 'details-mini-graph', 'events-detail-graph'];
     // Half-period of the pulse: 1s up + 1s down = 2s full cycle.
     var PULSE_HALF_DURATION_MS = 1000;
-    // Short scan interval so a deactivation feels instant; the scan itself
+    // Short scan interval so a Now-clear feels instant; the scan itself
     // is cheap (three lookups + a forEach on a tiny set).
     var SCAN_INTERVAL_MS = 250;
     var BORDER_MIN = 5;
@@ -40,9 +40,9 @@
 
     function pulseStep(node, canvasId, expanding) {
         var key = canvasId + '|' + node.id();
-        // Class removed (user deactivated, or elements regenerated without it)?
+        // Class removed (user cleared Now, or elements regenerated without it)?
         // Exit the loop and clear any inline override so the static rule resumes.
-        if (!node.hasClass('active')) {
+        if (!node.hasClass('now')) {
             pulsing.delete(key);
             cleanupNode(node);
             return;
@@ -70,9 +70,9 @@
     function scanCanvas(canvasId) {
         var cy = getCyInstance(canvasId);
         if (!cy) return;
-        var active = cy.nodes('.active');
+        var now = cy.nodes('.now');
         var liveKeys = new Set();
-        active.forEach(function (node) {
+        now.forEach(function (node) {
             liveKeys.add(canvasId + '|' + node.id());
             startPulse(node, canvasId);
         });

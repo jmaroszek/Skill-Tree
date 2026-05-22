@@ -110,11 +110,11 @@ description_view = html.Div([
 next_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
     
-    # "Now" section — currently-active nodes (cap = ACTIVE_NODE_CAP).
+    # "Now" section — currently-Now nodes (cap = NOW_NODE_CAP).
     # Heading + rows are emitted together by populate_now_section. The
-    # section collapses to zero height when there are no active nodes, so
+    # section collapses to zero height when there are no Now nodes, so
     # the Next heading floats to the top of the tab.
-    html.Div(id="active-nodes-table"),
+    html.Div(id="now-nodes-table"),
     
     html.Div([
         html.H6("Next", className="text-muted mb-0", style=_section_title_style),
@@ -156,7 +156,7 @@ next_view = html.Div([
 def _orphan_name_label(n):
     """Returns the display label for an orphan node in the migration modal.
 
-    Plain string for active nodes; a Span with a muted "(dormant — in event: X)"
+    Plain string for live nodes; a Span with a muted "(dormant — in event: X)"
     suffix for dormant orphans so the user understands they're remapping nodes
     that aren't currently on the canvas.
     """
@@ -481,16 +481,16 @@ undo_done_confirm_modal = dbc.Modal([
 ], id="modal-undo-done-confirm", size="md", is_open=False, centered=True)
 
 
-# Confirms detaching a dormant node from its event(s) and flipping it active.
-# Triggered by toggling the editor's Dormant switch off. Distinct from the
-# events-tab "Delete event" flow — this preserves the node, only severs the
-# event association and clears dormant=1.
+# Confirms detaching a dormant node from its event(s) and waking it back into
+# the live graph. Triggered by toggling the editor's Dormant switch off.
+# Distinct from the events-tab "Delete event" flow — this preserves the node,
+# only severs the event association and clears dormant=1.
 dormant_deactivate_confirm_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Make active?")),
+    dbc.ModalHeader(dbc.ModalTitle("Wake node?")),
     dbc.ModalBody(id="dormant-deactivate-confirm-body"),
     dbc.ModalFooter([
         dbc.Button("Cancel", id="btn-dormant-deactivate-cancel", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Make active", id="btn-dormant-deactivate-confirm", color="primary", className="flex-fill"),
+        dbc.Button("Wake", id="btn-dormant-deactivate-confirm", color="primary", className="flex-fill"),
     ], className="d-flex"),
 ], id="modal-dormant-deactivate-confirm", size="md", is_open=False, centered=True)
 
@@ -858,7 +858,7 @@ def build_app_layout(initial_elements, env="production"):
             html.Div("Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
             html.Div("Drive", id="ctx-menu-drive", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
-            html.Div("Active", id="ctx-menu-toggle-active", className="ctx-menu-item"),
+            html.Div("Now", id="ctx-menu-toggle-now", className="ctx-menu-item"),
             html.Div(STATUS_DONE, id="ctx-menu-toggle-done", className="ctx-menu-item"),
             html.Div("Delete", id="ctx-menu-delete", className="ctx-menu-item ctx-menu-item-danger"),
         ],
@@ -945,7 +945,7 @@ def build_app_layout(initial_elements, env="production"):
                 ],
             ),
             html.Hr(style={"margin": "2px"}),
-            html.Div("Active", id="goal-ctx-toggle-active", className="ctx-menu-item"),
+            html.Div("Now", id="goal-ctx-toggle-now", className="ctx-menu-item"),
             html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
             html.Div("Delete", id="goal-ctx-delete", className="ctx-menu-item ctx-menu-item-danger"),
         ],
@@ -1099,28 +1099,28 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='group-delete-pending-store', data=None),
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
-        # Written by dispatch_active_toggle after a direct DB flip of the
-        # `active` flag — feeds core_engine so the canvas re-renders to show
+        # Written by dispatch_now_toggle after a direct DB flip of the
+        # `now` flag — feeds core_engine so the canvas re-renders to show
         # the new amber border.
-        dcc.Input(id='node-active-trigger-input', type='text', value='', style={'display': 'none'}),
-        # Written by context-menu "Active" items (canvas + goal sidebar)
+        dcc.Input(id='node-now-trigger-input', type='text', value='', style={'display': 'none'}),
+        # Written by context-menu "Now" items (canvas + goal sidebar)
         # carrying a JSON list of node names + timestamp. A dedicated callback
-        # flips active for each named node and re-bumps node-active-trigger-
+        # flips Now for each named node and re-bumps node-now-trigger-
         # input to refresh the canvas.
-        dcc.Input(id='toggle-active-trigger-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='toggle-now-trigger-input', type='text', value='', style={'display': 'none'}),
         # Bumped by both the editor dispatcher and the context-menu handler
-        # whenever an activation is refused for hitting ACTIVE_NODE_CAP.
-        # show_active_cap_toast listens and pops a transient warning toast.
-        dcc.Input(id='active-cap-refused-trigger', type='text', value='', style={'display': 'none'}),
-        # Transient "active cap reached" toast — auto-dismisses after 5s.
+        # whenever setting Now is refused for hitting NOW_NODE_CAP.
+        # show_now_cap_toast listens and pops a transient warning toast.
+        dcc.Input(id='now-cap-refused-trigger', type='text', value='', style={'display': 'none'}),
+        # Transient "Now cap reached" toast — auto-dismisses after 5s.
         # Fixed top-right, anchored just below the tab bar (the row holding
         # the Filters / Calibration / Settings icons sits at ~48px tall, so
         # top:60px clears it with a touch of breathing room). zIndex above
         # context menus (10000–10002).
         dbc.Toast(
-            "3 active nodes is the cap. Deactivate one to make room.",
-            id="active-cap-toast",
-            header="Active Cap Reached",
+            "3 Now nodes is the cap. Clear one to make room.",
+            id="now-cap-toast",
+            header="Now Cap Reached",
             is_open=False,
             duration=5000,
             dismissable=True,

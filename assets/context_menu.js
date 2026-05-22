@@ -16,7 +16,7 @@
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
         var linksDivider = document.getElementById('ctx-menu-links-divider');
-        var toggleActiveItem = document.getElementById('ctx-menu-toggle-active');
+        var toggleNowItem = document.getElementById('ctx-menu-toggle-now');
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
         var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
@@ -124,7 +124,7 @@
             _setHiddenInput('toggle-done-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 
-        function triggerToggleActive() {
+        function triggerToggleNow() {
             hideMenu();
             if (!_currentNodeData || !_currentNodeData.id) return;
             var clickedId = _currentNodeData.id;
@@ -136,7 +136,7 @@
             var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
                 ? selectedIds
                 : [clickedId];
-            _setHiddenInput('toggle-active-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
+            _setHiddenInput('toggle-now-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 
         function triggerAddToEvent() {
@@ -372,7 +372,7 @@
             });
         }
 
-        if (toggleActiveItem) toggleActiveItem.addEventListener('click', triggerToggleActive);
+        if (toggleNowItem) toggleNowItem.addEventListener('click', triggerToggleNow);
 
         if (toggleDoneItem) toggleDoneItem.addEventListener('click', triggerToggleDone);
 

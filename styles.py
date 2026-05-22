@@ -27,18 +27,18 @@ stylesheet = [
         }
     },
     {
-        # Active flag: nodes the user is currently working on. Layered ON
+        # Now flag: nodes the user is currently working on. Layered ON
         # TOP of the status color via a border. Placed BEFORE :selected so
         # selection feedback (white border) wins during click interaction —
-        # an active node briefly shows the white border on click, returns
+        # a Now node briefly shows the white border on click, returns
         # to amber when deselected. The color is sourced per-element via
-        # data(active_color) so the settings-modal color picker can change
+        # data(now_color) so the settings-modal color picker can change
         # it without restyling the canvas. The pulse animation is driven
-        # separately by assets/active_pulse.js.
-        'selector': '.active',
+        # separately by assets/now_pulse.js.
+        'selector': '.now',
         'style': {
             'border-width': 5,
-            'border-color': 'data(active_color)',
+            'border-color': 'data(now_color)',
             'border-opacity': 1,
         }
     },
@@ -116,7 +116,7 @@ stylesheet = [
         # Dormant: muted ghost effect with a high-contrast dashed border.
         # Light gray contrasts against every node fill (especially Learn,
         # which previously made the old blue ring invisible). Reduced
-        # opacity reads as "asleep / not part of the active workspace".
+        # opacity reads as "asleep / not part of the live workspace".
         'selector': '.dormant',
         'style': {
             'border-width': 2,

@@ -91,7 +91,7 @@ def build_events_tab_content():
                 html.Hr(className="my-2"),
             ]),
 
-            # Existing-nodes mode: pick active non-dormant nodes to convert.
+            # Existing-nodes mode: pick live non-dormant nodes to convert.
             html.Div(id="dormant-mode-existing-fields", style={"display": "none"}, children=[
                 dbc.Label("Convert these nodes to dormant"),
                 html.Div(
@@ -353,7 +353,7 @@ def build_events_tab_content():
             # Activation Delay — common to both new and existing modes.
             html.Hr(className="my-2"),
             html.H5("Activation Delay", className="mt-2 mb-1"),
-            html.Small("How long after the event triggers before this node becomes active.",
+            html.Small("How long after the event triggers before this node wakes up.",
                        className="text-muted d-block mb-2"),
             dbc.Row([
                 dbc.Col([
@@ -754,7 +754,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
             delay_display = f"{delay_days} day{'s' if delay_days != 1 else ''}"
 
         status_badge = dbc.Badge(
-            "Active" if activated else "Dormant",
+            "Awake" if activated else "Dormant",
             color="success" if activated else "secondary",
             style={"fontSize": "0.7rem"}
         )

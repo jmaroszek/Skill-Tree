@@ -88,7 +88,7 @@ def _build_status_color_rows(colors):
         _build_color_row(STATUS_DONE, STATUS_DONE, colors),
         _build_color_row(STATUS_BLOCKED, STATUS_BLOCKED, colors),
         _build_color_row("Override", "Override", colors),
-        _build_color_row("Active", "Active", colors),
+        _build_color_row("Now", "Now", colors),
     ]
 
 

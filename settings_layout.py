@@ -125,7 +125,7 @@ def _build_appearance_tab():
                                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                         ]),
                     ], className="d-flex align-items-center mt-2 mb-1"),
-                    html.Small("Color for Done, Blocked, Override, and Active.", className="text-muted d-block mb-2"),
+                    html.Small("Color for Done, Blocked, Override, and Now.", className="text-muted d-block mb-2"),
                     html.Div(id="setting-node-status-colors-container"),
                 ], width=5),
             ]),

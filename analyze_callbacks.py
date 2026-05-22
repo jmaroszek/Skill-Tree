@@ -1313,7 +1313,7 @@ def register_analyze_callbacks(app):
 
         ctx_height = max(180, len(ctx_coverage) * 28 + 60)
         contexts_content = [
-            html.P("Active node distribution and average ratings across "
+            html.P("Active distribution and average ratings across "
                    "your contexts.",
                    className="text-muted small"),
             dbc.Row([

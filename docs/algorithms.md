@@ -317,63 +317,70 @@ Milestones are checkpoints, not work. A Milestone like "10 strict pull-ups" sits
 
 # Eligibility, Status, and the Cascade
 
-Eligibility decides which nodes the scoring algorithm will consider in the first place. It depends on each node's `status`, which is itself the cached output of a function over the graph and the user's Done-flips — maintained by an incremental cascade that fires whenever a status changes. This section covers the gate (eligibility), the function it consults (status), and the machinery that keeps that function honest (the cascade).
+Both scoring algorithms above lean on a small handful of node-state fields, three of which behave independently:
+
+| Field | Values | Source | Effect on scoring |
+|---|---|---|---|
+| `status` | Open, Blocked, Done | Derived from the graph and the user's Done-flips | Primary scoring filters by it (eligibility), Goal scoring excludes Done prereqs from the remaining-cost sum, and the synergy completion multiplier counts Done partners directly |
+| `dormant` | 0 or 1 | User-set, or cleared by an Event trigger | Dormant nodes do not influence scoring. |
+| `now` | 0 or 1 | User-set | Now nodes remain eligible and continue to score, but they're routed to the "Now" section of the Next tab rather than competing for Suggestions slots |
+
+This section covers eligibility, the status function, and the cascade that keeps status up to date. A brief discussion of dormant and Now nodes sits at the end, explaining why they aren't included in the status cascade.
 
 ## Eligibility
 
-Only nodes that you can work on are scored. Eligibility filters out nodes whose Hard prerequisites aren't all Done. Formally:
+Only nodes you can work on are scored. Eligibility filters out anything with at least one Hard prerequisite that isn't Done:
 
 $$ \text{eligible}(n) = \begin{cases} 1 & \text{if } \forall\, m \in H_{\text{in}}(n),\ \text{status}(m) = \text{Done} \\ 0 & \text{otherwise} \end{cases} $$
 
-This is the only place where the algorithm walks Hard prereq edges *against* their arrow direction. The cascade walks forward (from $n$ to its dependents); eligibility walks backward (from $n$ to its prereqs). Non-eligible nodes are assigned $P = -1$ and dropped before the ranking sort. The same exclusion applies to Goals, Milestones, and Containers, as well as Done or Blocked nodes.
+Non-eligible nodes are assigned $P = -1$ and dropped before the ranking sort. The same exclusion applies to Goals, Milestones, Containers, and any node already Done or Blocked. The Blocked exclusion is technically redundant — a Blocked node, by definition, has a non-Done Hard prereq and so already fails the predicate above — but checking it explicitly costs nothing and makes the filter readable.
 
-## The status function
+On top of eligibility, two flag-based gates apply outside the formal predicate: Dormant nodes are invisible to scoring entirely, and Now nodes are filtered from Suggestions (they live in the "Now" section instead). Both sit outside the status cascade and are covered at the end of this section.
 
-A node's `status` is the cached output of a function of the graph and the user's Done-flips, not a free parameter. The function:
+## The Status Function
+
+The user directly controls only one of the three status values: Done, via the toggle on each node. Blocked and Open are derived.
 
 $$ \text{status}(n) = \begin{cases} \text{Done} & \text{user marked Done and prereqs are still satisfied} \\ \text{Blocked} & \exists\, m \in H_{\text{in}}(n),\ \text{status}(m) \ne \text{Done} \\ \text{Open} & \text{otherwise} \end{cases} $$
 
-Goals are exempt — their status is user-controlled and never recomputed. They are tracking nodes, not work nodes; the user decides when one is "achieved."
+The Blocked clause is the exact negation of the eligibility predicate — status assigns the label, eligibility reads it. Goals are exempt from this function: their status is user-controlled and never recomputed. They're tracking nodes, not work nodes, so only the user decides when one is achieved. And why would I want to rob the user of the joy of marking a goal complete by automatically doing that for them? 
 
-Notice that the Blocked clause is exactly the negation of the eligibility predicate above. A node with `status = Blocked` is precisely a non-eligible node (excepting the type/container exclusions, which eligibility adds on top). The two definitions are the same condition viewed from opposite ends: status assigns the label, eligibility reads it.
+## Incremental Cascade
 
-## Incremental cascade
+A single Done-flip can change the status of many downstream nodes — when a prereq goes Done, every dependent that was waiting on it might transition from Blocked to Open, and so on transitively. Rather than recompute every node's status on every flip, the app does a targeted walk: starting from the just-changed node's direct Hard dependents, visit each in turn, recompute its status from its own Hard prereqs, and enqueue its further dependents only if the recomputation actually changed something.
 
-When any node's status changes via `GraphManager.update_node`, `_update_dependent_nodes_state(node_name)` runs. It collects the direct Hard dependents ($H_{\text{out}}(n)$) and runs an iterative BFS through `_cascade_update_states`:
+Two properties keep the cascade tight:
 
-```
-queue = direct Hard dependents of changed_node
-while queue:
-    u = queue.pop()
-    if u seen: continue
-    if u.type == 'Goal': continue
-    is_blocked = any(prereq.status != Done for prereq in H_in(u))
-    new_status = Blocked if is_blocked else Open
-    if u.status == Done and not is_blocked: continue  # Done is monotonic
-    if u.status == new_status: continue                # no change
-    write u.status = new_status
-    enqueue every node in H_out(u)
-```
+- **Short-circuit on no-change.** If a node's recomputed status matches what it already had, the cascade doesn't descend through it. So a ripple only propagates as far as it's genuinely flipping bits — usually a small fragment of the downstream graph, not the full closure.
+- **Hard is a DAG.** Cycle prevention at edge-insert time (below) guarantees the walk always terminates.
 
-A status change only propagates further when it actually flips a downstream node — short-circuiting on no-change keeps the cascade bounded by the genuinely affected frontier, not the full Hard-downstream closure. Cycles are impossible because Hard edges are a DAG (enforced at write time).
+The result is that a single Done-flip touches only the genuinely affected frontier.
 
-## Done is monotonic
+## Done is Monotonic
 
-A Done node only re-derives to Blocked if a prereq becomes un-Done. It never silently flips back to Open — that would risk un-marking work the user said they finished. The cascade respects this by short-circuiting on Done nodes that still satisfy their prereqs.
+Once a node is Done, the cascade will never silently flip it back to Open. The only way for a Done node to leave that state is if a prereq becomes un-Done, in which case it re-derives to Blocked — you can't have finished work whose foundations are no longer there. This is enforced by an explicit short-circuit: if a node is currently Done and its prereqs are still all Done, the cascade leaves it alone.
 
-The payoff for eligibility: an eligible node stays eligible until the user actively un-Dones one of its prereqs. There's no hidden path by which the gate quietly closes on the user's selected work.
+The payoff for eligibility is that the gate never quietly closes on work the user has marked complete. Done is sticky in the direction the user expects: forward, not backward.
 
-## Cycle prevention on edge inserts
+## Cycle Prevention
 
-`GraphManager._will_create_cycle(source, target)` runs before every Hard or Soft edge insert. It does a forward BFS from `target` along Hard + Soft out-edges; if the walk ever reaches `source`, the new edge would close a cycle and the insert is rejected. Helps edges skip this check (they're bidirectional and can form arbitrary undirected cycles without breaking anything).
+The DAG property of the Hard + Soft subgraph isn't assumed at read time — it's enforced at write time. Before any Hard or Soft edge insert, the graph manager walks the existing graph from the prospective target along Hard + Soft edges and looks for the prospective source. If it finds it, the new edge would close a cycle, and the insert is rejected.
 
-This is the invariant that lets `total_value` memoize safely — the Hard + Soft subgraph is enforced to be a DAG at write time, not assumed at read time. The `computing` set inside `_tv_dag` is a belt-and-braces guard against the unreachable case where a cycle slips through anyway (corrupted DB, restored backup with mismatched constraints).
+This is the invariant that lets the cascade $\text{TV}_{\text{dag}}$ safely memoize. If the Hard + Soft graph could contain cycles, the recursive sum would either fail to terminate or produce results that depend on traversal order. Rejecting cycle-closing edges up front lets the rest of the algorithm treat the graph as a DAG without runtime checks.
 
-## Startup safety net
+Helps edges skip this check — they're bidirectional and can form arbitrary undirected cycles, but they're handled outside the cascade (depth-1 only), so cycles among them don't create termination problems.
 
-`recompute_all_statuses()` runs on app launch from [`app.py`](../app.py). It walks every non-Goal node, re-derives status from the current Hard prereqs, and writes back any drift. Drifted node counts are logged so silent bypass paths (direct SQL, restored backups, bugs in cascade-skipping code paths) surface in `data/app.log` rather than being papered over.
+## Startup Safety Net
 
-This is the only place that touches `status` without going through the incremental cascade. Every other write path either calls `update_node` (which fires the cascade) or `add_edge` / `remove_edge` for Hard edges (which call `_update_node_state` on the affected target).
+On every app launch, the graph manager walks every non-Goal node and re-derives its status from the current Hard prereqs, writing back any drift. Drifted node counts are logged. This is the defense against the rare cases where status falls out of sync with the graph — direct SQL writes, restored backups with mismatched data, or bugs in some future code path that skips the cascade. It's the only place in the codebase that touches `status` without going through the incremental cascade above.
+
+## Dormant and Now
+
+The status function above covers the three derived lifecycle values — Open, Blocked, Done — but two additional flag-based gates affect what the scoring pipeline sees. They aren't part of the cascade because they don't need to be: they're set directly by the user (or by an Event trigger, in the dormant case), have no graph-derived component, and don't ripple to other nodes. The cascade exists to keep derived values consistent across a connected web of dependencies; these flags have neither characteristic, so they live outside it.
+
+**Dormant** marks a node as not-yet-relevant. The typical use case is work the user wants to remember but doesn't want competing for attention right now, so they attach it to an Event — a manual trigger, a calendar date, or another node's completion — and mark the node dormant. Until the Event fires, dormant nodes are excluded from every read path in the scoring pipeline: their data simply doesn't appear in the algorithm's input. When the Event fires, every dormant node attached to it has its flag cleared, and only then does the status cascade run to settle whether each newly-live node is Open or Blocked. This is how the user defers work without forgetting it — a complete graph might have dozens of dormant Goals or Resources waiting for the right season, none of them cluttering the daily rankings.
+
+**Now** marks a node as currently-in-progress. Toggling it auto-stamps a `start_date`, and the node continues to be eligible and continues to be scored — but the Next tab moves it out of the Suggestions list and into a separate "Now" section, so what the user is already doing stays visually distinct from what the algorithm suggests next. Marking a node Done auto-stamps a `done_date` regardless of whether `now` was ever set. Now is orthogonal to status: an Open or Blocked node can be Now. A Blocked-and-Now combination usually means the user started work on something whose Hard prereqs they expected to finish in parallel, or accepted that a prereq is genuinely incomplete but the work is valuable enough to begin anyway.
 
 # Explain Feature
 

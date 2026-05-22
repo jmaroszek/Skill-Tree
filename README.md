@@ -3,6 +3,7 @@
 ![Python 3.10](https://img.shields.io/badge/Python-3.10-blue) ![Dash](https://img.shields.io/badge/Dash-Plotly-purple) ![SQLite](https://img.shields.io/badge/Database-SQLite-green)
 
 # Contents
+TODO: add after the document has been revised and edited.
 
 # Why This Exists
 ## The Five Key Factors of Every Project
@@ -138,7 +139,7 @@ Every node has one of four states:
 | Done | Finished. Counts toward unblocking its dependents and contributes Synergy multipliers to its partners. |
 | Dormant | Hidden, not scored, waiting on an Event to wake it up (more on this later). |
 
-On the canvas, status shows as a colored overlay on top of the node's type color — red for Blocked, green for Done — so you can spot the state of any node at a glance. Open nodes keep their type's native color; Dormant nodes don't appear on the canvas at all, unless you explicitly toggle it on in the Filters sidebar. If you do that, then dormant nodes are transparent to let you know they are not active yet.
+On the canvas, status shows as a colored overlay on top of the node's type color — red for Blocked, green for Done — so you can spot the state of any node at a glance. Open nodes keep their type's native color; Dormant nodes don't appear on the canvas at all, unless you explicitly toggle it on in the Filters sidebar. If you do that, then dormant nodes are transparent to let you know they are not awake yet.
 
 ## Containers
 
@@ -581,7 +582,7 @@ Right-click any goal card to open its context menu. The items mirror the canvas 
 | Edit | Edit, Explain | Open the node editor in place, or open the [Explain modal](#explain-modal) for this Goal. |
 | Navigate | Details, Event | Load the Goal into the Details tab, or wrap it into an event as a dormant node. |
 | Priority | Set Priority 1 / 2 / 3, Clear Priority | Set or clear this Goal's priority rank. |
-| State | Active, Done, Delete | Flip the Goal back to Active, mark it Done, or delete it. |
+| State | Now, Done, Delete | Flip the Goal's Now state, mark it Done, or delete it. |
 
 ### Sorting
 The sort dropdown above the list controls the card order. Four modes:
@@ -696,7 +697,7 @@ The Analyze tab gives you a bird's eye view of your entire network. Here, you ca
 
 ## The Overview strip
 
-At the top, an Overview strip summarizes the current non-dormant graph: total Goals, Milestones, active nodes, Done nodes, and the percentage of active nodes that are Blocked. This gives you a quick overview of the size and status of your graph. 
+At the top, an Overview strip summarizes the current non-dormant graph: total Goals, Milestones, live nodes, Done nodes, and the percentage of live nodes that are Blocked. This gives you a quick overview of the size and status of your graph. 
 
 **Screenshot**
 
@@ -732,7 +733,7 @@ This is the leverage view. A large bottleneck may not be the highest ROI item by
 
 ## Contexts
 
-The Contexts section shows a **Ratings** heatmap for active nodes grouped by context. This is a quick taste check. A context with high Value and low Interest may represent duty-heavy work. A context with high Interest and low Value may be a play/exploration area. A high Difficulty column is not a problem by itself, but it is a warning that the app may be accurately recommending less from that context unless the value, interest, or prerequisite cascade compensates.
+The Contexts section shows a **Ratings** heatmap for live nodes grouped by context. This is a quick taste check. A context with high Value and low Interest may represent duty-heavy work. A context with high Interest and low Value may be a play/exploration area. A high Difficulty column is not a problem by itself, but it is a warning that the app may be accurately recommending less from that context unless the value, interest, or prerequisite cascade compensates.
 
 # Settings
 The Settings modal is where you tune how the app looks, scores, and behaves. It's organized into five tabs, each grouping a different kind of knob. I've already touched on most of the interesting settings in the relevant sections above — this is just a map of where to find them.
