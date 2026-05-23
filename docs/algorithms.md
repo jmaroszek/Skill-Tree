@@ -1,10 +1,6 @@
 # Algorithms
 
-This document describes the math that powers the app's intelligent recommendations. 
-
-
- 
-For how the code is organized, see [app_architecture.md](app_architecture.md). For the user-facing tour, see [README.md](../README.md).
+This document describes the math that powers the app's intelligent recommendations. It assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md).
 
 
 # Notation
@@ -115,7 +111,7 @@ A descendant $k$ hops away contributes its intrinsic value scaled by the product
 
 Notice that the hard chain stays relevant 4-5 hops our (the descendant at depth 4 still contributes ~13% of its raw intrinsic value, and ~8% at at depth 5). Soft chains, in contrast, are effectively null past depth 3.
 
-### Synergistic Contributions to Total Value
+## Synergy and Total Value
 
 Synergy edges work differently from prerequisites. They don't say "this unlocks that," they say "doing both is worth more than doing either alone." 
 
@@ -124,21 +120,21 @@ One example is learning a Foreign Language and Travel. Time abroad helps solidif
 
 Synergies influence total value in two stages: one mechanism, the pair bonus, is in play before either partner is done, and the second mechanism, the completion multiplier, comes online only after one task has been completed.
 
-#### Pair Bonus 
+### Pair Bonus 
 A small bonus that applies before either partner has been started. Each synergy partner $z$ contributes a fraction $d_{\text{Syn,pair}}$ of its own cascade-derived total value back to $n$:
 
 $$ \text{Syn}_+(n) = d_{\text{Syn,pair}} \!\!\!\sum_{z \in Y(n)}\!\!\! c(n, z) \cdot \text{TV}_{\text{dag}}(z) $$
 
 Effectively, the pair bonus increases the liklihood that synergistic projects surface together, even before either is started. 
 
-##### Cross-Context Coefficient
+#### Cross-Context Coefficient
 The cross-context coefficient $c(n, z)$ amplifies the pair bonus of synergies that span different domains. 
 
 $$ c(n, z) = \begin{cases} m_{\text{cross}} & \text{if } \text{ctx}(z) \ne \text{ctx}(n)\\ 1 & \text{otherwise} \end{cases} $$
 
 This parameter is used to encourage exploration in the explore vs. exploit tradeoff. Two profiles that have a high completion multiplier are the Creator and Explorer. The Creator profile sets $m_{\text{cross}} = 2.0$ to reward cross-domain connections that can serve as creative inspiration. The Explorer profile sets $m_{\text{cross}} = 1.5$ to reward curiosity and reinforce concepts in different domains, hypothetically leading to better generalization. Other profiles leave $m_{\text{cross}}$ at $1.0$, so within-context synergies count the same as cross-context ones.
 
-#### Completion Multiplier
+### Completion Multiplier
 The completion multiplier gives a synergistic partner a large boost after the other one is done. Notice that this relationship is *multiplicative,* which scales priority more aggressively than the *additive* pair bonus described previously. 
 
 
@@ -148,7 +144,7 @@ $$ \mu_Y(n) = 1 + d_{\text{Syn,mul}} \cdot \sqrt{k(n)} $$
 
 The square root is a diminishing-returns guard. Without it, a node with 10 Done synergy partners would inflate by 10-20x under typical values for $d_{\text{Syn,mul}}$, which is empirically way too much. With it, 10 Done partners give roughly 3× the kick of 1, and the curve flattens further from there. The intuition: the first Done synergy partner provides most of the realized "doing both" payoff -- each additional one helps less.
 
-#### Synergies are Depth-1 Relationships
+### Synergies are Depth-1 Relationships
 Synergies do not chain (or cascade) like hard and soft edges do. They are treated as depth-1 relationships, meaning only the immediate synergy partners of $n$ contribute to its score (not the partners of those partners). 
 
 There are good conceputual and algorithmic reasons to enforce this relationship. First, not all relationships described by $A \leftrightarrow B \leftrightarrow C$ are meaningful. For example, Cooking $\leftrightarrow$ Chemistry $\leftrightarrow$ Pharmacology. Understanding Chemistry sharpens your intuition for cooking because you understanding why acids, heat, and time matter. Chemistry will also improve your understanding of Pharmacology, since drug mechanisms are fundamentally chemical. But it doesn't follow that Cooking helps with Pharmacology, or Pharmacology helps with Cooking. The synergistic relationships are real, but the relationships are not transitive, because the endpoints don't actually inform each other. 
@@ -164,6 +160,16 @@ $$ \text{TV}(n) = \underbrace{\mu_Y(n) \cdot \text{IV}(n)}_{\text{boosted intrin
 Read this as three additive terms: $n$'s own intrinsic value scaled by the synergy multiplier, plus the pure cascade portion (the recursive $\text{TV}_{\text{dag}}$ with $\text{IV}(n)$ subtracted out so it isn't double-counted), plus the synergy pair bonus.
 
 Notice that the multiplier $\mu_Y$ applies *only* to intrinsic value, not to the cascade or the pair bonus. This is intentional. Completing a synergy partner makes the surviving node more valuable on its own merits — the "doing both" payoff has been realized — but it doesn't retroactively change what the node inherits from its descendants or from its other synergy partners.
+
+### Attribution
+
+The Explain modal asks "where did this score come from?" — decomposing a node's TV into per-descendant contributions so the user can see which downstream work is driving the recommendation. The key observation is that the additive portion of TV is linear in descendant IVs: for any descendant $D$, its contribution to $n$'s TV is exactly $W(D) \cdot \text{IV}(D)$, where $W(D)$ is the sum over all $n$-rooted paths to $D$ of the product of edge discounts along that path. Computing every $W(D)$ takes a single topological pass over the reachable Hard + Soft subgraph — diamonds collapse naturally because each $D$'s weight accumulates contributions from every path that reaches it.
+
+The synergy completion multiplier is the one piece of TV that isn't linear in IV — it's a node-level scalar applied to $n$'s own IV alone — so it's pulled out of the attribution sum and reported separately as $\text{IV}(n) \cdot (\mu_Y(n) - 1)$. With that carve-out, the identity holds exactly:
+
+$$ \text{TV}(n) = \text{IV}(n) \cdot (\mu_Y(n) - 1) + \sum_D W(D) \cdot \text{IV}(D) $$
+
+which is what makes the contributor percentages in the Explain modal add up sensibly.
 
 ## Base Score
 
@@ -254,8 +260,7 @@ The six built-in profiles are essentially hyperparameter bundles. First, the ful
 | Density exponent (scored) | $\alpha$ | 0.30 | 0.40 | 0.20 | 0.20 | 0.30 | 0.40 |
 | Density exponent (Goals) | $\alpha_g$ | 0.20 | 0.30 | 0.15 | 0.15 | 0.20 | 0.30 |
 
-> [!Note] Customization
-> A Custom profile is also available, exposing every parameter for fine tuning.
+A **Custom** profile is also available, exposing every parameter for fine tuning.
 
 ### The Perspective of Each Profile
 | Profile | Perspective | Parameter Tweaks |
@@ -317,120 +322,65 @@ Milestones are checkpoints, not work. A Milestone like "10 strict pull-ups" sits
 
 # Eligibility, Status, and the Cascade
 
-Both scoring algorithms above lean on a small handful of node-state fields, three of which behave independently:
+Both scoring algorithms above consult three independent state fields per node:
 
 | Field | Values | Source | Effect on scoring |
 |---|---|---|---|
-| `status` | Open, Blocked, Done | Derived from the graph and the user's Done-flips | Primary scoring filters by it (eligibility), Goal scoring excludes Done prereqs from the remaining-cost sum, and the synergy completion multiplier counts Done partners directly |
-| `dormant` | 0 or 1 | User-set, or cleared by an Event trigger | Dormant nodes do not influence scoring. |
-| `now` | 0 or 1 | User-set | Now nodes remain eligible and continue to score, but they're routed to the "Now" section of the Next tab rather than competing for Suggestions slots |
+| Status | Open, Blocked, Done | Derived from the user's manual Done-flips, and the graph's relationship structure | Determines what nodes are eligible to be scored, or included in the Goal ranking's estimate of remaining work. |
+| Dormant | 0 or 1 | User-set, or cleared on an Event trigger | Dormant nodes do not affect scoring until their associated Event triggers |
+| Now | 0 or 1 | User-set | Still scored, because the user may want to see its priority breakdown with the Explain feature, but the node does not compete for the top $n$ slots in the Next Tab's suggestions table. |
 
-This section covers eligibility, the status function, and the cascade that keeps status up to date. A brief discussion of dormant and Now nodes sits at the end, explaining why they aren't included in the status cascade.
-
-## Eligibility
-
-Only nodes you can work on are scored. Eligibility filters out anything with at least one Hard prerequisite that isn't Done:
-
-$$ \text{eligible}(n) = \begin{cases} 1 & \text{if } \forall\, m \in H_{\text{in}}(n),\ \text{status}(m) = \text{Done} \\ 0 & \text{otherwise} \end{cases} $$
-
-Non-eligible nodes are assigned $P = -1$ and dropped before the ranking sort. The same exclusion applies to Goals, Milestones, Containers, and any node already Done or Blocked. The Blocked exclusion is technically redundant — a Blocked node, by definition, has a non-Done Hard prereq and so already fails the predicate above — but checking it explicitly costs nothing and makes the filter readable.
-
-On top of eligibility, two flag-based gates apply outside the formal predicate: Dormant nodes are invisible to scoring entirely, and Now nodes are filtered from Suggestions (they live in the "Now" section instead). Both sit outside the status cascade and are covered at the end of this section.
+Status is the most algorithmically substantive of the three, so the rest of this section concentrates on it — its formal definition, the cascade that maintains it, and the invariants the cascade depends on. Dormant and Now sit outside that machinery and are covered at the end.
 
 ## The Status Function
 
-The user directly controls only one of the three status values: Done, via the toggle on each node. Blocked and Open are derived.
+The user directly controls only one of the three status values: Done, via the toggle on each node. The Blocked and Open statuses are derived from the relationships of the graph.
 
-$$ \text{status}(n) = \begin{cases} \text{Done} & \text{user marked Done and prereqs are still satisfied} \\ \text{Blocked} & \exists\, m \in H_{\text{in}}(n),\ \text{status}(m) \ne \text{Done} \\ \text{Open} & \text{otherwise} \end{cases} $$
+$$ \text{status}(n) = \begin{cases} \text{Done} & \text{user marked Done} \\ \text{Blocked} & \text{at least one hard need not done} \\ \text{Open} & \text{otherwise} \end{cases} $$
 
-The Blocked clause is the exact negation of the eligibility predicate — status assigns the label, eligibility reads it. Goals are exempt from this function: their status is user-controlled and never recomputed. They're tracking nodes, not work nodes, so only the user decides when one is achieved. And why would I want to rob the user of the joy of marking a goal complete by automatically doing that for them? 
+Goals are exempt from this function. Their status is user-controlled and never recomputed. This preserves the "yellow star" appearance on the canvases that make goals easy to spot, and allows the user to formally decide when they have met their goal. 
 
-## Incremental Cascade
+## Status Cascade
 
-A single Done-flip can change the status of many downstream nodes — when a prereq goes Done, every dependent that was waiting on it might transition from Blocked to Open, and so on transitively. Rather than recompute every node's status on every flip, the app does a targeted walk: starting from the just-changed node's direct Hard dependents, visit each in turn, recompute its status from its own Hard prereqs, and enqueue its further dependents only if the recomputation actually changed something.
+A single Done-flip can ripple through many downstream nodes. The app will instantly set downstream nodes' status to Open if the just-completed node was the last hard-need for it. 
 
-Two properties keep the cascade tight:
+Rather than recompute every node's status on every flip, the app does a targeted walk. Starting from the just-changed node's direct Hard dependents, it visits each in turn, recomputes that node's status from its own Hard prereqs, and enqueues the node's further dependents only when the recomputation actually changes the cached value.
 
-- **Short-circuit on no-change.** If a node's recomputed status matches what it already had, the cascade doesn't descend through it. So a ripple only propagates as far as it's genuinely flipping bits — usually a small fragment of the downstream graph, not the full closure.
-- **Hard is a DAG.** Cycle prevention at edge-insert time (below) guarantees the walk always terminates.
+Two properties keep the walk computationally light:
+- **Hard Edges form a DAG.** Cycle prevention at edge-insert time guarantees the walk always terminates.
+- **Short-circuit on no-change.** If a node's recomputed status matches what it already had, the cascade stops. 
 
-The result is that a single Done-flip touches only the genuinely affected frontier.
+That is to say the cascade only proceeds as far as is useful.
 
-## Done is Monotonic
+## Done is Final
 
-Once a node is Done, the cascade will never silently flip it back to Open. The only way for a Done node to leave that state is if a prereq becomes un-Done, in which case it re-derives to Blocked — you can't have finished work whose foundations are no longer there. This is enforced by an explicit short-circuit: if a node is currently Done and its prereqs are still all Done, the cascade leaves it alone.
-
-The payoff for eligibility is that the gate never quietly closes on work the user has marked complete. Done is sticky in the direction the user expects: forward, not backward.
+As discussed in the [README](../README.md), once a node is done, the cascade will never silently flip it to open. A Done node will only ever switch to Blocked if the user un-completes a hard need that was previously marked as Done, and there will be a warning when this transition occurs. 
 
 ## Cycle Prevention
+A crucial feature of the hard and soft edges in Skill Tree is that they form a Directed Acyclic Graph (DAG). This is what allows the scoring algorithm to run in milliseconds rather than minutes. This property is not assumed, it is enforced. Everytime the user creates a new edge, the graph manager walks the proposed edge and looks for cycles that could trap the scoring algorithm. If it finds one, the would-be edge is rejected, with an informational modal explaining why. 
 
-The DAG property of the Hard + Soft subgraph isn't assumed at read time — it's enforced at write time. Before any Hard or Soft edge insert, the graph manager walks the existing graph from the prospective target along Hard + Soft edges and looks for the prospective source. If it finds it, the new edge would close a cycle, and the insert is rejected.
-
-This is the invariant that lets the cascade $\text{TV}_{\text{dag}}$ safely memoize. If the Hard + Soft graph could contain cycles, the recursive sum would either fail to terminate or produce results that depend on traversal order. Rejecting cycle-closing edges up front lets the rest of the algorithm treat the graph as a DAG without runtime checks.
-
-Helps edges skip this check — they're bidirectional and can form arbitrary undirected cycles, but they're handled outside the cascade (depth-1 only), so cycles among them don't create termination problems.
+Helps edges skip this check, but that is intentional and not an oversite. Recall that [Synergies are Depth-1 Relationships](#synergies-are-depth-1-relationships), implying their is no recursion, and therefore no problem if the graph is cyclic. 
 
 ## Startup Safety Net
 
-On every app launch, the graph manager walks every non-Goal node and re-derives its status from the current Hard prereqs, writing back any drift. Drifted node counts are logged. This is the defense against the rare cases where status falls out of sync with the graph — direct SQL writes, restored backups with mismatched data, or bugs in some future code path that skips the cascade. It's the only place in the codebase that touches `status` without going through the incremental cascade above.
+On every app launch, the graph manager walks every non-Goal node and re-derives its status from the current Hard prereqs, correcting any drift, and logging it. The only way the app can drift is if you programatically add nodes with SQL, and bypass the the app's safety mechanisms. There is an option in the Appearance tab of Settings to manually repair the status of nodes if you do not want to simply restart the app. 
 
-## Dormant and Now
+## Dormant and Now Nodes
 
-The status function above covers the three derived lifecycle values — Open, Blocked, Done — but two additional flag-based gates affect what the scoring pipeline sees. They aren't part of the cascade because they don't need to be: they're set directly by the user (or by an Event trigger, in the dormant case), have no graph-derived component, and don't ripple to other nodes. The cascade exists to keep derived values consistent across a connected web of dependencies; these flags have neither characteristic, so they live outside it.
+The status function covers the three derived lifecycle values — Open, Blocked, and Done — but two additional flags affect what the scoring algorithm sees. They aren't part of the cascade, because they don't need to be. Dormant and Now nodes do not ripple through the relationships of the graph, like the status field does, so they do not need any machinery fact-checking them. 
 
-**Dormant** marks a node as not-yet-relevant. The typical use case is work the user wants to remember but doesn't want competing for attention right now, so they attach it to an Event — a manual trigger, a calendar date, or another node's completion — and mark the node dormant. Until the Event fires, dormant nodes are excluded from every read path in the scoring pipeline: their data simply doesn't appear in the algorithm's input. When the Event fires, every dormant node attached to it has its flag cleared, and only then does the status cascade run to settle whether each newly-live node is Open or Blocked. This is how the user defers work without forgetting it — a complete graph might have dozens of dormant Goals or Resources waiting for the right season, none of them cluttering the daily rankings.
+**Dormant** nodes are excluded from every read path in the scoring pipeline. When an Event triggers a dormant node, the flag is cleared and the status cascade runs to settle whether the newly-live node is Open or Blocked.
 
-**Now** marks a node as currently-in-progress. Toggling it auto-stamps a `start_date`, and the node continues to be eligible and continues to be scored — but the Next tab moves it out of the Suggestions list and into a separate "Now" section, so what the user is already doing stays visually distinct from what the algorithm suggests next. Marking a node Done auto-stamps a `done_date` regardless of whether `now` was ever set. Now is orthogonal to status: an Open or Blocked node can be Now. A Blocked-and-Now combination usually means the user started work on something whose Hard prereqs they expected to finish in parallel, or accepted that a prereq is genuinely incomplete but the work is valuable enough to begin anyway.
+**Now** nodes still cascade and still receive a final score (the Explain modal uses it), but the Next tab filters them out of the Suggestions ranking and surfaces them in a separate Now panel instead.
 
-# Explain Feature
+For the user-facing rationale and behavior of both flags, see the [README](../README.md).
 
-`explain_score` decomposes a node's TV into per-ancestor contributors so the Explain modal can show "who contributed what." The challenge: with diamond paths (multiple routes from $n$ to a descendant $D$), the contribution of $D$ is the sum over all paths. A naive recursion would re-traverse each subtree per ancestor.
+# Other Resources
 
-The trick exploits the linearity of the additive portion of TV. For any descendant $D$, its contribution to $n$'s TV equals a single scalar weight $W(D)$ times $\text{IV}(D)$:
+| Resource | What's there |
+|---|---|
+| [scoring.py](../scoring.py) | The module that implements the scoring functions |
+| [graph_manager.py](../graph_manager.py) | The module that implements the ideas in the status section |
+| [time.md](time.md) | Documentation explaining how the app produces $t(n)$, whichi is used in the Perceived Cost formula above |
+| [README.md](../README.md) | The user-facing tour of the features that exist and why |
 
-$$ \text{contribution}(D) = W(D) \cdot \text{IV}(D) $$
-
-where $W(D)$ is the sum over all $n$-rooted paths to $D$ of the product of edge discounts along that path. The synergy completion multiplier is *not* linear in IV — it's a node-level scalar — so it's handled separately.
-
-## Computing $W$ by forward propagation
-
-Build $W$ in a single topological pass over the reachable Hard + Soft subgraph rooted at $n$, with a depth-1 Synergy seed.
-
-```
-W[n] = 1
-for z in Y(n) \ {n}:
-    W[z] += c(n, z) * d_Syn_pair        # depth-1 synergy seed
-
-for u in topological order over reachable nodes:
-    if W[u] == 0: continue
-    for v in H_out(u): W[v] += d_H * W[u]
-    for v in S_out(u): W[v] += d_S * W[u]
-```
-
-Reachability is computed by a stack walk from $n$ plus its synergy seeds; topological order falls out of a Kahn-style in-degree decrement over the reachable subset.
-
-Because Hard + Soft is a DAG, the topological order is well-defined and each node $u$ is processed exactly once after all its predecessors have committed their contributions to $W[u]$. Diamonds collapse naturally — both paths to $D$ add to the same $W[D]$ on their respective passes.
-
-## Identity
-
-The forward propagation produces weights satisfying
-
-$$ \sum_D W(D) \cdot \text{IV}(D) = \text{IV}(n) + \big(\text{TV}_{\text{dag}}(n) - \text{IV}(n)\big) + \text{Syn}_+(n) $$
-
-— exactly the additive portion of $\text{TV}(n)$. The synergy multiplier $\mu_Y(n)$ contributes the remaining $\text{IV}(n) \cdot (\mu_Y(n) - 1)$ as a node-level scalar applied outside this sum. So:
-
-$$ \text{TV}(n) = \text{IV}(n) \cdot (\mu_Y(n) - 1) + \sum_D W(D) \cdot \text{IV}(D) $$
-
-This identity is what makes contributor percentages add up sensibly in the Explain modal.
-
-## First-hop categorization
-
-Each descendant is tagged with the type of the *first* edge taken from $n$ on the shortest path to it: `Hard`, `Soft`, or `Synergy` (or `Self` for $n$ itself). This is what populates the breakdown rows in the modal — hard_cascade, soft_cascade, synergy contributions. Ties at equal depth break Hard > Soft > Synergy by convention so the more "structural" category wins display ownership.
-
-## Next
-
-- [`scoring.py`](../scoring.py) is the canonical reference for everything in the scoring, goal scoring, and explainability sections. Every formula above maps to identifiable lines in that module.
-- [`graph_manager.py`](../graph_manager.py) (specifically `_cascade_update_states`, `_will_create_cycle`, and `recompute_all_statuses`) is the canonical reference for the status cascade.
-- [time.md](time.md) covers the PERT blend and Monte Carlo simulation that produce the $t(n)$ used in the Perceived Cost formula above.
-- [README.md](../README.md) is the user-facing tour and the source of truth for product semantics — what each feature does and why it exists.
-- [CLAUDE.md](../CLAUDE.md) captures repo conventions, edge-direction gotchas, and the must-know rules for editing the codebase.

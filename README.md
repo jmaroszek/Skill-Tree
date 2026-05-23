@@ -141,6 +141,16 @@ Every node has one of four states:
 
 On the canvas, status shows as a colored overlay on top of the node's type color — red for Blocked, green for Done — so you can spot the state of any node at a glance. Open nodes keep their type's native color; Dormant nodes don't appear on the canvas at all, unless you explicitly toggle it on in the Filters sidebar. If you do that, then dormant nodes are transparent to let you know they are not awake yet.
 
+### Re-opening a Done Node
+
+Done is meant to be sticky. The app will never silently flip a Done node back to Open behind your back, because that would mean un-finishing work you told it you'd completed. The only way out of Done is to actively un-mark it yourself.
+
+When you do that, anything downstream that depended on it has to be re-evaluated. A node that was previously Done because *its* prerequisites were all Done is no longer in that situation — one of its prerequisites just became incomplete. So those downstream Done nodes re-derive to **Blocked**, not Open. The chain reaction can ripple as far as the Hard-prereq subgraph reaches.
+
+Because that cascade is destructive — it un-finishes work the app considers settled — the app will not let it happen silently. When you un-mark a Done node that has Done dependents, a confirmation modal pops up first. It tells you exactly how many downstream nodes will flip to Blocked and lists them by name (up to 25, with a "...and X more" footer if there are extras). You confirm to commit the change, or cancel to leave everything as it was. If the node you're un-marking has no Done dependents, the toggle proceeds silently — there's nothing destructive to confirm.
+
+The practical consequence: Done means something. You can comb through your graph fearlessly, knowing that nothing you've finished will quietly come undone, and that any change you do make to a finished node is gated behind an explicit "yes, I meant to do that."
+
 ## Containers
 
 A container, simply stated, groups related nodes together. But it is itself a node on the canvas — a container is just a regular node with a switch flipped.
