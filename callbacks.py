@@ -1191,26 +1191,64 @@ def register_callbacks(app):
         Input('node-time-o', 'value'),
         Input('node-time-m', 'value'),
         Input('node-time-p', 'value'),
+        Input('node-time-mode', 'value'),
+        Input('node-time-habit-mode', 'value'),
         prevent_initial_call=True,
     )
-    def validate_time_estimates(time_o, time_m, time_p):
-        """Enforce Lower <= Expected <= Upper and disable Save on violation."""
-        o = float(time_o or 0)
-        m = float(time_m or 0)
-        p = float(time_p or 0)
+    def validate_time_estimates(time_o, time_m, time_p, time_mode_val, habit_mode_val):
+        """Enforce one of the supported (l, m, u) input patterns and the
+        Lower <= Expected <= Upper ordering; disable Save on violation.
+
+        Valid patterns (mirroring `blend_time_estimate` in models.py):
+          - Expected only          {m}
+          - Lower + Upper          {o, p}
+          - All three              {o, m, p}
+
+        Validation is skipped when the node uses inherited time (container
+        draws from children) or habit mode (separate input section).
+        """
         hidden = {"display": "none", "color": "#dc3545", "fontSize": "0.85rem"}
         visible = {"display": "block", "color": "#dc3545", "fontSize": "0.85rem"}
 
-        # Skip validation when all fields are empty/zero
-        if o == 0 and m == 0 and p == 0:
+        if (time_mode_val and 'inherited' in time_mode_val) or \
+           (habit_mode_val and 'habit' in habit_mode_val):
             return "", hidden, False, False
 
+        o = float(time_o or 0)
+        m = float(time_m or 0)
+        p = float(time_p or 0)
+        has_o, has_m, has_p = o > 0, m > 0, p > 0
+        pattern = (has_o, has_m, has_p)
+
+        valid_patterns = {
+            (False, True, False),   # m only
+            (True, False, True),    # o + p
+            (True, True, True),     # all three
+        }
+
+        if pattern == (False, False, False):
+            return ("Enter at least an Expected estimate, or both Lower and Upper.",
+                    visible, True, True)
+
+        if pattern not in valid_patterns:
+            if pattern == (True, False, False):
+                msg = "Lower alone is not enough — also enter Upper, or use Expected instead."
+            elif pattern == (False, False, True):
+                msg = "Upper alone is not enough — also enter Lower, or use Expected instead."
+            elif pattern == (True, True, False):
+                msg = "Lower + Expected is not a valid pair — also enter Upper, or drop Lower."
+            elif pattern == (False, True, True):
+                msg = "Expected + Upper is not a valid pair — also enter Lower, or drop Upper."
+            else:
+                msg = "Invalid time-estimate combination."
+            return msg, visible, True, True
+
         errors = []
-        if o > 0 and m > 0 and o > m:
+        if has_o and has_m and o > m:
             errors.append("Lower must be ≤ Expected")
-        if m > 0 and p > 0 and m > p:
+        if has_m and has_p and m > p:
             errors.append("Expected must be ≤ Upper")
-        if o > 0 and p > 0 and o > p:
+        if has_o and has_p and o > p:
             errors.append("Lower must be ≤ Upper")
 
         if errors:
