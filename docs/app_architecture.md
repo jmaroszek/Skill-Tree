@@ -2,7 +2,7 @@
 
 This document covers how the app is organized — modules, the tab-callback pattern, the Cytoscape rendering pipeline, the JS–Dash bridge, and how persistence and caching are coordinated. For the math that drives recommendations, see [algorithms.md](algorithms.md). For the user-facing tour, see [README.md](../README.md).
 
-## Module map
+## Module Map
 
 | Module | Role |
 |---|---|
