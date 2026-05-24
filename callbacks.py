@@ -2374,14 +2374,14 @@ def register_callbacks(app):
         complete_msg = html.Div([
             html.Div("✓", className="text-success",
                      style={"fontSize": "2.4rem", "lineHeight": "1"}),
-            html.H5("All projects reviewed", className="mt-2 mb-1"),
-            html.P(f"You cycled through {n} completed node(s).",
+            html.H5("All caught up", className="mt-2 mb-1"),
+            html.P(f"You reflected on {n} completed node(s).",
                    className="text-muted small mb-0"),
         ])
         return (True, {'mode': 'complete'},
-                f"Calibration review complete — {n} node(s).",
+                f"Reflection complete — {n} node(s).",
                 *reset, no_update, 100, f"{n} / {n}", complete_msg,
-                "Review complete", no_update, no_update)
+                "Reflection complete", no_update, no_update)
 
     # --- Calibration Review: launch the cycle ---
     # Fired by the "Start review" button inside the Review Hub modal.
@@ -2410,7 +2410,7 @@ def register_callbacks(app):
             # Leave the hub open so the user sees the toast without losing
             # their place in the hub.
             return (no_update, no_update, no_update, no_update, no_update,
-                    True, "All completed nodes are already rated or dismissed.",
+                    True, "All completed nodes are already reflected on or excluded.",
                     no_update, no_update, no_update)
         first = manager.get_node(queue[0])
         title, ref = _calibration_modal_text(first) if first else ("", "")

@@ -960,7 +960,7 @@ def _render_estimation_accuracy(rows):
     if not rows:
         return _card([title, html.P(
             "No completed nodes have actual-time data yet. Mark nodes Done "
-            "with Time Calibration enabled to populate this chart.",
+            "with Reflection enabled to populate this chart.",
             className="text-muted small")])
 
     fmt = ConfigManager.format_time_friendly

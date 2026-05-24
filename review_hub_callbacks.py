@@ -1,13 +1,14 @@
-"""Callbacks for the Review Hub modal.
+"""Callbacks for the Reflection Hub modal.
 
 Owns open/close wiring, the Pending tab's live count, the Excluded tab's
-list + restore controls (moved here from settings_callbacks), and (later)
-the Review History DataTable.
+list + restore controls (moved here from settings_callbacks), and the
+Review History table + filters + edit hand-off.
 """
 
-from dash import Input, Output, State, ALL, ctx, no_update
+from dash import Input, Output, State, ALL, ctx, no_update, html
+import dash_bootstrap_components as dbc
 
-from config import ConfigManager
+from config import ConfigManager, sort_subcontexts
 from graph_manager import GraphManager
 from callback_helpers import build_calibration_dismissed_view
 
@@ -18,31 +19,16 @@ _manager = GraphManager()
 # Sentinel string for missing-actual cells in the History table.
 _DASH = "—"
 
-# DataTable column ids — kept here so the populate callback and the
-# Phase-6 edit handler agree on the schema. `_edit` is the sentinel column
-# the user clicks to open the focused-review modal in edit mode.
-HISTORY_COLUMNS = [
-    {"name": "Name", "id": "name"},
-    {"name": "Done", "id": "done_date"},
-    {"name": "Est Time", "id": "est_time", "type": "numeric"},
-    {"name": "Actual", "id": "act_time", "type": "numeric"},
-    {"name": "Δ Time", "id": "delta_time", "type": "numeric"},
-    {"name": "Est V/I/E", "id": "est_vie"},
-    {"name": "Act V/I/E", "id": "act_vie"},
-    {"name": "Δ V/I/E", "id": "delta_vie"},
-    {"name": "", "id": "_edit"},
-]
-
 
 def _fmt_hours(hours):
-    """Friendly time for the table — empty string for missing."""
+    """Friendly time; DASH for missing."""
     if hours is None:
         return _DASH
     return ConfigManager.format_time_friendly(hours)
 
 
 def _fmt_delta_hours(actual, estimate):
-    """Signed friendly time delta. Returns DASH if either side is missing."""
+    """Signed friendly time delta. DASH if either side is missing."""
     if actual is None or estimate is None or estimate <= 0:
         return _DASH
     diff = actual - estimate
@@ -80,6 +66,100 @@ def _node_has_actuals(node):
             or node.reflect_value is not None
             or node.reflect_interest is not None
             or node.reflect_difficulty is not None)
+
+
+# Cell styles reused across rows. Muted-grey is the Subtasks-table convention
+# for non-name secondary text; full-light is for the Name column.
+_CELL_PRIMARY = {"verticalAlign": "middle"}
+_CELL_MUTED = {"verticalAlign": "middle", "color": "#6c757d"}
+
+
+def _build_history_table(nodes):
+    """Render the Review History as a `dbc.Table` matching the Details tab's
+    Subtasks-table style. Edit ✎ buttons carry pattern-matched ids so the
+    edit-handoff callback can resolve which row was clicked directly from
+    `ctx.triggered_id`."""
+    if not nodes:
+        return html.Div(
+            html.P("No matching reflections.",
+                   className="text-muted mb-0"),
+            className="text-center py-3",
+        )
+
+    rows = []
+    for node in nodes:
+        est_hours = getattr(node, 'time', 0) or 0
+        act_hours = node.actual_time_point
+        edit_id = {'type': 'hub-history-edit', 'index': node.name}
+        rows.append(html.Tr([
+            html.Td(node.name, style=_CELL_PRIMARY),
+            html.Td(_fmt_hours(est_hours) if est_hours > 0 else _DASH,
+                    style=_CELL_MUTED),
+            html.Td(_fmt_hours(act_hours), style=_CELL_MUTED),
+            html.Td(_fmt_delta_hours(act_hours, est_hours), style=_CELL_MUTED),
+            html.Td(_fmt_vie_tuple(node.value, node.interest, node.difficulty),
+                    style=_CELL_MUTED),
+            html.Td(_fmt_vie_tuple(node.reflect_value, node.reflect_interest,
+                                   node.reflect_difficulty),
+                    style=_CELL_MUTED),
+            html.Td(_fmt_vie_delta(node.reflect_value, node.reflect_interest,
+                                   node.reflect_difficulty,
+                                   node.value, node.interest, node.difficulty),
+                    style=_CELL_MUTED),
+            html.Td(
+                dbc.Button("✎", id=edit_id, color="link", size="sm",
+                           className="p-0 text-decoration-none text-muted",
+                           style={"fontSize": "1.1rem", "lineHeight": "1"}),
+                style={"verticalAlign": "middle", "width": "32px"},
+            ),
+        ]))
+
+    # `--bs-table-bg: transparent` removes the dark grey row tint that
+    # Bootstrap's Darkly theme paints on every <td>. Subtasks table reads
+    # cleaner because its background falls through to the modal/canvas
+    # surface; matching that here.
+    return dbc.Table(
+        [
+            html.Thead(html.Tr([
+                html.Th("Name"),
+                html.Th("Est Time"),
+                html.Th("Actual"),
+                html.Th("Δ Time"),
+                html.Th("Est V/I/E"),
+                html.Th("Act V/I/E"),
+                html.Th("Δ V/I/E"),
+                html.Th(""),
+            ])),
+            html.Tbody(rows),
+        ],
+        bordered=False, hover=True, responsive=True, size="sm",
+        className="text-light",
+        style={"fontSize": "0.82rem", "--bs-table-bg": "transparent"},
+    )
+
+
+def _filter_history_nodes(nodes, search, ctx_filter, subctx_filter):
+    """Apply search + context + subcontext filters (AND across all).
+
+    `subctx_filter` values use the same `ctx\x1fsub` encoding as the main
+    filter sidebar so the dropdown options can be reused as-is.
+    """
+    if search:
+        s = search.strip().lower()
+        if s:
+            nodes = [n for n in nodes if s in n.name.lower()]
+    if ctx_filter:
+        ctx_set = set(ctx_filter)
+        nodes = [n for n in nodes if n.context in ctx_set]
+    if subctx_filter:
+        pairs = set()
+        for v in subctx_filter:
+            if isinstance(v, str) and '\x1f' in v:
+                c, s = v.split('\x1f', 1)
+                pairs.add((c, s or None))
+        nodes = [n for n in nodes
+                 if (n.context, n.subcontext or None) in pairs]
+    return nodes
 
 
 def register_review_hub_callbacks(app):
@@ -147,65 +227,65 @@ def register_review_hub_callbacks(app):
             _manager.update_node(node)
         return build_calibration_dismissed_view(_manager)
 
-    # --- History tab: populate the DataTable when the hub opens ---
-    # Also re-fires on tab switch so an edit in another tab (Phase 6) is
-    # reflected when the user returns. Builds the row-to-name map in
-    # `hub-history-store` so the edit-click handler can resolve the clicked
-    # row back to a node (DataTable's active_cell carries indices, not
-    # row content).
+    # --- History tab: subcontext-filter options track the context filter ---
+    # Mirrors the main filter sidebar's pattern at sidebars_layout.build_filters_content.
+    # Subcontexts are encoded as "ctx\x1fsub" (ASCII unit-separator) because
+    # Dash dropdowns mangle "::" — matches the sidebar's encoding so the same
+    # _filter_history_nodes parsing works.
     @app.callback(
-        Output('hub-history-table', 'data'),
-        Output('hub-history-table', 'columns'),
-        Output('hub-history-store', 'data'),
+        Output('hub-history-filter-subcontext', 'options'),
+        Output('hub-history-filter-subcontext', 'value'),
+        Input('hub-history-filter-context', 'value'),
+        State('hub-history-filter-subcontext', 'value'),
+    )
+    def update_history_subcontext_options(selected_contexts, current_subs):
+        if not selected_contexts:
+            return [], []
+        all_subs = ConfigManager.get_subcontexts()
+        multi = len(selected_contexts) > 1
+        options = []
+        for c in selected_contexts:
+            none_label = f"{c} > None" if multi else "None"
+            options.append({"label": none_label, "value": f"{c}\x1f"})
+            for s in sort_subcontexts(all_subs.get(c, [])):
+                label = f"{c} > {s}" if multi else s
+                options.append({"label": label, "value": f"{c}\x1f{s}"})
+        valid = {o["value"] for o in options}
+        new_value = [v for v in (current_subs or []) if v in valid]
+        return options, new_value
+
+    # --- History tab: rebuild the table on open, tab switch, or filter change ---
+    @app.callback(
+        Output('hub-history-table-container', 'children'),
         Input('modal-review-hub', 'is_open'),
         Input('review-hub-tabs', 'active_tab'),
+        Input('hub-history-search', 'value'),
+        Input('hub-history-filter-context', 'value'),
+        Input('hub-history-filter-subcontext', 'value'),
         prevent_initial_call=True,
     )
-    def populate_review_history(is_open, _active_tab):
+    def populate_review_history(is_open, _active_tab, search,
+                                ctx_filter, subctx_filter):
         if not is_open:
-            return no_update, no_update, no_update
-        rows = []
-        for node in _manager.get_all_nodes(include_dormant=True):
-            if not _node_has_actuals(node):
-                continue
-            est_hours = getattr(node, 'time', 0) or 0
-            act_hours = node.actual_time_point
-            rows.append({
-                "name": node.name,
-                "done_date": node.done_date or _DASH,
-                "est_time": _fmt_hours(est_hours) if est_hours > 0 else _DASH,
-                "act_time": _fmt_hours(act_hours),
-                "delta_time": _fmt_delta_hours(act_hours, est_hours),
-                "est_vie": _fmt_vie_tuple(node.value, node.interest, node.difficulty),
-                "act_vie": _fmt_vie_tuple(node.reflect_value, node.reflect_interest,
-                                          node.reflect_difficulty),
-                "delta_vie": _fmt_vie_delta(node.reflect_value, node.reflect_interest,
-                                            node.reflect_difficulty,
-                                            node.value, node.interest, node.difficulty),
-                "_edit": "✎",
-            })
-        # Most-recent-first by done_date; nodes without a done_date go to the
-        # bottom (ISO strings sort lexicographically — DASH sentinel sorts
-        # before digits, so flip to push it to the tail).
-        rows.sort(key=lambda r: (r["done_date"] == _DASH, r["done_date"]),
-                  reverse=False)
-        # Reverse the date-sorted portion so most recent is first while
-        # DASH rows stay at the end. Simpler: pull DASH rows aside, sort the
-        # rest desc, append DASH rows.
-        dated = [r for r in rows if r["done_date"] != _DASH]
-        undated = [r for r in rows if r["done_date"] == _DASH]
-        dated.sort(key=lambda r: r["done_date"], reverse=True)
-        rows = dated + undated
-        store = {str(i): r["name"] for i, r in enumerate(rows)}
-        return rows, HISTORY_COLUMNS, store
+            return no_update
+        nodes = [n for n in _manager.get_all_nodes(include_dormant=True)
+                 if _node_has_actuals(n)]
+        nodes = _filter_history_nodes(nodes, search, ctx_filter, subctx_filter)
+        # Most-recent-first by done_date; undated rows go to the bottom in
+        # name order so the table stays scannable even before any node has
+        # been Now-flipped.
+        dated = [n for n in nodes if n.done_date]
+        undated = [n for n in nodes if not n.done_date]
+        dated.sort(key=lambda n: n.done_date, reverse=True)
+        undated.sort(key=lambda n: n.name.lower())
+        return _build_history_table(dated + undated)
 
     # --- History tab: open the focused-review modal in 'edit' mode ---
-    # Triggered by clicking the sentinel "✎" cell on any History row. Resolves
-    # the row index → node name via `derived_virtual_data` (DataTable's
-    # post-sort/filter/page view), then hands off to the focused-review modal
-    # with the node's existing reflect_* / actual_time_* values pre-filled —
-    # NOT the formula-based defaults, because we're editing what's already
-    # recorded.
+    # Triggered by clicking any row's ✎ button — pattern-matched id carries
+    # the node name in `ctx.triggered_id['index']`. Hands off to the
+    # focused-review modal with the node's existing reflect_* /
+    # actual_time_* values pre-filled (not the formula-based defaults,
+    # because we're editing what's already recorded).
     @app.callback(
         Output('modal-review-hub', 'is_open', allow_duplicate=True),
         Output('modal-time-calibration', 'is_open', allow_duplicate=True),
@@ -219,30 +299,35 @@ def register_review_hub_callbacks(app):
         Output('calibration-value', 'value', allow_duplicate=True),
         Output('calibration-interest', 'value', allow_duplicate=True),
         Output('calibration-difficulty', 'value', allow_duplicate=True),
-        Input('hub-history-table', 'active_cell'),
-        State('hub-history-table', 'derived_virtual_data'),
+        Input({'type': 'hub-history-edit', 'index': ALL}, 'n_clicks'),
         prevent_initial_call=True,
     )
-    def open_calibration_from_history(active_cell, derived_data):
-        if not active_cell or active_cell.get('column_id') != '_edit':
+    def open_calibration_from_history(clicks):
+        trig = ctx.triggered_id
+        if not trig or not any(c for c in clicks if c):
             return (no_update,) * 12
-        row_idx = active_cell.get('row')
-        if not isinstance(derived_data, list) or row_idx is None:
-            return (no_update,) * 12
-        if row_idx < 0 or row_idx >= len(derived_data):
-            return (no_update,) * 12
-        node_name = derived_data[row_idx].get('name')
+        node_name = trig.get('index') if isinstance(trig, dict) else None
         node = _manager.get_node(node_name) if node_name else None
         if not node:
             return (no_update,) * 12
 
         # Modal copy reuses the same helper as the queue / single flows.
-        from callbacks import _calibration_modal_text
+        from callbacks import _calibration_modal_text, _calibration_unit_for
         title, reference = _calibration_modal_text(node)
 
-        # Convert canonical-hours actuals back into the stored display unit so
-        # the user sees what they entered, not the internal representation.
-        unit = node.actual_time_unit or 'hours'
+        # Display unit matches the actuals' magnitude (e.g. "2.8w" instead of
+        # "56h") so the Best Estimate field reads in the same friendly units
+        # as the reference text above it. Falls back to the stored unit only
+        # when no actual-time datapoint exists.
+        anchor_hours = (node.actual_time_point
+                        if node.actual_time_point is not None
+                        else node.actual_time_lower
+                        if node.actual_time_lower is not None
+                        else node.actual_time_upper)
+        if anchor_hours is not None:
+            unit = _calibration_unit_for(anchor_hours)
+        else:
+            unit = node.actual_time_unit or 'hours'
         mult = ConfigManager.get_time_multiplier(unit)
         def _from_hours(h):
             if h is None or mult == 0:

@@ -516,7 +516,7 @@ auto_done_suggestion_modal = dbc.Modal([
 # static (the app doesn't suppress callback exceptions, so State-referenced IDs
 # must exist in the initial layout); they are reset on close.
 time_calibration_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Time Calibration", id="time-calibration-title")),
+    dbc.ModalHeader(dbc.ModalTitle("Reflection", id="time-calibration-title")),
     dbc.ModalBody([
         # Progress bar — shown in review + completion (chrome callback toggles).
         html.Div(id="calibration-review-progress-wrap", style={"display": "none"},
@@ -596,7 +596,7 @@ time_calibration_modal = dbc.Modal([
 # completed node is already rated or dismissed.
 calibration_review_toast = dbc.Toast(
     id="calibration-review-toast",
-    header="Time Calibration",
+    header="Reflection",
     is_open=False,
     dismissable=True,
     duration=4000,
@@ -1011,10 +1011,11 @@ def build_app_layout(initial_elements, env="production"):
             dbc.Button(html.I(className="bi bi-filter"), id="btn-filters-toggle", color="secondary", size="sm"),
             dbc.Tooltip("Filters", target="btn-filters-toggle", placement="bottom",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Button(html.I(className="bi bi-clock-history"), id="btn-calibration-review",
+            dbc.Button(html.I(className="bi bi-journal-text"), id="btn-calibration-review",
                        color="secondary", size="sm", className="ms-2",
                        style={"display": "none"}),
-            dbc.Tooltip("Review actual times", target="btn-calibration-review", placement="bottom",
+            dbc.Tooltip("Reflection", target="btn-calibration-review", placement="bottom",
+                        trigger="hover",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button(html.I(className="bi bi-gear"), id="btn-settings-toggle", color="secondary", size="sm", className="ms-2"),
             dbc.Tooltip("Settings", target="btn-settings-toggle", placement="bottom",

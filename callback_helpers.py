@@ -38,14 +38,15 @@ def build_calibration_dismissed_view(manager):
     rows = []
     for name in dismissed:
         rows.append(html.Div([
-            html.Span(name, className="flex-grow-1 text-truncate"),
+            html.Span(name, className="text-truncate"),
             dbc.Button(RESTORE_ICON,
                        id={'type': 'calibration-restore', 'index': name},
-                       color="link", size="sm", className="p-0 ms-2",
+                       color="link", size="sm",
+                       className="p-0 ms-2 text-decoration-none",
                        style={"fontSize": "1.1rem", "lineHeight": "1",
                               "color": "#adb5bd"}),
             dbc.Tooltip("Restore", target={'type': 'calibration-restore', 'index': name},
-                        placement="left"),
+                        placement="right"),
         ], className="d-flex align-items-center mb-1"))
     return html.Div(rows)
 

@@ -530,22 +530,25 @@ def _build_time_tab():
                 ], width=True),
             ], className="mt-1"),
 
-            # --- Time Calibration section ---
+            # --- Reflection section ---
             html.Hr(className="my-2"),
-            html.H5("Time Calibration", className="mt-2 mb-1"),
-            html.Small("When a node is marked Done, prompt for how long it actually took.",
-                       className="text-muted d-block mb-2"),
+            html.H5("Reflection", className="mt-2 mb-1"),
+            html.Small(
+                "When a node is marked Done, prompt for actuals — time, "
+                "value, interest, and effort.",
+                className="text-muted d-block mb-2"),
             dbc.Checklist(
                 id="setting-time-calibration-enabled",
-                options=[{"label": "Ask for actual time on completion", "value": "enabled"}],
+                options=[{"label": "Prompt for reflection on completion",
+                          "value": "enabled"}],
                 value=["enabled"],
                 switch=True,
                 className="mb-2",
             ),
             html.Small(
-                "Manage the review queue (start a session, browse history, "
-                "restore dismissed nodes) from the Review Hub — the "
-                "clock-history icon in the top toolbar.",
+                "Manage the queue (start a session, browse history, "
+                "restore excluded nodes) from the Reflection Hub — the "
+                "journal icon in the top toolbar.",
                 className="text-muted d-block",
             ),
         ], className="p-2")
