@@ -196,8 +196,12 @@ class GraphManager:
                 self._collect_auto_done_candidates(node.name)
 
     def _collect_auto_done_candidates(self, just_done_name: str) -> None:
-        """Append direct Goal/Milestone dependents of ``just_done_name`` whose
+        """Append direct container dependents of ``just_done_name`` whose
         hard prereqs are now all Done to the class-level candidate queue.
+
+        Eligible dependents: Goals, Milestones, and any node with
+        ``time_mode='inherited'`` (its "work" is its descendants' work, so
+        when those are Done it should be too).
 
         Only direct dependents are inspected: a transitive container can't be
         "ready" yet because its own prereq (the direct dependent) is still
@@ -207,14 +211,14 @@ class GraphManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT n.name, n.type, n.status FROM Edges e "
+                "SELECT n.name, n.type, n.status, n.time_mode FROM Edges e "
                 "JOIN Nodes n ON e.target = n.name "
                 "WHERE e.source=? AND e.type='Needs_Hard'",
                 (just_done_name,),
             )
             dependents = cursor.fetchall()
-            for dep_name, dep_type, dep_status in dependents:
-                if dep_type not in ('Goal', 'Milestone'):
+            for dep_name, dep_type, dep_status, dep_time_mode in dependents:
+                if dep_type not in ('Goal', 'Milestone') and dep_time_mode != 'inherited':
                     continue
                 if dep_status == STATUS_DONE:
                     continue
