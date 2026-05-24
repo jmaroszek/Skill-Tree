@@ -1048,8 +1048,14 @@ def _build_add_node_modal(ted):
                     dbc.Label("Interest", className="mt-2"),
                     dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-interest"),
 
-                    dbc.Label("Effort", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-difficulty"),
+                    html.Div(id="details-add-effort-row", children=[
+                        dbc.Label("Effort", className="mt-2"),
+                        dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-difficulty"),
+                    ]),
+                    html.Div(id="details-add-effort-caption", style={"display": "none"}, children=[
+                        dbc.Label("Effort", className="mt-2"),
+                        html.Div("Derived from subtasks", className="text-muted small"),
+                    ]),
                 ]),
                 html.Div(id="details-add-override-options", style={"display": "none"}, children=[
                     dbc.RadioItems(

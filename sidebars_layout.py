@@ -205,8 +205,14 @@ node_editor_content = html.Div(
                 dbc.Label("Interest", className="mt-2"),
                 dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
 
-                dbc.Label("Effort", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
+                html.Div(id="node-effort-row", children=[
+                    dbc.Label("Effort", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
+                ]),
+                html.Div(id="node-effort-caption", style={"display": "none"}, children=[
+                    dbc.Label("Effort", className="mt-2"),
+                    html.Div("Derived from subtasks", className="text-muted small"),
+                ]),
             ]),
             dbc.Popover(
                 [

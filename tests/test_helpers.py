@@ -13,7 +13,7 @@ from callback_helpers import (
     _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, build_explain_summary,
-    resolve_time_mode, resolve_locked_time_mode,
+    resolve_time_mode,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -51,84 +51,6 @@ class TestParseLinks:
     def test_numeric_string(self):
         # "42" is valid JSON (a number) but not a list
         assert parse_links("42") == ["42"]
-
-
-# ============================================================================
-# resolve_locked_time_mode
-# ============================================================================
-
-class TestResolveLockedTimeMode:
-    """Container Goal/Milestone types lock the Inherit toggle ON.
-
-    The helper drives three outputs (time-mode value, warning style, warning
-    text). The hot question is when the inline warning should appear vs hide;
-    the regression we're protecting against is the warning appearing on form
-    populate of an existing Milestone.
-    """
-
-    HIDDEN = {"display": "none"}
-    VISIBLE = {"display": "block", "color": "#dc3545", "fontSize": "0.85rem"}
-    MILESTONE_MSG = (
-        "Inherit mode is required for Milestone nodes — "
-        "their time is the sum of their children's."
-    )
-    GOAL_MSG = (
-        "Inherit mode is required for Goal nodes — "
-        "their time is the sum of their children's."
-    )
-
-    def test_non_container_clears_warning(self):
-        # Learn/Action/Resource: pass through time_mode_val, hide warning.
-        out = resolve_locked_time_mode([], 'Learn', only_time_mode_triggered=False)
-        assert out == ([], self.HIDDEN, "")
-
-    def test_non_container_inherited_value_unchanged(self):
-        out = resolve_locked_time_mode(['inherited'], 'Resource',
-                                       only_time_mode_triggered=True)
-        assert out == (['inherited'], self.HIDDEN, "")
-
-    def test_milestone_form_populate_clears_warning(self):
-        # Regression: form populate fires BOTH node-type and node-time-mode in
-        # the same dispatch (only_time_mode=False). The warning must hide even
-        # if it was visible from a prior interaction.
-        out = resolve_locked_time_mode(['inherited'], 'Milestone',
-                                       only_time_mode_triggered=False)
-        assert out == (dash.no_update, self.HIDDEN, "")
-
-    def test_milestone_bounce_back_preserves_warning(self):
-        # User toggled inherit off; the bounce-back cycle (only node-time-mode
-        # triggered, time_mode now back to ['inherited']) must NOT clobber the
-        # message we just made visible.
-        out = resolve_locked_time_mode(['inherited'], 'Milestone',
-                                       only_time_mode_triggered=True)
-        assert out == (dash.no_update, dash.no_update, dash.no_update)
-
-    def test_milestone_user_toggle_off_shows_warning(self):
-        # User toggled inherit off on a milestone: only node-time-mode fires,
-        # time_mode is now empty. Bounce back AND show warning.
-        out = resolve_locked_time_mode([], 'Milestone',
-                                       only_time_mode_triggered=True)
-        assert out == (['inherited'], self.VISIBLE, self.MILESTONE_MSG)
-
-    def test_goal_user_toggle_off_shows_goal_message(self):
-        out = resolve_locked_time_mode([], 'Goal',
-                                       only_time_mode_triggered=True)
-        assert out == (['inherited'], self.VISIBLE, self.GOAL_MSG)
-
-    def test_type_change_to_milestone_silently_forces_inherit(self):
-        # User changes type dropdown Learn → Milestone with time_mode=[].
-        # Only node-type triggered (so only_time_mode_triggered=False); force
-        # inherit ON silently (no warning — they didn't toggle anything).
-        out = resolve_locked_time_mode([], 'Milestone',
-                                       only_time_mode_triggered=False)
-        assert out == (['inherited'], self.HIDDEN, "")
-
-    def test_type_change_into_goal_clears_stale_warning(self):
-        # Inherited was already on (e.g. previous type was Goal too), trigger
-        # is node-type (only_time_mode=False). Clear any stale warning.
-        out = resolve_locked_time_mode(['inherited'], 'Goal',
-                                       only_time_mode_triggered=False)
-        assert out == (dash.no_update, self.HIDDEN, "")
 
 
 # ============================================================================

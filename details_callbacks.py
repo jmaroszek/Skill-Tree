@@ -1073,15 +1073,17 @@ def register_details_callbacks(app):
         )
 
     # --- Add Node Modal: Toggle mode ---
-    @app.callback(
+    app.clientside_callback(
+        """
+        function(mode) {
+            if (mode === 'link') return [{display: 'none'}, {display: 'block'}];
+            return [{display: 'block'}, {display: 'none'}];
+        }
+        """,
         Output("details-add-create-section", "style"),
         Output("details-add-link-section", "style"),
         Input("details-add-mode", "value"),
     )
-    def toggle_add_mode(mode):
-        if mode == "link":
-            return {"display": "none"}, {"display": "block"}
-        return {"display": "block"}, {"display": "none"}
 
     # --- Add Node Modal: Update subcontexts ---
     @app.callback(
@@ -1108,37 +1110,47 @@ def register_details_callbacks(app):
         return no_update
 
     # --- Add Node Modal: Mode toggles control OMP / Habit visibility ---
-    @app.callback(
+    app.clientside_callback(
+        """
+        function(inherit_val, habit_val) {
+            var inherit_on = !!(inherit_val && inherit_val.indexOf('inherited') >= 0);
+            var habit_on = !!(habit_val && habit_val.indexOf('habit') >= 0);
+            if (inherit_on) return [{display: 'none'}, {display: 'none'}];
+            if (habit_on) return [{display: 'none'}, {display: 'block'}];
+            return [{display: 'block'}, {display: 'none'}];
+        }
+        """,
         Output("details-add-time-omp", "style"),
         Output("section-details-add-time-habit", "style"),
         Input("details-add-time-mode", "value"),
         Input("details-add-time-habit-mode", "value"),
         prevent_initial_call=True,
     )
-    def toggle_details_add_time_mode(inherit_val, habit_val):
-        inherit_on = bool(inherit_val and "inherited" in inherit_val)
-        habit_on = bool(habit_val and "habit" in habit_val)
-        if inherit_on:
-            return {"display": "none"}, {"display": "none"}
-        if habit_on:
-            return {"display": "none"}, {"display": "block"}
-        return {"display": "block"}, {"display": "none"}
 
     # --- Add Node Modal: Habit / Inherit mutual exclusivity ---
-    @app.callback(
+    # Clientside to avoid the visible flash of the "other" toggle flipping
+    # on before the server bounces it off.
+    app.clientside_callback(
+        """
+        function(inherit_val, habit_val) {
+            var ctx = window.dash_clientside.callback_context;
+            var triggered = (ctx && ctx.triggered) || [];
+            var trig = triggered.length ? triggered[0].prop_id.split('.')[0] : null;
+            if (trig === 'details-add-time-mode' && inherit_val && inherit_val.indexOf('inherited') >= 0) {
+                return [inherit_val, []];
+            }
+            if (trig === 'details-add-time-habit-mode' && habit_val && habit_val.indexOf('habit') >= 0) {
+                return [[], habit_val];
+            }
+            return [inherit_val, habit_val];
+        }
+        """,
         Output("details-add-time-mode", "value", allow_duplicate=True),
         Output("details-add-time-habit-mode", "value", allow_duplicate=True),
         Input("details-add-time-mode", "value"),
         Input("details-add-time-habit-mode", "value"),
         prevent_initial_call=True,
     )
-    def enforce_details_add_exclusivity(inherit_val, habit_val):
-        trig = ctx.triggered_id
-        if trig == "details-add-time-mode" and inherit_val and "inherited" in inherit_val:
-            return inherit_val, []
-        if trig == "details-add-time-habit-mode" and habit_val and "habit" in habit_val:
-            return [], habit_val
-        return inherit_val, habit_val
 
     # --- Add Node Modal: Live total-hours preview for habit ---
     @app.callback(
@@ -1156,15 +1168,32 @@ def register_details_callbacks(app):
         return f"Computes to ~{round(total, 1)} h total"
 
     # --- Add Node Modal: Inherit-ratings toggle hides/shows V/I/E sliders ---
-    @app.callback(
+    app.clientside_callback(
+        """
+        function(mode_val) {
+            if (mode_val && mode_val.indexOf('inherited') >= 0) {
+                return {display: 'none'};
+            }
+            return {display: 'block'};
+        }
+        """,
         Output("details-add-ratings", "style"),
         Input("details-add-value-mode", "value"),
         prevent_initial_call=True,
     )
-    def toggle_details_add_value_mode(mode_val):
-        if mode_val and "inherited" in mode_val:
-            return {"display": "none"}
-        return {"display": "block"}
+
+    # --- Add Node Modal: Hide Effort slider on Goals; show caption instead ---
+    app.clientside_callback(
+        """
+        function(node_type) {
+            if (node_type === 'Goal') return [{display: 'none'}, {}];
+            return [{}, {display: 'none'}];
+        }
+        """,
+        Output("details-add-effort-row", "style"),
+        Output("details-add-effort-caption", "style"),
+        Input("details-add-type", "value"),
+    )
 
     # --- Add Node Modal: External Resources Link Renderers ---
     @app.callback(
@@ -1461,13 +1490,16 @@ def register_details_callbacks(app):
             return False, f"add-{name}", ""
 
     # --- Add Node Modal: Override toggle visibility ---
-    @app.callback(
+    app.clientside_callback(
+        """
+        function(on) {
+            return (on && on.indexOf('on') >= 0) ? {display: 'block'} : {display: 'none'};
+        }
+        """,
         Output("details-add-override-options", "style"),
         Input("details-add-override-toggle", "value"),
         prevent_initial_call=True,
     )
-    def toggle_add_override_options(on):
-        return {"display": "block"} if on and "on" in on else {"display": "none"}
 
     # --- Subtask Remove: Open Modal ---
     @app.callback(

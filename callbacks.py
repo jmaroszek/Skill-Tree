@@ -34,7 +34,6 @@ from callback_helpers import (
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state,
     habit_to_hours, compute_habit_time_omp, resolve_time_mode,
-    resolve_locked_time_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -1074,47 +1073,84 @@ def register_callbacks(app):
         return show, show, hide, show
 
     # --- Toggle O/M/P / Habit / unit-dropdown visibility based on mode ---
-    @app.callback(
+    app.clientside_callback(
+        """
+        function(time_mode_val, habit_mode_val) {
+            var hidden_w = {display: 'none', width: '100px'};
+            var visible_w = {width: '100px'};
+            var inherit_on = !!(time_mode_val && time_mode_val.indexOf('inherited') >= 0);
+            var habit_on = !!(habit_mode_val && habit_mode_val.indexOf('habit') >= 0);
+            if (inherit_on) return [{display: 'none'}, {display: 'none'}, hidden_w];
+            if (habit_on) return [{display: 'none'}, {}, hidden_w];
+            return [{}, {display: 'none'}, visible_w];
+        }
+        """,
         Output('section-time-omp', 'style'),
         Output('section-time-habit', 'style'),
         Output('node-time-unit', 'style'),
         Input('node-time-mode', 'value'),
         Input('node-time-habit-mode', 'value'),
     )
-    def toggle_time_section_visibility(time_mode_val, habit_mode_val):
-        inherit_on = bool(time_mode_val and 'inherited' in time_mode_val)
-        habit_on = bool(habit_mode_val and 'habit' in habit_mode_val)
-        if inherit_on:
-            return {'display': 'none'}, {'display': 'none'}, {'display': 'none', 'width': '100px'}
-        if habit_on:
-            return {'display': 'none'}, {}, {'display': 'none', 'width': '100px'}
-        return {}, {'display': 'none'}, {'width': '100px'}
 
     # --- Mutual exclusivity: Habit and Inherit cannot both be ON ---
-    @app.callback(
+    # Clientside to eliminate the visible flash of the "other" toggle
+    # flipping on before the server bounces it off. Same fix pattern as
+    # enforce_locked_time_mode above.
+    app.clientside_callback(
+        """
+        function(inherit_val, habit_val) {
+            var ctx = window.dash_clientside.callback_context;
+            var triggered = (ctx && ctx.triggered) || [];
+            var trig = triggered.length ? triggered[0].prop_id.split('.')[0] : null;
+            if (trig === 'node-time-mode' && inherit_val && inherit_val.indexOf('inherited') >= 0) {
+                return [inherit_val, []];
+            }
+            if (trig === 'node-time-habit-mode' && habit_val && habit_val.indexOf('habit') >= 0) {
+                return [[], habit_val];
+            }
+            return [inherit_val, habit_val];
+        }
+        """,
         Output('node-time-mode', 'value', allow_duplicate=True),
         Output('node-time-habit-mode', 'value', allow_duplicate=True),
         Input('node-time-mode', 'value'),
         Input('node-time-habit-mode', 'value'),
         prevent_initial_call=True,
     )
-    def enforce_time_mode_exclusivity(inherit_val, habit_val):
-        trig = get_trigger_id()
-        if trig == 'node-time-mode' and inherit_val and 'inherited' in inherit_val:
-            return inherit_val, []
-        if trig == 'node-time-habit-mode' and habit_val and 'habit' in habit_val:
-            return [], habit_val
-        return inherit_val, habit_val
 
     # --- Locked Inherit toggle for Goal / Milestone ---
-    # Container types must always inherit time from their children. This callback
-    # forces 'inherited' ON whenever the type is Goal or Milestone, and reveals an
-    # inline warning if the user attempts to toggle it off. We use the full set
-    # of triggered IDs (not just triggered[0]) to distinguish user-initiated
-    # toggles from form-populate cycles: when only node-time-mode is in the
-    # trigger set it's a real toggle / bounce-back; when node-type also fires
-    # it's a type change or full form populate and the warning should clear.
-    @app.callback(
+    # Container types must always inherit time from their children. Forces
+    # 'inherited' ON whenever the type is Goal or Milestone, and reveals an
+    # inline warning if the user attempts to toggle it off. Runs clientside
+    # so the bounce-back happens in the same paint cycle as the click — a
+    # server round-trip causes the toggle to visibly flip OFF before
+    # snapping back ON. The triggered-IDs check distinguishes user toggles
+    # from form-populate cycles (where node-type also fires).
+    app.clientside_callback(
+        """
+        function(time_mode_val, node_type) {
+            var no_update = window.dash_clientside.no_update;
+            var hidden = {display: "none"};
+            var visible = {display: "block", color: "#dc3545", fontSize: "0.85rem"};
+            var ctx = window.dash_clientside.callback_context;
+            var triggered = (ctx && ctx.triggered) || [];
+            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
+            var only_time_mode = ids.length === 1 && ids[0] === 'node-time-mode';
+
+            if (node_type !== 'Goal' && node_type !== 'Milestone') {
+                return [time_mode_val, hidden, ""];
+            }
+            var inherited_on = !!(time_mode_val && time_mode_val.indexOf('inherited') >= 0);
+            if (inherited_on) {
+                if (only_time_mode) return [no_update, no_update, no_update];
+                return [no_update, hidden, ""];
+            }
+            var msg = "Inherit mode is required for " + node_type + " nodes — " +
+                      "their time is the sum of their children's.";
+            if (only_time_mode) return [['inherited'], visible, msg];
+            return [['inherited'], hidden, ""];
+        }
+        """,
         Output('node-time-mode', 'value', allow_duplicate=True),
         Output('time-mode-warning', 'style'),
         Output('time-mode-warning', 'children'),
@@ -1122,9 +1158,6 @@ def register_callbacks(app):
         Input('node-type', 'value'),
         prevent_initial_call=True,
     )
-    def enforce_locked_time_mode(time_mode_val, node_type):
-        only_time_mode = (get_all_triggered_ids() == {'node-time-mode'})
-        return resolve_locked_time_mode(time_mode_val, node_type, only_time_mode)
 
     # --- Live total-hours preview for habit mode ---
     @app.callback(
@@ -1142,14 +1175,35 @@ def register_callbacks(app):
         return f"Computes to ~{round(total, 1)} h total"
 
     # --- Toggle Value/Interest/Effort sliders based on value_mode ---
-    @app.callback(
+    app.clientside_callback(
+        """
+        function(value_mode_val) {
+            if (value_mode_val && value_mode_val.indexOf('inherited') >= 0) {
+                return {display: 'none'};
+            }
+            return {};
+        }
+        """,
         Output('section-ratings', 'style'),
         Input('node-value-mode', 'value'),
     )
-    def toggle_ratings_visibility(value_mode_val):
-        if value_mode_val and 'inherited' in value_mode_val:
-            return {'display': 'none'}
-        return {}
+
+    # --- Hide Effort slider on Goals; show caption instead ---
+    # Effort on a Goal is decorative — _rank_goals omits it, total_value
+    # doesn't cascade it, and w_t * time^beta dwarfs w_e * difficulty on
+    # the Goal's own priority score. The caption tells the user why the
+    # input is absent so the UI stops asking for a value the system ignores.
+    app.clientside_callback(
+        """
+        function(node_type) {
+            if (node_type === 'Goal') return [{display: 'none'}, {}];
+            return [{}, {display: 'none'}];
+        }
+        """,
+        Output('node-effort-row', 'style'),
+        Output('node-effort-caption', 'style'),
+        Input('node-type', 'value'),
+    )
 
     # --- Auto-convert time estimates when unit dropdown changes ---
     @app.callback(
