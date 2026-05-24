@@ -19,6 +19,7 @@ from config import (
 from events_layout import build_events_tab_content
 from details_layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
 from settings_layout import build_settings_modal
+from review_hub_layout import build_review_hub_modal
 from analyze_layout import build_analyze_tab_content
 from sidebars_layout import build_all_sidebars
 from styles import stylesheet
@@ -526,6 +527,7 @@ time_calibration_modal = dbc.Modal([
         # Active rating form — hidden on the completion screen.
         html.Div(id="time-calibration-active", children=[
             html.Div(id="time-calibration-reference", className="text-muted small mb-3"),
+            html.H6("How long did it actually take?", className="mb-2"),
             dbc.Row([
                 dbc.Col([
                     dbc.Label("Lower Bound"),
@@ -550,6 +552,25 @@ time_calibration_modal = dbc.Modal([
                     ]),
                 ], width=4),
             ], className="mt-1"),
+            # V/I/E sliders — capture how the node *actually* felt now that
+            # the work is done. Stored as reflect_value/interest/difficulty
+            # (separate from the estimate columns value/interest/difficulty).
+            html.Div(id="calibration-vie-section", children=[
+                html.Hr(className="my-3"),
+                html.H6("How was it actually?", className="mb-2"),
+                dbc.Label("Actual Value", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5,
+                           id="calibration-value",
+                           marks={i: str(i) for i in range(1, 11)}),
+                dbc.Label("Actual Interest", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5,
+                           id="calibration-interest",
+                           marks={i: str(i) for i in range(1, 11)}),
+                dbc.Label("Actual Effort", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5,
+                           id="calibration-difficulty",
+                           marks={i: str(i) for i in range(1, 11)}),
+            ]),
         ]),
         # Completion screen — shown only after the last node of a review cycle.
         html.Div(id="time-calibration-complete", style={"display": "none"},
@@ -568,7 +589,7 @@ time_calibration_modal = dbc.Modal([
                    color="primary", className="flex-fill",
                    style={"display": "none"}),
     ], className="d-flex"),
-], id="modal-time-calibration", size="md", is_open=False, centered=True)
+], id="modal-time-calibration", size="lg", is_open=False, centered=True)
 
 
 # Brief notification shown when calibration review is launched but every
@@ -1159,6 +1180,7 @@ def build_app_layout(initial_elements, env="production"):
         auto_done_suggestion_modal,
         time_calibration_modal,
         calibration_review_toast,
+        build_review_hub_modal(),
         group_delete_confirm_modal,
         override_conflict_modal,
         override_untoggle_modal,

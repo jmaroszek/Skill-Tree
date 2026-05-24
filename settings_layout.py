@@ -542,17 +542,12 @@ def _build_time_tab():
                 switch=True,
                 className="mb-2",
             ),
-            dbc.Label("Excluded from review", className="mt-1"),
-            html.Small("Nodes marked \"Don't ask again\" during "
-                       "calibration review — restore one to include "
-                       "it in the cycle again.",
-                       className="text-muted d-block mb-1"),
-            dbc.Button(id="btn-calibration-dismissed-toggle",
-                       color="link", size="sm",
-                       className="p-0 text-decoration-none mb-1"),
-            dbc.Collapse(
-                html.Div(id="setting-calibration-dismissed-list"),
-                id="calibration-dismissed-collapse", is_open=False),
+            html.Small(
+                "Manage the review queue (start a session, browse history, "
+                "restore dismissed nodes) from the Review Hub — the "
+                "clock-history icon in the top toolbar.",
+                className="text-muted d-block",
+            ),
         ], className="p-2")
     ])
 

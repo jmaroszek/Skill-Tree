@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 manager = GraphManager()
 
 
-_RESTORE_ICON = "↺"  # ↺ — matches the restore buttons in settings_layout
-
-
 def _display_types_from_config():
     display_types = ConfigManager.get_node_types().copy()
     if "Goal" not in display_types:
@@ -110,32 +107,6 @@ def _build_type_color_rows(display_types, colors):
             ),
         ], className="d-flex align-items-center gap-2 mb-2"))
     return rows
-
-
-def _build_calibration_dismissed_view():
-    """Returns (list-children, toggle-button-label) for the Settings 'excluded
-    from review' section: one row per node marked "Don't ask again", each with
-    a Restore button. The list is collapsed by default — the label carries the
-    count so it stays scannable even when the list is long."""
-    dismissed = sorted(n.name for n in manager.get_all_nodes(include_dormant=True)
-                       if n.calibration_dismissed)
-    label = (f"{len(dismissed)} node(s) excluded — show / hide" if dismissed
-             else "No nodes excluded")
-    if not dismissed:
-        return html.Small("Nothing excluded.", className="text-muted d-block"), label
-    rows = []
-    for name in dismissed:
-        rows.append(html.Div([
-            html.Span(name, className="flex-grow-1 text-truncate"),
-            dbc.Button(_RESTORE_ICON,
-                       id={'type': 'calibration-restore', 'index': name},
-                       color="link", size="sm", className="p-0 ms-2",
-                       style={"fontSize": "1.1rem", "lineHeight": "1",
-                              "color": "#adb5bd"}),
-            dbc.Tooltip("Restore", target={'type': 'calibration-restore', 'index': name},
-                        placement="left"),
-        ], className="d-flex align-items-center mb-1"))
-    return html.Div(rows), label
 
 
 def _clamp(val, lo, hi, default):
@@ -402,45 +373,6 @@ def register_settings_callbacks(app):
             ConfigManager.get_context_sort_mode(),
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
         )
-
-    # --- Settings: calibration "excluded from review" list ---
-    # Loaded when the Settings tab opens; kept separate from the big
-    # load_settings callback. The list is collapsed by default.
-    @app.callback(
-        Output('setting-calibration-dismissed-list', 'children'),
-        Output('btn-calibration-dismissed-toggle', 'children'),
-        Input('settings-modal', 'is_open'),
-        prevent_initial_call=True,
-    )
-    def load_calibration_dismissed_list(is_open):
-        if not is_open:
-            return dash.no_update, dash.no_update
-        return _build_calibration_dismissed_view()
-
-    @app.callback(
-        Output('calibration-dismissed-collapse', 'is_open'),
-        Input('btn-calibration-dismissed-toggle', 'n_clicks'),
-        State('calibration-dismissed-collapse', 'is_open'),
-        prevent_initial_call=True,
-    )
-    def toggle_calibration_dismissed_collapse(_n, is_open):
-        return not is_open
-
-    @app.callback(
-        Output('setting-calibration-dismissed-list', 'children', allow_duplicate=True),
-        Output('btn-calibration-dismissed-toggle', 'children', allow_duplicate=True),
-        Input({'type': 'calibration-restore', 'index': ALL}, 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def restore_calibration_node(clicks):
-        trig = ctx.triggered_id
-        if not trig or not any(clicks):
-            return dash.no_update, dash.no_update
-        node = manager.get_node(trig['index'])
-        if node and node.calibration_dismissed:
-            node.calibration_dismissed = 0
-            manager.update_node(node)
-        return _build_calibration_dismissed_view()
 
     # --- Settings: Apply Hyperparameter Profile ---
     @app.callback(

@@ -22,6 +22,34 @@ from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, ST
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
 
 
+RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
+
+
+def build_calibration_dismissed_view(manager):
+    """List of nodes marked "Don't ask again" during a calibration review,
+    each row with a Restore button (pattern-matched id
+    `{'type': 'calibration-restore', 'index': <name>}`). Returns a Dash
+    component tree suitable for any container — the caller decides where to
+    mount it. Used by the Review Hub's Excluded tab."""
+    dismissed = sorted(n.name for n in manager.get_all_nodes(include_dormant=True)
+                       if n.calibration_dismissed)
+    if not dismissed:
+        return html.Small("Nothing excluded.", className="text-muted d-block")
+    rows = []
+    for name in dismissed:
+        rows.append(html.Div([
+            html.Span(name, className="flex-grow-1 text-truncate"),
+            dbc.Button(RESTORE_ICON,
+                       id={'type': 'calibration-restore', 'index': name},
+                       color="link", size="sm", className="p-0 ms-2",
+                       style={"fontSize": "1.1rem", "lineHeight": "1",
+                              "color": "#adb5bd"}),
+            dbc.Tooltip("Restore", target={'type': 'calibration-restore', 'index': name},
+                        placement="left"),
+        ], className="d-flex align-items-center mb-1"))
+    return html.Div(rows)
+
+
 def build_context_weight_rows(contexts, ctx_weights):
     """Build the per-context weight input rows for the Scoring settings tab."""
     rows = []

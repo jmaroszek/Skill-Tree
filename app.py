@@ -65,6 +65,7 @@ from event_callbacks import register_event_callbacks
 from details_callbacks import register_details_callbacks
 from next_callbacks import register_next_callbacks
 from settings_callbacks import register_settings_callbacks
+from review_hub_callbacks import register_review_hub_callbacks
 from analyze_callbacks import register_analyze_callbacks
 from sidebars_callbacks import register_sidebars_callbacks
 from config import ConfigManager
@@ -99,6 +100,7 @@ register_event_callbacks(app)
 register_details_callbacks(app)
 register_next_callbacks(app)
 register_settings_callbacks(app)
+register_review_hub_callbacks(app)
 register_analyze_callbacks(app)
 register_sidebars_callbacks(app)
 
