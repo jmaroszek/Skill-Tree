@@ -66,6 +66,17 @@ Each node type has a distinct shape and color on the canvas. The defaults are sh
 
 The types are mostly intuitive, but because each one behaves differently in the app, picking the right type is more important than it seems. The most crucial distinction is between *Learn*, *Goal*, and *Milestone* nodes. You will pick up the difference naturally through the following examples, but for full, explicit guidance, see  [`docs/modeling_guide.md`](docs/modeling_guide.md), which contains tips for structuring your graph.
 
+## Node Size
+
+Choosing the right node type is half the battle; the other half is choosing the right node **size** (or level of abstraction). For Skill Tree to rank and sequence your work effectively, nodes should represent **high-level projects or learning horizons** (typically spanning 4 to 8 weeks, or roughly 80 to 160 hours). 
+
+If a project is **too big** (such as open-ended or monolithic efforts like "Master Machine Learning"), it will sit on your Next tab forever and bypass sequencing. Break these down into distinct phases or 4-8 week project iterations. Conversely, if a project is **too small** (such as micro-tasks, individual chapters, or small chores like "Read Chapter 1" or "Fix bug"), it will clutter the canvas and flatten priority scores. As Seneca wisely wrote: *"It is useful that a subject should be divided into parts, but not chopped into bits. Just as it is hard to take in what is indefinitely large, it is hard to take in what is infinitely small."* You should save detailed checklists for your standard task manager *after* you select and prioritize the project in Skill Tree.
+
+To determine if you need to split a project, apply the **sequencing test**: only split a project into separate nodes if they have different prerequisites or must be done in a strict chronological sequence. If the components share the same prerequisites and unlock the same things, keep them combined. Finally, watch out for the **meta-work threshold**: if updating and managing a node in Skill Tree takes a noticeable portion of the time it takes to actually *do* the work, the node is too small.
+
+For full, explicit guidance on node sizing, nesting, and dependency structuring, see [`docs/modeling_guide.md`](docs/modeling_guide.md).
+
+
 ## Description
 
 The description area is a free-form text input field that allows you to type notes to your feature self. This section has no influence on the app, but I find it is helpful to write details when you create a project, such as what it is, why you added it, and what "done" means for you.
@@ -399,6 +410,20 @@ As a reminder, you'll only ever see *Learn*, *Action*, and *Resource* nodes as s
 
 **Screenshot of the Next Tab with a row clicked**
 
+## The Now Section
+
+At the top of the Next tab sits a small section called **Now**. Up to three nodes can live here — the ones you are actively working on right this stretch. Each appears as a horizontal card with a type-colored accent bar, the node's name and context, its time estimate, and the familiar V/I/E micro-chart you already know from the rows below.
+
+The Now section is *not* a different ranking. The ranked list answers *what should I work on next?* The Now section answers *what am I working on right now?* The two are deliberately separate. A node flagged Now is **pulled out** of the ranked list — it has already won the question of what to do, so there is no point letting it sit stubbornly in slot #1 while you scroll past it every day. Pulling it out keeps the suggestions fresh and reflective of work you haven't yet committed to.
+
+There are two ways to flip a node into Now: the **Now switch** on the node editor, or **Now** in the right-click [context menu](#context-menu) — available anywhere a node surfaces. Either one toggles the flag. Now nodes also get an amber outline on the canvas, so you can spot them in any graph view at a glance.
+
+Why cap it at three? For the same reason there are only three Priority Goals: if everything is current, nothing is. Three roughly matches the number of meaningfully-active projects a person can hold at once, and the cap forces an honest moment — to start a fourth, you have to retire one of the existing three. If you try to set a fourth, the switch bounces back and a small toast tells you why.
+
+When no node is Now, the section disappears entirely and the Next heading floats to the top of the tab.
+
+**[SCREENSHOT: the Next tab with two or three Now cards at the top, above the ranked list.]**
+
 ## Context Menu
 Right-click any row to open a context menu. The context menu is available anywhere a node surfaces, including the Nodes, Details, and Events tabs (coming up next).
 
@@ -701,49 +726,118 @@ The right side of the tab shows a mini-graph of the selected event's dormant nod
 ## Event Announcements
 When an event triggers — whether on its own (a date arrives, a node is completed) or because you clicked **Trigger** — an **Announcements modal** pops up the next time you open the app, confirming what just woke up and which nodes were activated or scheduled. It's a gentle nudge rather than a silent change, so you always know when the graph has shifted under you.
 
+# Reflection
+
+You've finished a project. What did it actually take? How did it actually feel? The **Reflection** feature is where you record the truth. Each reflection captures the *actual* time, value, interest, and difficulty of a completed node — the numbers you would have written down if you had perfect foresight when you first added it.
+
+Over time, this data does two things. First, it powers the [Time Estimation Accuracy charts on the Analyze tab](#time-estimation-accuracy) and the [Reflection Drift heatmap](#contexts), which surface the contexts where you systematically over- or under-estimate. Second — and arguably more important — the act of looking back honestly re-trains your gut, so the *next* project you estimate sits a little closer to reality.
+
+Open the **Reflection Hub** from the journal icon in the top toolbar. It has three tabs.
+
+## Pending Queue
+
+A running count of completed nodes you haven't yet reflected on. Click **Start Reflection** and the app walks you through them one at a time, with a progress bar tracking where you are.
+
+For each node, you re-record four things:
+
+| Dimension | What you enter |
+|---|---|
+| Time | Optimistic, expected, and pessimistic actual hours — the same three-number format you used to *estimate* the project, so estimates and actuals are directly comparable. |
+| Value | Your value rating in hindsight — was this as worthwhile as you predicted? |
+| Interest | Same, for interest. Did you enjoy the work as much as you expected? |
+| Difficulty | Same, for difficulty. Was it as hard, easier, or harder? |
+
+Three buttons drive the queue:
+
+| Button | Effect |
+|---|---|
+| Submit | Saves your numbers and advances to the next node. |
+| Skip | Moves on without writing anything — the node stays in the queue for next time. |
+| Don't ask again | Drops the node onto the Excluded list (see below). Useful for projects that genuinely defy meaningful retrospection — say, a Resource you skimmed and barely remember. |
+
+**[SCREENSHOT: the reflection walkthrough modal with the progress bar visible.]**
+
+## Review History
+
+A searchable, filterable table of every node you've already reflected on. Each row shows the original estimates, the actuals you recorded, and the delta between them — so you can see at a glance which projects ran long, which ran short, and where your ratings moved in hindsight.
+
+The filters at the top — name search plus context and subcontext dropdowns — let you carve the history down to a meaningful slice. This is the right place to ask questions like *do my Health estimates consistently undershoot?* or *how did my interest ratings hold up across this year's writing projects?* Click the pencil on any row to re-open that node's reflection if your memory sharpens after the fact.
+
+**[SCREENSHOT: the Review History table with deltas visible.]**
+
+## Excluded
+
+The "Don't ask again" list. Nodes here are quietly skipped over by the pending queue. If you change your mind, **Restore** puts a node back in circulation.
+
+---
+
+A small note on workflow: there's no requirement to reflect immediately, or at all. The pending queue accumulates patiently. Some people batch a reflection session every few weeks; others reflect the moment they mark something Done. Both work — the only wrong move is reflecting on a project you've already half-forgotten, since your hindsight is the whole point of the exercise.
+
 # Analyze Tab
 
-The Analyze tab gives you a bird's eye view of your entire network. Here, you can find helpful information such as your goal progress, time allocation, and much more. These charts are intended to be diagnostic, allowing you to catch mistakes early, and avoid spending your time unwisely. 
+The Analyze tab gives you a bird's eye view of your entire network. Here, you can find helpful information such as your goal progress, time allocation, and much more. These charts are intended to be diagnostic, allowing you to catch mistakes early, and avoid spending your time unwisely.
 
 ## The Overview strip
 
-At the top, an Overview strip summarizes the current non-dormant graph: total Goals, Milestones, live nodes, Done nodes, and the percentage of live nodes that are Blocked. This gives you a quick overview of the size and status of your graph. 
+At the top, an Overview strip summarizes the current non-dormant graph: total Goals, Milestones, live nodes, Done nodes, and the percentage of live nodes that are Blocked. This gives you a quick overview of the size and status of your graph.
 
-**Screenshot**
+**[SCREENSHOT: the Overview strip across the top of the Analyze tab with all five tiles visible.]**
 
 ## Goals
 
 The Goals section puts two views side by side. The gear icon next to the section title opens a small display-limit control, letting you choose how many top-ranked Goals are rendered without leaving the Analyze tab.
 
-**Screenshot**
+**[SCREENSHOT: the Goals section with the Completion bars on the left and the Shared Prerequisites heatmap on the right.]**
 
-On the left, **Completion** shows each Goal's hard-prerequisite progress as a stacked horizontal bar: Done work in green, remaining work as a faint gray. The hover text gives the hard-prerequisite count, remaining estimated time, blocked count, and priority rank when the Goal is promoted. 
+On the left, **Completion** shows each Goal's hard-prerequisite progress as a stacked horizontal bar: Done work in green, remaining work as a faint gray. The hover text gives the hard-prerequisite count, remaining estimated time, blocked count, and priority rank when the Goal is promoted.
 
 The order is not alphabetical. Goals are ranked intelligently according to their total value and the remaining time required to finish it. Milestones are treated as transparent checkpoints for this ranking, so they pass value through without pretending that the checkpoint itself is the work.
 
-On the right, **Shared Prerequisites** is a heatmap over those same ranked Goals. It counts the number of shared hard and soft prerequisites, so bright cells imply that two Goals are drawing from the same body of work. This suggests two goals share a set of foundational skills. 
-
-## Time
-
-The first Time chart is **Hours by Context**. Each context is one horizontal stacked bar, and each segment is a subcontext. Hover a segment to see its subcontext name, node count, and estimated time. This makes the context view more useful than a plain context-total chart: you can see not only that STEM or Health is large, but which internal area is creating the mass.
-
-**Screenshot**
-
-Below that are the calibration charts, populated from completed nodes with actual-time data. The first chart shows a scatter plot with a dashed $y = x$ reference line. Points above the line took longer than expected, and points below the line were completed faster than expected. The plot on the right rolls those same ratios up into per-context box plots (once a context has enough completed nodes) making chronic context bias clear. Perhaps, for example, you are good at estimating STEM work, but not humanities work. 
-
-**Screenshot**
-
-## Graph Structure
-
-The sole visual in this section shows which nodes unlock the most downstream work. The gear icon next to the section title controls how many bottleneck nodes are shown.
-
-The chart distinguishes direct unlocks from the full downstream cascade in hover text, and it colors Blocked bottlenecks red so you can separate "high leverage and available" from "high leverage but waiting on something else."
-
-This is the leverage view. A large bottleneck may not be the highest ROI item by itself, but clearing it changes the frontier: whole chains become eligible, and the Next tab has better candidates to choose from.
+On the right, **Shared Prerequisites** is a heatmap over those same ranked Goals. It counts the number of shared hard and soft prerequisites, so bright cells imply that two Goals are drawing from the same body of work. This suggests two goals share a set of foundational skills.
 
 ## Contexts
 
-The Contexts section shows a **Ratings** heatmap for live nodes grouped by context. This is a quick taste check. A context with high Value and low Interest may represent duty-heavy work. A context with high Interest and low Value may be a play/exploration area. A high Difficulty column is not a problem by itself, but it is a warning that the app may be accurately recommending less from that context unless the value, interest, or prerequisite cascade compensates.
+The Contexts section puts three views in one row, each answering a different question about your contexts: where your time goes, how you currently rate the work, and how those ratings have held up in hindsight. All three panels share the same context order — the biggest context by active time at the top — so you can read straight across.
+
+**[SCREENSHOT: the Contexts row showing Hours by Context, Ratings by Context, and Reflection Drift by Context aligned on the same context order.]**
+
+The leftmost chart is **Hours by Context**. Each context is one horizontal stacked bar, and each segment is a subcontext. Hover a segment to see its subcontext name, node count, and estimated time. This makes the context view more useful than a plain context-total chart: you can see not only that STEM or Health is large, but which internal area is creating the mass.
+
+The middle chart is **Ratings by Context** — average Value, Interest, and Difficulty across the live nodes in each context. This is a quick taste check. A context with high Value and low Interest may represent duty-heavy work. A context with high Interest and low Value may be a play/exploration area. A high Difficulty column is not a problem by itself, but it is a warning that the app may be accurately recommending less from that context unless the value, interest, or prerequisite cascade compensates.
+
+The rightmost chart is **Reflection Drift by Context** — the same three dimensions, but showing the *average change* between your original rating and your post-reflection rating. Red cells mean you overrated the work going in; blue cells mean you underrated it. Where the Ratings chart shows what you currently believe, the Drift chart asks whether you should trust it. A context that runs consistently red on Value, for example, suggests you tend to oversell projects to yourself before starting them. Only contexts with at least two reflected nodes appear; the rest stay blank to avoid drawing conclusions from thin data.
+
+## Time Estimation Accuracy
+
+When you mark a node Done and complete a [reflection](#reflection), the actual time you spent gets captured alongside your original estimate. These two charts compare them.
+
+**[SCREENSHOT: the By Node scatter plot on the left and the By Context box plots on the right, with the y = x reference line and 1× line visible.]**
+
+The first chart, **By Node**, is a scatter plot with a dashed *y = x* reference line. Each dot is one completed node. Points above the line took longer than expected; points below were completed faster. The colors are node types, so you can spot whether one type — usually Learn nodes — drifts above the line more than the others.
+
+The second chart, **By Context**, rolls those same ratios up into per-context box plots, sorted with the most chronically-overrun context at the top. A box well to the right of the 1× line means that context routinely takes longer than you predict; well to the left means you over-allocate to it. This is where context bias becomes obvious — perhaps you are accurate on STEM work but blow past your humanities estimates every time. Contexts need at least three completed nodes with captured actuals to qualify.
+
+## Throughput
+
+The Throughput chart shows hours of completed work per calendar bucket, stacked by context. It is the only time-series view on the Analyze tab — every other chart is a snapshot of the current state, while this one shows flow over time. The gear icon next to the section title opens three controls: **Granularity** (months, quarters, or years), and **Start date** / **End date** to clip the range. The defaults — quarterly buckets covering all of your completed-with-date history — work for most uses, but if you want to zoom in on a single year at monthly resolution, the gear is where you do it.
+
+**[SCREENSHOT: the Throughput stacked bar chart with a hover tooltip open on one segment, showing the context name, hours, and the top-five completed nodes.]**
+
+**[SCREENSHOT: the Throughput gear popover open, showing the Granularity dropdown and the Start / End date inputs.]**
+
+The total height of a bar is hours completed in that bucket; each colored segment is one context. There is no legend — hover any segment for the context name, hours, node count, and the top five completed nodes with their individual hours. Where the Hours-by-Context chart shows your *intent* (active time you plan to spend per context), this chart shows your *execution* (time you actually delivered, and to which contexts). Big mismatches between the two are usually the most interesting finding.
+
+## Graph Structure
+
+The Graph Structure section answers two structural questions about your network, side by side. The gear icon next to the section title controls how many nodes each chart shows.
+
+**[SCREENSHOT: the Bottleneck bar chart on the left and the Hub Nodes bar chart on the right, both at the same height.]**
+
+On the left, **Bottleneck** ranks nodes by the size of the downstream subtree they unlock. The chart distinguishes direct unlocks from the full cascade in hover text, and it colors Blocked bottlenecks red so you can separate "high leverage and available" from "high leverage but waiting on something else." A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole chains become eligible, and the Next tab has better candidates to choose from.
+
+On the right, **Hub Nodes** ranks nodes by how integrated they are into the graph — concepts with prerequisites feeding in *and* dependents flowing out. The score is a geometric mean of incoming and outgoing edge counts, with a small bonus for synergy partners. Pure roots (no prerequisites) and pure leaves (no dependents) score zero, so what surfaces here are the connective concepts: the bodies of knowledge or capabilities that tie the rest of your graph together. Where Bottleneck asks *what unlocks the most?*, Hub asks *what is most central to my understanding?*
+
+On most graphs these two lists are almost completely disjoint. Bottlenecks tend to be foundational atoms like *Algebra* or *Probability*; hubs tend to be mid-level Goals like *Productivity* or *Communication*. Together the two views give you a fuller picture of where the load-bearing structure of your graph actually sits.
 
 # Settings
 The Settings modal is where you tune how the app looks, scores, and behaves. It's organized into five tabs, each grouping a different kind of knob. I've already touched on most of the interesting settings in the relevant sections above — this is just a map of where to find them.

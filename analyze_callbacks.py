@@ -10,7 +10,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from collections import defaultdict
 from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager, BADGE_PALETTE
 from scoring import (
     build_adjacency as _scoring_build_adjacency, total_value, explain_score,
@@ -129,6 +129,67 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
     return results[:limits.get('bottlenecks', 25)]
 
 
+def _compute_hub_score(nodes, edges, limits):
+    """For each non-Done node, compute its hub score —
+    ``sqrt(in_count * out_count) + 0.5 * helps_count`` over Hard + Soft
+    prereq edges, with Helps edges counted as symmetric synergy partners.
+
+    The geometric mean punishes asymmetry (a pure root or pure leaf scores
+    0 on the first term), so hubs are exactly the nodes with traffic in
+    both directions — concepts that absorb prereqs AND feed dependents.
+    The Helps term gives synergy partners half-weight credit on top.
+
+    Returns the top N (capped by ``limits['bottlenecks']``, since the
+    Graph Structure section's gear controls both charts) sorted by score
+    descending. Each row also carries the score components and the count
+    of distinct contexts among the node's neighbors, for tooltip display."""
+    node_map = {n.name: n for n in nodes}
+    non_done = {n.name for n in nodes if n.status != STATUS_DONE}
+
+    in_ct: dict = defaultdict(int)
+    out_ct: dict = defaultdict(int)
+    helps_ct: dict = defaultdict(int)
+    neighbor_ctx: dict = defaultdict(set)
+
+    for e in edges:
+        s, t, etype = e['source'], e['target'], e['type']
+        if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+            out_ct[s] += 1
+            in_ct[t] += 1
+        elif etype == EDGE_HELPS:
+            helps_ct[s] += 1
+            helps_ct[t] += 1
+        s_ctx = node_map[s].context if s in node_map else None
+        t_ctx = node_map[t].context if t in node_map else None
+        if s_ctx:
+            neighbor_ctx[t].add(s_ctx)
+        if t_ctx:
+            neighbor_ctx[s].add(t_ctx)
+
+    results = []
+    for name in non_done:
+        i, o = in_ct[name], out_ct[name]
+        h = helps_ct[name]
+        score = math.sqrt(i * o) + 0.5 * h
+        if score <= 0:
+            continue
+        n = node_map[name]
+        results.append({
+            'name': name,
+            'score': score,
+            'in_count': i,
+            'out_count': o,
+            'helps_count': h,
+            'distinct_contexts': len(neighbor_ctx[name]),
+            'type': n.type,
+            'status': n.status,
+            'context': n.context,
+        })
+
+    results.sort(key=lambda r: r['score'], reverse=True)
+    return results[:limits.get('bottlenecks', 25)]
+
+
 def _compute_estimation_accuracy(nodes):
     """Pair each completed node's forecast estimate against its captured
     actual time. Both figures run through the same `blend_time_estimate`
@@ -154,6 +215,148 @@ def _compute_estimation_accuracy(nodes):
             'actual': actual,
         })
     return rows
+
+
+_REFLECTION_MIN_N = 2  # min reflected nodes per context for the drift heatmap
+
+
+def _compute_reflection_drift(nodes):
+    """For each context with at least ``_REFLECTION_MIN_N`` reflected nodes,
+    compute mean ``reflect_X - X`` across V/I/D. A null reflect_X is skipped
+    for that metric only; nodes count toward the context's reflected total
+    if any of the three reflection fields is populated."""
+    by_ctx = defaultdict(lambda: {'dv': [], 'di': [], 'dd': [], 'count': 0})
+    for n in nodes:
+        if (n.reflect_value is None
+                and n.reflect_interest is None
+                and n.reflect_difficulty is None):
+            continue
+        ctx = n.context or 'No Context'
+        d = by_ctx[ctx]
+        d['count'] += 1
+        if n.reflect_value is not None:
+            d['dv'].append(n.reflect_value - n.value)
+        if n.reflect_interest is not None:
+            d['di'].append(n.reflect_interest - n.interest)
+        if n.reflect_difficulty is not None:
+            d['dd'].append(n.reflect_difficulty - n.difficulty)
+
+    def _mean(xs):
+        return round(sum(xs) / len(xs), 2) if xs else None
+
+    results = []
+    for ctx, d in by_ctx.items():
+        if d['count'] < _REFLECTION_MIN_N:
+            continue
+        results.append({
+            'context': ctx, 'count': d['count'],
+            'd_value': _mean(d['dv']),
+            'd_interest': _mean(d['di']),
+            'd_difficulty': _mean(d['dd']),
+        })
+    results.sort(key=lambda r: r['count'], reverse=True)
+    return results
+
+
+def _compute_throughput(nodes, granularity='quarter',
+                        start_date=None, end_date=None):
+    """Bucket Done nodes with ``done_date`` into calendar buckets, segmented
+    by context. ``granularity`` is 'month' | 'quarter' | 'year'; empty
+    buckets between min and max are still emitted so the timeline reads
+    continuously. ``start_date`` / ``end_date`` are ISO strings that
+    optionally clip the range; None means "auto" (use the available data's
+    natural extent). Per-node hours use captured actual time when present,
+    otherwise the forecast estimate; each segment carries its ``nodes``
+    list (``(name, hours)`` tuples, hours-descending) for tooltips."""
+    from models import blend_time_estimate
+
+    if granularity not in ('month', 'quarter', 'year'):
+        granularity = 'quarter'
+
+    def _hours(n):
+        actual = blend_time_estimate(
+            n.actual_time_lower, n.actual_time_point, n.actual_time_upper)
+        if actual > 0 and (n.actual_time_lower is not None
+                           or n.actual_time_point is not None
+                           or n.actual_time_upper is not None):
+            return actual
+        return n.time
+
+    def _bucket_key(y, m):
+        if granularity == 'month':
+            return (y, m)
+        if granularity == 'year':
+            return (y,)
+        # quarter
+        return (y, (m - 1) // 3 + 1)
+
+    def _bucket_label(key):
+        if granularity == 'year':
+            return str(key[0])
+        if granularity == 'month':
+            return f'{_MONTH_ABBR[key[1] - 1]} {key[0]}'
+        return f'{key[0]} Q{key[1]}'
+
+    def _next_key(key):
+        if granularity == 'year':
+            return (key[0] + 1,)
+        if granularity == 'month':
+            y, m = key
+            return (y + 1, 1) if m == 12 else (y, m + 1)
+        # quarter
+        y, q = key
+        return (y + 1, 1) if q == 4 else (y, q + 1)
+
+    buckets = defaultdict(lambda: defaultdict(list))
+    for n in nodes:
+        if not n.done_date:
+            continue
+        try:
+            y_str, m_str, _ = n.done_date.split('-')
+            y, m = int(y_str), int(m_str)
+        except (ValueError, AttributeError):
+            continue
+        if start_date and n.done_date < start_date:
+            continue
+        if end_date and n.done_date > end_date:
+            continue
+        ctx = n.context or 'No Context'
+        buckets[_bucket_key(y, m)][ctx].append((n.name, _hours(n)))
+
+    if not buckets:
+        return []
+
+    keys_sorted = sorted(buckets.keys())
+    cur, last = keys_sorted[0], keys_sorted[-1]
+    full_keys = []
+    # Cap the synthesised fill so a wide date range at month granularity
+    # can't run away with the chart (e.g. 5 years * 12 = 60 bars max).
+    while cur <= last and len(full_keys) < 120:
+        full_keys.append(cur)
+        cur = _next_key(cur)
+
+    rows = []
+    for k in full_keys:
+        ctxs = buckets.get(k, {})
+        segments = []
+        for ctx, items in ctxs.items():
+            items.sort(key=lambda x: x[1], reverse=True)
+            segments.append({
+                'context': ctx,
+                'hours': sum(h for _, h in items),
+                'nodes': items,
+            })
+        segments.sort(key=lambda s: s['hours'], reverse=True)
+        rows.append({
+            'label': _bucket_label(k),
+            'segments': segments,
+            'total_hours': sum(s['hours'] for s in segments),
+        })
+    return rows
+
+
+_MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 
 def _get_limits():
@@ -579,6 +782,21 @@ _BORDER = '#495057'
 _STATUS_COLORS = {STATUS_OPEN: '#0d6efd', STATUS_BLOCKED: '#dc3545', STATUS_DONE: '#198754'}
 _CHART_CFG = {"displayModeBar": False}
 
+# Bar-fill overrides for node types whose BADGE_PALETTE colour is tuned for
+# small badge areas and overpowers when applied to large bar fills. Goal's
+# canvas yellow is engineered to read at a glance on the graph; in a long
+# horizontal bar it dominates the row. Falls through to BADGE_PALETTE for
+# any type not listed here.
+_CHART_BAR_FILLS = {
+    'Goal': '#a89a2c',  # muted olive-yellow; same hue family, lower chroma
+}
+
+
+def _chart_bar_color(node_type):
+    if node_type in _CHART_BAR_FILLS:
+        return _CHART_BAR_FILLS[node_type]
+    return BADGE_PALETTE.get(node_type, ('#6c757d', '#fff'))[0]
+
 
 def _base_layout(**overrides):
     """Return a Plotly layout dict with consistent dark theme styling."""
@@ -781,11 +999,11 @@ def _render_bottleneck_chart(data, height=None):
     fmt = ConfigManager.format_time_friendly
     names = [d['name'] for d in data]
     values = [d['cascade'] for d in data]
-    # Blocked nodes flag red; open nodes take the muted Next-tab badge
-    # palette colour for their type.
+    # Blocked nodes flag red; open nodes take the bar-fill palette colour
+    # for their type (muted variant of the badge colour where defined).
     colors = [
         _STATUS_COLORS[STATUS_BLOCKED] if d['status'] == STATUS_BLOCKED
-        else BADGE_PALETTE.get(d['type'], ('#6c757d', '#fff'))[0]
+        else _chart_bar_color(d['type'])
         for d in data
     ]
     hover = [
@@ -800,6 +1018,44 @@ def _render_bottleneck_chart(data, height=None):
     fig = _hbar_chart(names, values, colors=colors, hover_texts=hover,
                       x_title="Downstream nodes reached", integer_x=True,
                       height=height)
+    return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
+
+
+def _render_hub_chart(data, height=None):
+    """Companion to the bottleneck chart. Bottleneck asks 'what unlocks the
+    most downstream?'; Hub asks 'what is most integrated into the user's
+    thinking?'. Same horizontal-bar treatment so the comparison reads as
+    intentional."""
+    title = html.H6("Hub Nodes", className="text-muted mb-1")
+    if not data:
+        return _card([title, html.P(
+            "No hub nodes found — nodes need edges flowing in AND out to "
+            "qualify.", className="text-muted small")])
+
+    names = [d['name'] for d in data]
+    values = [round(d['score'], 2) for d in data]
+    colors = [
+        _STATUS_COLORS[STATUS_BLOCKED] if d['status'] == STATUS_BLOCKED
+        else _chart_bar_color(d['type'])
+        for d in data
+    ]
+
+    def _plural(n, word):
+        return f"{n} {word}{'s' if n != 1 else ''}"
+
+    hover = [
+        f"<b>{d['name']}</b><br>"
+        f"Hub score: {d['score']:.2f}<br>"
+        f"  ↑ {_plural(d['in_count'], 'prereq')} feeding in<br>"
+        f"  ↓ {_plural(d['out_count'], 'dependent')} flowing out<br>"
+        f"  ⟷ {_plural(d['helps_count'], 'synergy partner')}<br>"
+        f"  Spans {_plural(d['distinct_contexts'], 'context')}<br>"
+        f"Type: {d['type']}"
+        for d in data
+    ]
+
+    fig = _hbar_chart(names, values, colors=colors, hover_texts=hover,
+                      x_title="Hub score", height=height)
     return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
 
 
@@ -1043,11 +1299,14 @@ def _render_context_accuracy_boxplot(rows):
     def _ratio(r):
         return r['actual'] / r['estimate']
 
-    # Ascending median order: the most chronically-underestimated context
-    # lands at the top of the horizontal layout.
+    # Descending median order: the context that most chronically blows
+    # past its estimate lands at the top, mirroring the Contexts row's
+    # "biggest at top" convention. (Plotly horizontal box traces stack
+    # first-added-at-top.)
     ordered = sorted(
         qualifying.items(),
-        key=lambda kv: statistics.median([_ratio(r) for r in kv[1]]))
+        key=lambda kv: statistics.median([_ratio(r) for r in kv[1]]),
+        reverse=True)
 
     # Soft filled boxes in a single blue; the 1× reference line conveys
     # over- vs. under-estimation by position.
@@ -1099,25 +1358,187 @@ def _render_context_accuracy_boxplot(rows):
     return _card(children)
 
 
-def _render_ratings_chart(data, height=None):
-    if not data:
+def _render_reflection_drift_chart(rows, height=None, context_order=None):
+    """Per-context mean drift (``reflect_X - X``) for V/I/D as a diverging
+    heatmap. Red cells mean the user overrated initially (reflection is
+    lower); blue cells mean the user underrated initially. Symmetric scale
+    around 0 so cell colour reads as direction × magnitude at a glance.
+
+    ``context_order`` (ascending — same as the Hours-by-Context bar chart)
+    forces the row order to match the row's other panels; contexts below
+    ``_REFLECTION_MIN_N`` appear as blank (NaN) rows so all panels line up."""
+    title = html.H6("Reflection Drift by Context", className="text-muted mb-1")
+    if not rows and not context_order:
+        return _card([title, html.P(
+            f"Not enough reflected nodes per context yet — a context "
+            f"needs at least {_REFLECTION_MIN_N} re-rated nodes.",
+            className="text-muted small")])
+
+    by_ctx = {r['context']: r for r in rows}
+    metric_keys = [('d_value', 'Value'), ('d_interest', 'Interest'),
+                   ('d_difficulty', 'Difficulty')]
+
+    contexts = context_order if context_order else [r['context'] for r in rows]
+
+    z, hover = [], []
+    for ctx in contexts:
+        r = by_ctx.get(ctx)
+        z_row, hover_row = [], []
+        for attr, label in metric_keys:
+            if r is None:
+                z_row.append(None)
+                hover_row.append(
+                    f"<b>{ctx}</b><br>{label}: fewer than "
+                    f"{_REFLECTION_MIN_N} reflected nodes")
+                continue
+            v = r[attr]
+            z_row.append(v if v is not None else None)
+            if v is None:
+                hover_row.append(f"<b>{ctx}</b><br>{label}: no data")
+            else:
+                sign = '+' if v > 0 else ''
+                hover_row.append(
+                    f"<b>{ctx}</b><br>"
+                    f"{label} drift: {sign}{v}<br>"
+                    f"{r['count']} reflected node{'s' if r['count'] != 1 else ''}"
+                )
+        z.append(z_row)
+        hover.append(hover_row)
+
+    # Symmetric range so 0 maps to the colorscale midpoint. Cap at +/-3 to
+    # keep colour resolution useful for the typical drift range; larger
+    # magnitudes still saturate cleanly to the endpoints.
+    drift_vals = [r[a] for r in rows for a, _ in metric_keys if r[a] is not None]
+    abs_max = max((abs(v) for v in drift_vals), default=1)
+    rng = max(1.0, min(3.0, round(abs_max + 0.5)))
+
+    if height is None:
+        height = max(200, len(contexts) * 32 + 80)
+
+    fig = go.Figure(go.Heatmap(
+        z=z, x=[label for _, label in metric_keys], y=contexts,
+        colorscale=[[0, '#c0392b'], [0.5, _BG], [1, '#2185d0']],
+        hovertext=hover, hoverinfo='text',
+        showscale=True,
+        colorbar=dict(title="Δ", len=0.5),
+        zmin=-rng, zmax=rng, zmid=0,
+    ))
+    fig.update_layout(**_base_layout(
+        height=height,
+        margin=dict(l=10, r=20, t=10, b=30),
+        # Plotly heatmap default is first-y-at-top, so callers pass
+        # ``context_order`` already in the desired top-to-bottom sequence.
+        yaxis=dict(automargin=True, ticklabelstandoff=8,
+                   categoryorder='array', categoryarray=contexts,
+                   **_label_axis(contexts)),
+        xaxis=dict(side='bottom'),
+    ))
+    return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
+
+
+def _render_throughput_chart(quarter_rows, granularity='quarter'):
+    """Stacked vertical bar of hours completed per calendar bucket
+    (month/quarter/year), segmented by context. No legend — context name
+    plus a top-N list of completed nodes (with hours) is revealed via hover."""
+    fmt = ConfigManager.format_time_friendly
+    title_word = {'month': 'Month', 'quarter': 'Quarter',
+                  'year': 'Year'}.get(granularity, 'Quarter')
+    title = html.H6(f"Hours Completed by {title_word}",
+                    className="text-muted mb-1")
+    if not quarter_rows or all(not r['segments'] for r in quarter_rows):
+        return _card([title, html.P(
+            "No nodes with a completion date yet. Mark nodes Done to "
+            "populate this chart.", className="text-muted small")])
+
+    # Stable per-context colour, ordered by total throughput so the largest
+    # context gets the first palette colour and the stacking order is
+    # consistent across bars.
+    total_per_ctx = defaultdict(float)
+    for r in quarter_rows:
+        for s in r['segments']:
+            total_per_ctx[s['context']] += s['hours']
+    ctx_order = sorted(total_per_ctx.keys(),
+                       key=lambda c: total_per_ctx[c], reverse=True)
+    ctx_color = {
+        c: (_NO_SUBCONTEXT_COLOR if c == 'No Context'
+            else _SUBCONTEXT_PALETTE[i % len(_SUBCONTEXT_PALETTE)])
+        for i, c in enumerate(ctx_order)
+    }
+
+    q_labels = [r['label'] for r in quarter_rows]
+
+    def _tooltip(label, ctx, seg):
+        n_nodes = len(seg['nodes'])
+        lines = [
+            f"<b>{label} · {ctx}</b>",
+            f"{fmt(seg['hours'])} across {n_nodes} node"
+            f"{'s' if n_nodes != 1 else ''}",
+        ]
+        for name, h in seg['nodes'][:5]:
+            nm = name if len(name) <= 30 else name[:29] + '…'
+            lines.append(f"  • {nm} ({fmt(h)})")
+        if n_nodes > 5:
+            lines.append(f"  … and {n_nodes - 5} more")
+        return '<br>'.join(lines)
+
+    fig = go.Figure()
+    for ctx in ctx_order:
+        ys, hovers = [], []
+        for r in quarter_rows:
+            seg = next((s for s in r['segments'] if s['context'] == ctx), None)
+            if seg and seg['hours'] > 0:
+                ys.append(seg['hours'])
+                hovers.append(_tooltip(r['label'], ctx, seg))
+            else:
+                ys.append(0)
+                hovers.append('')
+        fig.add_trace(go.Bar(
+            x=q_labels, y=ys, name=ctx,
+            marker_color=ctx_color[ctx], marker_line=dict(color=_BG, width=1),
+            opacity=0.9, hovertext=hovers, hoverinfo='text',
+        ))
+
+    max_total = max((r['total_hours'] for r in quarter_rows), default=0)
+    tickvals, ticktext = _friendly_xticks(max_total)
+    fig.update_layout(**_base_layout(
+        barmode='stack', height=360,
+        margin=dict(l=10, r=20, t=10, b=40),
+        xaxis=dict(automargin=True, categoryorder='array',
+                   categoryarray=q_labels),
+        yaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
+                   automargin=True),
+    ))
+    return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
+
+
+def _render_ratings_chart(data, height=None, context_order=None):
+    """``context_order`` (ascending — same as the Hours-by-Context bar chart)
+    forces the row order to match the row's other panels; contexts absent
+    from ``data`` (e.g. all nodes Done) appear as blank rows so the panels
+    stay row-aligned."""
+    if not data and not context_order:
         return _card([
             html.H6("Ratings by Context", className="text-muted mb-1"),
             html.P("No active nodes.", className="text-muted small"),
         ])
 
-    # Sort so largest context is at top (data is already sorted by count desc)
-    contexts = [d['context'] for d in data]
+    by_ctx = {d['context']: d for d in data}
+    contexts = context_order if context_order else [d['context'] for d in data]
+    metric_keys = [('avg_value', 'Value'), ('avg_interest', 'Interest'),
+                   ('avg_difficulty', 'Difficulty')]
 
-    # Build z-matrix: rows = contexts, cols = metrics
-    z = []
-    hover = []
-    for d in data:
+    z, hover = [], []
+    for ctx in contexts:
+        d = by_ctx.get(ctx)
+        if d is None:
+            z.append([None, None, None])
+            hover.append([f"<b>{ctx}</b><br>No active nodes"] * 3)
+            continue
         z.append([d['avg_value'], d['avg_interest'], d['avg_difficulty']])
         row_hover = []
-        for attr, label in [('avg_value', 'Value'), ('avg_interest', 'Interest'), ('avg_difficulty', 'Difficulty')]:
+        for attr, label in metric_keys:
             row_hover.append(
-                f"<b>{d['context']}</b><br>"
+                f"<b>{ctx}</b><br>"
                 f"{label}: {d[attr]}<br>"
                 f"{d['count']} active nodes"
             )
@@ -1128,7 +1549,7 @@ def _render_ratings_chart(data, height=None):
 
     fig = go.Figure(go.Heatmap(
         z=z,
-        x=['Value', 'Interest', 'Difficulty'],
+        x=[label for _, label in metric_keys],
         y=contexts,
         colorscale=[[0, _BG], [0.25, '#162d50'], [0.5, '#1a5276'],
                     [0.75, '#2185d0'], [1.0, '#54b8ff']],
@@ -1140,7 +1561,11 @@ def _render_ratings_chart(data, height=None):
     fig.update_layout(**_base_layout(
         height=height,
         margin=dict(l=10, r=20, t=10, b=30),
-        yaxis=dict(automargin=True, ticklabelstandoff=8, **_label_axis(contexts)),
+        # Plotly heatmap default is first-y-at-top, so callers pass
+        # ``context_order`` already in the desired top-to-bottom sequence.
+        yaxis=dict(automargin=True, ticklabelstandoff=8,
+                   categoryorder='array', categoryarray=contexts,
+                   **_label_axis(contexts)),
         xaxis=dict(side='bottom'),
     ))
     return _card([
@@ -1240,14 +1665,25 @@ def register_analyze_callbacks(app):
         Output("analyze-time-content", "children"),
         Output("analyze-graph-content", "children"),
         Output("analyze-contexts-content", "children"),
+        Output("analyze-throughput-content", "children"),
         Input("main-tabs", "active_tab"),
         Input("setting-analyze-bottlenecks", "value"),
         Input("setting-analyze-goals", "value"),
+        Input("setting-analyze-throughput-granularity", "value"),
+        Input("setting-analyze-throughput-start", "value"),
+        Input("setting-analyze-throughput-end", "value"),
+        # save-output is the global "something was saved" channel. Reflection
+        # edits via the hub modal don't regenerate Cytoscape elements, so
+        # graph-version-store doesn't bump and the usual graph-change signal
+        # misses them. Listening to save-output picks them up; the active_tab
+        # guard below short-circuits when the user is not on this tab.
+        Input("save-output", "children"),
         prevent_initial_call=True,
     )
-    def refresh_analyze_tab(active_tab, bottlenecks, goals):
+    def refresh_analyze_tab(active_tab, bottlenecks, goals,
+                            thru_gran, thru_start, thru_end, _save_output):
         if active_tab != "tab-analyze":
-            return (no_update,) * 5
+            return (no_update,) * 6
 
         # Persist any limit changes made via the gear popovers before rendering.
         al = ConfigManager.get_analyze_limits()
@@ -1255,6 +1691,11 @@ def register_analyze_callbacks(app):
             al['bottlenecks'] = int(bottlenecks)
         if goals is not None:
             al['goals'] = int(goals)
+        if thru_gran in ('month', 'quarter', 'year'):
+            al['throughput_granularity'] = thru_gran
+        # Empty-string date inputs persist as None (auto-extent).
+        al['throughput_start'] = thru_start or None
+        al['throughput_end'] = thru_end or None
         ConfigManager.set_analyze_limits(al)
 
         nodes = graph_manager.get_all_nodes(include_dormant=False)
@@ -1262,7 +1703,7 @@ def register_analyze_callbacks(app):
 
         if not nodes:
             empty = html.P("No nodes in the graph yet.", className="text-muted small")
-            return empty, "", "", "", ""
+            return empty, "", "", "", "", ""
 
         hard_fwd, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
 
@@ -1274,6 +1715,14 @@ def register_analyze_callbacks(app):
         goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits)
         est_accuracy = _compute_estimation_accuracy(nodes)
         ctx_coverage = _compute_context_coverage(nodes)
+        drift_rows = _compute_reflection_drift(nodes)
+        throughput_rows = _compute_throughput(
+            nodes,
+            granularity=al.get('throughput_granularity', 'quarter'),
+            start_date=al.get('throughput_start'),
+            end_date=al.get('throughput_end'),
+        )
+        hub_data = _compute_hub_score(nodes, edges, limits)
 
         # Goal names for heatmap axis ordering
         goal_names_ordered = [g['name'] for g in goal_rows]
@@ -1302,27 +1751,59 @@ def register_analyze_callbacks(app):
             ], className="g-3"),
         ]
 
+        # Bottleneck and Hub share the gear's "nodes shown" limit and render
+        # at the same height (max of the two list lengths) so the row reads
+        # as a paired comparison.
+        gs_count = max(len(bottlenecks), len(hub_data), 1)
+        gs_height = max(180, gs_count * 28 + 60)
         graph_content = [
-            html.P("Nodes whose completion would unlock the largest "
-                   "downstream cascade.",
+            html.P("Bottleneck: nodes whose completion would unlock the "
+                   "largest downstream cascade. Hub: nodes most integrated "
+                   "into the graph — traffic flowing in AND out.",
                    className="text-muted small"),
             dbc.Row([
-                dbc.Col(_render_bottleneck_chart(bottlenecks), width=6),
+                dbc.Col(_render_bottleneck_chart(bottlenecks,
+                                                 height=gs_height), width=6),
+                dbc.Col(_render_hub_chart(hub_data,
+                                          height=gs_height), width=6),
             ], className="g-3"),
         ]
 
         ctx_height = max(180, len(ctx_coverage) * 28 + 60)
+        # Bar chart: ctx_coverage is ascending by hours; plotly's horizontal
+        # bar default puts the LAST y at the top, so the largest context
+        # renders at the top.
+        # Heatmaps: plotly heatmap default puts the FIRST y at the top, so
+        # we pass the same contexts in reversed (descending) order to land
+        # the largest context at the top — matching the bar chart's order.
+        ctx_order_heatmap = list(reversed([c['context'] for c in ctx_coverage]))
         contexts_content = [
-            html.P("Active distribution and average ratings across "
-                   "your contexts.",
+            html.P("Where your active time is allocated, the average "
+                   "ratings behind it, and how those ratings have drifted "
+                   "post-reflection.",
                    className="text-muted small"),
             dbc.Row([
                 dbc.Col(_render_hours_by_context(ctx_coverage,
                                                  height=ctx_height), width=6),
-                dbc.Col(html.Div(
-                    _render_ratings_chart(ratings_data, height=ctx_height),
-                    style={"maxWidth": "750px"}), width=6),
+                dbc.Col(_render_ratings_chart(ratings_data,
+                                              height=ctx_height,
+                                              context_order=ctx_order_heatmap), width=3),
+                dbc.Col(_render_reflection_drift_chart(drift_rows,
+                                                       height=ctx_height,
+                                                       context_order=ctx_order_heatmap), width=3),
             ], className="g-3"),
         ]
 
-        return overview_content, goals_content, time_content, graph_content, contexts_content
+        gran = al.get('throughput_granularity', 'quarter')
+        gran_label = {'month': 'month', 'quarter': 'quarter',
+                      'year': 'year'}[gran]
+        throughput_content = [
+            html.P(f"Hours of completed work per calendar {gran_label}, "
+                   "stacked by context. Hover a segment for the node "
+                   "list.",
+                   className="text-muted small"),
+            _render_throughput_chart(throughput_rows, granularity=gran),
+        ]
+
+        return (overview_content, goals_content, time_content, graph_content,
+                contexts_content, throughput_content)
