@@ -995,10 +995,10 @@ def build_app_layout(initial_elements, env="production"):
             active_tab="tab-next",
             children=[
                 dbc.Tab(label="Next", tab_id="tab-next"),
-                dbc.Tab(label="Nodes", tab_id="tab-canvas"),
                 dbc.Tab(label="Details", tab_id="tab-details"),
-                dbc.Tab(label="Events", tab_id="tab-events"),
+                dbc.Tab(label="Nodes", tab_id="tab-canvas"),
                 dbc.Tab(label="Analyze", tab_id="tab-analyze"),
+                dbc.Tab(label="Events", tab_id="tab-events"),
             ],
             className="px-3 pt-1 justify-content-center",
             style={"flex": "1", "backgroundColor": "#1a1d21", "borderBottom": "none"}
@@ -1008,7 +1008,7 @@ def build_app_layout(initial_elements, env="production"):
         html.Div([
             dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm",
                        className="me-2", style={"display": "none"}),
-            dbc.Button(html.I(className="bi bi-filter"), id="btn-filters-toggle", color="secondary", size="sm"),
+            dbc.Button(html.I(className="bi bi-funnel"), id="btn-filters-toggle", color="secondary", size="sm"),
             dbc.Tooltip("Filters", target="btn-filters-toggle", placement="bottom",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Button(html.I(className="bi bi-journal-text"), id="btn-calibration-review",
