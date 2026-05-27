@@ -1,10 +1,10 @@
 # Modeling Guide
 
-This document covers how to make a graph that Skill Tree can rank effectively. This requires choosing the right **node types** and specifying the correct *relationships** between them. As an added bonus, these tips will produce a more visually pleasing graph that resembles a true skill tree rather than a "dense hairball" that encumbers many large graphs. 
+This document covers how to make a graph that Skill Tree can rank effectively. This requires nailing **nodes, relationships** (recognizing that directed prerequisites cascade value downstream while bidirectional synergies are categorically different and do not cascade), and **contexts.** This document walks through helpful tips for each that I have learned through trial and error. As an added bonus, these tips will produce a more visually pleasing graph that resembles a true skill tree rather than a "dense hairball" that encumbers many large graphs. 
 
 # Nodes
 
-## Choosing the Right Type of Node
+## Node Types
 The five node types in Skill Tree are not just cosmetic labels. Each answers a distinct conceptual question and behaves differently under the scoring algorithm. 
 
 ### An Overview of the Node Types
@@ -21,7 +21,17 @@ The five node types in Skill Tree are not just cosmetic labels. Each answers a d
 
 While the five node types are conceptually distinct, first-time modelers often struggle with boundary cases where nodes seem to overlap. Understanding the subtle boundaries between the node types ensures that your graph accurately reflects your intuition and interfaces correctly with the recommendation engine.
 
-### Goal vs. Learn 
+### Learn vs. Resource
+
+If you are reading a book to learn something, you may wonder whether you should create a Learn or a Resource node. I recommend creating two nodes, actually: a Learn for the underlying intent, and a Resource for the material you think will help you fulfill your intent. You can model this as a hard or soft edge depending on whether you think the resource is essential for your understanding, or merely supportive.
+
+```
+Resource -> Learn
+```
+
+As an example, suppose you want to go through Gilbert Strang's Linear Algebra Course. You would only do that, of course, if you want to learn linear algebra, so it seems redundant to create two nodes, but by doing so, you remind yourself that there is more than one perspective on the topic, and enable yourself to add more Resources later (such as alternative introductory resources, or intermediate and advanced ones too.)
+
+### Goal vs Learn 
 Although both Goals and Learns can be containers, they serve different purposes, and operate under different rules in Skill Tree. 
 
 The first major distinction is scope. A Goal represents a broad, often ambitious capacity that you want to develop. Examples include Strength, Eastern Philosophy, and Software Engineering. A Learn node, on the other hand, represents a specific topic within each discpline, such as Compound Lifts, Buddhism, or Agentic Coding. 
@@ -56,198 +66,114 @@ Because you don't *do* a Milestone directly, the algorithm excludes Milestones f
 
 ## Node Size
 
-It is not enough to choose the right *type* of node, you must also choose the right *size.* That is to say, for Skill Tree to be maximally useful, you must define projects at the right **level of abstraction.**
+Choosing the right node type is half the battle; the other half is choosing the right node **size** (or level of abstraction). For Skill Tree to rank and sequence your work effectively, nodes should represent **high-level projects** -- typically spanning at least a couple weeks.
 
-I believe nodes should represent **high-level ideas** that typically span several weeks of work. You can Divide and Conquer ideas once you officially decide what to work on. You don't have to lay out every step of your plan in Skill Tree -- only the major components. Remember that Skill Tree is fundamentally about choosing the *order* of your projects.
+Skill Tree's job is to tell you which project deserves your attention this month — not to track every step within it.
 
-Here are the key guidelines I use for finding the right level of abstraction.
 
-### 1. Too Big
-A single node that says *Master Cooking* or *Start a Blog* is open-ended and not very helpful. Monstrous nodes will sit in your queue forever. They also bypass the scoring engine's ability to sequence prerequisites. To resolve this, keep your nodes bounded to a reasonable project horizon. If a project exceeds several weeks of work, break it down into distinct phases or smaller, independent project iterations.
+### When Nodes Are Too Big
+A single node that says *Master Cooking* or *Start a Blog* is too open-ended. Monolithic nodes have massive time estimates, or at least they should, which compresses their ROI score ($\text{Value} / \text{Cost}$), and pushes them to the bottom of your suggestion list. They also remove the whole value proposition of Skill Tree, which is to help you sequence work effectively.
 
-### 2. Too Small
-As Seneca wisely observed:
-> "It is useful that a subject should be divided into parts, but not chopped into bits. Just as it is hard to take in what is indefinitely large, it is hard to take in what is infinitely small."
+By breaking down a large project into smaller components, you are using the most fundamental problem solving technique there is. The Divide and Conquer technique empowers both you and Skill Tree. It helps you because what was once an ambiguous mountain of uncertain tasks is now a set of concrete actionable steps. And by going through this process, you will naturally uncover the elements and the relationships that will be essential for your understanding later on. But you don't have to keep all that in your head. Let Skill Tree's unasailabe memory and smart algorithms figure out what all that implies for you. You have done the hard work: you've figured out what elements matter, how they relate to each other, and estimated their important characteristics (such as value, interest, effort, and time); now, in comparison, Skill Tree has the relatively easy job of simply choosing the order, based on what you told it. As long as you tell it what you truly believe, it will help you work on what you think truly matters. 
 
-A thousand nodes—each representing a single recipe step, reading a single chapter, or writing a specific function—is chopped into infinitely small bits that will quickly overwhelm your canvas and dilute your priority scores. If you spend more time managing a task in Skill Tree (estimating time, setting ratings, linking edges, updating state) than it takes to actually *do* the task, the node is too small. Keep the app focused on strategic sequencing of larger blocks of effort. Do not perform your detailed project breakdowns inside Skill Tree. Instead, prioritize a high-level node (e.g., "Draft Research Paper" or "Read *Why We Sleep*") in Skill Tree, and let your standard daily checklist, calendar, or project board handle the micro-tasks once the project is active.
+### When Nodes Are Too Small
+A thousand nodes -- each representing a microstep in a project -- is not helpful either. "It is useful that a subject should be divided into parts," says Seneca, "but not chopped into bits. Just as it is hard to take in what is indefinitely large, it is hard to take in what is infinitely small." 
 
-### 3. The Sequencing Test (Prerequisites & Dependencies)
-Ask yourself: *Does this node contain parts that must be executed in a strict order, or parts that have different prerequisites?*
-* **Split if**: Part B depends on Part A (e.g., "Set up database" must come before "Write backend API"). These require separate nodes connected by a Hard prerequisite edge so the recommendation engine can sequence them correctly.
-* **Keep combined if**: The steps share the same dependencies, unlock the same downstream goals, and can be done in any order or arbitrary sequence. Keeping them combined avoids visual clutter.
+If you create too many nodes, you will spend more time doing meta-work than actually working. Remember, for every project you create, you need to estimate its attributes and relationships to other, similar projects -- and do so accurately -- otherwise Skill Tree has nothing to go on. I recommend keeping things at a high, strategic level in Skill Tree, and only breaking down a project into granular, concrete steps once you have decided what to work on (and marked the project as "now" in Skill Tree).
 
-### 4. Leverage Containers for Grouping
-If you have a collection of related resources or topics that you still want to track individually, do not chain them together with endless Soft/Hard links. Instead, use a **container** (a Learn or Goal node with Inherit Time and/or Inherit Ratings enabled). This rolls their metrics up into a single parent node while keeping the children as clean, discrete items. 
+There is also a pragmatic and philosophically less elegant reason you should not break down a project excessively. Recall that a project's value cascades through the edges (relationships) in Skill Tree. Each edge a project has to traverse dilutes its value more. This is by design, and it works beautifully if you treat each node as a high level chunk of work, but it backfires if you break down the project beyond all reasonable measure. 
 
+In essence, if managing a task in Skill Tree (estimating time, setting ratings, linking edges) takes a noticeable fraction of the time it takes to actually *do* the task, the node is too small. Keep Skill Tree focused on strategic sequencing of larger blocks of effort, and let your daily checklist handle the micro-tasks once the project actually starts.
+
+### When Nodes Are Just Right
+The sweet spot lies in applying a **Divide and Conquer** strategy to create a clean hierarchical tree of relatively independent elements.
+
+* **Workload-Based Leaf Nodes**: Each leaf node should represent a meaningful but manageable chunk of effort. For me, this is several weeks of work, but you may choose a different unit if you want. 
+* **The Rule of Three**: For complex or unfamiliar domains, aim for three levels of abstraction and three children per parent. This limits your tree to 27 leaves, meaning you never focus on more than 4% of the problem at once. This constraint aids focus, forces priority, and prevents scope creep.
+* **Target Independence**: Divide your goals into sub-problems that are as independent as possible. Independence allows you to parallelize work or switch tasks flexibly without breaking other dependencies.
+* **Divide to Learn**: If you know nothing about a domain, guess. Deconstruct the problem as best as your current intuition allows; methodically working through even a flawed division will teach you enough to restructure the tree intelligently later.
+
+### Leveraging Containers to Manage Abstraction
+When you have a group of related topics or materials that you want to track individually, do not chain them together with endless Soft or Hard prerequisite links. Doing so creates visual clutter and dilutes priority scores. Instead, use a **container** to group them under a single parent. As a reminder, a container is a node who inherits their ratings or time estimate from its children (the nodes that point to it.)
+
+Using containers lets you maintain a clean hierarchy while preserving detail. In Skill Tree, containers operate along two dimensions:
+
+* **Pure Containers (Inherit Time = On, Inherit Ratings = On)**: These nodes have no manual ratings or time of their own. They act as pure structural wrappers, and their priority score is derived entirely from their children. Use these to bundle small, related tasks together without creating peer-to-peer links.
+* **Value Containers (Inherit Time = On, Inherit Ratings = Off)**: The parent carries its own manual Value and Interest ratings (reflecting why the overall domain matters to you), but inherits its perceived cost and time from its children. This is the ideal setup for a parent **Learn** node (e.g., *Machine Learning Basics*) that sits above a collection of specific courses and actions.
+* **Locked Containers**: Goals and Milestones are time-containers by design. Their duration is always the sum of their children's remaining time, preventing time estimation mismatches.
 
 # Relationships
+If nodes are the stages of your journey, relationships (edges) are the pathways connecting them. They dictate how value propagates, how status changes, and ultimately, what the Next tab recommends. Crucially, edges are divided into two categories: **directed prerequisites** (Hard and Soft Needs) and **bidirectional synergies** (Helps relationships). 
 
-> I think the order of the sections isn't quite right. I need to talk about creating edges before decluttering them. 
-
-## De-cluttering: From "Dense Hairball" to Clean Hierarchy
-
-One of the most common mistakes when starting with Skill Tree is creating a **dense hairball** — drawing edges between every node that is vaguely related. This clutters the visual canvas, increases cognitive load, and degrades the effectiveness of priority scoring.
-
-TODO: this picture isn't the most illustrative of what I mean. I do not want to suggest that there can't be relationships among children, and there is simply not enough nodes on the left visual. 
-
-```mermaid
-graph TD
-    %% Hairball Antipattern
-    subgraph Hairball ["The Dense Hairball (Antipattern)"]
-        A((Node A)) --> B((Node B))
-        A --> C((Node C))
-        B --> C
-        B --> D((Node D))
-        C --> D
-        A --> D
-        C -.->|Helps| E((Node E))
-        D -.->|Helps| E
-        A -.->|Helps| E
-    end
-
-    %% Clean Tree Pattern
-    subgraph CleanTree ["The Clean local-Tree (Preferred)"]
-        Parent((Parent Container))
-        Child1((Child A)) --> Parent
-        Child2((Child B)) --> Parent
-        Child3((Child C)) --> Parent
-    end
-    
-    style Hairball fill:#4a1515,stroke:#ff6b6b,stroke-width:2px
-    style CleanTree fill:#154a15,stroke:#6bff6b,stroke-width:2px
-```
-
-## The Hairball Pitfall
-* **Visual Chaos**: Dash Cytoscape will struggle to layout a dense web aesthetically, resulting in overlapping nodes and unreadable text.
-* **Priority Dilution**: The scoring engine discounts value geometrically per hop. In a highly interconnected mesh, downstream value leaks through multiple pathways, causing priority scores to flatten out and make everything look equally urgent.
-* **Redundant Blocks**: Over-using Hard prerequisites will accidentally lock major portions of your graph, preventing the app from recommending work you are actually ready to do.
-
-## The Minimal Edge Principle
-To keep your graph clean, responsive, and readable, apply the **Minimal Edge Principle**:
-> [!NOTE]
-> **Draw an edge ONLY if:**
-> 1. One node is a strict logical prerequisite for another (**Hard**).
-> 2. You have a strong, deliberate sequencing preference (**Soft**).
-> 3. Doing two nodes together yields a multiplicative, cross-domain breakthrough (**Helps**).
-> 
-> *If they are just related by topic, group them in the same Context/Subcontext or under a parent container instead.*
-
-## Pruning Strategies
-
-### 1. Transitive Reduction (Prune Shortcut Edges)
-If $A \to B$ and $B \to C$, a third edge $A \to C$ is redundant. The Hard status cascade and the priority value cascade already flow from $C \to B \to A$. Extra shortcut edges only add visual noise and do not alter eligibility.
-* **Identify**: Look for triangles in your graph where a direct shortcut spans across intermediate steps.
-* **Action**: Delete the shortcut edge.
-
-### 2. Leverage Containers Instead of Peer Links
-If you have five books (Resources) about the same topic (Learn), do not draw Soft or Hard edges connecting the books in a chain unless they must be read in a strict sequence. Instead:
-1. Set the parent Learn node to **Inherit Time** and **Inherit Ratings** (making it a container).
-2. Draw a Hard edge from each Resource up to the parent Learn.
-3. The parent Learn's value will cascade down to the Resources, and they will compete fairly on the Next tab based on their individual lengths and difficulties.
-
-### 3. Use Contexts for Thematic Grouping
-If you have a group of nodes related to `Tax Planning` and `Investing`, do not link them all with Soft edges. Set their Context to `Wealth` and Subcontext to `Taxes` or `Investing`. The app's **Density Normalization** and filters will manage them as a group without needing visual lines.
-
----
-
-# 3. How to Structure Edges Effectively
-
-Edges determine how status propagates and how value cascades to calculate priority. 
-
-## Hard vs. Soft: The Sequencing Test
+## Edge Types
+Skill Tree uses three distinct edge types to model your plan:
 
 | Edge Type | Visual Style | Blocking? | Core Question | Math Effect |
 |---|---|---|---|---|
-| **Hard Need** | Solid Gray | **Yes** | Can I start the target without completing the source? | Blocks target eligibility. Strongest cascade ($d_H = 0.60$). |
-| **Soft Need** | Dashed Gray | **No** | Will doing the source first make the target easier/better? | Does not block. Moderate value cascade ($d_S = 0.40$). |
+| **Hard Need** | Solid Gray | **Yes** | Can I start the target without completing the source? | Blocks target eligibility. Strongest cascade (60% by default). |
+| **Soft Need** | Dashed Gray | **No** | Will doing the source first make the target easier or better? | Does not block. Moderate value cascade (40% by default). |
+| **Helps (Synergy)** | Bidirectional Blue | **No** | Do these two tasks mutually reinforce and amplify each other? | Does not block. Does not cascade. Uses a different mechanism of supplying value. |
+
+### Edge Direction for Hard and Soft Needs
+For directed prerequisites, edge direction is the single most important thing to get right. Arrows always flow from source to target, from step one to step two. The relationship defined here ($A \rightarrow B$) can be read as "A supports, leads to, or unlocks B." If you get this backwards, the status cascade will lock you out of your more fundamental tasks. 
 
 ### The Two Roles of Hard Edges
-1. **Logical Dependency**: `Calculus` $\to$ `Real Analysis`. You literally cannot comprehend the target without the source.
-2. **Sequencing Commitment**: `Supervised Learning` $\to$ `Deep Learning`. You *could* study deep learning first, but you've decided to force yourself to build the foundation first. Hard edges enforce this personal discipline.
+Hard edges act as strict blockers, serving two distinct purposes. The first is logical necessity, representing a true structural dependency where the target is physically impossible to start without completing the source (such as *Boil Water* ➔ *Cook Pasta*). The second is personal preference. While I could've technically started *Beyond Good and Evil* before reading *How to Take Smart Notes*, I just wanted to read the note-taking book first, so I could retain what I read. Either way, the purpose of a hard edge is the same: to say that $A$ *must* come before $B$.
 
-### When to use Soft Edges
-Use a Soft edge when the source provides a valuable head-start, but you don't want to lock yourself out of the target if you decide to jump ahead. 
-* *Example*: `UX Design` $\to$ `Build Personal Website`. Studying UX first will yield a better website, but if you get inspired to write code today, you shouldn't be blocked.
+### When to Use Soft Edges
+Soft edges represent helpful prep work rather than strict logical barriers. You should use a soft edge when completing the source node will make the target easier, faster, or higher quality -- but you still want the flexibility to start the target early if inspiration strikes. 
 
-## Edge Direction: The "Leads To" Rule
-Direction is the most common error when building a graph.
-> [!CAUTION]
-> **Arrow Direction: Source $\to$ Target**
-> Read the arrow as **"leads to,"** **"comes before,"** or **"unlocks."**
-> The node you do *first* is the **Source** (tail). The node you do *second* is the **Target** (head).
-> *Correct*: `Warmup (Source) ➔ Work Set (Target)`.
-> *Incorrect*: `Work Set ➔ Warmup` (this blocks your warmup until your work set is done!).
+For example, purchasing a sturdy tripod will make capturing sharp landscape photographs at sunset much easier and prevent blurry images, but a soft edge ensures you aren't blocked from shooting handheld if you spot a beautiful scene on your walk.
 
-## Synergy (Helps) vs. Prerequisites
-Do not treat `Helps` as a weaker Soft edge. It is on an entirely different axis:
-* **Hard/Soft Edges**: Gated sequencing and forward-chained value.
-* **Helps Edges**: Bidirectional, non-transitive mutual reinforcement. Doing both yields a reward greater than the sum of their parts.
+### Synergies: Bidirectional Reinforcement
+Do not treat synergy edges as a weaker version of a Soft prerequisite, as they operate on an entirely different axis. Prerequisites are focused on chronological order, establishing that one node should precede another.Synergies, in contrast are about **mutual reinforcement.** This is why synergies are the only bidirectional edges in Skill Tree.
 
-```mermaid
-graph LR
-    subgraph Prerequisites ["Prerequisite Chain (Transitive)"]
-        A((A)) -->|Hard| B((B)) -->|Hard| C((C))
-        %% Value flows recursively: C -> B -> A
-    end
-    
-    subgraph Synergy ["Synergy / Helps (Depth-1)"]
-        X((Language Study)) <-->|Helps| Y((Travel))
-        %% Bidirectional boost. Does not chain to other nodes.
-    end
-```
+To decide whether a pair genuinely qualifies, ask whether the combination is *more than the sum of its parts* -- if doing both lands harder than doing each alone, it's a synergy. Next, sanity-check the symmetry: you should be able to state the reinforcement in both directions and have each feel true. Recall that a synergy edge says that $X \leftrightarrow Y$. If only one direction holds (X helps Y, but Y doesn't help X), what you actually have is a Soft prerequisite. 
 
-### Guidelines for Synergy (Helps)
-* **Use Cross-Context Synergies**: The algorithm explicitly rewards cross-context synergies (e.g., `Rhetoric (Humanities) ↔ Writing (STEM)`) depending on your profile (Explorer and Creator multiply these).
-* **Do Not Chain Synergies**: Synergies are strictly depth-1. If $A \leftrightarrow B$ and $B \leftrightarrow C$, $A$ does not help $C$ (e.g., `Cooking ↔ Chemistry ↔ Pharmacology` — Cooking doesn't help you understand Pharmacology).
-* **Use Sparingly**: Synergies are powerful. Overusing them dilutes their impact and makes the math behave like a flat web. Aim for about **1 synergy edge for every 5-6 nodes** in your graph.
+The strongest synergies tend to bridge contexts. A good example is Gardening ↔ Biology: each one materially changes how you experience the other -- biology explains why a plant wilts or thrives in a given soil, and gardening gives biology a slow, living laboratory in your backyard. Neither node is a prerequisite for the other, but doing both turns each into something richer than it would be on its own. 
 
----
+A few patterns that look like synergy but aren't:
 
-# 4. A 0-to-1 Graph Building Blueprint
+- **Shared topic** -- You don't need a synergy edge just because both nodes cover similar content. Group them under a common parent instead.
+- **Both are just interesting** -- Synergies are about the relationships between topics themselves, not your interest in them. The app already considers your personal interest through a different mechanism, so you don't need to encode that here. 
+- **I want to work on these around the same time** -- that's a sequencing preference; use hard or soft edges instead.
 
-If you are staring at a blank canvas, follow this blueprint to build a clean, functional graph from scratch.
+Also resist piling many synergies onto a single "hub" node; the boost has diminishing returns, so two or three genuine partners beat a fan of weak ones.
 
-## Step 1: Set the Pillars (Goals)
-Start by identifying 3 to 7 primary areas of focus in your life or work. Create these as **Goal** nodes (the yellow stars). 
-* Do not connect them to each other.
-* Assign them to distinct contexts (e.g., `Health`, `Career`, `Intellect`, `Relationships`).
+# Contexts & Subcontexts
 
-## Step 2: Map the Topics (Learns & Resources)
-Under each Goal, identify the topics you need to master and the materials you need to consume.
-* Create **Learn** nodes for topics (e.g., `Machine Learning Basics`).
-* Create **Resource** nodes for books, courses, or guides (e.g., `Andrew Ng's ML Course`).
-* Draw Hard edges from the Resources to the Learns they support, and from those Learns to the parent Goal.
+Contexts and subcontexts are the tags you use to divide your life into distinct domains (e.g. `Career`, `Health`, `Relationships`). Definining contexts and subcontexts is helpful for a few reasons. 
 
-## Step 3: Define the Execution (Actions & Milestones)
-Add the concrete, actionable tasks you will execute.
-* Create **Action** nodes for tasks or practice cycles (e.g., `Code 3 ML models from scratch`).
-* Create **Milestone** nodes for measurable targets (e.g., `Complete Kaggle competition in top 20%`).
-* Link Actions to the Learns they practice or Milestones they target.
+First, it allows you to fine tune the recommendation algorithm using user-defined context weights. You can mark a context as more or less important, changing how often Skill Tree recommends content from that context. There is also a clever behind-the-scenes trick that ensures that Skill Tree won't automatically recommend more from a context just because you've defined more projects for it. It is natually easier to Divide and Conquer a context you know more about, but that does not mean the context is inheritly more important than others -- it just means you know more about it. Skill Tree takes this into account and is sure to recommend content from sparse contexts on occasion so that you can develop yourself across all domains. 
 
-## Step 4: Connect the Dots (Selective Edges)
-Now, step back and connect the components:
-* Add **Hard Needs** where a topic or resource is strictly required before starting another.
-* Add **Soft Needs** for helpful, sequence-modulating relationships.
-* Add **Helps** (synergy) edges between cross-context pairs that multiply each other's value.
+Additonally, contexts allow you to filter your graph, so you can focus on exactly what you want to see when you want to see it. You can filter recommendations and most visuals in Skill Tree to only include information from the contexts that you want to examine. Also, there are many visualizations on the Analyze tab that tell you how your effort is distributed across contents. 
 
-## Step 5: Calibrate and Tune
-Switch to the **Next** tab:
-1. Mark up to 3 Goals as priorities in the sidebar.
-2. Review the top recommended suggestions.
-3. If a suggestion feels out of place, right-click it and select **Explain** to see which downstream Goal or synergy is pulling it up. Adjust sliders or prune edges as necessary.
+## Picking Your Contexts
+Treat top-level contexts as the major pillars of your life and aim for somewhere between four and eight of them. Too few and unrelated work gets lumped together; too many and the partitions stop meaning anything. A useful test: if you imagined ignoring one of your contexts for six months, would something important in your life clearly suffer? If not, it probably belongs as a subcontext under another pillar instead.
 
----
+I recommend making your life contexts as independent as possible. Each new project should have a clear home. If you have two over-lapping contexts, then you will put some related ideas in context A, and the others in B. Go for pragmatic classification here, not philosophical elegance. 
 
-# Graph "Smells" (Common Antipatterns)
+There is no penalty for defining contexts poorly on your first attempt, because there is a Context Migration feature that allows you to re-assign each node a new context easily. This feature shows up any time you change the context list in Settings. It will ask you how you want to assign contexts for the now-invalid nodes. 
 
-Just like code smells, certain graph structures indicate modeling errors. Watch out for these:
+## Using Subcontexts
+Subcontexts let you organize sub-themes inside a pillar without splitting it into separate top-level domains. For example, `Health/Nutrition` and `Health/Exercise` both live under Health, so they stay grouped as one life area while still being distinguishable from each other. Reach for a subcontext whenever you notice a context starting to contain two clearly different kinds of work. 
 
-| Smell | What it Looks Like | Why it's Bad | How to Fix |
+## Cross-Context Work
+Once your contexts are set up, actively look for projects that sit at the intersection of two of them. A software tool that solves a personal health problem, or a writing project that draws on a hobby, tends to be more valuable than work that lives entirely inside one pillar. This is often the best place to look for synergistic edges. 
+
+# Common Problems and Fixes 
+After using Skill Tree for awhile, I noticed things that make my modeling less effective. This has nothing to do with the features of Skill Tree, and everything to do with how I choose to use them. 
+
+| Problem | What it Looks Like | Why it's Bad | How to Fix |
 |---|---|---|---|
-| **The Spiderweb** | A dense mesh of Soft and Helps edges crisscrossing a single context. | Flattened priority scores; visual clutter. | Delete non-essential edges. Rely on Subcontexts to group them instead. |
-| **The Forgotten Leaf** | A node with no incoming or outgoing edges of any type. | It will never receive cascade value and is easily forgotten. | Link it to its parent Goal or Learn, or delete it if it's no longer relevant. (Use the **Orphans** community filter to find these). |
-| **The Indefinite Action** | An Action node representing a permanent habit (e.g., "Exercise forever"). | Standard actions are meant to be completed. A forever-action will sit on your list indefinitely or mess up the Done state. | Model habits as fixed-period experiments (e.g., "6-Week Running Protocol") or toggle the **Habit Mode** in the node editor to handle recurring routines. |
-| **The Reverse Prereq** | An arrow pointing from a complex task to a simple one. | Blocks the simple task until the complex one is Done. | Invert the edge direction. The simpler, foundational task should be the source. |
+| **Unloved Orphans** | A node with no incoming or outgoing edges. | Because it does not receive cascade value, it will never get recommendeded, and it is easily forgotten. | Find a relationship for your orphan -- or kill it. (Use the **Orphans** community filter to find these). |
+| **Spiderwebs** | A dense mesh of criss-crossing edges within a single context | Visual clutter; less meaningful priority scores | Build clean, hierarchical relationships using containers and thoughtful edges. Topical relatedness does not deserve an edge. Use contexts and subcontexts for high level grouping. |
+| **Indefinite Actions** | An Action node representing a permanent habit (e.g., Exercise, Meditate, Read). | Action nodes are meant to be completed. A habit, one that is truly never done, will either sit on your list indefinitely, or may have its Done state reversed (if you ever stop doing the habit) | Model starting and stopping habits as fixed-period experiments (e.g., "6-Week Running Protocol", or "Fast 3 hours before bed"). After completing the experiment, mark it as Done, and reflect on whether you want to keep the habit. |
 
----
-This guide is a living document. As you refine your workflow and discover new modeling techniques, update it to reflect your team's practices.
+
+
+
+
+
+
+
