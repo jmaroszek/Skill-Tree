@@ -298,7 +298,7 @@ as the **remaining** hard subtree (work still owed before the Goal is Done). The
 
 $$ \text{Cost}'(g) = 1 + w_t \cdot \left(\sum_{n \in R(g)} t(n)\right)^\beta $$
 
-You may have noticed that effort is included in the primary scoring algorithm, but it is dropped from the Goal scoring algorithm. Here is my reasoning: it is better to assess the difficulty of a goal through the difficulty of its subtasks, rather than estimate it directly. Thus, the time remanining signal, after compression, is a better measure of how costly a goal is. 
+You may have noticed that effort is included in the primary scoring algorithm, but it is dropped from the Goal scoring algorithm. Here is my reasoning: it is better to assess the effort of a goal through the effort of its subtasks, rather than estimate it directly. Thus, the time remanining signal, after compression, is a better measure of how costly a goal is. 
 
 ## Goal Score
 
@@ -384,3 +384,192 @@ For the user-facing rationale and behavior of both flags, see the [README](../RE
 | [time.md](time.md) | Documentation explaining how the app produces $t(n)$, whichi is used in the Perceived Cost formula above |
 | [README.md](../README.md) | The user-facing tour of the features that exist and why |
 
+
+Section below transplanted from another document. Integrate with the above stuff
+***
+# Scoring
+
+## Intrinsic Value
+
+**Value** and **interest**  combine to estimate a projects **intrinsic value**, or how appealing the project is in isolation. Intrinsic value is the foundation, but on its own it misses real world complications that must be considered, including time, effort, and the project's relationship to your other goals. The sections below explain how those factors are considered. 
+
+## Total Value
+
+A project's **total value** is its intrinsic value plus all future value it unlocks. Two mechanisms produce those additions — the **cascade** (Hard and Soft edges) and **synergies** (Helps edges).
+
+### The cascade
+
+Every project a node unlocks contributes something to its total value — but **the contribution fades with distance**. A direct prerequisite passes along most of its dependents' value. Two hops away, the value gets multiplied by the discount a second time, so it counts for less. Three hops, less still. The reasoning: distant downstream isn't as motivating as immediate downstream, and your ratings on far-away projects are more likely to drift before you ever get to them, so the algorithm is less confident about them.
+
+Hard edges carry a stronger per-hop signal than Soft edges. Hard says "this *must* happen before that"; Soft says "this *helps* that happen." The cascade respects the distinction by discounting Soft hops more aggressively than Hard hops.
+
+### Synergies
+
+Synergy edges work differently from the cascade. They produce two distinct effects:
+
+1. **Pair bonus.** Each synergy partner contributes a small portion of its total value to the node it's linked with, even before either project is started — node A picks up some of B's value, and B picks up some of A's. This makes it more likely that synergistic projects will be recommended together, allowing you to decide which one to tackle first. This bonus, however, is additive, and not always enough to outweigh other high-priority projects.
+2. **Completion multiplier.** Once a synergy partner is marked Done, the surviving partner's intrinsic value gets a multiplicative boost (larger than the pair bonus above). The boost grows with the number of Done partners, but with diminishing returns — completing the second synergy partner gives a bigger relative jump than the tenth.
+
+Together, these formalize the intuition that doing synergistic projects together is worth more than the sum of each project in isolation.
+
+## Perceived Cost
+
+Total value is the numerator of the priority score. It is produced by considering **value**, **interest**, and **relationships**. The denominator — or **perceived cost** — is built from the remaining two factors: **difficulty** and **time**. Difficulty is weighted somewhat more heavily than time, because a short daunting task feels worse than a long easy one (human psychology backs this up). Time also scales sub-linearly: a 100-hour project doesn't feel ten times as costly as a 10-hour one. Various parameters in the apps scoring algorithm control how aggressive these discounts are, and they vary between the scoring profiles. 
+
+The base priority score is the ratio of the two:
+
+```
+priority score = total value / perceived cost
+```
+
+High value, low cost, top of the list. That's the whole ROI calculation, before any of the modifications below.
+
+## Eligibility
+
+A node must be elligible to recieve a priority score. There are several cases it might not be:
+
+| Excluded | Why |
+|---|---|
+| Done | Already complete |
+| Blocked Nodes | This project is blocked by a hard prerequisite, and can't be recommended until it is done.|
+| Containers | A node is called a container if both its ratings and time mode are set to inherited. Container nodes are for structural organization; the real work comes from the children.|
+| Goals | Only the children of goals are recommended. You will naturally complete a goal by completing its children. |
+| Milestones | Same logic as goals. Children are recommended rather than the milestones themselves. | 
+
+The table above implies that only open *Learn*, *Action* and *Resource* nodes compete for what you should do next. These nodes represent the work that supports everything else. 
+
+
+## Score Adjustments
+
+Three levers can shift a node's score after the base calculation. Each one answers a different question.
+
+### Context Boosts
+
+Contexts can shape the ranking in two ways:
+
+| Lever | What it does | 
+|---|---|
+| Context Weight | A context weight multiplies every priority score in a given context. You can change context weights to match your life prorities. By default, all contexts are given equal weight, except for the consideration below. | 
+| Density Normalization | Counteracts the bias where a heavily-decomposed context would crowd out a sparser one just because it has more nodes competing for the top-N slots. Dense contexts automatically get a penalty proportional to their size. This ensures that you won't overdevelop one area (e.g. learning a lot about ornithology but being unable to do your taxes) | 
+
+**SCREENSHOT OF CONTEXT WEIGHTS IN SETTINGS**
+
+### Goal Priority Boosts
+
+Mark a Goal as your #1, #2, or #3 priority — via the **Priority Rank** field on the node editor, or the goals sidebar. This will increase the value of all the goal's hard dependents. Soft dependents and synergistic connections are unaffected by the goal priority boost. These edges are viewed as nice to have, but not strictly necessary for the achievement of the goal. They will, however, still contribute value via the cascade discussed in a previous section.  Your #1 priority gets the largest boost, #2 a smaller one, and #3 smaller still.
+
+The default multipliers (under the Sage profile) are:
+
+| Rank | Multiplier |
+|---|---|
+| #1 | 1.50× |
+| #2 | ≈ 1.33× |
+| #3 | ≈ 1.17× |
+
+Ranks #2 and #3 share two-thirds and one-third of the #1 boost premium, so they always sit proportionally between 1× and the full #1 multiplier. If a node appears in more than one priority subtree, the highest-ranked one wins.
+
+You are limited to three priorities at a time. Why? Because if everything is a priority, nothing is.
+
+**Screenshot of priority boost**
+
+### Manual Override
+
+Some days the algorithm's ranking doesn't match your gut. The **Override** toggle in the node editor manually forces a node to the top of the Next tab's suggestions, regardless of what the math says. You have the option of applying the override to a single node, the node and all its hard dependents, or the node and all of its dependents (including soft).
+
+Only one override can be active at a time; setting a new one prompts you to swap out the old one.
+
+## The Full Formula
+
+Pulling all of this together, here is the complete priority score:
+
+```
+priority score = (total value / perceived cost) × goal boost × context adjustment
+```
+
+That's what the app computes for every eligible node. It then normalizes the prority scores on a 0-100 scale, and sorts them, for your viewing pleasure, on the next tab. Due to intelligent algorithm design by yours truly, a graph of ~750 nodes and 1000 edges only takes 5ms to score. Therefore, there is no practical limit to how many projects and relationships you can add to Skill Tree. 
+
+## The Explain Feature
+ 
+If you ever want to see exactly how the score for a given node was put together, right-click it, then hit **Explain**. This will open a window that tells you how this node earned its value. 
+
+**SCREENSHOT: EXPLAIN MODAL** 
+
+### Top Contributors - A Visual Approach
+Below the contributor table there's a counter and a **Focus** button. You can select up to 5 contributors, then click Focus, and the app will:
+
+1. Picks the top 3 contributors to this node's score.
+2. Computes the shortest path through Hard, Soft, and Helps edges from this node to each of them.
+3. Switches you to the Nodes tab with those three paths highlighted in distinct rank colors. Shared segments (places where two or more paths overlap) adopt the higher-ranked color so the most important route stays visible.
+
+**Screenshot**
+
+In a large network, this is the most effective way to visually answer "why is this node worth doing?"  
+
+## A Worked Example
+
+Let's run a real project through the math end-to-end. *Compound Lifts* is a Learn node with V=9, I=8, D=5, and a blended time estimate of about 83 hours. It has one Hard edge pointing up to *Strength* (a Goal) and one Helps edge to *Functional Exercise* (another Goal). It has no incoming Hard edges, so it's eligible.
+
+For this walkthrough, assume **Health is currently marked as Priority Goal #1**. *Compound Lifts* sits in Health's Hard-prereq subtree (Compound Lifts → Strength → Exercise → Health), so the goal boost will apply at the end.
+
+**Intrinsic value** is just V + I = 17.
+
+**Cascade**: *Strength* $\rightarrow$ *Exercise* $\rightarrow$ *Health*. Each hop applies a discount, so the contribution shrinks as we walk further away.
+
+| Hop | Node | Intrinsic | Discount | Contribution |
+|---|---|---|---|---|
+| 1 (Hard) | Strength | 14 | × 0.6 | ~8.4 |
+| 2 (Hard) | Exercise | 20 | × 0.6² | ~7.2 |
+| 3 (Hard) | Health | 17 | × 0.6³ | ~3.7 |
+
+Cascade total: about 19. 
+
+**Synergy pair bonus** from *Functional Exercise* adds about 4 more (it's a Helps partner with a sizable total value of its own, so 10% of that comes through). No Done synergy partners, so the completion multiplier doesn't kick in. 
+
+**Total value** lands around 40.
+
+**Perceived cost** is a weighted blend of D=5 and 83 hours — effort counts somewhat more, and time scales sub-linearly — and works out to about 56. The exact formula lives in [`docs/algorithms.md`](docs/algorithms.md) for the curious.
+
+The **base score** is total value ÷ perceived cost: 40 / 56 ≈ **0.71**. One thing worth flagging here: the absolute value of this number isn't meaningful. It isn't a percentage and it isn't bounded to a 0-to-1 range — only its size *relative to other nodes' base scores* matters. A node with a base score of 1.4 ranks above a node with a base score of 0.71; the gap is what tells you something, not the number on its own.
+
+Two adjustments then transform the base score into the final priority score shown on the Next tab.
+
+**Goal boost.** Health is Priority #1, so every node in its Hard-prereq subtree gets a 1.5× multiplier. *Compound Lifts* sits in that subtree, so:
+
+```
+0.71 × 1.5 ≈ 1.07
+```
+
+**Context adjustment.** Health / Exercise is a dense subcontext, so the density-normalization term shrinks each Health / Exercise node's score to make room for sparser contexts. After that haircut, the adjusted score lands around **0.44**.
+
+**The final display step.** The number you see on the Next tab isn't 0.44 — the app then divides every eligible node's adjusted score by the *top-ranked* eligible node's adjusted score and multiplies by 100. The top of the list is always **100**; everything else is its share of that. So if the top-ranked node in your graph has an adjusted score around 1.0, *Compound Lifts* would show up as **44**. This last step is purely cosmetic — the math above is what determines ordering. The Explain modal shows both numbers side by side (labeled **Raw** and **Normalized**), so you can always reconcile the displayed integer with the underlying ratio.
+
+A few things worth taking away from this example:
+
+- **The cascade carries most of the weight.** Nineteen of the forty total value points came from downstream nodes. *Compound Lifts* ranks because of what it unlocks, not just its own ratings.
+- **Context density matters a lot.** Even with strong raw numbers, a dense subcontext gets compressed to make room for sparser contexts. The intention behind this is to help you become a well-rounded person, and get to all the projects in all areas of your life (you are free to change this penalty in settings).
+- **The Priority Goal boost compounds with the cascade.** A node already strong because it unlocks valuable downstream Goals gets lifted further when one of those Goals is marked a priority.
+
+## Scoring Profiles
+
+You don't always want the algorithm to weigh things the same way. Some days you want to grind toward a single Goal. Other days you want to chase whatever's interesting. Other days you want quick wins; other days you want to invest in foundations. **Scoring profiles** are pre-tuned configurations of the algorithm, each leaning into one of these moods. Six are built in, with descriptions available for view in the app:
+
+| Profile | The lean | Use when |
+|---|---|---|
+| Sage | Balanced across all five factors. The sensible baseline. | No strong reason to pick something else. |
+| Explorer | Interest weighted over Value. Synergies hit harder. Cross-context links are rewarded. Sparser corners of the graph get a fairer shot at surfacing. | You want to follow rabbit holes and let enjoyable, exploratory work surface. |
+| Compounder | The cascade is amplified; time is less punishing. | You're willing to invest now for downstream payoff — sabbatical months, quiet quarters. |
+| Pragmatist | Value beats Interest. Priority-Goal boost is dialed up; synergies and Soft edges are minimized. | You have a clear Goal and want the algorithm to drive everything toward it. |
+| Creator | Synergies are massively amplified, especially across contexts. | You want to do original work. You're synthesizing across domains — writing, designing, building something new. |
+| Glider | Time and effort weigh more heavily, so short and easy work rises. Cascade, synergies, and the Priority-Goal boost are all dialed back — non-priority work gets a fair chance to surface. | Light-effort days. You still want to move, but you want a break from the priority grind — recovering between intense pushes, or just doing a lap through small things. |
+
+A **Custom** profile is also available if you want to tune every knob yourself.
+
+I pick sage as my baseline and switch profiles as the mood strikes. 
+
+The full numerical knob table for each profile lives in [`docs/algorithms.md`](docs/algorithms.md). 
+
+# A Tour Through the Tabs
+
+Across the top of the window there are six tabs: **Next**, **Nodes**, **Details**, **Events**, **Analyze**, and **Settings**. They each provide a unique view on the projects that you've added to the app. 
+
+**[SCREENSHOT: close-up of the top tab bar with all six tabs visible.]**

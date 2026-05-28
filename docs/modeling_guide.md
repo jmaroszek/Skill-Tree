@@ -36,9 +36,9 @@ Although both Goals and Learns can be containers, they serve different purposes,
 
 The first major distinction is scope. A Goal represents a broad, often ambitious capacity that you want to develop. Examples include Strength, Eastern Philosophy, and Software Engineering. A Learn node, on the other hand, represents a specific topic within each discpline, such as Compound Lifts, Buddhism, or Agentic Coding. 
 
-This difference in scope dictates how the two node types estimate value and cost. A Learn node's value is determined by its own interest and utility, plus whatever it unlocks next in your tree. Learning Chords, for instance, is useful in its own right (for music appreciation), but it also unlocks the ability to compose your own music one day. And the cost of learning Chords is simply the cost of the task itself, its direct time and difficulty. 
+This difference in scope dictates how the two node types estimate value and cost. A Learn node's value is determined by its own interest and utility, plus whatever it unlocks next in your tree. Learning Chords, for instance, is useful in its own right (for music appreciation), but it also unlocks the ability to compose your own music one day. And the cost of learning Chords is simply the cost of the task itself, its direct time and effort. 
 
-Goals have instrisic and total value too, computed in a simliar way as learn nodes, but they don't have their own cost. Costs are soley derived from child nodes. And crucially, only the remaining time of unfinished subtasks are considered; the goal's own difficulty is omitted from the cost calculation entirely, as effort is implicitly considered on a per-node basis when subtasks are recommended on the Next Tab.
+Goals have instrisic and total value too, computed in a simliar way as learn nodes, but they don't have their own cost. Costs are soley derived from child nodes. And crucially, only the remaining time of unfinished subtasks are considered; the goal's own effort is omitted from the cost calculation entirely, as effort is implicitly considered on a per-node basis when subtasks are recommended on the Next Tab.
 
 Learn and Goal nodes also use different algorithms for ranking. Learn nodes compete directly alongside Action and Resource nodes for spots on the Next Tab's suggestion table. Goals never show up here (only their subtasks do). Instead, they are ranked in the goals sidebar using a different algorithm. If you want a goal's subtasks to surface higher on the Next Tab's suggestion table, you can assign it a priority boost. 
 
@@ -58,7 +58,7 @@ A couple examples to show the difference.
 **You should use both Goals and Milestones.** Goals help you cluster a bunch of related work together using all node types: Learn, Resource, Action -- and of course: Milestones. Milestones are essential because they provide feedback about whether you are developing the competence that you think you are through these other activities.
 
 ### Action vs. Milestone 
-Both Actions and Milestones represent objective, externally verifiable events, but they serve different purposes. An Action represents the practice or execution itself. It has a clear duration and difficulty, and completing it means you finished some clearly-defined work. For example, "Complete a 6-Week Squat Program" is an Action. A Milestone, in contrast, is a checkpoint or threshold of achievement that has no duration of its own. For example, "Squat 1.5x Bodyweight" is a Milestone. 
+Both Actions and Milestones represent objective, externally verifiable events, but they serve different purposes. An Action represents the practice or execution itself. It has a clear duration and effort, and completing it means you finished some clearly-defined work. For example, "Complete a 6-Week Squat Program" is an Action. A Milestone, in contrast, is a checkpoint or threshold of achievement that has no duration of its own. For example, "Squat 1.5x Bodyweight" is a Milestone. 
 
 The primary difference lies in the verb: you *do* an Action, but you *hit* a Milestone. 
 

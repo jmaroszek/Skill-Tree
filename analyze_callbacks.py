@@ -1376,7 +1376,7 @@ def _render_reflection_drift_chart(rows, height=None, context_order=None):
 
     by_ctx = {r['context']: r for r in rows}
     metric_keys = [('d_value', 'Value'), ('d_interest', 'Interest'),
-                   ('d_difficulty', 'Difficulty')]
+                   ('d_difficulty', 'Effort')]
 
     contexts = context_order if context_order else [r['context'] for r in rows]
 
@@ -1525,7 +1525,7 @@ def _render_ratings_chart(data, height=None, context_order=None):
     by_ctx = {d['context']: d for d in data}
     contexts = context_order if context_order else [d['context'] for d in data]
     metric_keys = [('avg_value', 'Value'), ('avg_interest', 'Interest'),
-                   ('avg_difficulty', 'Difficulty')]
+                   ('avg_difficulty', 'Effort')]
 
     z, hover = [], []
     for ctx in contexts:
