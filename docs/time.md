@@ -1,12 +1,25 @@
 # Time
 
-This document explains how Skill Tree turns the user's two or three-point time estimate into a single number. This number is used for node priority scoring, goal ranking, and project duration simulation, as well as all user-facing "expected time" presentations in the app.
+```mermaid
+flowchart LR
+    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
+    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    class T current
+    class R,F,S,M other
+    click R "../README.md"
+    click F "features.md"
+    click S "scoring.md"
+    click M "modeling.md"
+```
 
-This walkthrough assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md). For how the time influences node scoring and ranking, see [scoring.md](scoring.md).
+---
+
+This document explains how Skill Tree turns the user's time estimate into a single number, $t(n)$. The user can give one, two, or three numbers. That estimate feeds node priority scoring, Goal ranking, and the project-duration simulation. It also drives every "expected time" the app shows.
 
 # What is Special About Skill Tree's Time Estimation?
 
-Most project management tools calculate expected task durations using linear, arithmetic averages. Skill Tree rejects this in favor of logarithmic and geometric methods. This design decision is grounded in both cognitive psychology and probability theory.
+Most project-management tools estimate task duration with a plain arithmetic average. Skill Tree uses logarithmic and geometric methods instead. The choice rests on two foundations: cognitive psychology and probability theory.
 
 ## 1. Cognitive Scaling: The Weber-Fechner Law
 Human perception of physical and abstract scales is fundamentally logarithmic, not linear. Under the **Weber-Fechner Law** of psychophysics, the perceived change in a stimulus is proportional to its *relative* change, not its *absolute* change.
@@ -179,5 +192,10 @@ Each of these would be tractable to add, but each would require more input from 
 |---|---|
 | [models.py](../models.py) | The module that implements `blend_time_estimate` — every formula in the first half of this document maps to identifiable lines there |
 | [simulation.py](../simulation.py) | The module that implements the Monte Carlo sampler, including the chain-collection BFS and the container exclusion logic |
-| [scoring.md](scoring.md) | How $t(n)$ plugs into the priority scoring formula — see the Perceived Cost section |
-| [README.md](../README.md) | The user-facing tour, including when to use one number vs. two vs. three, and how to read the Time Simulation histogram |
+
+---
+
+<table width="100%"><tr>
+<td align="left"><a href="scoring.md">← Previous: Scoring</a></td>
+<td align="right"><a href="modeling.md">Next: Modeling →</a></td>
+</tr></table>

@@ -1,5 +1,20 @@
 # All Aboard the Magical Mystery Tour
 
+```mermaid
+flowchart LR
+    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
+    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    class F current
+    class R,S,T,M other
+    click R "../README.md"
+    click S "scoring.md"
+    click T "time.md"
+    click M "modeling.md"
+```
+
+---
+
 A tour through every tab, sidebar, and feature of Skill Tree. By the end you'll know how to use the app, and where to look when you want more depth.
 
 # Node Editor
@@ -23,7 +38,7 @@ One last quality of life feature: the **name linter** retitles nodes to Title Ca
 **INSERT PICTURE OF NODE EDITOR SECTION**
 
 ## Node Type
-There are five node types in Skill Tree. Each behaves differently under the hood. Picking the right one matters more than it sounds — the [modeling guide](docs/modeling_guide.md) has the full decision tree for choosing the right node type. For now, just know that you control this attribute through the node editor.
+There are five node types in Skill Tree. Each behaves differently under the hood. Picking the right one matters more than it sounds — the [modeling guide](modeling.md) has the full decision tree for choosing the right node type. For now, just know that you control this attribute through the node editor.
 
 **[SCREENSHOT: the five node types side by side on a neutral background, each labeled — yellow star Goal, blue circle Learn, orange triangle Action, purple pentagon Resource, orange diamond Milestone.]**
 
@@ -33,7 +48,7 @@ Every project belongs to a context, and optionally a subcontext. Contexts do thr
 
 Two scoring effects are worth knowing. The algorithm penalizes dense contexts, so a heavily-decomposed area doesn't crowd out sparser ones just by sheer node count. And under the Creator and Explorer scoring profiles, cross-context synergies are amplified — a nod to the nature of inspiration and curiosity. 
 
-Read [`docs/algorithms.md`](docs/algorithms.md) for a detailed walkthrough about how project ranking works.
+Read [`scoring.md`](scoring.md) for a detailed walkthrough about how project ranking works.
 
 **INSERT THE SVG VISUALATION HERE, AND TRIM THE CONENT BELOW**
 
@@ -63,7 +78,7 @@ Value, interest, and effort are collectively the **Ratings**. Score each on a 1�
 
 **SCREENSHOT: Ratings Sliders**
 
-Their relative weight isn't fixed. [Scoring profiles](algorithms.md#scoring-profiles) let you lean into curiosity (Interest first), ambition (Value first), or whatever fits the mood — more on those later. For the underlying math, see [algorithms](algorithms.md).
+Their relative weight isn't fixed. [Scoring profiles](scoring.md#scoring-profiles) let you lean into curiosity (Interest first), ambition (Value first), or whatever fits the mood — more on those later. For the underlying math, see [scoring](scoring.md).
 
 ### Ratings Table
 In order to standardize the rating process, there is a table that describes what each rating means. Open it by clicking the info icon next to the Ratings header in the Node Editor. Every cell is editable, so you can personalize your experience over time. 
@@ -374,7 +389,7 @@ The rest of the panel — node stats and three action buttons — reuses functio
 | Button | What it does |
 |---|---|
 | Edit | Opens the node editor. |
-| Explain | Opens the [Explain](algorithms.md#the-explain-feature) window. |
+| Explain | Opens the [Explain](scoring.md#attribution) window. |
 | Locate | Briefly pulses the node on the mini-canvas — same function as the crosshair in the Node Editor. |
 
 ## Canvas Panel
@@ -423,7 +438,7 @@ The feature shines on large, vague, long-horizon Goals. It lets you say with con
 **Screenshot**
 
 # Goals Sidebar
-Most node types — Learn, Action, Resource — are ranked by the algorithm and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to bias the rest of the graph through the [Goal Priority Boost](algorithms.md#goal-priority-boost). That's what the Goals sidebar is for.
+Most node types — Learn, Action, Resource — are ranked by the algorithm and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to bias the rest of the graph through the [Goal Priority Boost](scoring.md#goal-priority-boost). That's what the Goals sidebar is for.
 
 Open the sidebar from the star icon in the top-left. Click any Goal card to load it into the Details tab.
 
@@ -513,7 +528,7 @@ At the top, an Overview strip summarizes the current non-dormant graph
 **[SCREENSHOT: the Overview strip across the top of the Analyze tab with all five tiles visible.]**
 
 ## Goals
-The Goals section puts two views side by side. Importantly, goals are ranked by priority score. The algorithm used for ranking is the same one as the Goals Sidebar priority ranking dropdown. You can learn about this mechanism in [algorithms](algorithms.md). 
+The Goals section puts two views side by side. Importantly, goals are ranked by priority score. The algorithm used for ranking is the same one as the Goals Sidebar priority ranking dropdown. You can learn about this mechanism in [scoring](scoring.md). 
 
 There is a small gear icon by the section title that allows you to control how many goals are shown. 
 
@@ -619,8 +634,15 @@ The Settings modal is where you fine-tune how the app looks and behaves. Open it
 |---|---|
 | **Appearance** | Customize node shapes and colors by type, set status colors, and define default physics parameters for the layout engine. It also houses the **Name Linter** toggle, Next tab table size, and a manual **Repair Graph** utility. |
 | **Contexts** | Define your primary contexts and subcontexts. This tab also lets you choose the sorting behavior (None, Length, or Alphabetical) for your context and subcontext dropdown menus. |
-| **Scoring** | Tune the priority ranking system. Select an [algorithmic profile](algorithms.md#scoring-profiles), adjust individual [scoring hyperparameters](algorithms.md#hyperparameters) (such as intrinsic value, cascade weights, and synergies), and run performance benchmarks. |
+| **Scoring** | Tune the priority ranking system. Select an [algorithmic profile](scoring.md#scoring-profiles), adjust individual [scoring hyperparameters](scoring.md#profile-hyperparameters) (such as intrinsic value, cascade weights, and synergies), and run performance benchmarks. |
 | **Time** | Set your weekly, monthly, and yearly productive hour budgets. You can also configure default time estimates and units for new nodes, and toggle whether the app prompts you for a reflection immediately when a node is marked Done. |
 | **Paths** | Specify local file system paths for Obsidian vault and Google Drive integrations, allowing the app to resolve your external links correctly. |
 
 Feel free to experiment with alternative settings because all the major operations have a "restore to defaults" option.
+
+---
+
+<table width="100%"><tr>
+<td align="left"><a href="../README.md">← Previous: README</a></td>
+<td align="right"><a href="scoring.md">Next: Scoring →</a></td>
+</tr></table>

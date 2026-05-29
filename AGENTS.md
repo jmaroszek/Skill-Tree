@@ -48,7 +48,7 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 Don't duplicate these in this file — they're the source of truth for their respective topics:
 
 - [`docs/app_architecture.md`](docs/app_architecture.md) — module responsibilities, tab-callback pattern, Cytoscape pipeline, JS-Dash bridge, persistence and caching.
-- [`docs/algorithms.md`](docs/algorithms.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
+- [`docs/scoring.md`](docs/scoring.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
 - [`docs/time.md`](docs/time.md) — the PERT blend that produces `t(n)` and the Monte Carlo simulator behind the Time Simulation panel.
 - [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.

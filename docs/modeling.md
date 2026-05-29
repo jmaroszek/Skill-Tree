@@ -1,5 +1,20 @@
 # Modeling Guide
 
+```mermaid
+flowchart LR
+    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
+    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    class M current
+    class R,F,S,T other
+    click R "../README.md"
+    click F "features.md"
+    click S "scoring.md"
+    click T "time.md"
+```
+
+---
+
 This document covers how to make a graph that Skill Tree can rank effectively. This requires nailing **nodes, relationships** (recognizing that directed prerequisites cascade value downstream while bidirectional synergies are categorically different and do not cascade), and **contexts.** This document walks through helpful tips for each that I have learned through trial and error. As an added bonus, these tips will produce a more visually pleasing graph that resembles a true skill tree rather than a "dense hairball" that encumbers many large graphs. 
 
 # Nodes
@@ -169,6 +184,12 @@ After using Skill Tree for awhile, I noticed things that make my modeling less e
 | **Unloved Orphans** | A node with no incoming or outgoing edges. | Because it does not receive cascade value, it will never get recommendeded, and it is easily forgotten. | Find a relationship for your orphan -- or kill it. (Use the **Orphans** community filter to find these). |
 | **Spiderwebs** | A dense mesh of criss-crossing edges within a single context | Visual clutter; less meaningful priority scores | Build clean, hierarchical relationships using containers and thoughtful edges. Topical relatedness does not deserve an edge. Use contexts and subcontexts for high level grouping. |
 | **Indefinite Actions** | An Action node representing a permanent habit (e.g., Exercise, Meditate, Read). | Action nodes are meant to be completed. A habit, one that is truly never done, will either sit on your list indefinitely, or may have its Done state reversed (if you ever stop doing the habit) | Model starting and stopping habits as fixed-period experiments (e.g., "6-Week Running Protocol", or "Fast 3 hours before bed"). After completing the experiment, mark it as Done, and reflect on whether you want to keep the habit. |
+
+---
+
+<table width="100%"><tr>
+<td align="left"><a href="time.md">← Previous: Time</a></td>
+</tr></table>
 
 
 

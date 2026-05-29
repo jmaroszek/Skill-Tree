@@ -11,7 +11,7 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 
 ## Domain model
 
-Just enough to keep the right mental model — *not* a modeling manual. The conceptual guide (how to build a good graph) is [`docs/modeling_guide.md`](docs/modeling_guide.md); the scoring math is [`docs/scoring.md`](docs/scoring.md). Read those before editing node/edge/scoring machinery or doing a hands-on graph review.
+Just enough to keep the right mental model — *not* a modeling manual. The conceptual guide (how to build a good graph) is [`docs/modeling.md`](docs/modeling.md); the scoring math is [`docs/scoring.md`](docs/scoring.md). Read those before editing node/edge/scoring machinery or doing a hands-on graph review.
 
 **Node types** — **Goal** (a domain/capacity; a container and a scoring *sink*), **Learn** (a topic/body of knowledge), **Action** (a bounded practice/experiment), **Resource** (external material), **Milestone** (a measurable single-event checkpoint, **excluded from scoring**). The type changes scoring behavior, so it isn't just a label.
 
