@@ -4,68 +4,27 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 
 ## Must-know rules
 
-- **Always launch the app in sandbox mode**: `python app.py --sandbox`. Never run `python app.py` (production) unless the user explicitly asks.
+- **Always launch the app in sandbox mode**: `python app.py --sandbox --port 8051`. Never run `python app.py` (production) unless the user explicitly asks.
 - **Production DB (`data/skilltree.db`)** — reads and writes are allowed when the user is asking for graph review or programmatic node/edge changes against their real data. Do **not** use it as a scratchpad: no exploratory writes, no test fixtures, no app launches against it. When in doubt about whether a write is "graph editing the user asked for" vs "experimentation", confirm first.
 - **Sandbox DB (`data/sandbox_skilltree.db`)** is the target for any app-launch testing or experimentation.
-- **Port is 8050.**
+- **Ports:** sandbox on 8051, production on 8050 — kept distinct so the sandbox can run alongside your production instance.
 
-## Node-type semantics
+## Domain model
 
-Five types — each answers a different question. Picking the right one matters; misclassification muddies the rankings.
+Just enough to keep the right mental model — *not* a modeling manual. The conceptual guide (how to build a good graph) is [`docs/modeling_guide.md`](docs/modeling_guide.md); the scoring math is [`docs/scoring.md`](docs/scoring.md). Read those before editing node/edge/scoring machinery or doing a hands-on graph review.
 
-- **Goal** — a *domain, area, or capacity* the user is developing. "What am I trying to achieve here." Container-flavored, almost never atomic. "Done" = all Hard children Done (cascade). Examples: Sleep, Strength, Stoicism, Character.
-- **Learn** — a *topic or body of knowledge* the user wants to integrate. Can be atomic (Sleep Pressure, Stretching) or a container with sub-Learns (Sleep Theory, Biology of Stress). "Done" = "I understand this enough to apply or explain it."
-- **Action** — a *discrete practice or experiment* with a definite end. The user runs them as 6-week PIMLI cycles. "Done" = the cycle is complete. Time-on-task is the actual doing.
-- **Resource** — *external material* (book, course, notes). "Done" = absorbed.
-- **Milestone** — a *measurable, verifiable single-event achievement* (weight target, time, count). **Excluded from scoring** — the work happens upstream in capacity Goals; the Milestone is the checkpoint, not the practice. Use minimal time estimates (1/1/1) since the field doesn't apply.
+**Node types** — **Goal** (a domain/capacity; a container and a scoring *sink*), **Learn** (a topic/body of knowledge), **Action** (a bounded practice/experiment), **Resource** (external material), **Milestone** (a measurable single-event checkpoint, **excluded from scoring**). The type changes scoring behavior, so it isn't just a label.
 
-**Decision tree (first yes wins):**
-1. External material to consume? → Resource
-2. Discrete practice/experiment with definite end? → Action
-3. Measurable single-event achievement? → Milestone
-4. Decomposes into things I'd track separately? → Goal
-5. Otherwise (atomic body of knowledge) → Learn
+**Edge types** — **`Needs_Hard`** (blocking prerequisite), **`Needs_Soft`** (non-blocking but helpful prep), **`Helps`** (bidirectional synergy — *not* a weaker Soft; it reinforces rather than sequences, and does not cascade).
 
-**Goal vs Learn — the hard call:** both can have children. Distinguish by *scope*: Goal = "an area / capacity" (Sleep, Strength), Learn = "a topic / body of knowledge" (Sleep Pressure, Sleep Theory). Heuristic: "an area of my life" → Goal; "a thing I want to understand" → Learn.
-
-**Common misclassifications to flag during reviews:**
-- Goal-flavored Learn (thin decomposition, all-atom children) → demote to Learn (inherited mode if it acts as a header)
-- Goal-flavored Milestone (measurable target treated as Goal) → convert to Milestone
-- Goal-flavored Action (fixed-period practice treated as Goal) → convert to Action
-
-User-facing version of this lives in the README's "Choosing the right node type" section — keep both in sync if the framework evolves.
-
-## Edge-type semantics
-
-The three real edge types are *not* a single "strength" gradient — `Helps` is on a different axis from `Needs_Hard`/`Needs_Soft`. Treat them as:
-
-- **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop).
-- **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
-
-**Direction convention (read this carefully — it is the most error-prone semantic in the codebase):** `A --[Needs_Hard|Needs_Soft]--> B` means **A unlocks B**: A is the prerequisite, B is the dependent. B is blocked until A is Done. Read the arrow as "leads to" / "comes before" / "unlocks." Worked example: `Statistics → Regression Hard` means complete Statistics first; Regression unblocks once Statistics is Done. The visual arrowhead in the Cytoscape graph points from prereq to dependent — visually identical to the data direction.
-
-**Scoring cascade direction (do not get this wrong — it has caused repeated bugs):** the scoring module walks **forward along arrows**. `total_value(n)` sums what `n` *unlocks* via `H_out[n]` / `S_out[n]`, discounted per hop. Concrete consequences:
-
-- A node mid-chain (incoming prereqs AND outgoing dependents, e.g. `ML Fundamentals`) has high TV because the downstream cascade adds up. This is the "intrinsic" use case for TV — what does completing this unlock?
-- A Goal that is a **sink** (only incoming edges, e.g. `Satisfaction`: 23 in, 0 out) has TV ≈ its own IV. There are no descendants to cascade. Most user-level Goals fall in this bucket.
-- A leaf prereq deep in a chain accumulates the discounted value of every node downstream that depends on it. This is why the Next-tab ranker, which uses forward TV, surfaces leaf actions and not Goals.
-
-**To rank by "value of the prerequisite subtree" (everything that flows INTO a node), invert the Hard/Soft edges before calling `total_value`** — see [`analyze_callbacks._rank_goals`](analyze_callbacks.py) for the worked pattern. Don't try to invent a new traversal; just flip source ↔ target on Hard/Soft, keep Helps symmetric, rebuild adjacency, and the existing scoring machinery does the right thing against the flipped graph.
-
-**Eligibility is the OPPOSITE direction:** a node is Blocked until every name in `Hard_in[node]` (incoming hard edges) has status Done. So eligibility walks against arrows; TV walks along them.
-
-**Vocabulary trap:** when a Goal sits visually "at the top" of a tree, the things "below it" are *prereqs flowing in* — which in graph-theory terms are the Goal's **ancestors** (they precede it in topological order), NOT its descendants. The Goal is the descendant of its prereqs. To avoid confusion, prefer "prereqs" / "dependents" over "ancestors" / "descendants" in code, comments, and conversation.
-
-**Hard edges encode two distinct things, both valid:** (a) genuine logical prerequisites ("you need linear algebra before deep learning"), and (b) the user's personal sequencing preference for what to study first ("I want to do supervised learning before deep learning, even though deep learning is technically a kind of supervised learning"). When auditing, **don't "correct" edges that look weird from a pure-taxonomy standpoint** — they may be deliberate sequencing preference. When the direction looks surprising, ask before flipping.
-
-- **`Helps`** (Synergy) — *mutual multiplicative reinforcement*, not a lesser Soft. Doing both is significantly more valuable than the sum of doing each alone (e.g., concepts that blend unusually well). Bidirectional, non-transitive (no chains). Synergy contributes via two paths: a small **pair bonus** `d_Syn_pair * tv(partner)` pre-completion, and a **multiplicative kick on intrinsic value** `iv * (1 + d_Syn_mul * sqrt(count_done_partners))` once partners are Done. The sqrt is a diminishing-returns cap so a hub of N synergy partners gives ~`sqrt(N)`× the boost, not N× — keeps "more partners = more boost" without unbounded inflation. Multiplier applies to intrinsic only — not to the cascade or the pair bonus. See [`scoring.py`](scoring.py)'s `total_value` for the implementation.
+**Edge direction — the one thing I tend to get backwards.** `A --Needs_Hard/Soft--> B` means **A unlocks B**: A is the prerequisite, B is the dependent, and B stays Blocked until A is Done. Read the arrow as "leads to / unlocks," *not* "depends on." Value cascades **forward** along arrows (completing A flows discounted value to everything it unlocks); **eligibility runs backward** (a node is Blocked by its *incoming* hard prereqs). Mixing up these two directions has caused repeated bugs — [`docs/scoring.md`](docs/scoring.md) has the cascade math, the sink/leaf consequences, and the inverted-graph trick for ranking Goals by their prerequisite subtree.
 
 ## Where to look
 
 Don't duplicate these in this file — they're the source of truth for their respective topics:
 
-- [`docs/app_architecture.md`](docs/app_architecture.md) — module responsibilities, tab-callback pattern, Cytoscape pipeline, JS-Dash bridge, persistence and caching.
-- [`docs/algorithms.md`](docs/algorithms.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
+- [`docs/app_architecture.md`](docs/app_architecture.md) — the layering, module map, `dcc.Store` wiring, and the cross-file flows (mutation→render, right-click→editor, status cascade, scoring) plus versioning/caching.
+- [`docs/scoring.md`](docs/scoring.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
 - [`docs/time.md`](docs/time.md) — the PERT blend that produces `t(n)` and the Monte Carlo simulator behind the Time Simulation panel.
 - [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.
@@ -97,3 +56,4 @@ Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to
 - Prefer extracting pure logic to [`callback_helpers.py`](callback_helpers.py) (stateless) or [`graph_manager.py`](graph_manager.py) (DB-backed) rather than growing the already-large `*_callbacks.py` files further.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
 - For anything time/duration-related, let the `Node.time` property do the PERT blend; don't compute a single "time" from `time_o/m/p` yourself.
+- When you add a scoring-relevant field to `Node`, also add it to `graph_manager._SCORING_RELEVANT_FIELDS`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).

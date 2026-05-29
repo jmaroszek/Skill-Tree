@@ -2,7 +2,7 @@
 
 This document explains how Skill Tree turns the user's two or three-point time estimate into a single number. This number is used for node priority scoring, goal ranking, and project duration simulation, as well as all user-facing "expected time" presentations in the app.
 
-This walkthrough assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md). For how the time influences node scoring and ranking, see [algorithms.md](algorithms.md).
+This walkthrough assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md). For how the time influences node scoring and ranking, see [scoring.md](scoring.md).
 
 # What is Special About Skill Tree's Time Estimation?
 
@@ -179,5 +179,5 @@ Each of these would be tractable to add, but each would require more input from 
 |---|---|
 | [models.py](../models.py) | The module that implements `blend_time_estimate` — every formula in the first half of this document maps to identifiable lines there |
 | [simulation.py](../simulation.py) | The module that implements the Monte Carlo sampler, including the chain-collection BFS and the container exclusion logic |
-| [algorithms.md](algorithms.md) | How $t(n)$ plugs into the priority scoring formula — see the Perceived Cost section |
+| [scoring.md](scoring.md) | How $t(n)$ plugs into the priority scoring formula — see the Perceived Cost section |
 | [README.md](../README.md) | The user-facing tour, including when to use one number vs. two vs. three, and how to read the Time Simulation histogram |
