@@ -1,4 +1,4 @@
-# All Aboard the Magical Mystery Tour
+# Features
 
 A tour through every tab, sidebar, and feature of Skill Tree. By the end you'll know how to use the app, and where to look when you want more depth.
 
