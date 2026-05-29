@@ -2,20 +2,6 @@
 
 ![Python 3.10](https://img.shields.io/badge/Python-3.10-blue) ![Dash](https://img.shields.io/badge/Dash-Plotly-purple) ![SQLite](https://img.shields.io/badge/Database-SQLite-green)
 
-```mermaid
-flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
-    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
-    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
-    class R current
-    class F,S,T,M other
-    click F "docs/features.md"
-    click S "docs/scoring.md"
-    click T "docs/time.md"
-    click M "docs/modeling.md"
-```
-
----
 # Why This Exists
 ## The Five Key Factors of Every Project
 To me, two things make a project worth doing: **value**, meaning the results matter, and **interest**, meaning I will enjoy the work itself. Scoring high on one means a project is a candidate. Scoring high on both means a project is on my mind at 1 am when I should be sleeping.
@@ -57,16 +43,25 @@ That is the gap that Skill Tree solves. Here, judgment is a first class citzen. 
 
 
 
-# Next Steps
-| If you want… | Go to |
+# Navigation
+## Tutorial
+Each cell is clickable.
+```mermaid
+flowchart LR
+    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
+    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    class R current
+    class F,S,T,M other
+    click F "docs/features.md"
+    click S "docs/scoring.md"
+    click T "docs/time.md"
+    click M "docs/modeling.md"
+```
+
+## Other Resources
+
+| Resource | What's there |
 |---|---|
-| To understand the app's architecture | [`docs/app_architecture.md`](docs/app_architecture.md) — modules, tab callbacks, Cytoscape pipeline, persistence and caching |
-| To understand the math behind the recommendations | [`docs/scoring.md`](docs/scoring.md) — scoring, profiles, goal ranking, explainability, status cascade |
-| To understand how time estimates are computed | [`docs/time.md`](docs/time.md) — the PERT blend and the Monte Carlo simulator |
-| The math at full precision | The [scoring](#the-scoring-algorithm) section above is the user-facing version; the canonical reference is the docstrings in [`scoring.py`](scoring.py). |
-
----
-
-<table width="100%"><tr>
-<td align="right"><a href="docs/features.md">Next: Features →</a></td>
-</tr></table>
+| [`docs/app_architecture.md`](docs/app_architecture.md) | The app's architecture: modules, tab callbacks, the Cytoscape pipeline, persistence, and caching. |
+| [`scoring.py`](scoring.py) | The canonical math reference — the docstrings behind the user-facing scoring section above. |

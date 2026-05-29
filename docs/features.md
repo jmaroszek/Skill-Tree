@@ -1,20 +1,5 @@
 # All Aboard the Magical Mystery Tour
 
-```mermaid
-flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
-    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
-    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
-    class F current
-    class R,S,T,M other
-    click R "../README.md"
-    click S "scoring.md"
-    click T "time.md"
-    click M "modeling.md"
-```
-
----
-
 A tour through every tab, sidebar, and feature of Skill Tree. By the end you'll know how to use the app, and where to look when you want more depth.
 
 # Node Editor
@@ -640,9 +625,24 @@ The Settings modal is where you fine-tune how the app looks and behaves. Open it
 
 Feel free to experiment with alternative settings because all the major operations have a "restore to defaults" option.
 
----
+# Navigation
+## Tutorial
+Each cell is clickable.
+```mermaid
+flowchart LR
+    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
+    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    class F current
+    class R,S,T,M other
+    click R "../README.md"
+    click S "scoring.md"
+    click T "time.md"
+    click M "modeling.md"
+```
 
-<table width="100%"><tr>
-<td align="left"><a href="../README.md">← Previous: README</a></td>
-<td align="right"><a href="scoring.md">Next: Scoring →</a></td>
-</tr></table>
+## Other Resources
+
+| Resource | What's there |
+|---|---|
+| [app_architecture.md](app_architecture.md) | The code behind the tour: module layout, tab callbacks, the Cytoscape render pipeline, and persistence. |

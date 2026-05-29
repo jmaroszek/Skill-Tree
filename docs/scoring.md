@@ -1,20 +1,5 @@
 # Scoring
 
-```mermaid
-flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
-    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
-    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
-    class S current
-    class R,F,T,M other
-    click R "../README.md"
-    click F "features.md"
-    click T "time.md"
-    click M "modeling.md"
-```
-
----
-
 This document describes the math that powers the app's intelligent recommendations. It assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md). Symbols are introduced where they first arise, and a full glossary sits at the [end](#symbol-glossary).
 
 One convention runs through everything below. An edge $A \to B$ means $A$ is a prerequisite for $B$. The scoring cascade walks forward, along the arrows. Eligibility walks backward, against them.
@@ -450,17 +435,26 @@ The full edge set is $E = E_H \cup E_S \cup E_Y$. An edge $A \to B$ means $A$ is
 
 Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{\text{Syn,mul}}$, $m_{\text{cross}}$, $w_e$, $w_t$, $\beta$, $b$, $\alpha$, $\alpha_g$) are listed in [Profile Hyperparameters](#profile-hyperparameters).
 
-# Other Resources
+# Navigation
+## Tutorial
+Each cell is clickable.
+```mermaid
+flowchart LR
+    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
+    classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    class S current
+    class R,F,T,M other
+    click R "../README.md"
+    click F "features.md"
+    click T "time.md"
+    click M "modeling.md"
+```
+
+## Other Resources
 
 | Resource | What's there |
 |---|---|
 | [scoring.py](../scoring.py) | The functions behind this document: `build_adjacency`, `total_value`, `score_nodes`, `explain_score`. |
 | [graph_manager.py](../graph_manager.py) | The state gateway that runs the status cascade and caches scores. |
 | [app_architecture.md](app_architecture.md) | Where scoring sits in the app. The layering, the state gateway, and the mutation-to-rerank flow. |
-
----
-
-<table width="100%"><tr>
-<td align="left"><a href="features.md">← Previous: Features</a></td>
-<td align="right"><a href="time.md">Next: Time →</a></td>
-</tr></table>
