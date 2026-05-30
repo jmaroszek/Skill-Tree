@@ -4,6 +4,14 @@ This document describes the math that powers the app's intelligent recommendatio
 
 One convention runs through everything below. An edge $A \to B$ means $A$ is a prerequisite for $B$. The scoring cascade walks forward, along the arrows. Eligibility walks backward, against them.
 
+```mermaid
+flowchart LR
+    A["Algebra<br/>prerequisite"] -->|"A unlocks B"| B["Calculus<br/>dependent"]
+    B -.->|"value flows back, lifting A's score"| A
+```
+
+*Read the arrow as "A unlocks B." B's value flows back to lift A's score; eligibility runs the other way — B stays Blocked until A is Done.*
+
 # Priority Scoring Algorithm
 ## Overview
 
@@ -95,6 +103,15 @@ Synergies do not chain or cascade the way Hard and Soft edges do. They are depth
 
 There are good conceptual and algorithmic reasons for this. First, not every chain $A \leftrightarrow B \leftrightarrow C$ is meaningful. Take Cooking $\leftrightarrow$ Chemistry $\leftrightarrow$ Pharmacology. Chemistry sharpens your cooking, because you understand why acids, heat, and time matter. Chemistry also deepens your grasp of Pharmacology, since drug mechanisms are fundamentally chemical. But it doesn't follow that Cooking helps Pharmacology, or the reverse. Each link is real, yet the relation isn't transitive: the endpoints don't actually inform each other. 
 
+```mermaid
+flowchart LR
+    K["Cooking"] <--> C["Chemistry"]
+    C <--> P["Pharmacology"]
+    K x-- "no real link" --x P
+```
+
+*Both synergies are genuine, but Cooking and Pharmacology never connect — so a node's synergy value stops at its immediate partners.*
+
 The second reason is performance. Helps edges are bidirectional and can form cycles, so cascading along them would either fail to terminate or fall back on path-enumeration that defeats memoization — the problem flagged in the [DAG cascade section](#the-dag-cascade). Keeping synergies at depth 1 sidesteps that entirely.
 
 ## Total Value
@@ -110,6 +127,8 @@ The multiplier $\mu_Y$ applies *only* to intrinsic value, not to the cascade or 
 ### Attribution
 
 The Explain modal answers "where did this score come from?" It decomposes a node's TV into per-descendant contributions, so the user can see which downstream work is driving the recommendation. 
+
+**Screenshot: the Explain modal, showing a node's score broken into per-contributor percentages.**
 
 The key fact is that the additive part of TV is linear in descendant intrinsic values. For any descendant $D$, its contribution to $n$'s TV is exactly $W(D) \cdot \text{IV}(D)$. Here $W(D)$ is the sum, over all paths from $n$ to $D$, of the product of edge discounts along each path. Computing every $W(D)$ takes a single topological pass over the reachable Hard-and-Soft subgraph. Diamonds collapse naturally, because each $D$'s weight accumulates the contribution from every path that reaches it.
 
@@ -288,6 +307,24 @@ $$ \text{TV}'(g) = \text{IV}(g) + d_H \!\!\!\sum_{m \in H_{\text{in}}(g)}\!\!\! 
 Here $H_{\text{in}}(g)$ and $S_{\text{in}}(g)$ are the Hard and Soft prerequisites of $g$, the sources of its incoming edges. The recursive $\text{TV}_{\text{dag}}'$ continues along $E_H'$ and $E_S'$, so the discounted sum runs over the whole transitive prereq subtree. The synergy bonus is computed exactly as in the forward direction.
 
 This is the key insight: **a Goal's value is the ordinary forward cascade, run on reversed arrows.** Not a single line of the value computation changes — same intrinsic value, same Hard and Soft discounts, same synergy. Only the edge directions flip.
+
+```mermaid
+flowchart LR
+    subgraph G["Original graph"]
+        direction LR
+        s1["Squat"] --> g1["Strength (Goal)"]
+        s2["Deadlift"] --> g1
+        s3["Overhead Press"] --> g1
+    end
+    subgraph Gp["Inverted graph"]
+        direction LR
+        g2["Strength (Goal)"] --> t1["Squat"]
+        g2 --> t2["Deadlift"]
+        g2 --> t3["Overhead Press"]
+    end
+```
+
+*A Goal is a sink: many arrows in, few out. Flip every Hard and Soft arrow and its prerequisites become forward dependents, so the ordinary cascade now walks the prereq subtree.*
 
 The value numerator is the *only* part reused verbatim. The cost denominator and the density correction are both re-derived below, because a sink behaves differently from a leaf. A leaf's cost is its own effort. A Goal's cost is the effort of everything it subsumes.
 

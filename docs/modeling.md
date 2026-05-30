@@ -17,6 +17,21 @@ The five node types in Skill Tree are not just cosmetic labels. Each answers a d
 | **Milestone** | What objective and measurable benchmark do I want to hit? | I hit the target | Time spent on child nodes | Excluded from scoring. Pass-through node for other nodes |
 | **Goal** | What domain, area, or capacity am I developing? | All Hard children are Done | Time spent working on child nodes | Sink node; ranked in the sidebar and Analyze tab using the inverted cascade. |
 
+When you are unsure which type a project should be, this decision tree resolves most cases:
+
+```mermaid
+flowchart TD
+    Start{"What am I capturing?"} --> Q1{"A broad domain<br/>or capacity?"}
+    Q1 -->|Yes| Goal["Goal"]
+    Q1 -->|No| Q2{"A measurable,<br/>pass/fail checkpoint?"}
+    Q2 -->|Yes| Milestone["Milestone"]
+    Q2 -->|No| Q3{"External material<br/>to consume?"}
+    Q3 -->|Yes| Resource["Resource"]
+    Q3 -->|No| Q4{"Something to understand,<br/>or something to do?"}
+    Q4 -->|Understand| Learn["Learn"]
+    Q4 -->|Do| Action["Action"]
+```
+
 ### Key Distinctions
 
 The five types are conceptually distinct, but first-time modelers often hit boundary cases where two seem to overlap. Getting these boundaries right keeps your graph faithful to your intuition and legible to the recommendation engine.
@@ -70,6 +85,8 @@ Choosing the right node type is half the battle. The other half is choosing the 
 
 Skill Tree's job is to tell you which project deserves your attention this month — not to track every step within it.
 
+**Diagram: the same project modeled three ways — one giant monolithic node, a sprawl of tiny micro-nodes, and the clean mid-sized tree that sits between them.**
+
 ### When Nodes Are Too Big
 A single node that says *Master Cooking* or *Start a Blog* is too open-ended. A monolithic node should carry a massive time estimate, which compresses its ROI score ($\text{Value} / \text{Cost}$) and sinks it to the bottom of your suggestion list. Worse, it defeats the whole point of Skill Tree, which is to help you sequence your work.
 
@@ -122,6 +139,13 @@ To decide whether a pair genuinely qualifies, ask whether the combination is *mo
 
 The strongest synergies tend to bridge contexts. A good example is Gardening ↔ Biology: each one materially changes how you experience the other — biology explains why a plant wilts or thrives in a given soil, and gardening gives biology a slow, living laboratory in your backyard. Neither node is a prerequisite for the other, but doing both turns each into something richer than it would be on its own. 
 
+```mermaid
+flowchart LR
+    G["Gardening<br/>(Hobbies)"] <-->|"each enriches the other"| B["Biology<br/>(STEM)"]
+```
+
+*A true synergy reads the same in both directions, and the strongest ones bridge two contexts. Neither node gates the other.*
+
 A few patterns that look like synergy but aren't:
 
 - **Shared topic** — You don't need a synergy edge just because both nodes cover similar content. Group them under a common parent instead.
@@ -159,6 +183,8 @@ After using Skill Tree for a while, I noticed patterns that made my modeling les
 | **Unloved Orphans** | A node with no incoming or outgoing edges. | Because it does not receive cascade value, it will never get recommended, and it is easily forgotten. | Find a relationship for your orphan — or kill it. (Use the **Orphans** community filter to find these). |
 | **Spiderwebs** | A dense mesh of criss-crossing edges within a single context | Visual clutter; less meaningful priority scores | Build clean, hierarchical relationships using containers and thoughtful edges. Topical relatedness does not deserve an edge. Use contexts and subcontexts for high-level grouping. |
 | **Indefinite Actions** | An Action node representing a permanent habit (e.g., Exercise, Meditate, Read). | Action nodes are meant to be completed. A habit, one that is truly never done, will either sit on your list indefinitely, or may have its Done state reversed (if you ever stop doing the habit) | Model starting and stopping habits as fixed-period experiments (e.g., "6-Week Running Protocol", or "Fast 3 hours before bed"). After completing the experiment, mark it as Done, and reflect on whether you want to keep the habit. |
+
+**Diagram: a tangled "spiderweb" of criss-crossing edges within one context, beside the same nodes reorganized into a clean hierarchy under a container.**
 
 # Navigation
 ## Tutorial

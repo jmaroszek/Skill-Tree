@@ -12,6 +12,8 @@ Standard estimation imagines that errors add up. Each surprise tacks on a fixed 
 
 Real delays do not add, they multiply. Waiting on feedback doesn't cost a flat hour; it stretches whatever work remains. A wrong assumption doesn't add a step; it doubles the remaining effort. Pile up enough of these independent multipliers and the durations spread into a **log-normal** shape: bounded by zero on the left, with a long tail running out to the right. The exact distribution is not the point. The asymmetry is. A task can run many times over, but it can never take less than no time at all.
 
+**Diagram: a symmetric Normal curve beside a right-skewed log-normal curve — both bounded near zero on the left, but the log-normal trailing off in a long right tail.**
+
 This shape is why estimation should happen in ratio space. The brain already works there. It is far easier to say with confidence that a task will take "no less than 10 hours and no more than 100" than to pin it to "between 30 and 60." The wide, order-of-magnitude bracket activates a reliable gut-check. The narrow one demands a precision we don't have.
 
 ## The Typical Task Takes the Median Time
@@ -94,6 +96,8 @@ The final estimate is the weighted average:
 
 $$ t(n) = (1 - w(r)) \cdot \bar{t}_{\text{arith}} + w(r) \cdot \bar{t}_{\text{log}} $$
 
+**Diagram: the blend weight $w(r)$ plotted against the uncertainty ratio $r$ on a log axis — flat at 0 until $r = 2$, climbing smoothly, and pinned at 1 once $r \ge 10$.**
+
 ## The Statistical Bridge: Beta and Log-Normal
 
 Project-management statistics offers two natural models for a task's duration, and they pull in opposite directions.
@@ -135,6 +139,8 @@ After you finish a project, the reflection feature lets you record how long it a
 
 The blended estimate gives one number per node. That is enough to rank tasks, but not enough to answer a question like "if I commit to this Goal today, how long until I finish?" The Monte Carlo simulator in [`simulation.py`](../simulation.py) answers it. It keeps the underlying PERT distribution intact and draws thousands of samples across the full prerequisite chain. The result is an empirical distribution for the whole project, shown on the Details Tab. The panel plots it as a histogram marked with the $P_{10}, P_{50}, P_{90}$ percentiles. Now the user can say "I'm 90% confident this will take less than 200 hours," instead of trusting a single fragile point estimate.
 
+**Screenshot: the Time Simulation histogram on the Details tab, with the P10, P50, and P90 lines marked.**
+
 ## PERT-Beta Sampling
 
 Each node's duration is sampled from a PERT-Beta distribution. Draw $X \sim \text{Beta}(\alpha, \beta)$ on $[0, 1]$ with shape parameters
@@ -158,6 +164,15 @@ If the user does not supply all three time estimates, the simulation falls back 
 ## Chain Collection
 
 Before sampling begins, the simulator BFS-walks backward from the target node along Hard edges, collecting every prerequisite. At the *root* node only (not deeper in the chain), Soft and Helps edges may also be followed, depending on the user's "include soft / include helps" toggles on the Details Tab. This asymmetry is deliberate: the user's question is "how long until I finish *this* node, including its broader context," not "how long until I finish this node plus the soft prereqs of every node in its subtree" — which would explode the chain.
+
+```mermaid
+flowchart LR
+    P3["Prereq 3"] --> P1["Prereq 1"] --> Target["Target node"]
+    P2["Prereq 2"] --> Target
+    Sroot["Soft / Helps neighbor"] -. "root only" .-> Target
+```
+
+*The walk runs backward from the target along Hard edges, gathering every prerequisite. Soft and Helps edges are followed only at the root, never deeper in the chain.*
 
 Two exclusions follow naturally to prevent inflating the simulation results. First, completed tasks are dropped because their time has already been paid; including done nodes would distort the remaining time estimate. Second, container nodes contribute zero duration. Because these containers act as structural conduits, their child tasks are already added to the chain and sampled independently.
 

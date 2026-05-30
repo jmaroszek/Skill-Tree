@@ -6,6 +6,7 @@ How the app fits together: the layering, the module map, the `dcc.Store` wiring,
 
 The app is six layers. Each one only knows about the layer below it.
 
+
 - **Layout** (`layout.py`, `*_layout.py`) — pure structure. Builds the component tree and declares every `dcc.Store`. No callbacks, no behavior. `app.layout` is a *function* (`lambda: build_app_layout(generate_elements(), ...)`) so each page load gets fresh elements.
 - **Callbacks** (`callbacks.py`, `*_callbacks.py`) — all behavior. Each tab module attaches its callbacks in one `register_*_callbacks(app)` pass. [`callbacks.py`](../callbacks.py) is *not* a tab — it's the shared core engine (the main canvas, cross-cutting callbacks, and `generate_elements`).
 - **State gateway** (`graph_manager.py`, `event_manager.py`) — the only way a callback touches graph/event state. Owns CRUD, the status cascade, version counters, and caches.
@@ -60,6 +61,15 @@ This is the path almost every edit takes. Get it wrong and the canvas either doe
 3. The callback returns `generate_elements(filters, active_node_id, …)` to **`elements-pending-store`** (with `allow_duplicate`) — *not* to the Cytoscape `elements` prop.
 4. A clientside callback (`freeze_positions.js`) consumes the pending elements and **diffs them into the live graph in place** — adding/removing/updating individual elements and preserving existing node positions, seeding new nodes near their neighbors. Replacing the whole `elements` list instead would trigger a full fcose relayout and the graph would jump on every edit. *This indirection is why you can't simply `Output('cytoscape-graph', 'elements')`.*
 5. The change to Cytoscape `elements` fires `sync_graph_version`, which bumps `graph-version-store` only if `manager._graph_version` advanced — gating downstream recomputation to real mutations.
+
+```mermaid
+flowchart TD
+    C["Callback calls a<br/>GraphManager mutator"] --> M["Mutator writes SQLite,<br/>runs the status cascade,<br/>bumps the version"]
+    M --> P["Callback returns<br/>generate_elements() to<br/>elements-pending-store"]
+    P --> J["freeze_positions.js diffs<br/>the elements into the<br/>live graph in place"]
+    J --> V["The elements change fires<br/>sync_graph_version, bumping<br/>graph-version-store"]
+    V --> D["Downstream callbacks<br/>recompute — only on<br/>a real mutation"]
+```
 
 `generate_elements` ([callbacks.py:375](../callbacks.py)) is the single source of truth for what Cytoscape sees: it pulls filtered nodes from `GraphManager`, applies depth/neighbor-link controls, and assembles node + edge dicts with their colors, shapes, and classes (`trigger`, `dormant`, `now`).
 

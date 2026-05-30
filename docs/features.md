@@ -3,13 +3,19 @@
 A tour through every tab, sidebar, and feature of Skill Tree. By the end you'll know how to use the app, and where to look when you want more depth.
 
 # Node Editor
-The Node Editor is where you create new projects and update existing ones. No matter where you are in the app, it is never more than a click away. Access it at any time by clicking this icon in the top left corner.
+The Node Editor is where you create new projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. You can access the node editor from anywhere in the app by clicking this icon in the top left corner. 
 
-**Screenshot of node editor icon**
+<p align="center">
+<img src="../images/node-editor-icon.png" alt="The node editor icon in the top-left corner">
+<p>
 
-We will now walk all the attributes of projects that you can edit in Skill Tree. 
+## General Section
 
-## Names
+<img src="../images/node-editor-general-section.png" alt="Node editor general section" align="left" height="400" style="margin: 0 25px 10px 0;">
+
+
+### Search Bar
+### Names
 A node's name is how you identify it, find it, and reference it from other nodes. There are a couple things to know about names in Skill Tree. 
 
 **Each name must be unique.** Type a name that matches another — exactly, or after stripping connector words like *the,* *of,* and *is* — and the editor surfaces a *duplicate warning,* so you can rename or merge the two nodes. 
@@ -20,14 +26,17 @@ Unique doesn't have to mean singular, though.
 
 One last quality of life feature: the **name linter** retitles nodes to Title Case on save, ignoring the same connector words as the duplicate check. You can turn it off in Settings if you'd rather control casing yourself.
 
-**INSERT PICTURE OF NODE EDITOR SECTION**
+**Screenshot: the Names section of the node editor, showing the name field, a duplicate warning, and the alias list.**
 
-## Node Type
+### Node Type
 There are five node types in Skill Tree. Each behaves differently under the hood. Picking the right one matters more than it sounds — the [modeling guide](modeling.md) has the full decision tree for choosing the right node type. For now, just know that you control this attribute through the node editor.
 
 **[SCREENSHOT: the five node types side by side on a neutral background, each labeled — yellow star Goal, blue circle Learn, orange triangle Action, purple pentagon Resource, orange diamond Milestone.]**
 
-## Context
+### Description
+A space for notes to your future self — scope, motivation, and anything else worth remembering. Whatever you write surfaces alongside the recommendations on the Next tab and in the node information panel on the Details tab.
+
+### Context
 
 Every project belongs to a context, and optionally a subcontext. Contexts do three things for you: they power the filters that let you carve up the graph, they drive the per-context views on the Analyze tab, and they shape your recommendations.
 
@@ -35,7 +44,11 @@ Two scoring effects are worth knowing. The algorithm penalizes dense contexts, s
 
 Read [`scoring.md`](scoring.md) for a detailed walkthrough about how project ranking works.
 
-**INSERT THE SVG VISUALATION HERE, AND TRIM THE CONENT BELOW**
+**Diagram: an SVG visualization of how contexts and subcontexts partition the graph into life areas.**
+
+<!-- META (from an earlier draft): trim the content below? -->
+
+<br clear="left">
 
 ## Status
 
@@ -49,8 +62,7 @@ The Status section of the node editor has three toggles: **Now**, **Done**, and 
 
 **SCREENSHOT: the Add to Event modal that opens when Dormant is toggled on**
 
-## Description
-A space for notes to your future self — scope, motivation, and anything else worth remembering. Whatever you write surfaces alongside the recommendations on the Next tab and in the node information panel on the Details tab.
+
 
 ## Ratings
 Value, interest, and effort are collectively the **Ratings**. Score each on a 1–10 scale, and the algorithm uses them to recommend work with the highest return on investment.
@@ -99,7 +111,7 @@ There are three types of relationships in Skill Tree.
 
 **Direction matters** for hard and soft prerequisites. `A → B` means A unlocks or supports B — A is the source, B is the destination. Synergistic edges have no direction. A helps B and B helps A, so they're drawn bidirectionally: $A \leftrightarrow B$.
 
-## State
+### State
 
 Every node has one of four states:
 
@@ -135,7 +147,7 @@ Two switches, actually. The node editor has two Inherit toggles, one for ratings
 
 Of the two toggles, Inherit Time is the one I reach for far more often. Most container-flavored nodes are still topics I care about in their own right, so I want the ratings to stay mine.
 
-**Screenshot of toggles**
+**Screenshot: the two Inherit toggles (ratings and time) in the node editor.**
 
 ### Defaults by Type
 
@@ -420,7 +432,7 @@ The feature shines on large, vague, long-horizon Goals. It lets you say with con
 | P50 line | The median — half of runs finish faster, half slower. |
 | P90 line | Pessimistic case — 90% of runs finish faster than this; a sensible "worst realistic" figure. |
 
-**Screenshot**
+**Screenshot: the Time Simulation panel — a histogram of total project duration with the P10, P50, and P90 lines marked.**
 
 # Goals Sidebar
 Most node types — Learn, Action, Resource — are ranked by the algorithm and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to bias the rest of the graph through the [Goal Priority Boost](scoring.md#goal-priority-boost). That's what the Goals sidebar is for.
@@ -519,11 +531,11 @@ There is a small gear icon by the section title that allows you to control how m
 
 **Completion** (left) shows each Goal's hard-prerequisite progress as a stacked horizontal bar — Done work in green, remaining work in faint gray. As with every chart on the Analyze Tab, there is a helpful tooltip that shows up when you mouse over a graph element.
 
-**Screenshot of completion**
+**Screenshot: the Completion chart — one stacked horizontal bar per Goal, Done work in green against the remaining work in gray.**
 
 **Shared Prerequisites** (right) is a heatmap over those same Goals, counting their shared hard and soft prerequisites. Bright cells mean two Goals draw from the same body of work — a sign they share foundational skills. You might want to work on these tasks to "double dip."
 
-**Screenshot of shared prereq**
+**Screenshot: the Shared Prerequisites heatmap, with bright cells where two Goals draw on the same prerequisites.**
 
 The gear icon by the section title opens display-limit control for how many top-ranked Goals to render. 
 
@@ -547,11 +559,11 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 
 **By Node** is a scatter plot with a dashed *y = x* reference line. Each dot is one completed node. Points above the line took longer than expected. Each point below the line was completed faster than expected. Colors are node types, so you can spot whether one type — usually Learn — drifts above the line more than the others.
 
-**Scatterplot screenshot**
+**Screenshot: the By Node accuracy scatter plot, each dot a completed node against the dashed y = x reference line.**
 
 **By Context** rolls those same ratios up into one box plot per context. A box to the right of the 1× line means that context's tasks routinely take longer than you expect; a box to the left means they don't take as long.
 
-**Boxplot screenshot**
+**Screenshot: the By Context box plot, one box per context against the 1× estimate line.**
 
 ## Throughput
 
@@ -569,11 +581,11 @@ The Graph Structure section answers two structural questions about your network,
 
 **Bottleneck** ranks nodes by the number of nodes they unlock (through hard edges). The chart distinguishes direct unlocks from the downstream cascade. The colors of the bars show the status, allowing you to separate "high leverage and available" (not red) from "high leverage but waiting on something else" (red). A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole chains become eligible, and the Next tab has better candidates to choose from.
 
-**Bottleneck Screenshot**
+**Screenshot: the Bottleneck chart — nodes ranked by how many others they unlock, with bar color showing status.**
 
 **Hub Nodes** ranks nodes by how integrated they are — concepts with prerequisites feeding in *and* dependents flowing out. The score is calculated as the geometric mean of incoming and outgoing prerequisite edge counts (over Hard and Soft needs), plus a half-point bonus for each synergy partner (Helps edges). Because the prerequisite component drops to zero for pure roots (no prerequisites) and pure leaves (no dependents), this chart surfaces the connective concepts that tie the rest of your graph together. 
 
-**Hub Node Screenshot**
+**Screenshot: the Hub Nodes chart, ranking the most connected concepts that tie the graph together.**
 
 Where Bottleneck asks *what unlocks the most?*, Hub asks *what is most central to my understanding?*
 
@@ -627,7 +639,6 @@ Feel free to experiment with alternative settings because all the major operatio
 
 # Navigation
 ## Tutorial
-Each cell is clickable.
 ```mermaid
 flowchart LR
     R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
