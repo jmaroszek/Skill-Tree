@@ -17,21 +17,6 @@ The five node types in Skill Tree are not just cosmetic labels. Each answers a d
 | **Milestone** | What objective and measurable benchmark do I want to hit? | I hit the target | Time spent on child nodes | Excluded from scoring. Pass-through node for other nodes |
 | **Goal** | What domain, area, or capacity am I developing? | All Hard children are Done | Time spent working on child nodes | Sink node; ranked in the sidebar and Analyze tab using the inverted cascade. |
 
-When you are unsure which type a project should be, this decision tree resolves most cases:
-
-```mermaid
-flowchart TD
-    Start{"What am I capturing?"} --> Q1{"A broad domain<br/>or capacity?"}
-    Q1 -->|Yes| Goal["Goal"]
-    Q1 -->|No| Q2{"A measurable,<br/>pass/fail checkpoint?"}
-    Q2 -->|Yes| Milestone["Milestone"]
-    Q2 -->|No| Q3{"External material<br/>to consume?"}
-    Q3 -->|Yes| Resource["Resource"]
-    Q3 -->|No| Q4{"Something to understand,<br/>or something to do?"}
-    Q4 -->|Understand| Learn["Learn"]
-    Q4 -->|Do| Action["Action"]
-```
-
 ### Key Distinctions
 
 The five types are conceptually distinct, but first-time modelers often hit boundary cases where two seem to overlap. Getting these boundaries right keeps your graph faithful to your intuition and legible to the recommendation engine.

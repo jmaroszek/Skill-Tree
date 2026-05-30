@@ -105,89 +105,98 @@ In order to standardize the rating process, there is a table that describes what
 ## Time
 Time estimation is the most valuable thing in project management to get right — and the hardest. An entire [document](time.md) walks through how Skill Tree solves it. For here, the short version: you can estimate a project's duration with one, two, or three inputs. The more you provide, the better the result.
 
+
+
 | Inputs | Values | Time Estimation Method |
 |---|---|---|
 | One | Expected duration | **Identity.** The app uses your number as-is. Skip this option when you can — the methods below are sharper. |
 | Two | Lower and upper bound | **Geometric Mean.** A better default than the arithmetic average, because it corrects for the way humans systematically underestimate time. See [time.md](time.md) for why. |
 | Three | Expected, lower, and upper bound | **Custom Algorithm**. A weighted blend of your three estimates based on PERT -- a technique developed by the US navy for estimating the duration of long projects. |
 
-**SCREENSHOT of the normal time estimation section**
-
 ### Habits
 
 The methods above assume total time is all that matters. For a book, it is — three one-hour sessions and one three-hour session land in the same place. Habits are different. "Run three times a week for eight weeks" doesn't translate cleanly into total hours, and the translation hides the things you actually care about: cadence. **Habit Mode** swaps total time for duration and frequency.
 
-**SCREENSHOT of the time panel with habit mode turned on**
+<p align="center">
+  <img src="../images/node-editor-time-section.png" alt="Node editor time section" width="350" style="vertical-align: middle; margin: 0 20px;">
+  <img src="../images/node-editor-time-habit-section.png" alt="Node editor time section with habit mode on" width="350" style="vertical-align: middle; margin: 0 20px;">
+  <br>
+  <em>Standard estimation (left) and Habit Mode (right).</em>
+</p>
 
-## Relationships
+### Inherit Time
+The **Inherit** toggle makes a node's duration the sum of its children's, rather than a number you set yourself. Reach for it on a container whose only work is finishing the things beneath it. Goals and Milestones lock it on — their duration should be nothing more than the total of their subtasks — while for the other types it's optional.
 
-There are three types of relationships in Skill Tree.
+### Containers
 
-| Concept | Meaning | Example | Edge Name |
-| --- | --- | --- | --- |
-| Hard Prerequisite | You can't do the destination until the source is Done. | `Algebra → Calculus` — calculus won't make sense without algebra first. | Hard Need |
-| Soft Prerequisite | Nice to have, but not strictly required. | `UX Design → Personal Website` — the site is better with UX, but possible without. | Soft Need |
-| Synergy | Two tasks that mutually amplify each other. | `Rhetoric ↔ Writing` — each makes the other more useful. | Helps |
+You've now met both Inherit toggles — one for ratings, and one for time. Together they're what turn an ordinary node into a **container**: a node that groups related work, and draws its numbers from the nodes beneath it.
 
-**Direction matters** for hard and soft prerequisites. `A → B` means A unlocks or supports B — A is the source, B is the destination. Synergistic edges have no direction. A helps B and B helps A, so they're drawn bidirectionally: $A \leftrightarrow B$.
-
-### State
-
-Every node has one of four states:
-
-| State | Meaning |
-|---|---|
-| Open | Eligible to work on. All its hard prerequisites are Done (or it has none). |
-| Blocked | At least one hard prerequisite isn't Done yet. The app sets this automatically; you can't accidentally start a thing whose foundations aren't laid. |
-| Done | Finished. Counts toward unblocking its dependents and contributes Synergy multipliers to its partners. |
-| Dormant | Hidden, not scored, waiting on an Event to wake it up (more on this later). |
-
-On the canvas, status shows as a colored overlay on the node's type color — red for Blocked, green for Done — so you can read state at a glance. Open nodes keep their native color. Dormant nodes don't appear at all unless you toggle them on in the Filters sidebar, in which case they show transparent to signal they're still asleep.
-
-### Re-opening a Done Node
-
-Done is sticky. The app will never silently un-finish work you told it you'd completed. The only way out of Done is to actively un-mark it.
-
-When you do that, the change cascades. Anything downstream that depended on this node re-derives to **Blocked** because one of its prerequisites just became incomplete. The ripple can reach as far as the Hard-prereq subgraph extends.
-
-Because that cascade is destructive, the app gates it behind a confirmation modal that tells you exactly how many downstream nodes will flip to Blocked and lists them by name. If there are no Done dependents, the toggle proceeds silently, as there is nothing to confirm.
-
-## Containers
-
-A container groups related nodes. It's still a node on the canvas — just a regular one with a switch flipped.
-
-Two switches, actually. The node editor has two Inherit toggles, one for ratings and one for time. Turning either on makes the node a container along that dimension. Each combination is useful in different situations:
+A container is still just a node on the canvas, but it helps you organize projects better, as discussed in [modeling](modeling.md). Because the two toggles are independent, they combine four ways.
 
 | Inherit Time | Inherit Ratings | What you get | Example |
 |---|---|---|---|
 | Off | Off | Standard node — own ratings and own time. | -- |
 | On | Off | Own ratings, but time sums from incoming nodes. | *Sleep Theory* — I care about the topic enough to rate it directly, but its duration is just whatever the sub-Learns add up to. |
 | Off | On | Own time, but the score comes from what its children contribute. I've never found a use for it — let me know if you have. | — |
-| On | On | Pure container — no time, no ratings of its own. The score comes entirely from what its children contribute. | A *Transcendentalism* Learn that groups *Walden* and *Emerson Essays*. |
+| On | On | Pure container — no time or ratings of its own. Like a self-less parent, its all about the children. | A *Transcendentalism* Learn that groups *Walden* and *Emerson Essays*. |
 
-Of the two toggles, Inherit Time is the one I reach for far more often. Most container-flavored nodes are still topics I care about in their own right, so I want the ratings to stay mine.
+Of the two toggles, Inherit Time is the one I reach for far more often.
 
-**Screenshot: the two Inherit toggles (ratings and time) in the node editor.**
+## Relationships
 
-### Defaults by Type
+There are three types of relationships in Skill Tree.
 
-Goals and Milestones are time-containers by design. The app locks inherit-time mode on, because a Goal's duration should be the total time of its subtasks. If Skill Tree let you set it independently, you'd end up with a number that contradicts the children and makes scoring harder. Milestones get the same treatment for a different reason: they're checkpoints rather than actual work, and the path to them is often hard to estimate ahead of time. How long will it take me to do 30 pushups? Hard to say. But the milestone itself is a single, verifiable event, so it'll be obvious when I hit it.
+| Edge Name | Meaning | Example |
+| --- | --- | --- |
+| Hard Need | You can't do the destination until the source is Done. | `Algebra → Calculus` — calculus won't make sense without algebra first. |
+| Soft Need | Nice to have, but not strictly required. | `UX Design → Personal Website` — the site is better with UX, but possible without. |
+| Helps | Two tasks that mutually amplify each other. | `Rhetoric ↔ Writing` — each makes the other more useful. |
 
-Inherit-Ratings is never on by default. Most of the time a node should carry its own value and interest even when it has children — those scores tell the algorithm the node is worth doing for its own sake, not just as a structural wrapper. Turn it on only when the node has no independent identity and exists purely to group its children.
+**Direction matters** for hard and soft prerequisites. $A \rightarrow B$ means $A$ unlocks / supports $B$. Synergistic edges, in contrast, have no direction. $A$ helps $B$, and $B$ helps $A$. 
 
-**Screenshot of container behavior on a small graph**
 
-## External Links
+In the editor, those directional edges are split into a **Needs** section and a **Supports** section. Both add the same kind of edge — they just describe it from opposite ends. **Needs** points *inward*: it lists the prerequisites that unlock the node you're editing. **Supports** points *outward*: it lists the nodes that this one unlocks. The split means you can always build an edge from whichever node you happen to be on, without opening the other one (which is annoying). **Helps** stands apart, because a synergy points both ways and has no end to choose from.
 
-A node can be connected to **external material** that lives outside the app — your notes, your files, or a relevant web page.
+<p align="center">
+    <img src="../images/node-editor-relationships.png" width=400>
+    <br>
+    <em> Node editor relationships section </em>
+</p>
 
-| Link type | What it does |
-|---|---|
-| Website | Any URL. Opens from the node editor or the right-click context menu wherever the node surfaces. |
-| Obsidian | A path relative to your configured Obsidian vault. Useful when a node already has a note started there. |
-| Google Drive | A Drive URL or a local path to a synced file. Opens the file when clicked. |
+## State
+Every node sits in one of four states at any moment. Some the app derives for you from a node's relationships, and others you set yourself.
 
-Website is universal; Obsidian and Google Drive are more niche — they fit my workflow, but I wouldn't expect everyone to use them. If this ever becomes a "real" app, I'll make them optional.
+| State | Meaning | Automatic |
+|---|---|:---:|
+| Open | Eligible to work on. All its hard prerequisites are Done (or it has none). | ✅ |
+| Blocked | At least one hard prerequisite isn't Done yet. | ✅ |
+| Done | Finished. Counts toward unblocking its dependents and contributes Synergy multipliers to its partners. | ❌ |
+| Dormant | Hidden and not scored. It is waiting on an [event](#events) to wake it up. | ❌ |
+
+When you mark a node Done, that change can ripple outward — unblocking its dependents and re-deriving their states in turn. The [status cascade](scoring.md#eligibility-and-the-status-cascade) walks through exactly how that propagation works.
+
+### Re-opening a Done Node
+
+Done is sticky. The app will never silently un-finish work you told it you'd completed. The only way out of Done is to actively un-mark it. 
+
+When you do that, the change cascades. Anything downstream that depended on this node re-derives to **Blocked** because one of its prerequisites just became incomplete. The ripple can reach as far as the Hard-prereq subgraph extends. 
+
+Because that cascade is destructive, the app gates it behind a confirmation modal that tells you exactly how many downstream nodes will flip to Blocked and lists them by name. If there are no Done dependents, the toggle proceeds silently, as there is nothing to confirm.
+
+## External Resources
+
+When a book, course, or article is substantial enough that you want to track and rate it, give it its own **Resource** node and wire it into the graph like anything else. More often, though, you just want to staple a reference to a node. That's what **external resources** are for: lightweight links to material that lives outside the app.
+
+<p align="center">
+    <img src="../images/node-editor-external-resources.png" width=400>
+    <br>
+</p>
+
+There are three kinds of link. A **Website** link is any URL. An **Obsidian** link points to a note in your vault by its path. A **Google Drive** link opens a synced file, given a Drive URL or a path if it's locally mounted. For the path-based links, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
+
+You aren't limited to one of each — click the **+** beside a link's title to add as many as you want. Once a link is set, its field gains an open button, so you can jump straight to the resource from the editor. The same links are also reachable from a node's [right-click context menu](#context-menu), wherever it appears on a graph.
+
+Website links are universal. Obsidian and Google Drive are more niche — they fit my workflow, but I wouldn't expect everyone to share it, so if this ever becomes a "real" app I'll make them optional.
 
 
 # Next Tab
@@ -209,7 +218,7 @@ Reading a row from left to right:
 | Bar length | Proportional to the priority score. The #1 task is always a full bar; everything else is drawn as a fraction of it. The number at the bar's right end is the score. |
 | Time | Expected duration. |
 | Ratings glyph | Three small bars showing your Value, Interest, and Effort ratings, so you can eyeball them without opening the node. |
-| Link dots | Three dots for Obsidian · Drive · Website. A dot is filled when that link is set on the node. |
+| Link dots | Three dots for Obsidian · Drive · Website. A dot lights up when the node has at least one link of that type, regardless of how many. |
 
 Left-click any row to see the node's description beside the table.
 
@@ -259,21 +268,20 @@ Every node's shape and color has meaning.
 | Resource | Purple | Pentagon |
 | Milestone | Teal | Diamond |
 
-The colors above apply only when the node is Open. Done nodes turn green and Blocked nodes turn red, regardless of type. One exception: Goals are never red. Goals are [containers](#containers) and almost always have incomplete hard tasks, so painting them red would mean every Goal looks blocked all the time — hard to distinguish from work actually waiting on something.
+The colors above apply only when the node is Open. Done nodes turn green and Blocked nodes turn red, regardless of type. A node turns red on its own — the app blocks it the moment one of its hard prerequisites is unfinished, which is the automatic status cascade described under [State](#state). Dormant nodes don't appear at all unless you reveal them in the Filters sidebar, where they show up transparent to signal they're still asleep.
+
+One exception to the red rule: Goals are never red. Goals are [containers](#containers) and almost always have incomplete hard tasks, so painting them red would mean every Goal looks blocked all the time — hard to distinguish from work actually waiting on something.
 
 P.S: Don't like these colors and shapes? Adjust them in Settings.
 
 ### Edges
 
-[Relationships](#relationships) are encoded with arrows between nodes. 
+[Relationships](#relationships) are encoded with arrows between nodes. From top to bottom, the relationships are hard, soft, and helps. 
 
-| Relationship | Arrow Style |
-|---|---|
-| Hard Need | Solid Gray |
-| Soft Need | Dashed Gray |
-| Synergy | Bidirectional Blue |
 
-**Screenshot showing edge types**
+<p align="center">
+  <img src="../images/relationship-types.png" alt="The three relationship types: hard prerequisite, soft prerequisite, and synergy" width="600">
+</p>
 
 ## Interacting with the Graph
 The canvas supports the usual graph interactions, and they work the same way on every tab that shows a network — Nodes, Details, and Events.
