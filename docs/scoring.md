@@ -2,13 +2,7 @@
 
 This document describes the math that powers the app's intelligent recommendations. It assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md). Symbols are introduced where they first arise, and a full glossary sits at the [end](#symbol-glossary).
 
-One convention runs through everything below. An edge $A \to B$ means $A$ is a prerequisite for $B$. The scoring cascade walks forward, along the arrows. Eligibility walks backward, against them.
-
-```mermaid
-flowchart LR
-    A["Algebra<br/>prerequisite"] -->|"A unlocks B"| B["Calculus<br/>dependent"]
-    B -.->|"value flows back, lifting A's score"| A
-```
+One convention runs through everything below. An edge $A \to B$ means $A$ is a prerequisite for $B$. The scoring cascade walks forward, along the arrows. Eligibility walks backward, against them
 
 
 # Priority Scoring Algorithm
@@ -101,15 +95,6 @@ The square root is a diminishing-returns guard. Without it, 10 Done partners wou
 Synergies do not chain or cascade the way Hard and Soft edges do. They are depth-1 relationships: only the immediate synergy partners of $n$ contribute to its score, not the partners of those partners. 
 
 There are good conceptual and algorithmic reasons for this. First, not every chain $A \leftrightarrow B \leftrightarrow C$ is meaningful. Take Cooking $\leftrightarrow$ Chemistry $\leftrightarrow$ Pharmacology. Chemistry sharpens your cooking, because you understand why acids, heat, and time matter. Chemistry also deepens your grasp of Pharmacology, since drug mechanisms are fundamentally chemical. But it doesn't follow that Cooking helps Pharmacology, or the reverse. Each link is real, yet the relation isn't transitive: the endpoints don't actually inform each other. 
-
-```mermaid
-flowchart LR
-    K["Cooking"] <--> C["Chemistry"]
-    C <--> P["Pharmacology"]
-    K x-- "no real link" --x P
-```
-
-
 
 The second reason is performance. Helps edges are bidirectional and can form cycles, so cascading along them would either fail to terminate or fall back on path-enumeration that defeats memoization — the problem flagged in the [DAG cascade section](#the-dag-cascade). Keeping synergies at depth 1 sidesteps that entirely.
 

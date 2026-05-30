@@ -1,6 +1,6 @@
 # Features
 
-This document walks you through the UI of Skill Tree and introduces key concepts along the way. By the end you'll know how to use the app, and where to look when you want more depth.
+This document walks you through the UI of Skill Tree and introduces key concepts along the way. By the end you'll know how to use the app, and where to look when you want more depth. All examples use a sandbox dataset derived from my real graph.
 
 # Node Editor
 The Node Editor is where you create new projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. You can access the node editor from anywhere in the app by clicking this icon in the top left corner. 
@@ -198,15 +198,17 @@ You aren't limited to one of each — click the **+** beside a link's title to a
 
 Website links are universal. Obsidian and Google Drive are more niche — they fit my workflow, but I wouldn't expect everyone to share it, so if this ever becomes a "real" app I'll make them optional.
 
-
 # Next Tab
 
-This is the tab the app opens on. If you only ever look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones. 
-
-**[SCREENSHOT: the Next tab showing the ranked suggestion list.]**
+This is the tab the app opens on. If you only ever look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones (these are [containers](#containers)). 
 
 ## The Next Section
-This section answers a single question — *what should I do next?* — with a ranked list of your most worthwhile tasks -- best at the top. 
+
+<p align="center">
+    <img src="../images/next-tab-rankings-table.png" >
+    <br>
+</p>
+
 
 Reading a row from left to right:
 
@@ -214,28 +216,35 @@ Reading a row from left to right:
 |---|---|
 | Rank | The node's place in the ranking — 1 is the top recommendation. |
 | Name | The node's name, with its context · subcontext below. |
-| Bar color | The node type — blue for Learn, orange for Action, purple for Resource (matches the graph). |
+| Bar color | The node type - we'll discuss the meaning of each color in the [visual code](#the-visual-code). |
 | Bar length | Proportional to the priority score. The #1 task is always a full bar; everything else is drawn as a fraction of it. The number at the bar's right end is the score. |
-| Time | Expected duration. |
+| Time | Expected duration, using the intelligent methods discussed in [time](time.md) |
 | Ratings glyph | Three small bars showing your Value, Interest, and Effort ratings, so you can eyeball them without opening the node. |
 | Link dots | Three dots for Obsidian · Drive · Website. A dot lights up when the node has at least one link of that type, regardless of how many. |
 
-Left-click any row to see the node's description beside the table.
+Left-click any row to see the node's description beside the table. Right click it to open the [context menu](#context-menu). 
 
-Only Learn, Action, and Resource nodes appear as suggestions. Goals and Milestones are excluded — you'll complete them naturally by clearing their subtasks.
-
-**Screenshot of the Next Tab with a row clicked**
+Importantly, only Learn, Action, and Resource nodes appear as suggestions. Goals and Milestones are excluded — you'll complete them naturally by clearing their subtasks.
 
 ## The Now Section
 
-At the top of the Next tab sits a small section called **Now,** which contains up to three cards for projects that you've commited to. Each card shows a type-colored accent bar, name, context, and time estimate. A node reaches this section when you turn the now-toggle on in the node editor, or activate it through the [context menu](#context-menu). Once you do that, the node will no longer compete for a slot in the recommendation table, because it has already earned your stamp of approval. If you do not have any active nodes, the Now section dissapears, and only the suggestions table remains. 
+If you have any nodes marked "Now," a small *Now* section appears above the suggestions table.
 
-**[SCREENSHOT: the Next tab with two or three Now cards at the top, above the ranked list.]**
+<p align="center">
+    <img src="../images/next-tab-overview.png" >
+    <br>
+    <em> The whole Next Tab </em>
+</p>
+
+Each card shows a type-colored accent bar, name, context, and time estimate. Once a node graduates to the Now section, it no longer competes for a slot in the recommendation table, because you are already committed to it.
 
 ## Context Menu
-Right-click any node — on this tab or anywhere else a node appears (Nodes, Details, Events) — to open the context menu. The menu is the same everywhere.
+Right-click any node — on this tab or anywhere else a node appears — to open the context menu. The menu is the same everywhere, except the [goals sidebar](#goals-sidebar), which has additional functionality.
 
-**Screenshot of the context menu open**
+<table>
+  <tr>
+    <td valign="top" style="padding-right: 30px;"><img src="../images/context-menu.png" height="300"></td>
+    <td valign="top">
 
 | Option | What it does |
 |---|---|
@@ -248,39 +257,44 @@ Right-click any node — on this tab or anywhere else a node appears (Nodes, Det
 | Done | Toggles Done — marks complete, or re-opens if already Done. |
 | Delete | Deletes the node (with confirmation). |
 
+</td>
+  </tr>
+</table>
+
 # Nodes Tab
 
 Click **Nodes** to see your entire task network as one graph — every node, every edge, all at once. A physics engine arranges it automatically, pulling connected nodes together so related work clusters visually.
 
-**[SCREENSHOT: the full Nodes tab with the graph sprawling out, sidebars collapsed.]**
+<p align="center">
+    <img src="../images/skill-tree-large-network.png">
+    <br>
+    <em> My Entire Network</em>
+</p>
+
+Obviously, there is a lot going on here. We will cover tools for how to work with such a large graph soon.
 
 ## The Visual Code
 
 ### Nodes
 
-Every node's shape and color has meaning.
+Every node's shape and color has meaning. Shape tells you type, and color tells you [state](#state).
 
-| Type | Color | Shape |
-|---|---|---|
-| Goal | Yellow | Star |
-| Learn | Blue | Circle |
-| Action | Orange | Triangle |
-| Resource | Purple | Pentagon |
-| Milestone | Teal | Diamond |
+<p align="center">
+    <img src="../images/node-types.png">
+</p>
 
-The colors above apply only when the node is Open. Done nodes turn green and Blocked nodes turn red, regardless of type. A node turns red on its own — the app blocks it the moment one of its hard prerequisites is unfinished, which is the automatic status cascade described under [State](#state). Dormant nodes don't appear at all unless you reveal them in the Filters sidebar, where they show up transparent to signal they're still asleep.
+Regardless of type, Done nodes are green and Blocked nodes are red. The colors shown in the image above are the default colors for an open node of the indicated type. You can adjust both the shape and color of nodes in [settings](#settings)
 
-One exception to the red rule: Goals are never red. Goals are [containers](#containers) and almost always have incomplete hard tasks, so painting them red would mean every Goal looks blocked all the time — hard to distinguish from work actually waiting on something.
-
-P.S: Don't like these colors and shapes? Adjust them in Settings.
+There is one exception to the rule: goals are never red. Goals are [containers](#containers) that almost always have incomplete hard tasks, so painting them red would mean every Goal looks blocked all the time — hard to distinguish from work actually waiting on something. In the image of the the entire network, you can clearly see the yellow stars on the canvas. That is intentional. Goals should be your north star, in a sense.
 
 ### Edges
 
 [Relationships](#relationships) are encoded with arrows between nodes. From top to bottom, the relationships are hard, soft, and helps. 
 
-
 <p align="center">
   <img src="../images/relationship-types.png" alt="The three relationship types: hard prerequisite, soft prerequisite, and synergy" width="600">
+  <br> 
+  <em> Relationship Types </em>
 </p>
 
 ## Interacting with the Graph
@@ -311,37 +325,49 @@ The canvas supports the usual graph interactions, and they work the same way on 
 ### Graph Layout Controls
 The gear icon in the bottom right corner of the canvas opens the **Graph Settings** panel. It controls how the physics engine arranges the graph. 
 
+<table>
+  <tr>
+    <td valign="top" style="padding-right: 30px;"><img src="../images/graph-settings-close-up.png" ></td>
+    <td valign="top">
+
 | Control | What it does |
 |---|---|
-| Edge Length | The length of the springs between connected nodes. |
-| Gravity | How strongly nodes are pulled toward the center. |
-| Repulsion | How hard nodes push away from each other. |
 | Max Depth | Limit the view to N hops from the selected node. |
 | Neighbors | Show or hide links between the selected node's neighbors. Hiding them leaves a clean subtree radiating from the selection. |
 | Smooth | Animate layout changes instead of snapping. Most elegant for smaller networks. |
 | Freeze | Pause re-layout so hand-placed nodes stay put (see below). |
+| Edge Length | The length of the springs between connected nodes. |
+| Gravity | How strongly nodes are pulled toward the center. |
+| Repulsion | How hard nodes push away from each other. |
 | Settle | Re-run the layout physics to untangle the graph. |
+
+</td>
+  </tr>
+</table>
 
 The **↺** button beside the panel title restores your saved defaults — set per-tab in Settings.
 
-**[SCREENSHOT: the Graph Settings panel.]**
-
-### Lower Right Icons
-
-#### Freeze
-Freeze stops the graph from moving until you turn it off. You'll know it's active because a blue outline surrounds the canvas and a snowflake appears in the top right corner. It's invaluable when editing edges — without it, the graph re-arranges after each change, making it hard to track the nodes you're working on.
+**Freeze** stops the graph from moving until you turn it off. You'll know it's active because a blue outline surrounds the canvas and a snowflake appears in the top right corner. It's invaluable when editing edges, because without it, the graph re-arranges after each change, making it hard to track the nodes you're working on.
 
 Nodes can still be dragged manually while Freeze is on.
 
-#### Fullscreen
+### Fullscreen
 
-The fullscreen button expands the graph to fill the whole window. Marginal on the Nodes tab (already nearly fullscreen), but helpful on Details and Events. Hit the button again or press Escape to exit.
+The fullscreen button in the bottom right corner, next to the graph settings button, expands the canvas to fill the whole window. Marginal on the Nodes tab (already nearly fullscreen), but helpful on Details and Events. Hit the button again or press Escape to exit.
 
 ## Helpful Features for Large Networks
-The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. You've already seen one tool for taming it: the Max Depth parameter, which carves a local graph around the active node. Three more are coming up next — Locate, Filters, and the Details tab itself.
+The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. You've already seen one tool for taming it: the Max Depth parameter, which carves a local graph around the active node. Three more useful ways to tame the complexity — Locate, Filters, and the Details tab itself.
 
 ## Locate
-The Search box at the top of the Node Editor finds any node by name or alias. Once you pick one from the dropdown, the **crosshair** button next to the search bar lights up — click it to briefly enlarge and highlight the node on the canvas. From there it's one step to the local graph, the Details tab, or whatever else you need.
+
+Now its time to talk about what the crosshair button next to the [search](#search-bar) in the [node editor](#node-editor) does. Clicking this button briefly enlarges and highlights the selected node on the canvas, making it easy to spot.
+
+<p align="center">
+  <img src="../images/locate-feature.png" width="400">
+  <br>
+  <em> Locate feature active. Node returns to normal size after a few seconds. </em>
+</p>
+
 
 # Filters Sidebar
 
