@@ -1,71 +1,79 @@
 # Features
 
-A tour through every tab, sidebar, and feature of Skill Tree. By the end you'll know how to use the app, and where to look when you want more depth.
+This document walks you through the UI of Skill Tree and introduces key concepts along the way. By the end you'll know how to use the app, and where to look when you want more depth.
 
 # Node Editor
 The Node Editor is where you create new projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. You can access the node editor from anywhere in the app by clicking this icon in the top left corner. 
 
 <p align="center">
 <img src="../images/node-editor-icon.png" alt="The node editor icon in the top-left corner">
-<p>
+<br>
+</p>
 
 ## General Section
-
-<img src="../images/node-editor-general-section.png" alt="Node editor general section" align="left" height="400" style="margin: 0 25px 10px 0;">
-
+<img src="../images/node-editor-general-section.png" alt="Node editor general section" align="left" height="400" style="margin: 10px 25px 25px 0;">
 
 ### Search Bar
+As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. 
+
+Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. We'll cover what it does in full [later](#search--locate).
+
 ### Names
-A node's name is how you identify it, find it, and reference it from other nodes. There are a couple things to know about names in Skill Tree. 
+A node's name is how you find it (using the search bar) and reference it from other nodes (to create relationships). **Each name in Skill Tree must be unique.** Type a name that matches another — exactly, or after stripping connector words like *the,* *of,* and *is* — and the editor surfaces a *duplicate warning*. Unique doesn't have to mean singular, though. 
 
-**Each name must be unique.** Type a name that matches another — exactly, or after stripping connector words like *the,* *of,* and *is* — and the editor surfaces a *duplicate warning,* so you can rename or merge the two nodes. 
-
-Unique doesn't have to mean singular, though. 
-
-**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. I, for example, had a book in my graph called *4000 Weeks,* that I'd sometimes search for as *Four Thousand Weeks;* with the alias feature on, both work.  
-
-One last quality of life feature: the **name linter** retitles nodes to Title Case on save, ignoring the same connector words as the duplicate check. You can turn it off in Settings if you'd rather control casing yourself.
-
-**Screenshot: the Names section of the node editor, showing the name field, a duplicate warning, and the alias list.**
+**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. For example, I had a book in my graph called *4000 Weeks* that I'd sometimes search for as *Four Thousand Weeks.* With the alias feature on, both work. Add an alias by clicking the dropdown menu next to the name field.
 
 ### Node Type
-There are five node types in Skill Tree. Each behaves differently under the hood. Picking the right one matters more than it sounds — the [modeling guide](modeling.md) has the full decision tree for choosing the right node type. For now, just know that you control this attribute through the node editor.
+There are five node types in Skill Tree. Each answers a different question that guides your project.
 
-**[SCREENSHOT: the five node types side by side on a neutral background, each labeled — yellow star Goal, blue circle Learn, orange triangle Action, purple pentagon Resource, orange diamond Milestone.]**
+| Type | Core Question |
+|---|---|
+| **Learn** | What do I want to understand? |
+| **Action** | What do I want to do? |
+| **Resource** | What do I want to consume? |
+| **Goal** | What domain or capacity am I developing? |
+| **Milestone** | What measurable benchmark do I want to hit? |
+
+Each type also behaves differently under the hood, so picking the right one matters more than it sounds. The [modeling guide](modeling.md) has the full decision tree for choosing between them. For now, just know that you set the type here, in the node editor.
 
 ### Description
-A space for notes to your future self — scope, motivation, and anything else worth remembering. Whatever you write surfaces alongside the recommendations on the Next tab and in the node information panel on the Details tab.
+A space for notes to your future self — scope, motivation, and anything else worth remembering. Whatever you write surfaces alongside the recommendations on the Next tab, and in the node information panel on the Details tab.
 
 ### Context
 
-Every project belongs to a context, and optionally a subcontext. Contexts do three things for you: they power the filters that let you carve up the graph, they drive the per-context views on the Analyze tab, and they shape your recommendations.
+Every project belongs to a context (and optionally, a subcontext). Contexts do three things for you: they power the filters that let you examine sub-graphs, they drive the per-context views on the Analyze tab, and they shape your recommendations by influencing [scoring.md](scoring.md).
 
-Two scoring effects are worth knowing. The algorithm penalizes dense contexts, so a heavily-decomposed area doesn't crowd out sparser ones just by sheer node count. And under the Creator and Explorer scoring profiles, cross-context synergies are amplified — a nod to the nature of inspiration and curiosity. 
+The taxonomy below is the one I use. The goal is not philosophical elegance, but a pragmatic classification system that makes it clear where each project should go. You, of course, probably want a different system.
 
-Read [`scoring.md`](scoring.md) for a detailed walkthrough about how project ranking works.
-
-**Diagram: an SVG visualization of how contexts and subcontexts partition the graph into life areas.**
-
-<!-- META (from an earlier draft): trim the content below? -->
-
-<br clear="left">
+<p align="center">
+  <img src="../images/skill_tree_context_taxonomy.svg" alt="The eight contexts and their subcontexts that I use to organize my graph" width="600">
+  <br>
+  <em>The eight contexts I use to organize my graph.</em>
+</p>
 
 ## Status
+The Status section of the node editor has three toggles: **Now**, **Done**, and **Dormant**.
 
-The Status section of the node editor has three toggles: **Now**, **Done**, and **Dormant**. Each is also surfaced in the right-click context menu, so you can flip a node's state from anywhere it appears.
+<p align="center">
+  <img src="../images/node-editor-status-section.png" alt="Node Editor status section" width="300">
+  <br>
+</p>
 
 | Toggle | What it does |
 |---|---|
-| Now | Flags the node as one of your currently-active projects. "Now" nodes get pulled out of the priority ranked list on the Next tab, and gain an amber outline on the canvas. See [The Now Section](#the-now-section). |
-| Done | Marks the node complete. Will unblock and downstream work that was hidden behind a hard edge. |
-| Dormant | Puts the node into hibernation until an Event wakes it up. Since a dormant node without an Event almost always gets lost, flipping this toggle on opens an **Add to Event** modal where you can bind the node to an existing event, or create a new one. See [Events](#events). |
-
-**SCREENSHOT: the Add to Event modal that opens when Dormant is toggled on**
-
+| Now | Flags the node as one of your currently-active projects. |
+| Done | Marks the node complete. May unblock downstream work, depending its [relationships](#relationships).|
+| Dormant | Puts the node into hibernation until an [event](#eventst) wakes it up. Since a dormant node without an Event almost always gets lost, flipping this toggle opens an **Add to Event** modal where you can bind the node to an existing event, or create a new one. |
 
 
 ## Ratings
-Value, interest, and effort are collectively the **Ratings**. Score each on a 1–10 scale, and the algorithm uses them to recommend work with the highest return on investment.
+Value, interest, and effort are collectively called **Ratings**. Score each on a 1–10 scale, and the algorithm uses them to recommend work with the highest return on investment (along with other factors).
+
+
+<table>
+  <tr>
+    <td valign="top"><img src="../images/node-editor-ratings-section.png" alt="Node editor ratings section" width="750"></td>
+    <td valign="top">
 
 | Rating | Meaning |
 |---|---|
@@ -73,14 +81,26 @@ Value, interest, and effort are collectively the **Ratings**. Score each on a 1�
 | Interest | How much you enjoy the work itself |
 | Effort | How hard the task is |
 
-**SCREENSHOT: Ratings Sliders**
+<br>
 
-Their relative weight isn't fixed. [Scoring profiles](scoring.md#scoring-profiles) let you lean into curiosity (Interest first), ambition (Value first), or whatever fits the mood — more on those later. For the underlying math, see [scoring](scoring.md).
+Their relative weight isn't fixed. [Scoring profiles](scoring.md#scoring-profiles) let you lean into curiosity (Interest first), ambition (Value first), or whatever fits the mood — more on those later.
+
+</td>
+  </tr>
+</table>
+
+### Ratings Toggles
+Above the sliders sit two toggles.
+
+**Inherit** turns the node into a pure container. Its value, interest, and effort stop being its own and instead flow up from its children. Reach for it when a node exists only to group other work, not as a project in its own right. [Containers](#containers) covers this in depth.
+
+**Override** manually boosts a node's priority, pinning it near the top of the Next tab no matter what it scores. Click the toggle for scope options. It's the escape hatch for when you know something matters more than the algorithm thinks.
 
 ### Ratings Table
 In order to standardize the rating process, there is a table that describes what each rating means. Open it by clicking the info icon next to the Ratings header in the Node Editor. Every cell is editable, so you can personalize your experience over time. 
 
-**SCREENSHOT: NODE RATING TABLE**
+<img src="../images/node-editor-ratings-table.png" alt="Node editor ratings table" >
+
 
 ## Time
 Time estimation is the most valuable thing in project management to get right — and the hardest. An entire [document](time.md) walks through how Skill Tree solves it. For here, the short version: you can estimate a project's duration with one, two, or three inputs. The more you provide, the better the result.
@@ -648,7 +668,9 @@ flowchart LR
     class R,S,T,M other
 ```
 
-[README](../README.md) · **Features** · [Scoring](scoring.md) · [Time](time.md) · [Modeling](modeling.md)
+<p align="center">
+  <a href="../README.md">README</a> · <b>Features</b> · <a href="scoring.md">Scoring</a> · <a href="time.md">Time</a> · <a href="modeling.md">Modeling</a>
+</p>
 
 ## Other Resources
 

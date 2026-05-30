@@ -10,7 +10,6 @@ flowchart LR
     B -.->|"value flows back, lifting A's score"| A
 ```
 
-*Read the arrow as "A unlocks B." B's value flows back to lift A's score; eligibility runs the other way — B stays Blocked until A is Done.*
 
 # Priority Scoring Algorithm
 ## Overview
@@ -110,7 +109,7 @@ flowchart LR
     K x-- "no real link" --x P
 ```
 
-*Both synergies are genuine, but Cooking and Pharmacology never connect — so a node's synergy value stops at its immediate partners.*
+
 
 The second reason is performance. Helps edges are bidirectional and can form cycles, so cascading along them would either fail to terminate or fall back on path-enumeration that defeats memoization — the problem flagged in the [DAG cascade section](#the-dag-cascade). Keeping synergies at depth 1 sidesteps that entirely.
 
@@ -483,7 +482,9 @@ flowchart LR
     class R,F,T,M other
 ```
 
-[README](../README.md) · [Features](features.md) · **Scoring** · [Time](time.md) · [Modeling](modeling.md)
+<p align="center">
+  <a href="../README.md">README</a> · <a href="features.md">Features</a> · <b>Scoring</b> · <a href="time.md">Time</a> · <a href="modeling.md">Modeling</a>
+</p>
 
 ## Other Resources
 

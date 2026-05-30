@@ -205,7 +205,9 @@ flowchart LR
     class R,F,S,M other
 ```
 
-[README](../README.md) · [Features](features.md) · [Scoring](scoring.md) · **Time** · [Modeling](modeling.md)
+<p align="center">
+  <a href="../README.md">README</a> · <a href="features.md">Features</a> · <a href="scoring.md">Scoring</a> · <b>Time</b> · <a href="modeling.md">Modeling</a>
+</p>
 
 ## Other Resources
 

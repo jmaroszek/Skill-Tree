@@ -90,6 +90,8 @@ flowchart LR
     class F,S,T,M other
 ```
 
-**README** · [Features](docs/features.md) · [Scoring](docs/scoring.md) · [Time](docs/time.md) · [Modeling](docs/modeling.md)
+<p align="center">
+  <b>README</b> · <a href="docs/features.md">Features</a> · <a href="docs/scoring.md">Scoring</a> · <a href="docs/time.md">Time</a> · <a href="docs/modeling.md">Modeling</a>
+</p>
 
 Follow the path at the footer of each page, and by the end, you will know how to use Skill Tree, and why it works the way it does.
