@@ -646,11 +646,9 @@ flowchart LR
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
     class F current
     class R,S,T,M other
-    click R "../README.md"
-    click S "scoring.md"
-    click T "time.md"
-    click M "modeling.md"
 ```
+
+[README](../README.md) · **Features** · [Scoring](scoring.md) · [Time](time.md) · [Modeling](modeling.md)
 
 ## Other Resources
 

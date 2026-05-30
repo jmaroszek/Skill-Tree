@@ -474,7 +474,6 @@ Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{
 
 # Navigation
 ## Tutorial
-Each cell is clickable.
 ```mermaid
 flowchart LR
     R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
@@ -482,11 +481,9 @@ flowchart LR
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
     class S current
     class R,F,T,M other
-    click R "../README.md"
-    click F "features.md"
-    click T "time.md"
-    click M "modeling.md"
 ```
+
+[README](../README.md) · [Features](features.md) · **Scoring** · [Time](time.md) · [Modeling](modeling.md)
 
 ## Other Resources
 

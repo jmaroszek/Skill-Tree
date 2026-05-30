@@ -188,7 +188,6 @@ After using Skill Tree for a while, I noticed patterns that made my modeling les
 
 # Navigation
 ## Tutorial
-Each cell is clickable.
 ```mermaid
 flowchart LR
     R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
@@ -196,11 +195,9 @@ flowchart LR
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
     class M current
     class R,F,S,T other
-    click R "../README.md"
-    click F "features.md"
-    click S "scoring.md"
-    click T "time.md"
 ```
+
+[README](../README.md) · [Features](features.md) · [Scoring](scoring.md) · [Time](time.md) · **Modeling**
 
 ## Other Resources
 

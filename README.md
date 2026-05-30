@@ -88,12 +88,8 @@ flowchart LR
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
     class R current
     class F,S,T,M other
-    click F "docs/features.md"
-    click S "docs/scoring.md"
-    click T "docs/time.md"
-    click M "docs/modeling.md"
 ```
 
-Follow the path at the footer of each page, and by the end, you will know how to use Skill Tree, and why it works the way it does.
+**README** · [Features](docs/features.md) · [Scoring](docs/scoring.md) · [Time](docs/time.md) · [Modeling](docs/modeling.md)
 
-P.S. notice that each cell in the diagram above is clickable!
+Follow the path at the footer of each page, and by the end, you will know how to use Skill Tree, and why it works the way it does.

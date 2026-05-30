@@ -196,7 +196,6 @@ Each of these would be tractable to add, but each would require more input from 
 
 # Navigation
 ## Tutorial
-Each cell is clickable.
 ```mermaid
 flowchart LR
     R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
@@ -204,11 +203,9 @@ flowchart LR
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
     class T current
     class R,F,S,M other
-    click R "../README.md"
-    click F "features.md"
-    click S "scoring.md"
-    click M "modeling.md"
 ```
+
+[README](../README.md) · [Features](features.md) · [Scoring](scoring.md) · **Time** · [Modeling](modeling.md)
 
 ## Other Resources
 
