@@ -537,10 +537,11 @@ Most node types — Learn, Action, and Resource — are ranked by the algorithm 
 
 Open the sidebar from the star icon in the top-left. 
 
-<table>
-  <tr>
-    <td valign="top" width="200" style="padding-right: 30px;"><img src="../images/goals-sidebar.png" alt="The goals sidebar" width="200"></td>
-    <td valign="top">
+<p align="center">
+  <img src="../images/goals-sidebar.png" alt="The goals sidebar" width="200">
+  <br>
+  <em> Sandbox Goal Sidebar </em>
+</p>
 
 The **+** next to the "Goals" header creates a new Goal and opens it in the node editor. You can search for existing goals underneath that. The goals auto-filter as you type. But if you want to sort goals by specific criteria, you can do that too. The row below the search bar contains a dropdown menu with three modes, each having a unique effect and appearance:
 
@@ -550,9 +551,6 @@ The **+** next to the "Goals" header creates a new Goal and opens it in the node
 | Time | Longest projects first, shortest projects last. Scroll to the top or bottom to see the extremes.|
 | Manual | A custom order you set by dragging the cards. The drag handle appears on each card whenever this mode is active. |
 | Alphabetical | A→Z by name. |
-</td>
-  </tr>
-</table>
 
 
 ## Setting Priority Goals
