@@ -14,7 +14,7 @@ The Node Editor is where you create new projects and update existing ones. It is
 <img src="../images/node-editor-general-section.png" alt="Node editor general section" align="left" height="400" style="margin: 10px 25px 25px 0;">
 
 ### Search Bar
-As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. We'll cover what it does in full [later](#search--locate).
+As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. We'll cover what it does in full [later](#locate).
 
 ### Names
 A node's name is how you find it (using the search bar) and reference it from other nodes (to create relationships). **Each name in Skill Tree must be unique.** Type a name that matches another — exactly, or after stripping connector words like *the,* *of,* and *is* — and the editor surfaces a *duplicate warning*. Unique doesn't have to mean singular, though. 
@@ -61,8 +61,8 @@ The Status section of the node editor has three toggles: **Now**, **Done**, and 
 | Toggle | What it does |
 |---|---|
 | Now | Flags the node as one of your currently-active projects. |
-| Done | Marks the node complete. May unblock downstream work, depending its [relationships](#relationships).|
-| Dormant | Puts the node into hibernation until an [event](#eventst) wakes it up. Since a dormant node without an Event almost always gets lost, flipping this toggle opens an **Add to Event** modal where you can bind the node to an existing event, or create a new one. |
+| Done | Marks the node complete. May unblock downstream work, depending on its [relationships](#relationships). |
+| Dormant | Puts the node into hibernation until an [event](#events) wakes it up. Since a dormant node without an Event almost always gets lost, flipping this toggle opens an **Add to Event** modal where you can bind the node to an existing event, or create a new one. |
 
 
 ## Ratings
@@ -227,7 +227,7 @@ Reading a row from left to right:
 | Ratings glyph | Three small bars showing your Value, Interest, and Effort ratings, so you can eyeball them without opening the node. |
 | Link dots | Three dots for Obsidian · Drive · Website. A dot lights up when the node has at least one link of that type, regardless of how many. |
 
-Left-click any row to see the node's description beside the table. Right click it to open the [context menu](#context-menu). 
+Left-click any row to see the node's description beside the table. Right-click it to open the [context menu](#context-menu).
 
 Importantly, only Learn, Action, and Resource nodes appear as suggestions. Goals and Milestones are excluded — you'll complete them naturally by clearing their subtasks.
 
@@ -290,9 +290,9 @@ Every node's shape and color has meaning. Shape tells you type, and color tells 
     <em> The five node types and their default shapes. </em>
 </p>
 
-Regardless of type, Done nodes are green and Blocked nodes are red. The colors shown in the image above are the default colors for an open node of the indicated type. You can adjust both the shape and color of nodes in [settings](#settings)
+Regardless of type, Done nodes are green and Blocked nodes are red. The colors shown in the image above are the default colors for an open node of the indicated type. You can adjust both the shape and color of nodes in [settings](#settings).
 
-There is one exception to the rule: goals are never red. Goals are [containers](#containers) that almost always have incomplete hard tasks, so painting them red would mean every Goal looks blocked all the time — hard to distinguish from work actually waiting on something. In the image of the the entire network, you can clearly see the yellow stars on the canvas. That is intentional. Goals should be your north star, in a sense.
+There is one exception to the rule: goals are never red. Goals are [containers](#containers) that almost always have incomplete hard tasks, so painting them red would mean every Goal looks blocked all the time — hard to distinguish from work actually waiting on something. In the image of the entire network, you can clearly see the yellow stars on the canvas. That is intentional. Goals should be your north star, in a sense.
 
 ### Edges
 
@@ -367,7 +367,7 @@ The Nodes tab works fine for small networks — say 250 nodes or fewer. Past tha
 
 ## Locate
 
-Now its time to talk about what the crosshair button next to the [search](#search-bar) in the [node editor](#node-editor) does. Clicking this button briefly enlarges and highlights the selected node on the canvas, making it easy to spot.
+Now it's time to talk about what the crosshair button next to the [search](#search-bar) in the [node editor](#node-editor) does. Clicking this button briefly enlarges and highlights the selected node on the canvas, making it easy to spot.
 
 <p align="center">
   <img src="../images/locate-feature.png" width="400">
@@ -494,7 +494,7 @@ Hit **Clear Focus** at the top of the canvas to exit.
 ## Subtasks Panel
 The Subtasks table in the lower-left lists every node in the dependency subtree. 
 
-Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Next tab. Blocked and Done nodes have no priority since they're not [eligible](#eligibility) for ranking.
+Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Next tab. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
 
 <p align="center">
   <img src="../images/details-stoicism.png">
@@ -569,7 +569,7 @@ The **+** next to the "Goals" header creates a new Goal and opens it in the node
     <td valign="top" style="padding-right: 30px;"><img src="../images/goals-context-menu.png" alt="The goals context menu" width="1000"></td>
     <td valign="top">
 
-Your top three Goals are the **Priority Goals** — the ones the algorithm boosts. The most direct way to set them is the through the context menu. Right click a card, and a new "set priority" option appears. You can also set a goal's priority through the node editor through a field that appears only for goal-type nodes
+Your top three Goals are the **Priority Goals** — the ones the algorithm boosts. The most direct way to set them is through the context menu. Right-click a card, and a new "set priority" option appears. You can also set a goal's priority through the node editor using a field that appears only for goal-type nodes.
 
 </td>
   </tr>
@@ -799,7 +799,7 @@ Feel free to experiment with alternative settings because all the major operatio
 <p align="center">
   <img src="../images/settings-appearance-tab.png" width=400>
   <br>
-  <em> Settings Appearance Tab. Others tabs have a similiar style </em>
+  <em> Settings Appearance Tab. Other tabs have a similar style. </em>
 </p>
 
 # Navigation

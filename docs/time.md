@@ -82,19 +82,26 @@ In Skill Tree, this formula is only the baseline. Human time-estimation is non-l
 
 The logarithmic version keeps the same $1{:}4{:}1$ weighting. The difference is that it is symmetric in multiplicative space. It carries the same advantage over arithmetic PERT that the geometric mean carries over the arithmetic mean.
 
-$$ \bar{t}_{\text{log}} = \exp\!\left(\frac{\log l + 4 \log m + \log u}{6}\right) $$
+$$
+\bar{t}_{\text{log}} = \exp\left(\frac{\log l + 4 \log m + \log u}{6}\right)
+$$
 
 ## Blended PERT
 
 Blended PERT is a weighted average of the two: the arithmetic PERT mean and its logarithmic counterpart. The blend tilts between them according to the **uncertainty ratio** $r = u/l$. This ratio is a compact measure of how unsure the user is. A small $r$ means tight, confident estimates. A large $r$ means deep uncertainty.
 
-$$ w(r) = \begin{cases} 0 & \text{if } r \le 2 \\[4pt] \dfrac{\log r - \log 2}{\log 10 - \log 2} & \text{if } 2 < r < 10 \\[8pt] 1 & \text{if } r \ge 10 \end{cases} $$
+$$
+w(r) =
+\begin{cases}
+0 & \text{if } r \le 2 \\
+\dfrac{\log r - \log 2}{\log 10 - \log 2} & \text{if } 2 < r < 10 \\
+1 & \text{if } r \ge 10
+\end{cases}
+$$
 
 The final estimate is the weighted average:
 
 $$ t(n) = (1 - w(r)) \cdot \bar{t}_{\text{arith}} + w(r) \cdot \bar{t}_{\text{log}} $$
-
-**Diagram: the blend weight $w(r)$ plotted against the uncertainty ratio $r$ on a log axis — flat at 0 until $r = 2$, climbing smoothly, and pinned at 1 once $r \ge 10$.**
 
 ## The Statistical Bridge: Beta and Log-Normal
 
@@ -148,8 +155,6 @@ The result is just a number of hours. It feeds the score, the ranking, and the s
 # Monte Carlo Simulation
 
 The blended estimate gives one number per node. That is enough to rank tasks, but not enough to answer a question like "if I commit to this Goal today, how long until I finish?" The Monte Carlo simulator in [`simulation.py`](../simulation.py) answers it. It keeps the underlying PERT distribution intact and draws thousands of samples across the full prerequisite chain. The result is an empirical distribution for the whole project, shown on the Details Tab. The panel plots it as a histogram marked with the $P_{10}, P_{50}, P_{90}$ percentiles. Now the user can say "I'm 90% confident this will take less than 200 hours," instead of trusting a single fragile point estimate.
-
-**Screenshot: the Time Simulation histogram on the Details tab, with the P10, P50, and P90 lines marked.**
 
 ## PERT-Beta Sampling
 

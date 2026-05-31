@@ -70,8 +70,6 @@ Choosing the right node type is half the battle. The other half is choosing the 
 
 Skill Tree's job is to tell you which project deserves your attention this month — not to track every step within it.
 
-**Diagram: the same project modeled three ways — one giant monolithic node, a sprawl of tiny micro-nodes, and the clean mid-sized tree that sits between them.**
-
 ### When Nodes Are Too Big
 A single node that says *Master Cooking* or *Start a Blog* is too open-ended. A monolithic node should carry a massive time estimate, which compresses its ROI score ($\text{Value} / \text{Cost}$) and sinks it to the bottom of your suggestion list. Worse, it defeats the whole point of Skill Tree, which is to help you sequence your work.
 
@@ -89,7 +87,10 @@ In essence, if managing a task in Skill Tree — estimating time, setting rating
 ### When Nodes Are Just Right
 The sweet spot applies **divide and conquer** to build a clean, hierarchical tree of relatively independent elements.
 
-[the four bullets — Workload-Based Leaf Nodes, Rule of Three, Target Independence, Divide to Learn — unchanged]
+* **Workload-Based Leaf Nodes**: Each leaf node should represent a meaningful but manageable chunk of effort. For me, this is several weeks of work, but you may choose a different unit if you want.
+* **The Rule of Three**: For complex or unfamiliar domains, aim for three levels of abstraction and three children per parent. This limits your tree to 27 leaves, meaning you never focus on more than 4% of the problem at once. This constraint aids focus, forces priority, and prevents scope creep.
+* **Target Independence**: Divide your goals into sub-problems that are as independent as possible. Independence allows you to parallelize work or switch tasks flexibly without breaking other dependencies.
+* **Divide to Learn**: If you know nothing about a domain, guess. Deconstruct the problem as best as your current intuition allows; methodically working through even a flawed division will teach you enough to restructure the tree intelligently later.
 
 ### Leveraging Containers to Manage Abstraction
 When you have a group of related topics or materials you want to track individually, don't chain them together with endless Soft or Hard links. That creates clutter and dilutes priority scores. Use a **container** instead, grouping them under a single parent. A container is a node that inherits its ratings or time estimate from its children — the nodes that point to it.
@@ -162,8 +163,6 @@ After using Skill Tree for a while, I noticed patterns that made my modeling les
 | **Spiderwebs** | A dense mesh of criss-crossing edges within a single context | Visual clutter; less meaningful priority scores | Build clean, hierarchical relationships using containers and thoughtful edges. Topical relatedness does not deserve an edge. Use contexts and subcontexts for high-level grouping. |
 | **Indefinite Actions** | An Action node representing a permanent habit (e.g., Exercise, Meditate, Read). | Action nodes are meant to be completed. A habit, one that is truly never done, will either sit on your list indefinitely, or may have its Done state reversed (if you ever stop doing the habit) | Model starting and stopping habits as fixed-period experiments (e.g., "6-Week Running Protocol", or "Fast 3 hours before bed"). After completing the experiment, mark it as Done, and reflect on whether you want to keep the habit. |
 
-**Diagram: a tangled "spiderweb" of criss-crossing edges within one context, beside the same nodes reorganized into a clean hierarchy under a container.**
-
 # Navigation
 ## Tutorial
 ```mermaid
@@ -192,9 +191,6 @@ flowchart LR
 |---|---|
 | [graph_manager.py](../graph_manager.py) | Edge creation, cycle detection, and the status cascade that the rules in this guide rely on. |
 | [app_architecture.md](app_architecture.md) | How the graph you build flows through the app, from mutation to re-rank. |
-
-
-
 
 
 
