@@ -566,7 +566,6 @@ Your top three Goals are the **Priority Goals** — the ones the algorithm boost
   </tr>
 </table>
 
-
 # Events
 Events let you plan for the future without cluttering today. Some things genuinely matter, but you don't want to think about them yet.
 
@@ -576,10 +575,7 @@ Sometimes the right moment isn't a date but a milestone. Maybe you'd like to tra
 
 And sometimes there's no condition at all, just a decision you haven't made yet. *Write a Book* is exactly that — an event with no date and no prerequisite, waiting quietly until you personally decide you're ready to commit.
 
-In every one of these cases, the tasks bundled inside the event sit out of sight until it triggers. The app has a name for tasks in that state.
-
-## Dormant Nodes
-A dormant node isn't shown on the canvas or scored by the algorithm. It's in hibernation until its Event triggers.
+In every one of these cases, the tasks bundled inside the event sit out of sight until it triggers. The app has a name for tasks in that state: **dormant nodes.** A dormant node isn't shown on the canvas or scored by the algorithm. It's in hibernation until its Event triggers.
 
 ## Trigger Types
 Every Event has a trigger — the rule that decides when its dormant nodes wake up.
@@ -595,9 +591,19 @@ Date and Node-Completion events keep their **Trigger** button too, so you can al
 ## The Events Tab
 The Events tab is where you create, edit, and trigger events. Unlike the other tabs, it can't function on its own — it needs an event loaded, and the only way to load one is through the Events sidebar. The tab's empty state knows this, and offers an **Open Events Sidebar** button to get you started.
 
-**[SCREENSHOT: the Events tab's empty state with the "Open Events Sidebar" button visible.]**
+<p align="center">
+  <img src="../images/events-empty.png">
+  <br>
+  <em> Empty Events tab </em>
+</p>
 
 Once an event is loaded, the tab splits in two: the **Event Editor** on the left and the **Event Canvas** on the right.
+
+<p align="center">
+  <img src="../images/events-full.png">
+  <br>
+  <em>Events tab with an event loaded. </em>
+</p>
 
 ### Events Sidebar
 Open the sidebar from the calendar icon in the top-left, or via the empty-state button on the Events tab. The sidebar lists every event as a card showing its name, a description preview, trigger info, and a node count.
@@ -613,6 +619,7 @@ Three controls sit at the top:
 The **+** next to the "Events" header creates a new event from scratch. Click any card to load it into the tab.
 
 ### Event Editor
+
 The left panel is a straightforward form. At the top: the event **name** with **Save** and **Delete** buttons. Below: a **Description**, a **Trigger Type** selector (which reveals a date picker, a node dropdown, or nothing depending on your choice), and the **Dormant Nodes** table.
 
 The Dormant Nodes table lists every task waiting on this event. Each row shows the node's name, type, **activation delay** (a per-node grace period — the node wakes up N days after the event triggers, not immediately), and its current status. The **+** above the table opens a modal for adding a new dormant node (create or link). The pencil and **×** on each row edit or remove a node. The checkbox on each row feeds the manual trigger flow.
@@ -623,94 +630,18 @@ The **Trigger** button fires the event manually. It opens a confirmation modal w
 The right side of the tab shows a mini-graph of the selected event's dormant nodes and how they connect to each other and to the live graph. It carries the same gear and fullscreen controls as the other canvases — a quick sanity check that the dormant cluster is wired up the way you intended before it goes live.
 
 ## Event Announcements
-When an event triggers — automatically (a date arrives, a node is completed) or because you clicked **Trigger** — an **Announcements modal** pops up the next time you open the app, confirming what just woke up and which nodes were activated or scheduled. A gentle nudge rather than a silent change, so you always know when the graph has shifted under you.
+When an event triggers — automatically (a date arrives, a node is completed) or because you clicked **Trigger** — an **Announcements** pops up the next time you open the app, confirming what just woke up and which nodes were activated or scheduled. 
 
-# Analyze Tab
-
-The Analyze tab gives you a bird's eye view of your entire network -- goal progress, time allocation, structural patterns, and more. The charts are diagnostic: they help you catch mistakes early and avoid spending time unwisely.
-
-## The Overview Strip
-
-At the top, an Overview strip summarizes the current non-dormant graph
-
-**[SCREENSHOT: the Overview strip across the top of the Analyze tab with all five tiles visible.]**
-
-## Goals
-The Goals section puts two views side by side. Importantly, goals are ranked by priority score. The algorithm used for ranking is the same one as the Goals Sidebar priority ranking dropdown. You can learn about this mechanism in [scoring](scoring.md). 
-
-There is a small gear icon by the section title that allows you to control how many goals are shown. 
-
-**Completion** (left) shows each Goal's hard-prerequisite progress as a stacked horizontal bar — Done work in green, remaining work in faint gray. As with every chart on the Analyze Tab, there is a helpful tooltip that shows up when you mouse over a graph element.
-
-**Screenshot: the Completion chart — one stacked horizontal bar per Goal, Done work in green against the remaining work in gray.**
-
-**Shared Prerequisites** (right) is a heatmap over those same Goals, counting their shared hard and soft prerequisites. Bright cells mean two Goals draw from the same body of work — a sign they share foundational skills. You might want to work on these tasks to "double dip."
-
-**Screenshot: the Shared Prerequisites heatmap, with bright cells where two Goals draw on the same prerequisites.**
-
-The gear icon by the section title opens display-limit control for how many top-ranked Goals to render. 
-
-## Contexts
-
-The Contexts section puts three views in one row, each asking a different question: where your time goes, what you expect your work to feel like, and what it actually feels like after you've done it (for this last part, see the [reflection feature](#reflection)). All three visualizations share the same context order, so you can read straight across.
-
-**Hours by Context** (left). One horizontal stacked bar per context; each segment is a subcontext. Hover a segment for its name, node count, and estimated time.
-
-**[SCREENSHOT: Hours by Context bar chart.]**
-
-**Ratings by Context** (middle) — average Value, Interest, and Effort across the live nodes in each context. 
-
-**[SCREENSHOT: Ratings by Context chart.]**
-
-**Reflection Drift by Context** (right) — the same three dimensions, but the *average change* between your original rating and your post-reflection rating. Red cells mean you overrated the work going in; blue cells mean you underrated it.
-
-## Time Estimation Accuracy
-
-When you mark a node Done and complete a [reflection](#reflection), the actual time gets captured alongside your original estimate. These two charts compare them.
-
-**By Node** is a scatter plot with a dashed *y = x* reference line. Each dot is one completed node. Points above the line took longer than expected. Each point below the line was completed faster than expected. Colors are node types, so you can spot whether one type — usually Learn — drifts above the line more than the others.
-
-**Screenshot: the By Node accuracy scatter plot, each dot a completed node against the dashed y = x reference line.**
-
-**By Context** rolls those same ratios up into one box plot per context. A box to the right of the 1× line means that context's tasks routinely take longer than you expect; a box to the left means they don't take as long.
-
-**Screenshot: the By Context box plot, one box per context against the 1× estimate line.**
-
-## Throughput
-
-The Throughput chart shows hours of completed work per calendar bucket, stacked by context. The gear icon opens three controls: **Granularity** (months, quarters, or years) and **Start / End date** to clip the range. The defaults — quarterly buckets covering the full range of your time with Skill Tree -- works for most usese. Use the gear when you want to zoom in.
-
-**[SCREENSHOT: the Throughput gear popover open, showing the Granularity dropdown and the Start / End date inputs.]**
-
-**[SCREENSHOT: the Throughput stacked bar chart with a hover tooltip open on one segment, showing the context name, hours, and the top-five completed nodes.]**
-
-Where Hours-by-Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
-
-## Graph Structure
-
-The Graph Structure section answers two structural questions about your network, side by side. The gear icon controls how many nodes each chart shows.
-
-**Bottleneck** ranks nodes by the number of nodes they unlock (through hard edges). The chart distinguishes direct unlocks from the downstream cascade. The colors of the bars show the status, allowing you to separate "high leverage and available" (not red) from "high leverage but waiting on something else" (red). A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole chains become eligible, and the Next tab has better candidates to choose from.
-
-**Screenshot: the Bottleneck chart — nodes ranked by how many others they unlock, with bar color showing status.**
-
-**Hub Nodes** ranks nodes by how integrated they are — concepts with prerequisites feeding in *and* dependents flowing out. The score is calculated as the geometric mean of incoming and outgoing prerequisite edge counts (over Hard and Soft needs), plus a half-point bonus for each synergy partner (Helps edges). Because the prerequisite component drops to zero for pure roots (no prerequisites) and pure leaves (no dependents), this chart surfaces the connective concepts that tie the rest of your graph together. 
-
-**Screenshot: the Hub Nodes chart, ranking the most connected concepts that tie the graph together.**
-
-Where Bottleneck asks *what unlocks the most?*, Hub asks *what is most central to my understanding?*
 
 # Reflection
 
-Once a project is finished, the real work of calibration begins: looking back to find the truth. 
+Once a project is finished, you can reflect on it (and any others you've completed) by clicking the journal icon in the top-right of the app. For every completed task, you record the actual time it took and how it actually felt in hindsight. Over time, this feedback loop trains your intuition, helping you estimate future tasks with greater accuracy and less bias.
 
-The reflection loop is where you bridge the gap between expectation and reality. For every completed task, you record the actual time it took and how it actually felt in hindsight. Over time, this feedback loop trains your intuition, helping you estimate future tasks with greater accuracy and less bias.
-
-Open the **Reflection Hub** by clicking the journal icon in the top toolbar.
+The reflection hub has three tabs. 
 
 ## Pending Queue
 
-This is your backlog of completed work waiting for retrospection. The queue accumulates patiently. You can reflect on projects the moment they finish or batch them every few weeks; the only wrong move is waiting until you have forgotten the details of the work.
+This is your backlog of completed work waiting for reflection. The queue accumulates patiently. You can reflect on projects the moment they finish or batch them every few weeks; the only wrong move is waiting until you have forgotten the details of the work.
 
 Click **Start Reflection** to open a step-by-step walkthrough. For each node, you record:
 
@@ -722,17 +653,117 @@ Three actions guide you through the queue:
 *   **Skip**: Postpones the node, leaving it in the queue for later.
 *   **Don't ask again**: Excludes the node entirely—perfect for minor tasks or resources that defy meaningful retrospection.
 
-**[SCREENSHOT: the reflection walkthrough modal with the progress bar visible.]**
+<p align="center">
+  <img src="../images/reflection-focused-node.png" width=500>
+  <br>
+  <em>Reflection feature screen after you hit "start reflection" </em>
+</p>
 
-## Review History
+## Reflection History
 
 A log of your past reflections. This searchable, filterable table displays your original estimates alongside your recorded actuals and the differences between them. If your memory of a task changes later, click the pencil icon on any row to edit its actual (not expected) data.
 
-**[SCREENSHOT: the Review History table with deltas visible.]**
+<p align="center">
+  <img src="../images/reflection-history.png" width=500>
+</p>
 
 ## Excluded
 
 This is your "Don't ask again" archive. Nodes here are quietly bypassed during your reflection cycles. If you ever want to bring an excluded node back into the loop, simply click **Restore** to return it to the pending queue.
+
+# Analyze Tab
+
+The Analyze tab gives you a bird's eye view of your entire network -- goal progress, time allocation, structural patterns, and more. The charts are diagnostic: they help you catch mistakes early and avoid spending time unwisely.
+
+## The Overview Strip
+
+At the top, an Overview strip summarizes the current non-dormant graph
+
+<p align="center">
+  <img src="../images/analyze-callouts.png">
+  <br>
+  <em>Callouts </em>
+</p>
+
+## Goals
+The Goals section puts two views side by side. Importantly, goals are ranked by priority score. The algorithm used for ranking is the same one as the Goals Sidebar priority ranking dropdown. You can learn about this mechanism in [scoring](scoring.md). There is a small gear icon by the section title that allows you to control how many goals are shown. 
+
+<p align="center">
+  <img src="../images/analyze-goals.png">
+  <br>
+  <em> Goal Visualizations </em>
+</p>
+
+**Completion** (left) shows each Goal's hard-prerequisite progress as a stacked horizontal bar — Done work in green, remaining work in faint gray. As with every chart on the Analyze Tab, there is a helpful tooltip that shows up when you mouse over a graph element.
+
+**Shared Prerequisites** (right) is a heatmap over those same Goals, counting their shared hard and soft prerequisites. Bright cells mean two Goals draw from the same body of work — a sign they share foundational skills. You might want to work on these tasks to "double dip."
+
+## Contexts
+
+The Contexts section puts three views in one row, each asking a different question: where your time goes, what you expect your work to feel like, and what it actually feels like after you've done it (for this last part, see the [reflection feature](#reflection)). All three visualizations share the same context order, so you can read straight across.
+
+**Hours by Context**. One horizontal stacked bar per context; each segment is a subcontext. Hover a segment for its name, node count, and estimated time.
+
+<p align="center">
+  <img src="../images/analyze-hours-by-context.png">
+</p>
+
+**Ratings by Context and Reflection Drift** The left chart shows average Value, Interest, and Effort across the live nodes in each context. The chart on the right shows the same three dimensions, but the average change between your pre- and post-project estimates. Red cells mean you overrated the work going in; blue cells mean you underrated it. Like every visualiation on this tab, you can get additional information by mousing over a graph element.
+
+<p align="center">
+  <img src="../images/analyze-ratings-heatmaps.png">
+</p>
+
+## Time Estimation Accuracy
+
+When you mark a node Done and complete a [reflection](#reflection), the actual time gets captured alongside your original estimate. These two charts compare them.
+
+**By Node** is a scatter plot with a dashed *y = x* reference line. Each dot is one completed node. Points above the line took longer than expected, and each point below the line was completed faster than expected. Colors are node types, so you can spot whether one type drifts more than others.
+
+**By Context** rolls those same ratios up into one box plot per context. A box to the right of the 1× line means that context's tasks routinely take longer than you expect; a box to the left means they don't take as long.
+
+<p align="center">
+  <img src="../images/analyze-time-estimation-accuracy.png">
+</p>
+
+## Throughput
+
+The Throughput chart shows hours of completed work per calendar bucket, stacked by context. 
+
+<p align="center">
+  <img src="../images/analyze-throughput-bars.png">
+<br>
+<em> </em>
+</p>
+
+Where Hours-by-Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
+
+The gear icon by the title opens three controls: **Granularity** (months, quarters, or years) and **Start / End date** to clip the range. The defaults — quarterly buckets covering the full range of your time with Skill Tree -- works for most usese. Use the gear when you want to zoom in.
+
+<p align="center">
+  <img src="../images/analyze-throughput-gear.png" width=200>
+<br>
+<em> Throughput Visualization Filters </em>
+</p>
+
+
+
+## Graph Structure
+
+The Graph Structure section answers two structural questions about your network, side by side. The gear icon controls how many nodes each chart shows.
+
+**Bottleneck** ranks nodes by the number of nodes they unlock (through hard edges). The chart distinguishes direct unlocks from the downstream cascade. The colors of the bars show the status, allowing you to separate "high leverage and available" (not red) from "high leverage but waiting on something else" (red). A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole chains become eligible, and the Next tab has better candidates to choose from.
+
+**Hub Nodes** ranks nodes by how integrated they are — concepts with prerequisites feeding in *and* dependents flowing out. The score is calculated as the geometric mean of incoming and outgoing prerequisite edge counts (over Hard and Soft needs), plus a half-point bonus for each synergy partner (Helps edges). Because the prerequisite component drops to zero for pure roots (no prerequisites) and pure leaves (no dependents), this chart surfaces the connective concepts that tie the rest of your graph together. 
+
+<p align="center">
+  <img src="../images/analyze-graph-structure.png">
+<br>
+<em> Graph Structure</em>
+</p>
+
+Where Bottleneck asks *what unlocks the most?*, Hub asks *what is most central to my understanding?* 
+
 
 # Settings
 
@@ -746,7 +777,13 @@ The Settings modal is where you fine-tune how the app looks and behaves. Open it
 | **Time** | Set your weekly, monthly, and yearly productive hour budgets. You can also configure default time estimates and units for new nodes, and toggle whether the app prompts you for a reflection immediately when a node is marked Done. |
 | **Paths** | Specify local file system paths for Obsidian vault and Google Drive integrations, allowing the app to resolve your external links correctly. |
 
-Feel free to experiment with alternative settings because all the major operations have a "restore to defaults" option.
+Feel free to experiment with alternative settings because all the major operations have a "restore to defaults" option. 
+
+<p align="center">
+  <img src="../images/settings-appearance-tab.png" width=400>
+  <br>
+  <em> Settings Appearance Tab. Others tabs have a similiar style </em>
+</p>
 
 # Navigation
 ## Tutorial

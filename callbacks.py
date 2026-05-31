@@ -1628,7 +1628,7 @@ def register_callbacks(app):
          Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'), Input('btn-new-node', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'), Input('btn-goals-toggle', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'),
-         Input('btn-settings-save', 'n_clicks'),
+         Input('settings-save-status', 'children'),
          Input('modal-migration', 'is_open'),
          Input('btn-toggle-done-node', 'n_clicks'),
          Input('group-delete-input', 'value'),
@@ -1685,7 +1685,7 @@ def register_callbacks(app):
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_time_unit, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_open, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_save_status, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      focus_goal,
@@ -1718,6 +1718,17 @@ def register_callbacks(app):
         # regen — those tabs have their own refresh callbacks. Short-circuit
         # to no_update so we skip the scoring + generate_elements cycle.
         if trigger_id == 'main-tabs' and active_tab in _NON_GRAPH_TABS:
+            return _core_engine_noop_tuple()
+
+        # Settings-save gate: we trigger off `settings-save-status` (not the
+        # raw save-button click) so this runs AFTER save_settings has written
+        # the new contexts/types to the DB — otherwise we'd race the write and
+        # re-read stale config, leaving the context/type dropdowns showing
+        # values the user just deleted. Only the "Settings saved" message means
+        # config was actually persisted with no migration pending; the auto-clear
+        # to "", the "Migration required" message (the modal-close path handles
+        # that), and "Error..." carry no config change to render.
+        if trigger_id == 'settings-save-status' and settings_save_status != 'Settings saved':
             return _core_engine_noop_tuple()
 
         all_triggered_ids = get_all_triggered_ids()
