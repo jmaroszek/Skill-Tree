@@ -397,25 +397,51 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
 # --- Habit-mode time conversion ---
 
 
+def _habit_day_count(days) -> int:
+    """Count selected weekdays from a list/tuple or comma-separated string."""
+    if days is None:
+        return 0
+    if isinstance(days, (list, tuple, set)):
+        return len([d for d in days if d is not None and str(d).strip() != ''])
+    return len([p for p in str(days).split(',') if p.strip() != ''])
+
+
 def habit_to_hours(duration: float, duration_unit: str,
-                   intensity: float, intensity_unit: str) -> float:
+                   intensity: float, intensity_unit: str, days=None) -> float:
     """Convert a (duration, intensity) habit estimate to total hours.
 
-    intensity_unit is '{min|hr}_per_{day|week}'. duration_unit is one of
-    'days' / 'weeks' / 'months' / 'years'. Months use a 30-day approximation
+    intensity_unit is '{min|hr}_per_{day|week|session}'. duration_unit is one
+    of 'days' / 'weeks' / 'months' / 'years'. Months use a 30-day approximation
     and years use 365 — the blend is for ROI cost, not calendar precision.
-    Returns 0.0 if either side is zero.
+
+    For the '_per_session' cadence, ``days`` selects which weekdays the session
+    happens on (a list of indices or a comma-separated string); the per-session
+    amount is applied on each selected day. Selecting all seven days reproduces
+    the legacy '_per_day' total. Returns 0.0 if either side is zero.
     """
     if not duration or not intensity:
         return 0.0
     if duration_unit == 'weeks':
-        days = float(duration) * 7
+        days_total = float(duration) * 7
     elif duration_unit == 'months':
-        days = float(duration) * 30
+        days_total = float(duration) * 30
     elif duration_unit == 'years':
-        days = float(duration) * 365
+        days_total = float(duration) * 365
     else:
-        days = float(duration)
+        days_total = float(duration)
+    # Per-session cadence: the amount applies on each selected weekday, so the
+    # number of weekly sessions scales the total. All seven days ⇒ identical to
+    # the legacy per-day total.
+    if intensity_unit and intensity_unit.endswith('_per_session'):
+        num_days = _habit_day_count(days)
+        if num_days == 0:
+            return 0.0
+        hours_per_session = (
+            float(intensity) / 60.0
+            if intensity_unit.startswith('min') else float(intensity)
+        )
+        sessions = (days_total / 7.0) * num_days
+        return round(sessions * hours_per_session, 2)
     parts = (intensity_unit or 'min_per_day').split('_per_')
     mag_unit, period = parts[0], (parts[1] if len(parts) == 2 else 'day')
     hours_per_mag = (1 / 60.0) if mag_unit == 'min' else 1.0
@@ -423,17 +449,81 @@ def habit_to_hours(duration: float, duration_unit: str,
         hours_per_day = float(intensity) * hours_per_mag / 7.0
     else:
         hours_per_day = float(intensity) * hours_per_mag
-    return round(days * hours_per_day, 2)
+    return round(days_total * hours_per_day, 2)
 
 
 def compute_habit_time_omp(duration, duration_unit,
-                           int_o, int_m, int_p, intensity_unit):
+                           int_o, int_m, int_p, intensity_unit, days=None):
     """Convert PERT bands on intensity into PERT bands on total hours."""
     return (
-        habit_to_hours(duration, duration_unit, int_o, intensity_unit),
-        habit_to_hours(duration, duration_unit, int_m, intensity_unit),
-        habit_to_hours(duration, duration_unit, int_p, intensity_unit),
+        habit_to_hours(duration, duration_unit, int_o, intensity_unit, days),
+        habit_to_hours(duration, duration_unit, int_m, intensity_unit, days),
+        habit_to_hours(duration, duration_unit, int_p, intensity_unit, days),
     )
+
+
+ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]
+
+
+def parse_habit_days(days):
+    """Normalize stored/widget weekday data to a list of ints (0-6).
+
+    Accepts a list/tuple of ints or a comma-separated string. None falls back
+    to all seven days (the safe default for rows predating the column)."""
+    if days is None:
+        return list(ALL_WEEKDAYS)
+    if isinstance(days, (list, tuple, set)):
+        seq = days
+    else:
+        seq = str(days).split(',')
+    out = []
+    for x in seq:
+        s = str(x).strip()
+        if s.lstrip('-').isdigit():
+            d = int(s)
+            if 0 <= d <= 6:
+                out.append(d)
+    return out
+
+
+def habit_editor_view(intensity_unit, int_o, int_m, int_p, habit_days):
+    """Map stored habit fields to the minutes-per-session editor widgets.
+
+    The editor expresses cadence as minutes per session over a set of weekdays,
+    so every stored breakdown is normalized to that form. Hour-based legacy
+    amounts are converted to minutes (×60). Legacy ``*_per_day`` units map to
+    all seven days; legacy ``*_per_week`` units spread the weekly amount across
+    seven days. The computed total hours are preserved in every case.
+    Returns ``(unit, o, m, p, days_list)`` with unit always ``min_per_session``.
+    """
+    unit = intensity_unit or 'min_per_day'
+    o, m, p = (int_o or 0), (int_m or 0), (int_p or 0)
+    if unit.startswith('hr'):
+        o, m, p = o * 60, m * 60, p * 60
+    if unit.endswith('_per_session'):
+        return 'min_per_session', o, m, p, parse_habit_days(habit_days)
+    if unit.endswith('_per_week'):
+        return ('min_per_session', round(o / 7.0, 4), round(m / 7.0, 4),
+                round(p / 7.0, 4), list(ALL_WEEKDAYS))
+    # per_day (or anything unrecognized): every day, amount unchanged.
+    return 'min_per_session', o, m, p, list(ALL_WEEKDAYS)
+
+
+def habit_preview_text(duration, dur_unit, intensity_m, int_unit, days=None):
+    """Human-readable live preview of the habit estimate's total hours."""
+    int_unit = int_unit or 'min_per_session'
+    total = habit_to_hours(duration or 0, dur_unit or 'weeks',
+                           intensity_m or 0, int_unit, days)
+    if total <= 0:
+        return ""
+    if int_unit.endswith('_per_session'):
+        n = _habit_day_count(days)
+        mag = 'min' if int_unit.startswith('min') else 'hr'
+        day_str = f"{n} day{'' if n == 1 else 's'}/wk"
+        dur_str = f"{(duration or 0):g} {dur_unit or 'weeks'}"
+        return (f"≈ {round(total, 1)} h total — "
+                f"{(intensity_m or 0):g} {mag} × {day_str} × {dur_str}")
+    return f"Computes to ~{round(total, 1)} h total"
 
 
 def resolve_time_mode(n_type, time_mode_val, time_habit_mode_val):
@@ -484,7 +574,8 @@ NEW_NODE_SNAPSHOT = {
     'habit_duration': 0,
     'habit_duration_unit': 'weeks',
     'habit_intensity_o': 0, 'habit_intensity_m': 0, 'habit_intensity_p': 0,
-    'habit_intensity_unit': 'min_per_day',
+    'habit_intensity_unit': 'min_per_session',
+    'habit_days': list(ALL_WEEKDAYS),
     'value_mode': [],
     'priority_rank': 'none',
     'aliases': [''],
@@ -577,10 +668,13 @@ def build_editor_snapshot(manager, node_name):
         'time_habit_mode': ['habit'] if node.time_mode == 'habit' else [],
         'habit_duration': node.habit_duration or 0,
         'habit_duration_unit': node.habit_duration_unit or 'weeks',
-        'habit_intensity_o': node.habit_intensity_o or 0,
-        'habit_intensity_m': node.habit_intensity_m or 0,
-        'habit_intensity_p': node.habit_intensity_p or 0,
-        'habit_intensity_unit': node.habit_intensity_unit or 'min_per_day',
+        **(lambda hu, ho, hm, hp, hd: {
+            'habit_intensity_o': ho, 'habit_intensity_m': hm,
+            'habit_intensity_p': hp, 'habit_intensity_unit': hu,
+            'habit_days': hd,
+        })(*habit_editor_view(
+            node.habit_intensity_unit, node.habit_intensity_o,
+            node.habit_intensity_m, node.habit_intensity_p, node.habit_days)),
         'value_mode': ['inherited'] if node.value_mode == 'inherited' else [],
         'priority_rank': priority_rank,
         'aliases': aliases,
@@ -628,7 +722,8 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'habit_intensity_o': form_values.get('habit_intensity_o') or 0,
         'habit_intensity_m': form_values.get('habit_intensity_m') or 0,
         'habit_intensity_p': form_values.get('habit_intensity_p') or 0,
-        'habit_intensity_unit': form_values.get('habit_intensity_unit') or 'min_per_day',
+        'habit_intensity_unit': form_values.get('habit_intensity_unit') or 'min_per_session',
+        'habit_days': form_values.get('habit_days') or list(ALL_WEEKDAYS),
         'value_mode': form_values.get('value_mode') or [],
         'priority_rank': form_values.get('priority_rank') or 'none',
         'aliases': linted_aliases or [''],
@@ -677,8 +772,9 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
         if round(float(form_values.get(k) or 0), 2) != round(float(snapshot.get(k) or 0), 2):
             return True
 
-    # Checkbox-list fields — set comparison.
-    for k in ('status_done', 'time_mode', 'time_habit_mode', 'value_mode'):
+    # Checkbox-list fields — set comparison (weekday picker order-insensitive).
+    for k in ('status_done', 'time_mode', 'time_habit_mode', 'value_mode',
+              'habit_days'):
         if set(form_values.get(k) or []) != set(snapshot.get(k) or []):
             return True
 
@@ -699,7 +795,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
                 time_mode='manual', value_mode='manual',
                 habit_duration=0.0, habit_duration_unit='weeks',
                 habit_intensity_o=0.0, habit_intensity_m=0.0, habit_intensity_p=0.0,
-                habit_intensity_unit='min_per_day'):
+                habit_intensity_unit='min_per_day', habit_days=None):
     """Create or update a node and sync its edges. Returns a status message.
 
     Caller is responsible for converting habit-mode inputs to time_o/m/p
@@ -734,6 +830,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         habit_intensity_m=habit_intensity_m or 0,
         habit_intensity_p=habit_intensity_p or 0,
         habit_intensity_unit=habit_intensity_unit or 'min_per_day',
+        **({'habit_days': habit_days} if habit_days is not None else {}),
     )
     existing = manager.get_node(name)
     if existing:

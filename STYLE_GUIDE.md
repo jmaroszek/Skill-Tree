@@ -217,6 +217,32 @@ style={
 - Textarea default: `dbc.Textarea(style={"height": "120px", "resize": "vertical"})`
 - Underline-only input: `style={"border": "none", "borderBottom": "1px solid #495057", "borderRadius": "0"}`
 
+### Toggle-pill group (multi-select day/option picker)
+
+For a compact set of mutually-independent toggles rendered as pills (e.g. the
+habit-mode weekday picker), use a `dbc.Checklist` styled with Bootstrap's
+`btn-check` pattern. Do **not** set `inline=True` — it double-wraps the items.
+Avoid Bootstrap's `btn-group` here: its flex rules collapse the pills to text
+width. Instead size them with the `.habit-days-picker` flex rule in
+`assets/custom.css` (`display:flex; gap; .btn { flex:1 1 0 }`), which spreads
+N equal-width pills across the row so none overflow the 350px sidebar.
+
+```python
+dbc.Checklist(
+    id="node-habit-days",
+    options=[{"label": "S", "value": 6}, {"label": "M", "value": 0}, ...],
+    value=[0, 1, 2, 3, 4, 5, 6],
+    className="habit-days-picker",
+    inputClassName="btn-check",
+    labelClassName="btn btn-outline-light btn-sm",
+    labelCheckedClassName="active",
+)
+```
+
+The selected `value` list holds the chosen options directly, so selection
+state needs no extra callback. Compare these lists as sets in dirty-checks
+(`is_form_dirty_vs_snapshot`) since the order is not significant.
+
 ## Badges
 
 Use `config.badge_style(name)` rather than `dbc.Badge(color=...)` so badges

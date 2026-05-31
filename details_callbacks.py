@@ -20,6 +20,7 @@ from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               is_filters_active,
                               build_explain_summary, build_explain_chart,
                               habit_to_hours, compute_habit_time_omp,
+                              habit_preview_text,
                               resolve_time_mode, get_trigger_id)
 from scoring import explain_score, shortest_paths_focus_data
 
@@ -1022,13 +1023,14 @@ def register_details_callbacks(app):
         Output("details-add-habit-intensity-m", "value"),
         Output("details-add-habit-intensity-p", "value"),
         Output("details-add-habit-intensity-unit", "value"),
+        Output("details-add-habit-days", "value"),
         Input("btn-details-add-node", "n_clicks"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     def open_add_node_modal(n_clicks, selected_node):
         if not n_clicks:
-            return (no_update,) * 43
+            return (no_update,) * 44
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -1069,7 +1071,8 @@ def register_details_callbacks(app):
             0,             # details-add-habit-duration
             'weeks',       # details-add-habit-duration-unit
             0, 0, 0,       # details-add-habit-intensity o/m/p
-            'min_per_day', # details-add-habit-intensity-unit
+            'min_per_session',  # details-add-habit-intensity-unit
+            [0, 1, 2, 3, 4, 5, 6],  # details-add-habit-days
         )
 
     # --- Add Node Modal: Toggle mode ---
@@ -1159,13 +1162,10 @@ def register_details_callbacks(app):
         Input("details-add-habit-duration-unit", "value"),
         Input("details-add-habit-intensity-m", "value"),
         Input("details-add-habit-intensity-unit", "value"),
+        Input("details-add-habit-days", "value"),
     )
-    def update_details_add_habit_preview(duration, dur_unit, intensity_m, int_unit):
-        total = habit_to_hours(duration or 0, dur_unit or 'weeks',
-                               intensity_m or 0, int_unit or 'min_per_day')
-        if total <= 0:
-            return ""
-        return f"Computes to ~{round(total, 1)} h total"
+    def update_details_add_habit_preview(duration, dur_unit, intensity_m, int_unit, days):
+        return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
 
     # --- Add Node Modal: Inherit-ratings toggle hides/shows V/I/E sliders ---
     app.clientside_callback(
@@ -1357,6 +1357,7 @@ def register_details_callbacks(app):
         State("details-add-habit-intensity-m", "value"),
         State("details-add-habit-intensity-p", "value"),
         State("details-add-habit-intensity-unit", "value"),
+        State("details-add-habit-days", "value"),
         # Relationships
         State("details-add-needs-hard", "value"),
         State("details-add-needs-soft", "value"),
@@ -1381,6 +1382,7 @@ def register_details_callbacks(app):
                       time_habit_mode_val,
                       habit_duration, habit_duration_unit,
                       habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
+                      habit_days,
                       needs_hard, needs_soft, supports_hard, supports_soft, helps,
                       obsidian_vals, drive_vals, website_vals,
                       override_toggle, override_mode):
@@ -1419,7 +1421,7 @@ def register_details_callbacks(app):
                 t_o, t_m, t_p = compute_habit_time_omp(
                     habit_duration or 0, habit_duration_unit or 'weeks',
                     habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
-                    habit_int_unit or 'min_per_day',
+                    habit_int_unit or 'min_per_session', habit_days,
                 )
             v_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
 
@@ -1444,7 +1446,8 @@ def register_details_callbacks(app):
                 habit_intensity_o=habit_int_o or 0,
                 habit_intensity_m=habit_int_m or 0,
                 habit_intensity_p=habit_int_p or 0,
-                habit_intensity_unit=habit_int_unit or 'min_per_day',
+                habit_intensity_unit=habit_int_unit or 'min_per_session',
+                **({'habit_days': habit_days} if habit_days is not None else {}),
             )
 
             try:

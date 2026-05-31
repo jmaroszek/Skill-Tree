@@ -135,6 +135,18 @@ The first row is the confident estimate. Its ratio is $r \le 2$, so the blend re
 
 After you finish a project, the reflection feature lets you record how long it actually took. A meticulous time tracker will have the exact number. If you don't, you can record the actual time the same way you estimated it, with a low, expected, and high bound. Real durations are usually less uncertain than forecasts, so the blend matters less here. Still, the actual time runs through the same algorithm, so the before-and-after numbers stay directly comparable.
 
+# Habit Estimates
+
+Some work is not a single sitting. It is a small effort repeated over weeks. A daily meditation. A short language drill three mornings a week. For these, estimating one lump of hours is awkward. Habit mode lets you describe the cadence instead, and the app works out the total.
+
+You give three things. A duration, such as six weeks. A per-session amount, such as fifteen minutes. And the days of the week you will actually do it, such as Monday, Thursday, and Friday.
+
+From those, the total is simple. Count the sessions across the whole span, then multiply by the time each session takes. Fifteen minutes, three days a week, for six weeks, is eighteen sessions, or four and a half hours.
+
+The per-session amount keeps the same low, expected, and high bracket as any other estimate. So an honest range on a single session still flows into the blended estimate described above. Choosing all seven days is the same as saying "every day."
+
+The result is just a number of hours. It feeds the score, the ranking, and the simulation exactly like a hand-entered estimate would. Habit mode only changes how you enter the number, not how it is used.
+
 # Monte Carlo Simulation
 
 The blended estimate gives one number per node. That is enough to rank tasks, but not enough to answer a question like "if I commit to this Goal today, how long until I finish?" The Monte Carlo simulator in [`simulation.py`](../simulation.py) answers it. It keeps the underlying PERT distribution intact and draws thousands of samples across the full prerequisite chain. The result is an empirical distribution for the whole project, shown on the Details Tab. The panel plots it as a histogram marked with the $P_{10}, P_{50}, P_{90}$ percentiles. Now the user can say "I'm 90% confident this will take less than 200 hours," instead of trusting a single fragile point estimate.

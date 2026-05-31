@@ -13,6 +13,7 @@ from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
 from callback_helpers import (render_link_rows, serialize_links, spawn_local_file_picker,
                               strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp,
+                              habit_preview_text, habit_editor_view,
                               resolve_time_mode)
 
 event_manager = EventManager()
@@ -652,6 +653,7 @@ def register_event_callbacks(app):
         Output("dormant-node-habit-intensity-m", "value", allow_duplicate=True),
         Output("dormant-node-habit-intensity-p", "value", allow_duplicate=True),
         Output("dormant-node-habit-intensity-unit", "value", allow_duplicate=True),
+        Output("dormant-node-habit-days", "value", allow_duplicate=True),
         # Mode toggle + existing-mode resets (8 new outputs)
         Output("dormant-node-mode", "value", allow_duplicate=True),
         Output("dormant-mode-toggle-wrapper", "style", allow_duplicate=True),
@@ -671,7 +673,7 @@ def register_event_callbacks(app):
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 55
+            return (no_update,) * 56
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -698,7 +700,7 @@ def register_event_callbacks(app):
                 0, "days", "hard",
                 None, "Add Dormant Node", "Add Node",
                 # Habit reset
-                [], 0, 'weeks', 0, 0, 0, 'min_per_day',
+                [], 0, 'weeks', 0, 0, 0, 'min_per_session', [0, 1, 2, 3, 4, 5, 6],
                 # Mode toggle + existing-mode resets
                 "new", {"display": "block"},
                 existing_picker_opts, [], pending_event_opts, None,
@@ -770,13 +772,10 @@ def register_event_callbacks(app):
         Input("dormant-node-habit-duration-unit", "value"),
         Input("dormant-node-habit-intensity-m", "value"),
         Input("dormant-node-habit-intensity-unit", "value"),
+        Input("dormant-node-habit-days", "value"),
     )
-    def update_dormant_habit_preview(duration, dur_unit, intensity_m, int_unit):
-        total = habit_to_hours(duration or 0, dur_unit or 'weeks',
-                               intensity_m or 0, int_unit or 'min_per_day')
-        if total <= 0:
-            return ""
-        return f"Computes to ~{round(total, 1)} h total"
+    def update_dormant_habit_preview(duration, dur_unit, intensity_m, int_unit, days):
+        return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
 
     # --- Dormant Node Modal: Mode toggle (New / Existing) visibility ---
     @app.callback(
@@ -1066,6 +1065,7 @@ def register_event_callbacks(app):
         State("dormant-node-habit-intensity-m", "value"),
         State("dormant-node-habit-intensity-p", "value"),
         State("dormant-node-habit-intensity-unit", "value"),
+        State("dormant-node-habit-days", "value"),
         State("dormant-node-delay-value", "value"),
         State("dormant-node-delay-unit", "value"),
         State("dormant-node-needs-hard", "value"),
@@ -1101,6 +1101,7 @@ def register_event_callbacks(app):
                           time_habit_mode_val,
                           habit_duration, habit_duration_unit,
                           habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
+                          habit_days,
                           delay_value, delay_unit,
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
                           obsidian_vals, drive_vals, website_vals,
@@ -1242,7 +1243,7 @@ def register_event_callbacks(app):
             t_o, t_m, t_p = compute_habit_time_omp(
                 habit_duration or 0, habit_duration_unit or 'weeks',
                 habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
-                habit_int_unit or 'min_per_day',
+                habit_int_unit or 'min_per_session', habit_days,
             )
         else:
             t_o = float(time_o or 0) * multiplier
@@ -1271,7 +1272,8 @@ def register_event_callbacks(app):
             habit_intensity_o=habit_int_o or 0,
             habit_intensity_m=habit_int_m or 0,
             habit_intensity_p=habit_int_p or 0,
-            habit_intensity_unit=habit_int_unit or 'min_per_day',
+            habit_intensity_unit=habit_int_unit or 'min_per_session',
+            **({'habit_days': habit_days} if habit_days is not None else {}),
         )
 
         if is_edit:
@@ -1488,6 +1490,7 @@ def register_event_callbacks(app):
         Output("dormant-node-habit-intensity-m", "value", allow_duplicate=True),
         Output("dormant-node-habit-intensity-p", "value", allow_duplicate=True),
         Output("dormant-node-habit-intensity-unit", "value", allow_duplicate=True),
+        Output("dormant-node-habit-days", "value", allow_duplicate=True),
         # Mode-toggle wrapper hidden during edit (single-node only)
         Output("dormant-mode-toggle-wrapper", "style", allow_duplicate=True),
         Output("dormant-node-mode", "value", allow_duplicate=True),
@@ -1497,7 +1500,7 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
-        _N = 48
+        _N = 49
         if not selected_event:
             return (no_update,) * _N
         triggered = ctx.triggered_id
@@ -1560,6 +1563,10 @@ def register_event_callbacks(app):
         )
         time_mode_val = ["inherited"] if node.time_mode == 'inherited' else []
         time_habit_mode_val = ["habit"] if node.time_mode == 'habit' else []
+        # Fold stored habit fields onto the per-session editor widgets.
+        h_unit, h_o, h_m, h_p, h_days = habit_editor_view(
+            node.habit_intensity_unit, node.habit_intensity_o,
+            node.habit_intensity_m, node.habit_intensity_p, node.habit_days)
 
         # Delay: invert to form fields via the shared helper.
         from events_layout import _delay_days_to_form
@@ -1616,10 +1623,11 @@ def register_event_callbacks(app):
             time_habit_mode_val,
             node.habit_duration or 0,
             node.habit_duration_unit or 'weeks',
-            node.habit_intensity_o or 0,
-            node.habit_intensity_m or 0,
-            node.habit_intensity_p or 0,
-            node.habit_intensity_unit or 'min_per_day',
+            h_o,
+            h_m,
+            h_p,
+            h_unit,
+            h_days,
             # Hide mode toggle during edit; force "new" so the existing fields render
             {"display": "none"},
             "new",

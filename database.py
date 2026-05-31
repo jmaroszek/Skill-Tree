@@ -79,7 +79,8 @@ def init_db():
             habit_intensity_o REAL NOT NULL DEFAULT 0,
             habit_intensity_m REAL NOT NULL DEFAULT 0,
             habit_intensity_p REAL NOT NULL DEFAULT 0,
-            habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day'
+            habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day',
+            habit_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6'
         )
     ''')
 
@@ -185,6 +186,7 @@ def init_db():
         "ALTER TABLE Nodes ADD COLUMN habit_intensity_m REAL NOT NULL DEFAULT 0",
         "ALTER TABLE Nodes ADD COLUMN habit_intensity_p REAL NOT NULL DEFAULT 0",
         "ALTER TABLE Nodes ADD COLUMN habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day'",
+        "ALTER TABLE Nodes ADD COLUMN habit_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6'",
     ):
         try:
             cursor.execute(stmt)

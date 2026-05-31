@@ -36,6 +36,16 @@ NODE_TYPES = ConfigManager.get_node_types()
 CONTEXTS = sort_contexts(ConfigManager.get_contexts())
 _TED = ConfigManager.get_time_estimate_defaults()
 
+# Weekday toggle-pill options for the habit per-session scheduler. Values are
+# weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
+# Apple-style day picker. Single-letter labels.
+WEEKDAY_OPTIONS = [
+    {"label": "S", "value": 6}, {"label": "M", "value": 0},
+    {"label": "T", "value": 1}, {"label": "W", "value": 2},
+    {"label": "T", "value": 3}, {"label": "F", "value": 4},
+    {"label": "S", "value": 5},
+]
+
 
 # --- Node Editor sidebar (left) ---
 node_editor_content = html.Div(
@@ -296,7 +306,7 @@ node_editor_content = html.Div(
                         dbc.Col([
                             dbc.Label("Duration", className="mb-0"),
                             dbc.Input(id="node-habit-duration", type="number", min=0),
-                        ], width=8),
+                        ], width=7),
                         dbc.Col([
                             dbc.Label(" ", className="mb-0"),
                             dbc.Select(id="node-habit-duration-unit", options=[
@@ -305,9 +315,9 @@ node_editor_content = html.Div(
                                 {"label": "Months", "value": "months"},
                                 {"label": "Years", "value": "years"},
                             ], value="weeks"),
-                        ], width=4),
+                        ], width=5),
                     ], className="mb-2"),
-                    dbc.Label("Intensity", className="mb-0 mt-2"),
+                    dbc.Label("Minutes per Session", className="mb-0 mt-2"),
                     dbc.Row([
                         dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
                                  dbc.Input(id="node-habit-intensity-o", type="number", min=0)]),
@@ -316,15 +326,20 @@ node_editor_content = html.Div(
                         dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
                                  dbc.Input(id="node-habit-intensity-p", type="number", min=0)]),
                     ]),
-                    dbc.RadioItems(
-                        id="node-habit-intensity-unit",
-                        options=[
-                            {"label": "min/day", "value": "min_per_day"},
-                            {"label": "hr/week", "value": "hr_per_week"},
-                        ],
-                        value="min_per_day",
-                        inline=True,
-                        className="mt-2",
+                    # Cadence is always minutes-per-session; the unit is fixed
+                    # but kept as a hidden field so the save/populate wiring is
+                    # unchanged (and legacy units still round-trip through it).
+                    dcc.Input(id="node-habit-intensity-unit", type="hidden",
+                              value="min_per_session"),
+                    dbc.Label("On these days", className="mb-1 mt-2 d-block"),
+                    dbc.Checklist(
+                        id="node-habit-days",
+                        options=WEEKDAY_OPTIONS,
+                        value=[0, 1, 2, 3, 4, 5, 6],
+                        className="habit-days-picker",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-light btn-sm",
+                        labelCheckedClassName="active",
                     ),
                     html.Div(id="node-habit-total-preview",
                              className="mt-2 small text-muted"),

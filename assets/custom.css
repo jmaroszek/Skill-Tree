@@ -1,5 +1,31 @@
 /* Custom styles for Skill Tree */
 
+/* Habit-mode weekday picker (btn-check toggle pills). Seven equal-width pills
+   that share the row and stay on one line, so none overflow the 350px editor
+   sidebar. A small gap keeps them as distinct day buttons. */
+.habit-days-picker {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+}
+/* dbc.Checklist wraps each input+label in a .form-check div, so the flex
+   items are those wrappers (not the labels). Make each wrapper an equal slot,
+   strip the checkbox indent, and let the pill label fill its slot. */
+.habit-days-picker > * {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.habit-days-picker .form-check {
+    padding-left: 0;
+    margin: 0;
+}
+.habit-days-picker .btn {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0;
+    border-radius: 0.25rem;
+}
+
 /* Remove spinner arrows from number inputs */
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 

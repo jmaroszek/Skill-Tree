@@ -9,7 +9,7 @@ from typing import List, Any
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOAST_CLEAR_INTERVAL_MS, badge_style
 from models import STATUS_DONE
 from styles import events_graph_stylesheet
-from details_layout import build_graph_settings_panel, _freeze_indicator
+from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
 
 
 def build_events_sidebar_content():
@@ -279,7 +279,7 @@ def build_events_tab_content():
                     dbc.Col([
                         dbc.Label("Duration", className="mb-0"),
                         dbc.Input(id="dormant-node-habit-duration", type="number", min=0, value=0),
-                    ], width=8),
+                    ], width=7),
                     dbc.Col([
                         dbc.Label(" ", className="mb-0"),
                         dbc.Select(id="dormant-node-habit-duration-unit", options=[
@@ -288,9 +288,9 @@ def build_events_tab_content():
                             {"label": "Months", "value": "months"},
                             {"label": "Years", "value": "years"},
                         ], value="weeks"),
-                    ], width=4),
+                    ], width=5),
                 ], className="mb-2"),
-                dbc.Label("Intensity", className="mb-0 mt-2"),
+                dbc.Label("Minutes per Session", className="mb-0 mt-2"),
                 dbc.Row([
                     dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
                              dbc.Input(id="dormant-node-habit-intensity-o", type="number", min=0, value=0)]),
@@ -299,15 +299,17 @@ def build_events_tab_content():
                     dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
                              dbc.Input(id="dormant-node-habit-intensity-p", type="number", min=0, value=0)]),
                 ]),
-                dbc.RadioItems(
-                    id="dormant-node-habit-intensity-unit",
-                    options=[
-                        {"label": "min/day", "value": "min_per_day"},
-                        {"label": "hr/week", "value": "hr_per_week"},
-                    ],
-                    value="min_per_day",
-                    inline=True,
-                    className="mt-2",
+                dcc.Input(id="dormant-node-habit-intensity-unit", type="hidden",
+                          value="min_per_session"),
+                dbc.Label("On these days", className="mb-1 mt-2 d-block"),
+                dbc.Checklist(
+                    id="dormant-node-habit-days",
+                    options=WEEKDAY_OPTIONS,
+                    value=[0, 1, 2, 3, 4, 5, 6],
+                    className="habit-days-picker",
+                    inputClassName="btn-check",
+                    labelClassName="btn btn-outline-light btn-sm",
+                    labelCheckedClassName="active",
                 ),
                 html.Div(id="dormant-node-habit-total-preview",
                          className="mt-2 small text-muted"),

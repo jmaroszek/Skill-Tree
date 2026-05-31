@@ -1,8 +1,9 @@
 """Regression tests for the populate_editor callback output arity.
 
-populate_editor declares 44 Outputs (35 form fields + editor-pristine-snapshot
-+ node-value-mode + 7 habit-mode fields). Every return path must produce
-exactly 44 items, or Dash throws SchemaLengthValidationError → HTTP 500.
+populate_editor declares 45 Outputs (35 form fields + editor-pristine-snapshot
++ node-value-mode + 8 habit-mode fields, incl. the weekday picker). Every
+return path must produce exactly 45 items, or Dash throws
+SchemaLengthValidationError → HTTP 500.
 
 This test pins every return path at registration time by invoking the
 unwrapped callback directly with trigger contexts that exercise each branch.
@@ -30,7 +31,7 @@ def _populate_editor_fn():
     return cb
 
 
-POPULATE_EDITOR_NUM_OUTPUTS = 44
+POPULATE_EDITOR_NUM_OUTPUTS = 45
 
 
 def _make_state_args():
@@ -44,9 +45,10 @@ def _make_state_args():
     cur_time_mode, cur_priority_rank,
     cur_aliases, pending_nav, pristine_snapshot, cur_value_mode,
     cur_time_habit_mode, cur_habit_duration, cur_habit_duration_unit,
-    cur_habit_int_o, cur_habit_int_m, cur_habit_int_p, cur_habit_int_unit.
+    cur_habit_int_o, cur_habit_int_m, cur_habit_int_p, cur_habit_int_unit,
+    cur_habit_days.
     """
-    return [None] * 37
+    return [None] * 38
 
 
 def _call_with_trigger(monkeypatch, trigger_id, inputs):
@@ -136,18 +138,18 @@ def test_populate_editor_filters_dormant_prereqs_from_edge_values(monkeypatch):
     )
 
 
-def test_populate_editor_all_return_paths_use_21_not_22(monkeypatch):
-    """Static guard: the string literals in callbacks.py should never have *22
-    suffix for populate_editor's no_update + options tuple pattern.
+def test_populate_editor_all_return_paths_use_22_not_21(monkeypatch):
+    """Static guard: every early-return filler in populate_editor must carry
+    22 trailing no_updates, not 21.
 
-    The schema is 18 + 5 + 21 = 44 outputs (the +21 includes node-value-mode
-    plus 7 habit-mode fields). A *22 would mean someone added an Output
-    without bumping the early-return filler arrays."""
+    The schema is 18 + 5 + 22 = 45 outputs (the +22 includes node-value-mode
+    plus 8 habit-mode fields, incl. the weekday picker). A leftover *21 means
+    someone added an Output without bumping the early-return filler arrays."""
     from pathlib import Path
     src = (Path(__file__).parent.parent / "callbacks.py").read_text(encoding="utf-8")
     marker_start = src.index("def populate_editor(")
     marker_end = src.index("\n    # --- Type-adaptive field visibility ---", marker_start)
     body = src[marker_start:marker_end]
-    assert "[dash.no_update]*22" not in body and "[dash.no_update] * 22" not in body, (
-        "populate_editor contains a return path with 22 trailing no_updates; should be 21 to match the 44-output schema"
+    assert "[dash.no_update]*21" not in body and "[dash.no_update] * 21" not in body, (
+        "populate_editor contains a return path with 21 trailing no_updates; should be 22 to match the 45-output schema"
     )

@@ -122,7 +122,12 @@ class Node:
     habit_intensity_o: float = 0.0
     habit_intensity_m: float = 0.0
     habit_intensity_p: float = 0.0
-    habit_intensity_unit: str = 'min_per_day'  # '{min|hr}_per_{day|week}'
+    habit_intensity_unit: str = 'min_per_day'  # '{min|hr}_per_{day|week|session}'
+    # Selected weekdays for per-session cadence, comma-separated indices
+    # (0=Mon … 6=Sun). Only meaningful when habit_intensity_unit ends in
+    # '_per_session'; the count of days drives sessions/week. Defaults to all
+    # seven, which makes a per-session estimate equivalent to "every day".
+    habit_days: str = '0,1,2,3,4,5,6'
     # Time-calibration — actual time spent, captured when the node is marked
     # Done. Stored in canonical hours; None means "not captured". actual_time_unit
     # preserves the unit the user entered, for display round-trip.
@@ -173,9 +178,25 @@ class Node:
         if self.habit_duration_unit not in ('days', 'weeks', 'months', 'years'):
             self.habit_duration_unit = 'weeks'
         if self.habit_intensity_unit not in (
-            'min_per_day', 'hr_per_day', 'min_per_week', 'hr_per_week'
+            'min_per_day', 'hr_per_day', 'min_per_week', 'hr_per_week',
+            'min_per_session', 'hr_per_session',
         ):
             self.habit_intensity_unit = 'min_per_day'
+        # Normalize habit_days: accept a list/tuple or a comma-separated string,
+        # keep only valid weekday indices (0-6), dedupe, and sort.
+        raw_days = self.habit_days
+        if isinstance(raw_days, (list, tuple, set)):
+            parts = raw_days
+        else:
+            parts = str(raw_days or '').split(',')
+        valid = sorted({
+            d for d in (
+                int(p) for p in (
+                    str(x).strip() for x in parts
+                ) if p.lstrip('-').isdigit()
+            ) if 0 <= d <= 6
+        })
+        self.habit_days = ','.join(str(d) for d in valid)
         # Note: time_o/m/p are NOT zeroed when time_mode='inherited'. The
         # `time` property short-circuits to 0 for inherited mode regardless,
         # so the stored values are inert at read time — and preserving them

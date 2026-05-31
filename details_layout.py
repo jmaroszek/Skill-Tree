@@ -19,6 +19,16 @@ from config import (
 from styles import stylesheet
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
+# Weekday toggle-pill options for the habit per-session scheduler. Values are
+# weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
+# Apple-style day picker. Single-letter labels.
+WEEKDAY_OPTIONS = [
+    {"label": "S", "value": 6}, {"label": "M", "value": 0},
+    {"label": "T", "value": 1}, {"label": "W", "value": 2},
+    {"label": "T", "value": 3}, {"label": "F", "value": 4},
+    {"label": "S", "value": 5},
+]
+
 
 def _freeze_indicator(indicator_id: str):
     """Snowflake overlay shown on a canvas while its freeze toggle is on.
@@ -1116,7 +1126,7 @@ def _build_add_node_modal(ted):
                             dbc.Label("Duration", className="mb-0"),
                             dbc.Input(id="details-add-habit-duration",
                                       type="number", min=0, value=0),
-                        ], width=8),
+                        ], width=7),
                         dbc.Col([
                             dbc.Label(" ", className="mb-0"),
                             dbc.Select(id="details-add-habit-duration-unit", options=[
@@ -1125,9 +1135,9 @@ def _build_add_node_modal(ted):
                                 {"label": "Months", "value": "months"},
                                 {"label": "Years", "value": "years"},
                             ], value="weeks"),
-                        ], width=4),
+                        ], width=5),
                     ], className="mb-2"),
-                    dbc.Label("Intensity", className="mb-0 mt-2"),
+                    dbc.Label("Minutes per Session", className="mb-0 mt-2"),
                     dbc.Row([
                         dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
                                  dbc.Input(id="details-add-habit-intensity-o",
@@ -1139,15 +1149,17 @@ def _build_add_node_modal(ted):
                                  dbc.Input(id="details-add-habit-intensity-p",
                                            type="number", min=0, value=0)]),
                     ]),
-                    dbc.RadioItems(
-                        id="details-add-habit-intensity-unit",
-                        options=[
-                            {"label": "min/day", "value": "min_per_day"},
-                            {"label": "hr/week", "value": "hr_per_week"},
-                        ],
-                        value="min_per_day",
-                        inline=True,
-                        className="mt-2",
+                    dcc.Input(id="details-add-habit-intensity-unit", type="hidden",
+                              value="min_per_session"),
+                    dbc.Label("On these days", className="mb-1 mt-2 d-block"),
+                    dbc.Checklist(
+                        id="details-add-habit-days",
+                        options=WEEKDAY_OPTIONS,
+                        value=[0, 1, 2, 3, 4, 5, 6],
+                        className="habit-days-picker",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-light btn-sm",
+                        labelCheckedClassName="active",
                     ),
                     html.Div(id="details-add-habit-total-preview",
                              className="mt-2 small text-muted"),

@@ -35,6 +35,7 @@ from callback_helpers import (
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state,
     habit_to_hours, compute_habit_time_omp, resolve_time_mode,
+    habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -702,7 +703,8 @@ def register_callbacks(app):
          Output('node-habit-intensity-o', 'value'),
          Output('node-habit-intensity-m', 'value'),
          Output('node-habit-intensity-p', 'value'),
-         Output('node-habit-intensity-unit', 'value')],
+         Output('node-habit-intensity-unit', 'value'),
+         Output('node-habit-days', 'value')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks'),
@@ -740,7 +742,8 @@ def register_callbacks(app):
          State('node-habit-intensity-o', 'value'),
          State('node-habit-intensity-m', 'value'),
          State('node-habit-intensity-p', 'value'),
-         State('node-habit-intensity-unit', 'value')],
+         State('node-habit-intensity-unit', 'value'),
+         State('node-habit-days', 'value')],
         prevent_initial_call='initial_duplicate'
     )
     def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
@@ -758,7 +761,7 @@ def register_callbacks(app):
                         cur_time_habit_mode,
                         cur_habit_duration, cur_habit_duration_unit,
                         cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
-                        cur_habit_int_unit):
+                        cur_habit_int_unit, cur_habit_days):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
 
@@ -786,7 +789,8 @@ def register_callbacks(app):
             0,   # node-habit-duration
             'weeks',  # node-habit-duration-unit
             0, 0, 0,  # node-habit-intensity o/m/p
-            'min_per_day',  # node-habit-intensity-unit
+            'min_per_session',  # node-habit-intensity-unit
+            list(ALL_WEEKDAYS),  # node-habit-days
         ]
 
         def _has_unsaved_changes():
@@ -809,6 +813,7 @@ def register_callbacks(app):
                 'habit_intensity_m': cur_habit_int_m,
                 'habit_intensity_p': cur_habit_int_p,
                 'habit_intensity_unit': cur_habit_int_unit,
+                'habit_days': cur_habit_days,
                 'value_mode': cur_value_mode,
                 'priority_rank': cur_priority_rank,
                 'aliases': cur_aliases,
@@ -818,7 +823,7 @@ def register_callbacks(app):
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
                 # Show unsaved modal; store 'new-node' as pending action
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
                 no_change[33] = '__new_node__'  # pending-navigation-store (special sentinel)
                 no_change[34] = True            # modal-unsaved-changes
                 return no_change
@@ -832,7 +837,7 @@ def register_callbacks(app):
             if trigger_id == 'background-click-input':
                 editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
                 if editor_open and _has_unsaved_changes():
-                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
                     no_change[33] = '__background__'  # pending-navigation-store sentinel
                     no_change[34] = True              # modal-unsaved-changes
                     return no_change
@@ -869,7 +874,7 @@ def register_callbacks(app):
             tapped_id = data.get('id')
             if editor_open and tapped_id and tapped_id != original_name and _has_unsaved_changes():
                 # Store the pending target and show unsaved modal instead of populating
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
                 no_change[33] = tapped_id  # pending-navigation-store
                 no_change[34] = True       # modal-unsaved-changes
                 return no_change
@@ -885,13 +890,13 @@ def register_callbacks(app):
                     # Dormant nodes have their own editor (Events-tab dormant modal).
                     # Defense-in-depth: if any code path forwards a dormant name here,
                     # don't load it into the generic sidebar.
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
                 if node:
                     name = node.name
                     data = node.to_dict()
                     data['id'] = name
                 else:
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
         elif trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
@@ -906,13 +911,13 @@ def register_callbacks(app):
                 resolved_name = resolved if resolved is not None else search_val
             node = manager.get_node(resolved_name)
             if node and node.dormant:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
             if node:
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -923,7 +928,7 @@ def register_callbacks(app):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
 
         edges = manager.get_edges()
 
@@ -979,6 +984,18 @@ def register_callbacks(app):
         # Value mode (mirrors time_mode)
         value_mode_val = ["inherited"] if data.get('value_mode') == 'inherited' else []
 
+        # Map stored habit fields onto the per-session editor widgets (legacy
+        # per-day/per-week units fold into the weekday picker; total preserved).
+        habit_unit_val, habit_o_val, habit_m_val, habit_p_val, habit_days_val = (
+            habit_editor_view(
+                data.get('habit_intensity_unit'),
+                data.get('habit_intensity_o', 0) or 0,
+                data.get('habit_intensity_m', 0) or 0,
+                data.get('habit_intensity_p', 0) or 0,
+                data.get('habit_days'),
+            )
+        )
+
         return [
             name, data.get('type'), data.get('description'),
             data.get('context') or '', data.get('subcontext') or '',
@@ -1006,10 +1023,11 @@ def register_callbacks(app):
             time_habit_mode_val,
             data.get('habit_duration', 0) or 0,
             data.get('habit_duration_unit') or 'weeks',
-            data.get('habit_intensity_o', 0) or 0,
-            data.get('habit_intensity_m', 0) or 0,
-            data.get('habit_intensity_p', 0) or 0,
-            data.get('habit_intensity_unit') or 'min_per_day',
+            habit_o_val,
+            habit_m_val,
+            habit_p_val,
+            habit_unit_val,
+            habit_days_val,
         ]
 
     # --- Post-save sync of original_name / name ---
@@ -1051,7 +1069,8 @@ def register_callbacks(app):
          State('node-habit-intensity-o', 'value'),
          State('node-habit-intensity-m', 'value'),
          State('node-habit-intensity-p', 'value'),
-         State('node-habit-intensity-unit', 'value')],
+         State('node-habit-intensity-unit', 'value'),
+         State('node-habit-days', 'value')],
         prevent_initial_call=True,
     )
     def sync_original_name_after_save(_save_clicks, _save_close_clicks,
@@ -1066,7 +1085,7 @@ def register_callbacks(app):
                                       cur_time_habit_mode,
                                       cur_habit_duration, cur_habit_duration_unit,
                                       cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
-                                      cur_habit_int_unit):
+                                      cur_habit_int_unit, cur_habit_days):
         if not cur_name or not cur_name.strip():
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         linted = ConfigManager.apply_titlecase_linter(cur_name.strip())
@@ -1102,6 +1121,7 @@ def register_callbacks(app):
             'habit_intensity_m': cur_habit_int_m,
             'habit_intensity_p': cur_habit_int_p,
             'habit_intensity_unit': cur_habit_int_unit,
+            'habit_days': cur_habit_days,
             'value_mode': cur_value_mode,
             'priority_rank': cur_priority_rank,
         }
@@ -1223,13 +1243,10 @@ def register_callbacks(app):
         Input('node-habit-duration-unit', 'value'),
         Input('node-habit-intensity-m', 'value'),
         Input('node-habit-intensity-unit', 'value'),
+        Input('node-habit-days', 'value'),
     )
-    def update_habit_total_preview(duration, dur_unit, intensity_m, int_unit):
-        total = habit_to_hours(duration or 0, dur_unit or 'weeks',
-                               intensity_m or 0, int_unit or 'min_per_day')
-        if total <= 0:
-            return ""
-        return f"Computes to ~{round(total, 1)} h total"
+    def update_habit_total_preview(duration, dur_unit, intensity_m, int_unit, days):
+        return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
 
     # --- Toggle Value/Interest/Effort sliders based on value_mode ---
     app.clientside_callback(
@@ -1661,7 +1678,8 @@ def register_callbacks(app):
          State('node-habit-intensity-o', 'value'),
          State('node-habit-intensity-m', 'value'),
          State('node-habit-intensity-p', 'value'),
-         State('node-habit-intensity-unit', 'value')],
+         State('node-habit-intensity-unit', 'value'),
+         State('node-habit-days', 'value')],
         prevent_initial_call='initial_duplicate'
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
@@ -1685,7 +1703,8 @@ def register_callbacks(app):
                      value_mode_val,
                      time_habit_mode_val,
                      habit_duration, habit_duration_unit,
-                     habit_int_o, habit_int_m, habit_int_p, habit_int_unit):
+                     habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
+                     habit_days):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         This is intentionally a single large callback because Dash requires each Output
@@ -1731,6 +1750,7 @@ def register_callbacks(app):
                 'habit_int_m': habit_int_m,
                 'habit_int_p': habit_int_p,
                 'habit_int_unit': habit_int_unit,
+                'habit_days': habit_days,
                 'value_mode_val': value_mode_val,
                 'priority_rank_val': priority_rank_val,
                 'alias_values': alias_values,
@@ -1859,7 +1879,7 @@ def register_callbacks(app):
                     t_o, t_m, t_p = compute_habit_time_omp(
                         habit_duration or 0, habit_duration_unit or 'weeks',
                         habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
-                        habit_int_unit or 'min_per_day',
+                        habit_int_unit or 'min_per_session', habit_days,
                     )
                 value_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
                 msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
@@ -1874,7 +1894,8 @@ def register_callbacks(app):
                                   habit_intensity_o=habit_int_o or 0,
                                   habit_intensity_m=habit_int_m or 0,
                                   habit_intensity_p=habit_int_p or 0,
-                                  habit_intensity_unit=habit_int_unit or 'min_per_day')
+                                  habit_intensity_unit=habit_int_unit or 'min_per_session',
+                                  habit_days=habit_days)
 
                 # Save aliases
                 clean_aliases = [a for a in (alias_values or []) if a and a.strip()]

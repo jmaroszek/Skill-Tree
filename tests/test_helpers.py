@@ -581,6 +581,8 @@ class TestSnapshotFromFormState:
             'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
             'obs_links': [''], 'drive_links': [''], 'website_links': [''],
             'time_mode': [],
+            'habit_intensity_unit': 'min_per_session',
+            'habit_days': [0, 1, 2, 3, 4, 5, 6],
             'priority_rank': 'none',
             'aliases': [''],
         }

@@ -14,6 +14,7 @@ import pytest
 
 from callback_helpers import (
     habit_to_hours, compute_habit_time_omp, handle_save,
+    habit_editor_view, habit_preview_text, parse_habit_days,
 )
 from graph_manager import GraphManager
 from models import Node
@@ -79,6 +80,98 @@ class TestComputeHabitTimeOmp:
         o, m, p = compute_habit_time_omp(6, 'weeks', 0, 0, 0, 'min_per_day')
         assert (o, m, p) == (0.0, 0.0, 0.0)
 
+    def test_per_session_bands_with_days(self):
+        # 6 weeks × (10/15/20) min × 3 days/wk → (3.0, 4.5, 6.0) h
+        o, m, p = compute_habit_time_omp(
+            6, 'weeks', 10, 15, 20, 'min_per_session', [0, 3, 4])
+        assert (o, m, p) == (3.0, 4.5, 6.0)
+
+
+# ============================================================================
+# Per-session (weekday) cadence — the new Apple-style scheduler
+# ============================================================================
+
+class TestPerSessionCadence:
+    def test_example_15min_three_days_six_weeks(self):
+        # 6 weeks × 15 min × {Mon,Thu,Fri} = 6 × 3 × 0.25 h = 4.5 h
+        assert habit_to_hours(6, 'weeks', 15, 'min_per_session', [0, 3, 4]) == 4.5
+
+    def test_all_seven_days_equals_legacy_per_day(self):
+        every_day = habit_to_hours(6, 'weeks', 30, 'min_per_session',
+                                   [0, 1, 2, 3, 4, 5, 6])
+        assert every_day == habit_to_hours(6, 'weeks', 30, 'min_per_day') == 21.0
+
+    def test_no_days_selected_is_zero(self):
+        assert habit_to_hours(6, 'weeks', 15, 'min_per_session', []) == 0.0
+        assert habit_to_hours(6, 'weeks', 15, 'min_per_session', None) == 0.0
+
+    def test_hours_per_session(self):
+        # 2 weeks × 1 hr × 2 days/wk = 2 × 2 × 1 = 4.0 h
+        assert habit_to_hours(2, 'weeks', 1, 'hr_per_session', [0, 1]) == 4.0
+
+    def test_days_accepts_csv_string(self):
+        assert habit_to_hours(6, 'weeks', 15, 'min_per_session', '0,3,4') == 4.5
+
+    def test_days_unit_duration(self):
+        # 14 days = 2 weeks × 15 min × 3 days/wk = 2 × 3 × 0.25 = 1.5 h
+        assert habit_to_hours(14, 'days', 15, 'min_per_session', [0, 3, 4]) == 1.5
+
+
+class TestParseHabitDays:
+    def test_csv_string(self):
+        assert parse_habit_days('0,3,4') == [0, 3, 4]
+
+    def test_list_passthrough(self):
+        assert parse_habit_days([1, 2]) == [1, 2]
+
+    def test_none_defaults_to_all_seven(self):
+        assert parse_habit_days(None) == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_drops_out_of_range(self):
+        assert parse_habit_days('0,9,4,-1') == [0, 4]
+
+
+class TestHabitEditorView:
+    def test_per_day_maps_to_all_seven_unchanged(self):
+        unit, o, m, p, days = habit_editor_view('min_per_day', 10, 20, 30, '0,3')
+        assert unit == 'min_per_session'
+        assert (o, m, p) == (10, 20, 30)
+        assert days == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_per_week_spreads_across_seven_preserving_total(self):
+        # 7 hr/week → minutes: 420 min/week / 7 days = 60 min/session.
+        unit, o, m, p, days = habit_editor_view('hr_per_week', 7, 7, 7, None)
+        assert unit == 'min_per_session'
+        assert (o, m, p) == (60.0, 60.0, 60.0)
+        assert days == [0, 1, 2, 3, 4, 5, 6]
+        # Total is preserved: 7 hr/week = 60 min/session × 7 days.
+        assert habit_to_hours(2, 'weeks', 60.0, 'min_per_session', days) == \
+            habit_to_hours(2, 'weeks', 7, 'hr_per_week')
+
+    def test_hours_per_session_converted_to_minutes(self):
+        # A legacy hr_per_session node displays as minutes (×60).
+        unit, o, m, p, days = habit_editor_view(
+            'hr_per_session', 1, 1, 1, '0,3')
+        assert unit == 'min_per_session'
+        assert (o, m, p) == (60, 60, 60)
+        assert days == [0, 3]
+
+    def test_per_session_passthrough(self):
+        unit, o, m, p, days = habit_editor_view(
+            'min_per_session', 15, 15, 15, '0,3,4')
+        assert unit == 'min_per_session'
+        assert days == [0, 3, 4]
+
+
+class TestHabitPreviewText:
+    def test_per_session_preview(self):
+        txt = habit_preview_text(6, 'weeks', 15, 'min_per_session', [0, 3, 4])
+        assert '4.5 h' in txt
+        assert '3 days/wk' in txt
+
+    def test_zero_returns_empty(self):
+        assert habit_preview_text(0, 'weeks', 15, 'min_per_session', [0]) == ""
+
 
 # ============================================================================
 # Node validation (__post_init__) — accept new mode + clamp invalid units
@@ -109,6 +202,21 @@ class TestNodePostInit:
     def test_invalid_intensity_unit_falls_back_to_min_per_day(self):
         n = self._node(habit_intensity_unit='pulses_per_aeon')
         assert n.habit_intensity_unit == 'min_per_day'
+
+    def test_per_session_units_accepted(self):
+        assert self._node(habit_intensity_unit='min_per_session').habit_intensity_unit == 'min_per_session'
+        assert self._node(habit_intensity_unit='hr_per_session').habit_intensity_unit == 'hr_per_session'
+
+    def test_habit_days_default_all_seven(self):
+        assert self._node().habit_days == '0,1,2,3,4,5,6'
+
+    def test_habit_days_coerced_from_list_sorted_deduped(self):
+        n = self._node(habit_days=[4, 0, 4, 3])
+        assert n.habit_days == '0,3,4'
+
+    def test_habit_days_drops_out_of_range(self):
+        n = self._node(habit_days='0,9,4,-2')
+        assert n.habit_days == '0,4'
 
     def test_habit_duration_coerced_to_float(self):
         n = self._node(habit_duration='6')
@@ -163,6 +271,20 @@ class TestSchemaRoundTrip:
         assert roundtripped.habit_intensity_unit == 'min_per_day'
         # Node.time uses the stored time_o/m/p — habit mode doesn't zero them.
         assert roundtripped.time > 0
+
+    def test_habit_days_persists_and_reads_back(self):
+        mgr = GraphManager()
+        mgr.add_node(Node(
+            name='WeekdayHabit', type='Action', description='', value=5,
+            time_o=3, time_m=4.5, time_p=6, interest=5, difficulty=5,
+            status='Open', context='Mind',
+            time_mode='habit', habit_duration=6.0, habit_duration_unit='weeks',
+            habit_intensity_o=10, habit_intensity_m=15, habit_intensity_p=20,
+            habit_intensity_unit='min_per_session', habit_days='0,3,4',
+        ))
+        fetched = mgr.get_node('WeekdayHabit')
+        assert fetched.habit_intensity_unit == 'min_per_session'
+        assert fetched.habit_days == '0,3,4'
 
     def test_update_preserves_habit_breakdown(self):
         mgr = GraphManager()
@@ -266,6 +388,25 @@ class TestHandleSaveWithHabit:
         assert node.habit_duration == 6.0
         assert node.habit_intensity_unit == 'min_per_day'
         assert node.time_m == 21.0
+
+    def test_handle_save_persists_habit_days(self):
+        mgr = GraphManager()
+        handle_save(
+            mgr,
+            name='WeekdaySave', n_type='Action', desc='', val=5,
+            time_o=3.0, time_m=4.5, time_p=6.0,
+            interest=5, diff=5,
+            status_done=[], context='Mind', subctx=None,
+            obs_path=None, drive_path=None, website_path=None,
+            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
+            time_mode='habit',
+            habit_duration=6.0, habit_duration_unit='weeks',
+            habit_intensity_o=10.0, habit_intensity_m=15.0, habit_intensity_p=20.0,
+            habit_intensity_unit='min_per_session', habit_days=[0, 3, 4],
+        )
+        node = mgr.get_node('WeekdaySave')
+        assert node.habit_intensity_unit == 'min_per_session'
+        assert node.habit_days == '0,3,4'
 
 
 # ============================================================================
