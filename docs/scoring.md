@@ -460,11 +460,18 @@ Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{
 ## Tutorial
 ```mermaid
 flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    R(["README"]) --> F(["Features"])
+    F --> M(["Modeling"])
+    F --> S(["Scoring"])
+    S --> T(["Time"])
+    T --> M
+
     classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    classDef technical fill:#102f3f,stroke:#2496c7,color:#d7f4ff;
     class S current
-    class R,F,T,M other
+    class R,F,M other
+    class T technical
 ```
 
 <p align="center">

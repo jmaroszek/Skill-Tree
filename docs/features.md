@@ -1,6 +1,6 @@
 # Features
 
-This document walks you through the UI of Skill Tree and introduces key concepts along the way. By the end you'll know how to use the app, and where to look when you want more depth. All examples use a sandbox dataset derived from my real graph.
+This document walks you through the UI of Skill Tree and introduces key concepts along the way. By the end you'll know how to use the app, and where to look when you want more depth. From here, you can go straight to [Modeling](modeling.md) for the practical guide to building a good graph, or take the technical path through [Scoring](scoring.md) and [Time](time.md) first. All examples use a sandbox dataset derived from my real graph.
 
 # Node Editor
 The Node Editor is where you create new projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. You can access the node editor from anywhere in the app by clicking this icon in the top left corner. 
@@ -804,13 +804,22 @@ Feel free to experiment with alternative settings because all the major operatio
 
 # Navigation
 ## Tutorial
+From here, choose your route: go straight to **Modeling** for the practical guide to building your graph, or take the technical path through **Scoring** and **Time** first. 
+
 ```mermaid
 flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    R(["README"]) --> F(["Features"])
+    F --> M(["Modeling"])
+    F --> S(["Scoring"])
+    S --> T(["Time"])
+    T --> M
+
     classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    classDef technical fill:#102f3f,stroke:#2496c7,color:#d7f4ff;
     class F current
-    class R,S,T,M other
+    class R,M other
+    class S,T technical
 ```
 
 <p align="center">

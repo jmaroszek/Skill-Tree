@@ -12,8 +12,6 @@ Standard estimation imagines that errors add up. Each surprise tacks on a fixed 
 
 Real delays do not add, they multiply. Waiting on feedback doesn't cost a flat hour; it stretches whatever work remains. A wrong assumption doesn't add a step; it doubles the remaining effort. Pile up enough of these independent multipliers and the durations spread into a **log-normal** shape: bounded by zero on the left, with a long tail running out to the right. The exact distribution is not the point. The asymmetry is. A task can run many times over, but it can never take less than no time at all.
 
-**Diagram: a symmetric Normal curve beside a right-skewed log-normal curve — both bounded near zero on the left, but the log-normal trailing off in a long right tail.**
-
 This shape is why estimation should happen in ratio space. The brain already works there. It is far easier to say with confidence that a task will take "no less than 10 hours and no more than 100" than to pin it to "between 30 and 60." The wide, order-of-magnitude bracket activates a reliable gut-check. The narrow one demands a precision we don't have.
 
 ## The Typical Task Takes the Median Time
@@ -201,11 +199,18 @@ Each of these would be tractable to add, but each would require more input from 
 ## Tutorial
 ```mermaid
 flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    R(["README"]) --> F(["Features"])
+    F --> M(["Modeling"])
+    F --> S(["Scoring"])
+    S --> T(["Time"])
+    T --> M
+
     classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    classDef technical fill:#102f3f,stroke:#2496c7,color:#d7f4ff;
     class T current
-    class R,F,S,M other
+    class R,F,M other
+    class S technical
 ```
 
 <p align="center">

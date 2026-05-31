@@ -73,25 +73,28 @@ No other tool offers this kind of control or insight into the decision itself. N
 
 ## All Aboard the Magical Mystery Tour
 
-You will meet Skill Tree through five documents. You have already read the first. The next four describe an important aspect of the app. 
+You will meet Skill Tree through five documents. You have already read the first. Everyone should read **Features** next, because it shows what the app can do. After that, the tutorial splits. Take the practical path straight to **Modeling** if you want to start building a better graph, or take the technical path through **Scoring** and **Time** first if you want to understand the machinery behind the recommendations.
 
-- **[Features](docs/features.md)** walks through every tab and panel: the graph canvas, the recommendation list, goal tracking, events for planning the future, reflection for learning from the past, and an Analyze tab full of diagnostics.
-- **[Scoring](docs/scoring.md)** opens up the ranking math. How value cascades through the tree, how synergies reward cross-disciplinary work, and how scoring profiles re-weight everything to match your mood, from open curiosity to focused execution.
-- **[Time](docs/time.md)** explains how the app turns a rough guess into an honest estimate, and how it simulates when a sprawling goal will actually be finished.
-- **[Modeling](docs/modeling.md)** is the field guide to building a tree worth ranking. How big a node should be, when an edge earns its place, and how to keep the whole thing from collapsing into a hairball.
-
+The map below shows both routes: the practical path goes straight from **Features** to **Modeling**, while the technical path detours through **Scoring** and **Time** before returning there.
 
 ```mermaid
 flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    R(["README"]) --> F(["Features"])
+    F --> M(["Modeling"])
+    F --> S(["Scoring"])
+    S --> T(["Time"])
+    T --> M
+
     classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    classDef technical fill:#102f3f,stroke:#2496c7,color:#d7f4ff;
     class R current
-    class F,S,T,M other
+    class F,M other
+    class S,T technical
 ```
 
 <p align="center">
   <b>README</b> · <a href="docs/features.md">Features</a> · <a href="docs/scoring.md">Scoring</a> · <a href="docs/time.md">Time</a> · <a href="docs/modeling.md">Modeling</a>
 </p>
 
-Follow the path at the footer of each page, and by the end, you will know how to use Skill Tree, and why it works the way it does.
+Follow the map at the footer of each page. By the end, you will know how to use Skill Tree, how to model your own graph, and, if you take the technical path, why the recommendations work the way they do.

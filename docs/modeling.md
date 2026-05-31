@@ -168,11 +168,18 @@ After using Skill Tree for a while, I noticed patterns that made my modeling les
 ## Tutorial
 ```mermaid
 flowchart LR
-    R(["README"]) --> F(["Features"]) --> S(["Scoring"]) --> T(["Time"]) --> M(["Modeling"])
+    R(["README"]) --> F(["Features"])
+    F --> M(["Modeling"])
+    F --> S(["Scoring"])
+    S --> T(["Time"])
+    T --> M
+
     classDef current fill:#ffd966,stroke:#b58900,stroke-width:2px,color:#000;
     classDef other fill:#2b2b2b,stroke:#555,color:#bbb;
+    classDef technical fill:#102f3f,stroke:#2496c7,color:#d7f4ff;
     class M current
-    class R,F,S,T other
+    class R,F other
+    class S,T technical
 ```
 
 <p align="center">
@@ -185,7 +192,6 @@ flowchart LR
 |---|---|
 | [graph_manager.py](../graph_manager.py) | Edge creation, cycle detection, and the status cascade that the rules in this guide rely on. |
 | [app_architecture.md](app_architecture.md) | How the graph you build flows through the app, from mutation to re-rank. |
-
 
 
 
