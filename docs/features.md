@@ -537,17 +537,12 @@ Most node types — Learn, Action, and Resource — are ranked by the algorithm 
 
 Open the sidebar from the star icon in the top-left. 
 
-<p align="center">
-  <img src="../images/goals-sidebar.png" width = 300>
-  <br>
-  <em> Sandbox Goal Sidebar </em>
-</p>
+<table>
+  <tr>
+    <td valign="top" style="padding-right: 30px;"><img src="../images/goals-sidebar.png" alt="The goals sidebar" width="1000"></td>
+    <td valign="top">
 
-## Setting Priority Goals
-Your top three Goals are the **Priority Goals** — the ones the algorithm boosts. The most direct way to set them is the **rank badge** on each card: click the gold 1, 2, or 3 (or the empty slot where it would be) to open a popover with Priority 1 / 2 / 3 / Clear. You can also right-click any card to open the [context menu](#context-menu), which gets an extra **Priority** section here for the same purpose.
-
-## Sorting
-The sort dropdown above the list controls the card order. There are four modes, and each has a unique visual appearance in the sidebar. 
+The **+** next to the "Goals" header creates a new Goal and opens it in the node editor. You can search for existing goals underneath that. The goals auto-filter as you type. But if you want to sort goals by specific criteria, you can do that too. The row below the search bar contains a dropdown menu with three modes, each having a unique effect and appearance:
 
 | Mode | Order |
 |---|---|
@@ -555,8 +550,24 @@ The sort dropdown above the list controls the card order. There are four modes, 
 | Time | Longest projects first, shortest projects last. Scroll to the top or bottom to see the extremes.|
 | Manual | A custom order you set by dragging the cards. The drag handle appears on each card whenever this mode is active. |
 | Alphabetical | A→Z by name. |
+</td>
+  </tr>
+</table>
 
-The **+** next to the "Goals" header creates a new Goal and opens it in the editor.
+
+## Setting Priority Goals
+
+<table>
+  <tr>
+    <td valign="top" style="padding-right: 30px;"><img src="../images/goals-context-menu.png" alt="The goals sidebar" width="1000"></td>
+    <td valign="top">
+
+Your top three Goals are the **Priority Goals** — the ones the algorithm boosts. The most direct way to set them is the through the context menu. Right click a card, and a new "set priority" option appears. You can also set a goal's priority through the node editor through a field that appears only for goal-type nodes
+
+</td>
+  </tr>
+</table>
+
 
 # Events
 Events let you plan for the future without cluttering today. Some things genuinely matter, but you don't want to think about them yet.
