@@ -55,6 +55,7 @@ The Status section of the node editor has three toggles: **Now**, **Done**, and 
 <p align="center">
   <img src="../images/node-editor-status-section.png" alt="Node Editor status section" width="300">
   <br>
+  <em> The Status section's three toggles. </em>
 </p>
 
 | Toggle | What it does |
@@ -97,7 +98,11 @@ Above the sliders sit two toggles.
 ### Ratings Table
 In order to standardize the rating process, there is a table that describes what each rating means. Open it by clicking the info icon next to the Ratings header in the Node Editor. Every cell is editable, so you can personalize your experience over time. 
 
-<img src="../images/node-editor-ratings-table.png" alt="Node editor ratings table" >
+<p align="center">
+  <img src="../images/node-editor-ratings-table.png" alt="Node editor ratings table">
+  <br>
+  <em> The editable ratings rubric. </em>
+</p>
 
 
 ## Time
@@ -188,6 +193,7 @@ When a book, course, or article is substantial enough that you want to track and
 <p align="center">
     <img src="../images/node-editor-external-resources.png" width=400>
     <br>
+    <em> The External Resources section. </em>
 </p>
 
 There are three kinds of link. A **Website** link is any URL. An **Obsidian** link points to a note in your vault by its path. A **Google Drive** link opens a synced file, given a Drive URL or a path if it's locally mounted. For the path-based links, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
@@ -205,6 +211,7 @@ This is the tab the app opens on. If you only ever look at one screen, this is t
 <p align="center">
     <img src="../images/next-tab-rankings-table.png" >
     <br>
+    <em> The recommendations table. </em>
 </p>
 
 
@@ -279,6 +286,8 @@ Every node's shape and color has meaning. Shape tells you type, and color tells 
 
 <p align="center">
     <img src="../images/node-types.png">
+    <br>
+    <em> The five node types and their default shapes. </em>
 </p>
 
 Regardless of type, Done nodes are green and Blocked nodes are red. The colors shown in the image above are the default colors for an open node of the indicated type. You can adjust both the shape and color of nodes in [settings](#settings)
@@ -665,6 +674,8 @@ A log of your past reflections. This searchable, filterable table displays your 
 
 <p align="center">
   <img src="../images/reflection-history.png" width=500>
+  <br>
+  <em> The Reflection History table. </em>
 </p>
 
 ## Excluded
@@ -706,12 +717,16 @@ The Contexts section puts three views in one row, each asking a different questi
 
 <p align="center">
   <img src="../images/analyze-hours-by-context.png">
+  <br>
+  <em> Hours by Context. </em>
 </p>
 
 **Ratings by Context and Reflection Drift** The left chart shows average Value, Interest, and Effort across the live nodes in each context. The chart on the right shows the same three dimensions, but the average change between your pre- and post-project estimates. Red cells mean you overrated the work going in; blue cells mean you underrated it. Like every visualiation on this tab, you can get additional information by mousing over a graph element.
 
 <p align="center">
   <img src="../images/analyze-ratings-heatmaps.png">
+  <br>
+  <em> Ratings by Context (left) and Reflection Drift (right). </em>
 </p>
 
 ## Time Estimation Accuracy
@@ -724,6 +739,8 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 
 <p align="center">
   <img src="../images/analyze-time-estimation-accuracy.png">
+  <br>
+  <em> Estimate accuracy By Node (left) and By Context (right). </em>
 </p>
 
 ## Throughput
@@ -733,7 +750,7 @@ The Throughput chart shows hours of completed work per calendar bucket, stacked 
 <p align="center">
   <img src="../images/analyze-throughput-bars.png">
 <br>
-<em> </em>
+<em> The Throughput chart. </em>
 </p>
 
 Where Hours-by-Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
