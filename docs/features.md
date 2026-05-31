@@ -14,9 +14,7 @@ The Node Editor is where you create new projects and update existing ones. It is
 <img src="../images/node-editor-general-section.png" alt="Node editor general section" align="left" height="400" style="margin: 10px 25px 25px 0;">
 
 ### Search Bar
-As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. 
-
-Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. We'll cover what it does in full [later](#search--locate).
+As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. We'll cover what it does in full [later](#search--locate).
 
 ### Names
 A node's name is how you find it (using the search bar) and reference it from other nodes (to create relationships). **Each name in Skill Tree must be unique.** Type a name that matches another — exactly, or after stripping connector words like *the,* *of,* and *is* — and the editor surfaces a *duplicate warning*. Unique doesn't have to mean singular, though. 
@@ -115,7 +113,7 @@ Time estimation is the most valuable thing in project management to get right �
 
 ### Habits
 
-The methods above assume total time is all that matters. For a book, it is — three one-hour sessions and one three-hour session land in the same place. Habits are different. "Run three times a week for eight weeks" doesn't translate cleanly into total hours, and the translation hides the things you actually care about: cadence. **Habit Mode** swaps total time for duration and frequency.
+The methods above assume total time is all that matters. For a book, it is — three one-hour sessions and one three-hour session land in the same place. Habits are different. "Run three times a week for eight weeks" doesn't translate cleanly into total hours, and the translation hides the things you actually care about: cadence. **Habit Mode** swaps total time for duration, intensity, and frequency.
 
 <p align="center">
   <img src="../images/node-editor-time-section.png" alt="Node editor time section" width="350" style="vertical-align: middle; margin: 0 20px;">
@@ -266,7 +264,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 Click **Nodes** to see your entire task network as one graph — every node, every edge, all at once. A physics engine arranges it automatically, pulling connected nodes together so related work clusters visually.
 
 <p align="center">
-    <img src="../images/skill-tree-large-network.png">
+    <img src="../images/nodes-tab.png">
     <br>
     <em> My Entire Network</em>
 </p>
@@ -371,9 +369,14 @@ Now its time to talk about what the crosshair button next to the [search](#searc
 
 # Filters Sidebar
 
-The filters panel sits in the top-right corner of the app and applies across most tabs — the Analyze tab is the only exception. It's introduced here because the Nodes and Next tabs get the most out of it. On Nodes, filters carve the graph down to a meaningful subset. On Next, they control which projects compete for the top recommendation slots.
+Click the filter icon in the top-right corner to open the filters panel. Filters narrow your graph to the slice you care about, and they apply across every tab except Analyze, which always reports on the graph as a whole. Filters are especially useful on the tabs we just covered. On Nodes, they pare the network down to a subset you can actually focus on. And on Next, they decide which projects compete for the top recommendation slots.
 
 ## Filter Controls
+
+<table>
+  <tr>
+    <td valign="top" style="padding-right: 30px;"><img src="../images/filters-sidebar-overview.png" alt="The filters sidebar" width="400"></td>
+    <td valign="top">
 
 | Filter | Function |
 |---|---|
@@ -383,56 +386,73 @@ The filters panel sits in the top-right corner of the app and applies across mos
 | Min Interest | Hide anything rated below a threshold. |
 | Max Effort | Hide anything more difficult than a threshold. |
 | Max Time | Hide anything longer than a time limit, using your preferred units |
-| Communities | Filter to an algorithmically-detected group of nodes (see [communities](#communities)).|
 | Done Toggle | Show or hide complete nodes. Hidden by default. |
-| Dormant Toggle | Show or hide dormant nodes. Hidden by default. (Dormant nodes are discussed in events). |
+| Dormant Toggle | Show or hide dormant nodes. Hidden by default. |
+| Communities | Narrow the graph to an algorithmically-detected cluster of related nodes. See [Communities](#communities) below. |
 | Memory | When on, your filter selections persist across sessions; when off, they reset on restart. |
 | Clear filters | Reset all filters to their default state |
-| Settle | Re-run the layout algorithm with selected filters. This happens automatically, but sometimes running it manually gives more aesthetic results. | 
+| Settle | Re-run the layout algorithm with selected filters. This happens automatically, but sometimes running it manually gives more aesthetic results. |
 
-## Filter Reminders
-When any filter is active, the node-count readout in the lower-left of the Nodes tab adds a "· filtered" note, so you don't forget. The Next tab shows one too. Without these reminders, you could leave Memory on, hammer one context for weeks, and never notice. It happened to someone I know.
-
-Me. 
-
-It was me.
-
-**[SCREENSHOT: the filters panel open with several filters applied, and the filtered node count visible.]**
+</td>
+  </tr>
+</table>
 
 ## Communities
 The Communities filter algorithmically groups related nodes together. Three detection methods are available.
 
 | Method | Description |
 |---|---|
-| Islands | Disconnected components of the graph — groups of nodes connected to each other but with no edges to the rest of the graph. Useful for spotting independent projects, or accidentally orphaned clusters. |
+| Islands | Self-contained groups with no edges to the rest of the graph. Useful for spotting independent projects, or accidentally orphaned clusters. |
 | Clusters | Densely connected groups. Useful for spotting cross-context clusters that don't fit your mental taxonomy. |
 | Orphans | Nodes with no edges at all. Almost always a missing link, or a candidate for deletion. |
 
-Pick a detection method, then a specific community from the list. Community names auto-generate from the most common context in the group — slightly more descriptive than "Community 1, 2, 3," but you'll still need to click in to see the nodes (some groups are large).
+Pick a detection method, then a specific community from the list. Community names auto-generate from the most common context in the group — slightly more descriptive than "Community 1, 2, 3," but you'll still need to click it to see what nodes are members of the community.
+
+## Filter Reminders
+When any filter is active, the app reminds you by adding a small "filtered" message to the lower left corner of the tab or canvas. Without these reminders, you could leave Memory on, hammer a context for weeks, and never notice. It happened to someone I know.
+
+Me. 
+
+It was me.
 
 # Details Tab
-The Next tab tells you *what* to work on. The Details tab is where you go to *understand* it — what it depends on, how far along it is, how long it will take, and why the algorithm scored it the way it did.
+The Next tab tells you *what* project to work on. The Details tab is where you go to *understand* it.
 
 ## Populating the Tab
-The Details tab is empty by default — it doesn't know what you want details *for*. Four ways to fill it:
+The Details tab is empty by default — since it doesn't know what you want the details for. There are three ways to load a project:
+
+<table>
+  <tr>
+    <td valign="top" style="padding-right: 30px;"><img src="../images/details-suggestions.png" alt="The filters sidebar" width="800"></td>
+    <td valign="top">
 
 | Path | How it works |
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
-| Click a suggestion | When nothing is selected, the left panel shows a suggestion list. Up to three sections: any active **Manual Override**, your top three **Priority Goals**, and five **Top Recommendations** — the [containers](#containers) with the highest total value. |
-| Jump from another tab | On the Next or Nodes tab, right-click a node and pick **Details**. The app jumps here with it loaded. |
-| Pick from the Goals sidebar | Open the Goals sidebar (star icon, top-left) and click a goal card. See [Goals Sidebar](#goals-sidebar) below. |
+| Suggestions | When nothing is selected, the left panel shows a suggestion list. Up to three sections: any active **Manual Override**, your top three **Priority Goals**, and five **Top Recommendations** — the [containers](#containers) with the highest total value. |
+| Context Menu |Right-click a node and pick **Details** in the context menu. The app jumps here with the project loaded. Accessible from Next, Nodes, and Details tabs + the Goals Sidebar.|
 
-**Big Picture Screenshot of the details tab with a node selected**
+</td>
+  </tr>
+</table>
 
-Once a node is loaded, the tab splits into four panels: **Node Information** and **Mini-Canvas** on top, **Subtasks** and **Time Simulation** below. We'll walk through them one by one.
+## Overview of the Details Tab
+Once a node is loaded, the tab splits into four panels: node information, mini-graph, subtasks, and simulation.
+
+<p align="center">
+  <img src="../images/details-tab-overview-filled.png">
+  <br>
+  <em> Details Tab with an example project loaded </em>
+</p>
+
+Now we'll walk through the sections one by one.
 
 ## Node Information Panel
-The left panel summarizes the selected node. Most of it is self-explanatory, but a few things deserve a closer look.
+The top-left panel summarizes the selected node. Most of it is self-explanatory, but a few things deserve a closer look.
 
-**Badges** appear under the node's name. Every node carries at least two — its **status** and **type**. Nodes connected to a [Priority Goal](#setting-priority-goals) carry more:
+**Badges** appear under the node's name. Every node carries at least two — its **status** and **type**, which you can see in the screenshot above, but nodes connected to a [Priority Goal](#setting-priority-goals) carry more:
 
-- **Top-level Goals** get a rank badge (Priority 1, 2, or 3) and a progress bar tracking completion.
+- **Top-level Goals** get a rank badge (Priority 1, 2, or 3) and a progress bar below their description tracking completion.
 - **Goal dependents** get badges like `Hard 1` or `Soft 2`. The number is which Priority Goal the node feeds; Hard / Soft is whether it does so through a hard or soft chain. `Soft 2` reads as "this node contributes, via a soft path, to your second Priority Goal."
 
 The rest of the panel — node stats and three action buttons — reuses functions introduced elsewhere.
@@ -441,34 +461,51 @@ The rest of the panel — node stats and three action buttons — reuses functio
 |---|---|
 | Edit | Opens the node editor. |
 | Explain | Opens the [Explain](scoring.md#attribution) window. |
-| Locate | Briefly pulses the node on the mini-canvas — same function as the crosshair in the Node Editor. |
+| Locate | Briefly pulses the node on the mini-canvas — same function as the crosshair beside the search bar in the Node Editor. |
 
 ## Canvas Panel
-The canvas on the right works like the Nodes tab canvas, with one difference: it's scoped to the selected node and everything related to it, not the whole graph. Every gesture and setting from the [Nodes Tab](#nodes-tab) walkthrough applies here too.
+The canvas on the right works like the Nodes tab, except it is scoped to the selected node, and everything related to it. Every gesture and setting from the [Nodes Tab](#nodes-tab) walkthrough applies here too.
 
-The Details tab also remembers where you've been. Clicking a node in the canvas loads it into the panel, so you can hop from subtask to dependency and back. Use the two arrows by the search bar in the Node Information Panel to step through your history, like a browser's back/forward buttons.
+There are a couple unique things about the Details canvas though. 
+
+### History
+Clicking a node here reloads every panel with that node's information — unlike the Nodes canvas, which only selects the node and fills the editor (if it happens to be open). Because each click swaps out the detailed view, this tab keeps a history. The two arrows beside the search bar in the Node Information Panel step you back and forward through it, just like a browser.
 
 ### Focus Mode
-The **magnifying glass** button in the bottom-right corner jumps you to the Nodes tab with this network highlighted and everything else dimmed — a quick way to see the project in its broader context. Hit **Clear Focus** at the top of the canvas to exit.
+There are three buttons in the bottom right corner of the canvas. Two of them were introduced elsewhere: [graph settings](#graph-layout-controls) and fullscreen, but one is unique to this tab: the one with a magnifying glass. Clicking this icon switches you to the Nodes tab with this network highlighted and everything else dimmed — a quick way to see this project in its broader context. 
 
-**[SCREENSHOT: Focus Mode active on the Nodes tab, with the selected network highlighted and the rest of the graph dimmed.]**
+<p align="center">
+  <img src="../images/focus-mode.png">
+  <br>
+  <em> Focus Mode for the Sandbox Literature goal</em>
+</p>
+
+Hit **Clear Focus** at the top of the canvas to exit.
 
 ## Subtasks Panel
-The Subtasks table in the lower-left lists every node in the dependency subtree. Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Next tab. Blocked and Done nodes have no priority since they're not [eligible](#eligibility) for ranking.
+The Subtasks table in the lower-left lists every node in the dependency subtree. 
+
+Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Next tab. Blocked and Done nodes have no priority since they're not [eligible](#eligibility) for ranking.
+
+<p align="center">
+  <img src="../images/details-stoicism.png">
+  <br>
+  <em> Details Tab with Stoicism Goal. </em>
+</p>
 
 If a subtask has a *direct* edge to the selected node, an **×** appears at the end of its row. Click it to open the **Remove Subtask** modal: choose **Remove Edge** to sever just the link (the node stays in the graph), or **Delete Node** to remove the node entirely. The **+** next to the "Subtasks" header opens a modal for adding a new subtask — either creating a fresh node or linking an existing one.
 
 If the subtree contains any Milestones, they get their own horizontal strip of tiles above the table. Milestones are checkpoints rather than work, so they're kept visually separate from the subtasks you actually grind through.
 
 ### Controlling how much you see
-The row of toggles in the top-right, combined with the **Max Depth** slider in the graph settings, lets you dial the view to the level of detail you want. Every panel reacts instantly — network, table, and simulation all refresh when you change a setting. (Filters apply to the Details tab too.)
+The row of toggles in the top-right, combined with the **Max Depth** slider in the graph settings, lets you dial the view to the level of detail you want. Every panel reacts instantly. (Keep in mind that [filters](#filters-sidebar) from the filters sidebar apply too.)
 
 | Control | What it does |
 |---|---|
-| Soft Needs | Include or exclude soft prerequisites — the helpful-but-not-blocking ones. |
+| Soft Needs | Include or exclude soft prerequisites. |
 | Transitive | When off, shows only *direct* children. When on, shows the entire subtree. |
 | Synergies | Include or exclude synergy partners. |
-| Show Done | Whether completed subtasks appear. Off by default to keep the focus on open work. Linked to the global filter state. |
+| Show Done | Whether completed subtasks appear. Off by default to keep the focus on open work. |
 | Hide Blocked | Drop subtasks currently blocked by an incomplete prerequisite. |
 | Max Depth | (In graph settings) Caps how many hops out from the selected node the subtree extends. |
 
@@ -477,7 +514,7 @@ For a sprawling Goal with hundreds of descendants, this is the difference betwee
 ## Time Simulation Panel
 Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take. The technique is **Monte Carlo Simulation**: each time you adjust a filter, the app runs 10,000 simulations of completing every subtask, sampling from your uncertainty about each one. The whole thing takes milliseconds, so it feels instantaneous; if you ever need it faster, you can lower the trial count in Settings.
 
-The feature shines on large, vague, long-horizon Goals. It lets you say with confidence "there's a 10% chance I'll finish this in 2 months, 50% in 3, and 90% in 4" — concrete expectations that make planning easier.
+The feature shines on large, vague, long-horizon Goals. It lets you say with confidence "there's a 10% chance I'll finish this in 2 months, 50% in 3, and 90% in 4." 
 
 | Output | What it tells you |
 |---|---|
@@ -486,14 +523,25 @@ The feature shines on large, vague, long-horizon Goals. It lets you say with con
 | P50 line | The median — half of runs finish faster, half slower. |
 | P90 line | Pessimistic case — 90% of runs finish faster than this; a sensible "worst realistic" figure. |
 
-**Screenshot: the Time Simulation panel — a histogram of total project duration with the P10, P50, and P90 lines marked.**
+In the two examples we've seen so far, the distributions looked like a normal distribution. That is because the upper and lower time estimates were close to each other. If they are further apart, the distribution will look different (more like a log-normal or beta distribution, with a long right tail). 
+
+<p align="center">
+  <img src="../images/details-skewed-distribution.png">
+  <br>
+  <em> Time Simulation with high uncertainty (a dense book, in this case) </em>
+</p>
+
 
 # Goals Sidebar
-Most node types — Learn, Action, Resource — are ranked by the algorithm and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to bias the rest of the graph through the [Goal Priority Boost](scoring.md#goal-priority-boost). That's what the Goals sidebar is for.
+Most node types — Learn, Action, and Resource — are ranked by the algorithm and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to influence the priority of other nodes. The mechanics of this are discussed in the next document of the tutorial in the [Goal Priority Boost](scoring.md#goal-priority-boost) section.
 
-Open the sidebar from the star icon in the top-left. Click any Goal card to load it into the Details tab.
+Open the sidebar from the star icon in the top-left. 
 
-**[SCREENSHOT: the Goals sidebar open with priority goals at the top.]**
+<p align="center">
+  <img src="../images/goals-sidebar.png" width = 300>
+  <br>
+  <em> Sandbox Goal Sidebar </em>
+</p>
 
 ## Setting Priority Goals
 Your top three Goals are the **Priority Goals** — the ones the algorithm boosts. The most direct way to set them is the **rank badge** on each card: click the gold 1, 2, or 3 (or the empty slot where it would be) to open a popover with Priority 1 / 2 / 3 / Clear. You can also right-click any card to open the [context menu](#context-menu), which gets an extra **Priority** section here for the same purpose.
@@ -503,8 +551,8 @@ The sort dropdown above the list controls the card order. There are four modes, 
 
 | Mode | Order |
 |---|---|
-| Priority | Your three Priority Goals first (in rank order), then every other Goal by its scored priority. The default. |
-| Time | Goals with the most remaining time first — useful for spotting your heaviest open commitments. |
+| Priority | Ranks every goal by priority. |
+| Time | Longest projects first, shortest projects last. Scroll to the top or bottom to see the extremes.|
 | Manual | A custom order you set by dragging the cards. The drag handle appears on each card whenever this mode is active. |
 | Alphabetical | A→Z by name. |
 
