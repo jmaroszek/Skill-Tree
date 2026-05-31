@@ -122,14 +122,7 @@ Do not treat synergy edges as a weaker version of a Soft prerequisite. They oper
 
 To decide whether a pair genuinely qualifies, ask whether the combination is *more than the sum of its parts* — if doing both lands harder than doing each alone, it's a synergy. Next, sanity-check the symmetry: you should be able to state the reinforcement in both directions and have each feel true. Recall that a synergy edge says that $X \leftrightarrow Y$. If only one direction holds (X helps Y, but Y doesn't help X), what you actually have is a Soft prerequisite. 
 
-The strongest synergies tend to bridge contexts. A good example is Gardening ↔ Biology: each one materially changes how you experience the other — biology explains why a plant wilts or thrives in a given soil, and gardening gives biology a slow, living laboratory in your backyard. Neither node is a prerequisite for the other, but doing both turns each into something richer than it would be on its own. 
-
-```mermaid
-flowchart LR
-    G["Gardening<br/>(Hobbies)"] <-->|"each enriches the other"| B["Biology<br/>(STEM)"]
-```
-
-*A true synergy reads the same in both directions, and the strongest ones bridge two contexts. Neither node gates the other.*
+The strongest synergies tend to bridge contexts. A good example is Gardening ↔ Biology: each one materially changes how you experience the other — biology explains why a plant wilts or thrives in a given soil, and gardening gives biology a slow, living laboratory in your backyard. Neither node is a prerequisite for the other, but doing both turns each into something richer than it would be on its own.
 
 A few patterns that look like synergy but aren't:
 

@@ -177,15 +177,6 @@ If the user does not supply all three time estimates, the simulation falls back 
 
 Before sampling begins, the simulator BFS-walks backward from the target node along Hard edges, collecting every prerequisite. At the *root* node only (not deeper in the chain), Soft and Helps edges may also be followed, depending on the user's "include soft / include helps" toggles on the Details Tab. This asymmetry is deliberate: the user's question is "how long until I finish *this* node, including its broader context," not "how long until I finish this node plus the soft prereqs of every node in its subtree" — which would explode the chain.
 
-```mermaid
-flowchart LR
-    P3["Prereq 3"] --> P1["Prereq 1"] --> Target["Target node"]
-    P2["Prereq 2"] --> Target
-    Sroot["Soft / Helps neighbor"] -. "root only" .-> Target
-```
-
-*The walk runs backward from the target along Hard edges, gathering every prerequisite. Soft and Helps edges are followed only at the root, never deeper in the chain.*
-
 Two exclusions follow naturally to prevent inflating the simulation results. First, completed tasks are dropped because their time has already been paid; including done nodes would distort the remaining time estimate. Second, container nodes contribute zero duration. Because these containers act as structural conduits, their child tasks are already added to the chain and sampled independently.
 
 ## Serial Summation
