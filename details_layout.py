@@ -483,7 +483,7 @@ def build_details_tab_content():
             dbc.Checklist(
                 id=f"details-include-synergies{suffix}",
                 options=[{"label": "Synergies", "value": "include"}],
-                value=["include"],
+                value=[],
                 switch=True,
                 style={"fontSize": "0.82rem"},
             ),
