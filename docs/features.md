@@ -9,15 +9,28 @@ Accsess the node editor from anywhere in the app by clicking the icon in the top
 <p align="center">
     <img src="../images/node-editor-with-nodes-tab.png">
     <br>
-    <em> The Node Editor with a project loaded, and the Nodes Tab open beside it. </em>
+    <em> The Node Editor with a project loaded, and the Nodes Tab beside it. </em>
 </p>
 
 
 ## General Section
-<img src="../images/node-editor-general-section.png" alt="Node editor general section" align="left" height="400" style="margin: 10px 25px 25px 0;">
+<p align="center">
+<img src="../images/node-editor-general-section.png" width=300>
+<br>
+<em> Top section of the node editor </em>
+</p>
 
 ### Search Bar
-As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. This feature is discussed more in depth [later](#locate).
+As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node.
+
+### Locate
+Next to the search bar is a crosshair button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. Clicking this button briefly enlarges and highlights the selected node, making it easy to spot. 
+
+<p align="center">
+  <img src="../images/locate-feature.png" width="400">
+  <br>
+  <em> Locate feature active </em>
+</p>
 
 ### Names
 A node's name is how you find it (using the search bar) and reference it from other nodes (in relationships). There are a couple things to know about names in Skill Tree.
@@ -125,7 +138,7 @@ In order to standardize the rating process, there is a table that describes what
 
 
 ## Time
-Time estimation is the most valuable thing in project management to get right — and the hardest. [Time.md](time.md) walks through Skill Trees approach to solving this difficult problem. For here, the short version: you can estimate a project's duration with one, two, or three inputs. The more you provide, the better the result.
+Time estimation is the most valuable thing in project management to get right — and the hardest. [Time.md](time.md) walks through Skill Tree's approach to solving this difficult problem. For now, the short version: you can estimate a project's duration with one, two, or three inputs. And the more you provide, the better the result.
 
 | Inputs | Values | Time Estimation Method |
 |---|---|---|
@@ -135,7 +148,7 @@ Time estimation is the most valuable thing in project management to get right �
 
 ### Habits
 
-The methods above assume total time is all that matters. For a book, it is — three one-hour sessions and one three-hour session land in the same place. Habits are different. "Run three times a week for eight weeks" doesn't translate cleanly into total hours, and the translation hides the things you actually care about: cadence. **Habit Mode** swaps total time for duration, intensity, and frequency.
+The methods above assume total time is all that matters. For a book, it is — three one-hour sessions and one three-hour session land in the same place. Habits are different. "Run three times a week for eight weeks" doesn't translate cleanly into total hours, and the translation hides a more natural way to think about habits: in terms of intensity, frequency, and duration.
 
 <p align="center">
   <img src="../images/node-editor-time-section.png" alt="Node editor time section" width="350" style="vertical-align: middle; margin: 0 20px;">
@@ -145,37 +158,34 @@ The methods above assume total time is all that matters. For a book, it is — t
 </p>
 
 ### Inherit Time
-The **Inherit** toggle makes a node's duration the sum of its children's, rather than a number you set yourself. Reach for it on a container whose only work is finishing the things beneath it. Goals and Milestones lock it on — their duration should be nothing more than the total of their subtasks — while for the other types it's optional.
+The **Inherit** toggle makes a node's duration the sum of its children's. Reach for it when a node is used to group work underneath it. Goals and Milestones lock it on — their duration should be nothing more than the total of their subtasks — while for the other types, it's optional.
 
 ### Containers
 
-You've now met both Inherit toggles — one for ratings, and one for time. Flipping either one turns an ordinary node into a **container**: a node that groups related work, and draws at least some of its numbers from the nodes beneath it.
-
-A container is still just a node on the canvas, but it helps you organize projects better, as discussed in [modeling](modeling.md). Because the two toggles are independent, they combine four ways. The first is an ordinary node; the other three are all containers, inheriting time, ratings, or both.
+You've now met both Inherit toggles — one for ratings, and one for time. Flipping either one turns an ordinary node into a **container**: a node that groups related work, and draws at least some of its numbers from the nodes beneath it. Depending on which toggles you flip, a container can inherit its time, its ratings, or both. Because the two toggles are independent, they combine four ways. 
 
 | Inherit Time | Inherit Ratings | What you get | Example |
 |---|---|---|---|
 | Off | Off | Standard node — own ratings and own time. | -- |
 | On | Off | Own ratings, but time sums from incoming nodes. | *Sleep Theory* — I care about the topic enough to rate it directly, but its duration is just whatever the sub-Learns add up to. |
 | Off | On | Own time, but the score comes from what its children contribute. I've never found a use for it — let me know if you have. | — |
-| On | On | Pure container — no time or ratings of its own. Like a self-less parent, it's all about the children. | A *Transcendentalism* Learn that groups *Walden* and *Emerson Essays*. |
+| On | On | Pure container — no time or ratings of its own. | A *Transcendentalism* Learn that groups *Walden* and *Emerson Essays*. This is not enough nodes for the parent to need its own ratings, and the time argument is the same as before. |
 
-Of the two toggles, Inherit Time is the one I reach for far more often.
+Of the two toggles, Inherit Time is the one I reach for more often.
 
 ## Relationships
 
-There are three types of relationships in Skill Tree.
+There are three types of relationships in Skill Tree. 
 
-| Edge Name | Meaning | Example |
-| --- | --- | --- |
-| Hard Need | You can't do the destination until the source is Done. | `Algebra → Calculus` — calculus won't make sense without algebra first. |
-| Soft Need | Nice to have, but not strictly required. | `UX Design → Personal Website` — the site is better with UX, but possible without. |
-| Helps | Two tasks that mutually amplify each other. | `Rhetoric ↔ Writing` — each makes the other more useful. |
+| Edge Name | Meaning | Example | Directional |
+| --- | --- | --- | :---: |
+| Hard Need | You can't do the destination until the source is Done. | `Algebra → Calculus` — you need algebra to understand calculus. | Yes |
+| Soft Need | Nice to have, but not strictly required. | `UX Design → Personal Website` — the site will be better if you know UX design, but it is possible to create a website without that. | Yes |
+| Helps | Two tasks that mutually amplify each other. | `Rhetoric ↔ Writing` — each makes the other more useful. | No |
 
-**Direction matters** for hard and soft prerequisites. $A \rightarrow B$ means $A$ unlocks / supports $B$. Synergistic edges, in contrast, have no direction. $A$ helps $B$, and $B$ helps $A$. 
+[Modeling](modeling.md) covers how to choose the right relationship type extensively. But for now, the most important thing is to understand that two types of relationships -- hard and soft needs -- are directional, while synergistic relationships are not. **Direction matters** for hard and soft prerequisites. $A \rightarrow B$ means $A$ unlocks or supports $B$. Synergistic edges, in contrast, have no direction. 
 
-
-In the editor, those directional edges are split into a **Needs** section and a **Supports** section. Both add the same kind of edge — they just describe it from opposite ends. **Needs** points *inward*: it lists the prerequisites that unlock the node you're editing. **Supports** points *outward*: it lists the nodes that this one unlocks. The split means you can always build an edge from whichever node you happen to be on, without opening the other one (which is annoying). **Helps** stands apart, because a synergy points both ways and has no end to choose from.
+In the editor, directional edges (hard and soft needs) are split into a **Needs** section and a **Supports** section. Both add the same kind of edge — they just describe it from opposite ends. **Needs** points *inward*: it lists the prerequisites that unlock the node you're editing. **Supports** points *outward*: it lists the nodes that this one unlocks. The split means you can always build an edge from whichever node you happen to be on, without opening the other one (which is annoying). **Helps** stands apart, because a synergy points both ways and has no end to choose from.
 
 <p align="center">
     <img src="../images/node-editor-relationships.png" width=400>
@@ -184,7 +194,7 @@ In the editor, those directional edges are split into a **Needs** section and a 
 </p>
 
 ## State
-Every node sits in one of four states at any moment. Some the app derives for you from a node's relationships, and others you set yourself.
+At any moment, a node is in one of four states: open, blocked, done, or dormant. Some the app derives for you, and others you set yourself.
 
 | State | Meaning | Automatic |
 |---|---|:---:|
@@ -193,19 +203,11 @@ Every node sits in one of four states at any moment. Some the app derives for yo
 | Done | Finished. Counts toward unblocking its dependents and contributes Synergy multipliers to its partners. | ❌ |
 | Dormant | Hidden and not scored. It is waiting on an [event](#events) to wake it up. | ❌ |
 
-When you mark a node Done, that change can ripple outward — unblocking its dependents and re-deriving their states in turn. The [status cascade](scoring.md#eligibility-and-the-status-cascade) walks through exactly how that propagation works.
-
-### Re-opening a Done Node
-
-Done is sticky. The app will never silently un-finish work you told it you'd completed. The only way out of Done is to actively un-mark it. 
-
-When you do that, the change cascades. Anything downstream that depended on this node re-derives to **Blocked** because one of its prerequisites just became incomplete. The ripple can reach as far as the Hard-prereq subgraph extends. 
-
-Because that cascade is destructive, the app gates it behind a confirmation modal that tells you exactly how many downstream nodes will flip to Blocked and lists them by name. If there are no Done dependents, the toggle proceeds silently, as there is nothing to confirm.
+When you mark a node Done, that change can ripple outward — unblocking its dependents and re-deriving their states in turn. The [status cascade](scoring.md#eligibility-and-the-status-cascade) section of the [scoring](scoring.md) document walks through how that works
 
 ## External Resources
 
-When a book, course, or article is substantial enough that you want to track and rate it, give it its own **Resource** node and wire it into the graph like anything else. More often, though, you just want to staple a reference to a node. That's what **external resources** are for: lightweight links to material that lives outside the app.
+When a book, course, or article is substantial enough that you want to track and rate it, give it its own **Resource** node and wire it into the graph like anything else. Just as often, though, you want to staple a lightweight reference to a node. That's what **external resources** are for.
 
 <p align="center">
     <img src="../images/node-editor-external-resources.png" width=400>
@@ -213,24 +215,28 @@ When a book, course, or article is substantial enough that you want to track and
     <em> The External Resources section. </em>
 </p>
 
-There are three kinds of link. A **Website** link is any URL. An **Obsidian** link points to a note in your vault by its path. A **Google Drive** link opens a synced file, given a Drive URL or a path if it's locally mounted. For the path-based links, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
+There are three kinds of links. A **Website** is any URL. You know what a website is, right? The other options are more niche, and probably unique to my workflow. An **Obsidian** link points to a note in your vault. If you don't know, Obsidian is a note-taking app. The next link type is **Google Drive.** This field accepts a website URL or a local path if you mounted Google Drive to your computer.
 
-You aren't limited to one of each — click the **+** beside a link's title to add as many as you want. Once a link is set, its field gains an open button, so you can jump straight to the resource from the editor. The same links are also reachable from a node's [right-click context menu](#context-menu), wherever it appears on a graph.
+For the path-based links, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
 
-Website links are universal. Obsidian and Google Drive are more niche — they fit my workflow, but I wouldn't expect everyone to share it, so if this ever becomes a "real" app I'll make them optional.
+Also, you aren't limited to one of each type — click the **+** beside a link's title to add as many as you want. Once a link is set, its field gains an open button, so you can jump straight to the resource from the editor. The same links are also reachable from a node's [context menu](#context-menu).
 
 # Next Tab
 
-This is the tab the app opens on. If you only ever look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones. 
-
-## The Next Section
+This is the tab the app opens on. If you only look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones. 
 
 <p align="center">
-    <img src="../images/next-tab-rankings-table.png" >
+    <img src="../images/next-tab-overview.png" >
     <br>
-    <em> The recommendations table. </em>
+    <em> The Next Tab </em>
 </p>
 
+## The Now Section
+
+If you have any nodes marked "Now," a small *Now* section appears above the suggestions table. Each card shows a type-colored accent bar, name, context, and time estimate. Once a node graduates to the Now section, it no longer competes for a slot in the recommendation table, because you have already committed to it.
+
+## The Next Section
+This is a simple table of the top project recommendations, as judged by the priority scoring algorithm. 
 
 Reading a row from left to right:
 
@@ -246,37 +252,7 @@ Reading a row from left to right:
 
 Left-click any row to see the node's description beside the table. Right-click it to open the [context menu](#context-menu).
 
-Importantly, only Learn, Action, and Resource nodes appear as suggestions. Goals and Milestones are excluded — you'll complete them naturally by clearing their subtasks.
-
-## The Now Section
-
-If you have any nodes marked "Now," a small *Now* section appears above the suggestions table.
-
-<p align="center">
-    <img src="../images/next-tab-overview.png" >
-    <br>
-    <em> The whole Next Tab </em>
-</p>
-
-Each card shows a type-colored accent bar, name, context, and time estimate. Once a node graduates to the Now section, it no longer competes for a slot in the recommendation table, because you are already committed to it.
-
-## Explain
-
-A score on its own doesn't tell you much. Explain tells you where that score came from. Right-click any suggestion and choose **Explain** to open it. It works anywhere a node appears, not just here.
-
-<p align="center">
-    <img src="../images/explain-modal.png" >
-    <br>
-    <em> The score breakdown for a node. </em>
-</p>
-
-The breakdown opens with a summary table, grouped into Value, Cost, and Score. Value is what the node is worth. That's its own ratings, plus the value it inherits from everything it unlocks. Cost is its expected time. Score is the return on that time, after your profile and context adjustments are applied. Each row shows the raw number behind it, so you see the reasoning rather than just the result.
-
-The score is listed twice: raw and normalized. The bar on the suggestions table shows the normalized score, where every node is measured against the current #1. The raw score is the underlying value before that rescaling. Showing both means the 0–100 bar always has a concrete number behind it.
-
-Below the table is a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. The node's own intrinsic value is one bar; the rest are the downstream nodes whose value cascades back to it. The bars are colored by where the value comes from — the node itself, or a hard prerequisite, soft prerequisite, or synergy link.
-
-If you open Explain on a blocked node, the table shows a dash in place of a score and names the prerequisite that's holding it back.
+Importantly, only Learn, Action, and Resource nodes appear as suggestions. Goals and Milestones are excluded — you'll complete them naturally by clearing their subtasks. 
 
 ## Context Menu
 Right-click any node — on this tab or anywhere else a node appears — to open the context menu. The menu is the same everywhere, except the [goals sidebar](#goals-sidebar), which has additional functionality.
@@ -301,9 +277,37 @@ Right-click any node — on this tab or anywhere else a node appears — to open
   </tr>
 </table>
 
+## Explain
+
+A score on its own doesn't tell you much. Explain tells you where that score came from. Right-click any suggestion and choose **Explain** to open it. It works anywhere a node appears, not just here.
+
+<p align="center">
+    <img src="../images/explain-modal.png" >
+    <br>
+    <em> The score breakdown for a node. </em>
+</p>
+
+The breakdown opens with a summary table, grouped into Value, Cost, and Score. The exact rows that appear in each section depend on the node itself. Some nodes have adjustments to their base ROI score via priority goal multipliers, context weight adjustments, and more. All these nuances are discussed in [scoring](scoring.md).
+
+At the bottom, the score is listed twice: raw and normalized. The bar on the suggestions table shows the normalized score, where every node is measured against the current #1 prority. The raw score is the underlying value before that rescaling. 
+
+Below the table is a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. The node's own intrinsic value is one bar; the rest are the downstream nodes whose value cascades back to it. The bars are colored by where the value comes from — the node itself, or a hard prerequisite, soft prerequisite, or synergy link.
+
+### Focus Top $n$
+
+The contributors chart tells you *what* is lifting a score. The **Focus Top $n$** button shows you *where* those contributors sit on the graph. Choose how many contributors to trace, then click **Focus**, and the Nodes tab dims the rest of the network while highlighting the paths from the selected node to its top score drivers.
+
+This is especially useful when a recommendation is valuable because it feeds a long chain. In the example below, the node does not just point vaguely toward "Writing." The focus view shows the whole route: *Plot Structure* supports *Planning*, which leads through the various stages of writing, before reaching its top contributors (Writing, Career, and Literature, in this case). 
+
+<p align="center">
+  <img src="../images/explain-focus.png">
+  <br>
+  <em> Focus Mode Active on the Plot Structure Node</em>
+</p>
+
 # Nodes Tab
 
-Click **Nodes** to see your entire task network as one graph — every node, every edge, all at once. A physics engine arranges it automatically, pulling connected nodes together so related work clusters visually.
+Click **Nodes** to see your entire network. A physics engine arranges it automatically, pulling connected nodes together, so related work clusters visually. 
 
 <p align="center">
     <img src="../images/nodes-tab.png">
@@ -311,23 +315,27 @@ Click **Nodes** to see your entire task network as one graph — every node, eve
     <em> My Entire Network</em>
 </p>
 
-Obviously, there is a lot going on here. We will cover tools for how to work with such a large graph soon.
+
+Obviously, there is a lot going on here. We will cover tools for how to work with large graphs like mine soon. 
 
 ## The Visual Code
 
 ### Nodes
 
-Every node's shape and color has meaning. Shape tells you type, and color tells you [state](#state).
+Every node's shape and color has meaning. Shape tells you node type, and color tells you node [state](#state).
 
 <p align="center">
-    <img src="../images/node-types.png">
+    <img src="../images/node-types.png" width=600>
     <br>
-    <em> The five node types and their default shapes. </em>
+    <em> The five node types, their default shapes, and default Open colors. </em>
 </p>
 
-Regardless of type, Done nodes are green and Blocked nodes are red. The colors shown in the image above are the default colors for an open node of the indicated type. You can adjust both the shape and color of nodes in [settings](#settings).
+Regardless of type, **Done** nodes are green and **Blocked** nodes are red. The colors shown in the image above represent the default colors for an **Open** node of each type. 
 
-There is one exception to the rule: goals are never red. Goals are [containers](#containers) that almost always have incomplete hard tasks, so painting them red would mean every Goal looks blocked all the time — hard to distinguish from work actually waiting on something. In the image of the entire network, you can clearly see the yellow stars on the canvas. That is intentional. Goals should be your north star, in a sense.
+The only exception to this rule is **Goals**: even when their hard prerequisites are incomplete, they are never red. Instead, they always remain a highly visible yellow, so they stand out as landmarks on the canvas. 
+
+If you prefer a different visual scheme, you can adjust both the shape and color of all nodes in [settings](#settings).
+
 
 ### Edges
 
@@ -336,11 +344,12 @@ There is one exception to the rule: goals are never red. Goals are [containers](
 <p align="center">
   <img src="../images/relationship-types.png" alt="The three relationship types: hard prerequisite, soft prerequisite, and synergy" width="600">
   <br> 
-  <em> Relationship Types </em>
+  <em> Relationship Types: hard need, soft need, and helps (synergy) </em>
 </p>
 
 ## Interacting with the Graph
-The canvas supports the usual graph interactions, and they work the same way on every tab that shows a network — Nodes, Details, and Events.
+
+All gestures below work on every tab with a network visualization (Nodes, Details, and Events).
 
 ### Mouse & Keyboard Interactions
 
@@ -348,8 +357,8 @@ The canvas supports the usual graph interactions, and they work the same way on 
 
 | Gesture | Effect |
 |---|---|
-| Hover | Tooltip with key stats — contents vary by node type. |
-| Left-click | Select the node (white halo). If the node editor is open, it loads with this node's data. |
+| Hover | Tooltip with key stats; varies by node type. |
+| Left-click | Select the node. A while halo appears around selected nodes. If the node editor is open, it loads with this node's data. |
 | Ctrl + left-click | Multi-select. Enables bulk move, delete, and Done toggling. |
 | Drag | Reposition on the canvas. |
 | Right-click | Open the [Context Menu](#context-menu). The quickest way to load this node into the editor. |
@@ -360,7 +369,7 @@ The canvas supports the usual graph interactions, and they work the same way on 
 | Gesture | Effect |
 |---|---|
 | Left-click empty canvas | Deselect everything |
-| Left-click + drag, starting on the canvas | Group select with a box, like your OS desktop |
+| Left-click + drag (on empty canvas) | Group select with a box, like your OS desktop |
 | Right-click + drag (on empty canvas) | Pan the viewport |
 | Scroll wheel | Zoom in and out |
 
@@ -377,7 +386,7 @@ The gear icon in the bottom right corner of the canvas opens the **Graph Setting
 | Max Depth | Limit the view to N hops from the selected node. |
 | Neighbors | Show or hide links between the selected node's neighbors. Hiding them leaves a clean subtree radiating from the selection. |
 | Smooth | Animate layout changes instead of snapping. Most elegant for smaller networks. |
-| Freeze | Pause re-layout so hand-placed nodes stay put (see below). |
+| Freeze | Pause re-layout so hand-placed nodes stay put (more details). |
 | Edge Length | The length of the springs between connected nodes. |
 | Gravity | How strongly nodes are pulled toward the center. |
 | Repulsion | How hard nodes push away from each other. |
@@ -387,33 +396,20 @@ The gear icon in the bottom right corner of the canvas opens the **Graph Setting
   </tr>
 </table>
 
+**Freeze** stops the graph from moving until you turn it off. You'll know it's active because a blue outline surrounds the canvas and a snowflake appears in the top right corner. It's invaluable when editing edges, because without it, the graph re-arranges after each change, making it hard to track the nodes you're working on. Nodes can still be dragged manually while Freeze is on.
+
 The **↺** button beside the panel title restores your saved defaults — set per-tab in Settings.
-
-**Freeze** stops the graph from moving until you turn it off. You'll know it's active because a blue outline surrounds the canvas and a snowflake appears in the top right corner. It's invaluable when editing edges, because without it, the graph re-arranges after each change, making it hard to track the nodes you're working on.
-
-Nodes can still be dragged manually while Freeze is on.
 
 ### Fullscreen
 
 The fullscreen button in the bottom right corner, next to the graph settings button, expands the canvas to fill the whole window. Marginal on the Nodes tab (already nearly fullscreen), but helpful on Details and Events. Hit the button again or press Escape to exit.
 
 ## Helpful Features for Large Networks
-The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. You've already seen one tool for taming it: the Max Depth parameter, which carves a local graph around the active node. There are three more useful ways to tame the complexity: Locate, Filters, and the Details tab itself.
-
-## Locate
-
-Now it's time to talk about what the crosshair button next to the [search](#search-bar) in the [node editor](#node-editor) does. Clicking this button briefly enlarges and highlights the selected node on the canvas, making it easy to spot.
-
-<p align="center">
-  <img src="../images/locate-feature.png" width="400">
-  <br>
-  <em> Locate feature active. Node returns to normal size after a few seconds. </em>
-</p>
-
+The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. You've already seen one tool for taming it: the Max Depth parameter, which carves a local graph around the active node. There are two other useful ways to tame the complexity: Filters and the Details Tab.
 
 # Filters Sidebar
 
-Click the filter icon in the top-right corner to open the filters panel. Filters narrow your graph to the slice you care about, and they apply across every tab except Analyze, which always reports on the graph as a whole. Filters are especially useful on the tabs we just covered. On Nodes, they pare the network down to a subset you can actually focus on. And on Next, they decide which projects compete for the top recommendation slots.
+Click the filter icon in the top-right corner to open the filters sidebar. Filters apply to every tab except the [Analyze Tab](#analyze-tab) (which always evaluates the network as a whole). They are especially powerful on the screens we just covered: on the Nodes Tab, filtering reduces visual clutter, so the physics engine can group related ideas more effictively. On the [Next Tab](#next-tab), it restricts recommendations to one or more contexts -- giving you added control over the priority ranking algorithm.
 
 ## Filter Controls
 
@@ -441,8 +437,14 @@ Click the filter icon in the top-right corner to open the filters panel. Filters
   </tr>
 </table>
 
+<p align="center">
+  <img src="../images/filters-humanities.png">
+  <br>
+  <em> Sandbox Humanities context. You can select multiple contexts & subcontexts at once.</em>
+</p>
+
 ## Communities
-The Communities filter algorithmically groups related nodes together. Three detection methods are available.
+The Communities section algorithmically groups related nodes together. Three detection methods are available.
 
 | Method | Description |
 |---|---|
@@ -452,15 +454,23 @@ The Communities filter algorithmically groups related nodes together. Three dete
 
 Pick a detection method, then a specific community from the list. Community names auto-generate from the most common context in the group — slightly more descriptive than "Community 1, 2, 3," but you'll still need to click it to see what nodes are members of the community.
 
+Here is an example. The algorithm identified a cluster named "STEM > Physics," and as you can see, it grabbed a bunch of physics nodes, but also pulled in many chemistry nodes. That is because chemistry is closely related to atomic physics. You will be amazed at how often Skill Tree can find connections between areas that only have one joint edge, but are conceptually related. 
+
+<p align="center">
+  <img src="../images/filters-community.png">
+  <br>
+  <em> Physics + Chemistry clustering example </em>
+</p>
+
 ## Filter Reminders
-When any filter is active, the app reminds you by adding a small "filtered" message to the lower left corner of the tab or canvas. Without these reminders, you could leave Memory on, hammer a context for weeks, and never notice. It happened to someone I know.
+When filters are active, the app reminds you by adding a small  message to the lower left corner. You can see this message in the last two screenshots. Without these reminders, you could leave the filter Memory feature on, hammer out a context in the [Next Tab](#next-tab) for weeks, and never notice. It happened to someone I know.
 
 Me. 
 
 It was me.
 
 # Details Tab
-The Next tab tells you *what* project to work on. The Details tab is where you go to *understand* it.
+The Next Tab tells you *what* project to work on. The Details Tab helps you *understand* it.
 
 ## Populating the Tab
 The Details tab is empty by default — since it doesn't know what you want the details for. There are three ways to load a project:
@@ -473,8 +483,8 @@ The Details tab is empty by default — since it doesn't know what you want the 
 | Path | How it works |
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
-| Suggestions | When nothing is selected, the left panel shows a suggestion list. Up to three sections: any active **Manual Override**, your top three **Priority Goals**, and five **Top Recommendations** — the [containers](#containers) with the highest total value. |
-| Context Menu |Right-click a node and pick **Details** in the context menu. The app jumps here with the project loaded. Accessible from Next, Nodes, and Details tabs + the Goals Sidebar.|
+| Suggestions | When nothing is selected, the left panel shows a suggestion list. There are up to three sections: any manual overrides, your top three priority goals, and the top five time [containers](#containers) with the highest total value. |
+| Context Menu | Right-click a node and pick **Details** in the context menu. The app jumps here with the project loaded.|
 
 </td>
   </tr>
@@ -489,8 +499,6 @@ Once a node is loaded, the tab splits into four panels: node information, mini-g
   <em> Details Tab with an example project loaded </em>
 </p>
 
-Now we'll walk through the sections one by one.
-
 ## Node Information Panel
 The top-left panel summarizes the selected node. Most of it is self-explanatory, but a few things deserve a closer look.
 
@@ -504,30 +512,28 @@ The rest of the panel — node stats and three action buttons — reuses functio
 | Button | What it does |
 |---|---|
 | Edit | Opens the node editor. |
-| Explain | Opens the [Explain](scoring.md#attribution) window. |
-| Locate | Briefly pulses the node on the mini-canvas — same function as the crosshair beside the search bar in the Node Editor. |
+| Explain | Opens the [explain](#explain) window. |
+| Locate | Briefly pulses the node on the mini-canvas (the same function as the crosshair icon by the node editor search bar). |
 
 ## Canvas Panel
-The canvas on the right works like the Nodes tab, except it is scoped to the selected node, and everything related to it. Every gesture and setting from the [Nodes Tab](#nodes-tab) walkthrough applies here too.
-
-There are a couple unique things about the Details canvas though. 
+Every gesture from the [Nodes Tab](#nodes-tab) is supported on Details too, but there are a few ways this canvas is different. First and most obvious: the Details Tab is always focused on one project or idea. Also, this tab supports two other features called History and Focus Mode.
 
 ### History
-Clicking a node here reloads every panel with that node's information — unlike the Nodes canvas, which only selects the node and fills the editor (if it happens to be open). Because each click swaps out the detailed view, this tab keeps a history. The two arrows beside the search bar in the Node Information Panel step you back and forward through it, just like a browser.
+Clicking a node here loads its information into every panel. This is unlike the click behavior on the Nodes canvas, which only selects the node, and fills the node editor with its information if it happens to be open. Because each click swaps out the detailed view, this tab keeps a history. The two arrows beside the search bar in the Node Information Panel let step you forward and backward through your navigation history, like a browser.
 
 ### Focus Mode
-There are three buttons in the bottom right corner of the canvas. Two of them were introduced elsewhere: [graph settings](#graph-layout-controls) and fullscreen, but one is unique to this tab: the one with a magnifying glass. Clicking this icon switches you to the Nodes tab with this network highlighted and everything else dimmed — a quick way to see this project in its broader context. 
+There are three buttons in the bottom right corner of the canvas. Two of them were introduced elsewhere: [graph settings](#graph-layout-controls) and fullscreen, but one is unique to this tab: the magnifying glass. Clicking this icon switches you to the Nodes Tab, highlights this network, and dims everything else. This is a easy and quick way to see a topic in its broader context. 
 
 <p align="center">
-  <img src="../images/focus-mode.png">
+  <img src="../images/details-focus-religion.png">
   <br>
-  <em> Focus Mode for the Sandbox Literature goal</em>
+  <em> Focus mode: religion goal with synergies on</em>
 </p>
 
 Hit **Clear Focus** at the top of the canvas to exit.
 
 ## Subtasks Panel
-The Subtasks table in the lower-left lists every node in the dependency subtree. 
+The Subtasks table in the lower-left lists every node related to the selected one. 
 
 Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Next tab. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
 
@@ -542,23 +548,22 @@ If a subtask has a *direct* edge to the selected node, an **×** appears at the 
 If the subtree contains any Milestones, they get their own horizontal strip of tiles above the table. Milestones are checkpoints rather than work, so they're kept visually separate from the subtasks you actually grind through.
 
 ### Controlling how much you see
-The row of toggles in the top-right, combined with the **Max Depth** slider in the graph settings, lets you dial the view to the level of detail you want. Every panel reacts instantly. (Keep in mind that [filters](#filters-sidebar) from the filters sidebar apply too.)
+The row of toggles in the top-right let you dial the view to the level of detail you want. Every panel reacts instantly. Keep in mind that you can also use the max depth slider in graph settings, and [filters](#filters-sidebar) too.
 
-| Control | What it does |
-|---|---|
-| Soft Needs | Include or exclude soft prerequisites. |
-| Transitive | When off, shows only *direct* children. When on, shows the entire subtree. |
-| Synergies | Include or exclude synergy partners. |
-| Show Done | Whether completed subtasks appear. Off by default to keep the focus on open work. |
-| Hide Blocked | Drop subtasks currently blocked by an incomplete prerequisite. |
-| Max Depth | (In graph settings) Caps how many hops out from the selected node the subtree extends. |
+| Control | What it does | Default |
+|---|---|:---:|
+| Soft Needs | Include or exclude soft prerequisites. | On |
+| Transitive | When off, shows only *direct* children. When on, shows the entire subtree. | On |
+| Synergies | Include or exclude synergy partners. | Off |
+| Show Done | Whether completed subtasks appear. | Off |
+| Hide Blocked | Drop subtasks currently blocked by an incomplete prerequisite. | Off |
 
 For a sprawling Goal with hundreds of descendants, this is the difference between an unreadable wall of rows and a clean list of actionable items.
 
 ## Time Simulation Panel
-Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take. The technique is **Monte Carlo Simulation**: each time you adjust a filter, the app runs 10,000 simulations of completing every subtask, sampling from your uncertainty about each one. The whole thing takes milliseconds, so it feels instantaneous; if you ever need it faster, you can lower the trial count in Settings.
+Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take using **Monte Carlo Simulation.** Every time you swap or nodes or adjust a filter, the app runs 10,000 simulations of you completing every subtask, keeping in mind your uncertainty about each one. The whole thing takes milliseconds, so it feels instantaneous; if you are ever in a rush and need those few milliseconds, you can lower the trial count in [Settings](#settings).
 
-The feature shines on large, vague, long-horizon Goals. It lets you say with confidence "there's a 10% chance I'll finish this in 2 months, 50% in 3, and 90% in 4." 
+The feature shines on large, vague, long-horizon Goals. It lets you say with confidence "there's a 10% chance I'll finish this in 2 months, 50% in 3, and 90% in 6." 
 
 | Output | What it tells you |
 |---|---|
@@ -567,7 +572,7 @@ The feature shines on large, vague, long-horizon Goals. It lets you say with con
 | P50 line | The median — half of runs finish faster, half slower. |
 | P90 line | Pessimistic case — 90% of runs finish faster than this; a sensible "worst realistic" figure. |
 
-In the two examples we've seen so far, the distributions looked like a normal distribution. That is because the upper and lower time estimates were close to each other. If they are further apart, the distribution will look different (more like a log-normal or beta distribution, with a long right tail). 
+In the two screenshots of the Details Tab so far, the simulated distributions looked symmetric. That is because the upper and lower time estimates were close to each other for those particular goals. If they are further apart, the distribution will look different. Here is an example of a project with a long right tail.
 
 <p align="center">
   <img src="../images/details-skewed-distribution.png">
@@ -577,17 +582,17 @@ In the two examples we've seen so far, the distributions looked like a normal di
 
 
 # Goals Sidebar
-Most node types — Learn, Action, and Resource — are ranked by the algorithm and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to influence the priority of other nodes. The mechanics of this are discussed in the next document of the tutorial in the [Goal Priority Boost](scoring.md#goal-priority-boost) section.
+Most node types — Learn, Action, and Resource — are ranked by the standard scoring algorithm, and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to influence the priority of other nodes. The mechanics of this are discussed in the next document of the tutorial.
 
-Open the sidebar from the star icon in the top-left. 
+For now, we can just focus on using the Goals Sidebar. Open it with the star icon in the top-left corner. 
 
 <p align="center">
   <img src="../images/goals-sidebar.png" alt="The goals sidebar" width="200">
   <br>
-  <em> Sandbox Goal Sidebar </em>
+  <em> Goal Sidebar </em>
 </p>
 
-The **+** next to the "Goals" header creates a new Goal and opens it in the node editor. You can search for existing goals underneath that. The goals auto-filter as you type. But if you want to sort goals by specific criteria, you can do that too. The row below the search bar contains a dropdown menu with four modes, each having a unique effect and appearance:
+The **+** next to "Goals" creates a new one; you can search for existing goals under that. You can also sort them by various criteria. Each one gives the cards a unique visual effect.
 
 | Mode | Order |
 |---|---|
@@ -604,14 +609,18 @@ The **+** next to the "Goals" header creates a new Goal and opens it in the node
     <td valign="top" style="padding-right: 30px;"><img src="../images/goals-context-menu.png" alt="The goals context menu" width="1000"></td>
     <td valign="top">
 
-Your top three Goals are the **Priority Goals** — the ones the algorithm boosts. The most direct way to set them is through the context menu. Right-click a card, and a new "set priority" option appears. You can also set a goal's priority through the node editor using a field that appears only for goal-type nodes.
+Your top three Goals are your **Priority Goals.** You must set these explicitly. Skill Tree will not assume that its top ranked goals are your true priorities. You can use the app just fine without setting priority goals, but if you do have them, the  algorithm gives all tasks related to your priority goals a boost. 
+
+Your top three goals are your **Priority Goals.** Because Skill Tree respects your autonomy, you must set these explicitly. While the app functions perfectly well without them, designating Priority Goals allows the [scoring](scoring.md#goal-priority-boost) algorithm to apply a priority boost to all tasks in their subtrees.
+
+You can set a goal's priority in two ways: open the context menu in the goal sidebar, as seen on the left, or set the priority field that appears only for goal nodes in the [Node Editor](#node-editor).
 
 </td>
   </tr>
 </table>
 
 # Events
-Events let you plan for the future without cluttering today. Some things genuinely matter, but you don't want to think about them yet.
+Events let you plan for the future without cluttering today. Some things genuinely matter, but you just don't want to think about them yet.
 
 Take dog adoption. You want to learn to care for a dog, but you're not ready until your bonus comes in. You expect that bonus on a certain day, so you wrap all the pet-care tasks in an event set to wake up on that date. In the sandbox, this is the **Adopt a Dog** event — a whole pet-care cluster (Dog Care, Canine Behavior, Dog Training, Find a Vet) tucked away until the day a dog could actually come home.
 
@@ -641,6 +650,11 @@ The Events tab is where you create, edit, and trigger events. Unlike the other t
   <em> Empty Events tab </em>
 </p>
 
+### Events Sidebar
+Open the sidebar from the calendar icon in the top-left, or via the empty-state button on the Events Tab. 
+
+The sidebar lists every event as a card showing its name, description, trigger, and a node count. Three self-explanatory controls sit at the top. Click any card to load it into the Events Tab. 
+
 Once an event is loaded, the tab splits in two: the **Event Editor** on the left and the **Event Canvas** on the right.
 
 <p align="center">
@@ -649,53 +663,34 @@ Once an event is loaded, the tab splits in two: the **Event Editor** on the left
   <em>Events tab with an event loaded. </em>
 </p>
 
-### Events Sidebar
-Open the sidebar from the calendar icon in the top-left, or via the empty-state button on the Events tab. The sidebar lists every event as a card showing its name, a description preview, trigger info, and a node count.
-
-Three controls sit at the top:
-
-| Control | What it does |
-|---|---|
-| Search | Filters cards by name, with an autocomplete dropdown. |
-| Sort | **Manual** (drag-and-drop, your custom order) or **A–Z**. |
-| Hide triggered | On by default — hides events that have already fired so the list stays focused on what's still pending. |
-
-The **+** next to the "Events" header creates a new event from scratch. Click any card to load it into the tab.
-
 ### Event Editor
 
-The left panel is a straightforward form. At the top: the event **name** with **Save** and **Delete** buttons. Below: a **Description**, a **Trigger Type** selector (which reveals a date picker, a node dropdown, or nothing depending on your choice), and the **Dormant Nodes** table.
-
-The Dormant Nodes table lists every task waiting on this event. Each row shows the node's name, type, **activation delay** (a per-node grace period — the node wakes up N days after the event triggers, not immediately), and its current status. The **+** above the table opens a modal for adding a new dormant node (create or link). The pencil and **×** on each row edit or remove a node. The checkbox on each row feeds the manual trigger flow.
+The event editor lets you manage details about an event. The most useful sections are the trigger type selector and dormant nodes table. Use this table to queue tasks for activation, adjust their activation delay (a post-trigger grace period in days), and select specific nodes to wake up during a manual trigger.
 
 The **Trigger** button fires the event manually. It opens a confirmation modal with two options: **Trigger Checked** (wake only the checked rows) or **Trigger All** (wake everything). Handy when an event has accumulated more dormant nodes than you're ready to release at once.
 
 ### Event Canvas
-The right side of the tab shows a mini-graph of the selected event's dormant nodes and how they connect to each other and to the live graph. It carries the same gear and fullscreen controls as the other canvases — a quick sanity check that the dormant cluster is wired up the way you intended before it goes live.
+The right side of the tab shows a mini-graph of the selected event's dormant nodes. It works the same way as other canvases. Use it as a sanity check to make sure the nodes are wired how you want them before they go live.
 
 ## Event Announcements
-When an event triggers — automatically (a date arrives, a node is completed) or because you clicked **Trigger** — an **Announcements** modal pops up the next time you open the app, confirming what just woke up and which nodes were activated or scheduled. 
-
+When an event triggers — automatically or because you clicked trigger — an annoucement message shows up, telling you what nodes just woke up, and which will be waking up soon due to their activation delay.
 
 # Reflection
 
-Once a project is finished, you can reflect on it (and any others you've completed) by clicking the journal icon in the top-right of the app. For every completed task, you record the actual time it took and how it actually felt in hindsight. Over time, this feedback loop trains your intuition, helping you estimate future tasks with greater accuracy and less bias.
+Once a project is finished, you can reflect on it by clicking the journal icon in the top-right corner. You can do this the moment you finish a project, or batch them every few weeks; the only wrong move is waiting until you have forgotten the details of the work. You have the option to completely disable this feature, but I have found that keeping it on helps train your intuition, making your estimates for future tasks better, and the priority ranking algorithm more effective in turn.
 
-The reflection hub has three tabs. 
+The reflection hub has three tabs:
+
+| Tab | Purpose |
+|---|---|
+| **Pending Queue** | Completed work awaiting reflection. |
+| **Reflection History** | Log of past reflections comparing estimates with actuals. |
+| **Excluded** | Archive of nodes permanently bypassed during reflection cycles. |
+
 
 ## Pending Queue
 
-This is your backlog of completed work waiting for reflection. The queue accumulates patiently. You can reflect on projects the moment they finish or batch them every few weeks; the only wrong move is waiting until you have forgotten the details of the work.
-
-Click **Start Reflection** to open a step-by-step walkthrough. For each node, you record:
-
-*   **Actual Time**: Enter your actual duration using the same format (Lower Bound, Best Estimate, Upper Bound, and Unit) to keep your actuals directly comparable to your estimates.
-*   **Post-hoc Ratings**: Re-rate the task from 1 to 10 on **Value** (was it as impactful as expected?), **Interest** (did you enjoy it?), and **Effort** (how difficult was it in practice?).
-
-Three actions guide you through the queue:
-*   **Submit**: Saves your actuals and advances to the next task.
-*   **Skip**: Postpones the node, leaving it in the queue for later.
-*   **Don't ask again**: Excludes the node entirely—perfect for minor tasks or resources that defy meaningful retrospection.
+Click **Start Reflection** to open a step-by-step walkthrough. For each project, you record the information shown below.
 
 <p align="center">
   <img src="../images/reflection-focused-node.png" width=500>
@@ -705,7 +700,7 @@ Three actions guide you through the queue:
 
 ## Reflection History
 
-A log of your past reflections. This searchable, filterable table displays your original estimates alongside your recorded actuals and the differences between them. If your memory of a task changes later, click the pencil icon on any row to edit its actual (not expected) data.
+A log of your past reflections. The table is searchable and filterable. And it shows estimated vs actual ratings. 
 
 <p align="center">
   <img src="../images/reflection-history.png" width=500>
@@ -719,20 +714,19 @@ This is your "Don't ask again" archive. Nodes here are quietly bypassed during y
 
 # Analyze Tab
 
-The Analyze tab gives you a bird's eye view of your entire network -- goal progress, time allocation, structural patterns, and more. The charts are diagnostic: they help you catch mistakes early and avoid spending time unwisely.
+The Analyze tab gives you a bird's eye view of your entire network. It helps you understand how to want to spend your time, and how you actually spend it. It also helps you track progress on goals, and uncover structural characteristics of your graph.
 
 ## The Overview Strip
-
-At the top, an Overview strip summarizes the current non-dormant graph
+The overview strip shows key facts about your graph.
 
 <p align="center">
   <img src="../images/analyze-callouts.png">
   <br>
-  <em>Callouts </em>
+  <em>Sandbox overview strip</em>
 </p>
 
 ## Goals
-The Goals section puts two views side by side. Importantly, goals are ranked by priority score. The algorithm used for ranking is the same one as the Goals Sidebar priority ranking dropdown. You can learn about this mechanism in [scoring](scoring.md). There is a small gear icon by the section title that allows you to control how many goals are shown. 
+This section displays two visualizations side-by-side. The order of the goals is not arbitrary; they are ranked using the same algorithm as the [Goal Sidebar](#goals-sidebar). A gear icon next to the section title lets you control how many goals are displayed.
 
 <p align="center">
   <img src="../images/analyze-goals.png">
@@ -740,23 +734,21 @@ The Goals section puts two views side by side. Importantly, goals are ranked by 
   <em> Goal Visualizations </em>
 </p>
 
-**Completion** (left) shows each Goal's hard-prerequisite progress as a stacked horizontal bar — Done work in green, remaining work in faint gray. As with every chart on the Analyze Tab, there is a helpful tooltip that shows up when you mouse over a graph element.
+**Completion** (left) shows each Goal's progress. Only hard prereqs are considered (not soft or synergies). As with every chart on the Analyze Tab, there is a helpful tooltip that shows up when you mouse over a graph element.
 
-**Shared Prerequisites** (right) is a heatmap over those same Goals, counting their shared hard and soft prerequisites. Bright cells mean two Goals draw from the same body of work — a sign they share foundational skills. You might want to work on these tasks to "double dip."
+**Shared Prerequisites** (right) is a heatmap over those same Goals, counting their shared hard and soft prerequisites. Bright cells mean two Goals draw from the same body of work — a sign they share foundational skills. You might want to work on these tasks to "double dip," or you could merge them if you think they are similar enough.
 
 ## Contexts
 
-The Contexts section puts three views in one row, each asking a different question: where your time goes, what you expect your work to feel like, and what it actually feels like after you've done it (for this last part, see the [reflection feature](#reflection)). All three visualizations share the same context order, so you can read straight across.
-
-**Hours by Context**. One horizontal stacked bar per context; each segment is a subcontext. Hover a segment for its name, node count, and estimated time.
+**Hours by Context**. One horizontal bar per context, with each segment representing a subcontext. Hover a segment for its name, node count, and estimated time.
 
 <p align="center">
   <img src="../images/analyze-hours-by-context.png">
   <br>
-  <em> Hours by Context. </em>
+  <em> The context distribution of someone who loves science </em>
 </p>
 
-**Ratings by Context and Reflection Drift** The left chart shows average Value, Interest, and Effort across the live nodes in each context. The chart on the right shows the same three dimensions, but the average change between your pre- and post-project estimates. Red cells mean you overrated the work going in; blue cells mean you underrated it. Like every visualization on this tab, you can get additional information by mousing over a graph element.
+**Ratings by Context and Reflection Drift.** The left chart shows average Value, Interest, and Effort across all live nodes in each context. The chart on the right shows the same three dimensions, but the average change between your estimates and actual recorded values. Red cells mean you overrated the work going in; blue cells mean you underrated it.
 
 <p align="center">
   <img src="../images/analyze-ratings-heatmaps.png">
@@ -785,10 +777,8 @@ The Throughput chart shows hours of completed work per calendar bucket, stacked 
 <p align="center">
   <img src="../images/analyze-throughput-bars.png">
 <br>
-<em> The Throughput chart. </em>
+<em> The Throughput chart on sandbox data (I am not actually doing 2 years of work in one month). </em>
 </p>
-
-Where Hours-by-Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
 
 The gear icon by the title opens three controls: **Granularity** (months, quarters, or years) and **Start / End date** to clip the range. The defaults — quarterly buckets covering the full range of your time with Skill Tree -- work for most uses. Use the gear when you want to zoom in.
 
@@ -798,13 +788,13 @@ The gear icon by the title opens three controls: **Granularity** (months, quarte
 <em> Throughput Visualization Filters </em>
 </p>
 
-
+Where Hours-by-Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
 
 ## Graph Structure
 
-The Graph Structure section answers two structural questions about your network, side by side. The gear icon controls how many nodes each chart shows.
+The Graph Structure section answers two structural questions about your network.
 
-**Bottleneck** ranks nodes by the number of nodes they unlock (through hard edges). The chart distinguishes direct unlocks from the downstream cascade. The colors of the bars show the status, allowing you to separate "high leverage and available" (not red) from "high leverage but waiting on something else" (red). A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole chains become eligible, and the Next tab has better candidates to choose from.
+**Bottleneck** ranks nodes by the number of nodes they unlock (through hard edges). The chart distinguishes direct unlocks from the downstream cascade. The colors of the bars show the status, allowing you to separate "high leverage and available" (not red) from "high leverage but waiting on something else" (red). A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole new chains become eligible, and the Next Tab has more candidates to choose from.
 
 **Hub Nodes** ranks nodes by how integrated they are — concepts with prerequisites feeding in *and* dependents flowing out. The score is calculated as the geometric mean of incoming and outgoing prerequisite edge counts (over Hard and Soft needs), plus a half-point bonus for each synergy partner (Helps edges). Because the prerequisite component drops to zero for pure roots (no prerequisites) and pure leaves (no dependents), this chart surfaces the connective concepts that tie the rest of your graph together. 
 
