@@ -752,11 +752,67 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
     }
 
 
+def editor_form_values(
+    *,
+    name, n_type, desc, context, subctx, status_done,
+    val, interest, diff,
+    time_o, time_m, time_p, time_unit,
+    e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
+    obs_links, drive_links, website_links,
+    time_mode, value_mode, priority_rank, aliases,
+    time_habit_mode=None,
+    habit_duration=0, habit_duration_unit='weeks',
+    habit_intensity_o=0, habit_intensity_m=0, habit_intensity_p=0,
+    habit_intensity_unit='min_per_session',
+    habit_days=None,
+):
+    """Assemble the canonical editor form-values dict for the dirty check.
+
+    This is the single source of truth for the key set that
+    is_form_dirty_vs_snapshot compares against a snapshot. Every call site that
+    needs a dirty check must build its form dict through here, so the schema
+    can't drift per-call-site. Per-call-site drift — a call site omitting a
+    field that the snapshot carries — was the historical cause of spurious
+    "unsaved changes" prompts: an omitted field read back as a coercion default
+    that disagreed with the snapshot, flagging an unchanged form as dirty.
+
+    All args are keyword-only so a forgotten field is a loud TypeError at the
+    call site rather than a silent omission. The habit_* defaults mirror the
+    editor's component defaults (see sidebars_layout.py) so they stay aligned
+    with NEW_NODE_SNAPSHOT for any caller that legitimately has no habit state.
+    """
+    return {
+        'name': name, 'n_type': n_type, 'desc': desc,
+        'context': context, 'subctx': subctx,
+        'status_done': status_done,
+        'val': val, 'interest': interest, 'diff': diff,
+        'time_o': time_o, 'time_m': time_m, 'time_p': time_p,
+        'time_unit': time_unit,
+        'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
+        'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
+        'obs_links': obs_links, 'drive_links': drive_links,
+        'website_links': website_links,
+        'time_mode': time_mode,
+        'time_habit_mode': time_habit_mode,
+        'habit_duration': habit_duration,
+        'habit_duration_unit': habit_duration_unit,
+        'habit_intensity_o': habit_intensity_o,
+        'habit_intensity_m': habit_intensity_m,
+        'habit_intensity_p': habit_intensity_p,
+        'habit_intensity_unit': habit_intensity_unit,
+        'habit_days': habit_days if habit_days is not None else list(ALL_WEEKDAYS),
+        'value_mode': value_mode,
+        'priority_rank': priority_rank,
+        'aliases': aliases,
+    }
+
+
 def is_form_dirty_vs_snapshot(snapshot, form_values):
     """Compare current editor form State to the pristine snapshot.
 
     snapshot:    dict from build_editor_snapshot / NEW_NODE_SNAPSHOT, or None.
     form_values: dict of current State values keyed the same as the snapshot.
+                 Build it via editor_form_values() so the key set can't drift.
 
     Returns False if snapshot is None — no baseline means we can't tell, and
     treating as not-dirty lets the X button always close in that edge case.
@@ -779,7 +835,7 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
         return True
     if (form_values.get('habit_duration_unit') or 'weeks') != (snapshot.get('habit_duration_unit') or 'weeks'):
         return True
-    if (form_values.get('habit_intensity_unit') or 'min_per_day') != (snapshot.get('habit_intensity_unit') or 'min_per_day'):
+    if (form_values.get('habit_intensity_unit') or 'min_per_session') != (snapshot.get('habit_intensity_unit') or 'min_per_session'):
         return True
 
     # Integer fields with a default-of-5 convention.

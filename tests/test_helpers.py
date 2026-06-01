@@ -14,6 +14,7 @@ from callback_helpers import (
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, build_explain_summary,
     resolve_time_mode, resolve_value_mode,
+    editor_form_values, ALL_WEEKDAYS,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -752,6 +753,131 @@ class TestSnapshotFromFormState:
         form = self._form(e_needs_h=['Active Prereq'])
         snap = snapshot_from_form_state(form, form['name'], form['aliases'])
         assert snap['e_needs_h'] == ['Active Prereq']
+        assert not is_form_dirty_vs_snapshot(snap, form)
+
+
+# ============================================================================
+# editor_form_values — single source of truth for the dirty-check form dict.
+#
+# Regression guard for the spurious "unsaved changes" prompt: the form-values
+# dict used to be hand-built at three separate call sites (the X-close gate,
+# the close-prompt modal, and the navigation interceptor). They drifted — the
+# modal gate omitted every habit_* field, the close gate omitted habit_days —
+# so an omitted field read back as a coercion default that disagreed with the
+# snapshot, flagging an unchanged form as dirty on every close. Routing all
+# call sites through editor_form_values fixes that; these tests pin the schema
+# so a future field addition can't silently reopen the drift.
+# ============================================================================
+
+class TestEditorFormValues:
+    @staticmethod
+    def _full_kwargs(**overrides):
+        base = dict(
+            name='Alpha', n_type='Learn', desc='hello',
+            context='Mind', subctx='',
+            status_done=[],
+            val=5, interest=5, diff=5,
+            time_o=40, time_m=80, time_p=160, time_unit='hours',
+            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
+            obs_links=[''], drive_links=[''], website_links=[''],
+            time_mode=[], value_mode=[], priority_rank='none', aliases=[''],
+            time_habit_mode=[],
+            habit_duration=0, habit_duration_unit='weeks',
+            habit_intensity_o=0, habit_intensity_m=0, habit_intensity_p=0,
+            habit_intensity_unit='min_per_session',
+            habit_days=list(ALL_WEEKDAYS),
+        )
+        base.update(overrides)
+        return base
+
+    def test_keys_match_new_node_snapshot_schema(self):
+        """The form-values dict must carry exactly the snapshot's key set —
+        no missing field (false positive) and no extra field (silent no-op)."""
+        produced = editor_form_values(**self._full_kwargs())
+        assert set(produced.keys()) == set(NEW_NODE_SNAPSHOT.keys())
+
+    def test_keys_match_built_snapshot_schema(self):
+        from graph_manager import GraphManager
+        from models import Node
+        mgr = GraphManager()
+        mgr.add_node(Node(name='Alpha', type='Learn', description='x',
+                          value=5, interest=5, difficulty=5, status='Open',
+                          time_o=40, time_m=80, time_p=160, context='Mind'))
+        snap = build_editor_snapshot(mgr, 'Alpha')
+        produced = editor_form_values(**self._full_kwargs())
+        assert set(produced.keys()) == set(snap.keys())
+
+    def test_blank_form_not_dirty_vs_new_node_snapshot(self):
+        """A blank new-node form (component defaults) built through the helper
+        must not register dirty against NEW_NODE_SNAPSHOT."""
+        blank = editor_form_values(**self._full_kwargs(
+            name='', desc='', context='', subctx='', time_o=2, time_m=4,
+            time_p=6, time_unit='weeks',
+        ))
+        assert not is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, blank)
+
+    def test_omitting_habit_args_uses_layout_defaults(self):
+        """A caller with no habit state (the historical modal-gate case) gets
+        the same habit defaults the editor components emit — so an unchanged
+        non-habit node does not falsely register dirty."""
+        from graph_manager import GraphManager
+        from models import Node
+        mgr = GraphManager()
+        mgr.add_node(Node(name='Alpha', type='Learn', description='hello',
+                          value=5, interest=5, difficulty=5, status='Open',
+                          time_o=40, time_m=80, time_p=160, context='Mind'))
+        snap = build_editor_snapshot(mgr, 'Alpha')
+        # Mirror the snapshot's non-habit fields but pass NO habit_* kwargs.
+        form = editor_form_values(
+            name='Alpha', n_type='Learn', desc='hello',
+            context='Mind', subctx='',
+            status_done=[], val=5, interest=5, diff=5,
+            time_o=snap['time_o'], time_m=snap['time_m'], time_p=snap['time_p'],
+            time_unit=snap['time_unit'],
+            e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
+            obs_links=[''], drive_links=[''], website_links=[''],
+            time_mode=[], value_mode=[], priority_rank='none', aliases=[''],
+        )
+        assert not is_form_dirty_vs_snapshot(snap, form)
+
+    def test_unchanged_loaded_node_not_dirty(self):
+        """End-to-end: a loaded node's form (mirroring its snapshot) routed
+        through the helper is not dirty — the core false-positive case."""
+        from graph_manager import GraphManager
+        from models import Node
+        mgr = GraphManager()
+        mgr.add_node(Node(name='Habit Node', type='Action', description='d',
+                          value=5, interest=5, difficulty=5, status='Open',
+                          context='Mind',
+                          time_o=40, time_m=80, time_p=160, time_mode='habit',
+                          habit_duration=6, habit_duration_unit='weeks',
+                          habit_intensity_o=20, habit_intensity_m=30,
+                          habit_intensity_p=45,
+                          habit_intensity_unit='min_per_session'))
+        snap = build_editor_snapshot(mgr, 'Habit Node')
+        form = editor_form_values(
+            name=snap['name'], n_type=snap['n_type'], desc=snap['desc'],
+            context=snap['context'], subctx=snap['subctx'],
+            status_done=snap['status_done'],
+            val=snap['val'], interest=snap['interest'], diff=snap['diff'],
+            time_o=snap['time_o'], time_m=snap['time_m'], time_p=snap['time_p'],
+            time_unit=snap['time_unit'],
+            e_needs_h=snap['e_needs_h'], e_needs_s=snap['e_needs_s'],
+            e_supp_h=snap['e_supp_h'], e_supp_s=snap['e_supp_s'],
+            e_helps=snap['e_helps'],
+            obs_links=snap['obs_links'], drive_links=snap['drive_links'],
+            website_links=snap['website_links'],
+            time_mode=snap['time_mode'], time_habit_mode=snap['time_habit_mode'],
+            habit_duration=snap['habit_duration'],
+            habit_duration_unit=snap['habit_duration_unit'],
+            habit_intensity_o=snap['habit_intensity_o'],
+            habit_intensity_m=snap['habit_intensity_m'],
+            habit_intensity_p=snap['habit_intensity_p'],
+            habit_intensity_unit=snap['habit_intensity_unit'],
+            habit_days=snap['habit_days'],
+            value_mode=snap['value_mode'], priority_rank=snap['priority_rank'],
+            aliases=snap['aliases'],
+        )
         assert not is_form_dirty_vs_snapshot(snap, form)
 
 
