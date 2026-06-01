@@ -2744,44 +2744,40 @@ class TestEnsureMilestoneType:
 
 
 # ============================================================================
-# database — Goal time_mode migration
+# Container types always inherit time (model-level enforcement)
 # ============================================================================
 
-class TestGoalTimeModeMigration:
-    """One-time data migration: Goal nodes must use time_mode='inherited'.
-    The migration runs in init_db; calling it again with _initialized=False
-    re-triggers it. Idempotent — only flips type='Goal' AND time_mode='manual'.
+class TestContainerTypeTimeInheritance:
+    """Goals and Milestones are container types: their time is the sum of their
+    children's, never an own estimate. ``Node.__post_init__`` forces
+    time_mode='inherited' for both, so the invariant holds on every read —
+    including legacy DB rows and programmatic constructions that pass 'manual'.
+    (This replaces an earlier one-time DB migration; enforcing at the model
+    layer means there's no stored state to drift.)
     """
 
-    def test_flips_existing_goal_from_manual_to_inherited(self, mgr):
+    def test_goal_forced_to_inherited_time(self):
+        n = _make_node("G", type="Goal", time_mode='manual')
+        assert n.time_mode == 'inherited'
+
+    def test_milestone_forced_to_inherited_time(self):
+        n = _make_node("M", type="Milestone", time_mode='manual')
+        assert n.time_mode == 'inherited'
+
+    def test_non_container_type_keeps_manual_time(self):
+        n = _make_node("L", type="Learn", time_mode='manual')
+        assert n.time_mode == 'manual'
+
+    def test_goal_inherited_time_persists_through_db(self, mgr):
         mgr.add_node(_make_node("MigGoal", type="Goal", time_mode='manual'))
-        # Re-run migration
-        database._initialized = False
-        database.init_db()
-        node = mgr.get_node("MigGoal")
-        assert node.time_mode == 'inherited'
+        assert mgr.get_node("MigGoal").time_mode == 'inherited'
 
-    def test_leaves_non_goal_types_untouched(self, mgr):
-        mgr.add_node(_make_node("MigLearn", type="Learn", time_mode='manual'))
-        database._initialized = False
-        database.init_db()
-        node = mgr.get_node("MigLearn")
-        assert node.time_mode == 'manual'
-
-    def test_leaves_already_inherited_goal_untouched(self, mgr):
-        mgr.add_node(_make_node("InhGoal", type="Goal", time_mode='inherited'))
-        database._initialized = False
-        database.init_db()
-        node = mgr.get_node("InhGoal")
-        assert node.time_mode == 'inherited'
-
-    def test_migration_is_idempotent(self, mgr):
-        mgr.add_node(_make_node("IdemGoal", type="Goal", time_mode='manual'))
-        for _ in range(3):
-            database._initialized = False
-            database.init_db()
-        node = mgr.get_node("IdemGoal")
-        assert node.time_mode == 'inherited'
+    def test_goal_time_reads_as_zero(self):
+        """Forced inherited time means Node.time short-circuits to 0 even with
+        stored time_o/m/p."""
+        n = _make_node("G", type="Goal", time_mode='manual',
+                       time_o=10, time_m=20, time_p=40)
+        assert n.time == 0.0
 
 
 # ============================================================================
@@ -3140,6 +3136,129 @@ class TestValueModeField:
 
 
 # ============================================================================
+# Milestone value-transparency invariant
+# ============================================================================
+
+class TestMilestoneValueTransparency:
+    """Milestones are transparent checkpoints: their own value/interest/effort
+    must never enter scoring. The invariant is enforced at the model layer
+    (Node.__post_init__ forces value_mode='inherited' for Milestones) so it
+    holds on every read path — primary Next-tab ranking included, not just
+    Goal ranking. Goals are exempt: they legitimately carry their own value.
+    """
+
+    def test_milestone_forced_to_inherited_on_construction(self):
+        """A Milestone constructed with value_mode='manual' is corrected."""
+        n = _make_node("MS", type="Milestone", value_mode='manual',
+                       value=10, interest=10)
+        assert n.value_mode == 'inherited'
+
+    def test_milestone_inherited_even_with_default_value_mode(self):
+        n = _make_node("MS", type="Milestone")  # no value_mode passed
+        assert n.value_mode == 'inherited'
+
+    def test_milestone_intrinsic_value_is_zero(self):
+        """High ratings on a Milestone contribute 0 IV — the leak this fixes."""
+        n = _make_node("MS", type="Milestone", value=10, interest=10)
+        assert intrinsic_value(n, w_v=1.0, w_i=1.0) == 0.0
+
+    def test_milestone_ratings_preserved_for_roundtrip(self):
+        """v/i/d are preserved (not destroyed) even though value_mode is forced,
+        mirroring the time_mode precedent — a type change restores them."""
+        n = _make_node("MS", type="Milestone", value=9, interest=7, difficulty=4)
+        assert n.value == 9 and n.interest == 7 and n.difficulty == 4
+
+    def test_goal_not_forced_to_inherited(self):
+        """Goals carry their own value (docs/modeling.md) — NOT forced."""
+        g = _make_node("G", type="Goal", value_mode='manual', value=8, interest=6)
+        assert g.value_mode == 'manual'
+        assert intrinsic_value(g, w_v=1.0, w_i=1.0) == 14.0
+
+    def test_milestone_db_roundtrip_is_inherited(self, mgr):
+        mgr.add_node(_make_node("MS", type="Milestone", value=10, interest=10))
+        fetched = mgr.get_node("MS")
+        assert fetched.value_mode == 'inherited'
+        assert intrinsic_value(fetched, 1.0, 1.0) == 0.0
+
+    def test_milestone_does_not_leak_value_into_unlocking_node(self):
+        """The core bug: a Learn that hard-unlocks a high-rated Milestone must
+        score the SAME as if the Milestone carried no ratings — the Milestone's
+        own value must not cascade back into the work that leads to it.
+
+        Compare the unlocking Learn's score against a baseline where the
+        downstream node is an explicit zero-IV container. They must match.
+        """
+        # Graph A: Learn → Milestone (Milestone has high placeholder ratings).
+        learn_a = _make_node("LearnA", type="Learn", value=5, interest=5,
+                             difficulty=3, context="Body", subcontext="Exercise")
+        ms = _make_node("MS", type="Milestone", value=10, interest=10,
+                        context="Body", subcontext="Exercise")
+        edges_a = [{'source': 'LearnA', 'target': 'MS', 'type': EDGE_NEEDS_HARD}]
+        scored_a = score_nodes([learn_a], [learn_a, ms], edges_a, DEFAULT_HYPERPARAMS)
+        learn_a_score = scored_a[0].priority_score
+
+        # Graph B: Learn → explicit pure container (IV genuinely 0).
+        learn_b = _make_node("LearnB", type="Learn", value=5, interest=5,
+                             difficulty=3, context="Body", subcontext="Exercise")
+        cont = _make_node("Cont", type="Learn", value=10, interest=10,
+                          value_mode='inherited', time_mode='inherited',
+                          context="Body", subcontext="Exercise")
+        edges_b = [{'source': 'LearnB', 'target': 'Cont', 'type': EDGE_NEEDS_HARD}]
+        scored_b = score_nodes([learn_b], [learn_b, cont], edges_b, DEFAULT_HYPERPARAMS)
+        learn_b_score = scored_b[0].priority_score
+
+        assert learn_a_score == pytest.approx(learn_b_score)
+
+    def test_legacy_milestone_row_corrected_on_read(self, mgr):
+        """A legacy Milestone row stored with value_mode='manual' and a real
+        time estimate (written via raw SQL to bypass the model guard, simulating
+        a row that predates this rule) reads back as a pure container: both
+        modes inherited, zero IV, zero time. There is no DB migration —
+        Node.__post_init__ enforces the invariant on every construction, so the
+        correction happens transparently when GraphManager loads the row."""
+        import sqlite3
+        conn = sqlite3.connect(database.get_db_path())
+        conn.execute(
+            "INSERT INTO Nodes (name, type, description, value, time_o, time_m, "
+            "time_p, interest, difficulty, status, context, value_mode, time_mode) "
+            "VALUES (?, 'Milestone', '', 10, 5, 10, 20, 10, 5, 'Open', 'Body', "
+            "'manual', 'manual')",
+            ("LegacyMS",),
+        )
+        conn.commit()
+        conn.close()
+
+        node = mgr.get_node("LegacyMS")
+        assert node.value_mode == 'inherited'
+        assert node.time_mode == 'inherited'
+        assert intrinsic_value(node, 1.0, 1.0) == 0.0
+        assert node.time == 0.0
+
+    def test_milestone_value_leak_would_inflate_without_fix(self):
+        """Guard test: confirm the scenario is non-trivial — if the Milestone
+        DID carry its ratings (the old bug), the unlocking Learn would score
+        strictly higher. We simulate the buggy case with a manual-value Learn
+        as the downstream node and confirm it scores higher than our Milestone
+        case, proving the transparency is actually doing work."""
+        learn = _make_node("Learn", type="Learn", value=5, interest=5,
+                           difficulty=3, context="Body", subcontext="Exercise")
+        ms = _make_node("MS", type="Milestone", value=10, interest=10,
+                        context="Body", subcontext="Exercise")
+        edges = [{'source': 'Learn', 'target': 'MS', 'type': EDGE_NEEDS_HARD}]
+        ms_case = score_nodes([learn], [learn, ms], edges, DEFAULT_HYPERPARAMS)[0].priority_score
+
+        learn2 = _make_node("Learn2", type="Learn", value=5, interest=5,
+                            difficulty=3, context="Body", subcontext="Exercise")
+        downstream = _make_node("Down", type="Learn", value=10, interest=10,
+                                context="Body", subcontext="Exercise")
+        edges2 = [{'source': 'Learn2', 'target': 'Down', 'type': EDGE_NEEDS_HARD}]
+        learn_case = score_nodes([learn2], [learn2, downstream], edges2,
+                                 DEFAULT_HYPERPARAMS)[0].priority_score
+
+        assert learn_case > ms_case
+
+
+# ============================================================================
 # Scoring — inherited value_mode prevents own-IV injection
 # ============================================================================
 
@@ -3240,20 +3359,25 @@ class TestScoringContainerExclusion:
     straight to the top of the recommendations. Containers are skipped — the
     children compete on their own merits."""
 
-    def test_is_container_property(self):
-        # Both modes inherited → container.
+    def test_is_pure_container_property(self):
+        # Both modes inherited → pure container (the scoring-exclusion gate).
         c = _make_node(value_mode='inherited', time_mode='inherited')
-        assert c.is_container is True
+        assert c.is_pure_container is True
+        assert c.is_container is True  # also a container under the broad notion
 
-    def test_one_mode_inherited_is_not_container(self):
+    def test_one_mode_inherited_is_container_but_not_pure(self):
+        # Under the split: either mode inherited → is_container; both → pure.
         v_only = _make_node(value_mode='inherited', time_mode='manual')
         t_only = _make_node(value_mode='manual', time_mode='inherited')
-        assert v_only.is_container is False
-        assert t_only.is_container is False
+        assert v_only.is_container is True
+        assert v_only.is_pure_container is False
+        assert t_only.is_container is True
+        assert t_only.is_pure_container is False
 
-    def test_manual_node_is_not_container(self):
+    def test_manual_node_is_neither(self):
         n = _make_node(value_mode='manual', time_mode='manual')
         assert n.is_container is False
+        assert n.is_pure_container is False
 
     def test_standalone_container_excluded_from_recommendations(self):
         """A container with no descendants is marked -1.0 and won't surface."""

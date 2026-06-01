@@ -203,15 +203,55 @@ def build_events_tab_content():
             ),
 
             html.Hr(className="my-2"),
+            html.H5("Ratings", className="mt-2 mb-1"),
+            # Inherit-value + Override toggles on one row — mirrors the main
+            # node editor (sidebars_layout). Both are switch-style checklists.
             html.Div([
-                html.H5("Priority Override", className="mb-0"),
-                dbc.Switch(
-                    id="dormant-override-toggle",
-                    label="",
-                    value=False,
-                    style={"fontSize": "0.82rem", "marginBottom": "0"},
+                dbc.Checklist(
+                    options=[{"label": "Inherit", "value": "inherited"}],
+                    value=[],
+                    id="dormant-node-value-mode",
+                    switch=True,
+                    className="mb-0 me-3",
                 ),
-            ], className="d-flex justify-content-between align-items-center mt-2 mb-1"),
+                dbc.Checklist(
+                    options=[{"label": "Override", "value": "on"}],
+                    value=[],
+                    id="dormant-override-toggle",
+                    switch=True,
+                    className="mb-0",
+                ),
+            ], className="d-flex align-items-center mt-2 mb-2"),
+            dbc.Tooltip(
+                "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
+                target="dormant-node-value-mode", placement="left",
+                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+            ),
+            dbc.Tooltip(
+                "Boost this node's priority when the event triggers. Click for scope options.",
+                target="dormant-override-toggle", placement="left",
+                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+            ),
+            # Locked-on notice for Milestones (mirrors the time-mode warning).
+            html.Div(id="dormant-value-mode-warning",
+                     style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                     className="mt-1 mb-2", children=""),
+            html.Div(id="section-dormant-ratings", children=[
+                dbc.Label("Value", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-value"),
+
+                dbc.Label("Interest", className="mt-2"),
+                dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-interest"),
+
+                html.Div(id="dormant-node-effort-row", children=[
+                    dbc.Label("Effort", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-difficulty"),
+                ]),
+                html.Div(id="dormant-node-effort-caption", style={"display": "none"}, children=[
+                    dbc.Label("Effort", className="mt-2"),
+                    html.Div("Derived from subtasks", className="text-muted small"),
+                ]),
+            ]),
             html.Div(id="dormant-override-options", style={"display": "none"}, children=[
                 dbc.RadioItems(
                     id="dormant-override-mode",
@@ -230,17 +270,6 @@ def build_events_tab_content():
                     style={"fontSize": "0.75rem"},
                 ),
             ]),
-
-            html.Hr(className="my-2"),
-            html.H5("Ratings", className="mt-2 mb-1"),
-            dbc.Label("Value", className="mt-2"),
-            dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-value"),
-
-            dbc.Label("Interest", className="mt-2"),
-            dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-interest"),
-
-            dbc.Label("Effort", className="mt-2"),
-            dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-difficulty"),
 
             html.Hr(className="my-2"),
             html.H5("Time Estimates", className="mt-2 mb-2"),

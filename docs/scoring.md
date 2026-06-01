@@ -2,7 +2,7 @@
 
 This document describes the math that powers the app's intelligent recommendations. It assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md). Symbols are introduced where they first arise, and a full glossary sits at the [end](#symbol-glossary).
 
-One convention runs through everything below. An edge $A \to B$ means $A$ is a prerequisite for $B$. The scoring cascade walks forward, along the arrows. Eligibility walks backward, against them
+One convention runs through everything below. An edge $A \to B$ means $A$ is a prerequisite for $B$. The scoring cascade walks forward, along the arrows. Eligibility walks backward, against them.
 
 
 # Priority Scoring Algorithm

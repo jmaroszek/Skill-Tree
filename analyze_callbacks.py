@@ -4,7 +4,6 @@ Computes and renders aggregate analytics about the graph.
 """
 
 import math
-from dataclasses import replace
 from dash import html, dcc, Input, Output, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
@@ -364,20 +363,6 @@ def _get_limits():
     return ConfigManager.get_analyze_limits()
 
 
-def _milestones_as_transparent_checkpoints(nodes):
-    """Return a scoring view where Milestones carry no own value or time.
-
-    Goal ranking answers "what body of work is worth pursuing?" Milestones
-    are checkpoints inside that body of work, so they should let prerequisite
-    value flow through without adding their own ratings to the ROI numerator.
-    """
-    return [
-        replace(n, value_mode='inherited', time_mode='inherited')
-        if n.type == 'Milestone' else n
-        for n in nodes
-    ]
-
-
 def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
                 with_scores=False, with_components=False):
     """Rank goals by ROI — prerequisite-subtree value per unit of time,
@@ -446,8 +431,10 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
         else:
             inverted.append(e)
 
-    rank_nodes = _milestones_as_transparent_checkpoints(all_nodes)
-    all_nodes_dict = {n.name: n for n in rank_nodes}
+    # Milestones are stored as pure containers (both modes inherited, enforced
+    # in Node.__post_init__), so they carry no own value or time and pass
+    # prerequisite value through transparently — no in-memory transform needed.
+    all_nodes_dict = {n.name: n for n in all_nodes}
     H_out, S_out, Syn, _ = _scoring_build_adjacency(
         inverted, set(all_nodes_dict.keys()))
 
@@ -568,8 +555,9 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
         else:
             inverted.append(e)
 
-    explain_nodes = _milestones_as_transparent_checkpoints(all_nodes)
-    bd = explain_score(goal_name, explain_nodes, inverted, hp, priority_goals)
+    # Milestones are stored as pure containers (see _rank_goals), so they're
+    # already transparent — pass all_nodes straight through.
+    bd = explain_score(goal_name, all_nodes, inverted, hp, priority_goals)
     if bd is None:
         return None
 

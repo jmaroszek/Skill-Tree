@@ -66,10 +66,9 @@ def get_suggestions(filters=None, count=5, exclude_override=False):
 def get_container_suggestions(count=5, exclude_names=None):
     """Retrieve top-N container nodes ranked by total_value.
 
-    A "container" here means any node with ``time_mode='inherited'``
-    — broader than ``Node.is_container`` (which requires both modes
-    inherited). The intent is "structurally rich nodes worth examining
-    in the Details tab," not "what to do next."
+    A "container" here is ``Node.is_container`` — any node with at least
+    one inherited mode (ratings or time). The intent is "structurally rich
+    nodes worth examining in the Details tab," not "what to do next."
 
     Milestones are excluded: per the framework they are single-event
     checkpoints, not capacity containers — the work happens upstream
@@ -86,7 +85,7 @@ def get_container_suggestions(count=5, exclude_names=None):
 
     containers = [
         n for n in scored
-        if n.time_mode == 'inherited'
+        if n.is_container
         and n.type != 'Milestone'
         and n.status != STATUS_DONE
         and not getattr(n, 'dormant', False)

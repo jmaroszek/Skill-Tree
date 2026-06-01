@@ -337,8 +337,11 @@ class TestModeTransitions:
 
     def test_inherited_to_habit_via_update(self):
         mgr = GraphManager()
+        # A non-container type: Goals/Milestones are forced to inherited time
+        # by the model and can never enter habit mode. An Action is the natural
+        # habit-bearing type (a cadence-based practice).
         node = Node(
-            name='Container', type='Goal', description='', value=5,
+            name='Container', type='Action', description='', value=5,
             time_o=0, time_m=0, time_p=0, interest=5, difficulty=5,
             status='Open', context='Mind', time_mode='inherited',
         )

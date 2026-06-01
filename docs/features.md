@@ -1,28 +1,36 @@
 # Features
-
-This document walks you through the UI of Skill Tree and introduces key concepts along the way. By the end you'll know how to use the app, and where to look when you want more depth. From here, you can go straight to [Modeling](modeling.md) for the practical guide to building a good graph, or take the technical path through [Scoring](scoring.md) and [Time](time.md) first. All examples use a sandbox dataset derived from my real graph.
+This document walks through the features of Skill Tree, and how they are controlled in the app. This is easily the longest document in the tutorial, but that is only because it lays the foundational knowledge for everything to come, and there are so many cool things to cover.
 
 # Node Editor
-The Node Editor is where you create new projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. You can access the node editor from anywhere in the app by clicking this icon in the top left corner. 
+The Node Editor is where you create projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. 
+
+Accsess the node editor from anywhere in the app by clicking the icon in the top-left corner. 
 
 <p align="center">
-<img src="../images/node-editor-icon.png" alt="The node editor icon in the top-left corner">
-<br>
+    <img src="../images/node-editor-with-nodes-tab.png">
+    <br>
+    <em> The Node Editor with a project loaded, and the Nodes Tab open beside it. </em>
 </p>
+
 
 ## General Section
 <img src="../images/node-editor-general-section.png" alt="Node editor general section" align="left" height="400" style="margin: 10px 25px 25px 0;">
 
 ### Search Bar
-As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. We'll cover what it does in full [later](#locate).
+As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node, ready to edit. Next to the search bar is a **crosshair** button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. This feature is discussed more in depth [later](#locate).
 
 ### Names
-A node's name is how you find it (using the search bar) and reference it from other nodes (to create relationships). **Each name in Skill Tree must be unique.** Type a name that matches another — exactly, or after stripping connector words like *the,* *of,* and *is* — and the editor surfaces a *duplicate warning*. Unique doesn't have to mean singular, though. 
+A node's name is how you find it (using the search bar) and reference it from other nodes (in relationships). There are a couple things to know about names in Skill Tree.
 
-**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. For example, I had a book in my graph called *4000 Weeks* that I'd sometimes search for as *Four Thousand Weeks.* With the alias feature on, both work. Add an alias by clicking the dropdown menu next to the name field.
+**Each name must be unique.** Type a name that matches another — exactly, or after stripping connector words like *the,* *of,* and *is* — and the editor surfaces a *duplicate warning*. 
+
+Unique doesn't have to mean singular, though. 
+
+**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. For example, I had a book in my graph called *4000 Weeks* that I'd sometimes search for as *Four Thousand Weeks.* I actually created two separate projects for the same resource. But now that I have the alias feature, both names direct to the same project. You can add an alias using the gray dropdown arrow next to the name field.
+
 
 ### Node Type
-There are five node types in Skill Tree. Each answers a different question that guides your project.
+There are five types of nodes in Skill Tree. Each answers a different question that guides your planning.
 
 | Type | Core Question |
 |---|---|
@@ -35,13 +43,13 @@ There are five node types in Skill Tree. Each answers a different question that 
 Each type also behaves differently under the hood, so picking the right one matters more than it sounds. The [modeling guide](modeling.md) has the full decision tree for choosing between them. For now, just know that you set the type here, in the node editor.
 
 ### Description
-A space for notes to your future self — scope, motivation, and anything else worth remembering. Whatever you write surfaces alongside the recommendations on the Next tab, and in the node information panel on the Details tab.
+The description area is a space for notes to your future self. Use it to describe a project's scope, motivation, and anything else worth remembering. Whatever you write will surface in many places throughout the app, such as in the recommendations on the [Next Tab](#next-tab), and in the information panel on the [Details Tab](#details-tab).
 
 ### Context
 
-Every project belongs to a context (and optionally, a subcontext). Contexts do three things for you: they power the filters that let you examine sub-graphs, they drive the per-context views on the Analyze tab, and they shape your recommendations by influencing [scoring.md](scoring.md).
+Every project belongs to a context (and optionally, a subcontext). Contexts do three things for you: they power [filters](#filters-sidebar), drive [scoring](scoring.md), and [visualizations](#contexts). 
 
-The taxonomy below is the one I use. The goal is not philosophical elegance, but a pragmatic classification system that makes it clear where each project should go. You, of course, probably want a different system.
+Every user will have their own mental model for how to partition their life, but the taxonomy below is the one I use. The goal is not philosophical elegance, but a pragmatic classification system that makes it clear where each project should go. You, of course, probably want a different system.
 
 <p align="center">
   <img src="../images/skill_tree_context_taxonomy.svg" alt="The eight contexts and their subcontexts that I use to organize my graph" width="600">
@@ -50,13 +58,15 @@ The taxonomy below is the one I use. The goal is not philosophical elegance, but
 </p>
 
 ## Status
-The Status section of the node editor has three toggles: **Now**, **Done**, and **Dormant**.
+The Status section of the node editor has three toggles: **Now**, **Done**, and **Dormant**. 
 
 <p align="center">
   <img src="../images/node-editor-status-section.png" alt="Node Editor status section" width="300">
   <br>
   <em> The Status section's three toggles. </em>
 </p>
+
+The table below provides a brief overview of each status, but each will be covered more thoroughly later in the tutorial.
 
 | Toggle | What it does |
 |---|---|
@@ -82,7 +92,7 @@ Value, interest, and effort are collectively called **Ratings**. Score each on a
 
 <br>
 
-Their relative weight isn't fixed. [Scoring profiles](scoring.md#scoring-profiles) let you lean into curiosity (Interest first), ambition (Value first), or whatever fits the mood — more on those later.
+The relative weight of each factor isn't fixed. [Scoring profiles](scoring.md#scoring-profiles), discussed in depth in the [scoring](scoring.md) document, allow you to fine tune how these and other factors influence project rankings.
 
 </td>
   </tr>
@@ -91,12 +101,21 @@ Their relative weight isn't fixed. [Scoring profiles](scoring.md#scoring-profile
 ### Ratings Toggles
 Above the sliders sit two toggles.
 
-**Inherit** turns the node into a pure container. Its value, interest, and effort stop being its own and instead flow up from its children. Reach for it when a node exists only to group other work, not as a project in its own right. [Containers](#containers) covers this in depth.
+**Inherit** turns the node into a container along the ratings-dimension. That means its value, interest, and effort stop being its own, and instead flow up from its children. Reach for it when a node exists primarilyt to group other work. The [Containers](#containers) section, coming up soon, covers this in depth.
 
-**Override** manually boosts a node's priority, pinning it near the top of the Next tab no matter what it scores. Click the toggle for scope options. It's the escape hatch for when you know something matters more than the algorithm thinks.
+**Override** manually boosts a node's priority, pinning it to the top of the [Next Tab's](#next-tab) recommendations, no matter what the algorithm says. It's the escape hatch for when you know something matters more than the algorithm thinks. I use this when my life circumstances suddenly change, and something demands immediate attention. 
+
+Once you click the toggle, there are additional options for how thorough the override should be.
+
+<p align="center">
+  <img src="../images/override-mode-popup.png" width=400>
+  <br>
+  <em> Override popup -- the other options will make more sense after we cover relationships. </em>
+</p>
+
 
 ### Ratings Table
-In order to standardize the rating process, there is a table that describes what each rating means. Open it by clicking the info icon next to the Ratings header in the Node Editor. Every cell is editable, so you can personalize your experience over time. 
+In order to standardize the rating process, there is a table that describes what each rating means. Open it by clicking the info icon next to the Ratings header. Every cell is editable, so you can personalize the definitions. 
 
 <p align="center">
   <img src="../images/node-editor-ratings-table.png" alt="Node editor ratings table">
@@ -106,15 +125,13 @@ In order to standardize the rating process, there is a table that describes what
 
 
 ## Time
-Time estimation is the most valuable thing in project management to get right — and the hardest. An entire [document](time.md) walks through how Skill Tree solves it. For here, the short version: you can estimate a project's duration with one, two, or three inputs. The more you provide, the better the result.
-
-
+Time estimation is the most valuable thing in project management to get right — and the hardest. [Time.md](time.md) walks through Skill Trees approach to solving this difficult problem. For here, the short version: you can estimate a project's duration with one, two, or three inputs. The more you provide, the better the result.
 
 | Inputs | Values | Time Estimation Method |
 |---|---|---|
-| One | Expected duration | **Identity.** The app uses your number as-is. Skip this option when you can — the methods below are sharper. |
-| Two | Lower and upper bound | **Geometric Mean.** A better default than the arithmetic average, because it corrects for the way humans systematically underestimate time. See [time.md](time.md) for why. |
-| Three | Expected, lower, and upper bound | **Custom Algorithm**. A weighted blend of your three estimates based on PERT -- a technique developed by the US navy for estimating the duration of long projects. |
+| One | Expected duration | **Identity.** The app uses your estimate as-is. Skip this option when you can. The methods below are almost always better. |
+| Two | Lower and upper bound | **Geometric Mean.** A better default than the arithmetic ("normal") average. The arithmetic mean gets dragged upward by the worst-case bound. The geometric mean lands on the typical, median-case duration instead. See [time.md](time.md) for why. |
+| Three | Expected, lower, and upper bound | **Custom Algorithm**. A weighted blend of your three estimates based on PERT -- a technique developed by the US Navy for estimating the duration of long projects. |
 
 ### Habits
 
@@ -132,16 +149,16 @@ The **Inherit** toggle makes a node's duration the sum of its children's, rather
 
 ### Containers
 
-You've now met both Inherit toggles — one for ratings, and one for time. Together they're what turn an ordinary node into a **container**: a node that groups related work, and draws its numbers from the nodes beneath it.
+You've now met both Inherit toggles — one for ratings, and one for time. Flipping either one turns an ordinary node into a **container**: a node that groups related work, and draws at least some of its numbers from the nodes beneath it.
 
-A container is still just a node on the canvas, but it helps you organize projects better, as discussed in [modeling](modeling.md). Because the two toggles are independent, they combine four ways.
+A container is still just a node on the canvas, but it helps you organize projects better, as discussed in [modeling](modeling.md). Because the two toggles are independent, they combine four ways. The first is an ordinary node; the other three are all containers, inheriting time, ratings, or both.
 
 | Inherit Time | Inherit Ratings | What you get | Example |
 |---|---|---|---|
 | Off | Off | Standard node — own ratings and own time. | -- |
 | On | Off | Own ratings, but time sums from incoming nodes. | *Sleep Theory* — I care about the topic enough to rate it directly, but its duration is just whatever the sub-Learns add up to. |
 | Off | On | Own time, but the score comes from what its children contribute. I've never found a use for it — let me know if you have. | — |
-| On | On | Pure container — no time or ratings of its own. Like a self-less parent, its all about the children. | A *Transcendentalism* Learn that groups *Walden* and *Emerson Essays*. |
+| On | On | Pure container — no time or ratings of its own. Like a self-less parent, it's all about the children. | A *Transcendentalism* Learn that groups *Walden* and *Emerson Essays*. |
 
 Of the two toggles, Inherit Time is the one I reach for far more often.
 
@@ -204,7 +221,7 @@ Website links are universal. Obsidian and Google Drive are more niche — they f
 
 # Next Tab
 
-This is the tab the app opens on. If you only ever look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones (these are [containers](#containers)). 
+This is the tab the app opens on. If you only ever look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones. 
 
 ## The Next Section
 
@@ -242,6 +259,24 @@ If you have any nodes marked "Now," a small *Now* section appears above the sugg
 </p>
 
 Each card shows a type-colored accent bar, name, context, and time estimate. Once a node graduates to the Now section, it no longer competes for a slot in the recommendation table, because you are already committed to it.
+
+## Explain
+
+A score on its own doesn't tell you much. Explain tells you where that score came from. Right-click any suggestion and choose **Explain** to open it. It works anywhere a node appears, not just here.
+
+<p align="center">
+    <img src="../images/explain-modal.png" >
+    <br>
+    <em> The score breakdown for a node. </em>
+</p>
+
+The breakdown opens with a summary table, grouped into Value, Cost, and Score. Value is what the node is worth. That's its own ratings, plus the value it inherits from everything it unlocks. Cost is its expected time. Score is the return on that time, after your profile and context adjustments are applied. Each row shows the raw number behind it, so you see the reasoning rather than just the result.
+
+The score is listed twice: raw and normalized. The bar on the suggestions table shows the normalized score, where every node is measured against the current #1. The raw score is the underlying value before that rescaling. Showing both means the 0–100 bar always has a concrete number behind it.
+
+Below the table is a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. The node's own intrinsic value is one bar; the rest are the downstream nodes whose value cascades back to it. The bars are colored by where the value comes from — the node itself, or a hard prerequisite, soft prerequisite, or synergy link.
+
+If you open Explain on a blocked node, the table shows a dash in place of a score and names the prerequisite that's holding it back.
 
 ## Context Menu
 Right-click any node — on this tab or anywhere else a node appears — to open the context menu. The menu is the same everywhere, except the [goals sidebar](#goals-sidebar), which has additional functionality.
@@ -363,7 +398,7 @@ Nodes can still be dragged manually while Freeze is on.
 The fullscreen button in the bottom right corner, next to the graph settings button, expands the canvas to fill the whole window. Marginal on the Nodes tab (already nearly fullscreen), but helpful on Details and Events. Hit the button again or press Escape to exit.
 
 ## Helpful Features for Large Networks
-The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. You've already seen one tool for taming it: the Max Depth parameter, which carves a local graph around the active node. Three more useful ways to tame the complexity — Locate, Filters, and the Details tab itself.
+The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. You've already seen one tool for taming it: the Max Depth parameter, which carves a local graph around the active node. There are three more useful ways to tame the complexity: Locate, Filters, and the Details tab itself.
 
 ## Locate
 
@@ -552,7 +587,7 @@ Open the sidebar from the star icon in the top-left.
   <em> Sandbox Goal Sidebar </em>
 </p>
 
-The **+** next to the "Goals" header creates a new Goal and opens it in the node editor. You can search for existing goals underneath that. The goals auto-filter as you type. But if you want to sort goals by specific criteria, you can do that too. The row below the search bar contains a dropdown menu with three modes, each having a unique effect and appearance:
+The **+** next to the "Goals" header creates a new Goal and opens it in the node editor. You can search for existing goals underneath that. The goals auto-filter as you type. But if you want to sort goals by specific criteria, you can do that too. The row below the search bar contains a dropdown menu with four modes, each having a unique effect and appearance:
 
 | Mode | Order |
 |---|---|
@@ -639,7 +674,7 @@ The **Trigger** button fires the event manually. It opens a confirmation modal w
 The right side of the tab shows a mini-graph of the selected event's dormant nodes and how they connect to each other and to the live graph. It carries the same gear and fullscreen controls as the other canvases — a quick sanity check that the dormant cluster is wired up the way you intended before it goes live.
 
 ## Event Announcements
-When an event triggers — automatically (a date arrives, a node is completed) or because you clicked **Trigger** — an **Announcements** pops up the next time you open the app, confirming what just woke up and which nodes were activated or scheduled. 
+When an event triggers — automatically (a date arrives, a node is completed) or because you clicked **Trigger** — an **Announcements** modal pops up the next time you open the app, confirming what just woke up and which nodes were activated or scheduled. 
 
 
 # Reflection
@@ -654,7 +689,7 @@ This is your backlog of completed work waiting for reflection. The queue accumul
 
 Click **Start Reflection** to open a step-by-step walkthrough. For each node, you record:
 
-*   **Actual Time**: Enter your actual duration using the same three-number format (Lower Bound, Best Estimate, Upper Bound, and Unit) to keep your actuals directly comparable to your estimates.
+*   **Actual Time**: Enter your actual duration using the same format (Lower Bound, Best Estimate, Upper Bound, and Unit) to keep your actuals directly comparable to your estimates.
 *   **Post-hoc Ratings**: Re-rate the task from 1 to 10 on **Value** (was it as impactful as expected?), **Interest** (did you enjoy it?), and **Effort** (how difficult was it in practice?).
 
 Three actions guide you through the queue:
@@ -721,7 +756,7 @@ The Contexts section puts three views in one row, each asking a different questi
   <em> Hours by Context. </em>
 </p>
 
-**Ratings by Context and Reflection Drift** The left chart shows average Value, Interest, and Effort across the live nodes in each context. The chart on the right shows the same three dimensions, but the average change between your pre- and post-project estimates. Red cells mean you overrated the work going in; blue cells mean you underrated it. Like every visualiation on this tab, you can get additional information by mousing over a graph element.
+**Ratings by Context and Reflection Drift** The left chart shows average Value, Interest, and Effort across the live nodes in each context. The chart on the right shows the same three dimensions, but the average change between your pre- and post-project estimates. Red cells mean you overrated the work going in; blue cells mean you underrated it. Like every visualization on this tab, you can get additional information by mousing over a graph element.
 
 <p align="center">
   <img src="../images/analyze-ratings-heatmaps.png">
@@ -755,7 +790,7 @@ The Throughput chart shows hours of completed work per calendar bucket, stacked 
 
 Where Hours-by-Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
 
-The gear icon by the title opens three controls: **Granularity** (months, quarters, or years) and **Start / End date** to clip the range. The defaults — quarterly buckets covering the full range of your time with Skill Tree -- works for most usese. Use the gear when you want to zoom in.
+The gear icon by the title opens three controls: **Granularity** (months, quarters, or years) and **Start / End date** to clip the range. The defaults — quarterly buckets covering the full range of your time with Skill Tree -- work for most uses. Use the gear when you want to zoom in.
 
 <p align="center">
   <img src="../images/analyze-throughput-gear.png" width=200>

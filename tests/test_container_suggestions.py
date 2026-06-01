@@ -1,9 +1,9 @@
 """Tests for get_container_suggestions — the Details-tab empty-state list.
 
-Containers here mean any node with ``time_mode='inherited'`` (broader than
-``Node.is_container`` which also requires ``value_mode='inherited'``). The
-helper feeds the Details tab's "Top Recommendations" section, which is meant
-to surface structurally rich nodes worth examining, not leaf actions.
+Containers here means ``Node.is_container`` — any node with at least one
+inherited mode (ratings or time). The helper feeds the Details tab's "Top
+Recommendations" section, which surfaces structurally rich nodes worth
+examining, not leaf actions.
 """
 
 from typing import Any
@@ -129,7 +129,7 @@ class TestGetContainerSuggestions:
             assert n.total_value > 0
 
     def test_strict_container_included(self, mgr):
-        """Strict is_container (both modes inherited) is still surfaced."""
+        """Pure container (both modes inherited) is surfaced."""
         from next_callbacks import get_container_suggestions
         mgr.add_node(_make_node("Strict", time_mode='inherited',
                                 value_mode='inherited'))
@@ -139,6 +139,20 @@ class TestGetContainerSuggestions:
         results = get_container_suggestions(count=10)
         names = [n.name for n in results]
         assert "Strict" in names
+
+    def test_value_only_inherited_container_included(self, mgr):
+        """A node with ONLY ratings inherited (own time) is now a container
+        under the broadened is_container definition, so it surfaces here.
+        The previous time_mode-only filter would have missed it."""
+        from next_callbacks import get_container_suggestions
+        mgr.add_node(_make_node("ValOnly", value_mode='inherited',
+                                time_mode='manual'))
+        mgr.add_node(_make_node("ValOnly_Child", value=8, interest=8))
+        mgr.add_edge("ValOnly_Child", "ValOnly", EDGE_NEEDS_HARD)
+
+        results = get_container_suggestions(count=10)
+        names = [n.name for n in results]
+        assert "ValOnly" in names
 
     def test_milestones_excluded(self, mgr):
         """Milestones with time_mode='inherited' are excluded — they are

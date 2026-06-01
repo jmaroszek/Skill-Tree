@@ -49,7 +49,7 @@ A couple examples to show the difference.
 
 | Context | Goal (Capacity/Domain) | Milestone (Measurable Checkpoint) |
 |---|---|---|
-| **Body** | Cardiovascular Health | Run a sub-10 minute mile |
+| **Health** | Cardiovascular Health | Run a sub-10 minute mile |
 | **Money** | Financial Independence | Create a 10k emergency fund |
 | **Creation** | Songwriting | Release a 10-track album on Spotify |
 | **STEM** | Machine Learning | Place in the top 10% of a Kaggle competition |

@@ -207,6 +207,10 @@ node_editor_content = html.Div(
                 target="override-toggle", placement="left",
                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
+            # Locked-on notice for Milestones (mirrors the time-mode warning).
+            html.Div(id="value-mode-warning",
+                     style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                     className="mt-1 mb-2", children=""),
 
             html.Div(id="section-ratings", children=[
                 dbc.Label("Value", className="mt-2"),

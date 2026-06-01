@@ -21,7 +21,7 @@ from callback_helpers import (render_link_rows, strip_gdrive_prefix,
                               build_explain_summary, build_explain_chart,
                               habit_to_hours, compute_habit_time_omp,
                               habit_preview_text,
-                              resolve_time_mode, get_trigger_id)
+                              resolve_time_mode, resolve_value_mode, get_trigger_id)
 from scoring import explain_score, shortest_paths_focus_data
 
 graph_manager = GraphManager()
@@ -325,6 +325,11 @@ def register_details_callbacks(app):
         Output("details-milestones-section", "style"),
         Output("details-subtask-toggles-bottom", "style"),
         Output("details-milestones-tiles", "children"),
+        # Ratings display: own-ratings group vs. "Inherited" row. Hidden/shown
+        # depending on whether the node's ratings are inherited.
+        Output("details-attr-ratings-own", "style"),
+        Output("details-attr-ratings-inherited-wrap", "style"),
+        Output("details-attr-ratings-inherited", "children"),
         # Inputs
         Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
@@ -363,11 +368,13 @@ def register_details_callbacks(app):
                 html.Div("Select a node to see subtasks.",
                          className="text-muted text-center py-3"),
                 {"display": "none"}, {}, [],
+                # Ratings display (own group shown, inherited row hidden).
+                {}, {"display": "none"}, "",
             )
 
         node = graph_manager.get_node(node_name)
         if not node:
-            return (no_update,) * 22
+            return (no_update,) * 25
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
@@ -430,6 +437,20 @@ def register_details_callbacks(app):
 
         effective_time = graph_manager.get_effective_time(node_name)
         time_str = ConfigManager.format_time_friendly(effective_time) if effective_time else "—"
+
+        # Ratings display: when a node's ratings are inherited (containers and
+        # Milestones), its stored value/interest/effort are scoring-inert, so
+        # showing the raw numbers misleads. Hide the own-ratings rows and show
+        # a single "Inherited" row instead — matches the canvas hover tooltip.
+        ratings_inherited = node.value_mode == 'inherited'
+        if ratings_inherited:
+            ratings_own_style = {"display": "none"}
+            ratings_inherited_style = {}
+            ratings_inherited_text = "Inherited"
+        else:
+            ratings_own_style = {}
+            ratings_inherited_style = {"display": "none"}
+            ratings_inherited_text = ""
 
         show_progress = {"display": "none"}
         progress_val = 0
@@ -531,6 +552,7 @@ def register_details_callbacks(app):
             show_priority, priority_badge,
             subtasks_table,
             ms_section_style, bottom_toggles_style, ms_tiles,
+            ratings_own_style, ratings_inherited_style, ratings_inherited_text,
         )
 
     # --- Toggle subtask filters ---
@@ -1182,6 +1204,42 @@ def register_details_callbacks(app):
         prevent_initial_call=True,
     )
 
+    # --- Add Node Modal: Lock Inherit-value ON for Milestones ---
+    # Milestones are transparent checkpoints; their own value never enters
+    # scoring. Mirrors the main editor's Milestone value lock. Goals exempt.
+    app.clientside_callback(
+        """
+        function(value_mode_val, node_type) {
+            var no_update = window.dash_clientside.no_update;
+            var hidden = {display: "none"};
+            var visible = {display: "block", color: "#dc3545", fontSize: "0.85rem"};
+            var ctx = window.dash_clientside.callback_context;
+            var triggered = (ctx && ctx.triggered) || [];
+            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
+            var only_value_mode = ids.length === 1 && ids[0] === 'details-add-value-mode';
+
+            if (node_type !== 'Milestone') {
+                return [no_update, hidden, ""];
+            }
+            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
+            if (inherited_on) {
+                if (only_value_mode) return [no_update, no_update, no_update];
+                return [no_update, hidden, ""];
+            }
+            var msg = "Inherit is required for Milestone nodes — they are " +
+                      "checkpoints, so their own ratings don't affect scoring.";
+            if (only_value_mode) return [['inherited'], visible, msg];
+            return [['inherited'], hidden, ""];
+        }
+        """,
+        Output('details-add-value-mode', 'value', allow_duplicate=True),
+        Output('details-add-value-mode-warning', 'style'),
+        Output('details-add-value-mode-warning', 'children'),
+        Input('details-add-value-mode', 'value'),
+        Input('details-add-type', 'value'),
+        prevent_initial_call=True,
+    )
+
     # --- Add Node Modal: Hide Effort slider on Goals; show caption instead ---
     app.clientside_callback(
         """
@@ -1423,7 +1481,9 @@ def register_details_callbacks(app):
                     habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
                     habit_int_unit or 'min_per_session', habit_days,
                 )
-            v_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
+            # Mirror time_mode — Milestones always inherit value (transparent
+            # checkpoints); Goals keep their own value; otherwise the toggle wins.
+            v_mode = resolve_value_mode(node_type, value_mode_val)
 
             new_node = Node(
                 name=name.strip(),

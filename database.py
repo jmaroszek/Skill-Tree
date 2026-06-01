@@ -48,14 +48,22 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Schema version stamp. v3.0 establishes the baseline; future versions can
-    # branch migration behavior on this number. A higher value means the DB
-    # was last touched by a newer app build than this one.
+    # Schema version stamp. The current schema is v4, defined in full by the
+    # CREATE TABLE statements below (CREATE TABLE IF NOT EXISTS is a no-op on an
+    # existing DB, so the tables aren't rebuilt). A stored value higher than 4
+    # means the DB was last touched by a newer app build than this one — warn,
+    # since this app may not recognize columns a future version added.
     current_v = cursor.execute("PRAGMA user_version").fetchone()[0]
     if current_v > 4:
         print(f"WARNING: SQLite DB user_version={current_v} is newer than app's 4. "
               "Some columns may be unrecognized.")
 
+    # Full Nodes schema. Every column the app reads lives here — there are no
+    # follow-up ALTER TABLE migrations. (This consolidates an earlier era where
+    # the table was created with a partial column set and incrementally extended
+    # by ALTERs; folding them in keeps the schema self-describing.) Column
+    # groups: core attributes, links, lifecycle flags, scoring modes, habit-mode
+    # breakdown, time-calibration actuals, and retrospective reflection ratings.
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Nodes (
             name TEXT PRIMARY KEY,
@@ -74,13 +82,35 @@ def init_db():
             google_drive_path TEXT,
             website TEXT,
             dormant INTEGER NOT NULL DEFAULT 0,
+            -- Scoring modes: 'manual' | 'inherited' (time also allows 'habit').
+            -- 'inherited' makes the dimension flow up from children in scoring.
+            time_mode TEXT NOT NULL DEFAULT 'manual',
+            value_mode TEXT NOT NULL DEFAULT 'manual',
+            -- Habit-mode breakdown: persisted so re-opening the editor restores
+            -- the duration x intensity form, not just the resulting time_o/m/p.
             habit_duration REAL NOT NULL DEFAULT 0,
             habit_duration_unit TEXT NOT NULL DEFAULT 'weeks',
             habit_intensity_o REAL NOT NULL DEFAULT 0,
             habit_intensity_m REAL NOT NULL DEFAULT 0,
             habit_intensity_p REAL NOT NULL DEFAULT 0,
             habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day',
-            habit_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6'
+            habit_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6',
+            -- Time-calibration actuals, captured at Done. NULL = "not captured"
+            -- (meaningfully distinct from 0). Stored in canonical hours.
+            actual_time_lower REAL,
+            actual_time_upper REAL,
+            actual_time_point REAL,
+            actual_time_unit TEXT,
+            calibration_dismissed INTEGER NOT NULL DEFAULT 0,
+            -- 'now' is an orthogonal boolean (separate from status) marking the
+            -- node as currently-being-worked. start_date/done_date auto-stamp on
+            -- first activation / first Done. reflect_* are retrospective ratings.
+            now INTEGER NOT NULL DEFAULT 0,
+            start_date TEXT,
+            done_date TEXT,
+            reflect_value INTEGER,
+            reflect_interest INTEGER,
+            reflect_difficulty INTEGER
         )
     ''')
 
@@ -123,6 +153,9 @@ def init_db():
             delay_days INTEGER NOT NULL DEFAULT 0,
             activation_date TEXT,
             activated INTEGER NOT NULL DEFAULT 0,
+            -- Override intent applied to the node when the event triggers.
+            override_on_trigger INTEGER NOT NULL DEFAULT 0,
+            override_mode TEXT,
             PRIMARY KEY (event_name, node_name),
             FOREIGN KEY (event_name) REFERENCES Events(name) ON DELETE CASCADE,
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
@@ -137,142 +170,6 @@ def init_db():
     ''')
 
     conn.commit()
-
-    # --- Migrations ---
-    # Add time_mode column (defaults to 'manual' for existing nodes)
-    try:
-        cursor.execute("ALTER TABLE Nodes ADD COLUMN time_mode TEXT NOT NULL DEFAULT 'manual'")
-        conn.commit()
-    except Exception:
-        pass  # Column already exists
-
-    # Add value_mode column. Mirrors time_mode: 'inherited' makes the node a
-    # pure structural conduit whose own v/i/d ratings contribute 0 to its
-    # intrinsic value in scoring. Defaults to 'manual' for existing rows.
-    try:
-        cursor.execute("ALTER TABLE Nodes ADD COLUMN value_mode TEXT NOT NULL DEFAULT 'manual'")
-        conn.commit()
-    except Exception:
-        pass  # Column already exists
-
-    # Store override intent on dormant nodes so it can be applied at event trigger time.
-    try:
-        cursor.execute("ALTER TABLE EventNodes ADD COLUMN override_on_trigger INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE EventNodes ADD COLUMN override_mode TEXT")
-        conn.commit()
-    except Exception:
-        pass
-
-    # Drop the deprecated Resource-completion `progress` column. DROP COLUMN
-    # requires SQLite 3.35+; if unsupported or already removed, the except
-    # swallows the error so startup doesn't fail on older builds.
-    try:
-        cursor.execute("ALTER TABLE Nodes DROP COLUMN progress")
-        conn.commit()
-    except Exception:
-        pass
-
-    # Habit-mode breakdown columns. Persisted alongside the computed
-    # time_o/m/p so re-opening the editor restores the duration × intensity
-    # form a user typed, not just the resulting hours.
-    for stmt in (
-        "ALTER TABLE Nodes ADD COLUMN habit_duration REAL NOT NULL DEFAULT 0",
-        "ALTER TABLE Nodes ADD COLUMN habit_duration_unit TEXT NOT NULL DEFAULT 'weeks'",
-        "ALTER TABLE Nodes ADD COLUMN habit_intensity_o REAL NOT NULL DEFAULT 0",
-        "ALTER TABLE Nodes ADD COLUMN habit_intensity_m REAL NOT NULL DEFAULT 0",
-        "ALTER TABLE Nodes ADD COLUMN habit_intensity_p REAL NOT NULL DEFAULT 0",
-        "ALTER TABLE Nodes ADD COLUMN habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day'",
-        "ALTER TABLE Nodes ADD COLUMN habit_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6'",
-    ):
-        try:
-            cursor.execute(stmt)
-            conn.commit()
-        except Exception:
-            pass
-
-    # Time-calibration columns: actual time spent, captured when a node is
-    # marked Done. Nullable with no default — NULL is meaningful here
-    # (= "not captured" / skipped / feature off), distinct from 0. Values are
-    # stored in canonical hours; actual_time_unit preserves the unit the user
-    # entered, for display round-trip.
-    for stmt in (
-        "ALTER TABLE Nodes ADD COLUMN actual_time_lower REAL",
-        "ALTER TABLE Nodes ADD COLUMN actual_time_upper REAL",
-        "ALTER TABLE Nodes ADD COLUMN actual_time_point REAL",
-        "ALTER TABLE Nodes ADD COLUMN actual_time_unit TEXT",
-    ):
-        try:
-            cursor.execute(stmt)
-            conn.commit()
-        except Exception:
-            pass
-
-    # Time-calibration review: marks a node permanently excluded from the
-    # calibration review cycle ("Don't ask again"). Boolean-style, mirrors
-    # `dormant`.
-    try:
-        cursor.execute("ALTER TABLE Nodes ADD COLUMN calibration_dismissed INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-    except Exception:
-        pass
-
-    # "Now" flag + lifecycle dates + reflection-rating columns. `now` is an
-    # orthogonal boolean (separate from status) marking nodes the user is
-    # currently working on. start_date/done_date are auto-stamped by
-    # GraphManager.update_node on first activation / first Done transition.
-    # reflect_value/interest/difficulty are nullable mirrors of the original
-    # ratings, populated retrospectively (UI for entry lands in a later
-    # feature alongside the time-reflection rework).
-    #
-    # The `now` flag was originally named `active`. Three possible states
-    # of a legacy DB: (a) has `active` only — rename to `now`; (b) has both
-    # `active` and `now` — copy values from `active` then drop it; (c) has
-    # `now` only — already migrated, no-op.
-    existing_cols = {row[1] for row in cursor.execute("PRAGMA table_info(Nodes)").fetchall()}
-    if 'active' in existing_cols and 'now' in existing_cols:
-        try:
-            cursor.execute('UPDATE Nodes SET "now" = active')
-            cursor.execute('ALTER TABLE Nodes DROP COLUMN active')
-            conn.commit()
-        except Exception:
-            pass
-    elif 'active' in existing_cols:
-        try:
-            cursor.execute('ALTER TABLE Nodes RENAME COLUMN active TO "now"')
-            conn.commit()
-        except Exception:
-            pass
-    for stmt in (
-        'ALTER TABLE Nodes ADD COLUMN "now" INTEGER NOT NULL DEFAULT 0',
-        "ALTER TABLE Nodes ADD COLUMN start_date TEXT",
-        "ALTER TABLE Nodes ADD COLUMN done_date TEXT",
-        "ALTER TABLE Nodes ADD COLUMN reflect_value INTEGER",
-        "ALTER TABLE Nodes ADD COLUMN reflect_interest INTEGER",
-        "ALTER TABLE Nodes ADD COLUMN reflect_difficulty INTEGER",
-    ):
-        try:
-            cursor.execute(stmt)
-            conn.commit()
-        except Exception:
-            pass
-
-    # One-time data migration: Goal nodes must use time_mode='inherited' (the
-    # editor enforces this for new saves; this catches pre-existing rows).
-    # Idempotent — once flipped, the WHERE clause matches no rows. time_o/m/p
-    # values are preserved (Node.time short-circuits to 0 for inherited mode
-    # but stored values stay intact, so a future type-change restores them).
-    try:
-        cursor.execute(
-            "UPDATE Nodes SET time_mode='inherited' "
-            "WHERE type='Goal' AND time_mode='manual'"
-        )
-        conn.commit()
-    except Exception:
-        pass
 
     cursor.execute("PRAGMA user_version = 4")
     conn.commit()

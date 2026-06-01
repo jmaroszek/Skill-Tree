@@ -318,7 +318,7 @@ def score_nodes(
     for n in nodes_to_score:
         if n.type in ('Goal', 'Milestone') or n.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
-        if n.is_container:
+        if n.is_pure_container:
             continue
         if n.context is None:
             continue
@@ -370,8 +370,9 @@ def score_nodes(
         # Pure structural conduits (both modes inherited) are not recommended.
         # Their children compete on their own; the container itself shouldn't
         # ride the cascade up into the top of the list with a nearly-empty
-        # cost denominator (1.0) — see Node.is_container.
-        if node.is_container:
+        # cost denominator (1.0) — see Node.is_pure_container. A node with only
+        # ONE mode inherited still has a real score and IS ranked.
+        if node.is_pure_container:
             node.priority_score = -1.0
             node.total_value = _tv_for(node.name)
             scored_nodes.append(node)
@@ -614,7 +615,7 @@ def explain_score(
     for n_ in all_nodes:
         if n_.type in ('Goal', 'Milestone') or n_.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
-        if n_.is_container:
+        if n_.is_pure_container:
             continue
         if n_.context is None:
             continue
@@ -715,7 +716,7 @@ def explain_score(
     if node.type in ('Goal', 'Milestone'):
         eligible = False
         block_reason = f"{node.type}s are not ranked"
-    elif node.is_container:
+    elif node.is_pure_container:
         eligible = False
         block_reason = "Container — children are recommended instead"
     elif node.status == STATUS_DONE:

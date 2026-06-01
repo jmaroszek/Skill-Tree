@@ -13,7 +13,7 @@ from callback_helpers import (
     _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, build_explain_summary,
-    resolve_time_mode,
+    resolve_time_mode, resolve_value_mode,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -112,6 +112,47 @@ class TestResolveTimeMode:
         # Defensive: callers might pass None instead of empty lists.
         assert resolve_time_mode('Learn', None, None) == 'manual'
         assert resolve_time_mode('Goal', None, None) == 'inherited'
+
+
+class TestResolveValueMode:
+    """Milestones always inherit value (transparent checkpoints). Goals do
+    NOT — they carry their own value. Otherwise the toggle decides.
+    """
+
+    def test_milestone_forces_inherited_no_toggle(self):
+        assert resolve_value_mode('Milestone', []) == 'inherited'
+
+    def test_milestone_forces_inherited_even_when_toggle_off(self):
+        # User somehow cleared the (locked) toggle; resolver still enforces.
+        assert resolve_value_mode('Milestone', []) == 'inherited'
+
+    def test_milestone_inherited_when_toggle_on(self):
+        assert resolve_value_mode('Milestone', ['inherited']) == 'inherited'
+
+    def test_goal_not_forced(self):
+        # Unlike time_mode, Goals are NOT forced to inherit value.
+        assert resolve_value_mode('Goal', []) == 'manual'
+
+    def test_goal_inherited_when_toggled(self):
+        assert resolve_value_mode('Goal', ['inherited']) == 'inherited'
+
+    def test_learn_default_manual(self):
+        assert resolve_value_mode('Learn', []) == 'manual'
+
+    def test_learn_inherited_when_toggled(self):
+        assert resolve_value_mode('Learn', ['inherited']) == 'inherited'
+
+    def test_action_and_resource_follow_learn_rules(self):
+        assert resolve_value_mode('Action', []) == 'manual'
+        assert resolve_value_mode('Resource', ['inherited']) == 'inherited'
+
+    def test_unknown_type_defaults_to_toggle(self):
+        assert resolve_value_mode(None, []) == 'manual'
+        assert resolve_value_mode('Unknown', ['inherited']) == 'inherited'
+
+    def test_none_toggle_value_safe(self):
+        assert resolve_value_mode('Learn', None) == 'manual'
+        assert resolve_value_mode('Milestone', None) == 'inherited'
 
 
 # ============================================================================

@@ -14,7 +14,7 @@ from events_layout import build_event_card, build_dormant_nodes_table, _event_tr
 from callback_helpers import (render_link_rows, serialize_links, spawn_local_file_picker,
                               strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp,
                               habit_preview_text, habit_editor_view,
-                              resolve_time_mode)
+                              resolve_time_mode, resolve_value_mode)
 
 event_manager = EventManager()
 graph_manager = GraphManager()
@@ -633,6 +633,7 @@ def register_event_callbacks(app):
         Output("dormant-drive-links-store", "data", allow_duplicate=True),
         Output("dormant-website-links-store", "data", allow_duplicate=True),
         Output("dormant-override-toggle", "value", allow_duplicate=True),
+        Output("dormant-node-value-mode", "value", allow_duplicate=True),
         Output("dormant-node-value", "value", allow_duplicate=True),
         Output("dormant-node-interest", "value", allow_duplicate=True),
         Output("dormant-node-difficulty", "value", allow_duplicate=True),
@@ -673,7 +674,7 @@ def register_event_callbacks(app):
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 56
+            return (no_update,) * 57
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -692,7 +693,7 @@ def register_event_callbacks(app):
                 [], [], [], [], [],
                 [], False,
                 [''], [''], [''],
-                False,
+                [], [],
                 5, 5, 5,
                 _ted.get('optimistic', 2),
                 _ted.get('expected', 4),
@@ -764,6 +765,73 @@ def register_event_callbacks(app):
         if trig == "dormant-node-time-habit-mode" and habit_val and "habit" in habit_val:
             return [], habit_val
         return inherit_val, habit_val
+
+    # --- Dormant Node Modal: Inherit-ratings toggle hides/shows V/I/E sliders ---
+    # Mirrors the main node editor (callbacks.py). Clientside to avoid a flash.
+    app.clientside_callback(
+        """
+        function(value_mode_val) {
+            if (value_mode_val && value_mode_val.indexOf('inherited') >= 0) {
+                return {display: 'none'};
+            }
+            return {display: 'block'};
+        }
+        """,
+        Output("section-dormant-ratings", "style"),
+        Input("dormant-node-value-mode", "value"),
+        prevent_initial_call=True,
+    )
+
+    # --- Dormant Node Modal: Hide Effort slider on Goals; show caption ---
+    app.clientside_callback(
+        """
+        function(node_type) {
+            if (node_type === 'Goal') return [{display: 'none'}, {}];
+            return [{}, {display: 'none'}];
+        }
+        """,
+        Output("dormant-node-effort-row", "style"),
+        Output("dormant-node-effort-caption", "style"),
+        Input("dormant-node-type", "value"),
+    )
+
+    # --- Dormant Node Modal: Lock Inherit-value ON for Milestones ---
+    # Milestones are transparent checkpoints: their own value never enters
+    # scoring. Force the value toggle ON and warn if the user tries to clear
+    # it — the symmetric partner to the Goal/Milestone time lock in the main
+    # editor (callbacks.py). Goals are NOT locked: they carry their own value.
+    app.clientside_callback(
+        """
+        function(value_mode_val, node_type) {
+            var no_update = window.dash_clientside.no_update;
+            var hidden = {display: "none"};
+            var visible = {display: "block", color: "#dc3545", fontSize: "0.85rem"};
+            var ctx = window.dash_clientside.callback_context;
+            var triggered = (ctx && ctx.triggered) || [];
+            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
+            var only_value_mode = ids.length === 1 && ids[0] === 'dormant-node-value-mode';
+
+            if (node_type !== 'Milestone') {
+                return [no_update, hidden, ""];
+            }
+            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
+            if (inherited_on) {
+                if (only_value_mode) return [no_update, no_update, no_update];
+                return [no_update, hidden, ""];
+            }
+            var msg = "Inherit is required for Milestone nodes — they are " +
+                      "checkpoints, so their own ratings don't affect scoring.";
+            if (only_value_mode) return [['inherited'], visible, msg];
+            return [['inherited'], hidden, ""];
+        }
+        """,
+        Output('dormant-node-value-mode', 'value', allow_duplicate=True),
+        Output('dormant-value-mode-warning', 'style'),
+        Output('dormant-value-mode-warning', 'children'),
+        Input('dormant-node-value-mode', 'value'),
+        Input('dormant-node-type', 'value'),
+        prevent_initial_call=True,
+    )
 
     # --- Dormant Node Modal: Live total-hours preview for habit ---
     @app.callback(
@@ -889,7 +957,7 @@ def register_event_callbacks(app):
             "",                                 # new-event-desc
             0,                                  # delay-value
             "days",                             # delay-unit
-            False,                              # override-toggle
+            [],                                 # override-toggle (checklist list)
             "hard",                             # override-mode
             None,                               # editing store cleared
             "",                                 # save status cleared
@@ -1079,6 +1147,8 @@ def register_event_callbacks(app):
         # Override
         State("dormant-override-toggle", "value"),
         State("dormant-override-mode", "value"),
+        # Value-inherit toggle (Inherit ratings)
+        State("dormant-node-value-mode", "value"),
         State("editing-dormant-node-store", "data"),
         # Mode + existing-mode states
         State("dormant-node-mode", "value"),
@@ -1106,6 +1176,7 @@ def register_event_callbacks(app):
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
                           obsidian_vals, drive_vals, website_vals,
                           override_toggle, override_mode,
+                          value_mode_val,
                           editing_original_name,
                           mode, existing_picker_vals,
                           event_target_mode, new_event_name, new_event_desc,
@@ -1115,6 +1186,11 @@ def register_event_callbacks(app):
         _nu8 = (no_update,) * 8
         if not n_clicks:
             return _nu8
+
+        # Override toggle is now a switch-style Checklist (value is a list like
+        # ["on"]) to match the main editor — normalize to a bool for the
+        # event-manager calls below.
+        override_toggle = bool(override_toggle and "on" in override_toggle)
 
         is_edit = bool(editing_original_name)
 
@@ -1249,6 +1325,9 @@ def register_event_callbacks(app):
             t_o = float(time_o or 0) * multiplier
             t_m = float(time_m or 0) * multiplier
             t_p = float(time_p or 0) * multiplier
+        # Mirror time_mode — Milestones always inherit value; Goals keep their
+        # own; otherwise the toggle wins.
+        v_mode = resolve_value_mode(node_type or "Learn", value_mode_val)
 
         node = Node(
             name=name,
@@ -1267,6 +1346,7 @@ def register_event_callbacks(app):
             google_drive_path=serialize_links(drive_vals) or None,
             website=serialize_links(website_vals) or None,
             time_mode=t_mode,
+            value_mode=v_mode,
             habit_duration=habit_duration or 0,
             habit_duration_unit=habit_duration_unit or 'weeks',
             habit_intensity_o=habit_int_o or 0,
@@ -1320,7 +1400,8 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def toggle_dormant_override_options(on):
-        return {"display": "block"} if on else {"display": "none"}
+        # Checklist value is a list (e.g. ["on"]); show options when non-empty.
+        return {"display": "block"} if (on and "on" in on) else {"display": "none"}
 
     # --- Dormant Node Link Render Callbacks ---
     @app.callback(
@@ -1456,6 +1537,7 @@ def register_event_callbacks(app):
         Output("dormant-node-subcontext", "options", allow_duplicate=True),
         Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
         Output("dormant-node-desc", "value", allow_duplicate=True),
+        Output("dormant-node-value-mode", "value", allow_duplicate=True),
         Output("dormant-node-value", "value", allow_duplicate=True),
         Output("dormant-node-interest", "value", allow_duplicate=True),
         Output("dormant-node-difficulty", "value", allow_duplicate=True),
@@ -1500,7 +1582,7 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
-        _N = 49
+        _N = 50
         if not selected_event:
             return (no_update,) * _N
         triggered = ctx.triggered_id
@@ -1563,6 +1645,8 @@ def register_event_callbacks(app):
         )
         time_mode_val = ["inherited"] if node.time_mode == 'inherited' else []
         time_habit_mode_val = ["habit"] if node.time_mode == 'habit' else []
+        value_mode_val = ["inherited"] if node.value_mode == 'inherited' else []
+        override_toggle_val = ["on"] if override_on_trigger else []
         # Fold stored habit fields onto the per-session editor widgets.
         h_unit, h_o, h_m, h_p, h_days = habit_editor_view(
             node.habit_intensity_unit, node.habit_intensity_o,
@@ -1593,6 +1677,7 @@ def register_event_callbacks(app):
             subctx_opts,                       # subcontext options
             subcollapse_open,                  # collapse-dormant-subcontext is_open
             node.description or "",            # desc
+            value_mode_val,                    # value-mode (Inherit ratings)
             node.value or 5,                   # value
             node.interest or 5,                # interest
             node.difficulty or 5,              # difficulty
@@ -1616,7 +1701,7 @@ def register_event_callbacks(app):
             obs_links,                         # obsidian store
             drive_links,                       # drive store
             website_links,                     # website store
-            override_on_trigger,               # override toggle
+            override_toggle_val,               # override toggle (checklist list)
             override_mode_val,                 # override mode
             "",                                # save-status
             # Habit-mode pre-fill

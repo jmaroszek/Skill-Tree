@@ -331,7 +331,11 @@ class TestComputeGoalComparison:
         assert comps["GoalRich"]["score"] > comps["GoalSparse"]["score"]
 
     def test_rank_goals_treats_milestones_as_transparent_checkpoints(self, mgr):
-        """Milestones should pass through upstream work without adding own ROI."""
+        """Milestones pass through upstream work without adding own ROI. Here M
+        is constructed with manual time + high ratings + 100h, but the model
+        forces every Milestone to a pure container (both modes inherited), so
+        its value AND its 100h drop out of the Goal's ROI entirely — no
+        in-memory transform in the ranker required."""
         _setup_graph(mgr, [
             _make_node("G", type="Goal", time_mode='inherited',
                        value=1, interest=1),

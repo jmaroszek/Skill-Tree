@@ -92,7 +92,9 @@ def _baseline_score_nodes(
     for n in active_nodes:
         if n.type in ('Goal', 'Milestone') or n.status in ('Done', 'Blocked'):
             continue
-        if n.is_container:
+        if n.is_pure_container:
+            continue
+        if n.context is None:  # mirror score_nodes: uncategorized nodes don't bucket
             continue
         key = (n.context, n.subcontext)
         n_active_map[key] = n_active_map.get(key, 0) + 1
@@ -103,7 +105,7 @@ def _baseline_score_nodes(
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue
-        if node.is_container:
+        if node.is_pure_container:
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue

@@ -343,7 +343,9 @@ class TestSerialExecutionRegression:
     def test_wide_tree_exceeds_longest_branch(self):
         """In a tree where one branch is longer than others, serial time must
         still exceed the longest branch (unlike critical-path which equals it)."""
-        # Branch A: 5h. Branch B: 2h. Branch C: 1h. → serial = 5+2+1+1 = 9h
+        # Branch A: 5h. Branch B: 2h. Branch C: 1h. The Goal is a container
+        # (forced time_mode='inherited' by the model), so it contributes 0h —
+        # serial = 5 + 2 + 1 = 8h.
         nodes = {
             "A": _make_node("A", time_o=5, time_m=5, time_p=5),
             "B": _make_node("B", time_o=2, time_m=2, time_p=2),
@@ -356,8 +358,9 @@ class TestSerialExecutionRegression:
             {"source": "C", "target": "Goal", "type": "Needs_Hard"},
         ]
         result = simulate_task_chain("Goal", nodes, edges, n_simulations=1000)
-        # Serial = 5 + 2 + 1 + 1 = 9. Critical-path would be max(5,2,1) + 1 = 6.
-        assert result['stats']['mean'] == pytest.approx(9.0, abs=0.2), (
+        # Serial = 5 + 2 + 1 = 8 (Goal contributes 0 as a container).
+        # Critical-path would be max(5,2,1) = 5.
+        assert result['stats']['mean'] == pytest.approx(8.0, abs=0.2), (
             "Serial time must be the sum of all branches, not just the longest"
         )
         assert result['stats']['mean'] > 5.0, (

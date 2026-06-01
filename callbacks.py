@@ -34,7 +34,7 @@ from callback_helpers import (
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state,
-    habit_to_hours, compute_habit_time_omp, resolve_time_mode,
+    habit_to_hours, compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
 )
 
@@ -1262,6 +1262,48 @@ def register_callbacks(app):
         Input('node-value-mode', 'value'),
     )
 
+    # --- Locked Inherit-value toggle for Milestones ---
+    # Milestones are transparent checkpoints: their own value/interest/effort
+    # must never enter scoring. Force value_mode='inherited' ON whenever the
+    # type is Milestone, and show an inline warning if the user tries to clear
+    # it. Mirrors the Goal/Milestone time-mode lock above. Goals are NOT locked
+    # here — a Goal legitimately carries its own value (see docs/modeling.md).
+    # Clientside so the bounce-back happens in the same paint cycle as the
+    # click. The triggered-IDs check distinguishes user toggles from form-
+    # populate cycles (where node-type also fires).
+    app.clientside_callback(
+        """
+        function(value_mode_val, node_type) {
+            var no_update = window.dash_clientside.no_update;
+            var hidden = {display: "none"};
+            var visible = {display: "block", color: "#dc3545", fontSize: "0.85rem"};
+            var ctx = window.dash_clientside.callback_context;
+            var triggered = (ctx && ctx.triggered) || [];
+            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
+            var only_value_mode = ids.length === 1 && ids[0] === 'node-value-mode';
+
+            if (node_type !== 'Milestone') {
+                return [no_update, hidden, ""];
+            }
+            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
+            if (inherited_on) {
+                if (only_value_mode) return [no_update, no_update, no_update];
+                return [no_update, hidden, ""];
+            }
+            var msg = "Inherit is required for Milestone nodes — they are " +
+                      "checkpoints, so their own ratings don't affect scoring.";
+            if (only_value_mode) return [['inherited'], visible, msg];
+            return [['inherited'], hidden, ""];
+        }
+        """,
+        Output('node-value-mode', 'value', allow_duplicate=True),
+        Output('value-mode-warning', 'style'),
+        Output('value-mode-warning', 'children'),
+        Input('node-value-mode', 'value'),
+        Input('node-type', 'value'),
+        prevent_initial_call=True,
+    )
+
     # --- Hide Effort slider on Goals; show caption instead ---
     # Effort on a Goal is decorative — _rank_goals omits it, total_value
     # doesn't cascade it, and w_t * time^beta dwarfs w_e * difficulty on
@@ -1892,7 +1934,10 @@ def register_callbacks(app):
                         habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
                         habit_int_unit or 'min_per_session', habit_days,
                     )
-                value_mode = 'inherited' if (value_mode_val and 'inherited' in value_mode_val) else 'manual'
+                # Mirror time_mode: the shared resolver centralizes the
+                # Milestone-must-inherit-value invariant (Goals are exempt —
+                # they carry their own value).
+                value_mode = resolve_value_mode(n_type, value_mode_val)
                 msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
                                   interest, diff, status_done, context, subctx,
                                   obs_path, drive_path, website_path,

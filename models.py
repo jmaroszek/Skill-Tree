@@ -171,6 +171,23 @@ class Node:
             self.time_mode = 'manual'
         if self.value_mode not in ('manual', 'inherited'):
             self.value_mode = 'manual'
+        # Container types always inherit TIME — their duration is the sum of
+        # their children's, never an own estimate. This holds for Goals and
+        # Milestones alike (mirrors resolve_time_mode at the save layer, and
+        # makes it true on every read including legacy DB rows).
+        if self.type in ('Goal', 'Milestone'):
+            self.time_mode = 'inherited'
+        # Milestones additionally inherit VALUE: they are transparent
+        # checkpoints marking an achievement, not the effort to reach it, so
+        # their own ratings must not enter scoring (a placeholder value would
+        # leak into the cascade of whatever unlocks them). With both modes
+        # inherited a Milestone is a pure structural conduit on every read path
+        # (intrinsic_value and Node.time both short-circuit to 0) — which is
+        # what lets the Goal ranker treat Milestones transparently with no
+        # in-memory patch. Goals are exempt: they legitimately carry their own
+        # value (see docs/modeling.md).
+        if self.type == 'Milestone':
+            self.value_mode = 'inherited'
         self.habit_duration = float(self.habit_duration) if self.habit_duration else 0.0
         self.habit_intensity_o = float(self.habit_intensity_o) if self.habit_intensity_o else 0.0
         self.habit_intensity_m = float(self.habit_intensity_m) if self.habit_intensity_m else 0.0
@@ -215,14 +232,28 @@ class Node:
 
     @property
     def is_container(self) -> bool:
-        """True when both ratings and time inherit from descendants.
+        """True when EITHER ratings or time inherit from descendants.
+
+        This is the user-facing notion of "container": a node that draws at
+        least some of its numbers from the work beneath it rather than holding
+        them itself. It still competes for recommendations as long as it keeps
+        one own dimension — e.g. a node with own ratings but inherited time is
+        a container, and is still ranked. See `is_pure_container` for the
+        stricter "nothing of its own" case that scoring excludes entirely.
+        """
+        return self.value_mode == 'inherited' or self.time_mode == 'inherited'
+
+    @property
+    def is_pure_container(self) -> bool:
+        """True when BOTH ratings and time inherit from descendants.
 
         A pure structural conduit: contributes no own intrinsic value, no
         own effort, and no own time to scoring. Such nodes are skipped by
         the recommender entirely — their children, if any, are surfaced
         instead. Cascade still flows through them (`_tv_dag` still walks
         their H/S edges), so they can act as connective tissue without
-        ever being recommended themselves.
+        ever being recommended themselves. This is the scoring-exclusion
+        gate; `is_container` is the broader user-facing label.
         """
         return self.value_mode == 'inherited' and self.time_mode == 'inherited'
 

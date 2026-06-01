@@ -546,6 +546,28 @@ def resolve_time_mode(n_type, time_mode_val, time_habit_mode_val):
     return 'manual'
 
 
+def resolve_value_mode(n_type, value_mode_val):
+    """Map node type + the value-inherit toggle to the canonical value_mode.
+
+    Milestones are transparent checkpoints whose own value/interest/effort
+    must not enter scoring, so they always use ``value_mode='inherited'``.
+    The editor locks the toggle for Milestones, but this resolver is the
+    canonical server-side enforcement — used by every save path (main editor,
+    details-panel add, dormant-node creation) so no caller can bypass the
+    invariant. ``Node.__post_init__`` enforces the same rule as a final
+    safety net.
+
+    Unlike ``resolve_time_mode``, Goals are NOT forced here: a Goal carries
+    its own value and interest (see docs/modeling.md), which feed the Goal
+    ranking. Only Milestones are transparent. Otherwise the toggle wins.
+    """
+    if n_type == 'Milestone':
+        return 'inherited'
+    if value_mode_val and 'inherited' in value_mode_val:
+        return 'inherited'
+    return 'manual'
+
+
 # --- Editor Dirty-State Check (snapshot-based) ---
 
 

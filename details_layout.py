@@ -285,9 +285,19 @@ def build_details_tab_content():
             _attribute_row("Status", "details-attr-status"),
             _attribute_row("Context", "details-attr-context"),
             _attribute_row("Time", "details-attr-time"),
-            _attribute_row("Value", "details-attr-value"),
-            _attribute_row("Interest", "details-attr-interest"),
-            _attribute_row("Effort", "details-attr-effort"),
+            # Own ratings — shown for manual-rating nodes. Hidden when ratings
+            # are inherited (containers / Milestones), where the numbers are
+            # scoring-inert; the "Ratings: Inherited" row below shows instead.
+            html.Div([
+                _attribute_row("Value", "details-attr-value"),
+                _attribute_row("Interest", "details-attr-interest"),
+                _attribute_row("Effort", "details-attr-effort"),
+            ], id="details-attr-ratings-own"),
+            html.Div(
+                _attribute_row("Ratings", "details-attr-ratings-inherited"),
+                id="details-attr-ratings-inherited-wrap",
+                style={"display": "none"},
+            ),
         ], className="mt-2"),
 
         # Hidden priority container
@@ -1050,6 +1060,10 @@ def _build_add_node_modal(ted):
                     target="details-add-override-toggle", placement="left",
                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                 ),
+                # Locked-on notice for Milestones (mirrors the main editor).
+                html.Div(id="details-add-value-mode-warning",
+                         style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                         className="mt-1 mb-2", children=""),
 
                 html.Div(id="details-add-ratings", children=[
                     dbc.Label("Value", className="mt-2"),
