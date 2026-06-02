@@ -27,7 +27,7 @@ A leading constant, two weights, and an exponent shape the cost. The $1$ keeps t
 
 ![Perceived Cost](../images/scoring-cost-beta.png)
 
-*The exponent $\beta$ bends the time penalty sublinearly. A lower $\beta$ bends harder.*
+*The exponent $`\beta`$ bends the time penalty sublinearly. A lower $`\beta`$ bends harder.*
 
 ## The DAG Cascade
 
@@ -154,7 +154,7 @@ A note on buckets. Nodes with no subcontext, written `(context, None)`, share on
 
 ![Density Normalization](../images/scoring-density.png)
 
-*Density weight falls as a bucket grows, damping crowded contexts. A higher $\alpha$ damps harder; $\alpha = 1$ flattens a bucket to its single-node weight.*
+*Density weight falls as a bucket grows, damping crowded contexts. A higher $`\alpha`$ damps harder; $`\alpha = 1`$ flattens a bucket to its single-node weight.*
 
 ## Final Score
 
@@ -338,7 +338,7 @@ $$ \delta_g(g) = \frac{1}{\max(1,\, |B_g(g)|)^{\alpha_g}} $$
 
 The exponent $\alpha_g$ is smaller than the leaf-node $\alpha$, because Goal populations are about an order of magnitude smaller. A heavily decomposed scored-node bucket sits around 20-40. A heavily decomposed Goal bucket maxes out around 4-5. The Sage default of $\alpha_g = 0.20$ damps a 5-Goal bucket by about 28%, which is in the same correctional ballpark as the leaf-level $\delta$ at its typical sizes. Profiles that already lean explore-y ($\alpha = 0.40$ for Explorer and Glider) bump $\alpha_g$ to $0.30$. Goal-driven profiles (Pragmatist, Compounder) drop it to $0.15$, letting already-priority subtrees dominate. Setting $\alpha_g = 0$ disables the correction entirely.
 
-Why a Goal-only bucket count, rather than the full scored-node count from the leaf-level $\delta$? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized twice: once for its own subtree size (already inflating $\text{Cost}'(g)$), and again for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
+Why a Goal-only bucket count, rather than the full scored-node count from the leaf-level $`\delta`$? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized twice: once for its own subtree size (already inflating $`\text{Cost}'(g)`$), and again for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
 
 > [!NOTE] Note
 > The Goals sidebar and the Analyze tab's Completion chart both rank Goals by the priority ranking explained here.
