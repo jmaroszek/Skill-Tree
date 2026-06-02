@@ -1,24 +1,17 @@
-# Scoring
-
-This document describes the math that powers the app's intelligent recommendations. It assumes familiarity with the basic terms of the app, which you can learn in the [README.md](../README.md). Symbols are introduced where they first arise, and a full glossary sits at the [end](#symbol-glossary).
-
-One convention runs through everything below. An edge $A \to B$ means $A$ is a prerequisite for $B$. The scoring cascade walks forward, along the arrows. Eligibility walks backward, against them.
-
-
-# Priority Scoring Algorithm
+# Priority Scoring
 ## Overview
 
 The priority score answers the app's central question: *what should I work on next?*
 
-Not every node competes for that answer. The algorithm ranks only **eligible** nodes: open, non-container *Learn*, *Action*, and *Resource* nodes — the things you actually do. Goals and Milestones are set aside. Goals get their own ranking ([Goal Scoring](#goal-scoring)), and Milestones are transparent checkpoints that let value pass through them ([Milestone Transparency](#milestone-transparency)). Eligibility itself is defined precisely in [Eligibility and the Status Cascade](#eligibility-and-the-status-cascade).
+Not every node competes for that answer. Only **eligible** nodes do -- open *Learn*, *Action*, and *Resource* nodes. Goals and Milestones are each set aside for a different reason. Goals get their own ranking, while Milestones are transparent checkpoints that pass value through without competing. Eligibility is defined precisely in [Eligibility and the Status Cascade](#eligibility-and-the-status-cascade).
 
-For each eligible node, the score begins as a **base priority score**: a return-on-investment ratio, value over cost. Three multipliers then adjust it: the goal-priority boost, context weight, and density normalization. The results are rescaled to 0–100 and sorted into the Next tab's suggestion list.
+Every eligible node starts with a **base priority score**: a return-on-investment ratio of value over cost. Three multipliers then adjust it — the goal-priority boost, context weight, and density normalization. The adjusted scores are rescaled to 0–100 and sorted into the Next tab's suggestion list.
 
-The sections that follow build the score one piece at a time: intrinsic value, perceived cost, the cascade and synergies that make up total value, and the multipliers that finish the ranking.
+The sections that follow build the score one piece at a time: intrinsic value, perceived cost, the cascade and synergies that combine into total value, and the multipliers that finish the ranking.
 
 ## Intrinsic Value
 
-Intrinsic value measures how much a node is worth on its own, before its place in the graph is considered. It comes from two of the user's 1–10 ratings. **Value** $V(n)$ is how important or useful the project is. **Interest** $I(n)$ is how much the user actually wants to do it. The two are kept separate because they often diverge: a project can be valuable but dull, or fun but trivial. The scoring profile sets how much each one counts, through the weights $w_V$ and $w_I$.
+Intrinsic value ($IV$) measures how much a node is worth on its own, before its relationships to other nodes are considered. It comes from two of the user's 1–10 ratings. **Value** $V(n)$ is how important or useful the project is. **Interest** $I(n)$ is how much the user actually wants to do it. The two are kept separate because they often diverge: a project can be valuable but dull, or fun but trivial. The scoring profile sets how much each counts, through the weights $w_V$ and $w_I$.
 
 $$ \text{IV}(n) = w_V \cdot V(n) + w_I \cdot I(n) $$
 
@@ -26,50 +19,49 @@ A node with an **inherited** value mode has $\text{IV}(n) = 0$, regardless of an
 
 ## Perceived Cost
 
-Perceived cost is how *expensive* a node feels to complete, in time and energy. It draws on two inputs. The user sets the **difficulty** rating $D(n)$ directly. The time estimate $t(n)$ can be a single point value. More often, the user gives a low–high range, or a three-point low/expected/high estimate. How those collapse into one $t(n)$ is covered in [time.md](time.md).
+Perceived cost is how *expensive* a node feels to complete, in terms of time and energy. It draws on two inputs: **difficulty** and **time**. The user sets the difficulty rating $D(n)$ directly. A point, range, or three-point time estimate collapses into the single value $t(n)$, as covered in [time.md](time.md).
 
 $$ \text{Cost}(n) = 1 + w_e \cdot D(n) + w_t \cdot t(n)^\beta $$
 
-Two weights and an exponent shape this. The weights $w_e$ and $w_t$ are linear scalars, set by the scoring profile. Difficulty usually carries more weight than time: a short but daunting task tends to feel worse than a long but easy one. The exponent $\beta \in (0, 1]$ is a sublinear damper. It makes long projects feel proportionally less expensive than their raw hours suggest, which matches how people perceive effort. At the Sage default $\beta = 0.85$, a 100-hour project carries about $50\times$ the time penalty of a 1-hour project — not $100\times$. The leading $1$ keeps the denominator positive even when $D$ and $t$ are both zero, as they are for a container.
+A leading constant, two weights, and an exponent shape the cost. The $1$ keeps the denominator positive even when $D$ and $t$ are both zero, as they are for a container. The weights $w_e$ and $w_t$ are linear scalars, set by the scoring profile. Difficulty usually carries the larger per-unit weight, since a rating point of difficulty bites harder than an hour of time. The exponent $\beta \in (0, 1]$ is a sublinear damper. It makes long projects feel proportionally less expensive than their raw hours suggest, which matches how people perceive effort. At the Sage default $\beta = 0.85$, a 100-hour project carries about $50\times$ the time penalty of a 1-hour project — not $100\times$.
+
+![Perceived Cost](../images/scoring-cost-beta.png)
+
+*The exponent $\beta$ bends the time penalty sublinearly. A lower $\beta$ bends harder.*
 
 ## The DAG Cascade
 
-A project isn't only worth its own ratings. If completing it unlocks a chain of other valuable projects, that downstream value should flow back and lift its priority. The DAG cascade is how the algorithm formalizes this. Walking forward along Hard and Soft edges from $n$, every descendant contributes a discounted portion of its intrinsic value back to $n$'s total. Each hop scales that contribution by a per-hop discount factor: $d_H$ for Hard edges, $d_S$ for Soft.
+A project isn't only worth its own ratings. If completing it unlocks a chain of other valuable projects, that downstream value should flow back and lift its priority. The DAG cascade is how the algorithm formalizes this. Walking forward along Hard and Soft edges from $n$, every descendant contributes a discounted portion of its intrinsic value back to $n$'s total. Each hop scales that contribution by a per-hop discount factor: $d_H$ for Hard edges, and $d_S$ for Soft.
 
 $$ \text{TV}_{\text{dag}}(n) = \text{IV}(n) + d_H \!\!\!\sum_{m \in H_{\text{out}}(n)}\!\!\! \text{TV}_{\text{dag}}(m) + d_S \!\!\!\sum_{m \in S_{\text{out}}(n)}\!\!\! \text{TV}_{\text{dag}}(m) $$
 
 Here $H_{\text{out}}(n)$ is the set of nodes $n$ unlocks through a Hard edge, and $S_{\text{out}}(n)$ the nodes it unlocks through a Soft edge. A node's total cascade value is its own intrinsic value, plus the sum over its Hard children (each discounted by $d_H$, and recursively containing its own cascade), plus the analogous sum over its Soft children. The recursion unwinds into a discounted sum over the whole reachable subtree.
 
-The discount factors satisfy $0 < d_S < d_H < 1$ by convention. Hard edges carry a stronger per-step signal because a hard prerequisite is *essential* to its dependent (Calculus genuinely cannot be done without Algebra), while a soft prerequisite is merely *helpful* (a UX course improves a personal-website project but isn't required). Both factors are less than 1, so contributions decay geometrically with depth. The further away a descendant sits, the less of its value reaches $n$.
+The discount factors satisfy $0 < d_S < d_H < 1$ by convention. Hard edges carry a stronger per-step signal because a hard prerequisite is *essential* to its dependent, while a soft prerequisite is merely *helpful*. Both factors are less than 1, so contributions decay geometrically with depth. The further away a descendant sits, the less of its value reaches $n$.
 
-That decay is intentional, not just an artifact of multiplying factors below 1. A payoff far down the chain is worth less to today's decision than the same payoff one hop away — the way a dollar next year is worth less than a dollar today. The further off a reward sits, the more has to go right before you reach it: each intervening project might stall, shift, or turn out unnecessary. Confidence fades too, since ratings on distant projects are more likely to drift before you get there.
+That decay is intentional, not just an artifact of multiplying factors below 1. A payoff far down the road is worth less to today's decision than the same payoff one hop away — just as a dollar today is worth more than a dollar tomorrow. The further off a reward is, the more has to go right before you reach it: each intervening project might stall, shift, or turn out unnecessary. Confidence fades too, since ratings on distant projects are more likely to drift before you get there.
 
-Why Hard and Soft only, and not Helps? Two reasons, one is for correctness and one is for performance. First, Hard and Soft edges are directed and acyclic (DAG) — cycle detection in `GraphManager.add_edge` enforces this on every insert — so the recursion above always terminates. Second, the DAG property means each node's $\text{TV}_{\text{dag}}$ can be memoized: computed once and reused for every ancestor that asks. Helps edges, in contrast, are bidirectional and can form cycles, so they get a separate, depth-limited treatment in the next section. Amortized total work for the cascade is $O(N + |E_H| + |E_S|)$.
+Why Hard and Soft only, and not Helps? Two reasons, one is for correctness, and one is for performance. First, Hard and Soft edges are directed and acyclic (DAG), so the recursion above always terminates. Second, the DAG property means each node's $\text{TV}_{\text{dag}}$ can be memoized: computed once and reused for every ancestor that asks. Helps edges, in contrast, are bidirectional and can form cycles, so they get a separate, depth-limited treatment in the next section. 
 
 ### Example
-A descendant $k$ hops away contributes its intrinsic value scaled by the product of edge discounts along the path. For a single chain of all-Hard or all-Soft edges, that's $d_H^k$ or $d_S^k$. The table below uses the default (Sage) profile, with $d_H = 0.6$, $d_S = 0.4$, and a downstream node of $\text{IV} = 100$:
+A descendant $k$ hops away contributes its intrinsic value scaled by the product of edge discounts along the path. For a single chain of all-Hard or all-Soft edges, that's $d_H^k$ or $d_S^k$. The plot below traces both for the default (Sage) profile, with $d_H = 0.6$ and $d_S = 0.4$.
 
-| Depth $k$ | Hard weight $d_H^k$ | Hard contribution | Soft weight $d_S^k$ | Soft contribution |
-|---|---|---|---|---|
-| 0 (self) | 1.000 | 100.00 | 1.000 | 100.00 |
-| 1 | 0.600 | 60.00 | 0.400 | 40.00 |
-| 2 | 0.360 | 36.00 | 0.160 | 16.00 |
-| 3 | 0.216 | 21.60 | 0.064 | 6.40 |
-| 4 | 0.130 | 12.96 | 0.026 | 2.56 |
-| 5 | 0.078 | 7.78 | 0.010 | 1.02 |
+![DAG Cascade](../images/scoring-cascade-decay.png)
+
+*Per-hop discounts decay geometrically. Hard value clears the 10% floor about two hops deeper than Soft.*
 
 The hard chain stays relevant four or five hops out. At depth 4 a descendant still contributes about 13% of its intrinsic value, and about 8% at depth 5. Soft chains, in contrast, are effectively gone past depth 3.
 
 ## Synergy
 
-Synergy edges work differently from prerequisites. They don't say "this unlocks that." They say "doing A and B is worth doing more than doing either alone." 
+Synergy edges — the Helps relationship — work differently from prerequisites. They don't say "this unlocks that." They say "doing A and B is worth doing more than doing either alone." 
 
 Take Foreign Language and Travel. Time abroad cements vocabulary in a way no classroom drill can match. Modest fluency, in turn, opens up places a monolingual tourist would struggle to navigate. Each genuinely amplifies the other, so the algorithm rewards the pairing. 
 
 Synergies feed into total value in two stages. The **pair bonus** applies before either partner is done. The **completion multiplier** comes online once one of the pair is finished.
 
 ### Pair Bonus 
-The pair bonus applies before either partner is started. Write $Y(n)$ for $n$'s set of synergy partners. Each partner $z \in Y(n)$ passes a fraction $d_{\text{Syn,pair}}$ of its own total value back to $n$:
+Write $Y(n)$ for $n$'s set of synergy partners. Each partner $z \in Y(n)$ passes a fraction $d_{\text{Syn,pair}}$ of its own total value back to $n$:
 
 $$ \text{Syn}_+(n) = d_{\text{Syn,pair}} \!\!\!\sum_{z \in Y(n)}\!\!\! c(n, z) \cdot \text{TV}_{\text{dag}}(z) $$
 
@@ -89,7 +81,11 @@ Let $k(n) = |\{z \in Y(n) : \text{status}(z) = \text{Done}\}|$ be the count of f
 
 $$ \mu_Y(n) = 1 + d_{\text{Syn,mul}} \cdot \sqrt{k(n)} $$
 
-The square root is a diminishing-returns guard. Without it, 10 Done partners would inflate a node by 10–20× under typical weights, which is far too much. With it, 10 Done partners give roughly 3× the kick of one, and the curve flattens from there. The first Done partner delivers most of the realized "doing both" payoff; each additional one adds less.
+The square root is a diminishing-returns guard. Without it, every Done partner would add the same fixed boost. With it, each adds less than the one before. The first Done partner delivers most of the realized "doing both" payoff; a second or third tops it up by shrinking amounts.
+
+![Synergy Completion Multiplier](../images/scoring-synergy-sqrt.png)
+
+*The $\sqrt{k}$ guard flattens the multiplier as Done partners accumulate, so the first delivers most of the payoff.*
 
 ### Synergies are Depth-1 Relationships
 Synergies do not chain or cascade the way Hard and Soft edges do. They are depth-1 relationships: only the immediate synergy partners of $n$ contribute to its score, not the partners of those partners. 
@@ -112,17 +108,13 @@ The multiplier $\mu_Y$ applies *only* to intrinsic value, not to the cascade or 
 
 The Explain modal answers "where did this score come from?" It decomposes a node's TV into per-descendant contributions, so the user can see which downstream work is driving the recommendation.
 
-The key fact is that the additive part of TV is linear in descendant intrinsic values. For any descendant $D$, its contribution to $n$'s TV is exactly $W(D) \cdot \text{IV}(D)$. Here $W(D)$ is the sum, over all paths from $n$ to $D$, of the product of edge discounts along each path. Computing every $W(D)$ takes a single topological pass over the reachable Hard-and-Soft subgraph. Diamonds collapse naturally, because each $D$'s weight accumulates the contribution from every path that reaches it.
+Mathematically, the key fact is that the additive part of TV is linear in descendant intrinsic values. For any descendant $D$, its contribution to $n$'s TV is exactly $W(D) \cdot \text{IV}(D)$. Here $W(D)$ is the sum, over all paths from $n$ to $D$, of the product of edge discounts along each path. Computing every $W(D)$ takes a single topological pass over the reachable Hard-and-Soft subgraph. Diamonds collapse naturally, because each $D$'s weight accumulates the contribution from every path that reaches it.
 
 The synergy completion multiplier is the one piece of TV that isn't linear in IV. It's a node-level scalar applied to $n$'s own IV alone. So it's pulled out of the attribution sum and reported separately, as $\text{IV}(n) \cdot (\mu_Y(n) - 1)$. With that carve-out, the identity holds exactly:
 
 $$ \text{TV}(n) = \text{IV}(n) \cdot (\mu_Y(n) - 1) + \sum_D W(D) \cdot \text{IV}(D) $$
 
 This is what makes the contributor percentages in the Explain modal add up.
-
-### Focus: Shortest-Path Highlighting
-
-Attribution tells you *how much* each contributor is worth. Focus shows you *where* it sits. Pick a few of the top contributors in the Explain modal and hit **Focus**. The app traces the shortest path from the node to each one. Those paths run along Hard and Soft edges, plus the node's direct synergy partners as one-hop neighbors — the same edges the contribution graph uses. The Nodes tab lights those paths and dims everything else. Where two paths overlap, the higher-ranked one keeps its color, so the most important route stays visible. (Implemented in `shortest_paths_focus_data`.)
 
 ## Base Score
 
@@ -160,6 +152,10 @@ The exponent $\alpha \in [0, 1]$ controls how aggressively dense buckets are dam
 
 A note on buckets. Nodes with no subcontext, written `(context, None)`, share one bucket within their context. They represent broadly applicable work within a major life area — relationships, science, entertainment.
 
+![Density Normalization](../images/scoring-density.png)
+
+*Density weight falls as a bucket grows, damping crowded contexts. A higher $\alpha$ damps harder; $\alpha = 1$ flattens a bucket to its single-node weight.*
+
 ## Final Score
 
 Putting it all together:
@@ -176,20 +172,6 @@ The top-ranked node always shows 100. Every other project shows its share of tha
 
 (The Explain feature reports both the raw and normalized score.)
 
-## Manual Override
-
-The computed ranking can be overridden by hand. The **Override** toggle in the node editor pins a node to the top of the Next tab, regardless of its priority score. Use it on the days when the math doesn't match your judgment. A mode controls how far the pin reaches into the node's *prerequisite* subtree — the work feeding into it:
-
-| Mode | Pinned set |
-|---|---|
-| `node_only` | The node alone |
-| `hard` | The node + its Hard prerequisite closure |
-| `soft` | The node + its Soft prerequisite closure |
-| `all` | The node + its full Hard-and-Soft prerequisite closure |
-
-`ConfigManager.get_override_node_set` resolves the full set, and folds in any nodes pinned by manual-override Event triggers. Only one override is active at a time. Setting a new one replaces the previous.
-
-
 ## Complexity
 
 The whole pipeline is engineered to stay fast, even on large graphs. End-to-end, it runs in $O(N + E + N \log N)$ time.
@@ -204,6 +186,12 @@ Stage by stage:
 | Ranking sort | $O(N \log N)$ | Standard comparison sort on the final priority scores |
 
 That speed comes almost entirely from memoizing the cascade. An earlier version lumped all edge types together, so it couldn't memoize. Without memoization, the path count explodes with even modest diamond structure. A scoring pass took minutes on a typical graph, and the Next tab was unusable. The DAG split lets every $\text{TV}_{\text{dag}}$ be computed once and reused. On a representative ~750-node, ~1000-edge graph, the same pass now runs in 5–8 ms, roughly ten thousand times faster. It scales comfortably beyond that. 
+
+## Cycle Prevention
+
+The memoized cascade depends on Hard and Soft edges forming a Directed Acyclic Graph. That property is enforced, not assumed. Every time the user creates an edge, the graph manager checks it for a cycle that would trap the scoring walk. If it finds one, the edge is rejected and a modal explains why.
+
+Helps edges skip this check, by design. Synergies are [depth-1 relationships](#synergies-are-depth-1-relationships) with no recursion through them, so a cycle of Helps edges causes no problem.
 
 ## Scoring Profiles
 
@@ -240,11 +228,35 @@ A **Custom** profile is also available, exposing every parameter for fine tuning
 
 ## Worked Example
 
-To tie the pieces together, here is one node carried through the full priority pipeline under the **Sage** profile ($w_V = w_I = 1$, $w_e = 2.5$, $w_t = 1$, $\beta = 0.85$, $d_H = 0.6$, $d_{\text{Syn,pair}} = 0.10$, $b = 1.5$, $\alpha = 0.30$).
+To tie the pieces together, here is one node carried through the full priority pipeline under the **Sage** profile.
 
 *Compound Lifts* is a Learn node with $V = 9$, $I = 8$, $D = 5$, and a blended time estimate $t \approx 83$ h. It has one outgoing Hard edge into the chain *Strength* → *Exercise* → *Health* (intrinsic values $14$, $20$, $17$), and one Helps edge to *Functional Exercise*. With no incoming Hard edges, it's eligible. Assume **Health is Priority Goal #1**.
 
-**Intrinsic value** — $\text{IV} = w_V V + w_I I = 9 + 8 = 17$.
+```mermaid
+flowchart LR
+    CL["Compound Lifts<br/>(Learn)<br/>IV = 17"]
+    S["Strength<br/>IV = 14"]
+    E["Exercise<br/>IV = 20"]
+    H["Health (Goal)<br/>Priority #1<br/>IV = 17"]
+    FE["Functional Exercise"]
+
+    CL -->|"Hard · d_H = 0.6"| S
+    S -->|"Hard · 0.6"| E
+    E -->|"Hard · 0.6"| H
+    CL <-.->|"Helps"| FE
+
+    classDef learn fill:#1d5cba,stroke:#5b8fd6,color:#eaf1fb;
+    classDef goal fill:#cdbe23,stroke:#9a8f12,color:#1a1a1a;
+    classDef helps fill:#2f909d,stroke:#1f6873,color:#eafbfe;
+    class CL,S,E learn
+    class H goal
+    class FE helps
+    linkStyle 3 stroke:#466a78,stroke-width:2px;
+```
+
+The steps below walk it through the pipeline in order.
+
+**Intrinsic value** — $\text{IV} = w_V V + w_I I = (1)(9) + (1)(8) = 9 + 8 = 17$.
 
 **Cascade** — each Hard hop discounts by $d_H = 0.6$:
 
@@ -254,23 +266,23 @@ To tie the pieces together, here is one node carried through the full priority p
 | 2 | Exercise | 20 | $0.6^2 = 0.36$ | $7.20$ |
 | 3 | Health | 17 | $0.6^3 = 0.216$ | $3.67$ |
 
-Cascade total $\approx 19.3$.
+Summing the contributions gives the cascade term $\text{TV}_{\text{dag}} - \text{IV} \approx 19.3$, so $\text{TV}_{\text{dag}} \approx 17 + 19.3 = 36.3$.
 
-**Synergy** — no partner is Done, so $\mu_Y = 1$. The pair bonus from *Functional Exercise* contributes $d_{\text{Syn,pair}} \cdot \text{TV}_{\text{dag}}(\text{partner}) \approx 4$.
+**Synergy** — no partner is Done, so $k = 0$ and $\mu_Y = 1 + d_{\text{Syn,mul}} \sqrt{k} = 1 + (0.40)(0) = 1$. Taking *Functional Exercise*'s own total value as $\approx 40$, the pair bonus is $\text{Syn}_+ = d_{\text{Syn,pair}} \cdot c \cdot \text{TV}_{\text{dag}}(\text{partner}) = (0.10)(1)(40) = 4$.
 
-**Total value** — $\text{TV} = \mu_Y \cdot \text{IV} + (\text{TV}_{\text{dag}} - \text{IV}) + \text{Syn}_+ = 17 + 19.3 + 4 \approx 40$.
+**Total value** — $\text{TV} = \mu_Y \cdot \text{IV} + (\text{TV}_{\text{dag}} - \text{IV}) + \text{Syn}_+ = (1)(17) + (36.3 - 17) + 4 = 17 + 19.3 + 4 \approx 40$.
 
-**Perceived cost** — $\text{Cost} = 1 + w_e D + w_t t^\beta = 1 + 2.5(5) + 83^{0.85} = 1 + 12.5 + 42.8 \approx 56$.
+**Perceived cost** — $\text{Cost} = 1 + w_e D + w_t t^\beta = 1 + (2.5)(5) + (1)(83^{0.85}) = 1 + 12.5 + 42.8 \approx 56$.
 
 **Base score** — $P_{\text{base}} = \text{TV} / \text{Cost} = 40 / 56 \approx 0.71$. This number is meaningful only *relative* to other nodes' base scores — it is not a percentage and is not bounded to $[0, 1]$.
 
-**Goal boost** — *Compound Lifts* sits in Health's Hard-prereq subtree and Health is Priority #1, so $\rho = b = 1.5$: $\;0.71 \times 1.5 \approx 1.07$.
+**Goal boost** — *Compound Lifts* sits in Health's Hard-prereq subtree and Health is Priority #1, so $\rho = b = 1.5$. Then $P_{\text{base}} \cdot \rho = 0.71 \times 1.5 \approx 1.07$.
 
-**Context adjustment** — assume Health/Exercise is a dense bucket of $\approx 19$ eligible nodes and $w_c = 1$. Then $\delta = 1 / 19^{0.30} \approx 0.41$, giving $1.07 \times 0.41 \approx 0.44$.
+**Context adjustment** — assume Health/Exercise is a dense bucket of $\approx 19$ eligible nodes and $w_c = 1$. Then $\delta = 1 / 19^{0.30} \approx 0.41$, giving $1.07 \times (1) \times 0.41 \approx 0.44$.
 
-**Display** — the Next tab rescales against the top eligible node. If the top node's adjusted score is $\approx 1.0$, *Compound Lifts* displays as $\mathbf{44}$; the Explain modal shows both the raw ($0.44$) and normalized ($44$) figures.
+**Display** — the Next tab rescales against the top eligible node, $P_{\text{display}} = 100 \cdot P / \max$. If the top node's adjusted score is $\approx 1.0$, *Compound Lifts* displays as $100 \times (0.44 / 1.0) \approx \mathbf{44}$; the Explain modal shows both the raw ($0.44$) and normalized ($44$) figures.
 
-Two things stand out. The cascade supplies about 19 of the 40 total-value points, so the node ranks largely for *what it unlocks*, not its own ratings. And the multipliers compound: a node already strong on cascade is lifted further when a Goal it feeds is prioritized.
+Two things stand out. The cascade supplies about 19 of the 40 total-value points, so the node ranks largely for *what it unlocks*, not its own ratings. And the multipliers compound: the goal boost lifts a cascade-strong node further, though density normalization can temper it in a crowded bucket — as it does here, pulling 0.71 down to 0.44.
 
 # Goal Scoring
 
@@ -278,17 +290,7 @@ The primary algorithm is wrong for Goals, because **Goals are sinks.** They have
 
 ## The Edge Inversion Trick
 
-Write $E_H$, $E_S$, and $E_Y$ for the Hard, Soft, and Helps edge sets, and $N$ for all nodes. Define the inverted graph $G' = (N, E_H', E_S', E_Y)$ where
-
-$$ E_H' = \{(t, s) : (s, t) \in E_H\}, \quad E_S' = \{(t, s) : (s, t) \in E_S\} $$
-
-and $E_Y$ is unchanged (synergies are already symmetric). In $G'$, the prereqs of a node in $G$ become its forward dependents. Run the standard `total_value` on $G'$. The forward cascade then walks the prereq subtree:
-
-$$ \text{TV}'(g) = \text{IV}(g) + d_H \!\!\!\sum_{m \in H_{\text{in}}(g)}\!\!\! \text{TV}_{\text{dag}}'(m) + d_S \!\!\!\sum_{m \in S_{\text{in}}(g)}\!\!\! \text{TV}_{\text{dag}}'(m) + \text{Syn}_+'(g) $$
-
-Here $H_{\text{in}}(g)$ and $S_{\text{in}}(g)$ are the Hard and Soft prerequisites of $g$, the sources of its incoming edges. The recursive $\text{TV}_{\text{dag}}'$ continues along $E_H'$ and $E_S'$, so the discounted sum runs over the whole transitive prereq subtree. The synergy bonus is computed exactly as in the forward direction.
-
-This is the key insight: **a Goal's value is the ordinary forward cascade, run on reversed arrows.** Not a single line of the value computation changes — same intrinsic value, same Hard and Soft discounts, same synergy. Only the edge directions flip.
+To rank a Goal by the work feeding into it, invert the graph: reverse every Hard and Soft arrow, and leave the Helps edges alone, since synergies are already symmetric. A Goal's prerequisites are now its forward dependents, so running the ordinary `total_value` on the flipped graph makes the standard cascade walk the entire prereq subtree.
 
 ```mermaid
 flowchart LR
@@ -306,7 +308,9 @@ flowchart LR
     end
 ```
 
-*A Goal is a sink: many arrows in, few out. Flip every Hard and Soft arrow and its prerequisites become forward dependents, so the ordinary cascade now walks the prereq subtree.*
+This is the key insight: **a Goal's value is the ordinary forward cascade, run on reversed arrows.** Not a single line of the value computation changes — same intrinsic value, same Hard and Soft discounts, same synergy. Only the edge directions flip. The result, written $\text{TV}'(g)$, sums over a Goal's incoming Hard and Soft prerequisites instead of its outgoing dependents:
+
+$$ \text{TV}'(g) = \text{IV}(g) + d_H \!\!\!\sum_{m \in H_{\text{in}}(g)}\!\!\! \text{TV}_{\text{dag}}'(m) + d_S \!\!\!\sum_{m \in S_{\text{in}}(g)}\!\!\! \text{TV}_{\text{dag}}'(m) + \text{Syn}_+'(g) $$
 
 The value numerator is the *only* part reused verbatim. The cost denominator and the density correction are both re-derived below, because a sink behaves differently from a leaf. A leaf's cost is its own effort. A Goal's cost is the effort of everything it subsumes.
 
@@ -345,7 +349,7 @@ A Milestone marks an achievement, not the effort to reach it. "10 strict pull-up
 
 This creates a problem for Goal ranking. A Milestone often sits mid-tree, between a Goal and the real work beneath it. If it carried its own value and time ratings, those numbers would enter the Goal's ROI as though the checkpoint were itself a body of work.
 
-So the app treats every Milestone as transparent. Its own value and time are set to zero, and it becomes a pass-through. Prerequisite value still flows up through it untouched, and the work beneath it still counts toward cost. The checkpoint shapes the tree without adding noise to the score.
+So the app treats every Milestone as transparent: its own value and time are set to zero, so it contributes nothing of its own to the score. Prerequisite value still cascades up through it, discounted by the usual per-hop factor. The milestone adds no value, but it still sits in the chain like any other node, so passing through it costs one discount hop. The work beneath it still counts toward cost.
 
 # Eligibility and the Status Cascade
 
@@ -381,12 +385,7 @@ In short, the cascade proceeds only as far as it needs to.
 
 ## Done is Final
 
-Once a node is Done, the cascade will never silently flip it back to Open. A Done node moves only when the user un-completes a hard prereq that was itself Done. Even then it goes to Blocked, not Open, and the app warns before the change. The [README](../README.md) covers this from the user's side.
-
-## Cycle Prevention
-Skill Tree's hard and soft edges form a Directed Acyclic Graph (DAG). This is what lets the scoring algorithm run in milliseconds rather than minutes. The property is not assumed. It is enforced. Every time the user creates an edge, the graph manager checks the proposed edge for a cycle that could trap the scoring walk. If it finds one, the edge is rejected, and a modal explains why.
-
-Helps edges skip this check, by design. Recall that [synergies are depth-1 relationships](#synergies-are-depth-1-relationships). There is no recursion through them, so a cycle of Helps edges causes no problem.
+Once a node is Done, the cascade will never silently flip it back to Open. A Done node moves only when the user un-completes a hard prereq that was itself Done. Even then it goes to Blocked, not Open, and the app warns before the change. 
 
 ## Startup Safety Net
 
