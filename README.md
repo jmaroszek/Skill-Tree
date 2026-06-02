@@ -104,4 +104,4 @@ Follow the map at the footer of each page. By the end, you will know how to use 
 
 | Resource | What's there |
 |---|---|
-| [setup.md](docs/setup.md) | How to clone the repo and get the app running locally, before you start the tour. |
+| [setup.md](docs/setup.md) | How to clone the repo and get the app running locally. |
