@@ -232,6 +232,8 @@ Each of these would be tractable to add, but each would require more input from 
 
 # Navigation
 ## Tutorial
+That's the end of the technical path. Both routes now converge on **Modeling**, the practical guide to building your own graph.
+
 ```mermaid
 flowchart LR
     R(["README"]) --> F(["Features"])

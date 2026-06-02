@@ -40,7 +40,7 @@ flowchart TB
 
 Five factors, three roles. Value and interest are the benefits. Time and effort are the costs. Relationships decide the order. 
 
-Each category has its own failure mode. Ignore the benefits, and you will avoid the hard work most worth doing, simply because it asks something of you. Ignore the costs, and every project looks appealing, no matter what it quietly consumes. Ignore the relationships, and you will start each project from scratch, never building the foundation that would make the next project easier
+Each category has its own failure mode. Ignore the benefits, and you will avoid the hard work most worth doing, simply because it asks something of you. Ignore the costs, and every project looks appealing, no matter what it quietly consumes. Ignore the relationships, and you will start each project from scratch, never building the foundation that would make the next project easier.
 
 ## Judgment Doesn't Scale
 

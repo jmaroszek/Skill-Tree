@@ -4,7 +4,7 @@ This document walks through the features of Skill Tree, and how they are control
 # Node Editor
 The Node Editor is where you create projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. 
 
-Accsess the node editor from anywhere in the app by clicking the icon in the top-left corner. 
+Access the node editor from anywhere in the app by clicking the icon in the top-left corner. 
 
 <p align="center">
     <img src="../images/node-editor-with-nodes-tab.png">
@@ -114,7 +114,7 @@ The relative weight of each factor isn't fixed. [Scoring profiles](scoring.md#sc
 ### Ratings Toggles
 Above the sliders sit two toggles.
 
-**Inherit** turns the node into a container along the ratings-dimension. That means its value, interest, and effort stop being its own, and instead flow up from its children. Reach for it when a node exists primarilyt to group other work. The [Containers](#containers) section, coming up soon, covers this in depth.
+**Inherit** turns the node into a container along the ratings-dimension. That means its value, interest, and effort stop being its own, and instead flow up from its children. Reach for it when a node exists primarily to group other work. The [Containers](#containers) section, coming up soon, covers this in depth.
 
 **Override** manually boosts a node's priority, pinning it to the top of the [Next Tab's](#next-tab) recommendations, no matter what the algorithm says. It's the escape hatch for when you know something matters more than the algorithm thinks. I use this when my life circumstances suddenly change, and something demands immediate attention. 
 
@@ -289,7 +289,7 @@ A score on its own doesn't tell you much. Explain tells you where that score cam
 
 The breakdown opens with a summary table, grouped into Value, Cost, and Score. The exact rows that appear in each section depend on the node itself. Some nodes have adjustments to their base ROI score via priority goal multipliers, context weight adjustments, and more. All these nuances are discussed in [scoring](scoring.md).
 
-At the bottom, the score is listed twice: raw and normalized. The bar on the suggestions table shows the normalized score, where every node is measured against the current #1 prority. The raw score is the underlying value before that rescaling. 
+At the bottom, the score is listed twice: raw and normalized. The bar on the suggestions table shows the normalized score, where every node is measured against the current #1 priority. The raw score is the underlying value before that rescaling. 
 
 Below the table is a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. The node's own intrinsic value is one bar; the rest are the downstream nodes whose value cascades back to it. The bars are colored by where the value comes from — the node itself, or a hard prerequisite, soft prerequisite, or synergy link.
 
@@ -409,7 +409,7 @@ The Nodes tab works fine for small networks — say 250 nodes or fewer. Past tha
 
 # Filters Sidebar
 
-Click the filter icon in the top-right corner to open the filters sidebar. Filters apply to every tab except the [Analyze Tab](#analyze-tab) (which always evaluates the network as a whole). They are especially powerful on the screens we just covered: on the Nodes Tab, filtering reduces visual clutter, so the physics engine can group related ideas more effictively. On the [Next Tab](#next-tab), it restricts recommendations to one or more contexts -- giving you added control over the priority ranking algorithm.
+Click the filter icon in the top-right corner to open the filters sidebar. Filters apply to every tab except the [Analyze Tab](#analyze-tab) (which always evaluates the network as a whole). They are especially powerful on the screens we just covered: on the Nodes Tab, filtering reduces visual clutter, so the physics engine can group related ideas more effectively. On the [Next Tab](#next-tab), it restricts recommendations to one or more contexts -- giving you added control over the priority ranking algorithm.
 
 ## Filter Controls
 
@@ -519,7 +519,7 @@ The rest of the panel — node stats and three action buttons — reuses functio
 Every gesture from the [Nodes Tab](#nodes-tab) is supported on Details too, but there are a few ways this canvas is different. First and most obvious: the Details Tab is always focused on one project or idea. Also, this tab supports two other features called History and Focus Mode.
 
 ### History
-Clicking a node here loads its information into every panel. This is unlike the click behavior on the Nodes canvas, which only selects the node, and fills the node editor with its information if it happens to be open. Because each click swaps out the detailed view, this tab keeps a history. The two arrows beside the search bar in the Node Information Panel let step you forward and backward through your navigation history, like a browser.
+Clicking a node here loads its information into every panel. This is unlike the click behavior on the Nodes canvas, which only selects the node, and fills the node editor with its information if it happens to be open. Because each click swaps out the detailed view, this tab keeps a history. The two arrows beside the search bar in the Node Information Panel let you step forward and backward through your navigation history, like a browser.
 
 ### Focus Mode
 There are three buttons in the bottom right corner of the canvas. Two of them were introduced elsewhere: [graph settings](#graph-layout-controls) and fullscreen, but one is unique to this tab: the magnifying glass. Clicking this icon switches you to the Nodes Tab, highlights this network, and dims everything else. This is a easy and quick way to see a topic in its broader context. 
@@ -561,7 +561,7 @@ The row of toggles in the top-right let you dial the view to the level of detail
 For a sprawling Goal with hundreds of descendants, this is the difference between an unreadable wall of rows and a clean list of actionable items.
 
 ## Time Simulation Panel
-Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take using **Monte Carlo Simulation.** Every time you swap or nodes or adjust a filter, the app runs 10,000 simulations of you completing every subtask, keeping in mind your uncertainty about each one. The whole thing takes milliseconds, so it feels instantaneous; if you are ever in a rush and need those few milliseconds, you can lower the trial count in [Settings](#settings).
+Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take using **Monte Carlo Simulation.** Every time you swap nodes or adjust a filter, the app runs 10,000 simulations of you completing every subtask, keeping in mind your uncertainty about each one. The whole thing takes milliseconds, so it feels instantaneous; if you are ever in a rush and need those few milliseconds, you can lower the trial count in [Settings](#settings).
 
 The feature shines on large, vague, long-horizon Goals. It lets you say with confidence "there's a 10% chance I'll finish this in 2 months, 50% in 3, and 90% in 6." 
 
@@ -608,8 +608,6 @@ The **+** next to "Goals" creates a new one; you can search for existing goals u
   <tr>
     <td valign="top" style="padding-right: 30px;"><img src="../images/goals-context-menu.png" alt="The goals context menu" width="1000"></td>
     <td valign="top">
-
-Your top three Goals are your **Priority Goals.** You must set these explicitly. Skill Tree will not assume that its top ranked goals are your true priorities. You can use the app just fine without setting priority goals, but if you do have them, the  algorithm gives all tasks related to your priority goals a boost. 
 
 Your top three goals are your **Priority Goals.** Because Skill Tree respects your autonomy, you must set these explicitly. While the app functions perfectly well without them, designating Priority Goals allows the [scoring](scoring.md#goal-priority-boost) algorithm to apply a priority boost to all tasks in their subtrees.
 
@@ -673,7 +671,7 @@ The **Trigger** button fires the event manually. It opens a confirmation modal w
 The right side of the tab shows a mini-graph of the selected event's dormant nodes. It works the same way as other canvases. Use it as a sanity check to make sure the nodes are wired how you want them before they go live.
 
 ## Event Announcements
-When an event triggers — automatically or because you clicked trigger — an annoucement message shows up, telling you what nodes just woke up, and which will be waking up soon due to their activation delay.
+When an event triggers — automatically or because you clicked trigger — an announcement message shows up, telling you what nodes just woke up, and which will be waking up soon due to their activation delay.
 
 # Reflection
 
@@ -714,7 +712,7 @@ This is your "Don't ask again" archive. Nodes here are quietly bypassed during y
 
 # Analyze Tab
 
-The Analyze tab gives you a bird's eye view of your entire network. It helps you understand how to want to spend your time, and how you actually spend it. It also helps you track progress on goals, and uncover structural characteristics of your graph.
+The Analyze tab gives you a bird's eye view of your entire network. It helps you understand how you want to spend your time, and how you actually spend it. It also helps you track progress on goals, and uncover structural characteristics of your graph.
 
 ## The Overview Strip
 The overview strip shows key facts about your graph.

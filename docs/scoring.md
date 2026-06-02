@@ -455,6 +455,8 @@ Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{
 
 # Navigation
 ## Tutorial
+Next on the technical path is **Time**, which explains the time estimate $t(n)$ that the scoring math here takes as a given. After that, both routes converge on **Modeling**.
+
 ```mermaid
 flowchart LR
     R(["README"]) --> F(["Features"])

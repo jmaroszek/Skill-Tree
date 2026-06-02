@@ -75,7 +75,7 @@ The rule of thumb: if managing a task in Skill Tree — estimating time, setting
 
 ### When Nodes Are Just Right
 
-Here are a few principles that can help you find the sweet spot, and build a clean, heirarchical Skill Tree.
+Here are a few principles that can help you find the sweet spot, and build a clean, hierarchical Skill Tree.
 
 * **Workload-Based Leaf Nodes**: Each leaf should be a meaningful but manageable chunk of effort. For me that's several weeks of work.
 * **The Rule of Three**: For complex or unfamiliar domains, aim for three levels of abstraction and three children per parent. That caps your tree at 27 leaves, so you never focus on more than 4% of the problem at once. The constraint aids focus, forces priority, and prevents scope creep.
