@@ -85,7 +85,7 @@ The square root is a diminishing-returns guard. Without it, every Done partner w
 
 ![Synergy Completion Multiplier](../images/scoring-synergy-sqrt.png)
 
-*The $\sqrt{k}$ guard flattens the multiplier as Done partners accumulate, so the first delivers most of the payoff.*
+*The $`\sqrt{k}`$ guard flattens the multiplier as Done partners accumulate, so the first delivers most of the payoff.*
 
 ### Synergies are Depth-1 Relationships
 Synergies do not chain or cascade the way Hard and Soft edges do. They are depth-1 relationships: only the immediate synergy partners of $n$ contribute to its score, not the partners of those partners. 
