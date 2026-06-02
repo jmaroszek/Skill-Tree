@@ -10,6 +10,7 @@ dependencies:
   - numpy=2.2.6
   - plotly=6.6.0
   - pytest=9.0.3
+  - scipy=1.15.2
   - pip
   - pip:
     - dash-cytoscape==1.0.2

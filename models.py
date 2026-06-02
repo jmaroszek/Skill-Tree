@@ -27,6 +27,24 @@ STATUS_DONE = 'Done'
 ALL_STATUSES = (STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE)
 
 
+def pert_blend_weight(ratio: float) -> float:
+    """Weight w(r) that blends the arithmetic PERT mean toward the geometric
+    (log) one as the uncertainty ratio r = p/o grows.
+
+    0 for r <= 2 (tight bracket, trust the linear mean), 1 for r >= 10 (wide
+    bracket, lean fully geometric), log-interpolated between. This is the
+    single source of truth for the blend weight — both the point estimate
+    (`blend_time_estimate`) and the Monte Carlo sampler
+    (`simulation.blended_pert_sample`) call it, so the headline number and the
+    simulated distribution can never drift apart.
+    """
+    if ratio <= 2:
+        return 0.0
+    if ratio >= 10:
+        return 1.0
+    return (math.log(ratio) - math.log(2)) / (math.log(10) - math.log(2))
+
+
 def blend_time_estimate(o: float, m: float, p: float) -> float:
     """Blend optimistic / most-likely / pessimistic values into one expected
     figure. Shared by the forecast estimate (`Node.time`) and the captured
@@ -67,14 +85,7 @@ def blend_time_estimate(o: float, m: float, p: float) -> float:
     except ValueError:
         e_log = e_arith
 
-    ratio = p / o
-
-    if ratio <= 2:
-        w = 0
-    elif 2 < ratio < 10:
-        w = (math.log(ratio) - math.log(2)) / (math.log(10) - math.log(2))
-    else:
-        w = 1
+    w = pert_blend_weight(p / o)
 
     return round((1 - w) * e_arith + w * e_log, 2)
 
