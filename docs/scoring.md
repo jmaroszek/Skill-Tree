@@ -33,7 +33,7 @@ A leading constant, two weights, and an exponent shape the cost. The $1$ keeps t
 
 A project isn't only worth its own ratings. If completing it unlocks a chain of other valuable projects, that downstream value should flow back and lift its priority. The DAG cascade is how the algorithm formalizes this. Walking forward along Hard and Soft edges from $n$, every descendant contributes a discounted portion of its intrinsic value back to $n$'s total. Each hop scales that contribution by a per-hop discount factor: $d_H$ for Hard edges, and $d_S$ for Soft.
 
-$$ \text{TV}_{\text{dag}}(n) = \text{IV}(n) + d_H \!\!\!\sum_{m \in H_{\text{out}}(n)}\!\!\! \text{TV}_{\text{dag}}(m) + d_S \!\!\!\sum_{m \in S_{\text{out}}(n)}\!\!\! \text{TV}_{\text{dag}}(m) $$
+$$ \text{TV}_{\text{dag}}(n) = \text{IV}(n) + d_H \sum_{m \in H_{\text{out}}(n)} \text{TV}_{\text{dag}}(m) + d_S \sum_{m \in S_{\text{out}}(n)} \text{TV}_{\text{dag}}(m) $$
 
 Here $H_{\text{out}}(n)$ is the set of nodes $n$ unlocks through a Hard edge, and $S_{\text{out}}(n)$ the nodes it unlocks through a Soft edge. A node's total cascade value is its own intrinsic value, plus the sum over its Hard children (each discounted by $d_H$, and recursively containing its own cascade), plus the analogous sum over its Soft children. The recursion unwinds into a discounted sum over the whole reachable subtree.
 
@@ -63,7 +63,7 @@ Synergies feed into total value in two stages. The **pair bonus** applies before
 ### Pair Bonus 
 Write $Y(n)$ for $n$'s set of synergy partners. Each partner $z \in Y(n)$ passes a fraction $d_{\text{Syn,pair}}$ of its own total value back to $n$:
 
-$$ \text{Syn}_+(n) = d_{\text{Syn,pair}} \!\!\!\sum_{z \in Y(n)}\!\!\! c(n, z) \cdot \text{TV}_{\text{dag}}(z) $$
+$$ \text{Syn}_+(n) = d_{\text{Syn,pair}} \sum_{z \in Y(n)} c(n, z) \cdot \text{TV}_{\text{dag}}(z) $$
 
 The effect is that synergistic projects tend to surface together, so the user can choose which to tackle first. 
 
@@ -256,7 +256,7 @@ flowchart LR
 
 The steps below walk it through the pipeline in order.
 
-**Intrinsic value** — $\text{IV} = w_V V + w_I I = (1)(9) + (1)(8) = 9 + 8 = 17$.
+**Intrinsic value** — $`\text{IV} = w_V V + w_I I = (1)(9) + (1)(8) = 9 + 8 = 17`$.
 
 **Cascade** — each Hard hop discounts by $d_H = 0.6$:
 
@@ -266,21 +266,21 @@ The steps below walk it through the pipeline in order.
 | 2 | Exercise | 20 | $0.6^2 = 0.36$ | $7.20$ |
 | 3 | Health | 17 | $0.6^3 = 0.216$ | $3.67$ |
 
-Summing the contributions gives the cascade term $\text{TV}_{\text{dag}} - \text{IV} \approx 19.3$, so $\text{TV}_{\text{dag}} \approx 17 + 19.3 = 36.3$.
+Summing the contributions gives the cascade term $`\text{TV}_{\text{dag}} - \text{IV} \approx 19.3`$, so $`\text{TV}_{\text{dag}} \approx 17 + 19.3 = 36.3`$.
 
-**Synergy** — no partner is Done, so $k = 0$ and $\mu_Y = 1 + d_{\text{Syn,mul}} \sqrt{k} = 1 + (0.40)(0) = 1$. Taking *Functional Exercise*'s own total value as $\approx 40$, the pair bonus is $\text{Syn}_+ = d_{\text{Syn,pair}} \cdot c \cdot \text{TV}_{\text{dag}}(\text{partner}) = (0.10)(1)(40) = 4$.
+**Synergy** — no partner is Done, so $`k = 0`$ and $`\mu_Y = 1 + d_{\text{Syn,mul}} \sqrt{k} = 1 + (0.40)(0) = 1`$. Taking *Functional Exercise*'s own total value as $`\approx 40`$, the pair bonus is $`\text{Syn}_+ = d_{\text{Syn,pair}} \cdot c \cdot \text{TV}_{\text{dag}}(\text{partner}) = (0.10)(1)(40) = 4`$.
 
-**Total value** — $\text{TV} = \mu_Y \cdot \text{IV} + (\text{TV}_{\text{dag}} - \text{IV}) + \text{Syn}_+ = (1)(17) + (36.3 - 17) + 4 = 17 + 19.3 + 4 \approx 40$.
+**Total value** — $`\text{TV} = \mu_Y \cdot \text{IV} + (\text{TV}_{\text{dag}} - \text{IV}) + \text{Syn}_+ = (1)(17) + (36.3 - 17) + 4 = 17 + 19.3 + 4 \approx 40`$.
 
-**Perceived cost** — $\text{Cost} = 1 + w_e D + w_t t^\beta = 1 + (2.5)(5) + (1)(83^{0.85}) = 1 + 12.5 + 42.8 \approx 56$.
+**Perceived cost** — $`\text{Cost} = 1 + w_e D + w_t t^\beta = 1 + (2.5)(5) + (1)(83^{0.85}) = 1 + 12.5 + 42.8 \approx 56`$.
 
-**Base score** — $P_{\text{base}} = \text{TV} / \text{Cost} = 40 / 56 \approx 0.71$. This number is meaningful only *relative* to other nodes' base scores — it is not a percentage and is not bounded to $[0, 1]$.
+**Base score** — $`P_{\text{base}} = \text{TV} / \text{Cost} = 40 / 56 \approx 0.71`$. This number is meaningful only *relative* to other nodes' base scores — it is not a percentage and is not bounded to $`[0, 1]`$.
 
-**Goal boost** — *Compound Lifts* sits in Health's Hard-prereq subtree and Health is Priority #1, so $\rho = b = 1.5$. Then $P_{\text{base}} \cdot \rho = 0.71 \times 1.5 \approx 1.07$.
+**Goal boost** — *Compound Lifts* sits in Health's Hard-prereq subtree and Health is Priority #1, so $`\rho = b = 1.5`$. Then $`P_{\text{base}} \cdot \rho = 0.71 \times 1.5 \approx 1.07`$.
 
-**Context adjustment** — assume Health/Exercise is a dense bucket of $\approx 19$ eligible nodes and $w_c = 1$. Then $\delta = 1 / 19^{0.30} \approx 0.41$, giving $1.07 \times (1) \times 0.41 \approx 0.44$.
+**Context adjustment** — assume Health/Exercise is a dense bucket of $`\approx 19`$ eligible nodes and $`w_c = 1`$. Then $`\delta = 1 / 19^{0.30} \approx 0.41`$, giving $`1.07 \times (1) \times 0.41 \approx 0.44`$.
 
-**Display** — the Next tab rescales against the top eligible node, $P_{\text{display}} = 100 \cdot P / \max$. If the top node's adjusted score is $\approx 1.0$, *Compound Lifts* displays as $100 \times (0.44 / 1.0) \approx \mathbf{44}$; the Explain modal shows both the raw ($0.44$) and normalized ($44$) figures.
+**Display** — the Next tab rescales against the top eligible node, $`P_{\text{display}} = 100 \cdot P / \max`$. If the top node's adjusted score is $`\approx 1.0`$, *Compound Lifts* displays as $`100 \times (0.44 / 1.0) \approx \mathbf{44}`$; the Explain modal shows both the raw ($`0.44`$) and normalized ($`44`$) figures.
 
 Two things stand out. The cascade supplies about 19 of the 40 total-value points, so the node ranks largely for *what it unlocks*, not its own ratings. And the multipliers compound: the goal boost lifts a cascade-strong node further, though density normalization can temper it in a crowded bucket — as it does here, pulling 0.71 down to 0.44.
 
@@ -310,7 +310,7 @@ flowchart LR
 
 This is the key insight: **a Goal's value is the ordinary forward cascade, run on reversed arrows.** Not a single line of the value computation changes — same intrinsic value, same Hard and Soft discounts, same synergy. Only the edge directions flip. The result, written $\text{TV}'(g)$, sums over a Goal's incoming Hard and Soft prerequisites instead of its outgoing dependents:
 
-$$ \text{TV}'(g) = \text{IV}(g) + d_H \!\!\!\sum_{m \in H_{\text{in}}(g)}\!\!\! \text{TV}_{\text{dag}}'(m) + d_S \!\!\!\sum_{m \in S_{\text{in}}(g)}\!\!\! \text{TV}_{\text{dag}}'(m) + \text{Syn}_+'(g) $$
+$$ \text{TV}'(g) = \text{IV}(g) + d_H \sum_{m \in H_{\text{in}}(g)} \text{TV}_{\text{dag}}'(m) + d_S \sum_{m \in S_{\text{in}}(g)} \text{TV}_{\text{dag}}'(m) + \text{Syn}_+'(g) $$
 
 The value numerator is the *only* part reused verbatim. The cost denominator and the density correction are both re-derived below, because a sink behaves differently from a leaf. A leaf's cost is its own effort. A Goal's cost is the effort of everything it subsumes.
 
