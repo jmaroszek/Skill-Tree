@@ -99,3 +99,9 @@ flowchart LR
 </p>
 
 Follow the map at the footer of each page. By the end, you will know how to use Skill Tree, how to model your own graph, and, if you take the technical path, why the recommendations work the way they do.
+
+## Other Resources
+
+| Resource | What's there |
+|---|---|
+| [setup.md](docs/setup.md) | How to clone the repo and get the app running locally, before you start the tour. |
