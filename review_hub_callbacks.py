@@ -11,6 +11,7 @@ import dash_bootstrap_components as dbc
 from config import ConfigManager, sort_subcontexts
 from graph_manager import GraphManager
 from callback_helpers import build_calibration_dismissed_view
+from models import STATUS_DONE
 
 
 _manager = GraphManager()
@@ -268,8 +269,12 @@ def register_review_hub_callbacks(app):
                                 ctx_filter, subctx_filter):
         if not is_open:
             return no_update
+        # Only nodes that are *currently* Done belong in History. The
+        # reflect_*/actual_time_* columns persist when a node is un-marked
+        # Done (so re-completing restores the reflection), so _node_has_actuals
+        # alone would keep stale rows for nodes the user reverted to Open.
         nodes = [n for n in _manager.get_all_nodes(include_dormant=True)
-                 if _node_has_actuals(n)]
+                 if n.status == STATUS_DONE and _node_has_actuals(n)]
         nodes = _filter_history_nodes(nodes, search, ctx_filter, subctx_filter)
         # Most-recent-first by done_date; undated rows go to the bottom in
         # name order so the table stays scannable even before any node has

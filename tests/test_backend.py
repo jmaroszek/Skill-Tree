@@ -256,6 +256,97 @@ class TestNodeCRUD:
 
 
 # ============================================================================
+# Lifecycle date auto-stamping (start_date / done_date in update_node)
+# ============================================================================
+
+class TestLifecycleDates:
+    """start_date refreshes to the most recent off→on Now flip; turning Now
+    off preserves it so a later Done still records elapsed time. done_date is
+    stamped on each fresh →Done transition and cleared on revert."""
+
+    @staticmethod
+    def _pin_today(monkeypatch, iso):
+        """Force graph_manager's date.today() to a fixed day so successive
+        flips can land on distinct, assertable dates."""
+        import graph_manager
+        from datetime import date as _real_date
+
+        class _FixedDate:
+            @staticmethod
+            def today():
+                return _real_date.fromisoformat(iso)
+
+        monkeypatch.setattr(graph_manager, "date", _FixedDate)
+
+    def test_now_flip_stamps_start_date(self, mgr, monkeypatch):
+        self._pin_today(monkeypatch, "2026-01-10")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", now=1))
+        assert mgr.get_node("A").start_date == "2026-01-10"
+
+    def test_now_reflip_uses_most_recent_date(self, mgr, monkeypatch):
+        # First engagement on day 1.
+        self._pin_today(monkeypatch, "2026-01-01")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", now=1))
+        # Drop it (off-flip leaves start_date alone), then re-engage weeks later.
+        mgr.update_node(_make_node("A", now=0, start_date="2026-01-01"))
+        self._pin_today(monkeypatch, "2026-02-15")
+        mgr.update_node(_make_node("A", now=1, start_date="2026-01-01"))
+        assert mgr.get_node("A").start_date == "2026-02-15"
+
+    def test_now_off_preserves_start_date(self, mgr, monkeypatch):
+        self._pin_today(monkeypatch, "2026-03-01")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", now=1))
+        mgr.update_node(_make_node("A", now=0, start_date="2026-03-01"))
+        assert mgr.get_node("A").start_date == "2026-03-01"
+
+    def test_off_then_done_still_records_start(self, mgr, monkeypatch):
+        """The accidental-toggle safety case: turning Now off and immediately
+        marking Done must keep the start anchor and stamp a done_date so the
+        time estimate is recoverable."""
+        self._pin_today(monkeypatch, "2026-04-01")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", now=1))
+        mgr.update_node(_make_node("A", now=0, start_date="2026-04-01"))
+        self._pin_today(monkeypatch, "2026-04-05")
+        mgr.update_node(_make_node("A", status=STATUS_DONE, start_date="2026-04-01"))
+        result = mgr.get_node("A")
+        assert result.start_date == "2026-04-01"
+        assert result.done_date == "2026-04-05"
+
+    def test_done_stamps_done_date(self, mgr, monkeypatch):
+        self._pin_today(monkeypatch, "2026-05-01")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", status=STATUS_DONE))
+        assert mgr.get_node("A").done_date == "2026-05-01"
+
+    def test_done_when_now_clears_now_flag(self, mgr, monkeypatch):
+        self._pin_today(monkeypatch, "2026-05-01")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", now=1))
+        mgr.update_node(_make_node("A", status=STATUS_DONE, now=1, start_date="2026-05-01"))
+        assert mgr.get_node("A").now == 0
+
+    def test_revert_done_clears_done_date(self, mgr, monkeypatch):
+        self._pin_today(monkeypatch, "2026-06-01")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", status=STATUS_DONE))
+        mgr.update_node(_make_node("A", status=STATUS_OPEN, done_date="2026-06-01"))
+        assert mgr.get_node("A").done_date is None
+
+    def test_redone_restamps_done_date(self, mgr, monkeypatch):
+        self._pin_today(monkeypatch, "2026-06-01")
+        mgr.add_node(_make_node("A"))
+        mgr.update_node(_make_node("A", status=STATUS_DONE))
+        mgr.update_node(_make_node("A", status=STATUS_OPEN, done_date="2026-06-01"))
+        self._pin_today(monkeypatch, "2026-06-20")
+        mgr.update_node(_make_node("A", status=STATUS_DONE))
+        assert mgr.get_node("A").done_date == "2026-06-20"
+
+
+# ============================================================================
 # Node Rename (delete old + re-add under new name)
 # ============================================================================
 
