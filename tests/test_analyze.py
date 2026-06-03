@@ -13,7 +13,15 @@ from config import ConfigManager
 from analyze_callbacks import (
     _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
     _compute_ratings, _compute_goal_comparison, _compute_context_coverage,
+    _compute_throughput, _compute_reflection_drift,
 )
+
+
+def _throughput_node_names(rows):
+    """Flatten the throughput result into the set of node names it charts."""
+    return {nm for r in rows
+            for seg in (r.get('segments') or [])
+            for (nm, _hrs) in seg.get('nodes', [])}
 
 
 # --- Fixtures ---
@@ -704,4 +712,62 @@ class TestBuildAdjacency:
         hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency([])
         assert len(hard_fwd) == 0
         assert len(prereq_rev) == 0
+
+
+# ============================================================================
+# Status gating: un-done nodes must drop out of completion-based analytics
+# ============================================================================
+
+class TestThroughputStatusGate:
+    """done_date/actual-time data lingers when a node is reverted from Done
+    (older reverts predate the auto-clear), so throughput must gate on the
+    node's *current* status, not merely the presence of a done_date."""
+
+    def test_done_node_charted(self):
+        nodes = [_make_node("DoneA", status="Done", done_date="2026-01-15")]
+        assert "DoneA" in _throughput_node_names(_compute_throughput(nodes))
+
+    def test_undone_node_with_lingering_done_date_excluded(self):
+        nodes = [
+            _make_node("DoneA", status="Done", done_date="2026-01-15"),
+            _make_node("RevertedB", status="Open", done_date="2026-01-20"),
+        ]
+        names = _throughput_node_names(_compute_throughput(nodes))
+        assert "DoneA" in names
+        assert "RevertedB" not in names
+
+    def test_blocked_node_with_done_date_excluded(self):
+        nodes = [_make_node("X", status="Blocked", done_date="2026-02-01")]
+        assert _compute_throughput(nodes) == []
+
+
+class TestReflectionDriftStatusGate:
+    """reflect_* columns persist across un-Done, so the drift heatmap must
+    only count currently-Done reflected nodes."""
+
+    def test_undone_reflected_node_not_counted(self):
+        nodes = [
+            _make_node("A", status="Done", context="Mind", value=5, reflect_value=8),
+            _make_node("B", status="Done", context="Mind", value=5, reflect_value=7),
+            # Reverted to Open but still carrying a reflection — must be ignored.
+            _make_node("C", status="Open", context="Mind", value=5, reflect_value=2),
+        ]
+        rows = _compute_reflection_drift(nodes)
+        mind = next(r for r in rows if r["context"] == "Mind")
+        assert mind["count"] == 2                      # C excluded from the total
+        assert mind["d_value"] == 2.5                  # mean over A,B only ((3+2)/2)
+
+    def test_context_drops_below_min_after_revert(self):
+        # Two Done reflected nodes => context qualifies (MIN_N == 2).
+        done = [
+            _make_node("A", status="Done", context="Body", value=5, reflect_value=6),
+            _make_node("B", status="Done", context="Body", value=5, reflect_value=6),
+        ]
+        assert any(r["context"] == "Body" for r in _compute_reflection_drift(done))
+        # Revert one: only one reflected Done node remains => context drops out.
+        reverted = [
+            _make_node("A", status="Done", context="Body", value=5, reflect_value=6),
+            _make_node("B", status="Open", context="Body", value=5, reflect_value=6),
+        ]
+        assert all(r["context"] != "Body" for r in _compute_reflection_drift(reverted))
 
