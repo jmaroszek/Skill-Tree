@@ -51,22 +51,49 @@ def build_calibration_dismissed_view(manager):
     return html.Div(rows)
 
 
+_CONTEXT_WEIGHTS_PER_COLUMN = 3
+
+
 def build_context_weight_rows(contexts, ctx_weights):
-    """Build the per-context weight input rows for the Scoring settings tab."""
-    rows = []
-    for ctx_name in contexts:
-        rows.append(html.Div([
-            html.Div(dbc.Label(ctx_name, className="mb-0"),
-                     className="d-flex align-items-center",
-                     style={"width": "110px", "flex": "0 0 auto"}),
+    """Build the per-context weight input rows for the Scoring settings tab.
+
+    Rows are chunked into fixed-height columns (``_CONTEXT_WEIGHTS_PER_COLUMN``
+    each) laid out left-to-right, so the inputs fill the horizontal dead space
+    instead of stacking in one tall column.
+    """
+    def make_cells(ctx_name):
+        # Label + input as sibling grid items so the grid aligns them: labels
+        # left-aligned (column hugs the left margin), inputs share a column.
+        return [
+            dbc.Label(ctx_name, className="mb-0"),
             dbc.Input(
                 id={"type": "setting-context-weight", "index": ctx_name},
                 type="number", min=0, max=10, step="any",
                 value=float(ctx_weights.get(ctx_name, 1.0)),
                 style={"width": "120px"},
             ),
-        ], className="d-flex align-items-center gap-2 mb-2"))
-    return rows
+        ]
+
+    per_col = _CONTEXT_WEIGHTS_PER_COLUMN
+    column_style = {
+        "display": "grid",
+        # Label track sizes to the longest label in the column; inputs align.
+        "gridTemplateColumns": "max-content 120px",
+        "columnGap": "0.75rem",
+        "rowGap": "0.5rem",
+        "alignItems": "center",
+        # Keep rows packed at the top so a short last column (e.g. 2 items)
+        # leaves blank space below rather than spreading its rows out.
+        "alignContent": "start",
+    }
+    columns = []
+    for i in range(0, len(contexts), per_col):
+        cells = []
+        for ctx_name in contexts[i:i + per_col]:
+            cells.extend(make_cells(ctx_name))
+        columns.append(html.Div(cells, style=column_style))
+    return [html.Div(columns, className="d-flex flex-wrap align-items-start",
+                     style={"columnGap": "3rem", "rowGap": "0.5rem"})]
 
 
 def compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts):
