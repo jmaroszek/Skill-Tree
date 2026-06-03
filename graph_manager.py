@@ -117,15 +117,20 @@ class GraphManager:
             )
         prior = self.get_node(node.name)
         # --- Auto-stamp lifecycle dates and clear Now on completion ---
-        # Re-flipping Now is intentionally a no-op for dates: start_date is
-        # only set when prior.start_date is None (first time ever); done_date
-        # only on the first Open/Blocked→Done transition. When the user marks
-        # the node Done while it is currently flagged Now, we clear the flag
-        # automatically (the user's mental model: Now until Done).
+        # start_date is refreshed to today on every fresh off→on Now flip, so
+        # re-engaging a node after a gap anchors the time estimate to the most
+        # recent work session rather than a stale first-ever flip. Turning Now
+        # *off* deliberately leaves start_date intact — otherwise toggling off
+        # and immediately marking Done would lose the anchor and record no
+        # elapsed time. done_date is stamped on each fresh Open/Blocked→Done
+        # transition. When the user marks the node Done while it is currently
+        # flagged Now, we clear the flag automatically (the user's mental
+        # model: Now until Done). Reverting Done→Open/Blocked clears done_date
+        # so the next completion re-stamps with the real date rather than
+        # keeping the first one.
         if prior is not None:
             today_iso = date.today().isoformat()
-            if (node.now == 1 and prior.now == 0
-                    and prior.start_date is None):
+            if node.now == 1 and prior.now == 0:
                 node.start_date = today_iso
             if (node.status == STATUS_DONE
                     and prior.status != STATUS_DONE):
@@ -133,6 +138,9 @@ class GraphManager:
                     node.done_date = today_iso
                 if node.now == 1:
                     node.now = 0
+            elif (node.status != STATUS_DONE
+                    and prior.status == STATUS_DONE):
+                node.done_date = None
         with self.get_connection() as conn:
             cursor = conn.cursor()
             data = node.to_dict()
