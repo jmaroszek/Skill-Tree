@@ -4,7 +4,7 @@ How to clone Skill Tree and get it running locally. The app is a Dash web app wi
 
 ## Prerequisites
 
-- **Python 3.10** — the pinned environment targets 3.10. Newer versions usually work, but 3.10 is what the dependency set is tested against.
+- **Python 3.13** — the pinned environment targets 3.13. This is the version the dependency set is tested against and the app runs on.
 - **git**
 - Either **conda/miniconda** (recommended — matches the tested environment exactly) or plain **pip + venv**.
 
@@ -21,7 +21,7 @@ Pick **one** of the two options.
 
 ### Option A — conda (recommended)
 
-The `environment.yml` pins exact versions and Python 3.10, so this reproduces the tested environment most reliably.
+The `environment.yml` pins exact versions and Python 3.13, so this reproduces the tested environment most reliably.
 
 ```bash
 conda env create -f environment.yml

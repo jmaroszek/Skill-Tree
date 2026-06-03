@@ -3,7 +3,12 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.10.20
+  - python=3.13
+  # Force the standard (GIL) interpreter + ABI. Without this, conda-forge may
+  # resolve to the experimental free-threaded cp313t build, which makes
+  # scipy/numpy re-enable the GIL with a RuntimeWarning and is not what base
+  # anaconda runs. Keep the env aligned with the standard build.
+  - python_abi=3.13=*_cp313
   - dash=4.1.0
   - dash-bootstrap-components=2.0.4
   - networkx=3.4.2

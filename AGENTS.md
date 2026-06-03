@@ -55,7 +55,7 @@ Don't duplicate these in this file — they're the source of truth for their res
 
 ## Tech stack (one-liner)
 
-Python 3.10, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, NetworkX, NumPy, Plotly, SQLite via stdlib `sqlite3`. No bundler — JS in `assets/` is served raw.
+Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, NetworkX, NumPy, Plotly, SQLite via stdlib `sqlite3`. No bundler — JS in `assets/` is served raw.
 
 ## Non-obvious conventions
 
