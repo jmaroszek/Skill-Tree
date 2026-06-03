@@ -1,7 +1,7 @@
 # Skill Tree — pip dependencies (for venv users).
 # Mirrors environment.yml; keep the two in sync when bumping a version.
 # Conda users should prefer environment.yml instead.
-# Requires Python 3.10.
+# Requires Python 3.13.
 
 dash==4.1.0
 dash-bootstrap-components==2.0.4

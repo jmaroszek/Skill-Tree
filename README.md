@@ -1,6 +1,6 @@
 # Skill Tree
 
-![Python 3.10](https://img.shields.io/badge/Python-3.10-blue) ![Dash](https://img.shields.io/badge/Dash-Plotly-purple) ![SQLite](https://img.shields.io/badge/Database-SQLite-green)
+![Python 3.13](https://img.shields.io/badge/Python-3.13-blue) ![Dash](https://img.shields.io/badge/Dash-Plotly-purple) ![SQLite](https://img.shields.io/badge/Database-SQLite-green)
 
 Skill Tree is a task-prioritization app that models your projects as a graph, scores them by return on investment, and tells you what to work on next -- and why.
 

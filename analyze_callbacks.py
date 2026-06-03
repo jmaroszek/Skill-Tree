@@ -223,9 +223,15 @@ def _compute_reflection_drift(nodes):
     """For each context with at least ``_REFLECTION_MIN_N`` reflected nodes,
     compute mean ``reflect_X - X`` across V/I/D. A null reflect_X is skipped
     for that metric only; nodes count toward the context's reflected total
-    if any of the three reflection fields is populated."""
+    if any of the three reflection fields is populated.
+
+    Only currently-Done nodes count. reflect_* columns persist when a node is
+    un-marked Done (so re-completing restores the reflection), so without this
+    gate a reverted node would keep skewing the drift heatmap."""
     by_ctx = defaultdict(lambda: {'dv': [], 'di': [], 'dd': [], 'count': 0})
     for n in nodes:
+        if n.status != STATUS_DONE:
+            continue
         if (n.reflect_value is None
                 and n.reflect_interest is None
                 and n.reflect_difficulty is None):
@@ -259,8 +265,12 @@ def _compute_reflection_drift(nodes):
 
 def _compute_throughput(nodes, granularity='quarter',
                         start_date=None, end_date=None):
-    """Bucket Done nodes with ``done_date`` into calendar buckets, segmented
-    by context. ``granularity`` is 'month' | 'quarter' | 'year'; empty
+    """Bucket currently-Done nodes with ``done_date`` into calendar buckets,
+    segmented by context. The status gate matters because ``done_date`` can
+    linger on a node that was completed and later reverted to Open (older
+    reverts predate the auto-clear on un-Done); requiring status Done keeps
+    such a node out of the timeline. ``granularity`` is 'month' | 'quarter' |
+    'year'; empty
     buckets between min and max are still emitted so the timeline reads
     continuously. ``start_date`` / ``end_date`` are ISO strings that
     optionally clip the range; None means "auto" (use the available data's
@@ -308,6 +318,8 @@ def _compute_throughput(nodes, granularity='quarter',
 
     buckets = defaultdict(lambda: defaultdict(list))
     for n in nodes:
+        if n.status != STATUS_DONE:
+            continue
         if not n.done_date:
             continue
         try:
