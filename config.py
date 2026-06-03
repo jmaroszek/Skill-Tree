@@ -669,6 +669,13 @@ class ConfigManager:
         if hours is None or hours <= 0:
             return "0.0h" if force_one_decimal else "0h"
 
+        # Coerce to float before the integer-display checks below. Callers such
+        # as the Analyze throughput axis-tick generator pass plain ints, and
+        # round(int, 1) returns an int. int.is_integer() only exists on Python
+        # 3.12+, so on the app's 3.10 runtime the checks would raise
+        # AttributeError. float() makes the path version-agnostic.
+        hours = float(hours)
+
         settings = cls.get_time_settings()
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)

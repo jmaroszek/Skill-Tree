@@ -2237,6 +2237,20 @@ class TestFormatTimeFriendly:
         result = ConfigManager.format_time_friendly(1039.0)
         assert result.endswith("m")
 
+    def test_integer_argument_all_branches(self):
+        """Regression: callers (e.g. the Analyze throughput axis-tick
+        generator) pass plain ints. round(int, 1) returns an int, and
+        int.is_integer() doesn't exist before Python 3.12 — so on the app's
+        3.10 runtime an int argument used to raise AttributeError and 500 the
+        Analyze tab. Every magnitude branch must accept an int."""
+        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
+        assert ConfigManager.format_time_friendly(8) == "8h"      # hours branch
+        assert ConfigManager.format_time_friendly(80) == "2w"     # weeks branch
+        assert ConfigManager.format_time_friendly(320) == "2m"    # months branch
+        assert ConfigManager.format_time_friendly(4160) == "2y"   # years branch
+        # force_one_decimal path with an int must also not raise.
+        assert ConfigManager.format_time_friendly(8, force_one_decimal=True) == "8.0h"
+
 
 # ============================================================================
 # ConfigManager — Priority Goals
