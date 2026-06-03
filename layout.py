@@ -557,7 +557,20 @@ time_calibration_modal = dbc.Modal([
             # (separate from the estimate columns value/interest/difficulty).
             html.Div(id="calibration-vie-section", children=[
                 html.Hr(className="my-3"),
-                html.H6("How was it actually?", className="mb-2"),
+                html.Div([
+                    html.H6("How was it actually?", className="mb-0"),
+                    html.Button(
+                        html.I(className="bi bi-info-circle"),
+                        id="btn-reflection-ratings-info",
+                        style={
+                            "background": "none", "border": "none", "padding": "0 0 0 6px",
+                            "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
+                            "lineHeight": "1", "position": "relative", "top": "0px"
+                        }
+                    ),
+                    dbc.Tooltip("Ratings reference", target="btn-reflection-ratings-info", placement="right",
+                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                ], className="d-flex align-items-center mb-2"),
                 dbc.Label("Actual Value", className="mt-2"),
                 dcc.Slider(min=1, max=10, step=1, value=5,
                            id="calibration-value",

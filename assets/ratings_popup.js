@@ -7,12 +7,13 @@
     var DEFAULT_LEFT = '420px';
     var DEFAULT_TOP = '120px';
 
-    // Multiple sites trigger the same popup: main node editor and the Add
-    // Subtask modal (Details tab). The modal renders lazily, so we watch
-    // continuously and wire up each button as it appears.
+    // Multiple sites trigger the same popup: main node editor, the Add
+    // Subtask modal (Details tab), and the Reflection modal. Modals render
+    // lazily, so we watch continuously and wire up each button as it appears.
     var TRIGGER_IDS = [
         'btn-ratings-info',
         'btn-details-ratings-info',
+        'btn-reflection-ratings-info',
     ];
 
     var attached = {};
