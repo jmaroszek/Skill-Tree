@@ -36,16 +36,19 @@ def _configure_logging() -> None:
     )
     file_handler.setFormatter(formatter)
 
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(formatter)
-
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     # basicConfig elsewhere is a no-op once handlers exist; clear any prior
     # handlers in case this module is re-imported (test harness, REPL).
     root.handlers.clear()
     root.addHandler(file_handler)
-    root.addHandler(stream_handler)
+    # The native-window launch runs under pythonw.exe, which has no console:
+    # sys.stderr is None there, and a StreamHandler aimed at it would make every
+    # log call fail. Only attach the console handler when a real stderr exists.
+    if sys.stderr is not None:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        root.addHandler(stream_handler)
 
 
 _configure_logging()
@@ -200,19 +203,76 @@ def _existing_instance_running(port: int) -> bool:
     return _existing_skill_tree_server(port)
 
 
+def _wait_until_serving(port: int, timeout: float = 20.0) -> None:
+    """Block until the local server answers, so the window never loads a dead URL.
+
+    The server boots on a background thread; this gives it a moment to start
+    accepting before the window points at it. Returns as soon as the boot-id
+    route responds, and gives up after `timeout` rather than hanging forever
+    (the window then just shows whatever state the server is in).
+    """
+    import time
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _existing_skill_tree_server(port):
+            return
+        time.sleep(0.15)
+
+
+def _run_in_window(port: int) -> None:
+    """Run Skill Tree as a native desktop window — no terminal, no browser tab.
+
+    The Dash/Flask server runs on a daemon thread while pywebview owns the main
+    thread and the OS window. Closing the window returns from webview.start(),
+    the process exits, and the daemon server thread dies with it. So the window
+    *is* the app's lifecycle — unlike a browser tab, which is just an HTTP client
+    whose closing leaves the server running.
+    """
+    import webview
+
+    def _serve() -> None:
+        # debug=False: the in-browser Werkzeug debugger is pointless inside a
+        # native window, and debug-mode signal handling is fussy off the main
+        # thread. Tracebacks still land in data/<env>_app.log. threaded=True lets
+        # the dev server handle Dash's concurrent callback requests.
+        app.run(debug=False, dev_tools_ui=False, dev_tools_hot_reload=False,
+                use_reloader=False, port=port, threaded=True)
+
+    threading.Thread(target=_serve, daemon=True).start()
+    _wait_until_serving(port)
+
+    webview.create_window(
+        app.title,
+        f"http://127.0.0.1:{port}",
+        width=1400,
+        height=900,
+        min_size=(900, 600),
+    )
+    webview.start()
+
+
 if __name__ == '__main__':
     # Optional --port flag so a sandbox instance can run alongside production
     # without colliding on 8050.
     _port = _parse_port(sys.argv)
+    # --window: run as a native desktop window (launched via pythonw, so no
+    # terminal) instead of auto-opening a browser tab. The desktop shortcut uses
+    # this; plain `python app.py` keeps the browser flow for development.
+    _native_window = "--window" in sys.argv
+
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and _existing_instance_running(_port):
         _logger.info("Skill Tree is already running on port %d; exiting duplicate launch.", _port)
         sys.exit(0)
-    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()
-    # use_reloader=False: with the reloader on (Flask's default under debug=True)
-    # Werkzeug re-execs the whole module in a child process, so every import and
-    # the startup status recompute run twice — ~2.4s of duplicated boot work.
-    # Hot reload is already disabled (dev_tools_hot_reload=False), so the reloader
-    # bought nothing here. debug=True is kept for the in-browser error pages.
-    app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False,
-            use_reloader=False, port=_port)
+
+    if _native_window:
+        _run_in_window(_port)
+    else:
+        if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+            threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()
+        # use_reloader=False: with the reloader on (Flask's default under debug=True)
+        # Werkzeug re-execs the whole module in a child process, so every import and
+        # the startup status recompute run twice — ~2.4s of duplicated boot work.
+        # Hot reload is already disabled (dev_tools_hot_reload=False), so the reloader
+        # bought nothing here. debug=True is kept for the in-browser error pages.
+        app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False,
+                use_reloader=False, port=_port)
