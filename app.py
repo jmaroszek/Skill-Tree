@@ -219,78 +219,60 @@ def _wait_until_serving(port: int, timeout: float = 20.0) -> None:
         time.sleep(0.15)
 
 
-# COLORREFs (0x00BBGGRR) for the native title bar: the app's top-bar background
-# (#1a1d21) and text color (#dee2e6), so the OS caption blends into the app
-# instead of showing as a lighter strip above the tab row.
-_TITLEBAR_BG = 0x00211D1A
-_TITLEBAR_FG = 0x00E6E2DE
+# The native window, set once it exists. Kept module-level — NOT as an attribute
+# of the js_api object — so the object pywebview bridges to JS holds no reference
+# back to the Window. That circular reference jams pywebview's bridge setup and
+# hangs the window the moment the page loads.
+_native_window = None
 
 
-def _style_window_async(title: str) -> None:
-    """Dark-tint the native title bar and set its icon — off the UI thread.
+class _WindowControls:
+    """JS-callable window controls for the frameless native window.
 
-    This runs on its own thread and only makes Win32/DWM calls against the window
-    handle (found by title); it never touches pywebview's objects or its UI
-    thread. Doing the same work inline on pywebview's `shown` event deadlocks the
-    window while WebView2 is still initializing (blank + "not responding"). Every
-    call here is time-bounded, so a busy UI thread can't hang this one either.
+    Exposed to the page as ``window.pywebview.api.*``; the custom title-bar
+    buttons (assets/window_controls.js) call these. Methods reach the window via
+    the module-level ``_native_window`` rather than holding it as an attribute —
+    see the note above.
     """
-    import time
-    from ctypes import wintypes
 
-    user32 = ctypes.windll.user32
-    user32.FindWindowW.restype = wintypes.HWND
+    def __init__(self) -> None:
+        self._maximized = False
 
-    handle = None
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        handle = user32.FindWindowW(None, title)
-        if handle:
-            break
-        time.sleep(0.1)
-    if not handle:
-        return
-    hwnd = wintypes.HWND(handle)
+    def minimize(self) -> None:
+        if _native_window is not None:
+            _native_window.minimize()
 
-    # Dark caption / border / text (Windows 11 22000+; no-ops on older builds).
-    for attr, value in ((20, 1), (35, _TITLEBAR_BG), (34, _TITLEBAR_BG), (36, _TITLEBAR_FG)):
-        v = ctypes.c_int(value)
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attr, ctypes.byref(v), ctypes.sizeof(v))
+    def toggle_maximize(self) -> bool:
+        if _native_window is None:
+            return self._maximized
+        if self._maximized:
+            _native_window.restore()
+        else:
+            _native_window.maximize()
+        self._maximized = not self._maximized
+        return self._maximized
 
-    # Title-bar + taskbar icon from the .ico (skip silently if it's missing).
-    icon_path = str(Path(__file__).parent / "assets" / "skill_tree.ico")
-    if not os.path.exists(icon_path):
-        return
-    user32.LoadImageW.restype = wintypes.HANDLE
-    user32.SendMessageTimeoutW.argtypes = [
-        wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
-        wintypes.UINT, wintypes.UINT, ctypes.POINTER(wintypes.DWORD)]
-    IMAGE_ICON, LR_LOADFROMFILE = 1, 0x10
-    WM_SETICON, SMTO_ABORTIFHUNG = 0x0080, 0x0002
-    for px, which in ((32, 1), (16, 0)):  # ICON_BIG, ICON_SMALL
-        h = user32.LoadImageW(None, icon_path, IMAGE_ICON, px, px, LR_LOADFROMFILE)
-        if h:
-            user32.SendMessageTimeoutW(hwnd, WM_SETICON, which, h,
-                                       SMTO_ABORTIFHUNG, 2000, None)
+    def close(self) -> None:
+        if _native_window is not None:
+            _native_window.destroy()
 
 
 def _run_in_window(port: int) -> None:
-    """Run Skill Tree as a native desktop window — no terminal, no browser tab.
+    """Run Skill Tree as a frameless native desktop window — no terminal, no
+    browser tab, and no OS title bar.
 
     The Dash/Flask server runs on a daemon thread while pywebview owns the main
     thread and the OS window. Closing the window returns from webview.start(),
     the process exits, and the daemon server thread dies with it. So the window
     *is* the app's lifecycle — unlike a browser tab, which is just an HTTP client
     whose closing leaves the server running.
+
+    frameless=True drops the OS caption; the window controls live in the app's
+    own top bar (layout.main_tabs + assets/window_controls.js) and call back
+    through ``controls`` over pywebview's JS API. easy_drag=False so only the top
+    bar (class .pywebview-drag-region) moves the window, never the canvas.
     """
     import webview
-
-    # Own taskbar identity so the button groups as "Skill Tree" and adopts our
-    # icon rather than pythonw.exe's. Safe to set on the main thread up front.
-    try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SkillTree.App")
-    except Exception:
-        pass
 
     def _serve() -> None:
         # debug=False: the in-browser Werkzeug debugger is pointless inside a
@@ -303,17 +285,18 @@ def _run_in_window(port: int) -> None:
     threading.Thread(target=_serve, daemon=True).start()
     _wait_until_serving(port)
 
-    # Apply title-bar polish from a side thread — see _style_window_async for why
-    # this must not run on pywebview's UI thread.
-    threading.Thread(target=_style_window_async, args=(app.title,), daemon=True).start()
-
-    webview.create_window(
+    global _native_window
+    window = webview.create_window(
         app.title,
         f"http://127.0.0.1:{port}",
         width=1400,
         height=900,
         min_size=(900, 600),
+        frameless=True,
+        easy_drag=False,
+        js_api=_WindowControls(),
     )
+    _native_window = window
     webview.start()
 
 
