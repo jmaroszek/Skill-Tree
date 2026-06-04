@@ -269,7 +269,14 @@ class Node:
         return self.value_mode == 'inherited' and self.time_mode == 'inherited'
 
     def to_dict(self):
-        d = asdict(self)
+        # Shallow-copy the field values rather than dataclasses.asdict(),
+        # which recursively deep-copies every field. All Node fields are
+        # immutable primitives (str/int/float/None) and __post_init__ adds no
+        # non-field attributes, so __dict__ holds exactly the fields and a
+        # shallow copy is observationally identical to asdict — but ~7x faster.
+        # to_dict runs once per node on every canvas render (generate_elements),
+        # so this is a hot path.
+        d = dict(self.__dict__)
         d['time'] = self.time  # include the derived blended PERT estimate
         return d
 

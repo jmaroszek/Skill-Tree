@@ -54,6 +54,7 @@ import dash
 import dash_cytoscape as cyto
 import webbrowser
 import threading
+import socket
 import urllib.error
 import urllib.request
 import dash_bootstrap_components as dbc
@@ -147,8 +148,34 @@ def _parse_port(argv) -> int:
     return port
 
 
+def _port_is_free(port: int) -> bool:
+    """True when nothing is bound to the loopback port.
+
+    A bind attempt answers this instantly and authoritatively. A connect
+    probe can't: on Windows a connection to a *closed* port isn't refused
+    promptly (the SYN is dropped, so a raw connect only fails after ~2s),
+    which means a connect-with-timeout would burn its full timeout on every
+    normal launch — the common case where no server is running yet. bind()
+    never waits.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("127.0.0.1", port))
+        return True
+    except OSError:
+        return False
+    finally:
+        probe.close()
+
+
 def _existing_skill_tree_server(port: int) -> bool:
-    """True when a Skill Tree server is already answering on this port."""
+    """True when a Skill Tree server is already answering on this port.
+
+    Only reached once the port is known to be occupied, so the connection
+    succeeds immediately and the short timeout is never spent waiting on a
+    dropped SYN — it only guards against a foreign process that accepts the
+    connection but stalls before responding.
+    """
     try:
         with urllib.request.urlopen(
             f"http://127.0.0.1:{port}/_server_boot_id",
@@ -161,7 +188,15 @@ def _existing_skill_tree_server(port: int) -> bool:
 
 
 def _existing_instance_running(port: int) -> bool:
-    """True when this launch should exit because the app is already running."""
+    """True when this launch should exit because our app is already running.
+
+    Fast path: a free port means no instance exists, so return immediately
+    with no network round-trip. Only when the port is occupied do we confirm
+    (via the boot-id endpoint) that the occupant is actually a Skill Tree
+    server rather than some unrelated process holding the port.
+    """
+    if _port_is_free(port):
+        return False
     return _existing_skill_tree_server(port)
 
 
@@ -174,4 +209,10 @@ if __name__ == '__main__':
         sys.exit(0)
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()
-    app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False, port=_port)
+    # use_reloader=False: with the reloader on (Flask's default under debug=True)
+    # Werkzeug re-execs the whole module in a child process, so every import and
+    # the startup status recompute run twice — ~2.4s of duplicated boot work.
+    # Hot reload is already disabled (dev_tools_hot_reload=False), so the reloader
+    # bought nothing here. debug=True is kept for the in-browser error pages.
+    app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False,
+            use_reloader=False, port=_port)

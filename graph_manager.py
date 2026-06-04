@@ -756,30 +756,81 @@ class GraphManager:
         return result
 
     def recompute_all_statuses(self) -> int:
-        """Walk every non-Goal, non-Done node and re-derive its Blocked/Open status.
+        """Re-derive every non-Goal node's Blocked/Open status from scratch.
 
         Safety net for any case where the incremental cascade was bypassed.
         Called on app launch (`app.py`) so every session starts in a
         consistent state. Returns the number of nodes whose status actually
         changed; logs a warning when drift is detected so silent bypass
         paths surface in the logs instead of being papered over.
+
+        Done in memory off a single nodes-load and a single edges-load, then
+        persisted as one batched UPDATE — three DB connections total rather
+        than the ~two-per-node the old per-node cascade opened.
+
+        Goal status is user-controlled, so Goals are never rewritten; their
+        stored status still feeds dependents. Done nodes ARE re-derived so a
+        Done node whose prereqs were un-Done outside the cascade (raw SQL,
+        restored backup, etc.) flips to Blocked rather than sitting in an
+        asymmetric state.
         """
         import logging
         logger = logging.getLogger(__name__)
-        changed_names: List[str] = []
-        for node in self.get_all_nodes(include_dormant=True):
-            # Goal status is user-controlled. Done-status nodes ARE re-derived
-            # so that a Done node whose prereqs were un-Done outside the
-            # cascade (raw SQL, restored backup, etc.) flips to Blocked
-            # rather than sitting in an asymmetric state.
-            if node.type == 'Goal':
+
+        nodes = self.get_all_nodes(include_dormant=True)   # connection 1
+        edges = self.get_edges()                           # connection 2
+
+        stored = {n.name: n.status for n in nodes}
+        node_type = {n.name: n.type for n in nodes}
+
+        # Hard-prereq adjacency, restricted to edges whose endpoints both
+        # exist (mirrors the JOIN-Nodes guard the per-node cascade relied on,
+        # so an orphaned edge can't phantom-block a node).
+        prereqs_of: Dict[str, List[str]] = {name: [] for name in stored}
+        dependents_of: Dict[str, List[str]] = {name: [] for name in stored}
+        for e in edges:
+            if e['type'] != EDGE_NEEDS_HARD:
                 continue
-            before = node.status
-            self._update_node_state(node.name)
-            after_node = self.get_node(node.name)
-            if after_node and after_node.status != before:
-                changed_names.append(node.name)
+            src, tgt = e['source'], e['target']
+            if src in stored and tgt in stored:
+                prereqs_of[tgt].append(src)
+                dependents_of[src].append(tgt)
+
+        # Derive statuses to a fixpoint. A node is Blocked when any hard
+        # prereq isn't Done; a Done node only ever flips to Blocked, never
+        # silently back to Open. Re-derivation never *marks* a node Done, so
+        # the Done set only shrinks — that makes "blocked" monotonic and bounds
+        # each node to at most one transition, so the worklist always settles
+        # (no acyclicity assumption needed).
+        derived = dict(stored)
+
+        def _derive(name: str) -> str:
+            is_blocked = any(derived[p] != STATUS_DONE for p in prereqs_of[name])
+            if derived[name] == STATUS_DONE and not is_blocked:
+                return STATUS_DONE
+            return STATUS_BLOCKED if is_blocked else STATUS_OPEN
+
+        queue: List[str] = [name for name in stored if node_type[name] != 'Goal']
+        while queue:
+            name = queue.pop()
+            if node_type[name] == 'Goal':
+                continue
+            new_status = _derive(name)
+            if new_status != derived[name]:
+                derived[name] = new_status
+                queue.extend(dependents_of[name])
+
+        changed_names = [
+            name for name in stored
+            if node_type[name] != 'Goal' and derived[name] != stored[name]
+        ]
         if changed_names:
+            with self.get_connection() as conn:            # connection 3
+                conn.executemany(
+                    "UPDATE Nodes SET status=? WHERE name=?",
+                    [(derived[name], name) for name in changed_names],
+                )
+                conn.commit()
             logger.warning(
                 "recompute_all_statuses: repaired %d drifted node(s): %s",
                 len(changed_names),
