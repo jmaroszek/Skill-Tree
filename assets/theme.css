@@ -484,3 +484,25 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
 .electron-shell #main-toolbar [role="button"] {
     -webkit-app-region: no-drag;
 }
+
+/* --- Flat "ghost" toolbar icons --- */
+/* The top toolbar's icon buttons default to filled gray (btn-secondary), which
+   reads as chunky buttons next to the flat native window controls. Override
+   Bootstrap's button custom properties so they render as muted light-stroke
+   icons that only highlight on hover -- a cohesive control strip that flows
+   into the window buttons. Scoped to btn-secondary so the (warning) Clear Focus
+   button keeps its color. Applies in both browser and Electron. */
+#main-toolbar .btn-secondary {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: #adb5bd;
+    --bs-btn-hover-bg: rgba(255, 255, 255, 0.07);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: #f1f3f5;
+    --bs-btn-active-bg: rgba(255, 255, 255, 0.12);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-active-color: #ffffff;
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+    font-size: 1rem;
+}
