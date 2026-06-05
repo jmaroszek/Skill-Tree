@@ -12,6 +12,24 @@
     opacity: 1;
 }
 
+/* Flat "ghost" treatment for the canvas overlay icons, matching the in-app
+   tab bar: muted gray stroke on a transparent background that only lightens
+   on hover, instead of Bootstrap's chunky filled btn-secondary. Scoped to
+   btn-secondary so any colored overlay button keeps its color. */
+.btn-canvas-overlay.btn-secondary {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: #6c757d;
+    --bs-btn-hover-bg: rgba(255, 255, 255, 0.07);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: #dee2e6;
+    --bs-btn-active-bg: rgba(255, 255, 255, 0.12);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-active-color: #f1f3f5;
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+}
+
 .btn-canvas-top-right {
     top: 8px;
 }
@@ -22,12 +40,12 @@
 
 .btn-canvas-bottom-right-mid {
     bottom: 12px;
-    right: 56px;
+    right: 52px;
 }
 
 .btn-canvas-bottom-right-far {
     bottom: 12px;
-    right: 96px;
+    right: 88px;
 }
 
 .btn-canvas-bottom-left {
