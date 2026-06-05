@@ -467,45 +467,6 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     color: #fff;
 }
 
-/* --- Frameless native window: custom title-bar controls --- */
-/* Only visible inside the pywebview window (window_controls.js reveals them).
-   They sit flush to the far-right of the top toolbar and mimic the native
-   Windows caption buttons (full bar height, hover highlight, red close). */
-.win-ctl {
-    background: transparent;
-    border: none;
-    color: #adb5bd;
-    width: 46px;
-    height: 100%;
-    min-height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.78rem;
-    padding: 0;
-    cursor: pointer;
-    transition: background-color 0.12s ease, color 0.12s ease;
-}
-.win-ctl:hover {
-    background: #2b3035;
-    color: #f8f9fa;
-}
-.win-ctl:focus {
-    outline: none;
-    box-shadow: none;
-}
-.win-ctl-close:hover {
-    background: #c42b1c;   /* Windows-style close red */
-    color: #fff;
-}
-/* Set the controls apart from the app's own icons with a gap + faint divider,
-   so min/maximize/close read as window chrome rather than more toolbar icons
-   sharing the row. */
-#window-controls {
-    margin-left: 10px;
-    border-left: 1px solid #343a40;
-}
-
 /* --- Electron desktop shell: integrated (Window Controls Overlay) title bar --- */
 /* preload.js adds .electron-shell. The native min/maximize/close buttons are
    drawn by the OS in the top-right corner; the app's top toolbar *is* the title
@@ -523,5 +484,3 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
 .electron-shell #main-toolbar [role="button"] {
     -webkit-app-region: no-drag;
 }
-/* The pywebview custom window buttons are never used inside the Electron shell. */
-.electron-shell #window-controls { display: none !important; }

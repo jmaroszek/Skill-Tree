@@ -203,124 +203,21 @@ def _existing_instance_running(port: int) -> bool:
     return _existing_skill_tree_server(port)
 
 
-def _wait_until_serving(port: int, timeout: float = 20.0) -> None:
-    """Block until the local server answers, so the window never loads a dead URL.
-
-    The server boots on a background thread; this gives it a moment to start
-    accepting before the window points at it. Returns as soon as the boot-id
-    route responds, and gives up after `timeout` rather than hanging forever
-    (the window then just shows whatever state the server is in).
-    """
-    import time
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if _existing_skill_tree_server(port):
-            return
-        time.sleep(0.15)
-
-
-# The native window, set once it exists. Kept module-level — NOT as an attribute
-# of the js_api object — so the object pywebview bridges to JS holds no reference
-# back to the Window. That circular reference jams pywebview's bridge setup and
-# hangs the window the moment the page loads.
-_native_window = None
-
-
-class _WindowControls:
-    """JS-callable window controls for the frameless native window.
-
-    Exposed to the page as ``window.pywebview.api.*``; the custom title-bar
-    buttons (assets/window_controls.js) call these. Methods reach the window via
-    the module-level ``_native_window`` rather than holding it as an attribute —
-    see the note above.
-    """
-
-    def __init__(self) -> None:
-        self._maximized = False
-
-    def minimize(self) -> None:
-        if _native_window is not None:
-            _native_window.minimize()
-
-    def toggle_maximize(self) -> bool:
-        if _native_window is None:
-            return self._maximized
-        if self._maximized:
-            _native_window.restore()
-        else:
-            _native_window.maximize()
-        self._maximized = not self._maximized
-        return self._maximized
-
-    def close(self) -> None:
-        if _native_window is not None:
-            _native_window.destroy()
-
-
-def _run_in_window(port: int) -> None:
-    """Run Skill Tree as a frameless native desktop window — no terminal, no
-    browser tab, and no OS title bar.
-
-    The Dash/Flask server runs on a daemon thread while pywebview owns the main
-    thread and the OS window. Closing the window returns from webview.start(),
-    the process exits, and the daemon server thread dies with it. So the window
-    *is* the app's lifecycle — unlike a browser tab, which is just an HTTP client
-    whose closing leaves the server running.
-
-    frameless=True drops the OS caption; the window controls live in the app's
-    own top bar (layout.main_tabs + assets/window_controls.js) and call back
-    through ``controls`` over pywebview's JS API. easy_drag=False so only the top
-    bar (class .pywebview-drag-region) moves the window, never the canvas.
-    """
-    import webview
-
-    def _serve() -> None:
-        # debug=False: the in-browser Werkzeug debugger is pointless inside a
-        # native window, and debug-mode signal handling is fussy off the main
-        # thread. Tracebacks still land in data/<env>_app.log. threaded=True lets
-        # the dev server handle Dash's concurrent callback requests.
-        app.run(debug=False, dev_tools_ui=False, dev_tools_hot_reload=False,
-                use_reloader=False, port=port, threaded=True)
-
-    threading.Thread(target=_serve, daemon=True).start()
-    _wait_until_serving(port)
-
-    global _native_window
-    window = webview.create_window(
-        app.title,
-        f"http://127.0.0.1:{port}",
-        width=1400,
-        height=900,
-        min_size=(900, 600),
-        frameless=True,
-        easy_drag=False,
-        js_api=_WindowControls(),
-    )
-    _native_window = window
-    webview.start()
-
-
 if __name__ == '__main__':
     # Optional --port flag so a sandbox instance can run alongside production
     # without colliding on 8050.
     _port = _parse_port(sys.argv)
-    # --window: run as a native desktop window (launched via pythonw, so no
-    # terminal) instead of auto-opening a browser tab. The desktop shortcut uses
-    # this; plain `python app.py` keeps the browser flow for development.
-    _native_window = "--window" in sys.argv
-    # --no-browser: just run the server, don't auto-open a browser. Used when an
-    # external shell (the Electron app) hosts the page and loads the URL itself.
+    # --no-browser: just run the server, don't auto-open a browser. Used when the
+    # Electron desktop shell hosts the page and loads the URL itself.
     _no_browser = "--no-browser" in sys.argv
 
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and _existing_instance_running(_port):
         _logger.info("Skill Tree is already running on port %d; exiting duplicate launch.", _port)
         sys.exit(0)
 
-    if _native_window:
-        _run_in_window(_port)
-    elif _no_browser:
-        # Server-only mode for an external shell (Electron): no browser tab and
-        # no native window. threaded=True handles Dash's concurrent callbacks.
+    if _no_browser:
+        # Server-only mode for the Electron desktop shell: no browser tab.
+        # threaded=True handles Dash's concurrent callbacks.
         app.run(debug=False, dev_tools_ui=False, dev_tools_hot_reload=False,
                 use_reloader=False, port=_port, threaded=True)
     else:

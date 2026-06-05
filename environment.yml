@@ -22,6 +22,3 @@ dependencies:
   - pip
   - pip:
     - dash-cytoscape==1.0.2
-    # Native desktop-window launch (python app.py --window); pulls in pythonnet
-    # for the Windows WebView2/EdgeChromium backend.
-    - pywebview==6.2.1

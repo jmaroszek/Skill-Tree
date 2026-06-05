@@ -1036,21 +1036,7 @@ def build_app_layout(initial_elements, env="production"):
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
-
-        # FAR RIGHT: native window controls. Hidden by default; window_controls.js
-        # reveals them only in the frameless native window (when window.pywebview
-        # exists) and wires them to the pywebview JS API. In a browser tab they
-        # stay hidden.
-        html.Div([
-            html.Button(html.I(className="bi bi-dash-lg"), id="win-ctl-min",
-                        className="win-ctl", title="Minimize"),
-            html.Button(html.I(className="bi bi-square"), id="win-ctl-max",
-                        className="win-ctl", title="Maximize"),
-            html.Button(html.I(className="bi bi-x-lg"), id="win-ctl-close",
-                        className="win-ctl win-ctl-close", title="Close"),
-        ], id="window-controls", className="d-flex align-self-stretch align-items-stretch",
-           style={"flex": "0 0 auto", "display": "none"}),
-    ], id="main-toolbar", className="d-flex align-items-center pywebview-drag-region",
+    ], id="main-toolbar", className="d-flex align-items-center",
        style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"})
 
     # --- Canvas Tab Content (existing layout, unchanged) ---

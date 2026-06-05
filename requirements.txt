@@ -12,6 +12,6 @@ plotly==6.6.0
 pytest==9.0.3
 scipy==1.15.2
 
-# Native desktop-window launch (python app.py --window). Pulls in pythonnet for
-# the Windows WebView2/EdgeChromium backend.
-pywebview==6.2.1
+# The Electron desktop shell needs Node.js (a conda dependency — see
+# environment.yml) plus its npm packages; see setup.md. Node is not
+# pip-installable, so there's nothing to add here for it.
