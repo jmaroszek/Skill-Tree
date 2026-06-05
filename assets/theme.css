@@ -505,3 +505,23 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     margin-left: 10px;
     border-left: 1px solid #343a40;
 }
+
+/* --- Electron desktop shell: integrated (Window Controls Overlay) title bar --- */
+/* preload.js adds .electron-shell. The native min/maximize/close buttons are
+   drawn by the OS in the top-right corner; the app's top toolbar *is* the title
+   bar. So make the bar draggable, keep interactive children clickable, and
+   reserve the button region on the right (WCO env var, ~138px fallback). */
+.electron-shell #main-toolbar {
+    -webkit-app-region: drag;
+    padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 138px)));
+}
+.electron-shell #main-toolbar button,
+.electron-shell #main-toolbar a,
+.electron-shell #main-toolbar input,
+.electron-shell #main-toolbar select,
+.electron-shell #main-toolbar .nav-link,
+.electron-shell #main-toolbar [role="button"] {
+    -webkit-app-region: no-drag;
+}
+/* The pywebview custom window buttons are never used inside the Electron shell. */
+.electron-shell #window-controls { display: none !important; }

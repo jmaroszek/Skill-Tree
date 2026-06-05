@@ -10,7 +10,7 @@
 // The Python app is unchanged except for a --no-browser flag (so it serves
 // without opening a browser tab, since we load it ourselves).
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Menu } = require('electron');
 const { spawn } = require('child_process');
 const treeKill = require('tree-kill');
 const http = require('http');
@@ -66,6 +66,10 @@ function createWindow() {
     backgroundColor: '#1a1d21',   // matches the app; avoids a white flash
     icon: ICON,
     show: false,
+    // Integrated title bar: hide the OS caption but keep the native window
+    // buttons as an overlay in the top-right; the app's toolbar fills the rest.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#1a1d21', symbolColor: '#dee2e6', height: 40 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -75,6 +79,11 @@ function createWindow() {
   mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.on('closed', () => { mainWindow = null; });
+  // F12 / Ctrl+Shift+I toggles DevTools (there's no app menu to provide it).
+  mainWindow.webContents.on('before-input-event', (e, input) => {
+    const ctrlShiftI = input.control && input.shift && input.key.toLowerCase() === 'i';
+    if (input.key === 'F12' || ctrlShiftI) mainWindow.webContents.toggleDevTools();
+  });
 }
 
 function shutdown() {
@@ -95,6 +104,7 @@ if (!gotLock) {
     }
   });
   app.whenReady().then(() => {
+    Menu.setApplicationMenu(null);   // drop the default File/Edit/View/Window menu
     startServer();
     waitForServer(createWindow);
   });
