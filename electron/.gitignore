@@ -1,0 +1,4 @@
+# Node / Electron build artifacts — never commit these.
+node_modules/
+dist/
+out/

@@ -308,6 +308,9 @@ if __name__ == '__main__':
     # terminal) instead of auto-opening a browser tab. The desktop shortcut uses
     # this; plain `python app.py` keeps the browser flow for development.
     _native_window = "--window" in sys.argv
+    # --no-browser: just run the server, don't auto-open a browser. Used when an
+    # external shell (the Electron app) hosts the page and loads the URL itself.
+    _no_browser = "--no-browser" in sys.argv
 
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and _existing_instance_running(_port):
         _logger.info("Skill Tree is already running on port %d; exiting duplicate launch.", _port)
@@ -315,6 +318,11 @@ if __name__ == '__main__':
 
     if _native_window:
         _run_in_window(_port)
+    elif _no_browser:
+        # Server-only mode for an external shell (Electron): no browser tab and
+        # no native window. threaded=True handles Dash's concurrent callbacks.
+        app.run(debug=False, dev_tools_ui=False, dev_tools_hot_reload=False,
+                use_reloader=False, port=_port, threaded=True)
     else:
         if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()

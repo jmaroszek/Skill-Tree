@@ -16,6 +16,9 @@ dependencies:
   - plotly=6.6.0
   - pytest=9.0.3
   - scipy=1.15.2
+  # Node.js powers the Electron desktop shell (electron/). The shell's own JS
+  # dependencies (electron, tree-kill) live in electron/package.json.
+  - nodejs=26.3.0
   - pip
   - pip:
     - dash-cytoscape==1.0.2
