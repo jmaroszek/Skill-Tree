@@ -60,6 +60,10 @@ _NON_GRAPH_TABS = frozenset({"tab-events", "tab-analyze"})
 _EDITOR_UI_ONLY_TRIGGERS = frozenset({
     'edit-trigger-input', 'details-edit-trigger-input',
     'btn-close-editor', 'btn-goals-toggle',
+    # btn-add is the toolbar toggle. Its close half must run the same
+    # unsaved-changes guard as btn-close-editor, which needs the short-circuit
+    # path's pristine_snapshot — so route it here too.
+    'btn-add',
 })
 
 # Output slot indices within the core_engine output tuple. Kept here so the
@@ -267,9 +271,13 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     that don't need it, pass an empty dict.
     """
     next_ed_style = ed_style or dict(_DEFAULT_EDITOR_SIDEBAR_STYLE)
-    if trigger_id == 'btn-add':
+    currently_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
+    if trigger_id == 'btn-add' and not currently_open:
+        # Toolbar toggle, opening from closed: reveal the editor and preserve the
+        # loaded node (mirrors the Goals/Events toggles). The close half falls
+        # through to the btn-close-editor branch below.
         next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id == 'btn-new-node':
+    elif trigger_id in ('btn-new-node', 'btn-editor-new'):
         next_ed_style['transform'] = "translateX(0px)"
     elif trigger_id == 'search-node' and not search_val:
         # Search bar was cleared (e.g. by populate_editor resetting after btn-add) — don't
@@ -283,10 +291,11 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     elif trigger_id == 'btn-save':
         # Save only — keep editor open, don't change transform
         next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id in ('btn-save-close', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save'):
+    elif trigger_id in ('btn-save-close', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save', 'btn-add'):
         # btn-save-close and unsaved-save close it after saving.
         # btn-unsaved-discard closes without saving.
-        # btn-close-editor only silently closes if the form is blank (otherwise modal handles it).
+        # btn-close-editor / btn-add (toggle-close) only silently close if the
+        # form is clean; otherwise toggle_unsaved_modal pops the save/discard modal.
         if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store == '__background__':
             # User dismissed via canvas click — close the editor after save/discard.
             next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
@@ -294,7 +303,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
             pass  # Keep editor open — pending navigation will load the next node
         elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not form_state.get('name') or not form_state.get('n_type')):
             pass  # Keep sidebar open — validation error shown below
-        elif trigger_id == 'btn-close-editor':
+        elif trigger_id in ('btn-close-editor', 'btn-add'):
             form_has_content = is_form_dirty_vs_snapshot(
                 form_state.get('pristine_snapshot'),
                 editor_form_values(
@@ -663,7 +672,7 @@ def register_callbacks(app):
 
     # --- Scroll editor to top on New Node / Add ---
     app.clientside_callback(
-        """function(n1, n2) {
+        """function(n1, n2, n3) {
             var el = document.getElementById('sidebar-editor-container');
             if (el) el.scrollTop = 0;
             return window.dash_clientside.no_update;
@@ -671,6 +680,7 @@ def register_callbacks(app):
         Output('btn-new-node', 'title'),
         Input('btn-new-node', 'n_clicks'),
         Input('btn-add', 'n_clicks'),
+        Input('btn-editor-new', 'n_clicks'),
         prevent_initial_call=True,
     )
 
@@ -716,6 +726,7 @@ def register_callbacks(app):
          Input('search-node', 'value'),
          Input('background-click-input', 'value'),
          Input('btn-new-node', 'n_clicks'),
+         Input('btn-editor-new', 'n_clicks'),
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value')],
         [State('cytoscape-graph', 'elements'),
@@ -750,7 +761,7 @@ def register_callbacks(app):
          State('node-habit-days', 'value')],
         prevent_initial_call='initial_duplicate'
     )
-    def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, edit_trigger_val,
+    def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val,
                         elements, ed_style, original_name,
                         cur_name, cur_type, cur_desc, cur_context, cur_subctx, cur_status_done,
@@ -823,7 +834,13 @@ def register_callbacks(app):
                 aliases=cur_aliases,
             ))
 
-        if trigger_id == 'btn-new-node':
+        if trigger_id == 'btn-add':
+            # Toolbar toggle: open/close is handled by core_engine + the
+            # clientside fast-path. Leave the form untouched so reopening shows
+            # the last-loaded node (matches the Goals/Events toggles).
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+
+        if trigger_id in ('btn-new-node', 'btn-editor-new'):
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
                 # Show unsaved modal; store 'new-node' as pending action
@@ -831,26 +848,24 @@ def register_callbacks(app):
                 no_change[33] = '__new_node__'  # pending-navigation-store (special sentinel)
                 no_change[34] = True            # modal-unsaved-changes
                 return no_change
-            # No unsaved changes — clear and reset (don't clear search-node;
-            # that would re-trigger core_engine and overwrite the editor-open state)
+            # No unsaved changes — clear and reset, including the search bar so it
+            # doesn't keep showing the previously-loaded node. Clearing search-node
+            # re-fires core_engine with an empty value, but the editor is already
+            # open here and _compute_sidebar_styles guards that case (search-node +
+            # no value → leave the editor untouched), so it stays open.
+            def_out[29] = None  # search-node value position
             return def_out
 
-        if trigger_id in ['btn-add', 'background-click-input']:
+        if trigger_id == 'background-click-input':
             # Intercept background click when the editor is open with unsaved
             # changes — show the save/discard modal instead of silently clobbering.
-            if trigger_id == 'background-click-input':
-                editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
-                if editor_open and _has_unsaved_changes():
-                    no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
-                    no_change[33] = '__background__'  # pending-navigation-store sentinel
-                    no_change[34] = True              # modal-unsaved-changes
-                    return no_change
-            # Clear search bar on reset triggers — but NOT for btn-add, because
-            # setting search-node to None re-triggers core_engine via the callback
-            # chain, and the second invocation reads stale editor state and
-            # overwrites the first invocation's "open editor" output.
-            if trigger_id != 'btn-add':
-                def_out[29] = None  # search-node value position
+            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
+            if editor_open and _has_unsaved_changes():
+                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+                no_change[33] = '__background__'  # pending-navigation-store sentinel
+                no_change[34] = True              # modal-unsaved-changes
+                return no_change
+            def_out[29] = None  # clear search bar (search-node value position)
             return def_out
 
         # Handle unsaved-discard / unsaved-save with pending navigation
@@ -1693,7 +1708,11 @@ def register_callbacks(app):
          Input('main-tabs', 'active_tab'),
          Input('graph-settings-relayout', 'n_clicks'),
          Input('btn-sidebar-relayout', 'n_clicks'),
-         Input('btn-undo-done-confirm', 'n_clicks')],
+         Input('btn-undo-done-confirm', 'n_clicks'),
+         # Appended at the end of the Inputs so existing positional indices
+         # (used by core_engine tests) stay stable. The toolbar "+" new-node
+         # button; only its trigger_id matters, the value is unused.
+         Input('btn-editor-new', 'n_clicks')],
 
         [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
@@ -1737,7 +1756,7 @@ def register_callbacks(app):
                      focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
                      gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout,
-                     btn_undo_done_confirm,
+                     btn_undo_done_confirm, btn_editor_new,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
@@ -2085,7 +2104,7 @@ def register_callbacks(app):
             except Exception as e:
                 msg = f"Error: {e}"
         # --- Visual Generation ---
-        ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
+        ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'btn-editor-new', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
         if trigger_id in ui_only_triggers:
             # We bypass full graph recreation and list evaluation
             elements = dash.no_update
@@ -2101,7 +2120,7 @@ def register_callbacks(app):
             # Still format sidebar traversal UI
             count = sugg_count if sugg_count else 10
             sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
-            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
+            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
         else:
@@ -2143,7 +2162,7 @@ def register_callbacks(app):
 
             count = sugg_count if sugg_count else 10
             sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
-            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-add') else tapped_node
+            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
             all_nodes = manager.get_all_nodes()
@@ -2721,10 +2740,12 @@ def register_callbacks(app):
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),
         [Input('btn-close-editor', 'n_clicks'),
+         Input('btn-add', 'n_clicks'),
          Input('btn-unsaved-cancel', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks')],
-        [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
+        [State('sidebar-editor-container', 'style'),
+         State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'),
          State('node-status-done', 'value'),
          State('node-value', 'value'), State('node-interest', 'value'),
@@ -2753,7 +2774,8 @@ def register_callbacks(app):
          State('node-habit-days', 'value')],
         prevent_initial_call=True
     )
-    def toggle_unsaved_modal(_close, _cancel, _save, _discard,
+    def toggle_unsaved_modal(_close, _add, _cancel, _save, _discard,
+                              ed_style,
                               name, n_type, desc, context, subctx, status_done,
                               val, interest, diff,
                               time_o, time_m, time_p, time_unit,
@@ -2766,7 +2788,14 @@ def register_callbacks(app):
                               habit_duration, habit_duration_unit,
                               habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
                               habit_days):
-        if get_trigger_id() != 'btn-close-editor':
+        trig = get_trigger_id()
+        if trig == 'btn-add':
+            # btn-add is the toolbar toggle: only its close half (editor already
+            # open) should guard against unsaved changes. Opening never does.
+            editor_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
+            if not editor_open:
+                return False
+        elif trig != 'btn-close-editor':
             return False
         return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values(
             name=name, n_type=n_type, desc=desc,

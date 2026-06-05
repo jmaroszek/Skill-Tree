@@ -51,8 +51,16 @@ WEEKDAY_OPTIONS = [
 node_editor_content = html.Div(
     [
         html.Div([
-            html.H4("Node Editor"),
-            html.Span("×", id="btn-close-editor", className="fs-3 text-white float-end", style={"cursor": "pointer"})
+            html.Div([
+                html.H4("Node Editor", className="mb-0"),
+                dbc.Button("+", id="btn-editor-new",
+                           color="link",
+                           className="p-0 ms-2 text-decoration-none text-muted",
+                           style={"fontSize": "1.4rem", "lineHeight": "1"}),
+                dbc.Tooltip("New node", target="btn-editor-new", placement="right",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            ], className="d-flex align-items-center"),
+            html.Span("×", id="btn-close-editor", className="fs-3 text-white", style={"cursor": "pointer"})
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
         html.Div([
             html.Div(id="node-priority-badge", children=[],

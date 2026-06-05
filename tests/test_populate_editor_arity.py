@@ -52,7 +52,12 @@ def _make_state_args():
 
 
 def _call_with_trigger(monkeypatch, trigger_id, inputs):
-    """Invoke populate_editor with a monkeypatched trigger_id and the given 10 Input args."""
+    """Invoke populate_editor with a monkeypatched trigger_id and the given Input args.
+
+    Input order: tapNodeData, btn-add, btn-unsaved-discard, btn-unsaved-save,
+    search-node, background-click-input, btn-new-node, btn-editor-new,
+    edit-trigger-input, details-edit-trigger-input.
+    """
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger_id)
     fn = _populate_editor_fn()
     args = list(inputs) + _make_state_args()
@@ -63,8 +68,8 @@ def test_populate_editor_search_unknown_node_returns_44_items(monkeypatch):
     """search-node path where resolved_name does not match any DB node."""
     # Inputs in order: tapNodeData, btn-add, btn-unsaved-discard,
     # btn-unsaved-save, search-node, background-click-input, btn-new-node,
-    # edit-trigger-input, details-edit-trigger-input
-    inputs = [None, None, None, None, "Nonexistent Node Name", None, None, None, None]
+    # btn-editor-new, edit-trigger-input, details-edit-trigger-input
+    inputs = [None, None, None, None, "Nonexistent Node Name", None, None, None, None, None]
     result = _call_with_trigger(monkeypatch, "search-node", inputs)
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS, (
         f"search-node unknown-node path returned {len(result)} items, expected {POPULATE_EDITOR_NUM_OUTPUTS}"
@@ -73,7 +78,7 @@ def test_populate_editor_search_unknown_node_returns_44_items(monkeypatch):
 
 def test_populate_editor_fall_through_returns_44_items(monkeypatch):
     """Fall-through 'if not name or not data' path — no trigger, no data."""
-    inputs = [None] * 9  # no cytoscape tap, no search, no trigger value
+    inputs = [None] * 10  # no cytoscape tap, no search, no trigger value
     result = _call_with_trigger(monkeypatch, "", inputs)
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS, (
         f"fall-through path returned {len(result)} items, expected {POPULATE_EDITOR_NUM_OUTPUTS}"
@@ -81,8 +86,9 @@ def test_populate_editor_fall_through_returns_44_items(monkeypatch):
 
 
 def test_populate_editor_btn_add_path_returns_44_items(monkeypatch):
-    """btn-add path hits the def_out branch."""
-    inputs = [None, 1, None, None, None, None, None, None, None]
+    """btn-add (toolbar toggle) returns the all-no_update branch — it preserves
+    the form rather than clearing it. Still must produce the full output arity."""
+    inputs = [None, 1, None, None, None, None, None, None, None, None]
     result = _call_with_trigger(monkeypatch, "btn-add", inputs)
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
 
@@ -95,7 +101,7 @@ def test_populate_editor_successful_lookup_returns_44_items(monkeypatch):
         time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
         status="Open", context="Mind",
     ))
-    inputs = [None, None, None, None, "TestNode", None, None, None, None]
+    inputs = [None, None, None, None, "TestNode", None, None, None, None, None]
     result = _call_with_trigger(monkeypatch, "search-node", inputs)
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
 
@@ -127,8 +133,8 @@ def test_populate_editor_filters_dormant_prereqs_from_edge_values(monkeypatch):
     mgr.add_edge("ActivePrereq", "TargetGoal", EDGE_NEEDS_HARD)
     mgr.add_edge("DormantPrereq", "TargetGoal", EDGE_NEEDS_HARD)
     # Open the editor for TargetGoal via the edit-trigger path.
-    # Inputs: tap, btn-add, discard, save, search, bg, new-node, edit-trigger, details-edit-trigger
-    inputs = [None, None, None, None, None, None, None, "TargetGoal|123", None]
+    # Inputs: tap, btn-add, discard, save, search, bg, new-node, editor-new, edit-trigger, details-edit-trigger
+    inputs = [None, None, None, None, None, None, None, None, "TargetGoal|123", None]
     result = _call_with_trigger(monkeypatch, "edit-trigger-input", inputs)
     # Output index 13 is `edge-needs-hard.value` (see Output declaration order).
     needs_hard_value = result[13]
