@@ -282,6 +282,33 @@ def register_event_callbacks(app):
             "tab-events" if active_tab != "tab-events" else no_update,
         )
 
+    # --- Close Event Detail ---
+    @app.callback(
+        *_DETAIL_OUTPUTS,
+        Input("btn-event-close", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def close_event_detail(n_clicks):
+        if not n_clicks:
+            return (no_update,) * _N_DETAIL
+
+        return (
+            None,
+            f"close-{time.time()}",
+            {"display": "block"},
+            {"display": "none"},
+            "",
+            "",
+            "", "primary", _badge_hidden,
+            [],
+            {"display": "none"},
+            "",
+            "",
+            "manual",
+            None,
+            no_update,
+        )
+
     # --- Event Selection ---
     @app.callback(
         *_DETAIL_OUTPUTS,
