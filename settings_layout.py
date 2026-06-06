@@ -530,6 +530,18 @@ def _build_time_tab():
                 ], width=True),
             ], className="mt-1"),
 
+            # --- Simulation section ---
+            html.Hr(className="my-2"),
+            html.H5("Time Simulation", className="mt-2 mb-1"),
+            html.Small(
+                "Number of Monte Carlo trials run when simulating a node's "
+                "completion time. Higher is smoother but slower.",
+                className="text-muted d-block mb-2"),
+            dbc.Label("Trials"),
+            dbc.Input(id="setting-monte-carlo-trials", type="number",
+                      min=100, max=1000000, step=100,
+                      style={"width": "128px"}),
+
             # --- Reflection section ---
             html.Hr(className="my-2"),
             html.H5("Reflection", className="mt-2 mb-1"),

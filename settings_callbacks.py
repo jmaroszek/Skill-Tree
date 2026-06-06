@@ -281,12 +281,13 @@ def register_settings_callbacks(app):
         Output('setting-subcontext-sort-mode', 'value'),
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
+        Output('setting-monte-carlo-trials', 'value'),
         Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 44
+            return (dash.no_update,) * 45
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -372,6 +373,7 @@ def register_settings_callbacks(app):
             ConfigManager.get_subcontext_sort_mode(),
             ConfigManager.get_context_sort_mode(),
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
+            ConfigManager.get_monte_carlo_trials(),
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -495,6 +497,7 @@ def register_settings_callbacks(app):
         State('setting-subcontext-sort-mode', 'value'),
         State('setting-context-sort-mode', 'value'),
         State('setting-time-calibration-enabled', 'value'),
+        State('setting-monte-carlo-trials', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul,
@@ -511,7 +514,8 @@ def register_settings_callbacks(app):
                       dgl_edge_length, dgl_gravity, dgl_repulsion,
                       egl_edge_length, egl_gravity, egl_repulsion,
                       show_scoring_perf_val, subcontext_sort_mode_val,
-                      context_sort_mode_val, time_calibration_val):
+                      context_sort_mode_val, time_calibration_val,
+                      monte_carlo_trials_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -547,9 +551,15 @@ def register_settings_callbacks(app):
                         continue
                     new_ctx_weights[name] = _clamp(wval, 0.0, 10.0, 1.0)
 
+            from config import DEFAULT_MONTE_CARLO_TRIALS
+            try:
+                mc_trials = int(monte_carlo_trials_val)
+            except (TypeError, ValueError):
+                mc_trials = DEFAULT_MONTE_CARLO_TRIALS
             new_ts = {
                 'hours_per_week': float(hpw) if hpw is not None else 40,
                 'hours_per_month': float(hpm) if hpm is not None else 160,
+                'monte_carlo_trials': mc_trials if mc_trials > 0 else DEFAULT_MONTE_CARLO_TRIALS,
             }
 
             from config import DEFAULT_TIME_ESTIMATE_DEFAULTS

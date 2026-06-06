@@ -159,7 +159,7 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
         edges=sim_edges,
         include_soft=include_soft,
         include_helps=include_helps,
-        n_simulations=10000,
+        n_simulations=ConfigManager.get_monte_carlo_trials(),
     )
 
     samples = result['samples']
@@ -837,33 +837,6 @@ def register_details_callbacks(app):
         import time
         return f"{selected_node}|{int(time.time())}"
 
-    # --- Locate on Details mini-graph: pulse the selected node in place ---
-    # Reuses window.locateNodeOnGraph (assets/locate_node.js), passing the
-    # mini-graph's DOM id so the pulse runs on the Details tab's embedded
-    # subgraph rather than the main canvas. No tab switch.
-    app.clientside_callback(
-        """function(n_clicks, selected) {
-            if (!n_clicks || !selected) {
-                return window.dash_clientside.no_update;
-            }
-            if (typeof window.locateNodeOnGraph === 'function') {
-                window.locateNodeOnGraph(selected, 'details-mini-graph');
-            }
-            return '';
-        }""",
-        Output('details-locate-dummy', 'children'),
-        Input('btn-details-locate', 'n_clicks'),
-        State('details-selected-node-store', 'data'),
-        prevent_initial_call=True,
-    )
-
-    # The Locate crosshair lives in the always-visible header, so disable it
-    # whenever no node is selected (mirrors the node editor's locate button).
-    app.clientside_callback(
-        "function(sel) { return !sel; }",
-        Output('btn-details-locate', 'disabled'),
-        Input('details-selected-node-store', 'data'),
-    )
 
     # --- Context Menu "Details" → Navigate to Details tab with node selected ---
     @app.callback(

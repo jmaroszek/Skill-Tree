@@ -269,6 +269,8 @@ DEFAULT_TIME_SETTINGS = {
     'hours_per_month': 80
 }
 
+DEFAULT_MONTE_CARLO_TRIALS = 10000
+
 DEFAULT_TIME_ESTIMATE_DEFAULTS = {
     'optimistic': 2,
     'expected': 4,
@@ -673,6 +675,16 @@ class ConfigManager:
     @classmethod
     def set_time_settings(cls, params: dict):
         cls._set_db_value("TIME_SETTINGS", json.dumps(params))
+
+    @classmethod
+    def get_monte_carlo_trials(cls) -> int:
+        """Number of Monte Carlo trials for the Time Simulation panel."""
+        try:
+            n = int(cls.get_time_settings().get(
+                'monte_carlo_trials', DEFAULT_MONTE_CARLO_TRIALS))
+        except (TypeError, ValueError):
+            return DEFAULT_MONTE_CARLO_TRIALS
+        return n if n > 0 else DEFAULT_MONTE_CARLO_TRIALS
 
     @classmethod
     def get_time_estimate_defaults(cls):

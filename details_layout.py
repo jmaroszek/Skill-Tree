@@ -213,36 +213,16 @@ def build_details_tab_content():
     #  This is the ONLY place these controls live — no full-width top bar  #
     # ------------------------------------------------------------------ #
     left_panel_header = html.Div([
-        # Navigation arrows (left, browser-style back/forward). Flat ghost
-        # icons (see .details-header-btn) so they sit beside the search bar
-        # as bare glyphs rather than chunky filled buttons.
-        html.Div([
-            dbc.Button("\u2190", id="btn-details-nav-back", color="secondary",
-                       size="sm", disabled=True,
-                       className="details-header-btn"),
-            dbc.Button("\u2192", id="btn-details-nav-forward", color="secondary",
-                       size="sm", disabled=True,
-                       className="details-header-btn ms-1"),
-        ], style={"flex": "0 0 auto", "display": "flex"}),
-
-        # Search bar wrapping container (grows to fill)
+        # Search bar \u2014 full width; node-history arrows live on the node-name row.
         html.Div(dcc.Dropdown(
             id="details-node-select",
             placeholder="Select a node...",
             clearable=True,
             style={"minWidth": "100px"},
-        ), className="text-dark", style={"flex": "1", "minWidth": "0", "margin": "0 8px"}),
-
-        # Locate crosshair (right, mirrors the node editor's search+locate pairing)
-        dbc.Button(html.I(className="bi bi-crosshair"),
-                   id="btn-details-locate", color="secondary", size="sm",
-                   className="details-header-btn", disabled=True,
-                   style={"flex": "0 0 auto"}),
-        dbc.Tooltip("Pulse this node in the mini-graph",
-                    target="btn-details-locate", placement="bottom",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-    ], className="d-flex align-items-center py-2 px-2",
-       style={"borderBottom": "1px solid #495057", "flexShrink": "0", "paddingBottom": "8px"})
+        ), className="text-dark", style={"flex": "1", "minWidth": "0"}),
+    ], className="d-flex align-items-center py-2",
+       style={"borderBottom": "1px solid #495057", "flexShrink": "0",
+              "paddingBottom": "8px", "paddingLeft": "24px", "paddingRight": "24px"})
 
     # ------------------------------------------------------------------ #
     #  EMPTY STATE  (inside left panel, shown when no node selected)      #
@@ -267,10 +247,23 @@ def build_details_tab_content():
     #  NODE SUMMARY  (inside details-content, shown when node selected)   #
     # ------------------------------------------------------------------ #
     node_summary = html.Div([
-        html.H4(id="details-node-name", className="mt-3 mb-2",
-                style={"fontWeight": "300", "letterSpacing": "1px",
-                       "overflow": "hidden", "textOverflow": "ellipsis",
-                       "whiteSpace": "nowrap"}),
+        # Node-name row: title (ellipsizes) + node-history back/forward arrows
+        # right-aligned. Flat ghost icons (see .details-header-btn).
+        html.Div([
+            html.H4(id="details-node-name", className="mt-3 mb-2",
+                    style={"fontWeight": "300", "letterSpacing": "1px",
+                           "overflow": "hidden", "textOverflow": "ellipsis",
+                           "whiteSpace": "nowrap", "flex": "1", "minWidth": "0"}),
+            html.Div([
+                dbc.Button("←", id="btn-details-nav-back", color="secondary",
+                           size="sm", disabled=True,
+                           className="details-header-btn"),
+                dbc.Button("→", id="btn-details-nav-forward", color="secondary",
+                           size="sm", disabled=True,
+                           className="details-header-btn ms-1"),
+            ], className="ms-2 mt-3 mb-2", style={"flexShrink": "0", "display": "flex",
+                                                  "marginRight": "-8px"}),
+        ], className="d-flex align-items-center"),
         # Badges row: type, status, priority
         html.Div(id="details-node-badges",
                  className="d-flex gap-1 flex-wrap mb-2"),
@@ -328,9 +321,6 @@ def build_details_tab_content():
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex mt-3"),
 
-        # Hidden sink for the Locate clientside callback (Dash requires an Output).
-        html.Div(id="details-locate-dummy", style={"display": "none"}),
-
     ], id="details-node-summary",
        style={"overflowY": "auto"})
 
@@ -350,7 +340,7 @@ def build_details_tab_content():
         empty_state,
         detail_content,
     ], id="details-left-panel", style={
-        "width": "405px",
+        "width": "375px",
         "minWidth": "260px",
         "display": "flex",
         "flexDirection": "column",
