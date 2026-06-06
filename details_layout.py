@@ -222,7 +222,7 @@ def build_details_tab_content():
         ), className="text-dark", style={"flex": "1", "minWidth": "0"}),
     ], className="d-flex align-items-center py-2",
        style={"borderBottom": "1px solid #495057", "flexShrink": "0",
-              "paddingBottom": "8px", "paddingLeft": "24px", "paddingRight": "24px"})
+              "paddingBottom": "8px", "paddingLeft": "18px", "paddingRight": "18px"})
 
     # ------------------------------------------------------------------ #
     #  EMPTY STATE  (inside left panel, shown when no node selected)      #

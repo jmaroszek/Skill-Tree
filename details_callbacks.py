@@ -536,7 +536,7 @@ def register_details_callbacks(app):
         return (
             {"display": "none"},
             {"display": "flex", "flexDirection": "column", "flex": "1",
-             "padding": "0 24px", "overflowY": "auto"},
+             "padding": "0 18px", "overflowY": "auto"},
             node_name,
             node.name,
             badges,
