@@ -1319,7 +1319,11 @@ def _render_context_accuracy_boxplot(rows):
         fig.add_trace(go.Box(
             x=ratios, name=ctx, orientation='h',
             boxpoints='all', jitter=0.4, pointpos=0, whiskerwidth=0.5,
-            marker=dict(color=line_c, size=4, opacity=0.45),
+            # Light dots with a background-colored halo so each observation
+            # reads as a distinct point on top of the box rather than
+            # dissolving into the same-blue fill.
+            marker=dict(color='#dee2e6', size=7, opacity=0.9,
+                        line=dict(color=_BG, width=1)),
             line=dict(color=line_c, width=1.5), fillcolor=fill_c,
             hoveron='points', customdata=[r['name'] for r in ctx_rows],
             hovertemplate=('<b>%{customdata}</b><br>'
@@ -1328,10 +1332,30 @@ def _render_context_accuracy_boxplot(rows):
 
     all_ratios = [_ratio(r) for _, ctx_rows in ordered for r in ctx_rows]
     rmin, rmax = min(all_ratios), max(all_ratios)
-    ticks = [t for t in (0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16)
-             if rmin / 1.3 <= t <= rmax * 1.3]
+    ladder = (0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16)
+    # Ticks inside a padded data window, *plus* the ladder steps immediately
+    # below rmin and above rmax. Without the bracketing steps, a narrow band
+    # that falls entirely between two ladder rungs (e.g. all ratios in
+    # 0.5-1x) loses its lower reference and floats left of a lone 1x line.
+    ticks = [t for t in ladder if rmin / 1.3 <= t <= rmax * 1.3]
+    below = [t for t in ladder if t <= rmin]
+    above = [t for t in ladder if t >= rmax]
+    if below:
+        ticks.append(below[-1])
+    if above:
+        ticks.append(above[0])
     if 1 not in ticks:
-        ticks = sorted(ticks + [1])
+        ticks.append(1)
+    ticks = sorted(set(ticks))
+
+    # Pin the (log) axis range to the bracketing ticks so both framing
+    # references stay on-screen. Autorange would hug the data and clip the
+    # lower tick — e.g. a 0.5-1x band would lose its 0.5x line and float
+    # left of a lone 1x. The brackets always enclose the data and the 1x
+    # line, so this never hides a point. Range is in log10 units.
+    import math
+    pad = 0.06
+    xrange = [math.log10(min(ticks)) - pad, math.log10(max(ticks)) + pad]
 
     # Aim near the scatter's 420px so the two charts sit level side-by-side,
     # growing only when there are many contexts.
@@ -1341,7 +1365,7 @@ def _render_context_accuracy_boxplot(rows):
         margin=dict(l=10, r=20, t=10, b=40),
         xaxis=dict(type='log', title="Actual ÷ Estimated",
                    tickvals=ticks, ticktext=[f"{t:g}×" for t in ticks],
-                   gridcolor='#343a40', automargin=True),
+                   range=xrange, gridcolor='#343a40', automargin=True),
         yaxis=dict(automargin=True),
     ))
     fig.add_vline(x=1, line=dict(color='#6c757d', dash='dash', width=1))
