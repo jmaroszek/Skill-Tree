@@ -1,26 +1,36 @@
 (function () {
-    // Keep in sync with the inline style declared on #ratings-popup in layout.py.
-    // These are reapplied each time the popup is opened so a prior drag/resize
+    // Keep in sync with the inline style declared on the popups in layout.py.
+    // These are reapplied each time a popup is opened so a prior drag/resize
     // doesn't persist across reopenings.
     var DEFAULT_WIDTH = '960px';
     var DEFAULT_HEIGHT = 'auto';
     var DEFAULT_LEFT = '420px';
     var DEFAULT_TOP = '120px';
 
-    // Multiple sites trigger the same popup: main node editor, the Add
-    // Subtask modal (Details tab), and the Reflection modal. Modals render
-    // lazily, so we watch continuously and wire up each button as it appears.
-    var TRIGGER_IDS = [
-        'btn-ratings-info',
-        'btn-details-ratings-info',
-        'btn-reflection-ratings-info',
+    // Two independent rubrics share this behavior. The estimation popup is
+    // triggered from the main node editor and the Add Subtask modal (Details
+    // tab); the reflection popup is triggered only from the Reflection modal.
+    // Each entry maps a trigger button to the popup/header/close/edit ids it
+    // controls. Modals render lazily, so we watch continuously and wire up each
+    // element as it appears.
+    var POPUPS = [
+        {
+            popupId: 'ratings-popup',
+            headerId: 'ratings-popup-header',
+            closeId: 'btn-ratings-close',
+            editId: 'btn-ratings-edit',
+            triggerIds: ['btn-ratings-info', 'btn-details-ratings-info'],
+        },
+        {
+            popupId: 'reflection-ratings-popup',
+            headerId: 'reflection-ratings-popup-header',
+            closeId: 'btn-reflection-ratings-close',
+            editId: 'btn-reflection-ratings-edit',
+            triggerIds: ['btn-reflection-ratings-info'],
+        },
     ];
 
     var attached = {};
-    var popup = null;
-    var header = null;
-    var closeBtn = null;
-    var editBtn = null;
 
     function resetPopupGeometry(p) {
         p.style.width = DEFAULT_WIDTH;
@@ -29,48 +39,60 @@
         p.style.top = DEFAULT_TOP;
     }
 
-    function onTriggerClick(e) {
-        e.stopPropagation();
-        if (!popup) return;
-        if (popup.style.display === 'flex') {
-            popup.style.display = 'none';
-        } else {
-            resetPopupGeometry(popup);
-            popup.style.display = 'flex';
-        }
+    function makeTriggerHandler(popupId) {
+        return function (e) {
+            e.stopPropagation();
+            var popup = document.getElementById(popupId);
+            if (!popup) return;
+            if (popup.style.display === 'flex') {
+                popup.style.display = 'none';
+            } else {
+                resetPopupGeometry(popup);
+                popup.style.display = 'flex';
+            }
+        };
     }
 
-    function tryAttachTrigger(id) {
+    function tryAttachTrigger(id, popupId) {
         if (attached[id]) return;
         var btn = document.getElementById(id);
         if (!btn) return;
-        btn.addEventListener('click', onTriggerClick);
+        btn.addEventListener('click', makeTriggerHandler(popupId));
         attached[id] = true;
     }
 
-    function attachShared() {
-        if (!popup) popup = document.getElementById('ratings-popup');
-        if (!header) header = document.getElementById('ratings-popup-header');
-        if (!closeBtn) {
-            closeBtn = document.getElementById('btn-ratings-close');
+    function attachShared(cfg) {
+        var popup = document.getElementById(cfg.popupId);
+        var header = document.getElementById(cfg.headerId);
+
+        var closeKey = '__close_' + cfg.closeId;
+        if (!attached[closeKey]) {
+            var closeBtn = document.getElementById(cfg.closeId);
             if (closeBtn) {
                 closeBtn.addEventListener('click', function () {
                     if (popup) popup.style.display = 'none';
                 });
+                attached[closeKey] = true;
             }
         }
-        if (!editBtn) {
-            editBtn = document.getElementById('btn-ratings-edit');
+
+        var editKey = '__edit_' + cfg.editId;
+        if (!attached[editKey]) {
+            var editBtn = document.getElementById(cfg.editId);
             if (editBtn) {
                 editBtn.addEventListener('click', function () {
                     if (popup) popup.style.display = 'none';
                 });
+                attached[editKey] = true;
             }
         }
+
         if (!popup || !header || header.__dragWired) return;
         header.__dragWired = true;
 
         header.addEventListener('mousedown', function (e) {
+            var closeBtn = document.getElementById(cfg.closeId);
+            var editBtn = document.getElementById(cfg.editId);
             if (closeBtn && (e.target === closeBtn || closeBtn.contains(e.target))) return;
             if (editBtn && (e.target === editBtn || editBtn.contains(e.target))) return;
             if (!window.SkillTree || !window.SkillTree.drag) return;
@@ -90,8 +112,12 @@
     }
 
     function wireAll() {
-        attachShared();
-        TRIGGER_IDS.forEach(tryAttachTrigger);
+        POPUPS.forEach(function (cfg) {
+            attachShared(cfg);
+            cfg.triggerIds.forEach(function (id) {
+                tryAttachTrigger(id, cfg.popupId);
+            });
+        });
     }
 
     var obs = new MutationObserver(wireAll);

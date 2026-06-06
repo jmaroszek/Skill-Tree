@@ -3885,6 +3885,48 @@ def register_callbacks(app):
         ConfigManager.set_ratings_definitions(new_defs)
         return build_popup_table_rows(new_defs), False
 
+    # --- Reflection Ratings Editor ---
+    # Mirrors the estimation editor above but reads/writes the decoupled
+    # REFLECTION_RATINGS_DEFINITIONS so the Reflection modal's rubric can be
+    # tuned independently of the node-editor/Add-Subtask rubric.
+
+    @app.callback(
+        Output("modal-reflection-ratings-editor", "is_open"),
+        Output("reflection-ratings-editor-body", "children"),
+        Input("btn-reflection-ratings-edit", "n_clicks"),
+        Input("btn-reflection-ratings-editor-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def toggle_reflection_ratings_editor(edit_clicks, cancel_clicks):
+        from layout import build_editor_table
+        if ctx.triggered_id == "btn-reflection-ratings-edit":
+            defs = ConfigManager.get_reflection_ratings_definitions()
+            return True, build_editor_table(defs, id_prefix="reflection-ratings-edit")
+        return False, no_update
+
+    @app.callback(
+        Output("reflection-ratings-popup-table-body", "children"),
+        Output("modal-reflection-ratings-editor", "is_open", allow_duplicate=True),
+        Input("btn-reflection-ratings-editor-save", "n_clicks"),
+        State({"type": "reflection-ratings-edit-value", "index": ALL}, "value"),
+        State({"type": "reflection-ratings-edit-interest", "index": ALL}, "value"),
+        State({"type": "reflection-ratings-edit-effort", "index": ALL}, "value"),
+        prevent_initial_call=True,
+    )
+    def save_reflection_ratings_definitions(n_clicks, values, interests, efforts):
+        from layout import build_popup_table_rows
+        defs = ConfigManager.get_reflection_ratings_definitions()
+        new_defs = []
+        for i, d in enumerate(defs):
+            new_defs.append({
+                "rating": d["rating"],
+                "value": values[i] if i < len(values) else d["value"],
+                "interest": interests[i] if i < len(interests) else d["interest"],
+                "effort": efforts[i] if i < len(efforts) else d["effort"],
+            })
+        ConfigManager.set_reflection_ratings_definitions(new_defs)
+        return build_popup_table_rows(new_defs), False
+
     # --- Editor Now Toggle: populate switch from DB on node change ---
     # Mirrors the dormant-toggle population pattern (event_callbacks.py).
     # The DB is the source of truth; the switch never holds a value the DB

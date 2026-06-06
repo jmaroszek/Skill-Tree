@@ -345,7 +345,56 @@ DEFAULT_RATINGS_DEFINITIONS = [
      "effort": "Herculean: Success requires god-like vision, execution, and luck."},
 ]
 
-DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
+# Retrospective counterpart to DEFAULT_RATINGS_DEFINITIONS, used only by the
+# Reflection modal ("How was it actually?"). Same 1-10 ladder and anchor words
+# so reflect_* values stay comparable to the estimate columns (Analyze diffs
+# them), but each clause is reworded from "what do I anticipate?" to "what
+# actually happened?" — e.g. Interest leans on lived signals like how often the
+# project stayed on my mind outside work hours.
+DEFAULT_REFLECTION_RATINGS_DEFINITIONS = [
+    {"rating": 1,
+     "value": "Trivial: Changed nothing I can point to.",
+     "interest": "Averse: Dreaded every session; forced myself the whole way.",
+     "effort": "Unconscious: Pure autopilot; no thought required."},
+    {"rating": 2,
+     "value": "Insignificant: A minor tidy-up in one corner.",
+     "interest": "Unappealing: Steady drag; only the deadline kept me going.",
+     "effort": "Easy: A few simple steps, no snags."},
+    {"rating": 3,
+     "value": "Minor: Clearly helped, but only one narrow area.",
+     "interest": "Reluctant: Got it done, but never wanted to start.",
+     "effort": "Straightforward: Long but never hard; just steps."},
+    {"rating": 4,
+     "value": "Helpful: A light lift across several areas.",
+     "interest": "Tolerable: Fine once started, but never lingered on it.",
+     "effort": "Moderate: A few genuinely tricky spots to push through."},
+    {"rating": 5,
+     "value": "Solid: A real, broad improvement I've already used.",
+     "interest": "Indifferent: Engaged at the desk, gone from mind after.",
+     "effort": "Difficult: Sat just past where I started; had to stretch."},
+    {"rating": 6,
+     "value": "Significant: Noticeably raised my ceiling in a big area.",
+     "interest": "Curious: Caught myself thinking about it now and then.",
+     "effort": "Demanding: Visibly grew to finish it."},
+    {"rating": 7,
+     "value": "Strategic: Already unlocking work I couldn't do before.",
+     "interest": "Eager: Often picked it up off-hours; came back willingly.",
+     "effort": "Arduous: A real grind; significant growth to get through."},
+    {"rating": 8,
+     "value": "Fundamental: Reshaped how I approach a whole domain.",
+     "interest": "Invested: Frequently on my mind; chose it over other fun.",
+     "effort": "Daunting: Scale and uncertainty repeatedly nearly stalled me."},
+    {"rating": 9,
+     "value": "Transformative: Actually changed my worldview or capabilities.",
+     "interest": "Magnetic: Lost track of time; thought about it constantly.",
+     "effort": "Ambitious: Came close to failing; barely pulled it off."},
+    {"rating": 10,
+     "value": "Spiritual: A milestone in my life's work; lasting meaning.",
+     "interest": "Calling: Couldn't put it down; nothing I'd rather have done.",
+     "effort": "Herculean: Needed everything I had — and some luck."},
+]
+
+DEFAULT_TITLECASE_EXCLUSIONS =["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
 
 DEFAULT_TITLECASE_LINTER = {
     'enabled': True,
@@ -601,6 +650,20 @@ class ConfigManager:
     @classmethod
     def set_ratings_definitions(cls, defs: list):
         cls._set_db_value("RATINGS_DEFINITIONS", json.dumps(defs))
+
+    @classmethod
+    def get_reflection_ratings_definitions(cls):
+        val = cls._get_db_value("REFLECTION_RATINGS_DEFINITIONS")
+        if val:
+            try:
+                return json.loads(val)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return [dict(d) for d in DEFAULT_REFLECTION_RATINGS_DEFINITIONS]
+
+    @classmethod
+    def set_reflection_ratings_definitions(cls, defs: list):
+        cls._set_db_value("REFLECTION_RATINGS_DEFINITIONS", json.dumps(defs))
 
     @classmethod
     def get_time_settings(cls):

@@ -750,8 +750,12 @@ def build_popup_table_rows(defs):
     ]
 
 
-def build_editor_table(defs):
-    """Build the full editor table (with header) for the ratings editor modal."""
+def build_editor_table(defs, id_prefix="ratings-edit"):
+    """Build the full editor table (with header) for a ratings editor modal.
+
+    `id_prefix` namespaces the textarea pattern-matching ids so the estimation
+    and reflection editors don't collide (e.g. "ratings-edit" vs
+    "reflection-ratings-edit")."""
     return html.Table([
         html.Thead(html.Tr([
             html.Th("#", style={**_header_cell_style, "width": "36px"}),
@@ -759,11 +763,11 @@ def build_editor_table(defs):
             html.Th("Interest", style=_header_cell_style),
             html.Th("Effort", style=_header_cell_style),
         ])),
-        html.Tbody(build_editor_rows(defs)),
+        html.Tbody(build_editor_rows(defs, id_prefix)),
     ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"})
 
 
-def build_editor_rows(defs):
+def build_editor_rows(defs, id_prefix="ratings-edit"):
     """Build the editor modal rows (textareas) from a list of definition dicts."""
     from dash import dcc
     rows = []
@@ -775,7 +779,7 @@ def build_editor_rows(defs):
                 "width": "36px", "textAlign": "center",
             }),
             html.Td(dcc.Textarea(
-                id={"type": "ratings-edit-value", "index": i},
+                id={"type": f"{id_prefix}-value", "index": i},
                 value=d['value'],
                 style={"width": "100%", "height": "72px", "resize": "vertical",
                        "backgroundColor": "#2b3035", "color": "#dee2e6",
@@ -783,7 +787,7 @@ def build_editor_rows(defs):
                        "padding": "4px", "fontSize": "0.8rem"},
             ), style=_cell_style),
             html.Td(dcc.Textarea(
-                id={"type": "ratings-edit-interest", "index": i},
+                id={"type": f"{id_prefix}-interest", "index": i},
                 value=d['interest'],
                 style={"width": "100%", "height": "72px", "resize": "vertical",
                        "backgroundColor": "#2b3035", "color": "#dee2e6",
@@ -791,7 +795,7 @@ def build_editor_rows(defs):
                        "padding": "4px", "fontSize": "0.8rem"},
             ), style=_cell_style),
             html.Td(dcc.Textarea(
-                id={"type": "ratings-edit-effort", "index": i},
+                id={"type": f"{id_prefix}-effort", "index": i},
                 value=d['effort'],
                 style={"width": "100%", "height": "72px", "resize": "vertical",
                        "backgroundColor": "#2b3035", "color": "#dee2e6",
@@ -872,6 +876,80 @@ ratings_editor_modal = dbc.Modal([
         dbc.Button("Save", id="btn-ratings-editor-save", color="primary"),
     ]),
 ], id="modal-ratings-editor", size="xl", is_open=False, scrollable=True)
+
+
+# Retrospective sibling of `ratings_popup`, opened only from the Reflection
+# modal's info icon. It reads its own REFLECTION_RATINGS_DEFINITIONS so the
+# wording can stay decoupled from the estimation rubric. The JS in
+# assets/ratings_popup.js wires btn-reflection-ratings-info to this popup.
+reflection_ratings_popup = html.Div([
+    html.Div([
+        html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
+        html.Button(html.I(className="bi bi-pencil"), id="btn-reflection-ratings-edit", style={
+            "background": "none", "border": "none", "color": "#adb5bd",
+            "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
+            "padding": "0 6px", "marginLeft": "8px",
+        }, title="Edit definitions"),
+        html.Button("×", id="btn-reflection-ratings-close", style={
+            "background": "none", "border": "none", "color": "#adb5bd",
+            "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
+            "padding": "0", "marginLeft": "auto",
+        }),
+    ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
+        "cursor": "move",
+        "padding": "8px 10px",
+        "backgroundColor": "#2b3035",
+        "borderBottom": "1px solid #495057",
+        "borderRadius": "6px 6px 0 0",
+        "flexShrink": "0",
+        "userSelect": "none",
+    }),
+    html.Div([
+        html.Table([
+            html.Thead(html.Tr([
+                html.Th("#", style={**_header_cell_style, "width": "36px"}),
+                html.Th("Value", style=_header_cell_style),
+                html.Th("Interest", style=_header_cell_style),
+                html.Th("Effort", style=_header_cell_style),
+            ])),
+            html.Tbody(
+                id="reflection-ratings-popup-table-body",
+                children=build_popup_table_rows(ConfigManager.get_reflection_ratings_definitions()),
+            ),
+        ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
+    ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
+], id="reflection-ratings-popup", style={
+    "display": "none",
+    "flexDirection": "column",
+    "position": "fixed",
+    "top": "120px",
+    "left": "420px",
+    "width": "960px",
+    "height": "auto",
+    "maxHeight": "calc(100vh - 160px)",
+    "minWidth": "400px",
+    "minHeight": "200px",
+    "zIndex": 9998,
+    "backgroundColor": "#212529",
+    "border": "1px solid #495057",
+    "borderRadius": "6px",
+    "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
+    "resize": "both",
+    "overflow": "hidden",
+})
+
+
+reflection_ratings_editor_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Edit Reflection Ratings Definitions")),
+    dbc.ModalBody(
+        html.Div(id="reflection-ratings-editor-body"),
+        style={"maxHeight": "70vh", "overflowY": "auto"},
+    ),
+    dbc.ModalFooter([
+        dbc.Button("Cancel", id="btn-reflection-ratings-editor-cancel", color="secondary", className="me-auto"),
+        dbc.Button("Save", id="btn-reflection-ratings-editor-save", color="primary"),
+    ]),
+], id="modal-reflection-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
 def build_app_layout(initial_elements, env="production"):
@@ -1120,6 +1198,7 @@ def build_app_layout(initial_elements, env="production"):
     return html.Div([
         hover_tooltip,
         ratings_popup,
+        reflection_ratings_popup,
         edit_trigger,
         toggle_trigger,
         context_menu,
@@ -1199,6 +1278,7 @@ def build_app_layout(initial_elements, env="production"):
         override_conflict_modal,
         override_untoggle_modal,
         ratings_editor_modal,
+        reflection_ratings_editor_modal,
         dbc.Modal([
             dbc.ModalHeader(dbc.ModalTitle("Events Triggered Since Last Launch")),
             dbc.ModalBody(id="event-announcements-body"),
