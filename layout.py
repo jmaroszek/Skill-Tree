@@ -1086,10 +1086,10 @@ def build_app_layout(initial_elements, env="production"):
             active_tab="tab-next",
             children=[
                 dbc.Tab(label="Next", tab_id="tab-next"),
-                dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Nodes", tab_id="tab-canvas"),
-                dbc.Tab(label="Analyze", tab_id="tab-analyze"),
+                dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
+                dbc.Tab(label="Analyze", tab_id="tab-analyze"),
             ],
             className="px-3 pt-1 justify-content-center",
             style={"flex": "1", "backgroundColor": "#1a1d21", "borderBottom": "none"}
