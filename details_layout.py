@@ -213,7 +213,19 @@ def build_details_tab_content():
     #  This is the ONLY place these controls live — no full-width top bar  #
     # ------------------------------------------------------------------ #
     left_panel_header = html.Div([
-        # Search bar wrapping container
+        # Navigation arrows (left, browser-style back/forward). Flat ghost
+        # icons (see .details-header-btn) so they sit beside the search bar
+        # as bare glyphs rather than chunky filled buttons.
+        html.Div([
+            dbc.Button("\u2190", id="btn-details-nav-back", color="secondary",
+                       size="sm", disabled=True,
+                       className="details-header-btn"),
+            dbc.Button("\u2192", id="btn-details-nav-forward", color="secondary",
+                       size="sm", disabled=True,
+                       className="details-header-btn ms-1"),
+        ], style={"flex": "0 0 auto", "display": "flex"}),
+
+        # Search bar wrapping container (grows to fill)
         html.Div(dcc.Dropdown(
             id="details-node-select",
             placeholder="Select a node...",
@@ -221,17 +233,14 @@ def build_details_tab_content():
             style={"minWidth": "100px"},
         ), className="text-dark", style={"flex": "1", "minWidth": "0", "margin": "0 8px"}),
 
-        # Navigation arrows wrapping container (centers them in their right-side space)
-        html.Div([
-            dbc.Button("\u2190", id="btn-details-nav-back", color="secondary",
-                       size="sm", disabled=True,
-                       style={"whiteSpace": "nowrap", "minWidth": "30px",
-                              "padding": "2px 6px"}),
-            dbc.Button("\u2192", id="btn-details-nav-forward", color="secondary",
-                       size="sm", className="ms-1", disabled=True,
-                       style={"whiteSpace": "nowrap", "minWidth": "30px",
-                              "padding": "2px 6px"}),
-        ], style={"flex": "0 0 75px", "display": "flex", "justifyContent": "center"}),
+        # Locate crosshair (right, mirrors the node editor's search+locate pairing)
+        dbc.Button(html.I(className="bi bi-crosshair"),
+                   id="btn-details-locate", color="secondary", size="sm",
+                   className="details-header-btn", disabled=True,
+                   style={"flex": "0 0 auto"}),
+        dbc.Tooltip("Pulse this node in the mini-graph",
+                    target="btn-details-locate", placement="bottom",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
     ], className="d-flex align-items-center py-2 px-2",
        style={"borderBottom": "1px solid #495057", "flexShrink": "0", "paddingBottom": "8px"})
 
@@ -305,7 +314,8 @@ def build_details_tab_content():
             html.Div(id="details-priority-badge"),
         ]),
 
-        # Action buttons — Edit | Explain | Locate  (Focus lives on the canvas overlay)
+        # Action buttons — Edit | Explain  (Locate moved to the header crosshair;
+        # Focus lives on the canvas overlay)
         html.Div([
             dbc.Button("Edit", id="btn-details-edit", color="secondary",
                        size="sm", style={"flex": "1"}),
@@ -315,11 +325,6 @@ def build_details_tab_content():
                        size="sm", className="ms-1", style={"flex": "1"}),
             dbc.Tooltip("Show where this node's priority score comes from",
                         target="btn-details-explain", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Button("Locate", id="btn-details-locate", color="secondary",
-                       size="sm", className="ms-1", style={"flex": "1"}),
-            dbc.Tooltip("Briefly pulse this node in the mini-graph",
-                        target="btn-details-locate", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex mt-3"),
 
@@ -345,7 +350,7 @@ def build_details_tab_content():
         empty_state,
         detail_content,
     ], id="details-left-panel", style={
-        "width": "375px",
+        "width": "405px",
         "minWidth": "260px",
         "display": "flex",
         "flexDirection": "column",
@@ -995,7 +1000,26 @@ def _build_add_node_modal(ted):
             # --- Create New mode ---
             html.Div(id="details-add-create-section", children=[
                 dbc.Label("Name"),
-                dbc.Input(id="details-add-name", type="text"),
+                html.Div([
+                    dbc.Input(id="details-add-name", type="text"),
+                    dbc.Button(html.Span(id="details-add-aliases-chevron", className="editor-chevron"),
+                               id="btn-details-add-aliases-toggle", title="Aliases",
+                               className="editor-icon-btn editor-disclosure-btn"),
+                ], className="d-flex editor-field-group"),
+                dbc.Collapse(
+                    html.Div([
+                        html.Div([
+                            dbc.Label("Aliases", className="mb-0"),
+                            dbc.Button("+", id="btn-details-add-alias-add", color="link",
+                                       className="p-0 ms-2 text-decoration-none text-muted",
+                                       title="Add alias",
+                                       style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                        ], className="d-flex align-items-center mt-1 mb-1"),
+                        html.Div(id='details-add-aliases-container'),
+                    ]),
+                    id="collapse-details-add-aliases", is_open=False,
+                ),
+                dcc.Store(id='details-add-aliases-store', data=['']),
 
                 dbc.Label("Type", className="mt-2"),
                 dbc.Select(id="details-add-type", options=[], value="Learn"),
@@ -1005,19 +1029,12 @@ def _build_add_node_modal(ted):
                              style={"height": "80px", "resize": "vertical"}),
 
                 dbc.Label("Context", className="mt-2"),
-                html.Div([
-                    dbc.Select(id="details-add-context",
-                               options=[{"label": "None", "value": ""}],
-                               style={'flex': 1}),
-                    dbc.Button("▾", id="btn-details-add-subcontext-toggle",
-                               color="light", className="ms-1 px-2"),
-                ], className="d-flex"),
-                dbc.Collapse(
-                    dbc.Select(id="details-add-subcontext",
-                               options=[{"label": "None", "value": ""}],
-                               className="mt-1"),
-                    id="collapse-details-add-subcontext", is_open=False,
-                ),
+                dbc.Select(id="details-add-context",
+                           options=[{"label": "None", "value": ""}]),
+
+                dbc.Label("Subcontext", className="mt-2"),
+                dbc.Select(id="details-add-subcontext",
+                           options=[{"label": "None", "value": ""}]),
 
                 html.Hr(className="my-2"),
                 html.Div([
@@ -1244,7 +1261,9 @@ def _build_add_node_modal(ted):
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-details-add-cancel",
                        color="secondary", className="me-2"),
-            dbc.Button("Add", id="btn-details-add-save", color="primary"),
+            dbc.Button("Add", id="btn-details-add-save", color="success",
+                       style={"backgroundColor": ConfigManager.get_node_colors().get(STATUS_DONE, "#198754"),
+                              "borderColor": ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")}),
         ]),
     ], id="modal-details-add-node", size="lg", is_open=False, centered=True,
        scrollable=True)

@@ -155,6 +155,33 @@ consistent meaning across the app.
 | Destructive | `danger` + custom bg | Delete (uses `ConfigManager.get_danger_color()` = `#c94c4c`) |
 | Icon/link | `link` | +/- buttons, restore defaults |
 
+### Flat ghost icon buttons
+
+For icon-only affordances, use the flat "ghost" treatment (transparent fill,
+muted stroke, lightens on hover) rather than a filled `color="light"`/
+`"secondary"` button — filled icon buttons read as chunky and high-contrast on
+the dark theme. Use **one** icon family (Bootstrap Icons, `bi bi-*`) at one
+weight; never mix in Unicode glyphs (`▾`, `×`) or color emoji (📁). The ghost
+classes are background-aware:
+
+| Class | Background | Icon at rest | Used for |
+|-------|-----------|--------------|----------|
+| `.btn.editor-icon-btn` | inside a white field | muted dark `#6c757d` | trailing actions in an `.editor-field-group` (browse, open, remove) |
+| `#main-toolbar .btn-secondary` / `.btn-canvas-overlay.btn-secondary` / `.details-header-btn.btn-secondary` | dark panel/canvas | muted light | toolbar, canvas overlay, details header |
+
+Add `.editor-icon-btn-danger` to a remove (`bi bi-x-lg`) button so the red
+(`#c94c4c`) appears only on hover — a multi-row field shouldn't read as a wall
+of danger buttons.
+
+Disclosure / secondary affordances next to a **dropdown** heading (e.g. the
+Search "locate" crosshair) go as a muted `color="link"` icon next to the section
+heading — not stacked beside the control, which would compete with its native
+chevron. Use the `+`-adder style: `dbc.Button(color="link",
+className="p-0 ms-2 text-decoration-none text-muted")`.
+
+A disclosure toggle on a plain **text input** (e.g. Name → Aliases) may instead
+live *inside* the field as a trailing chevron — see *Unified field* below.
+
 ### Button sizes
 - `size="sm"` — Toolbar, inline actions
 - (default) — Form actions (Save, Delete, Clear)
@@ -216,6 +243,41 @@ style={
 - Standard: `dbc.Input(type="text")` — uses Bootstrap DARKLY defaults
 - Textarea default: `dbc.Textarea(style={"height": "120px", "resize": "vertical"})`
 - Underline-only input: `style={"border": "none", "borderBottom": "1px solid #495057", "borderRadius": "0"}`
+
+### Unified field (input + trailing icon)
+
+When a text input needs a **per-row trailing action** (browse, open, remove a
+repeatable row), wrap the input and its ghost icon button(s) in a single
+`.editor-field-group` rather than placing a separate filled button beside it.
+The group carries the border, white background, radius, and focus ring
+(mirroring DARKLY's `.form-control`), and the inner input drops its own chrome —
+so the whole control spans full width and lines up with standalone fields like
+Type and Description. A separate beside-button leaves the input ending one
+button-width short, which reads as a narrower field.
+
+```python
+html.Div([
+    dbc.Input(id={"type": "obsidian-link", "index": i}, type="text"),  # no flex/border styles
+    dbc.Button(html.I(className="bi bi-folder2-open"),
+               id=..., className="editor-icon-btn"),
+    dbc.Button(html.I(className="bi bi-x-lg"),
+               id=..., className="editor-icon-btn editor-icon-btn-danger"),
+], className="d-flex editor-field-group")
+```
+
+A single text field can also carry an **in-field disclosure chevron** (Name →
+Aliases): same `.editor-field-group`, with the toggle button styled
+`editor-icon-btn editor-disclosure-btn` wrapping a `html.Span(className=
+"editor-chevron")`. `.editor-chevron` renders the *exact* DARKLY form-select
+chevron (stroke #303030, width 2) so it matches the native Context/Subcontext
+arrows instead of the thinner `bi-chevron-down`; a clientside callback adds
+`.open` to rotate it 180° while the collapse is open.
+
+Do **not** stack such a chevron beside a `dbc.Select`/`dcc.Dropdown` — it would
+double up with the native one. For those, either move the affordance to the
+heading (Search locate) or promote the hidden control to its own always-visible
+field when it's almost always used (Subcontext is a permanent field in the node
+editor and both add-node modals).
 
 ### Toggle-pill group (multi-select day/option picker)
 

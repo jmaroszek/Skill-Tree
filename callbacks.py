@@ -28,7 +28,7 @@ from callback_helpers import (
     node_options, build_filters, is_filters_active,
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     format_suggestions_table, format_traversal_ui,
-    render_link_rows, spawn_local_file_picker,
+    render_link_rows, render_alias_rows, spawn_local_file_picker,
     strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
     normalize_name_for_comparison,
@@ -3171,16 +3171,6 @@ def register_callbacks(app):
 
 
 
-    # --- Subcontext Collapse Toggle ---
-    @app.callback(
-        Output("collapse-subcontext", "is_open"),
-        [Input("btn-subcontext-toggle", "n_clicks")],
-        [State("collapse-subcontext", "is_open")],
-    )
-    def toggle_subcontext(n, is_open):
-        if n: return not is_open
-        return is_open
-
     # --- Aliases Collapse Toggle ---
     @app.callback(
         Output("collapse-aliases", "is_open"),
@@ -3191,29 +3181,22 @@ def register_callbacks(app):
         if n: return not is_open
         return is_open
 
+    # Rotate the in-field aliases chevron to match the collapse state. Driven by
+    # collapse-aliases.is_open (not the button's n_clicks) so it stays correct no
+    # matter what opens/closes the collapse (toggle, populate, last-alias-remove).
+    app.clientside_callback(
+        "function(isOpen){ return 'editor-chevron' + (isOpen ? ' open' : ''); }",
+        Output("aliases-chevron", "className"),
+        Input("collapse-aliases", "is_open"),
+    )
+
     # --- Aliases Render ---
     @app.callback(
         Output('aliases-container', 'children'),
         Input('aliases-store', 'data'),
     )
     def render_aliases(aliases):
-        if not aliases:
-            aliases = ['']
-        rows = []
-        for i, val in enumerate(aliases):
-            rows.append(html.Div([
-                dbc.Input(
-                    id={'type': 'alias-input', 'index': i},
-                    type='text', value=val or '',
-                    placeholder='',
-                    style={'flex': '1'},
-                ),
-                dbc.Button('\u00d7',
-                    id={'type': 'btn-alias-remove', 'index': i},
-                    color='link', className='p-0 ms-1 text-decoration-none text-muted',
-                    style={'fontSize': '1.1rem', 'lineHeight': '1'}),
-            ], className='d-flex align-items-center mb-1'))
-        return rows
+        return render_alias_rows(aliases)
 
     # --- Aliases Add/Remove ---
     @app.callback(

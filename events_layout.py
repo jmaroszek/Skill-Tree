@@ -178,7 +178,26 @@ def build_events_tab_content():
             # New-node mode: full node editor (Name through External Resources).
             html.Div(id="dormant-mode-new-fields", children=[
             dbc.Label("Name"),
-            dbc.Input(id="dormant-node-name", type="text"),
+            html.Div([
+                dbc.Input(id="dormant-node-name", type="text"),
+                dbc.Button(html.Span(id="dormant-aliases-chevron", className="editor-chevron"),
+                           id="btn-dormant-aliases-toggle", title="Aliases",
+                           className="editor-icon-btn editor-disclosure-btn"),
+            ], className="d-flex editor-field-group"),
+            dbc.Collapse(
+                html.Div([
+                    html.Div([
+                        dbc.Label("Aliases", className="mb-0"),
+                        dbc.Button("+", id="btn-dormant-alias-add", color="link",
+                                   className="p-0 ms-2 text-decoration-none text-muted",
+                                   title="Add alias",
+                                   style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                    ], className="d-flex align-items-center mt-1 mb-1"),
+                    html.Div(id='dormant-aliases-container'),
+                ]),
+                id="collapse-dormant-aliases", is_open=False,
+            ),
+            dcc.Store(id='dormant-aliases-store', data=['']),
 
             dbc.Label("Type", className="mt-2"),
             dbc.Select(id="dormant-node-type", options=[], value="Learn"),
@@ -188,19 +207,11 @@ def build_events_tab_content():
                          style={"height": "80px", "resize": "vertical"}),
 
             dbc.Label("Context", className="mt-2"),
-            html.Div([
-                dbc.Select(id="dormant-node-context",
-                           options=[],
-                           style={'flex': 1}),
-                dbc.Button("▾", id="btn-dormant-subcontext-toggle",
-                           color="light", className="ms-1 px-2"),
-            ], className="d-flex"),
-            dbc.Collapse(
-                dbc.Select(id="dormant-node-subcontext",
-                           options=[{"label": "None", "value": ""}],
-                           className="mt-1"),
-                id="collapse-dormant-subcontext", is_open=False,
-            ),
+            dbc.Select(id="dormant-node-context", options=[]),
+
+            dbc.Label("Subcontext", className="mt-2"),
+            dbc.Select(id="dormant-node-subcontext",
+                       options=[{"label": "None", "value": ""}]),
 
             html.Hr(className="my-2"),
             html.H5("Ratings", className="mt-2 mb-1"),
@@ -405,7 +416,8 @@ def build_events_tab_content():
         ]),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-dormant-node-cancel", color="secondary", className="me-2"),
-            dbc.Button("Add Node", id="btn-dormant-node-save", color="primary"),
+            dbc.Button("Add Node", id="btn-dormant-node-save", color="success",
+                       style={"backgroundColor": _done_color, "borderColor": _done_color}),
         ]),
     ], id="modal-dormant-node", size="lg", is_open=False, centered=True)
 

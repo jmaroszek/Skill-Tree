@@ -1426,37 +1426,52 @@ def render_link_rows(links, link_type, has_browse=False, has_open=True):
     prefix = link_type.replace('-link', '')  # e.g. 'obsidian', 'goal-add-obsidian'
     rows = []
     for i, path in enumerate(link_list):
-        buttons = []
+        # The input and its trailing icon button(s) share one bordered shell
+        # (.editor-field-group) so the row spans full width and lines up with
+        # the other editor fields. Buttons are flat ghost icons (.editor-icon-btn).
+        children = [dbc.Input(
+            id={"type": link_type, "index": i}, type="text",
+            value=path or '', placeholder="Enter path or URL...",
+        )]
         if has_browse:
-            buttons.append(dbc.Button(
-                "\U0001f4c1", id={"type": f"btn-{prefix}-browse", "index": i},
-                color="secondary", title="Browse",
-                className="me-1 d-flex justify-content-center align-items-center p-0",
-                style={"width": "38px"},
+            children.append(dbc.Button(
+                html.I(className="bi bi-folder2-open"),
+                id={"type": f"btn-{prefix}-browse", "index": i},
+                title="Browse", className="editor-icon-btn",
             ))
         if has_open:
-            buttons.append(dbc.Button(
-                html.I(className="bi bi-box-arrow-up-right", style={"fontSize": "0.85rem"}),
+            children.append(dbc.Button(
+                html.I(className="bi bi-box-arrow-up-right"),
                 id={"type": f"btn-{prefix}-open", "index": i},
-                color="secondary", title="Open",
-                className="me-1 d-flex justify-content-center align-items-center p-0",
-                style={"width": "38px"},
+                title="Open", className="editor-icon-btn",
             ))
         if len(link_list) > 1:
-            buttons.append(dbc.Button(
-                "\u00d7", id={"type": f"btn-{link_type}-remove", "index": i},
-                color="danger", outline=True,
-                className="d-flex justify-content-center align-items-center p-0",
-                style={"width": "38px", "fontSize": "1.5rem"},
+            children.append(dbc.Button(
+                html.I(className="bi bi-x-lg"),
+                id={"type": f"btn-{link_type}-remove", "index": i},
+                title="Remove", className="editor-icon-btn editor-icon-btn-danger",
             ))
+        rows.append(html.Div(children, className="d-flex editor-field-group mb-1"))
+    return rows
+
+
+def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-remove"):
+    """Build the alias input rows (one unified field per alias, trailing ×).
+
+    Shared by the main node editor and the add-node modals (dormant / subtask);
+    callers pass the prefixed pattern-matching id types so each surface keeps
+    its own component namespace. Mirrors render_link_rows' visual style.
+    """
+    alias_list = aliases or ['']
+    rows = []
+    for i, val in enumerate(alias_list):
         rows.append(html.Div([
-            dbc.Input(
-                id={"type": link_type, "index": i}, type="text",
-                value=path or '', placeholder="Enter path or URL...",
-                className="me-1", style={"flex": "1"},
-            ),
-            *buttons,
-        ], className="d-flex mb-1"))
+            dbc.Input(id={'type': input_type, 'index': i}, type='text',
+                      value=val or '', placeholder=''),
+            dbc.Button(html.I(className='bi bi-x-lg'),
+                       id={'type': remove_type, 'index': i}, title='Remove alias',
+                       className='editor-icon-btn editor-icon-btn-danger'),
+        ], className='d-flex editor-field-group mb-1'))
     return rows
 
 

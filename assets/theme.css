@@ -267,18 +267,6 @@
     box-sizing: border-box !important;
 }
 
-/* Node Editor search: extend the menu past the Locate button next to it. */
-/* Scoped via :has() so only fires when #search-node is the open trigger. */
-body:has(button#search-node[aria-expanded="true"]) [data-radix-popper-content-wrapper]:has(> .dash-dropdown-content) {
-    min-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
-    max-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
-}
-body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
-    width: calc(var(--radix-popper-anchor-width) + 35px) !important;
-    min-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
-    max-width: calc(var(--radix-popper-anchor-width) + 35px) !important;
-}
-
 /* --- Settings modal tab styling --- */
 
 .modal .nav-tabs {
@@ -523,4 +511,150 @@ body:has(button#search-node[aria-expanded="true"]) .dash-dropdown-content {
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
     box-shadow: none;
     font-size: 1rem;
+}
+
+/* --- Details left-panel header icons (nav arrows + locate crosshair) --- */
+/* Same flat ghost treatment as the toolbar: bare muted glyphs that align with
+   the search bar instead of reading as short filled buttons. Disabled state
+   stays transparent (dimmer stroke) rather than Bootstrap's faded fill. */
+.details-header-btn.btn-secondary {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: #adb5bd;
+    --bs-btn-hover-bg: rgba(255, 255, 255, 0.07);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: #f1f3f5;
+    --bs-btn-active-bg: rgba(255, 255, 255, 0.12);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-active-color: #ffffff;
+    --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-border-color: transparent;
+    --bs-btn-disabled-color: #495057;
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+    opacity: 1;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 4px 8px;
+}
+
+/* --- Node Editor: unified field + ghost icon affordances --- */
+/* .editor-icon-btn lives INSIDE a white .editor-field-group, so its icon is a
+   muted DARK stroke that darkens on hover (the light-field counterpart of the
+   panel/toolbar ghost icons above). It replaces the old chunky
+   color="secondary" fills and the mixed emoji/text glyphs (folder emoji, the
+   remove ×) on the resource and alias rows with single-weight Bootstrap Icons.
+   Disclosure/secondary affordances that are NOT trailing a field (Search
+   locate, the aliases toggle) instead live as muted color="link" icons next to
+   their section heading/label, matching the "+" adders elsewhere. */
+.btn.editor-icon-btn {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: #6c757d;
+    --bs-btn-hover-bg: rgba(0, 0, 0, 0.06);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: #303030;
+    --bs-btn-active-bg: rgba(0, 0, 0, 0.10);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-active-color: #1a1a1a;
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    width: 38px;
+    padding: 0;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+}
+
+/* Per-row remove (×): neutral at rest, the tamed danger red (#c94c4c, from
+   custom.css) only on hover/intent so a multi-row field doesn't read as a
+   wall of danger buttons. After the base rule so its vars win at equal spec. */
+.btn.editor-icon-btn-danger {
+    --bs-btn-hover-bg: rgba(201, 76, 76, 0.12);
+    --bs-btn-hover-color: #c94c4c;
+    --bs-btn-active-bg: rgba(201, 76, 76, 0.18);
+    --bs-btn-active-color: #c94c4c;
+}
+
+/* The bordered shell that fuses a text field with its trailing icon button(s)
+   into one control. Border/bg/radius live on the group so the whole thing
+   spans full width and lines up with the standalone Type/Description fields;
+   the inner input drops its own chrome. Values mirror DARKLY's .form-control
+   (bg #fff, border #222, focus ring #9badbf). overflow:hidden clips the
+   buttons' hover fill to the rounded corners (it does not clip the focus
+   box-shadow, which sits outside the border box). */
+.editor-field-group {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid #222;
+    border-radius: 0.375rem;
+    background-color: #fff;
+    overflow: hidden;
+}
+.editor-field-group:focus-within {
+    border-color: #9badbf;
+    box-shadow: 0 0 0 0.25rem rgba(55, 90, 127, .25);
+}
+.editor-field-group .form-control {
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.editor-field-group .form-control:focus {
+    border: none;
+    box-shadow: none;
+}
+
+/* --- Ratings sliders: hide Dash 3.x's companion number input --- */
+/* dcc.Slider renders an editable number box (.dash-range-slider-input) next to
+   the track. On the 1-10 rating sliders the value is already legible from the
+   axis marks below, so the box is redundant clutter; hide it and let the track
+   use the full width. Scoped to the node-editor + dormant-editor rating sliders
+   so the filter sliders are untouched. */
+#node-value .dash-range-slider-input,
+#node-interest .dash-range-slider-input,
+#node-difficulty .dash-range-slider-input,
+#dormant-node-value .dash-range-slider-input,
+#dormant-node-interest .dash-range-slider-input,
+#dormant-node-difficulty .dash-range-slider-input,
+#details-add-value .dash-range-slider-input,
+#details-add-interest .dash-range-slider-input,
+#details-add-difficulty .dash-range-slider-input,
+#filter-value .dash-range-slider-input,
+#filter-interest .dash-range-slider-input,
+#filter-difficulty .dash-range-slider-input {
+    display: none;
+}
+
+/* --- Disclosure chevron inside a field (e.g. Name → aliases) --- */
+/* Renders the exact same stroked-V chevron DARKLY draws on a form-select
+   (stroke #303030, width 2, 16x12), so an in-field disclosure toggle matches
+   the native Context/Subcontext dropdown arrows rather than the thinner
+   Bootstrap-Icons chevron. Rotates 180° when its collapse is open (driven by a
+   clientside callback that toggles the .open class). */
+.editor-chevron {
+    display: inline-block;
+    width: 16px;
+    height: 12px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 16px 12px;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23303030' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    transition: transform 0.2s ease;
+}
+.editor-chevron.open {
+    transform: rotate(180deg);
+}
+/* The disclosure button drops the fixed 38px icon-box width and instead mirrors
+   the select's right padding (0.75rem) so the chevron lines up with the native
+   ones on the fields stacked below it. */
+.btn.editor-disclosure-btn {
+    width: auto;
+    padding: 0 0.75rem;
 }

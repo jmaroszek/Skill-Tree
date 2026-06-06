@@ -15,7 +15,7 @@ from details_layout import (build_details_subtasks_table,
                              _build_suggestion_row, build_details_suggestions,
                              build_milestone_tile)
 from simulation import simulate_task_chain
-from callback_helpers import (render_link_rows, strip_gdrive_prefix,
+from callback_helpers import (render_link_rows, render_alias_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
                               is_filters_active,
                               build_explain_summary, build_explain_chart,
@@ -857,6 +857,14 @@ def register_details_callbacks(app):
         prevent_initial_call=True,
     )
 
+    # The Locate crosshair lives in the always-visible header, so disable it
+    # whenever no node is selected (mirrors the node editor's locate button).
+    app.clientside_callback(
+        "function(sel) { return !sel; }",
+        Output('btn-details-locate', 'disabled'),
+        Input('details-selected-node-store', 'data'),
+    )
+
     # --- Context Menu "Details" → Navigate to Details tab with node selected ---
     @app.callback(
         Output("main-tabs", "active_tab", allow_duplicate=True),
@@ -1026,9 +1034,8 @@ def register_details_callbacks(app):
         Output("details-add-supports-hard", "value"),
         Output("details-add-supports-soft", "value"),
         Output("details-add-helps", "value"),
-        # Time mode + subcontext collapse reset
+        # Time mode reset
         Output("details-add-time-mode", "value"),
-        Output("collapse-details-add-subcontext", "is_open"),
         # External resource stores reset
         Output("details-add-obsidian-store", "data"),
         Output("details-add-drive-store", "data"),
@@ -1052,7 +1059,7 @@ def register_details_callbacks(app):
     )
     def open_add_node_modal(n_clicks, selected_node):
         if not n_clicks:
-            return (no_update,) * 44
+            return (no_update,) * 43
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -1080,8 +1087,8 @@ def register_details_callbacks(app):
             # Relationship dropdown options + values (cleared)
             node_opts, node_opts, node_opts, node_opts, node_opts,
             [], [], [], [], [],
-            # Time mode + subcontext collapse reset
-            [], False,
+            # Time mode reset
+            [],
             # Reset external resource stores
             [''], [''], [''],
             # Override reset
@@ -1122,17 +1129,63 @@ def register_details_callbacks(app):
         subs = sort_subcontexts(ConfigManager.get_subcontexts().get(context, []))
         return base + [{"label": s, "value": s} for s in subs]
 
-    # --- Add Node Modal: Subcontext Toggle ---
+    # --- Add Node Modal: Aliases (mirrors the main node editor) ---
     @app.callback(
-        Output("collapse-details-add-subcontext", "is_open", allow_duplicate=True),
-        Input("btn-details-add-subcontext-toggle", "n_clicks"),
-        State("collapse-details-add-subcontext", "is_open"),
+        Output("collapse-details-add-aliases", "is_open"),
+        Input("btn-details-add-aliases-toggle", "n_clicks"),
+        State("collapse-details-add-aliases", "is_open"),
         prevent_initial_call=True,
     )
-    def toggle_details_add_subcontext(n, is_open):
+    def toggle_details_add_aliases(n, is_open):
         if n:
             return not is_open
-        return no_update
+        return is_open
+
+    app.clientside_callback(
+        "function(isOpen){ return 'editor-chevron' + (isOpen ? ' open' : ''); }",
+        Output("details-add-aliases-chevron", "className"),
+        Input("collapse-details-add-aliases", "is_open"),
+    )
+
+    @app.callback(
+        Output("details-add-aliases-container", "children"),
+        Input("details-add-aliases-store", "data"),
+    )
+    def render_details_add_aliases(aliases):
+        return render_alias_rows(aliases, 'details-add-alias-input', 'btn-details-add-alias-remove')
+
+    @app.callback(
+        [Output("details-add-aliases-store", "data", allow_duplicate=True),
+         Output("collapse-details-add-aliases", "is_open", allow_duplicate=True)],
+        [Input("btn-details-add-alias-add", "n_clicks"),
+         Input({"type": "btn-details-add-alias-remove", "index": ALL}, "n_clicks")],
+        [State({"type": "details-add-alias-input", "index": ALL}, "value"),
+         State("details-add-aliases-store", "data")],
+        prevent_initial_call=True,
+    )
+    def modify_details_add_aliases(add_clicks, remove_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        aliases = list(current_values) if current_values else list(store_data or [''])
+        collapse_update = no_update
+        if trigger == "btn-details-add-alias-add":
+            aliases.append('')
+        elif isinstance(trigger, dict) and trigger.get("type") == "btn-details-add-alias-remove":
+            idx = trigger["index"]
+            if 0 <= idx < len(aliases):
+                aliases.pop(idx)
+                if not aliases:
+                    collapse_update = False
+        return aliases, collapse_update
+
+    # Reset the alias rows to a single blank each time the (create-only) modal
+    # opens, so a fresh add never inherits the previous node's aliases.
+    @app.callback(
+        Output("details-add-aliases-store", "data", allow_duplicate=True),
+        Input("modal-details-add-node", "is_open"),
+        prevent_initial_call=True,
+    )
+    def reset_details_add_aliases(is_open):
+        return [''] if is_open else no_update
 
     # --- Add Node Modal: Mode toggles control OMP / Habit visibility ---
     app.clientside_callback(
@@ -1429,6 +1482,8 @@ def register_details_callbacks(app):
         # Override
         State("details-add-override-toggle", "value"),
         State("details-add-override-mode", "value"),
+        # Aliases
+        State({"type": "details-add-alias-input", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
     def save_add_node(n_clicks, selected_node, mode,
@@ -1443,7 +1498,7 @@ def register_details_callbacks(app):
                       habit_days,
                       needs_hard, needs_soft, supports_hard, supports_soft, helps,
                       obsidian_vals, drive_vals, website_vals,
-                      override_toggle, override_mode):
+                      override_toggle, override_mode, alias_values):
         from callback_helpers import serialize_links
         if not n_clicks or not selected_node:
             return no_update, no_update, no_update
@@ -1512,6 +1567,8 @@ def register_details_callbacks(app):
 
             try:
                 graph_manager.add_node(new_node)
+                graph_manager.set_aliases(
+                    name.strip(), [a for a in (alias_values or []) if a and a.strip()])
                 graph_manager.add_edge(name.strip(), selected_node, EDGE_NEEDS_HARD)
 
                 node_name_clean = name.strip()

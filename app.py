@@ -223,10 +223,16 @@ if __name__ == '__main__':
     else:
         if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()
-        # use_reloader=False: with the reloader on (Flask's default under debug=True)
-        # Werkzeug re-execs the whole module in a child process, so every import and
-        # the startup status recompute run twice — ~2.4s of duplicated boot work.
-        # Hot reload is already disabled (dev_tools_hot_reload=False), so the reloader
-        # bought nothing here. debug=True is kept for the in-browser error pages.
-        app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=False,
-                use_reloader=False, port=_port)
+        # Sandbox launches turn on hot reload so edits to assets (CSS/JS) and to
+        # Python source apply in the browser without a manual kill-and-relaunch —
+        # the fast edit loop. Cost: the reloader re-execs the module in a child
+        # process, so every import and the startup status recompute run twice
+        # (~2.4s of duplicated boot). That's worth it in the throwaway sandbox but
+        # not in production, where this path stays single-boot with no reload.
+        # The duplicate-launch guard above is reloader-safe: it only runs in the
+        # parent (WERKZEUG_RUN_MAIN unset) and is skipped in the child the
+        # reloader spawns (WERKZEUG_RUN_MAIN=="true"). debug=True also keeps the
+        # in-browser error pages.
+        _hot_reload = (ENVIRONMENT == "sandbox")
+        app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=_hot_reload,
+                use_reloader=_hot_reload, port=_port)

@@ -11,7 +11,8 @@ from graph_manager import GraphManager
 from config import ConfigManager, sort_subcontexts, sort_contexts
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
-from callback_helpers import (render_link_rows, serialize_links, spawn_local_file_picker,
+from callback_helpers import (render_link_rows, render_alias_rows, serialize_links,
+                              spawn_local_file_picker,
                               strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp,
                               habit_preview_text, habit_editor_view,
                               resolve_time_mode, resolve_value_mode)
@@ -655,7 +656,6 @@ def register_event_callbacks(app):
         Output("dormant-node-supports-soft", "value", allow_duplicate=True),
         Output("dormant-node-helps", "value", allow_duplicate=True),
         Output("dormant-node-time-mode", "value", allow_duplicate=True),
-        Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
         Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
         Output("dormant-drive-links-store", "data", allow_duplicate=True),
         Output("dormant-website-links-store", "data", allow_duplicate=True),
@@ -701,7 +701,7 @@ def register_event_callbacks(app):
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 57
+            return (no_update,) * 56
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -718,7 +718,7 @@ def register_event_callbacks(app):
                 _ted.get('unit', 'weeks'),
                 node_opts, node_opts, node_opts, node_opts, node_opts,
                 [], [], [], [], [],
-                [], False,
+                [],
                 [''], [''], [''],
                 [], [],
                 5, 5, 5,
@@ -748,17 +748,70 @@ def register_event_callbacks(app):
         subs = sort_subcontexts(ConfigManager.get_subcontexts().get(context, []))
         return base + [{"label": s, "value": s} for s in subs]
 
-    # --- Dormant Node Modal: Subcontext Toggle ---
+    # --- Dormant Node Modal: Aliases (mirrors the main node editor) ---
     @app.callback(
-        Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
-        Input("btn-dormant-subcontext-toggle", "n_clicks"),
-        State("collapse-dormant-subcontext", "is_open"),
+        Output("collapse-dormant-aliases", "is_open"),
+        Input("btn-dormant-aliases-toggle", "n_clicks"),
+        State("collapse-dormant-aliases", "is_open"),
         prevent_initial_call=True,
     )
-    def toggle_dormant_subcontext(n, is_open):
+    def toggle_dormant_aliases(n, is_open):
         if n:
             return not is_open
-        return no_update
+        return is_open
+
+    app.clientside_callback(
+        "function(isOpen){ return 'editor-chevron' + (isOpen ? ' open' : ''); }",
+        Output("dormant-aliases-chevron", "className"),
+        Input("collapse-dormant-aliases", "is_open"),
+    )
+
+    @app.callback(
+        Output("dormant-aliases-container", "children"),
+        Input("dormant-aliases-store", "data"),
+    )
+    def render_dormant_aliases(aliases):
+        return render_alias_rows(aliases, 'dormant-alias-input', 'btn-dormant-alias-remove')
+
+    @app.callback(
+        [Output("dormant-aliases-store", "data", allow_duplicate=True),
+         Output("collapse-dormant-aliases", "is_open", allow_duplicate=True)],
+        [Input("btn-dormant-alias-add", "n_clicks"),
+         Input({"type": "btn-dormant-alias-remove", "index": ALL}, "n_clicks")],
+        [State({"type": "dormant-alias-input", "index": ALL}, "value"),
+         State("dormant-aliases-store", "data")],
+        prevent_initial_call=True,
+    )
+    def modify_dormant_aliases(add_clicks, remove_clicks, current_values, store_data):
+        trigger = ctx.triggered_id
+        aliases = list(current_values) if current_values else list(store_data or [''])
+        collapse_update = no_update
+        if trigger == "btn-dormant-alias-add":
+            aliases.append('')
+        elif isinstance(trigger, dict) and trigger.get("type") == "btn-dormant-alias-remove":
+            idx = trigger["index"]
+            if 0 <= idx < len(aliases):
+                aliases.pop(idx)
+                if not aliases:
+                    collapse_update = False
+        return aliases, collapse_update
+
+    # Load aliases when the modal opens: existing node's aliases on edit, a
+    # single blank row for a fresh add. Keyed off the editing-store (set by both
+    # the open-new and edit-populate callbacks) so it stays decoupled from those
+    # large multi-output callbacks.
+    @app.callback(
+        Output("dormant-aliases-store", "data", allow_duplicate=True),
+        Input("modal-dormant-node", "is_open"),
+        State("editing-dormant-node-store", "data"),
+        prevent_initial_call=True,
+    )
+    def load_dormant_aliases(is_open, editing_name):
+        if not is_open:
+            return no_update
+        if editing_name:
+            return graph_manager.get_aliases(editing_name) or ['']
+        return ['']
 
     # --- Dormant Node Modal: Mode toggles control OMP / Habit visibility ---
     @app.callback(
@@ -1188,6 +1241,7 @@ def register_event_callbacks(app):
         State("dormant-new-event-trigger-type", "value"),
         State("dormant-new-event-trigger-date", "value"),
         State("dormant-new-event-trigger-node", "value"),
+        State({"type": "dormant-alias-input", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
     def save_dormant_node(n_clicks, selected_event,
@@ -1209,7 +1263,7 @@ def register_event_callbacks(app):
                           event_target_mode, new_event_name, new_event_desc,
                           existing_event_pick,
                           new_event_trigger_type, new_event_trigger_date,
-                          new_event_trigger_node):
+                          new_event_trigger_node, alias_values):
         _nu8 = (no_update,) * 8
         if not n_clicks:
             return _nu8
@@ -1403,6 +1457,9 @@ def register_event_callbacks(app):
             except ValueError as e:
                 return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg, no_update
 
+        graph_manager.set_aliases(
+            node.name, [a for a in (alias_values or []) if a and a.strip()])
+
         graph_manager.sync_edges(node.name, needs_hard or [], needs_soft or [],
                                  supports_hard or [], supports_soft or [], helps or [])
 
@@ -1562,7 +1619,6 @@ def register_event_callbacks(app):
         Output("dormant-node-context", "options", allow_duplicate=True),
         Output("dormant-node-subcontext", "value", allow_duplicate=True),
         Output("dormant-node-subcontext", "options", allow_duplicate=True),
-        Output("collapse-dormant-subcontext", "is_open", allow_duplicate=True),
         Output("dormant-node-desc", "value", allow_duplicate=True),
         Output("dormant-node-value-mode", "value", allow_duplicate=True),
         Output("dormant-node-value", "value", allow_duplicate=True),
@@ -1609,7 +1665,7 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
-        _N = 50
+        _N = 49
         if not selected_event:
             return (no_update,) * _N
         triggered = ctx.triggered_id
@@ -1688,8 +1744,6 @@ def register_event_callbacks(app):
         drive_links = parse_links(node.google_drive_path)
         website_links = parse_links(node.website)
 
-        subcollapse_open = bool(node.subcontext)
-
         return (
             True,                              # modal is_open
             node_name,                         # editing-dormant-node-store (original name)
@@ -1702,7 +1756,6 @@ def register_event_callbacks(app):
             ctx_opts,                          # context options
             node.subcontext or "",             # subcontext value
             subctx_opts,                       # subcontext options
-            subcollapse_open,                  # collapse-dormant-subcontext is_open
             node.description or "",            # desc
             value_mode_val,                    # value-mode (Inherit ratings)
             node.value or 5,                   # value

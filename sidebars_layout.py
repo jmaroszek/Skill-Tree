@@ -36,6 +36,10 @@ NODE_TYPES = ConfigManager.get_node_types()
 CONTEXTS = sort_contexts(ConfigManager.get_contexts())
 _TED = ConfigManager.get_time_estimate_defaults()
 
+# Save & Close reuses the canvas "Done" node color (same as the Events tab's
+# Trigger button) — a save-and-close is the editor's "done" moment.
+_DONE_COLOR = ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")
+
 # Weekday toggle-pill options for the habit per-session scheduler. Values are
 # weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
 # Apple-style day picker. Single-letter labels.
@@ -66,19 +70,20 @@ node_editor_content = html.Div(
             html.Div(id="node-priority-badge", children=[],
                      className="d-flex gap-1 flex-wrap mb-2",
                      style={"display": "none"}),
-            html.H5("Search", className="mt-0 mb-1"),
             html.Div([
-                html.Div(dcc.Dropdown(
-                    id="search-node",
-                    options=[],  # Populated dynamically by core_engine callback
-                    value=None,
-                    searchable=True,
-                    clearable=True,
-                ), className="text-dark", style={"flex": 1}),
+                html.H5("Search", className="mb-0"),
                 dbc.Button(html.I(className="bi bi-crosshair"),
-                           id="btn-locate-node", color="light", size="sm",
-                           className="ms-1 px-2", disabled=True),
-            ], className="d-flex"),
+                           id="btn-locate-node", color="link",
+                           className="p-0 ms-2 text-decoration-none text-muted",
+                           style={"fontSize": "1rem", "lineHeight": "1"}, disabled=True),
+            ], className="d-flex align-items-center mt-0 mb-1"),
+            html.Div(dcc.Dropdown(
+                id="search-node",
+                options=[],  # Populated dynamically by core_engine callback
+                value=None,
+                searchable=True,
+                clearable=True,
+            ), className="text-dark"),
             dbc.Tooltip("Locate node on graph",
                         target="btn-locate-node", placement="right",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
@@ -89,9 +94,11 @@ node_editor_content = html.Div(
             html.H5("General", className="mt-3 mb-1"),
             dbc.Label("Name", className="mt-2"),
             html.Div([
-                dbc.Input(id="node-name", type="text", style={'flex': 1}),
-                dbc.Button("▾", id="btn-aliases-toggle", color="light", className="ms-1 px-2"),
-            ], className="d-flex"),
+                dbc.Input(id="node-name", type="text"),
+                dbc.Button(html.Span(id="aliases-chevron", className="editor-chevron"),
+                           id="btn-aliases-toggle", title="Aliases",
+                           className="editor-icon-btn editor-disclosure-btn"),
+            ], className="d-flex editor-field-group"),
             html.Div(id="node-name-duplicate-warning", children="",
                      style={"display": "none"}, className="mt-1"),
             dbc.Collapse(
@@ -118,11 +125,10 @@ node_editor_content = html.Div(
             dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
 
             dbc.Label("Context", className="mt-2"),
-            html.Div([
-                dbc.Select(id="node-context", options=[{"label": c, "value": c} for c in CONTEXTS], value="", style={'flex': 1}),  # type: ignore[reportArgumentType]
-                dbc.Button("▾", id="btn-subcontext-toggle", color="light", className="ms-1 px-2")
-            ], className="d-flex"),
-            dbc.Collapse(dbc.Select(id="node-subcontext", options=[], className="mt-1"), id="collapse-subcontext", is_open=False),
+            dbc.Select(id="node-context", options=[{"label": c, "value": c} for c in CONTEXTS], value=""),  # type: ignore[reportArgumentType]
+
+            dbc.Label("Subcontext", className="mt-2"),
+            dbc.Select(id="node-subcontext", options=[]),
 
             html.Div(id="section-priority-rank", style={"display": "none"}, children=[
                 dbc.Label("Priority Rank", className="mt-2"),
@@ -408,7 +414,7 @@ node_editor_content = html.Div(
                 dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
                 dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
                 dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
-                dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0"})
+                dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0", "backgroundColor": _DONE_COLOR, "borderColor": _DONE_COLOR})
             ], className="d-flex mt-4"),
             dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
                        style={"padding": "8px 0"}),
