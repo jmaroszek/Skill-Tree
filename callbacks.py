@@ -949,17 +949,18 @@ def register_callbacks(app):
         if not name or not data:
             out = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
             if not trigger_id:
-                # Initial page load (no trigger). Seed the External Resources
-                # link stores with one empty row each so their row-renderer
-                # callbacks fire. Those renderers take a *-links-store as input,
-                # and since each store is also an output of this callback, Dash
-                # defers them until populate_editor produces a concrete value —
-                # returning no_update here leaves them deferred forever and the
-                # inputs never render. Seeding once on load builds the rows,
-                # which then persist in the DOM across the btn-add toggle's
-                # no_update returns. Indices 23/24/25 are the obsidian/drive/
-                # website store outputs.
+                # Initial page load (no trigger). Seed the stores that drive the
+                # dynamic row-renderers — the External Resources link inputs
+                # (indices 23/24/25: obsidian/drive/website) and the Aliases
+                # inputs (index 32). Each render callback takes its store as an
+                # input, and since the store is also an output of this callback,
+                # Dash defers the render until populate_editor produces a
+                # concrete value — returning no_update here leaves them deferred
+                # forever and the inputs never render. Seeding once on load
+                # builds the rows, which then persist in the DOM across the
+                # btn-add toggle's no_update returns.
                 out[23], out[24], out[25] = [''], [''], ['']
+                out[32] = ['']
             return out
 
         edges = manager.get_edges()
