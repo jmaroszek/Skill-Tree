@@ -1846,12 +1846,19 @@ def register_details_callbacks(app):
             # Match the Next-tab suggestion table: normalize this node's
             # priority_score against the max across all eligible active
             # nodes (see callback_helpers.format_suggestions_table).
+            # Now nodes MUST be excluded from this max: they're scored but
+            # pulled out of the Suggestions ranking (get_suggestions filters
+            # `n.now`), so they never anchor the Next-tab bars. A cheap Now
+            # node (e.g. a 0.5h tracking task) is often the global top score;
+            # including it here would shrink every normalized value relative
+            # to what the Next tab shows.
             if breakdown and breakdown['eligible'] and breakdown['score'] > 0:
                 scored = graph_manager.calculate_priority_scores(
                     all_nodes, priority_goals=priority_goals,
                 )
                 valid_scores = [n.priority_score for n in scored
-                                if getattr(n, 'priority_score', -1) > 0]
+                                if getattr(n, 'priority_score', -1) > 0
+                                and not getattr(n, 'now', 0)]
                 if valid_scores:
                     top = max(valid_scores)
                     if top > 0:
