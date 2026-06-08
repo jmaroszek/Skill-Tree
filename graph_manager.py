@@ -768,8 +768,11 @@ class GraphManager:
         persisted as one batched UPDATE — three DB connections total rather
         than the ~two-per-node the old per-node cascade opened.
 
-        Goal status is user-controlled, so Goals are never rewritten; their
-        stored status still feeds dependents. Done nodes ARE re-derived so a
+        Goal status is user-controlled, so Goals keep their Open/Done status;
+        their stored status still feeds dependents. The one exception is a Goal
+        stored as Blocked — Goals have no Blocked state, so that's drift and is
+        normalized back to Open (otherwise it sits red forever, invisible to
+        every other recompute path). Done nodes ARE re-derived so a
         Done node whose prereqs were un-Done outside the cascade (raw SQL,
         restored backup, etc.) flips to Blocked rather than sitting in an
         asymmetric state.
@@ -820,9 +823,18 @@ class GraphManager:
                 derived[name] = new_status
                 queue.extend(dependents_of[name])
 
+        # Goals are scoring sinks and have no Blocked state — a Goal stored as
+        # Blocked is drift (e.g. stamped before Goals were exempted from the
+        # cascade) that the renderer would paint red. The fixpoint loop never
+        # touches Goals, so normalize such a Goal back to Open here. Open/Done
+        # Goals are user-controlled and left alone.
+        for name in stored:
+            if node_type[name] == 'Goal' and stored[name] == STATUS_BLOCKED:
+                derived[name] = STATUS_OPEN
+
         changed_names = [
             name for name in stored
-            if node_type[name] != 'Goal' and derived[name] != stored[name]
+            if derived[name] != stored[name]
         ]
         if changed_names:
             with self.get_connection() as conn:            # connection 3

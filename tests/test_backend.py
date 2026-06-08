@@ -883,6 +883,21 @@ class TestStateManagement:
         # Done with un-Done prereq is asymmetric drift; recompute repairs it.
         assert mgr.get_node("DoneNode").status == "Blocked"
 
+    def test_recompute_all_statuses_normalizes_blocked_goal(self, mgr):
+        """A Goal has no Blocked state. One stored as Blocked (e.g. stamped
+        before Goals were exempted from the cascade) is drift the renderer
+        paints red; recompute must normalize it back to Open."""
+        mgr.add_node(_make_node("GoalNode", type="Goal", status="Open"))
+        with mgr.get_connection() as conn:
+            conn.execute(
+                "UPDATE Nodes SET status='Blocked' WHERE name='GoalNode'",
+            )
+            conn.commit()
+        assert mgr.get_node("GoalNode").status == "Blocked"
+        changed = mgr.recompute_all_statuses()
+        assert changed == 1
+        assert mgr.get_node("GoalNode").status == "Open"
+
 
 # ============================================================================
 # Sync Edges
