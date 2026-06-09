@@ -282,12 +282,13 @@ def register_settings_callbacks(app):
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-monte-carlo-trials', 'value'),
+        Output('setting-now-node-cap', 'value'),
         Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 45
+            return (dash.no_update,) * 46
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -374,6 +375,7 @@ def register_settings_callbacks(app):
             ConfigManager.get_context_sort_mode(),
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
             ConfigManager.get_monte_carlo_trials(),
+            ConfigManager.get_now_node_cap(),
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -498,6 +500,7 @@ def register_settings_callbacks(app):
         State('setting-context-sort-mode', 'value'),
         State('setting-time-calibration-enabled', 'value'),
         State('setting-monte-carlo-trials', 'value'),
+        State('setting-now-node-cap', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul,
@@ -515,7 +518,7 @@ def register_settings_callbacks(app):
                       egl_edge_length, egl_gravity, egl_repulsion,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
-                      monte_carlo_trials_val):
+                      monte_carlo_trials_val, now_node_cap_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -529,6 +532,8 @@ def register_settings_callbacks(app):
             ConfigManager.set_time_calibration_enabled(
                 bool(time_calibration_val and "enabled" in time_calibration_val)
             )
+            if now_node_cap_val is not None:
+                ConfigManager.set_now_node_cap(max(1, min(50, int(now_node_cap_val))))
             if subcontext_sort_mode_val:
                 ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
             if context_sort_mode_val:

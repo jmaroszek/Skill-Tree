@@ -3942,7 +3942,6 @@ def register_callbacks(app):
     )
     def dispatch_now_toggle(toggle_val, node_name):
         import time as _time
-        from config import NOW_NODE_CAP
         if not node_name:
             return no_update, no_update
         node = manager.get_node(node_name)
@@ -3960,7 +3959,7 @@ def register_callbacks(app):
         # trigger so the toast pops.
         if wants_now and not is_now:
             current_count = len(manager.get_now_nodes())
-            if current_count >= NOW_NODE_CAP:
+            if current_count >= ConfigManager.get_now_node_cap():
                 ts = int(_time.time() * 1000)
                 return f"refused|{ts}", f"refused|{ts}"
         node.now = 1 if wants_now else 0
@@ -3972,7 +3971,7 @@ def register_callbacks(app):
     # writes a JSON list of names + timestamp to toggle-now-trigger-input.
     # Flip each node's Now flag, then bump node-now-trigger-input to
     # cause the canvas to re-render. Bulk operation supported for parity
-    # with toggle-done, though Now's soft cap of 3 makes bulk unlikely.
+    # with toggle-done, though Now's soft cap makes bulk unlikely.
     @app.callback(
         Output("node-now-trigger-input", "value", allow_duplicate=True),
         Output("now-cap-refused-trigger", "value", allow_duplicate=True),
@@ -3981,7 +3980,6 @@ def register_callbacks(app):
     )
     def handle_now_trigger(trigger_data):
         import time as _time
-        from config import NOW_NODE_CAP
         if not trigger_data:
             return no_update, no_update
         try:
@@ -4005,7 +4003,7 @@ def register_callbacks(app):
                 node.now = 0
                 current_count -= 1
             else:
-                if current_count >= NOW_NODE_CAP:
+                if current_count >= ConfigManager.get_now_node_cap():
                     refused_any = True
                     continue  # Cap reached — skip this set-Now.
                 node.now = 1
@@ -4022,10 +4020,14 @@ def register_callbacks(app):
     # dbc.Toast's `duration` auto-dismisses after 5s.
     @app.callback(
         Output("now-cap-toast", "is_open"),
+        Output("now-cap-toast", "children"),
         Input("now-cap-refused-trigger", "value"),
         prevent_initial_call=True,
     )
     def show_now_cap_toast(trigger):
-        return bool(trigger)
+        if not trigger:
+            return False, no_update
+        cap = ConfigManager.get_now_node_cap()
+        return True, f"{cap} Now nodes is the cap. Clear one to make room."
 
 

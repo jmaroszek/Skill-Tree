@@ -5,7 +5,7 @@ Callback definitions for the Next tab (priority suggestions).
 import dash
 from dash import Input, Output, State, ALL, ctx, html
 from graph_manager import GraphManager
-from config import ConfigManager, NOW_NODE_CAP
+from config import ConfigManager
 from callback_helpers import get_trigger_id, format_now_nodes_section, SECTION_TITLE_STYLE
 from models import STATUS_DONE
 
@@ -148,7 +148,7 @@ def register_next_callbacks(app):
         now_nodes = manager.get_now_nodes()
         return format_now_nodes_section(
             now_nodes,
-            cap=NOW_NODE_CAP,
+            cap=ConfigManager.get_now_node_cap(),
             manager=manager,
             selected_node_id=selected_node_id,
         )

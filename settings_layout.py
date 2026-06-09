@@ -161,20 +161,6 @@ def _build_appearance_tab():
                          placeholder="e.g. a, an, the, and, or, of"),
             html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
 
-            # --- Next Table group ---
-            html.Hr(className="my-3"),
-            html.H5("Next Table", className="mt-2 mb-1"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Default Rows", className="mb-0 mt-1"),
-                ], width="auto", className="pe-1"),
-                dbc.Col([
-                    dbc.Input(id="setting-next-table-rows", type="number", min=1, max=100, step=1,
-                              style={"width": "80px"}, size="sm"),
-                ], width="auto"),
-            ], className="g-1 align-items-center mb-1"),
-            html.Small("Number of suggestion rows to display in the Next tab by default.", className="text-muted d-block mb-1"),
-
             # --- Repair Graph group ---
             html.Hr(className="my-2"),
             html.H5("Repair Graph", className="mt-2 mb-1"),
@@ -439,6 +425,20 @@ def _build_scoring_tab():
                 className="text-muted d-block mb-2"),
             html.Div(id="setting-context-weights-container"),
 
+            # --- Next Table group ---
+            html.Hr(className="my-3"),
+            html.H5("Next Table", className="mt-2 mb-1"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Default Rows", className="mb-0 mt-1"),
+                ], width="auto", className="pe-1"),
+                dbc.Col([
+                    dbc.Input(id="setting-next-table-rows", type="number", min=1, max=100, step=1,
+                              style={"width": "80px"}, size="sm"),
+                ], width="auto"),
+            ], className="g-1 align-items-center mb-1"),
+            html.Small("Number of suggestion rows to display in the Next tab by default.", className="text-muted d-block mb-1"),
+
             # --- Performance group ---
             html.Hr(className="my-3"),
             html.H5("Performance", className="mt-2 mb-1"),
@@ -541,6 +541,22 @@ def _build_time_tab():
             dbc.Input(id="setting-monte-carlo-trials", type="number",
                       min=100, max=1000000, step=100,
                       style={"width": "128px"}),
+        ], className="p-2")
+    ])
+
+
+def _build_misc_tab():
+    return dbc.Tab(label="Misc", tab_id="tab-misc", children=[
+        html.Div([
+            # --- Now Cap section ---
+            html.H5("Now Cap", className="mt-2 mb-1"),
+            html.Small(
+                "Maximum number of nodes that can be flagged Now at once.",
+                className="text-muted d-block mb-2"),
+            dbc.Label("Max Now Nodes"),
+            dbc.Input(id="setting-now-node-cap", type="number",
+                      min=1, max=50, step=1,
+                      style={"width": "128px"}),
 
             # --- Reflection section ---
             html.Hr(className="my-2"),
@@ -551,16 +567,14 @@ def _build_time_tab():
                 className="text-muted d-block mb-2"),
             dbc.Checklist(
                 id="setting-time-calibration-enabled",
-                options=[{"label": "Prompt for reflection on completion",
+                options=[{"label": "Prompt on Completion",
                           "value": "enabled"}],
                 value=["enabled"],
                 switch=True,
                 className="mb-2",
             ),
             html.Small(
-                "Manage the queue (start a session, browse history, "
-                "restore excluded nodes) from the Reflection Hub — the "
-                "journal icon in the top toolbar.",
+                "Manage reflections from the journal icon in the tool bar.",
                 className="text-muted d-block",
             ),
         ], className="p-2")
@@ -605,6 +619,7 @@ def build_settings_modal():
                 _build_scoring_tab(),
                 _build_time_tab(),
                 _build_paths_tab(),
+                _build_misc_tab(),
             ]),
         ),
     ], id="settings-modal", dialog_style={"maxWidth": "900px"},

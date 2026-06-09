@@ -111,7 +111,7 @@ description_view = html.Div([
 next_view = html.Div([
     dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
     
-    # "Now" section — currently-Now nodes (cap = NOW_NODE_CAP).
+    # "Now" section — currently-Now nodes (cap = ConfigManager.get_now_node_cap()).
     # Heading + rows are emitted together by populate_now_section. The
     # section collapses to zero height when there are no Now nodes, so
     # the Next heading floats to the top of the tab.
@@ -1223,7 +1223,7 @@ def build_app_layout(initial_elements, env="production"):
         # input to refresh the canvas.
         dcc.Input(id='toggle-now-trigger-input', type='text', value='', style={'display': 'none'}),
         # Bumped by both the editor dispatcher and the context-menu handler
-        # whenever setting Now is refused for hitting NOW_NODE_CAP.
+        # whenever setting Now is refused for hitting the Now cap.
         # show_now_cap_toast listens and pops a transient warning toast.
         dcc.Input(id='now-cap-refused-trigger', type='text', value='', style={'display': 'none'}),
         # Transient "Now cap reached" toast — auto-dismisses after 5s.
@@ -1232,7 +1232,7 @@ def build_app_layout(initial_elements, env="production"):
         # top:60px clears it with a touch of breathing room). zIndex above
         # context menus (10000–10002).
         dbc.Toast(
-            "3 Now nodes is the cap. Clear one to make room.",
+            f"{ConfigManager.get_now_node_cap()} Now nodes is the cap. Clear one to make room.",
             id="now-cap-toast",
             header="Now Cap Reached",
             is_open=False,

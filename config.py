@@ -144,11 +144,11 @@ DEFAULT_NODE_COLORS = {
     'Now': '#ffd000',
 }
 
-# Soft cap on simultaneously-Now nodes. The cap is informational —
-# the Now section header counter turns warning-colored when exceeded,
-# but the toggle remains free. Default 3 keeps focus tight without
-# blocking brief overlap during handoffs.
-NOW_NODE_CAP = 3
+# Default soft cap on simultaneously-Now nodes, overridable via the Misc
+# settings tab (ConfigManager.get_now_node_cap). Setting Now is refused
+# once the cap is reached; clearing is always allowed. 5 keeps focus
+# fairly tight without blocking brief overlap during handoffs.
+DEFAULT_NOW_NODE_CAP = 5
 
 DEFAULT_NODE_SHAPES = {
     'Learn': 'ellipse',
@@ -1226,6 +1226,20 @@ class ConfigManager:
     @classmethod
     def set_next_table_rows(cls, count: int):
         cls._set_db_value("NEXT_TABLE_ROWS", str(count))
+
+    @classmethod
+    def get_now_node_cap(cls) -> int:
+        val = cls._get_db_value("NOW_NODE_CAP")
+        if val:
+            try:
+                return int(val)
+            except ValueError:
+                pass
+        return DEFAULT_NOW_NODE_CAP
+
+    @classmethod
+    def set_now_node_cap(cls, count: int):
+        cls._set_db_value("NOW_NODE_CAP", str(count))
 
     @classmethod
     def get_show_scoring_perf(cls) -> bool:
