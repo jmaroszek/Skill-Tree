@@ -1246,9 +1246,11 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     """Render the 'Now' section for the Next tab as a row of rich cards.
 
     Each Now node gets a wide horizontal card with a left accent bar in
-    the node's type color, the name + context/subcontext, a type badge pill,
-    time estimate, V/I/E micro-chart, and Obsidian/Drive/Website link dots.
-    Cards sit in a responsive flex row (1–3 items).
+    the node's type color (or the override color when the node is overridden),
+    the name + context/subcontext, a type badge pill, time estimate,
+    V/I/E micro-chart, and Obsidian/Drive/Website link dots.
+    Cards sit in a responsive flex row (1–3 items). Overridden nodes sort
+    first (leftmost).
 
     When there are no Now nodes the section is suppressed entirely —
     return [] so the Next heading sits at the top of the tab.
@@ -1263,11 +1265,19 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
         html.H6("Now", className="text-muted mb-0", style=SECTION_TITLE_STYLE),
     ], className="d-flex align-items-center", style={"gap": "12px", "marginBottom": "0.75rem"})
 
+    # Overridden nodes sort first (leftmost) and take the override accent
+    # color instead of their type color — matching the table bar and the
+    # settings modal. Stable sort keeps the original order within each tier.
+    override_set = ConfigManager.get_override_node_set(manager)
+    override_color = BADGE_PALETTE['Override'][0]
+    now_nodes = sorted(now_nodes, key=lambda n: n.name not in override_set)
+
     cards = []
     for n in now_nodes:
         is_selected = (n.name == selected_node_id)
+        is_override = n.name in override_set
         eff_time = manager.get_effective_time(n.name)
-        accent_color = BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]
+        accent_color = override_color if is_override else BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]
 
         # --- Context / subcontext line ---
         ctx_text = str(n.context) if n.context else ""
