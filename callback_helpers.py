@@ -966,6 +966,20 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     return msg
 
 
+def prior_node_for_completion(manager, name, original_name):
+    """The DB row a save is about to overwrite, for Done-transition detection.
+
+    During a rename the node still lives in the DB under its pre-save name
+    (core_engine renames after this check), so fall back to original_name —
+    otherwise a re-saved Done node that was just renamed is misread as a
+    brand-new completion and spuriously re-opens the time-calibration modal.
+    """
+    node = manager.get_node(name)
+    if node is None and original_name and original_name.strip():
+        node = manager.get_node(original_name.strip())
+    return node
+
+
 def handle_delete(manager, name):
     """Delete a single node by name. Returns a status message."""
     manager.delete_node(name)

@@ -27,6 +27,7 @@ from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
     node_options, build_filters, is_filters_active,
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
+    prior_node_for_completion,
     format_suggestions_table, format_traversal_ui,
     render_link_rows, render_alias_rows, spawn_local_file_picker,
     strip_gdrive_prefix, expand_gdrive_prefix,
@@ -1122,10 +1123,21 @@ def register_callbacks(app):
         if not cur_name or not cur_name.strip():
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         linted = ConfigManager.apply_titlecase_linter(cur_name.strip())
-        if not manager.get_node(linted):
-            # Save failed to persist — leave state alone rather than stomping
-            # a stale snapshot on top of a non-existent node.
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        # core_engine is triggered by the same Save click and runs
+        # concurrently with this callback. On a rename (or brand-new node)
+        # the node doesn't exist under its linted name until core_engine
+        # commits the write, so a single get_node here loses the race and
+        # leaves node-original-name stale — which silently breaks every
+        # feature keyed off it (locate, Now toggle, dirty checks). Poll
+        # briefly for the write to land before concluding the save failed.
+        import time as _time
+        _deadline = _time.monotonic() + 3.0
+        while not manager.get_node(linted):
+            if _time.monotonic() >= _deadline:
+                # Save genuinely failed to persist — leave state alone rather
+                # than stomping a stale snapshot on a non-existent node.
+                return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            _time.sleep(0.05)
         # Build the post-save snapshot directly from what the form holds, not
         # from a DB round-trip. A DB-derived snapshot (via build_editor_snapshot)
         # re-applies display transforms — most notably _friendly_time_estimates,
@@ -1951,7 +1963,8 @@ def register_callbacks(app):
                 # Done) — re-saving an already-Done node must not re-trigger
                 # the time-calibration modal.
                 if status_done and STATUS_DONE in (status_done or []):
-                    _prior_for_completion = manager.get_node(name)
+                    _prior_for_completion = prior_node_for_completion(
+                        manager, name, original_name)
                     if not (_prior_for_completion
                             and _prior_for_completion.status == STATUS_DONE):
                         completion_check_node = name

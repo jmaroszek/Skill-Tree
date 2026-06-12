@@ -13,7 +13,7 @@ import pytest
 
 from models import Node, blend_time_estimate, STATUS_DONE, STATUS_OPEN
 from graph_manager import GraphManager
-from callback_helpers import handle_save
+from callback_helpers import handle_save, prior_node_for_completion
 from config import ConfigManager
 from callbacks import (
     _calibration_review_queue,
@@ -277,3 +277,31 @@ class TestCalibrationModalText:
         node = _make_node("Container", type="Goal", time_mode="inherited")
         _, prompt = _calibration_modal_text(node)
         assert prompt == "How long did it actually take?"
+
+
+# ============================================================================
+# prior_node_for_completion — the Done-transition pre-check in core_engine
+# ============================================================================
+
+class TestPriorNodeForCompletion:
+    def test_existing_node_found_by_current_name(self, mgr):
+        mgr.add_node(_make_node("Stoicism", status=STATUS_DONE))
+        node = prior_node_for_completion(mgr, "Stoicism", "Stoicism")
+        assert node is not None and node.status == STATUS_DONE
+
+    def test_rename_falls_back_to_original_name(self, mgr):
+        # Regression: renaming a Done node ("FIRE app" → "FIRE App") must not
+        # be misread as a brand-new completion — the rename hasn't been
+        # committed yet when the completion check runs, so the lookup has to
+        # fall back to the pre-save name.
+        mgr.add_node(_make_node("FIRE app", status=STATUS_DONE))
+        node = prior_node_for_completion(mgr, "FIRE App", "FIRE app")
+        assert node is not None and node.status == STATUS_DONE
+
+    def test_brand_new_node_returns_none(self, mgr):
+        assert prior_node_for_completion(mgr, "Fresh Node", None) is None
+
+    def test_rename_of_open_node_reports_open(self, mgr):
+        mgr.add_node(_make_node("draft", status=STATUS_OPEN))
+        node = prior_node_for_completion(mgr, "Draft", "draft")
+        assert node is not None and node.status == STATUS_OPEN
