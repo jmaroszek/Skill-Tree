@@ -3971,11 +3971,15 @@ def register_callbacks(app):
         # and bounces the switch back to off, AND bump the cap-refused
         # trigger so the toast pops.
         if wants_now and not is_now:
-            current_count = len(manager.get_now_nodes())
+            now_nodes = manager.get_now_nodes()
+            current_count = len(now_nodes)
             if current_count >= ConfigManager.get_now_node_cap():
                 ts = int(_time.time() * 1000)
                 return f"refused|{ts}", f"refused|{ts}"
-        node.now = 1 if wants_now else 0
+            max_now = max([n.now for n in now_nodes]) if now_nodes else 0
+            node.now = max_now + 1
+        elif not wants_now and is_now:
+            node.now = 0
         manager.update_node(node)
         return f"{node_name}|{int(_time.time() * 1000)}", no_update
 
@@ -4005,13 +4009,15 @@ def register_callbacks(app):
         # Track count locally so a bulk set-Now stops at the cap. Pull
         # the live count once, then update it as we flip — get_now_nodes
         # would re-query the DB each iteration and miss our pending writes.
-        current_count = len(manager.get_now_nodes())
+        now_nodes = manager.get_now_nodes()
+        current_count = len(now_nodes)
+        max_now = max([n.now for n in now_nodes]) if now_nodes else 0
         refused_any = False
         for name in names:
             node = manager.get_node(name)
             if not node:
                 continue
-            if node.now:
+            if node.now > 0:
                 # Clearing Now is always allowed.
                 node.now = 0
                 current_count -= 1
@@ -4019,7 +4025,8 @@ def register_callbacks(app):
                 if current_count >= ConfigManager.get_now_node_cap():
                     refused_any = True
                     continue  # Cap reached — skip this set-Now.
-                node.now = 1
+                max_now += 1
+                node.now = max_now
                 current_count += 1
             manager.update_node(node)
         ts = int(_time.time() * 1000)
@@ -4043,4 +4050,21 @@ def register_callbacks(app):
         cap = ConfigManager.get_now_node_cap()
         return True, f"{cap} Now nodes is the cap. Clear one to make room."
 
-
+    # --- Drag and drop reordering of Now cards ---
+    @app.callback(
+        Output("node-now-trigger-input", "value", allow_duplicate=True),
+        Input("now-drag-order-input", "value"),
+        prevent_initial_call=True,
+    )
+    def handle_now_reorder(order_json):
+        if not order_json:
+            return no_update
+        try:
+            names = json.loads(order_json)
+        except (json.JSONDecodeError, TypeError):
+            return no_update
+        if isinstance(names, list) and names:
+            manager.reorder_now_nodes(names)
+            import time as _time
+            return f"reorder|{int(_time.time() * 1000)}"
+        return no_update

@@ -130,13 +130,13 @@ class GraphManager:
         # keeping the first one.
         if prior is not None:
             today_iso = date.today().isoformat()
-            if node.now == 1 and prior.now == 0:
+            if node.now > 0 and prior.now == 0:
                 node.start_date = today_iso
             if (node.status == STATUS_DONE
                     and prior.status != STATUS_DONE):
                 if prior.done_date is None:
                     node.done_date = today_iso
-                if node.now == 1:
+                if node.now > 0:
                     node.now = 0
             elif (node.status != STATUS_DONE
                     and prior.status == STATUS_DONE):
@@ -421,8 +421,25 @@ class GraphManager:
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute('SELECT * FROM Nodes WHERE "now" = 1 AND dormant = 0')
+            cursor.execute('SELECT * FROM Nodes WHERE "now" > 0 AND dormant = 0 ORDER BY "now" ASC, name ASC')
             return [Node(**dict(row)) for row in cursor.fetchall()]
+
+    def reorder_now_nodes(self, ordered_names: List[str]):
+        """Update the "now" rank for the provided nodes to match their order in the list.
+
+        Only updates nodes that are currently flagged Now (now > 0).
+        A stale DOM state could include a card that was just unpinned;
+        blindly setting its rank would re-pin it.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            for i, name in enumerate(ordered_names, start=1):
+                cursor.execute(
+                    'UPDATE Nodes SET "now" = ? WHERE name = ? AND "now" > 0',
+                    (i, name),
+                )
+            conn.commit()
+        self._bump_version(scoring=False)
 
     # --- Edge Operations ---
 

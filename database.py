@@ -102,9 +102,11 @@ def init_db():
             actual_time_point REAL,
             actual_time_unit TEXT,
             calibration_dismissed INTEGER NOT NULL DEFAULT 0,
-            -- 'now' is an orthogonal boolean (separate from status) marking the
-            -- node as currently-being-worked. start_date/done_date auto-stamp on
-            -- first activation / first Done. reflect_* are retrospective ratings.
+            -- 'now' is an orthogonal integer (separate from status) marking the
+            -- node as currently-being-worked. 0 = not Now; positive integers
+            -- encode display order (1 = leftmost card). start_date/done_date
+            -- auto-stamp on first activation / first Done. reflect_* are
+            -- retrospective ratings.
             now INTEGER NOT NULL DEFAULT 0,
             start_date TEXT,
             done_date TEXT,

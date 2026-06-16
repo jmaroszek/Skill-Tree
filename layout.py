@@ -1226,6 +1226,7 @@ def build_app_layout(initial_elements, env="production"):
         # whenever setting Now is refused for hitting the Now cap.
         # show_now_cap_toast listens and pops a transient warning toast.
         dcc.Input(id='now-cap-refused-trigger', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='now-drag-order-input', type='text', value='', style={'display': 'none'}),
         # Transient "Now cap reached" toast — auto-dismisses after 5s.
         # Fixed top-right, anchored just below the tab bar (the row holding
         # the Filters / Calibration / Settings icons sits at ~48px tall, so

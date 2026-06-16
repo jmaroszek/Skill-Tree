@@ -1284,7 +1284,6 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     # settings modal. Stable sort keeps the original order within each tier.
     override_set = ConfigManager.get_override_node_set(manager)
     override_color = BADGE_PALETTE['Override'][0]
-    now_nodes = sorted(now_nodes, key=lambda n: n.name not in override_set)
 
     cards = []
     for n in now_nodes:
@@ -1379,10 +1378,11 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             **{
                 "data-obsidian-path": n.obsidian_path or "",
                 "data-google-drive-path": n.google_drive_path or "",
+                "data-node-name": n.name,
             },  # type: ignore[reportArgumentType]
         ))
 
-    cards_row = html.Div(cards, style={
+    cards_row = html.Div(cards, id="now-cards-container", style={
         "display": "flex",
         "gap": "1rem",
         "marginBottom": "1.5rem",
