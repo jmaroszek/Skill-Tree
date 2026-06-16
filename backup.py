@@ -48,6 +48,19 @@ def run_backup():
 
         log(f"SUCCESS: Created backup at {backup_path}")
 
+        # Keep at most 10 backups
+        backups = [f for f in os.listdir(BACKUP_DIR) if f.startswith("skilltree_") and f.endswith(".db")]
+        if len(backups) > 10:
+            backups.sort()  # Sorts chronologically due to YYYY-MM-DD naming
+            backups_to_delete = backups[:-10]
+            for old_backup in backups_to_delete:
+                old_backup_path = os.path.join(BACKUP_DIR, old_backup)
+                try:
+                    os.remove(old_backup_path)
+                    log(f"INFO: Pruned old backup {old_backup}")
+                except Exception as e_rm:
+                    log(f"WARNING: Failed to delete old backup {old_backup}: {e_rm}")
+
     except Exception as e:
         log(f"CRITICAL ERROR: {str(e)}")
 
