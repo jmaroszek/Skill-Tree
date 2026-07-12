@@ -77,7 +77,10 @@ function createWindow() {
     },
   });
   mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
+    mainWindow.show();
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
   // F12 / Ctrl+Shift+I toggles DevTools (there's no app menu to provide it).
   mainWindow.webContents.on('before-input-event', (e, input) => {
