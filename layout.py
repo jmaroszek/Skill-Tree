@@ -57,7 +57,7 @@ def create_graph_view(initial_elements):
                        id="btn-graph-settings",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
-            dbc.Tooltip("Graph settings", target="btn-graph-settings", placement="left",
+            dbc.Tooltip("Graph layout", target="btn-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _freeze_indicator("freeze-indicator"),
             build_graph_settings_panel(

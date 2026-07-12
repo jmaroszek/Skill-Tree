@@ -374,7 +374,7 @@ All gestures below work on every tab with a network visualization (Nodes, Detail
 | Scroll wheel | Zoom in and out |
 
 ### Graph Layout Controls
-The gear icon in the bottom right corner of the canvas opens the **Graph Settings** panel. It controls how the physics engine arranges the graph. 
+The gear icon in the bottom right corner of each canvas opens the **Graph Layout** panel. It controls how the physics engine arranges the graph that survives the filters.
 
 <table>
   <tr>
@@ -383,8 +383,6 @@ The gear icon in the bottom right corner of the canvas opens the **Graph Setting
 
 | Control | What it does |
 |---|---|
-| Max Depth | Limit the view to N hops from the selected node. |
-| Neighbors | Show or hide links between the selected node's neighbors. Hiding them leaves a clean subtree radiating from the selection. |
 | Smooth | Animate layout changes instead of snapping. Most elegant for smaller networks. |
 | Freeze | Pause re-layout so hand-placed nodes stay put (more details). |
 | Edge Length | The length of the springs between connected nodes. |
@@ -402,10 +400,10 @@ The **↺** button beside the panel title restores your saved defaults — set p
 
 ### Fullscreen
 
-The fullscreen button in the bottom right corner, next to the graph settings button, expands the canvas to fill the whole window. Marginal on the Nodes tab (already nearly fullscreen), but helpful on Details and Events. Hit the button again or press Escape to exit.
+The fullscreen button in the bottom right corner, next to the graph-layout button, expands the canvas to fill the whole window. Marginal on the Nodes tab (already nearly fullscreen), but helpful on Details and Events. Hit the button again or press Escape to exit.
 
 ## Helpful Features for Large Networks
-The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. You've already seen one tool for taming it: the Max Depth parameter, which carves a local graph around the active node. There are two other useful ways to tame the complexity: Filters and the Details Tab.
+The Nodes tab works fine for small networks — say 250 nodes or fewer. Past that it becomes a "dense hairball" that makes it hard to focus on what you want. The Filters sidebar cuts the overview down by attributes; the Details tab gives you a purpose-built local dependency graph around one node.
 
 # Filters Sidebar
 
@@ -420,8 +418,9 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 
 | Filter | Function |
 |---|---|
-| Node Type | Show only certain node types (e.g. learns + resources) |
-| Context-Subcontext dropdowns | Restrict to one or more life areas |
+| Context | Restrict the app to one or more life areas. |
+| Subcontext | Narrow those contexts to more specific domains. |
+| Node Type | Show only certain node types (e.g. learns + resources). |
 | Min Value | Hide anything rated below a threshold. |
 | Min Interest | Hide anything rated below a threshold. |
 | Max Effort | Hide anything more difficult than a threshold. |
@@ -491,7 +490,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 </table>
 
 ## Overview of the Details Tab
-Once a node is loaded, the tab splits into four panels: node information, mini-graph, subtasks, and simulation.
+Once a node is loaded, the tab splits into four panels: node information, a local dependency graph, subtasks, and simulation. These four panels are different views of the same selected project, so changing the dependency controls updates them together.
 
 <p align="center">
   <img src="../images/details-tab-overview-filled.png">
@@ -516,13 +515,15 @@ The rest of the panel — node stats and three action buttons — reuses functio
 | Locate | Briefly pulses the node on the mini-canvas (the same function as the crosshair icon by the node editor search bar). |
 
 ## Canvas Panel
-Every gesture from the [Nodes Tab](#nodes-tab) is supported on Details too, but there are a few ways this canvas is different. First and most obvious: the Details Tab is always focused on one project or idea. Also, this tab supports two other features called History and Focus Mode.
+Every gesture from the [Nodes Tab](#nodes-tab) is supported on Details too, but the canvas has a different job. Nodes is the overview; Details is the local graph. It starts from the selected node and follows its prerequisites instead of treating every relationship as an undirected hop. Hard Needs are always followed, Soft Needs are optional, and Synergies add only direct partners of the selected node. A synergy partner can bring along its own prerequisites, but synergies never chain endlessly into another part of the network.
+
+The Details canvas also supports two features called History and Focus Mode.
 
 ### History
 Clicking a node here loads its information into every panel. This is unlike the click behavior on the Nodes canvas, which only selects the node, and fills the node editor with its information if it happens to be open. Because each click swaps out the detailed view, this tab keeps a history. The two arrows beside the search bar in the Node Information Panel let you step forward and backward through your navigation history, like a browser.
 
 ### Focus Mode
-There are three buttons in the bottom right corner of the canvas. Two of them were introduced elsewhere: [graph settings](#graph-layout-controls) and fullscreen, but one is unique to this tab: the magnifying glass. Clicking this icon switches you to the Nodes Tab, highlights this network, and dims everything else. This is a easy and quick way to see a topic in its broader context. 
+There are three buttons in the bottom right corner of the canvas. Two of them were introduced elsewhere: [graph layout](#graph-layout-controls) and fullscreen, but one is unique to this tab: the magnifying glass. Clicking this icon switches you to the Nodes Tab, highlights this network, and dims everything else. This is a easy and quick way to see a topic in its broader context.
 
 <p align="center">
   <img src="../images/details-focus-religion.png">
@@ -548,17 +549,24 @@ If a subtask has a *direct* edge to the selected node, an **×** appears at the 
 If the subtree contains any Milestones, they get their own horizontal strip of tiles above the table. Milestones are checkpoints rather than work, so they're kept visually separate from the subtasks you actually grind through.
 
 ### Controlling how much you see
-The row of toggles in the top-right let you dial the view to the level of detail you want. Every panel reacts instantly. Keep in mind that you can also use the max depth slider in graph settings, and [filters](#filters-sidebar) too.
+The controls in the top-right let you dial the local view from a compact list of immediate prerequisites to the entire project. The graph, Subtasks table, Milestones, and time simulation react together, so they never describe different slices of the project by accident.
 
 | Control | What it does | Default |
 |---|---|:---:|
 | Soft Needs | Include or exclude soft prerequisites. | On |
-| Transitive | When off, shows only *direct* children. When on, shows the entire subtree. | On |
 | Synergies | Include or exclude synergy partners. | Off |
+| Max Depth | Stop after 1–5 relationship steps, or choose **All** for the complete dependency view. | All |
+| Show Cross-Links | Reveal additional enabled relationships between nodes already in the view. Turning it off keeps only the links that explain how each node was reached. It never removes nodes. | On |
 | Show Done | Whether completed subtasks appear. | Off |
 | Hide Blocked | Drop subtasks currently blocked by an incomplete prerequisite. | Off |
 
-For a sprawling Goal with hundreds of descendants, this is the difference between an unreadable wall of rows and a clean list of actionable items.
+<p align="center">
+  <img src="../images/details-view-controls.png" alt="The Details local-view controls">
+  <br>
+  <em>Max Depth limits the dependency view; Show Cross-Links changes only the relationships drawn between nodes already inside it.</em>
+</p>
+
+For a sprawling Goal with hundreds of descendants, Max Depth is the difference between an unreadable wall of rows and a clean list of actionable items. A depth of 1 is the old "direct children only" view; **All** preserves the complete subtree. Goal progress follows the same depth limit but remains deliberately Hard-only, because soft prerequisites and synergies do not define whether a Goal is complete.
 
 ## Time Simulation Panel
 Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take using **Monte Carlo Simulation.** Every time you swap nodes or adjust a filter, the app runs 10,000 simulations of you completing every subtask, keeping in mind your uncertainty about each one. The whole thing takes milliseconds, so it feels instantaneous; if you are ever in a rush and need those few milliseconds, you can lower the trial count in [Settings](#settings).

@@ -305,6 +305,17 @@ The selected `value` list holds the chosen options directly, so selection
 state needs no extra callback. Compare these lists as sets in dirty-checks
 (`is_form_dirty_vs_snapshot`) since the order is not significant.
 
+### Details local-view control row
+
+The Details subtree controls combine compact switches with one marked slider.
+Use `.details-view-controls` for the wrapping flex row and
+`.details-depth-control` for the fixed-width Max Depth group. The slider's
+marks carry the value, so hide Dash's companion number input just as the
+Ratings sliders do. Both physical copies of this row (Milestones/Subtasks)
+must use the same classes and stay synchronized through callbacks. Order the
+row as Max Depth | enabled-by-default switches | disabled-by-default switches,
+keeping the controls in one continuous compact row without separators.
+
 ## Badges
 
 Use `config.badge_style(name)` rather than `dbc.Badge(color=...)` so badges

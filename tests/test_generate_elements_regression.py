@@ -83,59 +83,6 @@ def test_generate_elements_filters_by_context():
     assert names == {"Body1"}
 
 
-def test_generate_elements_max_depth_bfs_around_active_node():
-    mgr = _seed_graph()
-    # Additional edge B->E so we can check depth bounds
-    mgr.add_edge("B", "E", EDGE_NEEDS_HARD)
-    elements = generate_elements(active_node_id="A", max_depth=1)
-    node_ids = {e["data"]["id"] for e in elements if "source" not in e.get("data", {})}
-    # At depth 1 from A over the undirected view: A, B (A->B edge) only
-    assert "A" in node_ids
-    assert "B" in node_ids
-    assert "C" not in node_ids
-    assert "D" not in node_ids
-    assert "E" not in node_ids
-
-
-def test_generate_elements_max_depth_zero_returns_all():
-    _seed_graph()
-    all_elements = generate_elements()
-    depth_zero = generate_elements(active_node_id="A", max_depth=0)
-    assert _signature(all_elements) == _signature(depth_zero)
-
-
-def test_generate_elements_neighbor_links_false_hides_non_touching_edges():
-    _seed_graph()
-    elements = generate_elements(active_node_id="A", neighbor_links=False)
-    edge_pairs = [(e["data"]["source"], e["data"]["target"])
-                  for e in elements if "source" in e.get("data", {})]
-    # Only edges touching "A" should remain (max_depth=0 fallback path)
-    assert all("A" in (s, t) for s, t in edge_pairs)
-
-
-def test_generate_elements_neighbor_links_false_at_depth2_keeps_subtree_edges():
-    # Graph: A —— B —— C, plus A —— D and a peer edge B —— D.
-    # From A: A is depth 0; B and D are depth 1; C is depth 2.
-    mgr = GraphManager()
-    for n in ("A", "B", "C", "D"):
-        mgr.add_node(_make_node(n))
-    mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-    mgr.add_edge("B", "C", EDGE_NEEDS_HARD)
-    mgr.add_edge("A", "D", EDGE_NEEDS_HARD)
-    mgr.add_edge("B", "D", EDGE_NEEDS_HARD)
-
-    elements = generate_elements(active_node_id="A", max_depth=2, neighbor_links=False)
-    edge_pairs = {(e["data"]["source"], e["data"]["target"])
-                  for e in elements if "source" in e.get("data", {})}
-
-    # Cross-boundary edges survive so the subtree stays connected
-    assert ("A", "B") in edge_pairs
-    assert ("A", "D") in edge_pairs
-    assert ("B", "C") in edge_pairs
-    # Peer edge between two depth-1 nodes is filtered out
-    assert ("B", "D") not in edge_pairs
-
-
 def test_generate_elements_active_node_marked_selected():
     _seed_graph()
     elements = generate_elements(active_node_id="B")

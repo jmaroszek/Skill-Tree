@@ -57,19 +57,17 @@ def _freeze_indicator(indicator_id: str):
 def build_graph_settings_panel(
     prefix: str,
     *,
-    include_depth_controls: bool = True,
+    include_animate: bool = True,
     defaults_getter=ConfigManager.get_graph_layout_defaults,
 ):
-    """Build a graph settings panel. Single source of truth for all three canvases
+    """Build a graph-layout panel. Single source of truth for all three canvases
     (Nodes / Details / Events).
 
     Callers pass the slider `defaults_getter` explicitly to select between
     `get_graph_layout_defaults` (main canvas) and
-    `get_details_graph_layout_defaults` (details/events). Set
-    ``include_depth_controls=False`` to hide the Max-Depth and Neighbors/Smooth
-    toggles (they only make sense where a root-relative subtree is being
-    rendered, which the events canvas isn't) — a standalone Freeze switch
-    replaces the toggle row in that mode.
+    `get_details_graph_layout_defaults` (details/events). Events does not
+    support animated layout, so ``include_animate=False`` renders only Freeze
+    in the behavior row.
     """
     gl = defaults_getter()
     p = prefix
@@ -79,7 +77,7 @@ def build_graph_settings_panel(
     children = [
         html.Div([
             html.Div([
-                html.Span("Graph Settings", style={"fontWeight": "300", "fontSize": "1.05rem"}),
+                html.Span("Graph Layout", style={"fontWeight": "300", "fontSize": "1.05rem"}),
                 dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
                            className="ms-2 p-0",
                            style={"fontSize": "1.1rem", "lineHeight": "1",
@@ -95,59 +93,28 @@ def build_graph_settings_panel(
            style={"marginBottom": "12px"}),
     ]
 
-    # Panels without the top toggle row (e.g. events) still need a Freeze
-    # switch; render it standalone right under the title so it sits in the
-    # same visual zone as the toggles row on other panels.
-    if not include_depth_controls:
-        children += [
-            dbc.Switch(
-                id=f"{p}-freeze-rerender",
-                label="Freeze",
-                value=False,
-                style={"fontSize": "0.82rem"},
-            ),
-            dbc.Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
-                        target=f"{p}-freeze-rerender", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
-        ]
-
-    if include_depth_controls:
-        children += [
-            html.Div("Max Depth", className="settings-label"),
-            dcc.Slider(
-                id=f"{p}-max-depth",
-                min=0, max=5, step=1, value=0,
-                marks={0: "All", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
-                updatemode="mouseup",
-            ),
-
-            html.Div([
-                dbc.Switch(
-                    id=f"{p}-neighbor-links",
-                    label="Neighbors",
-                    value=True,
-                    style={"fontSize": "0.82rem"},
-                ),
+    children += [
+        html.Div([
+            *([
                 dbc.Switch(
                     id=f"{p}-animate",
                     label="Smooth",
                     value=True,
                     style={"fontSize": "0.82rem"},
                 ),
-                dbc.Switch(
-                    id=f"{p}-freeze-rerender",
-                    label="Freeze",
-                    value=False,
-                    style={"fontSize": "0.82rem"},
-                ),
-            ], className="d-flex gap-2 mt-3"),
-            dbc.Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
-                        target=f"{p}-freeze-rerender", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-
-            html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
-        ]
+            ] if include_animate else []),
+            dbc.Switch(
+                id=f"{p}-freeze-rerender",
+                label="Freeze",
+                value=False,
+                style={"fontSize": "0.82rem"},
+            ),
+        ], className="d-flex gap-2"),
+        dbc.Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
+                    target=f"{p}-freeze-rerender", placement="left",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+    ]
 
     children += [
         html.Div("Edge Length", className="settings-label"),
@@ -393,7 +360,7 @@ def build_details_tab_content():
                        id="btn-details-graph-settings",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
-            dbc.Tooltip("Graph settings", target="btn-details-graph-settings", placement="left",
+            dbc.Tooltip("Graph layout", target="btn-details-graph-settings", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             _freeze_indicator("details-freeze-indicator"),
             build_graph_settings_panel(
@@ -454,13 +421,23 @@ def build_details_tab_content():
     # header is currently topmost, so the user always sees them in the
     # same screen position regardless of whether milestones are present:
     # rendered as TWO physical copies (-top alongside Milestones header,
-    # canonical no-suffix alongside Subtasks header), kept in sync by five
-    # sync callbacks in details_callbacks.py. Existing scoring/filter
+    # canonical no-suffix alongside Subtasks header), kept in sync by the
+    # control callbacks in details_callbacks.py. Existing scoring/filter
     # callbacks listen only to the canonical (no-suffix) IDs.
     def _build_toggles(suffix=""):
-        """Return a flex row of the five filter checklists, with optional
+        """Return the Details view controls, with optional
         id suffix so two copies (one with -top, one canonical) can co-exist."""
         return html.Div([
+            html.Div([
+                html.Span("Max Depth", className="details-depth-label"),
+                dcc.Slider(
+                    id=f"details-max-depth{suffix}",
+                    min=1, max=6, step=1, value=6,
+                    marks={1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "All"},
+                    updatemode="mouseup",
+                    className="details-depth-slider",
+                ),
+            ], className="details-depth-control"),
             dbc.Checklist(
                 id=f"details-include-soft-needs{suffix}",
                 options=[{"label": "Soft Needs", "value": "include"}],
@@ -469,9 +446,9 @@ def build_details_tab_content():
                 style={"fontSize": "0.82rem"},
             ),
             dbc.Checklist(
-                id=f"details-include-transitive{suffix}",
-                options=[{"label": "Transitive", "value": "include"}],
-                value=["include"],
+                id=f"details-show-cross-links{suffix}",
+                options=[{"label": "Show Cross-Links", "value": "show"}],
+                value=["show"],
                 switch=True,
                 style={"fontSize": "0.82rem"},
             ),
@@ -496,7 +473,7 @@ def build_details_tab_content():
                 switch=True,
                 style={"fontSize": "0.82rem", "marginRight": "12px"},
             ),
-        ], className="d-flex gap-3")
+        ], className="details-view-controls d-flex align-items-center gap-3")
 
     subtasks_section = html.Div([
         # Milestones roster: same-rank H5 header as Subtasks below, single-row
@@ -1261,7 +1238,6 @@ def _build_add_node_modal(ted):
 
 def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                                   parent_name=None, include_soft=True,
-                                  include_transitive=True,
                                   include_synergies=False):
     """Builds the subtasks table for any node's detail view.
 
@@ -1277,7 +1253,6 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         edges: List of all edge dicts.
         parent_name: The root node name, used to compute need types.
         include_soft: If False, only hard-need subtasks are shown.
-        include_transitive: If False, only direct children are shown.
         include_synergies: If True, Helps-linked nodes get a "Synergy" relationship label.
     """
     if not subtask_nodes:
@@ -1338,15 +1313,6 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                     direct_children.add(e['source'])
                 elif e['source'] == parent_name:
                     direct_children.add(e['target'])
-
-    if not include_transitive:
-        subtask_nodes = [n for n in subtask_nodes if n.name in direct_children]
-
-    if not subtask_nodes:
-        return html.Div(
-            html.P("No direct subtasks for this node.", className="text-muted"),
-            className="text-center py-3"
-        )
 
     # --- Priority scoring (same ROI algorithm as Suggestions tab, normalized 0–100) ---
     # Nodes receive "—" when: status is Done/Blocked, type is Goal, or any hard

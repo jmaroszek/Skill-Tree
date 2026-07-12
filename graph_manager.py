@@ -1026,7 +1026,115 @@ class GraphManager:
             self._goal_subtree_cache[cache_key] = (self._graph_version, frozenset(visited))
         return visited
 
-    def get_goal_completion(self, goal_name: str, include_soft: bool = True, include_transitive: bool = True) -> dict:
+    def get_dependency_view(self, root_name: str, *, include_soft: bool = True,
+                            include_synergies: bool = False,
+                            max_depth: int | None = None,
+                            filters: dict | None = None) -> dict:
+        """Resolve the deterministic, filter-aware local view for ``root_name``.
+
+        Hard prerequisites are always traversed. Soft prerequisites are
+        optional. Synergy partners are seeded only from the root; Helps edges
+        never chain. Prerequisites beneath a direct synergy partner continue
+        to follow the enabled Needs edge types.
+
+        The returned mapping contains ``node_names`` (including the root),
+        ``depth_by_name``, and ``discovery_edges`` as ``(source, target, type)``
+        tuples. Discovery edges form the stable spanning tree used when the
+        Details graph hides cross-links.
+        """
+        root = self.get_node(root_name)
+        if root is None:
+            return {
+                "node_names": set(),
+                "depth_by_name": {},
+                "discovery_edges": set(),
+            }
+
+        depth_limit = None if not max_depth or max_depth <= 0 else int(max_depth)
+        allowed_need_types = {EDGE_NEEDS_HARD}
+        if include_soft:
+            allowed_need_types.add(EDGE_NEEDS_SOFT)
+
+        edges = sorted(
+            self.get_edges(),
+            key=lambda e: (e['target'], e['source'], e['type']),
+        )
+        incoming = {}
+        root_synergies = []
+        for edge in edges:
+            edge_type = edge['type']
+            if edge_type in allowed_need_types:
+                incoming.setdefault(edge['target'], []).append(edge)
+            elif include_synergies and edge_type == EDGE_HELPS:
+                if edge['target'] == root_name:
+                    root_synergies.append((edge['source'], edge))
+                elif edge['source'] == root_name:
+                    root_synergies.append((edge['target'], edge))
+        root_synergies.sort(key=lambda pair: (pair[0], pair[1]['source'], pair[1]['target']))
+
+        def traverse(allowed_names=None):
+            visited = {root_name}
+            depth_by_name = {root_name: 0}
+            discovery_edges = set()
+            queue = [root_name]
+            cursor = 0
+
+            while cursor < len(queue):
+                current = queue[cursor]
+                cursor += 1
+                current_depth = depth_by_name[current]
+                if depth_limit is not None and current_depth >= depth_limit:
+                    continue
+
+                candidates = [
+                    (edge['source'], edge)
+                    for edge in incoming.get(current, ())
+                ]
+                if current == root_name:
+                    candidates.extend(root_synergies)
+                candidates.sort(
+                    key=lambda pair: (pair[0], pair[1]['type'],
+                                      pair[1]['source'], pair[1]['target'])
+                )
+
+                for neighbor, edge in candidates:
+                    if allowed_names is not None and neighbor not in allowed_names:
+                        continue
+                    if neighbor in visited:
+                        continue
+                    visited.add(neighbor)
+                    depth_by_name[neighbor] = current_depth + 1
+                    discovery_edges.add(
+                        (edge['source'], edge['target'], edge['type'])
+                    )
+                    queue.append(neighbor)
+
+            return visited, depth_by_name, discovery_edges
+
+        candidate_names, _, _ = traverse()
+        if filters is not None:
+            candidate_nodes = [
+                self.get_node(name) for name in candidate_names
+                if name != root_name
+            ]
+            candidate_nodes = [node for node in candidate_nodes if node is not None]
+            filtered_names = {
+                node.name for node in self.filter_nodes(candidate_nodes, filters)
+            }
+            allowed_names = filtered_names | {root_name}
+            node_names, depth_by_name, discovery_edges = traverse(allowed_names)
+        else:
+            node_names, depth_by_name, discovery_edges = traverse()
+
+        return {
+            "node_names": node_names,
+            "depth_by_name": depth_by_name,
+            "discovery_edges": discovery_edges,
+        }
+
+    def get_goal_completion(self, goal_name: str, include_soft: bool = True,
+                            include_transitive: bool = True,
+                            max_depth: int | None = None) -> dict:
         """Returns completion stats for a goal based on its subtree.
 
         Args:
@@ -1036,8 +1144,17 @@ class GraphManager:
         Returns dict with: total, done, pct, remaining_time
         """
         edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) if include_soft else (EDGE_NEEDS_HARD,)
-        subtree = self.get_goal_subtree(goal_name, edge_types=edge_types)
-        if include_transitive is False:
+        if max_depth and max_depth > 0:
+            view = self.get_dependency_view(
+                goal_name,
+                include_soft=include_soft,
+                include_synergies=False,
+                max_depth=max_depth,
+            )
+            subtree = set(view["node_names"]) - {goal_name}
+        else:
+            subtree = self.get_goal_subtree(goal_name, edge_types=edge_types)
+        if include_transitive is False and not max_depth:
             # Restrict to direct children only
             with self.get_connection() as conn:
                 cursor = conn.cursor()

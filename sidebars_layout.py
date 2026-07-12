@@ -597,16 +597,6 @@ def build_filters_content():
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
 
         html.H5("General", className="mt-2 mb-1"),
-        dbc.Label("Node Type", className="mt-2"),
-        dcc.Dropdown(
-            id="filter-node-type",
-            options=[{"label": t, "value": t} for t in NODE_TYPES],
-            value=f["node_type"],
-            multi=True,
-            placeholder="All",
-            style={"color": "#212529"},
-        ),
-
         dbc.Label("Context", className="mt-2"),
         dcc.Dropdown(
             id="filter-context",
@@ -622,6 +612,16 @@ def build_filters_content():
             id="filter-subcontext",
             options=initial_sub_opts,
             value=initial_sub_value,
+            multi=True,
+            placeholder="All",
+            style={"color": "#212529"},
+        ),
+
+        dbc.Label("Node Type", className="mt-2"),
+        dcc.Dropdown(
+            id="filter-node-type",
+            options=[{"label": t, "value": t} for t in NODE_TYPES],
+            value=f["node_type"],
             multi=True,
             placeholder="All",
             style={"color": "#212529"},

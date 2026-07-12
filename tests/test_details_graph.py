@@ -91,7 +91,6 @@ class TestPostFilterReachability:
             include_soft_val=["include"],
             include_synergies_val=["include"],
             global_filters={"hide_done": True},
-            include_transitive_val=["include"],
         )
         assert _node_ids(elements) == {"Selected"}
 
@@ -106,7 +105,6 @@ class TestPostFilterReachability:
             include_soft_val=["include"],
             include_synergies_val=["include"],
             global_filters={},
-            include_transitive_val=["include"],
         )
         assert _node_ids(elements) == {"Selected", "Bridge"}
 
@@ -119,7 +117,6 @@ class TestPostFilterReachability:
             include_soft_val=["include"],
             include_synergies_val=[],
             global_filters={},
-            include_transitive_val=["include"],
         )
         assert _node_ids(elements) == {"Selected", "Bridge"}
 
@@ -130,7 +127,7 @@ class TestPostFilterReachability:
         to exclude."""
         mgr.add_node(_make_node("Selected"))
         mgr.add_node(_make_node("Mid"))
-        mgr.add_node(_make_node("Tail"))
+        mgr.add_node(_make_node("Tail", status="Done"))
         mgr.add_edge("Mid", "Selected", EDGE_NEEDS_HARD)
         # Tail is only linked to Mid via Helps; Synergies off should exclude it.
         mgr.add_edge("Mid", "Tail", EDGE_HELPS)
@@ -139,7 +136,6 @@ class TestPostFilterReachability:
             include_soft_val=["include"],
             include_synergies_val=[],
             global_filters={},
-            include_transitive_val=["include"],
         )
         assert _node_ids(elements) == {"Selected", "Mid"}
 
@@ -159,7 +155,6 @@ class TestBuildGraphElementsInvariants:
             include_soft_val=["include"],
             include_synergies_val=["include"],
             global_filters={"hide_done": True},
-            include_transitive_val=["include"],
         )
         assert _node_ids(elements) == {"Solo"}
 
@@ -174,11 +169,10 @@ class TestBuildGraphElementsInvariants:
             include_soft_val=[],
             include_synergies_val=[],
             global_filters={},
-            include_transitive_val=["include"],
         )
         assert _node_ids(elements) == {"Target", "HardDep"}
 
-    def test_transitive_off_restricts_to_direct_children(self, mgr):
+    def test_depth_one_restricts_to_direct_children(self, mgr):
         mgr.add_node(_make_node("Root"))
         mgr.add_node(_make_node("Child"))
         mgr.add_node(_make_node("Grandchild"))
@@ -189,7 +183,7 @@ class TestBuildGraphElementsInvariants:
             include_soft_val=["include"],
             include_synergies_val=["include"],
             global_filters={},
-            include_transitive_val=[],
+            max_depth=1,
         )
         assert _node_ids(elements) == {"Root", "Child"}
 
@@ -207,13 +201,91 @@ class TestBuildGraphElementsInvariants:
             include_soft_val=["include"],
             include_synergies_val=["include"],
             global_filters={"hide_done": True},
-            include_transitive_val=["include"],
         )
         nodes = _node_ids(elements)
         for el in elements:
             if 'source' in el['data']:
                 assert el['data']['source'] in nodes
                 assert el['data']['target'] in nodes
+
+
+class TestDependencyViewTraversal:
+    def test_synergy_seeds_only_from_root_then_follows_needs(self, mgr):
+        for name in ("Root", "Partner", "PartnerNeed", "Other", "OtherNeed"):
+            mgr.add_node(_make_node(name))
+        mgr.add_edge("Root", "Partner", EDGE_HELPS)
+        mgr.add_edge("PartnerNeed", "Partner", EDGE_NEEDS_HARD)
+        mgr.add_edge("Partner", "Other", EDGE_HELPS)
+        mgr.add_edge("OtherNeed", "Other", EDGE_NEEDS_HARD)
+
+        view = mgr.get_dependency_view(
+            "Root", include_soft=True, include_synergies=True)
+
+        assert view["node_names"] == {"Root", "Partner", "PartnerNeed"}
+        assert view["depth_by_name"] == {
+            "Root": 0, "Partner": 1, "PartnerNeed": 2}
+
+    def test_depth_uses_enabled_relationships_only(self, mgr):
+        for name in ("Root", "Direct", "Grand"):
+            mgr.add_node(_make_node(name))
+        mgr.add_edge("Direct", "Root", EDGE_NEEDS_HARD)
+        mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
+        mgr.add_edge("Grand", "Root", EDGE_NEEDS_SOFT)
+
+        hard_only = mgr.get_dependency_view(
+            "Root", include_soft=False, max_depth=1)
+        with_soft = mgr.get_dependency_view(
+            "Root", include_soft=True, max_depth=1)
+
+        assert hard_only["node_names"] == {"Root", "Direct"}
+        assert with_soft["node_names"] == {"Root", "Direct", "Grand"}
+
+    def test_filtered_bridge_prunes_descendants(self, mgr):
+        mgr.add_node(_make_node("Root"))
+        mgr.add_node(_make_node("Bridge", status="Done"))
+        mgr.add_node(_make_node("Tail", status="Done"))
+        mgr.add_edge("Bridge", "Root", EDGE_NEEDS_HARD)
+        mgr.add_edge("Tail", "Bridge", EDGE_NEEDS_HARD)
+
+        view = mgr.get_dependency_view("Root", filters={"hide_done": True})
+
+        assert view["node_names"] == {"Root"}
+        assert view["discovery_edges"] == set()
+
+    def test_cross_links_change_edges_not_nodes(self, mgr):
+        for name in ("Root", "A", "B"):
+            mgr.add_node(_make_node(name))
+        mgr.add_edge("A", "Root", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Root", EDGE_NEEDS_HARD)
+        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
+
+        without = _build_graph_elements(
+            "Root", ["include"], [], show_cross_links=False)
+        with_links = _build_graph_elements(
+            "Root", ["include"], [], show_cross_links=True)
+
+        assert _node_ids(without) == _node_ids(with_links) == {"Root", "A", "B"}
+        assert _edge_ids(without) == {
+            "A_Root_Needs_Hard", "B_Root_Needs_Hard"}
+        assert _edge_ids(with_links) == {
+            "A_Root_Needs_Hard", "B_Root_Needs_Hard", "A_B_Needs_Hard"}
+
+    def test_depth_limited_goal_progress_remains_hard_only(self, mgr):
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode="inherited"))
+        mgr.add_node(_make_node("DoneDirect"))
+        mgr.add_node(_make_node("OpenGrand", status="Done"))
+        mgr.add_node(_make_node("SoftDirect", status="Done"))
+        mgr.add_edge("DoneDirect", "Goal", EDGE_NEEDS_HARD)
+        mgr.add_edge("OpenGrand", "DoneDirect", EDGE_NEEDS_HARD)
+        mgr.add_edge("SoftDirect", "Goal", EDGE_NEEDS_SOFT)
+
+        depth_one = mgr.get_goal_completion(
+            "Goal", include_soft=False, max_depth=1)
+        all_depths = mgr.get_goal_completion(
+            "Goal", include_soft=False, max_depth=None)
+
+        assert (depth_one["done"], depth_one["total"], depth_one["pct"]) == (0, 1, 0)
+        assert (all_depths["done"], all_depths["total"], all_depths["pct"]) == (1, 2, 50)
 
 
 # ============================================================================
@@ -237,14 +309,14 @@ class TestBuildMilestonesSection:
         mgr.add_node(_make_node("L2", type="Learn"))
         section_style, bottom_style, tiles = _build_milestones_section(
             [mgr.get_node("L1"), mgr.get_node("L2")],
-            parent_name="L1", edges=[], include_transitive=True)
+            parent_name="L1", edges=[])
         assert section_style == {"display": "none"}
         assert bottom_style == {}  # default = visible
         assert tiles == []
 
     def test_hidden_for_empty_subtree(self, mgr):
         section_style, bottom_style, tiles = _build_milestones_section(
-            [], parent_name=None, edges=[], include_transitive=True)
+            [], parent_name=None, edges=[])
         assert section_style == {"display": "none"}
         assert bottom_style == {}
         assert tiles == []
@@ -260,7 +332,7 @@ class TestBuildMilestonesSection:
             mgr.add_edge(src, "Goal", EDGE_NEEDS_HARD)
         section_style, bottom_style, tiles = _build_milestones_section(
             [mgr.get_node("M1"), mgr.get_node("M2"), mgr.get_node("L")],
-            parent_name="Goal", edges=mgr.get_edges(), include_transitive=True)
+            parent_name="Goal", edges=mgr.get_edges())
         assert section_style == {"display": "block"}
         assert bottom_style == {"display": "none"}
         assert len(tiles) == 2
@@ -273,10 +345,10 @@ class TestBuildMilestonesSection:
         mgr.add_node(_make_node("R", type="Resource"))
         subtask_nodes = [mgr.get_node(n) for n in ("M", "G", "L", "A", "R")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name=None, edges=[], include_transitive=True)
+            subtask_nodes, parent_name=None, edges=[])
         assert len(tiles) == 1
 
-    def test_includes_transitive_milestones_when_transitive_on(self, mgr):
+    def test_includes_every_milestone_in_resolved_view(self, mgr):
         mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
         mgr.add_node(_make_node("Direct", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("Grand", type="Milestone", time_mode='inherited'))
@@ -284,20 +356,18 @@ class TestBuildMilestonesSection:
         mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
         subtask_nodes = [mgr.get_node("Direct"), mgr.get_node("Grand")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name="Goal", edges=mgr.get_edges(),
-            include_transitive=True)
+            subtask_nodes, parent_name="Goal", edges=mgr.get_edges())
         assert len(tiles) == 2
 
-    def test_excludes_transitive_milestones_when_transitive_off(self, mgr):
+    def test_depth_limited_caller_can_supply_only_direct_milestones(self, mgr):
         mgr.add_node(_make_node("Goal", type="Goal", time_mode='inherited'))
         mgr.add_node(_make_node("Direct", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("Grand", type="Milestone", time_mode='inherited'))
         mgr.add_edge("Direct", "Goal", EDGE_NEEDS_HARD)
         mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
-        subtask_nodes = [mgr.get_node("Direct"), mgr.get_node("Grand")]
+        subtask_nodes = [mgr.get_node("Direct")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name="Goal", edges=mgr.get_edges(),
-            include_transitive=False)
+            subtask_nodes, parent_name="Goal", edges=mgr.get_edges())
         assert len(tiles) == 1
         assert tiles[0].id["index"] == "Direct"
 
@@ -305,7 +375,7 @@ class TestBuildMilestonesSection:
         mgr.add_node(_make_node("OpenMS", type="Milestone", time_mode='inherited'))
         _section_style, _bottom_style, tiles = _build_milestones_section(
             [mgr.get_node("OpenMS")],
-            parent_name=None, edges=[], include_transitive=True)
+            parent_name=None, edges=[])
         assert len(tiles) == 1
 
     def test_sorts_open_before_blocked_before_done(self, mgr):
@@ -320,7 +390,7 @@ class TestBuildMilestonesSection:
         subtask_nodes = [mgr.get_node(n)
                          for n in ("DoneA", "OpenB", "BlockedA", "OpenA")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name=None, edges=[], include_transitive=True)
+            subtask_nodes, parent_name=None, edges=[])
         ordered = [t.id["index"] for t in tiles]
         assert ordered == ["OpenA", "OpenB", "BlockedA", "DoneA"]
 

@@ -1979,7 +1979,7 @@ def register_event_callbacks(app):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
         return f"{n} node{'s' if n != 1 else ''}"
 
-    # --- Events Graph Settings: Toggle Panel ---
+    # --- Events Graph Layout: Toggle Panel ---
     @app.callback(
         Output('events-graph-settings-panel', 'style'),
         Input('btn-events-graph-settings', 'n_clicks'),
@@ -1992,7 +1992,7 @@ def register_event_callbacks(app):
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style
 
-    # --- Events Graph Settings: Reset to Stored Defaults ---
+    # --- Events Graph Layout: Reset to Stored Defaults ---
     @app.callback(
         Output('events-graph-settings-edge-length', 'value', allow_duplicate=True),
         Output('events-graph-settings-gravity', 'value', allow_duplicate=True),
@@ -2012,21 +2012,22 @@ def register_event_callbacks(app):
             False,
         )
 
-    # --- Events Graph Settings: Apply Layout Parameters ---
+    # --- Events Graph Layout: Apply Layout Parameters ---
     # Clientside so allowOneLayout('events') is set in the same synchronous
     # function that returns the layout dict — see callbacks.py for the rationale.
     app.clientside_callback(
         """
-        function(edge_length, gravity, repulsion, relayout_n, elements, freeze_on) {
+        function(edge_length, gravity, repulsion, relayout_n, sidebar_relayout_n, elements, freeze_on) {
             var ctx = window.dash_clientside.callback_context;
             var trig = ctx.triggered_id
                 || (ctx.triggered && ctx.triggered.length
                     ? ctx.triggered[0].prop_id.split('.')[0]
                     : null);
-            if (freeze_on && trig !== 'events-graph-settings-relayout') {
+            var relayout_triggers = ['events-graph-settings-relayout', 'btn-sidebar-relayout'];
+            if (freeze_on && relayout_triggers.indexOf(trig) === -1) {
                 return window.dash_clientside.no_update;
             }
-            var is_relayout = (trig === 'events-graph-settings-relayout');
+            var is_relayout = relayout_triggers.indexOf(trig) !== -1;
             var randomize = is_relayout || (trig === 'events-detail-graph');
             if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
                 window.SkillTree.allowOneLayout('events');
@@ -2050,6 +2051,7 @@ def register_event_callbacks(app):
         Input('events-graph-settings-gravity', 'value'),
         Input('events-graph-settings-repulsion', 'value'),
         Input('events-graph-settings-relayout', 'n_clicks'),
+        Input('btn-sidebar-relayout', 'n_clicks'),
         Input('events-detail-graph', 'elements'),
         State('events-freeze-rerender-store', 'data'),
     )

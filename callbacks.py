@@ -387,16 +387,8 @@ def _friendly_time_estimates(time_o, time_m, time_p):
 
 
 
-def generate_elements(filters=None, active_node_id=None, community_names=None,
-                      max_depth=0, neighbor_links=True):
-    """Convert nodes and edges from the database into Cytoscape-compatible element dicts.
-
-    Args:
-        max_depth: 0 = show all nodes; 1-5 = only show nodes within this many
-                   hops of *active_node_id*.  Ignored when no node is active.
-        neighbor_links: When False, hide edges between non-active nodes
-                        (only show edges that touch the active node).
-    """
+def generate_elements(filters=None, active_node_id=None, community_names=None):
+    """Convert nodes and edges from the database into Cytoscape elements."""
     if filters is None: filters = {}
     # Always fetch dormant nodes too — filter_nodes decides whether to keep
     # them based on the `show_dormant` filter. Fetching unconditionally keeps
@@ -408,36 +400,6 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
         filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
 
     valid_names = {n.name for n in filtered_nodes}
-    depth_by_name = {}
-
-    # --- Max Depth filtering (BFS from active node) ---
-    if max_depth and max_depth > 0 and active_node_id and active_node_id in valid_names:
-        edges = manager.get_edges()
-        # Build adjacency from edges within the valid set
-        adj = {}
-        for e in edges:
-            s, t = e['source'], e['target']
-            if s in valid_names and t in valid_names:
-                adj.setdefault(s, set()).add(t)
-                adj.setdefault(t, set()).add(s)
-        # BFS — retain per-node depth so the neighbor_links filter can use it
-        visited = {active_node_id}
-        depth_by_name = {active_node_id: 0}
-        frontier = {active_node_id}
-        for d in range(max_depth):
-            next_frontier = set()
-            for n in frontier:
-                for nb in adj.get(n, set()):
-                    if nb not in visited:
-                        visited.add(nb)
-                        depth_by_name[nb] = d + 1
-                        next_frontier.add(nb)
-            frontier = next_frontier
-            if not frontier:
-                break
-        valid_names = valid_names & visited
-        filtered_nodes = [n for n in filtered_nodes if n.name in valid_names]
-
     edges = manager.get_edges()
     colors = ConfigManager.get_node_colors()
     shapes = ConfigManager.get_node_shapes()
@@ -483,16 +445,6 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
 
     for e in edges:
         if e['source'] in valid_names and e['target'] in valid_names:
-            # Neighbor links filter: when off, hide peer edges between same-BFS-depth
-            # nodes so the local subtree stays legible (Obsidian local-graph style).
-            # When no BFS ran (max_depth == 0), fall back to "edges touching active node".
-            if not neighbor_links and active_node_id:
-                if depth_by_name:
-                    if depth_by_name.get(e['source']) == depth_by_name.get(e['target']):
-                        continue
-                else:
-                    if e['source'] != active_node_id and e['target'] != active_node_id:
-                        continue
             elements.append({
                 'data': {
                     'id': f"{e['source']}_{e['target']}_{e['type']}",
@@ -1729,8 +1681,6 @@ def register_callbacks(app):
          Input('events-refresh-trigger', 'data'),
          Input('details-refresh-trigger', 'data'),
          Input('background-click-input', 'value'),
-         Input('graph-settings-max-depth', 'value'),
-         Input('graph-settings-neighbor-links', 'value'),
          Input('main-tabs', 'active_tab'),
          Input('graph-settings-relayout', 'n_clicks'),
          Input('btn-sidebar-relayout', 'n_clicks'),
@@ -1781,7 +1731,7 @@ def register_callbacks(app):
                      active_suggestion_id,
                      focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
-                     gs_max_depth, gs_neighbor_links, active_tab, _relayout, _sidebar_relayout,
+                     active_tab, _relayout, _sidebar_relayout,
                      btn_undo_done_confirm, btn_editor_new,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
@@ -2183,9 +2133,7 @@ def register_callbacks(app):
                 community_names = set().union(*communities)
 
             elements = generate_elements(filters, active_node_id,
-                                        community_names=community_names,
-                                        max_depth=gs_max_depth or 0,
-                                        neighbor_links=gs_neighbor_links if gs_neighbor_links is not None else True)
+                                        community_names=community_names)
 
             count = sugg_count if sugg_count else 10
             sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
@@ -2945,17 +2893,13 @@ def register_callbacks(app):
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
         Input('filter-done', 'value'),
-        Input('graph-settings-max-depth', 'value'),
     )
     def update_canvas_node_count(elements, f_type, f_ctx, f_sub,
                                  f_comm, f_comm_method, f_val, f_int,
-                                 f_diff, f_time, f_time_unit, f_done, max_depth):
+                                 f_diff, f_time, f_time_unit, f_done):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
         text = f"{n} node{'s' if n != 1 else ''}"
-        # Non-default max-depth (anything other than 0 = "All") narrows the
-        # rendered subtree just like a filter does — surface it the same way.
-        depth_active = bool(max_depth)
-        if depth_active or is_filters_active(
+        if is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
                 community=f_comm,
                 community_method=f_comm_method, value=f_val,
@@ -3008,7 +2952,8 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def persist_remember_filters(val, f_type, f_ctx, f_sub, f_comm_method,
-                                 f_comm, f_val, f_int, f_diff, f_time, f_time_unit, f_done, f_show_dormant):
+                                 f_comm, f_val, f_int, f_diff, f_time, f_time_unit,
+                                 f_done, f_show_dormant):
         enabled = bool(val and "enabled" in val)
         ConfigManager.set_remember_filters(enabled)
         # When the user flips Memory ON, snapshot the *current* sidebar state
@@ -3047,7 +2992,8 @@ def register_callbacks(app):
         Input('filter-dormant', 'value'),
     )
     def persist_filters(f_type, f_ctx, f_sub, f_comm_method, f_comm,
-                        f_val, f_int, f_diff, f_time, f_time_unit, f_done, f_show_dormant):
+                        f_val, f_int, f_diff, f_time, f_time_unit, f_done,
+                        f_show_dormant):
         if not ConfigManager.get_remember_filters():
             return no_update
         ConfigManager.set_filters({
@@ -3462,7 +3408,7 @@ def register_callbacks(app):
             return dash.no_update
         return 'tab-canvas'
 
-    # --- Graph Settings: Toggle Panel ---
+    # --- Graph Layout: Toggle Panel ---
     @app.callback(
         Output('graph-settings-panel', 'style'),
         Input('btn-graph-settings', 'n_clicks'),
@@ -3475,10 +3421,8 @@ def register_callbacks(app):
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style
 
-    # --- Graph Settings: Reset to Stored Defaults ---
+    # --- Graph Layout: Reset to Stored Defaults ---
     @app.callback(
-        Output('graph-settings-max-depth', 'value', allow_duplicate=True),
-        Output('graph-settings-neighbor-links', 'value', allow_duplicate=True),
         Output('graph-settings-animate', 'value', allow_duplicate=True),
         Output('graph-settings-edge-length', 'value', allow_duplicate=True),
         Output('graph-settings-gravity', 'value', allow_duplicate=True),
@@ -3489,10 +3433,10 @@ def register_callbacks(app):
     )
     def reset_graph_settings(n_clicks):
         if not n_clicks:
-            return (dash.no_update,) * 7
+            return (dash.no_update,) * 5
         gl = ConfigManager.get_graph_layout_defaults()
         return (
-            0, True, True,
+            True,
             gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
             gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
             gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
@@ -3599,7 +3543,7 @@ def register_callbacks(app):
         container_id='events-detail-graph-container',
     )
 
-    # --- Graph Settings: Apply Layout Parameters ---
+    # --- Graph Layout: Apply Layout Parameters ---
     # Clientside so allowOneLayout('main') is set in the same synchronous
     # function that returns the new layout dict. A previous server-side
     # implementation paired with a separate clientside allowOneLayout callback
@@ -4056,6 +4000,7 @@ def register_callbacks(app):
         Input("now-drag-order-input", "value"),
         prevent_initial_call=True,
     )
+
     def handle_now_reorder(order_json):
         if not order_json:
             return no_update

@@ -28,42 +28,18 @@ graph_manager = GraphManager()
 event_manager = EventManager()
 
 
-def _apply_max_depth(subtree, selected_node, max_depth, edge_types):
-    """Filter a subtree set to only include nodes within max_depth hops."""
-    if not max_depth or max_depth <= 0:
-        return subtree
-    edges = graph_manager.get_edges()
-    full_set = subtree | {selected_node}
-    adj = {}
-    for e in edges:
-        s, t = e['source'], e['target']
-        if s in full_set and t in full_set and e['type'] in edge_types:
-            adj.setdefault(s, set()).add(t)
-            adj.setdefault(t, set()).add(s)
-    visited = {selected_node}
-    frontier = {selected_node}
-    for _ in range(max_depth):
-        next_frontier = set()
-        for n in frontier:
-            for nb in adj.get(n, set()):
-                if nb not in visited:
-                    visited.add(nb)
-                    next_frontier.add(nb)
-        frontier = next_frontier
-        if not frontier:
-            break
-    return subtree & visited
+def _normalize_max_depth(value):
+    """Map the Details slider's ``All`` sentinel to an uncapped traversal."""
+    return None if value in (None, 0, 6) else int(value)
 
 
-def _build_milestones_section(subtask_nodes, parent_name, edges, include_transitive):
+def _build_milestones_section(subtask_nodes, parent_name, edges):
     """Compute the (section_style, bottom_toggles_style, tiles) tuple for
     the milestones strip and the canonical bottom toggle wrapper.
 
-    Mirrors the Subtasks table exactly: takes the same filtered subtree,
-    applies the same direct-children narrowing when Transitive is OFF
-    (matching the post-filter logic at the top of
-    ``build_details_subtasks_table``), then picks out Milestones and renders
-    them as tiles.
+    Mirrors the Subtasks table exactly: it receives the same resolved,
+    depth-limited dependency view, then picks out Milestones and renders them
+    as tiles.
 
     The bottom toggle wrapper visibility is the *inverse* of the milestones
     section visibility: when milestones are shown, the toggles live up next
@@ -74,16 +50,6 @@ def _build_milestones_section(subtask_nodes, parent_name, edges, include_transit
     Returns (section: display:none, bottom_toggles: visible, tiles: []) when
     no Milestone survives filtering.
     """
-    # Direct-children narrowing (same shape as build_details_subtasks_table).
-    if not include_transitive and parent_name:
-        direct_children = set()
-        for e in edges or []:
-            if e['target'] == parent_name:
-                direct_children.add(e['source'])
-            elif e['source'] == parent_name:
-                direct_children.add(e['target'])
-        subtask_nodes = [n for n in subtask_nodes if n.name in direct_children]
-
     milestones = [n for n in subtask_nodes if n.type == "Milestone"]
     # Sort Open first, Blocked next, Done last — within each group alphabetical.
     # Mirrors the existing subtasks-table convention (Done at the bottom) but
@@ -106,52 +72,35 @@ def _build_milestones_section(subtask_nodes, parent_name, edges, include_transit
 
 
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
-                    include_transitive_val=None, global_filters=None, max_depth=0):
+                    global_filters=None, max_depth=None):
     """Shared helper: run the Monte Carlo simulation and return (figure, style, style)."""
-    all_nodes = graph_manager.get_all_nodes()
-    if global_filters:
-        # Filter nodes but always keep the target node itself
-        filtered = graph_manager.filter_nodes(all_nodes, global_filters)
-        filtered_names = {n.name for n in filtered} | {node_name}
-        all_nodes = [n for n in all_nodes if n.name in filtered_names]
-    nodes_dict = {n.name: n for n in all_nodes}
-    edges = graph_manager.get_edges()
-
+    include_soft = bool(include_soft_val and "include" in include_soft_val)
+    include_helps = bool(include_synergies_val and "include" in include_synergies_val)
+    view = graph_manager.get_dependency_view(
+        node_name,
+        include_soft=include_soft,
+        include_synergies=include_helps,
+        max_depth=max_depth,
+        filters=global_filters,
+    )
+    allowed = set(view["node_names"])
+    nodes_dict = {
+        name: graph_manager.get_node(name) for name in allowed
+    }
+    nodes_dict = {name: node for name, node in nodes_dict.items() if node is not None}
     if node_name not in nodes_dict:
         return no_update, no_update, no_update
 
-    include_soft = bool(include_soft_val and "include" in include_soft_val)
-    include_helps = bool(include_synergies_val and "include" in include_synergies_val)
-    include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
-
-    # When Transitive is off, restrict simulation to direct children only by
-    # filtering edges to those that directly reference the selected node.
-    sim_edges = edges
-    if not include_transitive:
-        direct_sources = set()
-        for e in edges:
-            if e['target'] == node_name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
-                direct_sources.add(e['source'])
-            if e['type'] == EDGE_HELPS:
-                if e['target'] == node_name:
-                    direct_sources.add(e['source'])
-                elif e['source'] == node_name:
-                    direct_sources.add(e['target'])
-        allowed = direct_sources | {node_name}
-        sim_edges = [e for e in edges if e['source'] in allowed and e['target'] in allowed]
-
-    # Apply max depth filter to simulation
-    if max_depth and max_depth > 0:
-        sim_edge_types = [EDGE_NEEDS_HARD]
-        if include_soft:
-            sim_edge_types.append(EDGE_NEEDS_SOFT)
-        if include_helps:
-            sim_edge_types.append(EDGE_HELPS)
-        full_subtree = {n for n in nodes_dict if n != node_name}
-        depth_limited = _apply_max_depth(full_subtree, node_name, max_depth, sim_edge_types)
-        allowed_depth = depth_limited | {node_name}
-        sim_edges = [e for e in sim_edges if e['source'] in allowed_depth and e['target'] in allowed_depth]
-        nodes_dict = {k: v for k, v in nodes_dict.items() if k in allowed_depth}
+    permitted_types = {EDGE_NEEDS_HARD}
+    if include_soft:
+        permitted_types.add(EDGE_NEEDS_SOFT)
+    if include_helps:
+        permitted_types.add(EDGE_HELPS)
+    sim_edges = [
+        edge for edge in graph_manager.get_edges()
+        if edge['type'] in permitted_types
+        and edge['source'] in allowed and edge['target'] in allowed
+    ]
 
     result = simulate_task_chain(
         target_name=node_name,
@@ -335,8 +284,8 @@ def register_details_callbacks(app):
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
         Input("override-store", "data"),
+        Input("details-max-depth", "value"),
         State("details-include-soft-needs", "value"),
-        State("details-include-transitive", "value"),
         State("details-include-synergies", "value"),
         State("filter-context", "value"),
         State("filter-subcontext", "value"),
@@ -347,16 +296,14 @@ def register_details_callbacks(app):
         State("filter-difficulty", "value"),
         State("filter-node-type", "value"),
         State("filter-dormant", "value"),
-        State("details-graph-settings-max-depth", "value"),
         State("details-hide-blocked", "value"),
         prevent_initial_call=True,
     )
     def select_detail_node(node_name, _refresh, _version, _override_data,
-                           include_soft_val, include_transitive_val,
-                           include_synergies_val,
+                           max_depth_val, include_soft_val, include_synergies_val,
                            f_context, f_subcontext, f_done,
                            f_value, f_interest, f_time, f_difficulty,
-                           f_node_types, f_show_dormant, gs_max_depth, hide_blocked_val):
+                           f_node_types, f_show_dormant, hide_blocked_val):
         if not node_name:
             return (
                 {"display": "block"},
@@ -377,8 +324,8 @@ def register_details_callbacks(app):
             return (no_update,) * 25
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
-        include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
+        max_depth = _normalize_max_depth(max_depth_val)
 
         # Build badges. Order: Override → Status → Priority → Type → RelPriority.
         # Goal type tile is suppressed when a Priority N tile is shown
@@ -458,7 +405,7 @@ def register_details_callbacks(app):
         if node.type == "Goal":
             completion = graph_manager.get_goal_completion(
                 node_name, include_soft=False,
-                include_transitive=True)
+                include_transitive=True, max_depth=max_depth)
             if completion["total"] > 0:
                 show_progress = {"display": "block", "marginBottom": "8px"}
                 progress_val = completion["pct"]
@@ -467,8 +414,10 @@ def register_details_callbacks(app):
                 # Milestone count: walk the same hard-subtree the completion
                 # walked, count Milestones in it. Filter-independent (matches
                 # the existing "X/Y hard subtasks" stat which is also total).
-                hard_subtree = graph_manager.get_goal_subtree(
-                    node_name, edge_types=(EDGE_NEEDS_HARD,))
+                hard_view = graph_manager.get_dependency_view(
+                    node_name, include_soft=False, include_synergies=False,
+                    max_depth=max_depth)
+                hard_subtree = set(hard_view["node_names"]) - {node_name}
                 ms_total = 0
                 ms_done = 0
                 for child_name in hard_subtree:
@@ -491,29 +440,20 @@ def register_details_callbacks(app):
         show_priority = {"display": "none"}
         priority_badge = ""
 
-        # Subtasks
-        edge_types = [EDGE_NEEDS_HARD]
-        if include_soft:
-            edge_types.append(EDGE_NEEDS_SOFT)
-        if include_synergies:
-            edge_types.append(EDGE_HELPS)
-
-        subtree = graph_manager.get_goal_subtree(node_name,
-                                                  edge_types=tuple(edge_types))
-        # Apply max depth filter
-        depth_val = gs_max_depth or 0
-        subtree = _apply_max_depth(subtree, node_name, depth_val, edge_types)
-
-        subtask_nodes = [graph_manager.get_node(n) for n in subtree]
-        subtask_nodes = [n for n in subtask_nodes if n is not None]
-
-        # Apply global filters to subtask nodes
+        # Subtasks use the same filter-aware dependency view as the graph and
+        # simulation, so a hidden bridge cannot leave orphaned descendants.
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types, f_show_dormant=f_show_dormant)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
-        subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
+        view = graph_manager.get_dependency_view(
+            node_name, include_soft=include_soft,
+            include_synergies=include_synergies, max_depth=max_depth,
+            filters=global_filters)
+        subtree = set(view["node_names"]) - {node_name}
+        subtask_nodes = [graph_manager.get_node(name) for name in subtree]
+        subtask_nodes = [node for node in subtask_nodes if node is not None]
 
         subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
         edges = graph_manager.get_edges()
@@ -524,14 +464,12 @@ def register_details_callbacks(app):
         subtasks_table = build_details_subtasks_table(
             non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
             parent_name=node_name, include_soft=include_soft,
-            include_transitive=include_transitive,
             include_synergies=include_synergies)
 
         # Milestones roster — derived from the same filtered subtask_nodes the
-        # Subtasks table uses, with the same Transitive narrowing, so the strip
-        # stays in lockstep with the table.
+        # Subtasks table uses, so the strip stays in lockstep with the table.
         ms_section_style, bottom_toggles_style, ms_tiles = _build_milestones_section(
-            subtask_nodes, node_name, edges, include_transitive)
+            subtask_nodes, node_name, edges)
 
         return (
             {"display": "none"},
@@ -562,8 +500,8 @@ def register_details_callbacks(app):
         Output("details-subtask-toggles-bottom", "style", allow_duplicate=True),
         Output("details-milestones-tiles", "children", allow_duplicate=True),
         Input("details-include-soft-needs", "value"),
-        Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
+        Input("details-max-depth", "value"),
         Input("filter-context", "value"),
         Input("filter-subcontext", "value"),
         Input("filter-done", "value"),
@@ -573,44 +511,35 @@ def register_details_callbacks(app):
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
         Input("filter-dormant", "value"),
-        Input("details-graph-settings-max-depth", "value"),
         Input("details-hide-blocked", "value"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
-    def toggle_details_subtask_filters(include_soft_val, include_transitive_val,
-                                        include_synergies_val,
+    def toggle_details_subtask_filters(include_soft_val, include_synergies_val,
+                                        max_depth_val,
                                         f_context, f_subcontext, f_done,
                                         f_value, f_interest, f_time, f_difficulty,
-                                        f_node_types, f_show_dormant, gs_max_depth,
+                                        f_node_types, f_show_dormant,
                                         hide_blocked_val, selected_node):
         if not selected_node:
             return no_update, no_update, no_update, no_update
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
-        include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
-
-        edge_types = [EDGE_NEEDS_HARD]
-        if include_soft:
-            edge_types.append(EDGE_NEEDS_SOFT)
-        if include_synergies:
-            edge_types.append(EDGE_HELPS)
-
-        subtree = graph_manager.get_goal_subtree(selected_node,
-                                                  edge_types=tuple(edge_types))
-        # Apply max depth filter
-        subtree = _apply_max_depth(subtree, selected_node, gs_max_depth or 0, edge_types)
-
-        subtask_nodes = [graph_manager.get_node(n) for n in subtree]
-        subtask_nodes = [n for n in subtask_nodes if n is not None]
+        max_depth = _normalize_max_depth(max_depth_val)
 
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types, f_show_dormant=f_show_dormant)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
-        subtask_nodes = graph_manager.filter_nodes(subtask_nodes, global_filters)
+        view = graph_manager.get_dependency_view(
+            selected_node, include_soft=include_soft,
+            include_synergies=include_synergies, max_depth=max_depth,
+            filters=global_filters)
+        subtree = set(view["node_names"]) - {selected_node}
+        subtask_nodes = [graph_manager.get_node(name) for name in subtree]
+        subtask_nodes = [node for node in subtask_nodes if node is not None]
 
         subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
         edges = graph_manager.get_edges()
@@ -620,13 +549,12 @@ def register_details_callbacks(app):
         subtasks_table = build_details_subtasks_table(
             non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
             parent_name=selected_node, include_soft=include_soft,
-            include_transitive=include_transitive,
             include_synergies=include_synergies)
 
-        # Milestones roster shares the same filtered subtree + Transitive
-        # narrowing the table uses, so both surfaces stay in lockstep.
+        # Milestones roster shares the same filtered, depth-limited view as
+        # the table, so both surfaces stay in lockstep.
         ms_section_style, bottom_toggles_style, ms_tiles = _build_milestones_section(
-            subtask_nodes, selected_node, edges, include_transitive)
+            subtask_nodes, selected_node, edges)
 
         return subtasks_table, ms_section_style, bottom_toggles_style, ms_tiles
 
@@ -645,8 +573,8 @@ def register_details_callbacks(app):
             return no_update, details_val
         return filter_val, no_update
 
-    # --- Sync Milestones-row toggles with the canonical Subtasks-row toggles ---
-    # The five filter switches render twice (top: with the Milestones header;
+    # --- Sync Milestones-row controls with the canonical Subtasks-row controls ---
+    # The controls render twice (top: with the Milestones header;
     # bottom: with the Subtasks header). Only one set is visible at a time;
     # the user's interaction with whichever set is showing must propagate to
     # the other so the canonical (no-suffix) IDs always reflect the current
@@ -654,7 +582,7 @@ def register_details_callbacks(app):
     #
     # Each pair gets its own two-way sync callback that no_updates when the
     # other side already matches, keeping the dispatch from looping.
-    def _register_toggle_sync(canonical_id):
+    def _register_control_sync(canonical_id, default):
         top_id = f"{canonical_id}-top"
 
         @app.callback(
@@ -666,24 +594,26 @@ def register_details_callbacks(app):
         )
         def _sync(canonical_val, top_val):
             trig = get_trigger_id()
-            canonical_val = canonical_val or []
-            top_val = top_val or []
-            if list(canonical_val) == list(top_val):
+            canonical_val = default if canonical_val is None else canonical_val
+            top_val = default if top_val is None else top_val
+            if canonical_val == top_val:
                 return no_update, no_update
             if trig == canonical_id:
                 return no_update, canonical_val
             return top_val, no_update
         # Give Dash a unique function name per registration so logs/errors
         # are easier to attribute to the right toggle pair.
-        _sync.__name__ = f"sync_toggle_{canonical_id.replace('-', '_')}"
+        _sync.__name__ = f"sync_control_{canonical_id.replace('-', '_')}"
         return _sync
 
-    for _toggle_id in ("details-include-soft-needs",
-                       "details-include-transitive",
-                       "details-include-synergies",
-                       "details-hide-done",
-                       "details-hide-blocked"):
-        _register_toggle_sync(_toggle_id)
+    for _control_id, _default in (
+            ("details-include-soft-needs", ["include"]),
+            ("details-include-synergies", []),
+            ("details-max-depth", 6),
+            ("details-show-cross-links", ["show"]),
+            ("details-hide-done", []),
+            ("details-hide-blocked", [])):
+        _register_control_sync(_control_id, _default)
 
     # --- Dependency Graph ---
     # Outputs to details-elements-pending-store; a clientside callback in
@@ -695,8 +625,9 @@ def register_details_callbacks(app):
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
         Input("details-include-soft-needs", "value"),
-        Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
+        Input("details-max-depth", "value"),
+        Input("details-show-cross-links", "value"),
         Input("filter-node-type", "value"),
         Input("filter-done", "value"),
         Input("filter-context", "value"),
@@ -706,17 +637,14 @@ def register_details_callbacks(app):
         Input("filter-time", "value"),
         Input("filter-difficulty", "value"),
         Input("filter-dormant", "value"),
-        Input("details-graph-settings-max-depth", "value"),
-        Input("details-graph-settings-neighbor-links", "value"),
         Input("details-hide-blocked", "value"),
     )
     def update_details_graph(selected_node, _refresh, _version,
-                             include_soft_val, include_transitive_val,
-                             include_synergies_val,
+                             include_soft_val, include_synergies_val,
+                             max_depth_val, show_cross_links_val,
                              f_node_types, f_done, f_context, f_subcontext,
                              f_value, f_interest, f_time, f_difficulty,
-                             f_show_dormant,
-                             gs_max_depth, gs_neighbor_links, hide_blocked_val):
+                             f_show_dormant, hide_blocked_val):
         if not selected_node:
             return []
         global_filters = build_filters(f_context, f_subcontext, f_done,
@@ -726,9 +654,10 @@ def register_details_callbacks(app):
             global_filters['hide_blocked'] = True
         return _build_graph_elements(selected_node, include_soft_val,
                                      include_synergies_val, global_filters,
-                                     include_transitive_val=include_transitive_val,
-                                     max_depth=gs_max_depth or 0,
-                                     neighbor_links=gs_neighbor_links if gs_neighbor_links is not None else True)
+                                     max_depth=_normalize_max_depth(max_depth_val),
+                                     show_cross_links=bool(
+                                         show_cross_links_val
+                                         and "show" in show_cross_links_val))
 
     # --- Clicking a node in the dep graph → select it ---
     @app.callback(
@@ -754,8 +683,8 @@ def register_details_callbacks(app):
         Output("details-sim-empty", "style", allow_duplicate=True),
         Input("details-selected-node-store", "data"),
         Input("details-include-soft-needs", "value"),
-        Input("details-include-transitive", "value"),
         Input("details-include-synergies", "value"),
+        Input("details-max-depth", "value"),
         Input("filter-context", "value"),
         Input("filter-subcontext", "value"),
         Input("filter-done", "value"),
@@ -765,15 +694,14 @@ def register_details_callbacks(app):
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
         Input("filter-dormant", "value"),
-        Input("details-graph-settings-max-depth", "value"),
         Input("details-hide-blocked", "value"),
         prevent_initial_call=True,
     )
-    def run_details_simulation(node_name, include_soft_val, include_transitive_val,
-                                include_synergies_val,
+    def run_details_simulation(node_name, include_soft_val,
+                                include_synergies_val, max_depth_val,
                                 f_context, f_subcontext, f_done,
                                 f_value, f_interest, f_time, f_difficulty,
-                                f_node_types, f_show_dormant, gs_max_depth, hide_blocked_val):
+                                f_node_types, f_show_dormant, hide_blocked_val):
         if not node_name:
             empty_fig = go.Figure()
             empty_fig.update_layout(template="plotly_dark",
@@ -786,9 +714,8 @@ def register_details_callbacks(app):
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         return _run_simulation(node_name, include_soft_val, include_synergies_val,
-                               include_transitive_val=include_transitive_val,
                                global_filters=global_filters,
-                               max_depth=gs_max_depth or 0)
+                               max_depth=_normalize_max_depth(max_depth_val))
 
     # --- Run Simulation from context menu trigger ---
     @app.callback(
@@ -1668,7 +1595,7 @@ def register_details_callbacks(app):
         graph_manager.delete_node(node_name)
         return False, f"delete-{node_name}"
 
-    # --- Details Graph Settings: Toggle Panel ---
+    # --- Details Graph Layout: Toggle Panel ---
     @app.callback(
         Output('details-graph-settings-panel', 'style'),
         Input('btn-details-graph-settings', 'n_clicks'),
@@ -1681,10 +1608,8 @@ def register_details_callbacks(app):
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style
 
-    # --- Details Graph Settings: Reset to Stored Defaults ---
+    # --- Details Graph Layout: Reset to Stored Defaults ---
     @app.callback(
-        Output('details-graph-settings-max-depth', 'value', allow_duplicate=True),
-        Output('details-graph-settings-neighbor-links', 'value', allow_duplicate=True),
         Output('details-graph-settings-animate', 'value', allow_duplicate=True),
         Output('details-graph-settings-edge-length', 'value', allow_duplicate=True),
         Output('details-graph-settings-gravity', 'value', allow_duplicate=True),
@@ -1695,10 +1620,10 @@ def register_details_callbacks(app):
     )
     def reset_details_graph_settings(n_clicks):
         if not n_clicks:
-            return (no_update,) * 7
+            return (no_update,) * 5
         gl = ConfigManager.get_details_graph_layout_defaults()
         return (
-            0, True, True,
+            True,
             gl.get('edge_length', 50),
             gl.get('gravity', 0.25),
             gl.get('repulsion', 4500),
@@ -1721,28 +1646,25 @@ def register_details_callbacks(app):
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
         Input('filter-done', 'value'),
-        Input('details-graph-settings-max-depth', 'value'),
+        Input('details-max-depth', 'value'),
     )
     def update_details_node_count(elements, f_type, f_ctx, f_sub, f_val,
-                                  f_int, f_diff, f_time, f_done, max_depth):
+                                  f_int, f_diff, f_time, f_done, max_depth_val):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
         text = f"{n} node{'s' if n != 1 else ''}"
-        # Non-default max-depth (anything other than 0 = "All") narrows the
-        # rendered subtree just like a filter does — surface it the same way.
-        depth_active = bool(max_depth)
-        if depth_active or is_filters_active(
+        if _normalize_max_depth(max_depth_val) is not None or is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
                 value=f_val, interest=f_int, difficulty=f_diff,
                 time=f_time, done=f_done):
             return f"{text} · filtered"
         return text
 
-    # --- Details Graph Settings: Apply Layout Parameters ---
+    # --- Details Graph Layout: Apply Layout Parameters ---
     # Clientside so allowOneLayout('details') is set in the same synchronous
     # function that returns the layout dict — see callbacks.py for the rationale.
     app.clientside_callback(
         """
-        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on) {
+        function(edge_length, gravity, repulsion, animate, relayout_n, sidebar_relayout_n, elements, freeze_on) {
             var ctx = window.dash_clientside.callback_context;
             var trig = ctx.triggered_id
                 || (ctx.triggered && ctx.triggered.length
@@ -1750,10 +1672,11 @@ def register_details_callbacks(app):
                     : null);
             // While frozen, suppress layout prop updates (sliders/element changes)
             // EXCEPT explicit re-layout clicks — those bypass the JS guard.
-            if (freeze_on && trig !== 'details-graph-settings-relayout') {
+            var relayout_triggers = ['details-graph-settings-relayout', 'btn-sidebar-relayout'];
+            if (freeze_on && relayout_triggers.indexOf(trig) === -1) {
                 return window.dash_clientside.no_update;
             }
-            var is_relayout = (trig === 'details-graph-settings-relayout');
+            var is_relayout = relayout_triggers.indexOf(trig) !== -1;
             // Randomize on re-layout click or when elements change (new node selected).
             var randomize = is_relayout || (trig === 'details-mini-graph');
             if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
@@ -1789,6 +1712,7 @@ def register_details_callbacks(app):
         Input('details-graph-settings-repulsion', 'value'),
         Input('details-graph-settings-animate', 'value'),
         Input('details-graph-settings-relayout', 'n_clicks'),
+        Input('btn-sidebar-relayout', 'n_clicks'),
         Input('details-mini-graph', 'elements'),
         State('details-freeze-rerender-store', 'data'),
     )
@@ -1969,105 +1893,38 @@ def register_details_callbacks(app):
 
 
 def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,
-                          global_filters=None, include_transitive_val=None,
-                          max_depth=0, neighbor_links=True):
+                          global_filters=None, max_depth=None,
+                          show_cross_links=True):
     """Shared helper to build Cytoscape elements for the dependency graph."""
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
-    include_transitive = bool(include_transitive_val and "include" in include_transitive_val)
     global_filters = global_filters or {}
 
-    edge_types = [EDGE_NEEDS_HARD]
+    edge_types = {EDGE_NEEDS_HARD}
     if include_soft:
-        edge_types.append(EDGE_NEEDS_SOFT)
+        edge_types.add(EDGE_NEEDS_SOFT)
     if include_synergies:
-        edge_types.append(EDGE_HELPS)
+        edge_types.add(EDGE_HELPS)
 
-    subtree = graph_manager.get_goal_subtree(selected_node,
-                                              edge_types=tuple(edge_types))
-
-    # When Transitive is off, restrict to direct children only
-    if not include_transitive:
-        all_edges = graph_manager.get_edges()
-        direct = set()
-        for e in all_edges:
-            if e['target'] == selected_node and e['type'] in edge_types:
-                direct.add(e['source'])
-            if EDGE_HELPS in edge_types and e['type'] == EDGE_HELPS:
-                if e['target'] == selected_node:
-                    direct.add(e['source'])
-                elif e['source'] == selected_node:
-                    direct.add(e['target'])
-        subtree = subtree & direct
-
-    node_names = subtree | {selected_node}
-    depth_by_name = {}
-
-    # --- Max Depth filtering (BFS from selected node) ---
-    if max_depth and max_depth > 0:
-        all_edges = graph_manager.get_edges()
-        adj = {}
-        for e in all_edges:
-            s, t = e['source'], e['target']
-            if s in node_names and t in node_names:
-                adj.setdefault(s, set()).add(t)
-                adj.setdefault(t, set()).add(s)
-        visited = {selected_node}
-        depth_by_name = {selected_node: 0}
-        frontier = {selected_node}
-        for d in range(max_depth):
-            next_frontier = set()
-            for n in frontier:
-                for nb in adj.get(n, set()):
-                    if nb not in visited:
-                        visited.add(nb)
-                        depth_by_name[nb] = d + 1
-                        next_frontier.add(nb)
-            frontier = next_frontier
-            if not frontier:
-                break
-        node_names = node_names & visited
+    view = graph_manager.get_dependency_view(
+        selected_node,
+        include_soft=include_soft,
+        include_synergies=include_synergies,
+        max_depth=max_depth,
+        filters=global_filters,
+    )
+    node_names = set(view["node_names"])
+    discovery_edges = set(view["discovery_edges"])
 
     colors = ConfigManager.get_node_colors()
     shapes = ConfigManager.get_node_shapes()
     trigger_names = event_manager.get_trigger_node_names()
 
-    # Apply global filters to subtree nodes (always include the selected node itself)
-    all_subtree_nodes = [graph_manager.get_node(n) for n in node_names if n != selected_node]
-    all_subtree_nodes = [n for n in all_subtree_nodes if n is not None]
-    filtered_subtree = {n.name for n in graph_manager.filter_nodes(all_subtree_nodes, global_filters)}
-    filtered_subtree.add(selected_node)
-
-    # Post-filter reachability: drop nodes that are only reachable through a
-    # filtered-out bridge (e.g. a Done node that the Done filter hid). Without
-    # this, such nodes appear as orphaned clusters disconnected from the
-    # selected node in the rendered mini-graph.
-    all_edges_for_reach = graph_manager.get_edges()
-    reach_adj = {}
-    for e in all_edges_for_reach:
-        if e['source'] not in filtered_subtree or e['target'] not in filtered_subtree:
-            continue
-        if e['type'] not in edge_types:
-            continue
-        reach_adj.setdefault(e['source'], set()).add(e['target'])
-        reach_adj.setdefault(e['target'], set()).add(e['source'])
-    reachable = {selected_node}
-    stack = [selected_node]
-    while stack:
-        n = stack.pop()
-        for nb in reach_adj.get(n, ()):
-            if nb not in reachable:
-                reachable.add(nb)
-                stack.append(nb)
-    filtered_subtree = filtered_subtree & reachable
-
     elements = []
     filtered_names = set()
-    for name in node_names:
+    for name in sorted(node_names):
         node = graph_manager.get_node(name)
         if not node:
-            continue
-        if name not in filtered_subtree:
             continue
         filtered_names.add(name)
         element = {
@@ -2105,19 +1962,14 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         element['classes'] = ' '.join(node_classes)
         elements.append(element)
 
-    edges = graph_manager.get_edges()
+    edges = sorted(
+        graph_manager.get_edges(),
+        key=lambda edge: (edge['source'], edge['target'], edge['type']))
     for e in edges:
-        if e['source'] in filtered_names and e['target'] in filtered_names:
-            # Neighbor links filter: when off, hide peer edges between same-BFS-depth
-            # nodes so the local subtree stays legible (Obsidian local-graph style).
-            # When no BFS ran (max_depth == 0), fall back to "edges touching selected node".
-            if not neighbor_links:
-                if depth_by_name:
-                    if depth_by_name.get(e['source']) == depth_by_name.get(e['target']):
-                        continue
-                else:
-                    if e['source'] != selected_node and e['target'] != selected_node:
-                        continue
+        edge_key = (e['source'], e['target'], e['type'])
+        if (e['source'] in filtered_names and e['target'] in filtered_names
+                and e['type'] in edge_types
+                and (show_cross_links or edge_key in discovery_edges)):
             elements.append({
                 'data': {
                     'id': f"{e['source']}_{e['target']}_{e['type']}",

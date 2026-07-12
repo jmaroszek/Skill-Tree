@@ -82,7 +82,7 @@
     opacity: 0.9;
 }
 
-/* Graph Settings Panel */
+/* Graph Layout Panel */
 .graph-settings-panel {
     position: absolute;
     bottom: 56px;
@@ -611,12 +611,11 @@
     box-shadow: none;
 }
 
-/* --- Ratings sliders: hide Dash 3.x's companion number input --- */
+/* --- Marked sliders: hide Dash's companion number input --- */
 /* dcc.Slider renders an editable number box (.dash-range-slider-input) next to
-   the track. On the 1-10 rating sliders the value is already legible from the
+   the track. On these marked sliders the value is already legible from the
    axis marks below, so the box is redundant clutter; hide it and let the track
-   use the full width. Scoped to the node-editor + dormant-editor rating sliders
-   so the filter sliders are untouched. */
+   use the full width. */
 #node-value .dash-range-slider-input,
 #node-interest .dash-range-slider-input,
 #node-difficulty .dash-range-slider-input,
@@ -628,8 +627,39 @@
 #details-add-difficulty .dash-range-slider-input,
 #filter-value .dash-range-slider-input,
 #filter-interest .dash-range-slider-input,
-#filter-difficulty .dash-range-slider-input {
+#filter-difficulty .dash-range-slider-input,
+#details-max-depth .dash-range-slider-input,
+#details-max-depth-top .dash-range-slider-input {
     display: none;
+}
+
+.details-view-controls {
+    flex-wrap: wrap;
+    row-gap: 0.35rem !important;
+}
+
+.details-depth-control {
+    width: 170px;
+    flex: 0 0 170px;
+    margin-top: -2px;
+    margin-left: -6px;
+    margin-right: 6px;
+}
+
+.details-depth-label {
+    display: block;
+    color: #dee2e6;
+    font-size: 0.72rem;
+    line-height: 1;
+    margin-bottom: 1px;
+}
+
+.details-depth-slider {
+    margin: 0 4px;
+}
+
+.details-depth-slider .rc-slider-mark-text {
+    font-size: 0.68rem;
 }
 
 /* --- Disclosure chevron inside a field (e.g. Name → aliases) --- */
