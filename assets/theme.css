@@ -491,6 +491,15 @@
     -webkit-app-region: no-drag;
 }
 
+/* Separate the app actions from Electron's three native window controls. */
+.electron-shell .main-toolbar-actions::after {
+    content: "";
+    align-self: stretch;
+    width: 1px;
+    margin: 7px -0.5rem 7px 1.25rem;
+    background-color: rgba(173, 181, 189, 0.28);
+}
+
 /* --- Flat "ghost" toolbar icons --- */
 /* The top toolbar's icon buttons default to filled gray (btn-secondary), which
    reads as chunky buttons next to the flat native window controls. Override

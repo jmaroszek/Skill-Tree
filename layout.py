@@ -1112,7 +1112,7 @@ def build_app_layout(initial_elements, env="production"):
             dbc.Tooltip("Settings", target="btn-settings-toggle", placement="bottom",
                         trigger="hover",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-        ], className="d-flex align-items-center pe-3",
+        ], className="main-toolbar-actions d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
     ], id="main-toolbar", className="d-flex align-items-center",
        style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"})
