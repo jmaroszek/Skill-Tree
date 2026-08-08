@@ -152,8 +152,8 @@ def register_event_callbacks(app):
     def toggle_tab_content(active_tab):
         base = {"width": "100%", "height": "100%", "overflow": "hidden", "position": "absolute", "top": "0", "left": "0"}
         next_style = {**base,
-                      "overflow": "auto",
-                      "display": "block" if active_tab == "tab-next" else "none",
+                      "display": "flex" if active_tab == "tab-next" else "none",
+                      "flexDirection": "column",
                       "visibility": "visible" if active_tab == "tab-next" else "hidden"}
         canvas_style = {**base,
                         "display": "flex" if active_tab == "tab-canvas" else "none",
@@ -2090,6 +2090,7 @@ def register_event_callbacks(app):
 
     # --- Events Graph Layout: Reset to Stored Defaults ---
     @app.callback(
+        Output('events-graph-settings-animate', 'value', allow_duplicate=True),
         Output('events-graph-settings-edge-length', 'value', allow_duplicate=True),
         Output('events-graph-settings-gravity', 'value', allow_duplicate=True),
         Output('events-graph-settings-repulsion', 'value', allow_duplicate=True),
@@ -2099,9 +2100,10 @@ def register_event_callbacks(app):
     )
     def reset_events_graph_settings(n_clicks):
         if not n_clicks:
-            return no_update, no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update, no_update
         gl = ConfigManager.get_events_graph_layout_defaults()
         return (
+            True,
             gl.get('edge_length', 50),
             gl.get('gravity', 0.25),
             gl.get('repulsion', 4500),
@@ -2113,7 +2115,7 @@ def register_event_callbacks(app):
     # function that returns the layout dict — see callbacks.py for the rationale.
     app.clientside_callback(
         """
-        function(edge_length, gravity, repulsion, relayout_n, elements, freeze_on) {
+        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on) {
             var ctx = window.dash_clientside.callback_context;
             var trig = ctx.triggered_id
                 || (ctx.triggered && ctx.triggered.length
@@ -2131,7 +2133,7 @@ def register_event_callbacks(app):
             return {
                 name: 'fcose',
                 quality: 'proof',
-                animate: false,
+                animate: !!animate,
                 fit: true,
                 randomize: randomize,
                 padding: 20,
@@ -2146,6 +2148,7 @@ def register_event_callbacks(app):
         Input('events-graph-settings-edge-length', 'value'),
         Input('events-graph-settings-gravity', 'value'),
         Input('events-graph-settings-repulsion', 'value'),
+        Input('events-graph-settings-animate', 'value'),
         Input('events-graph-settings-relayout', 'n_clicks'),
         Input('events-detail-graph', 'elements'),
         State('events-freeze-rerender-store', 'data'),

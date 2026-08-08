@@ -120,9 +120,20 @@ def test_graph_layout_panel_contains_only_layout_controls():
     assert "test-graph-layout-freeze-rerender" in ids
 
 
-def test_events_layout_panel_omits_smooth_but_keeps_freeze():
-    panel = build_graph_settings_panel("test-events-layout", include_animate=False)
+def test_events_layout_panel_has_smooth_and_freeze():
+    panel = build_graph_settings_panel(
+        "test-events-layout", defaults_getter=ConfigManager.get_events_graph_layout_defaults
+    )
     ids = _ids(panel)
 
-    assert "test-events-layout-animate" not in ids
+    assert "test-events-layout-animate" in ids
     assert "test-events-layout-freeze-rerender" in ids
+
+
+def test_events_tab_content_graph_settings_include_smooth_toggle():
+    from events_layout import build_events_tab_content
+
+    content = build_events_tab_content()
+    ids = _ids(content)
+
+    assert "events-graph-settings-animate" in ids

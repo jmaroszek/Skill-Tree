@@ -648,7 +648,6 @@ def build_events_tab_content():
             _freeze_indicator("events-freeze-indicator"),
             build_graph_settings_panel(
                 "events-graph-settings",
-                include_animate=False,
                 defaults_getter=ConfigManager.get_events_graph_layout_defaults,
             ),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
