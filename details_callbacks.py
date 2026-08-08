@@ -1664,7 +1664,7 @@ def register_details_callbacks(app):
     # function that returns the layout dict — see callbacks.py for the rationale.
     app.clientside_callback(
         """
-        function(edge_length, gravity, repulsion, animate, relayout_n, sidebar_relayout_n, elements, freeze_on) {
+        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on) {
             var ctx = window.dash_clientside.callback_context;
             var trig = ctx.triggered_id
                 || (ctx.triggered && ctx.triggered.length
@@ -1672,7 +1672,7 @@ def register_details_callbacks(app):
                     : null);
             // While frozen, suppress layout prop updates (sliders/element changes)
             // EXCEPT explicit re-layout clicks — those bypass the JS guard.
-            var relayout_triggers = ['details-graph-settings-relayout', 'btn-sidebar-relayout'];
+            var relayout_triggers = ['details-graph-settings-relayout'];
             if (freeze_on && relayout_triggers.indexOf(trig) === -1) {
                 return window.dash_clientside.no_update;
             }
@@ -1712,7 +1712,6 @@ def register_details_callbacks(app):
         Input('details-graph-settings-repulsion', 'value'),
         Input('details-graph-settings-animate', 'value'),
         Input('details-graph-settings-relayout', 'n_clicks'),
-        Input('btn-sidebar-relayout', 'n_clicks'),
         Input('details-mini-graph', 'elements'),
         State('details-freeze-rerender-store', 'data'),
     )

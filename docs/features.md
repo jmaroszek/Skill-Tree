@@ -430,7 +430,6 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 | Communities | Narrow the graph to an algorithmically-detected cluster of related nodes. See [Communities](#communities) below. |
 | Memory | When on, your filter selections persist across sessions; when off, they reset on restart. |
 | Clear filters | Reset all filters to their default state |
-| Settle | Re-run the layout algorithm with selected filters. This happens automatically, but sometimes running it manually gives more aesthetic results. |
 
 </td>
   </tr>

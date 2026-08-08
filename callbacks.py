@@ -1683,7 +1683,6 @@ def register_callbacks(app):
          Input('background-click-input', 'value'),
          Input('main-tabs', 'active_tab'),
          Input('graph-settings-relayout', 'n_clicks'),
-         Input('btn-sidebar-relayout', 'n_clicks'),
          Input('btn-undo-done-confirm', 'n_clicks'),
          # Appended at the end of the Inputs so existing positional indices
          # (used by core_engine tests) stay stable. The toolbar "+" new-node
@@ -1731,7 +1730,7 @@ def register_callbacks(app):
                      active_suggestion_id,
                      focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
-                     active_tab, _relayout, _sidebar_relayout,
+                     active_tab, _relayout,
                      btn_undo_done_confirm, btn_editor_new,
                      name, n_type, desc, context, subctx, status_done, val, interest, diff,
                      time_o, time_m, time_p, time_unit,
@@ -3553,13 +3552,13 @@ def register_callbacks(app):
     # to stop the layout (Settle button silently no-op).
     app.clientside_callback(
         """
-        function(edge_length, gravity, repulsion, animate, relayout_n, sidebar_relayout_n, freeze_on) {
+        function(edge_length, gravity, repulsion, animate, relayout_n, freeze_on) {
             var ctx = window.dash_clientside.callback_context;
             var trig = ctx.triggered_id
                 || (ctx.triggered && ctx.triggered.length
                     ? ctx.triggered[0].prop_id.split('.')[0]
                     : null);
-            var relayout_triggers = ['graph-settings-relayout', 'btn-sidebar-relayout'];
+            var relayout_triggers = ['graph-settings-relayout'];
             // Freeze toggle fired: run layout only on the off-transition (refresh).
             // On the on-transition we stay put so the user's current positions hold.
             if (trig === 'freeze-rerender-store' && freeze_on) {
@@ -3597,7 +3596,6 @@ def register_callbacks(app):
         Input('graph-settings-repulsion', 'value'),
         Input('graph-settings-animate', 'value'),
         Input('graph-settings-relayout', 'n_clicks'),
-        Input('btn-sidebar-relayout', 'n_clicks'),
         Input('freeze-rerender-store', 'data'),
         prevent_initial_call=True,
     )

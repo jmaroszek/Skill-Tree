@@ -2113,13 +2113,13 @@ def register_event_callbacks(app):
     # function that returns the layout dict — see callbacks.py for the rationale.
     app.clientside_callback(
         """
-        function(edge_length, gravity, repulsion, relayout_n, sidebar_relayout_n, elements, freeze_on) {
+        function(edge_length, gravity, repulsion, relayout_n, elements, freeze_on) {
             var ctx = window.dash_clientside.callback_context;
             var trig = ctx.triggered_id
                 || (ctx.triggered && ctx.triggered.length
                     ? ctx.triggered[0].prop_id.split('.')[0]
                     : null);
-            var relayout_triggers = ['events-graph-settings-relayout', 'btn-sidebar-relayout'];
+            var relayout_triggers = ['events-graph-settings-relayout'];
             if (freeze_on && relayout_triggers.indexOf(trig) === -1) {
                 return window.dash_clientside.no_update;
             }
@@ -2147,7 +2147,6 @@ def register_event_callbacks(app):
         Input('events-graph-settings-gravity', 'value'),
         Input('events-graph-settings-repulsion', 'value'),
         Input('events-graph-settings-relayout', 'n_clicks'),
-        Input('btn-sidebar-relayout', 'n_clicks'),
         Input('events-detail-graph', 'elements'),
         State('events-freeze-rerender-store', 'data'),
     )

@@ -42,7 +42,10 @@ def test_filters_keep_general_order_and_have_no_canvas_view():
     assert "filter-max-depth" not in ids
     assert "filter-cross-links" not in ids
     assert "Canvas View" not in _text(content)
-    assert "btn-sidebar-relayout" in ids
+    # Layout physics belong to the graph-settings panel, not the filters
+    # sidebar — Settle lives beside the sliders it re-runs.
+    assert "btn-sidebar-relayout" not in ids
+    assert "Settle" not in _text(content)
 
 
 def test_obsolete_canvas_view_settings_are_not_filter_defaults():

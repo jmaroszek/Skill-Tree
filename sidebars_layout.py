@@ -716,12 +716,12 @@ def build_filters_content():
         ),
 
         html.Hr(className="my-3"),
+        # Filters decide what the canvas shows; layout physics live in the
+        # graph-settings panel next to the sliders they re-run (and next to
+        # Freeze, which depends on Settle). The Details tab's filters sidebar
+        # has never carried a Settle button — this one matches it now.
         html.Div([
             dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
-            dbc.Button("Settle", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
-            dbc.Tooltip("Re-run layout physics to untangle nodes",
-                        target="btn-sidebar-relayout", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         ], className="d-flex gap-2 mb-3"),
     ], className="px-3 pb-2 pt-0", style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX})
 
