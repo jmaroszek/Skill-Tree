@@ -637,38 +637,13 @@
 #filter-value .dash-range-slider-input,
 #filter-interest .dash-range-slider-input,
 #filter-difficulty .dash-range-slider-input,
-#details-max-depth .dash-range-slider-input,
-#details-max-depth-top .dash-range-slider-input {
+#details-max-depth .dash-range-slider-input {
     display: none;
 }
 
 .details-view-controls {
     flex-wrap: wrap;
     row-gap: 0.35rem !important;
-}
-
-.details-depth-control {
-    width: 170px;
-    flex: 0 0 170px;
-    margin-top: -2px;
-    margin-left: -6px;
-    margin-right: 6px;
-}
-
-.details-depth-label {
-    display: block;
-    color: #dee2e6;
-    font-size: 0.72rem;
-    line-height: 1;
-    margin-bottom: 1px;
-}
-
-.details-depth-slider {
-    margin: 0 4px;
-}
-
-.details-depth-slider .rc-slider-mark-text {
-    font-size: 0.68rem;
 }
 
 /* --- Disclosure chevron inside a field (e.g. Name → aliases) --- */

@@ -606,10 +606,11 @@ def register_details_callbacks(app):
         _sync.__name__ = f"sync_control_{canonical_id.replace('-', '_')}"
         return _sync
 
+    # Max Depth is absent here: it now lives in the graph-settings panel as a
+    # single control, so there is no -top twin to keep in sync.
     for _control_id, _default in (
             ("details-include-soft-needs", ["include"]),
             ("details-include-synergies", []),
-            ("details-max-depth", 6),
             ("details-show-cross-links", ["show"]),
             ("details-hide-done", []),
             ("details-hide-blocked", [])):

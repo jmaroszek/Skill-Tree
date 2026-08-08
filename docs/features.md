@@ -389,6 +389,7 @@ The gear icon in the bottom right corner of each canvas opens the **Graph Layout
 | Gravity | How strongly nodes are pulled toward the center. |
 | Repulsion | How hard nodes push away from each other. |
 | Settle | Re-run the layout physics to untangle the graph. |
+| Max Depth | *Details tab only.* How many relationship steps out the local view reaches. Unlike the controls above it, this one is not just about layout — it also limits the Subtasks table, Milestones and time simulation. |
 
 </td>
   </tr>
@@ -548,16 +549,16 @@ If a subtask has a *direct* edge to the selected node, an **×** appears at the 
 If the subtree contains any Milestones, they get their own horizontal strip of tiles above the table. Milestones are checkpoints rather than work, so they're kept visually separate from the subtasks you actually grind through.
 
 ### Controlling how much you see
-The controls in the top-right let you dial the local view from a compact list of immediate prerequisites to the entire project. The graph, Subtasks table, Milestones, and time simulation react together, so they never describe different slices of the project by accident.
+The controls in the top-right let you dial the local view from a compact list of immediate prerequisites to the entire project. **Max Depth** sits apart from them, in the graph settings panel behind the gear in the graph's bottom-right corner. Wherever you set them, the graph, Subtasks table, Milestones, and time simulation react together, so they never describe different slices of the project by accident.
 
-| Control | What it does | Default |
-|---|---|:---:|
-| Soft Needs | Include or exclude soft prerequisites. | On |
-| Synergies | Include or exclude synergy partners. | Off |
-| Max Depth | Stop after 1–5 relationship steps, or choose **All** for the complete dependency view. | All |
-| Show Cross-Links | Reveal additional enabled relationships between nodes already in the view. Turning it off keeps only the links that explain how each node was reached. It never removes nodes. | On |
-| Show Done | Whether completed subtasks appear. | Off |
-| Hide Blocked | Drop subtasks currently blocked by an incomplete prerequisite. | Off |
+| Control | Where | What it does | Default |
+|---|---|---|:---:|
+| Max Depth | Graph settings | Stop after 1–5 relationship steps, or choose **All** for the complete dependency view. | All |
+| Soft Needs | Top-right | Include or exclude soft prerequisites. | On |
+| Synergies | Top-right | Include or exclude synergy partners. | Off |
+| Show Cross-Links | Top-right | Reveal additional enabled relationships between nodes already in the view. Turning it off keeps only the links that explain how each node was reached. It never removes nodes. | On |
+| Show Done | Top-right | Whether completed subtasks appear. | Off |
+| Hide Blocked | Top-right | Drop subtasks currently blocked by an incomplete prerequisite. | Off |
 
 <p align="center">
   <img src="../images/details-view-controls.png" alt="The Details local-view controls">

@@ -56,24 +56,45 @@ def test_obsolete_canvas_view_settings_are_not_filter_defaults():
     assert "cross_links" not in defaults
 
 
-def test_details_controls_replace_transitive_with_depth_and_cross_links():
+def test_details_controls_replace_transitive_with_cross_links():
     content = build_details_tab_content()
     ids = _ids(content)
-    depth = _by_id(content, "details-max-depth")
-    top_depth = _by_id(content, "details-max-depth-top")
 
     assert "details-include-transitive" not in ids
     assert "details-include-transitive-top" not in ids
     assert "details-show-cross-links" in ids
     assert "details-show-cross-links-top" in ids
-    assert depth.value == 6
-    assert top_depth.value == 6
-    assert depth.marks == {1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "All"}
-    assert ids.index("details-max-depth") < ids.index("details-include-soft-needs")
     assert ids.index("details-include-soft-needs") < ids.index("details-show-cross-links")
     assert ids.index("details-show-cross-links") < ids.index("details-include-synergies")
     assert ids.index("details-include-synergies") < ids.index("details-hide-done")
     assert ids.index("details-hide-done") < ids.index("details-hide-blocked")
+
+
+def test_max_depth_lives_in_the_details_graph_settings_panel():
+    """Depth moved out of the toggles row, so it has no -top twin to sync."""
+    content = build_details_tab_content()
+    ids = _ids(content)
+    depth = _by_id(content, "details-max-depth")
+
+    assert depth.value == 6
+    assert depth.marks == {1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "All"}
+    assert "details-max-depth-top" not in ids
+    assert ids.count("details-max-depth") == 1
+    # It sits inside the graph-settings panel, ahead of the physics sliders.
+    assert ids.index("details-graph-settings-panel") < ids.index("details-max-depth") \
+        or ids.index("details-max-depth") < ids.index("details-graph-settings-edge-length")
+
+
+def test_details_panel_opts_into_max_depth_but_others_do_not():
+    detail = build_graph_settings_panel("d-layout", max_depth_id="details-max-depth")
+    plain = build_graph_settings_panel("p-layout")
+
+    assert "details-max-depth" in _ids(detail)
+    assert "Max Depth" in _text(detail)
+    # Opt-in only: the Nodes and Events canvases show the whole graph, so they
+    # get no depth control.
+    assert "Max Depth" not in _text(plain)
+    assert not [i for i in _ids(plain) if "max-depth" in str(i)]
 
 
 def test_app_layout_has_no_global_local_view_stores():

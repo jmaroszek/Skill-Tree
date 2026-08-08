@@ -328,14 +328,25 @@ state needs no extra callback. Compare these lists as sets in dirty-checks
 
 ### Details local-view control row
 
-The Details subtree controls combine compact switches with one marked slider.
-Use `.details-view-controls` for the wrapping flex row and
-`.details-depth-control` for the fixed-width Max Depth group. The slider's
-marks carry the value, so hide Dash's companion number input just as the
-Ratings sliders do. Both physical copies of this row (Milestones/Subtasks)
-must use the same classes and stay synchronized through callbacks. Order the
-row as Max Depth | enabled-by-default switches | disabled-by-default switches,
-keeping the controls in one continuous compact row without separators.
+The Details subtree controls are a row of compact switches. Use
+`.details-view-controls` for the wrapping flex row. Both physical copies of
+this row (Milestones/Subtasks) must use the same classes and stay synchronized
+through callbacks. Order the row as enabled-by-default switches followed by
+disabled-by-default switches, keeping the controls in one continuous compact
+row without separators.
+
+**Keep this row switches-only.** A slider among switches reads as a different
+class of control and needs fixed widths and negative-margin nudges to line up,
+which is why Max Depth was moved out to the graph-settings panel. Anything that
+isn't a toggle belongs there instead.
+
+Max Depth is the one control in a graph-settings panel that is not about
+layout: it also limits the subtasks table, milestones strip and Time
+Simulation. It is opt-in via `build_graph_settings_panel(..., max_depth_id=…)`
+so only the Details canvas gets it, and it sits above a divider ahead of the
+physics sliders to mark it as a different kind of control. Its wider reach is
+documented in `docs/features.md` rather than captioned in the panel — this is
+a single-user app, so in-UI explanation of the author's own model is noise.
 
 ## Badges
 

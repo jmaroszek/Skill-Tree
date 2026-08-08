@@ -59,6 +59,7 @@ def build_graph_settings_panel(
     *,
     include_animate: bool = True,
     defaults_getter=ConfigManager.get_graph_layout_defaults,
+    max_depth_id: str = None,
 ):
     """Build a graph-layout panel. Single source of truth for all three canvases
     (Nodes / Details / Events).
@@ -68,6 +69,15 @@ def build_graph_settings_panel(
     `get_details_graph_layout_defaults` (details/events). Events does not
     support animated layout, so ``include_animate=False`` renders only Freeze
     in the behavior row.
+
+    ``max_depth_id`` opts a canvas into a Max Depth slider at the top of the
+    panel. Only the Details tab passes it, since that's the only canvas that
+    examines a local subtree rather than the whole graph. The id is supplied by
+    the caller rather than derived from ``prefix`` on purpose: depth is a
+    tab-level control that also redraws the subtasks table, milestones strip,
+    inherited ratings and Time Simulation, so it keeps the tab-scoped
+    ``details-max-depth`` name instead of a panel-scoped one. It sits above a
+    divider, separated from the physics sliders below it.
     """
     gl = defaults_getter()
     p = prefix
@@ -115,6 +125,20 @@ def build_graph_settings_panel(
                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
         html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
     ]
+
+    # Scope, not physics — so it leads the panel and gets its own divider
+    # rather than sitting among the force-layout sliders.
+    if max_depth_id:
+        children += [
+            html.Div("Max Depth", className="settings-label"),
+            dcc.Slider(
+                id=max_depth_id,
+                min=1, max=6, step=1, value=6,
+                marks={1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "All"},
+                updatemode="mouseup",
+            ),
+            html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+        ]
 
     children += [
         html.Div("Edge Length", className="settings-label"),
@@ -366,6 +390,7 @@ def build_details_tab_content():
             build_graph_settings_panel(
                 "details-graph-settings",
                 defaults_getter=ConfigManager.get_details_graph_layout_defaults,
+                max_depth_id="details-max-depth",
             ),
             dbc.Button(html.I(className="bi bi-search"),
                        id="btn-details-focus",
@@ -428,16 +453,6 @@ def build_details_tab_content():
         """Return the Details view controls, with optional
         id suffix so two copies (one with -top, one canonical) can co-exist."""
         return html.Div([
-            html.Div([
-                html.Span("Max Depth", className="details-depth-label"),
-                dcc.Slider(
-                    id=f"details-max-depth{suffix}",
-                    min=1, max=6, step=1, value=6,
-                    marks={1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "All"},
-                    updatemode="mouseup",
-                    className="details-depth-slider",
-                ),
-            ], className="details-depth-control"),
             dbc.Checklist(
                 id=f"details-include-soft-needs{suffix}",
                 options=[{"label": "Soft Needs", "value": "include"}],
