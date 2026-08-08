@@ -23,6 +23,41 @@ graph_manager = GraphManager()
 _badge_hidden = {"fontSize": "0.85rem", "display": "none"}
 
 
+def _normalize_trigger_nodes(value):
+    """Coerces a trigger-node dropdown value into a de-duplicated list.
+
+    A multi Dropdown yields a list, but the same component can hand back a
+    bare string (single leftover selection) or None (cleared), so all three
+    shapes are flattened here rather than at each call site.
+    """
+    if not value:
+        return []
+    if isinstance(value, str):
+        value = [value]
+    out = []
+    for name in value:
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
+def _trigger_mode_hint(trigger_mode, trigger_nodes):
+    """Help text under a node-completion trigger, describing the live selection.
+
+    At one node the any/all distinction is meaningless, so the text collapses
+    to the plain single-node wording rather than naming a mode the user can't
+    meaningfully act on.
+    """
+    names = _normalize_trigger_nodes(trigger_nodes)
+    if not names:
+        return "Auto-triggers when the selected node is marked complete."
+    if len(names) == 1:
+        return f"Auto-triggers when {names[0]} is marked complete."
+    if trigger_mode == "all":
+        return f"Auto-triggers once all {len(names)} selected nodes are marked complete."
+    return "Auto-triggers as soon as any one of the selected nodes is marked complete."
+
+
 def _render_announcements(entries):
     """Formats pending event notification entries into a readable list for the modal body.
 
@@ -42,7 +77,13 @@ def _render_announcements(entries):
             detail = _format_node_counts(activated, scheduled)
         elif kind == "node_triggered":
             trig = entry.get("trigger_node", "?")
-            summary = html.Strong(f"{event_name} — triggered by completing {trig} ({when})")
+            trig_set = entry.get("trigger_nodes") or []
+            if len(trig_set) > 1 and entry.get("trigger_mode") == "all":
+                summary = html.Strong(
+                    f"{event_name} — triggered: all {len(trig_set)} nodes complete, "
+                    f"last was {trig} ({when})")
+            else:
+                summary = html.Strong(f"{event_name} — triggered by completing {trig} ({when})")
             detail = _format_node_counts(activated, scheduled)
         elif kind == "delayed_activated":
             nodes = entry.get("nodes") or []
@@ -51,10 +92,20 @@ def _render_announcements(entries):
         elif kind == "trigger_node_deleted":
             deleted = entry.get("deleted_node", "?")
             events = entry.get("events") or []
-            evs = ", ".join(events) if events else "(none)"
+            # Older entries predate the narrowed/demoted split — fall back to
+            # treating every affected event as demoted, which is what the
+            # single-trigger era always meant.
+            demoted = entry.get("demoted", events) or []
+            narrowed = entry.get("narrowed") or []
             summary = html.Strong(f"Trigger node deleted: {deleted} ({when})")
-            detail = (f"Affected event(s): {evs}. These events were waiting on "
-                      f'"{deleted}" to be marked Done. They are now manual-trigger only.')
+            parts = []
+            if narrowed:
+                parts.append(f'{", ".join(narrowed)} — removed "{deleted}" from the '
+                             "trigger set; remaining conditions still apply.")
+            if demoted:
+                parts.append(f'{", ".join(demoted)} — "{deleted}" was the only trigger '
+                             "left, so these are now manual-trigger only.")
+            detail = " ".join(parts) if parts else ""
         else:
             continue  # override_conflict and unknowns are not shown here
 
@@ -176,7 +227,8 @@ def register_event_callbacks(app):
                 event.name, event.description, event.status, counts,
                 is_selected=(event.name == selected_event),
                 trigger_date=event.trigger_date,
-                trigger_node=event.trigger_node,
+                trigger_nodes=event.trigger_nodes,
+                trigger_mode=event.trigger_mode,
                 show_drag_handle=is_manual,
             ))
         return cards
@@ -219,6 +271,25 @@ def register_event_callbacks(app):
         nodes = graph_manager.get_all_nodes()
         return [{"label": n.name, "value": n.name} for n in sorted(nodes, key=lambda n: n.name)]
 
+    # --- Trigger mode hint text ---
+    # Both trigger surfaces (event editor + dormant-node modal) share one
+    # wording helper so they can't drift apart.
+    @app.callback(
+        Output("event-trigger-mode-hint", "children"),
+        Input("event-trigger-mode", "value"),
+        Input("event-trigger-node", "value"),
+    )
+    def describe_trigger_mode(trigger_mode, trigger_nodes):
+        return _trigger_mode_hint(trigger_mode, trigger_nodes)
+
+    @app.callback(
+        Output("dormant-new-event-trigger-mode-hint", "children"),
+        Input("dormant-new-event-trigger-mode", "value"),
+        Input("dormant-new-event-trigger-node", "value"),
+    )
+    def describe_dormant_trigger_mode(trigger_mode, trigger_nodes):
+        return _trigger_mode_hint(trigger_mode, trigger_nodes)
+
     # --- Trigger Type Section Visibility ---
     @app.callback(
         Output("event-date-section", "style"),
@@ -248,6 +319,7 @@ def register_event_callbacks(app):
         Output("event-trigger-date", "value", allow_duplicate=True),
         Output("event-trigger-type", "value", allow_duplicate=True),
         Output("event-trigger-node", "value", allow_duplicate=True),
+        Output("event-trigger-mode", "value", allow_duplicate=True),
         Output("main-tabs", "active_tab", allow_duplicate=True),
     ]
     _N_DETAIL = len(_DETAIL_OUTPUTS)
@@ -279,7 +351,8 @@ def register_event_callbacks(app):
             "",                     # save status
             "",                     # trigger date
             "manual",               # trigger type
-            None,                   # trigger node
+            [],                     # trigger nodes
+            "any",                  # trigger mode
             "tab-events" if active_tab != "tab-events" else no_update,
         )
 
@@ -306,7 +379,8 @@ def register_event_callbacks(app):
             "",
             "",
             "manual",
-            None,
+            [],
+            "any",
             no_update,
         )
 
@@ -349,7 +423,8 @@ def register_event_callbacks(app):
             "",
             event.trigger_date or "",
             t_type,
-            event.trigger_node or None,
+            list(event.trigger_nodes),
+            event.trigger_mode or "any",
             "tab-events" if active_tab != "tab-events" else no_update,
         )
 
@@ -392,7 +467,8 @@ def register_event_callbacks(app):
             "",
             event.trigger_date or "",
             t_type,
-            event.trigger_node or None,
+            list(event.trigger_nodes),
+            event.trigger_mode or "any",
             "tab-events" if active_tab != "tab-events" else no_update,
         )
 
@@ -417,9 +493,11 @@ def register_event_callbacks(app):
         State("event-trigger-type", "value"),
         State("event-trigger-date", "value"),
         State("event-trigger-node", "value"),
+        State("event-trigger-mode", "value"),
         prevent_initial_call=True,
     )
-    def save_event(n_clicks, selected_event, name, description, trigger_type, trigger_date, trigger_node):
+    def save_event(n_clicks, selected_event, name, description, trigger_type, trigger_date,
+                   trigger_nodes, trigger_mode):
         if not n_clicks or not name or not name.strip():
             return no_update, no_update, "Event name is required.", no_update, no_update, no_update, no_update, no_update
 
@@ -428,20 +506,27 @@ def register_event_callbacks(app):
 
         # Resolve trigger fields based on type
         resolved_date = trigger_date if trigger_type == "date" else None
-        resolved_node = trigger_node if trigger_type == "node" else None
+        resolved_nodes = _normalize_trigger_nodes(trigger_nodes) if trigger_type == "node" else []
+        resolved_mode = trigger_mode if trigger_mode in ("any", "all") else "any"
+
+        if trigger_type == "node" and not resolved_nodes:
+            return (no_update, no_update, "Pick at least one trigger node.",
+                    no_update, no_update, no_update, no_update, no_update)
 
         try:
             if selected_event is None:
                 event_manager.add_event(Event(
                     name=name, description=description,
-                    trigger_date=resolved_date, trigger_node=resolved_node,
+                    trigger_date=resolved_date, trigger_nodes=resolved_nodes,
+                    trigger_mode=resolved_mode,
                 ))
             else:
                 existing = event_manager.get_event(selected_event)
                 event_manager.update_event(selected_event, Event(
                     name=name, description=description,
                     status=existing.status if existing else "Pending",
-                    trigger_date=resolved_date, trigger_node=resolved_node,
+                    trigger_date=resolved_date, trigger_nodes=resolved_nodes,
+                    trigger_mode=resolved_mode,
                 ))
         except ValueError as e:
             return no_update, no_update, str(e), no_update, no_update, no_update, no_update, no_update
@@ -691,17 +776,18 @@ def register_event_callbacks(app):
         Output("dormant-existing-event-picker", "value", allow_duplicate=True),
         Output("dormant-new-event-name", "value", allow_duplicate=True),
         Output("dormant-new-event-desc", "value", allow_duplicate=True),
-        # New-event trigger-type resets (4 new outputs)
+        # New-event trigger-type resets (5 new outputs)
         Output("dormant-new-event-trigger-type", "value", allow_duplicate=True),
         Output("dormant-new-event-trigger-date", "value", allow_duplicate=True),
         Output("dormant-new-event-trigger-node", "options", allow_duplicate=True),
         Output("dormant-new-event-trigger-node", "value", allow_duplicate=True),
+        Output("dormant-new-event-trigger-mode", "value", allow_duplicate=True),
         Input("btn-add-dormant-node", "n_clicks"),
         prevent_initial_call=True,
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 56
+            return (no_update,) * 57
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -734,7 +820,7 @@ def register_event_callbacks(app):
                 existing_picker_opts, [], pending_event_opts, None,
                 "", "",
                 # New-event trigger-type resets
-                "manual", None, existing_picker_opts, None)
+                "manual", None, existing_picker_opts, [], "any")
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -991,11 +1077,12 @@ def register_event_callbacks(app):
         Output("dormant-node-save-status", "children", allow_duplicate=True),
         Output("modal-dormant-node-title", "children", allow_duplicate=True),
         Output("btn-dormant-node-save", "children", allow_duplicate=True),
-        # New-event trigger-type resets (4 new outputs)
+        # New-event trigger-type resets (5 new outputs)
         Output("dormant-new-event-trigger-type", "value", allow_duplicate=True),
         Output("dormant-new-event-trigger-date", "value", allow_duplicate=True),
         Output("dormant-new-event-trigger-node", "options", allow_duplicate=True),
         Output("dormant-new-event-trigger-node", "value", allow_duplicate=True),
+        Output("dormant-new-event-trigger-mode", "value", allow_duplicate=True),
         # Clear any sticky event selection so each canvas trigger forces an
         # explicit new/existing event choice in the modal. Without this, the
         # event_target_wrapper stays hidden after a previous save and the user
@@ -1005,7 +1092,7 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def open_modal_for_existing_nodes(trigger_val):
-        _N = 23
+        _N = 24
         if not trigger_val:
             return (no_update,) * _N
         try:
@@ -1047,7 +1134,8 @@ def register_event_callbacks(app):
             "manual",                           # trigger-type default
             None,                               # trigger-date cleared
             existing_picker_opts,               # trigger-node options
-            None,                               # trigger-node value
+            [],                                 # trigger-node value
+            "any",                              # trigger-mode default
             None,                               # selected-event-store cleared
         )
 
@@ -1241,6 +1329,7 @@ def register_event_callbacks(app):
         State("dormant-new-event-trigger-type", "value"),
         State("dormant-new-event-trigger-date", "value"),
         State("dormant-new-event-trigger-node", "value"),
+        State("dormant-new-event-trigger-mode", "value"),
         State({"type": "dormant-alias-input", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
@@ -1263,7 +1352,7 @@ def register_event_callbacks(app):
                           event_target_mode, new_event_name, new_event_desc,
                           existing_event_pick,
                           new_event_trigger_type, new_event_trigger_date,
-                          new_event_trigger_node, alias_values):
+                          new_event_trigger_node, new_event_trigger_mode, alias_values):
         _nu8 = (no_update,) * 8
         if not n_clicks:
             return _nu8
@@ -1299,13 +1388,20 @@ def register_event_callbacks(app):
                     # other field don't get persisted.
                     trig_type = new_event_trigger_type or "manual"
                     resolved_date = new_event_trigger_date if trig_type == "date" else None
-                    resolved_trigger_node = new_event_trigger_node if trig_type == "node" else None
+                    resolved_trigger_nodes = (
+                        _normalize_trigger_nodes(new_event_trigger_node)
+                        if trig_type == "node" else []
+                    )
+                    resolved_trigger_mode = (
+                        new_event_trigger_mode if new_event_trigger_mode in ("any", "all") else "any"
+                    )
                     try:
                         event_manager.add_event(Event(
                             name=ev_name,
                             description=ev_desc,
                             trigger_date=resolved_date,
-                            trigger_node=resolved_trigger_node,
+                            trigger_nodes=resolved_trigger_nodes,
+                            trigger_mode=resolved_trigger_mode,
                         ))
                     except ValueError as e:
                         return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update

@@ -182,7 +182,8 @@ class GraphManager:
         # in _update_dependent_nodes_state only flips Blocked/Open).
         if node.status == STATUS_DONE:
             ConfigManager.clear_override_if_parent(node.name)
-            # Fire any event whose trigger_node matches this name, but only
+            # Fire any event whose trigger condition this completion satisfies
+            # (OR fires on this node alone; AND needs its whole set Done), but only
             # on a true Open/Blocked → Done transition. Re-saving an already-
             # Done node should be a no-op for events. Lazy import to avoid
             # the event_manager ↔ graph_manager circular dependency.
@@ -262,10 +263,13 @@ class GraphManager:
         """Deletes a node by name.
 
         Cleans up references that aren't FK-cascaded:
-          - `Events.trigger_node` is plain TEXT (no FK) — NULLed in-place so
-            those events demote to manual-trigger instead of orphaning their
-            dormant nodes forever. Affected event names are queued as a
-            one-shot announcement so the user sees the demotion.
+          - `EventTriggerNodes` rows ARE FK-cascaded, so deleting a node
+            narrows every trigger set that watched it. An event that still
+            has other triggers keeps working with one fewer condition; an
+            event left with an empty set has no way to fire on completion
+            any more, so it demotes to manual-trigger. Both outcomes are
+            queued as a one-shot announcement, since a silently narrowed
+            AND condition is exactly the kind of change a user needs told.
           - Config-side references (priority_goals, override.parent,
             event_override_nodes) — delegated to
             ConfigManager.delete_node_references, mirroring how
@@ -277,20 +281,25 @@ class GraphManager:
             # Find dependents before deleting edges so we can recalculate their state
             cursor.execute("SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'", (node_name,))
             dependents = [row[0] for row in cursor.fetchall()]
-            # Snapshot affected events before NULLing trigger_node so the
-            # notification can name them.
+            # Snapshot the watching events before the FK cascade removes the
+            # rows, so the notification can name them and tell narrowed apart
+            # from demoted.
             cursor.execute(
-                "SELECT name FROM Events WHERE trigger_node=? AND status='Pending'",
+                "SELECT e.name FROM Events e "
+                "JOIN EventTriggerNodes etn ON etn.event_name = e.name "
+                "WHERE etn.node_name=? AND e.status='Pending'",
                 (node_name,),
             )
             affected_events = [row[0] for row in cursor.fetchall()]
-            if affected_events:
-                cursor.execute(
-                    "UPDATE Events SET trigger_node=NULL WHERE trigger_node=?",
-                    (node_name,),
-                )
             cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (node_name, node_name))
             cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
+            demoted: List[str] = []
+            narrowed: List[str] = []
+            for ev in affected_events:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM EventTriggerNodes WHERE event_name=?", (ev,)
+                )
+                (demoted if cursor.fetchone()[0] == 0 else narrowed).append(ev)
             conn.commit()
         for dept in dependents:
             self._update_node_state(dept)
@@ -298,6 +307,8 @@ class GraphManager:
             ConfigManager.add_pending_event_notification({
                 "kind": "trigger_node_deleted",
                 "events": affected_events,
+                "demoted": demoted,
+                "narrowed": narrowed,
                 "deleted_node": node_name,
                 "when": date.today().isoformat(),
             })
@@ -321,8 +332,11 @@ class GraphManager:
                 cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
                 cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
                 cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
-                # Update event trigger_node references
-                cursor.execute("UPDATE Events SET trigger_node=? WHERE trigger_node=?", (new_name, old_name))
+                # Update event trigger-set references. OR IGNORE guards the
+                # composite PK in case the event already watches new_name.
+                cursor.execute("UPDATE OR IGNORE EventTriggerNodes SET node_name=? WHERE node_name=?",
+                               (new_name, old_name))
+                cursor.execute("DELETE FROM EventTriggerNodes WHERE node_name=?", (old_name,))
                 # Also update EventNodes mapping table
                 cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
                 # Update Aliases table

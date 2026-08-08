@@ -9,8 +9,8 @@ attached to it, and when the event triggers (manually, by date, or when
 a specific node completes) the dormant nodes are added back into play.
 """
 
-from dataclasses import dataclass, asdict
-from typing import Optional
+from dataclasses import dataclass, asdict, field
+from typing import Optional, List
 import math
 
 # Edge type constants used across the codebase
@@ -290,20 +290,40 @@ class Node:
         return cls(**data)
 
 
+TRIGGER_MODE_ANY = "any"
+TRIGGER_MODE_ALL = "all"
+
+
 @dataclass
 class Event:
     """An activation gate for a set of dormant nodes.
 
     An Event has exactly one trigger: manual (user clicks "trigger"),
-    date-based (`trigger_date` elapses), or node-based (`trigger_node`
-    is marked Done). When it fires, every dormant node attached to it
+    date-based (`trigger_date` elapses), or node-based (`trigger_nodes`
+    are marked Done). When it fires, every dormant node attached to it
     flips to active — see event_manager.EventManager.
+
+    A node-completion trigger holds a *set* of nodes plus a `trigger_mode`
+    that says how to combine them:
+
+      - ``any`` (OR)  — fires as soon as one listed node is marked Done.
+      - ``all`` (AND) — fires only once every listed node is Done.
+
+    A single-element set under ``any`` is the classic one-node trigger, so
+    events written before trigger sets existed keep their exact behavior.
+
+    Firing is latched, not continuous: `status` flips to Triggered and the
+    event stops being consulted. Un-completing a node afterward does not
+    put the dormant nodes back to sleep.
     """
     name: str
     description: str = ""
     status: str = "Pending"  # Pending | Triggered
     trigger_date: Optional[str] = None   # ISO date string — used for date-based triggers
-    trigger_node: Optional[str] = None   # Node name — used for node-completion triggers
+    # Node names whose completion is watched. Persisted in the
+    # EventTriggerNodes table, not as a column on Events.
+    trigger_nodes: List[str] = field(default_factory=list)
+    trigger_mode: str = TRIGGER_MODE_ANY  # any | all
 
     def to_dict(self):
         return asdict(self)

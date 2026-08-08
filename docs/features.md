@@ -642,10 +642,21 @@ Every Event has a trigger — the rule that decides when its dormant nodes wake 
 | Trigger | When it fires | Sandbox example |
 |---|---|---|
 | Date | Automatically, on or after a date you set. | *Adopt a Dog* — fires on 2027-06-01. |
-| Node Completion | Automatically, when a specific node you choose is marked Done. | *Train for a Half Marathon* — fires when *5k in 25 min* is completed. |
+| Node Completion | Automatically, when the nodes you choose are marked Done. | *Train for a Half Marathon* — fires when *5k in 25 min* is completed. |
 | Manual | No automatic condition; fires only when you click the **Trigger** button. | *Write a Book* — fires when you decide. |
 
 Date and Node-Completion events keep their **Trigger** button too, so you can always wake an event early if life moves faster than you planned.
+
+### Waiting on Several Nodes
+A Node Completion trigger can watch more than one node. When it does, you choose how they combine.
+
+**Any** fires the event as soon as one of the listed nodes is Done. Use it when several different routes should all unlock the same work. Any one of three intro courses might qualify you to start a project.
+
+**All** waits until every listed node is Done. Use it when the work genuinely needs several foundations in place. You might park a whole subject area until writing, a personal website, and a study habit are all finished.
+
+Picking a single node makes the choice moot, so the app just treats it as the plain "when this is done" trigger.
+
+Two details worth knowing. Firing is one-way: once an event fires, un-completing one of its trigger nodes does **not** put the dormant nodes back to sleep. And deleting a trigger node narrows the condition rather than voiding it — the remaining nodes still have to be finished. If you delete the *last* node in the set, the event has nothing left to watch, so it quietly falls back to manual and tells you it did.
 
 ## The Events Tab
 The Events tab is where you create, edit, and trigger events. Unlike the other tabs, it can't function on its own — it needs an event loaded, and the only way to load one is through the Events sidebar. The tab's empty state knows this, and offers an **Open Events Sidebar** button to get you started.

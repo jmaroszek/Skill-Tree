@@ -36,6 +36,55 @@ def get_connection() -> sqlite3.Connection:
 
 _initialized = False
 
+# Bump whenever a schema change lands that an existing DB can't pick up from
+# the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
+# to _migrate().
+SCHEMA_VERSION = 5
+
+
+def _has_column(cursor, table: str, column: str) -> bool:
+    cursor.execute(f"PRAGMA table_info({table})")
+    return any(row[1] == column for row in cursor.fetchall())
+
+
+def _migrate(cursor, from_version: int) -> None:
+    """Applies incremental schema migrations to an already-created DB.
+
+    The v1-v4 era of ALTER TABLE statements was deliberately folded into the
+    CREATE TABLE definitions, since those are self-describing and a fresh DB
+    needs no replay. That trick only works for brand-new databases, though:
+    CREATE TABLE IF NOT EXISTS silently does nothing to an existing file. So
+    anything added after v4 needs a real migration step here.
+
+    Every step is written to be idempotent (guarded on the actual table shape,
+    not just the version stamp) so a DB in a half-migrated state still lands
+    correctly.
+    """
+    # --- v5: node-completion triggers become a set with AND/OR semantics ---
+    if from_version < 5:
+        if not _has_column(cursor, "Events", "trigger_mode"):
+            cursor.execute(
+                "ALTER TABLE Events ADD COLUMN trigger_mode TEXT NOT NULL DEFAULT 'any'"
+            )
+        if _has_column(cursor, "Events", "trigger_node"):
+            # Carry each existing single trigger into the new table. The join
+            # to Nodes drops trigger_node values left dangling by an older
+            # build, which would otherwise violate the new foreign key.
+            cursor.execute('''
+                INSERT OR IGNORE INTO EventTriggerNodes (event_name, node_name)
+                SELECT e.name, e.trigger_node FROM Events e
+                JOIN Nodes n ON n.name = e.trigger_node
+                WHERE e.trigger_node IS NOT NULL
+            ''')
+            # A one-element set under 'any' reproduces the old behavior
+            # exactly, so no trigger_mode fixup is needed.
+            try:
+                cursor.execute("ALTER TABLE Events DROP COLUMN trigger_node")
+            except Exception as exc:
+                # DROP COLUMN needs SQLite 3.35+. On older builds the column
+                # just lingers unused — every read path selects explicitly.
+                print(f"NOTE: left legacy Events.trigger_node in place ({exc}).")
+
 
 def init_db():
     """Initializes the SQLite database with the required tables.
@@ -48,15 +97,17 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Schema version stamp. The current schema is v4, defined in full by the
+    # Schema version stamp. The baseline schema is v4, defined in full by the
     # CREATE TABLE statements below (CREATE TABLE IF NOT EXISTS is a no-op on an
-    # existing DB, so the tables aren't rebuilt). A stored value higher than 4
-    # means the DB was last touched by a newer app build than this one — warn,
-    # since this app may not recognize columns a future version added.
+    # existing DB, so the tables aren't rebuilt). Changes past v4 can't ride on
+    # CREATE TABLE for existing DBs, so they live in _migrate() as a version
+    # ladder. A stored value higher than SCHEMA_VERSION means the DB was last
+    # touched by a newer app build than this one — warn, since this app may not
+    # recognize columns a future version added.
     current_v = cursor.execute("PRAGMA user_version").fetchone()[0]
-    if current_v > 4:
-        print(f"WARNING: SQLite DB user_version={current_v} is newer than app's 4. "
-              "Some columns may be unrecognized.")
+    if current_v > SCHEMA_VERSION:
+        print(f"WARNING: SQLite DB user_version={current_v} is newer than app's "
+              f"{SCHEMA_VERSION}. Some columns may be unrecognized.")
 
     # Full Nodes schema. Every column the app reads lives here — there are no
     # follow-up ALTER TABLE migrations. (This consolidates an earlier era where
@@ -144,9 +195,25 @@ def init_db():
             description TEXT DEFAULT '',
             status TEXT NOT NULL DEFAULT 'Pending',
             trigger_date TEXT,
-            trigger_node TEXT
+            trigger_mode TEXT NOT NULL DEFAULT 'any'
         )
     ''')
+
+    # Node-completion triggers. Normalized into its own table so an event can
+    # watch several nodes; `Events.trigger_mode` ('any' = OR, 'all' = AND) says
+    # how to combine them. The FK to Nodes gives delete-narrowing for free:
+    # removing a node drops it from every trigger set automatically.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS EventTriggerNodes (
+            event_name TEXT NOT NULL,
+            node_name TEXT NOT NULL,
+            PRIMARY KEY (event_name, node_name),
+            FOREIGN KEY (event_name) REFERENCES Events(name) ON DELETE CASCADE,
+            FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_event_trigger_node "
+                   "ON EventTriggerNodes(node_name)")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS EventNodes (
@@ -173,7 +240,9 @@ def init_db():
 
     conn.commit()
 
-    cursor.execute("PRAGMA user_version = 4")
+    _migrate(cursor, current_v)
+
+    cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
 
     conn.close()

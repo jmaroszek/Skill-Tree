@@ -150,13 +150,25 @@ def build_events_tab_content():
                             html.Div(
                                 dcc.Dropdown(
                                     id="dormant-new-event-trigger-node",
-                                    placeholder="Select a node...",
+                                    placeholder="Select one or more nodes...",
                                     options=[],
+                                    multi=True,
                                 ),
                                 className="text-dark mb-2",
                                 style={"maxWidth": "350px"},
                             ),
-                            html.Small("Auto-triggers when the selected node is marked complete.",
+                            dbc.RadioItems(
+                                id="dormant-new-event-trigger-mode",
+                                options=[
+                                    {"label": "Any (OR)", "value": "any"},
+                                    {"label": "All (AND)", "value": "all"},
+                                ],
+                                value="any",
+                                inline=True,
+                                className="mb-1",
+                                style={"fontSize": "0.85rem"},
+                            ),
+                            html.Small(id="dormant-new-event-trigger-mode-hint",
                                        className="text-muted d-block mb-2",
                                        style={"fontSize": "0.8rem"}),
                         ]),
@@ -519,12 +531,27 @@ def build_events_tab_content():
                     html.Div(
                         dcc.Dropdown(
                             id="event-trigger-node",
-                            placeholder="Select a node...",
+                            placeholder="Select one or more nodes...",
+                            multi=True,
                         ),
                         className="text-dark mb-2",
                         style={"maxWidth": "350px"},
                     ),
-                    html.Small("Auto-triggers when the selected node is marked complete.",
+                    # Sub-choice of the Node Completion trigger, so it takes the
+                    # reduced size used by other in-section radios rather than
+                    # competing visually with the Trigger Type row above.
+                    dbc.RadioItems(
+                        id="event-trigger-mode",
+                        options=[
+                            {"label": "Any (OR)", "value": "any"},
+                            {"label": "All (AND)", "value": "all"},
+                        ],
+                        value="any",
+                        inline=True,
+                        className="mb-1",
+                        style={"fontSize": "0.85rem"},
+                    ),
+                    html.Small(id="event-trigger-mode-hint",
                                className="text-muted d-block mb-2",
                                style={"fontSize": "0.8rem"}),
                 ]),
@@ -690,28 +717,45 @@ def build_events_tab_content():
 
 def _event_trigger_type(event):
     """Returns the trigger type string for an event."""
-    if event.trigger_node:
+    if event.trigger_nodes:
         return "node"
     if event.trigger_date:
         return "date"
     return "manual"
 
 
-def _event_badge(status, trigger_date, trigger_node=None):
+def _event_badge(status, trigger_date, trigger_nodes=None):
     """Returns (badge_text, badge_palette_name) for an event."""
     if status == "Triggered":
         return "Triggered", "EventTriggered"
-    if trigger_node:
+    if trigger_nodes:
         return "Completion", "EventTrigger"
     if trigger_date:
         return "Scheduled", "EventTrigger"
     return "Manual", "EventTrigger"
 
 
+def format_trigger_summary(trigger_nodes, trigger_mode="any"):
+    """One-line description of a node-completion trigger set.
+
+    A single node reads as a plain name — the any/all distinction is
+    meaningless at size 1 and would only add noise.
+    """
+    nodes = [n for n in (trigger_nodes or []) if n]
+    if not nodes:
+        return ""
+    if len(nodes) == 1:
+        return nodes[0]
+    joiner = " AND " if trigger_mode == "all" else " OR "
+    return joiner.join(nodes)
+
+
 def build_event_card(event_name, description, status, node_count, is_selected=False,
-                     trigger_date=None, trigger_node=None, show_drag_handle=True):
+                     trigger_date=None, trigger_nodes=None, trigger_mode="any",
+                     show_drag_handle=True):
     """Builds a single event card for the list."""
-    badge_text, badge_name = _event_badge(status, trigger_date, trigger_node)
+    badge_text, badge_name = _event_badge(status, trigger_date, trigger_nodes)
+    trigger_summary = format_trigger_summary(trigger_nodes, trigger_mode)
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
     drag_handle = html.Span(
@@ -742,9 +786,9 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
             className="text-muted d-block",
             style={"fontSize": "0.75rem"}
         ))
-    if trigger_node and status != "Triggered":
+    if trigger_summary and status != "Triggered":
         children.append(html.Small(
-            f"Trigger: {trigger_node}",
+            f"Trigger: {trigger_summary}",
             className="text-muted d-block",
             style={"fontSize": "0.75rem"}
         ))

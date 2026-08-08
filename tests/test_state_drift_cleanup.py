@@ -58,23 +58,28 @@ def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
 # ============================================================================
 
 class TestC1TriggerNodeCleanup:
-    def test_trigger_node_nulled_on_delete(self, mgr, em):
+    def test_trigger_node_cleared_on_delete(self, mgr, em):
         mgr.add_node(_make_node("X"))
-        em.add_event(Event(name="E", trigger_node="X"))
+        em.add_event(Event(name="E", trigger_nodes=["X"]))
 
         mgr.delete_node("X")
 
-        # Direct DB peek — the public API doesn't expose trigger_node alone.
+        # Direct DB peek — the FK cascade should have taken the trigger row
+        # with the node, leaving the event itself intact.
         with database.get_connection() as conn:
             row = conn.execute(
-                "SELECT trigger_node FROM Events WHERE name=?", ("E",)
+                "SELECT COUNT(*) FROM Events WHERE name=?", ("E",)
             ).fetchone()
-        assert row is not None, "Event row should still exist"
-        assert row[0] is None, "trigger_node should be NULLed"
+            assert row[0] == 1, "Event row should still exist"
+            row = conn.execute(
+                "SELECT COUNT(*) FROM EventTriggerNodes WHERE event_name=?", ("E",)
+            ).fetchone()
+        assert row[0] == 0, "trigger row should be cascaded away"
+        assert em.get_event("E").trigger_nodes == []
 
     def test_dormant_node_stays_dormant_after_trigger_deletion(self, mgr, em):
         mgr.add_node(_make_node("X"))
-        em.add_event(Event(name="E", trigger_node="X"))
+        em.add_event(Event(name="E", trigger_nodes=["X"]))
         em.create_dormant_node(_make_node("D"), event_name="E")
 
         mgr.delete_node("X")
@@ -89,8 +94,8 @@ class TestC1TriggerNodeCleanup:
 
     def test_notification_queued_on_trigger_deletion(self, mgr, em):
         mgr.add_node(_make_node("X"))
-        em.add_event(Event(name="E1", trigger_node="X"))
-        em.add_event(Event(name="E2", trigger_node="X"))
+        em.add_event(Event(name="E1", trigger_nodes=["X"]))
+        em.add_event(Event(name="E2", trigger_nodes=["X"]))
 
         mgr.delete_node("X")
 
@@ -109,7 +114,7 @@ class TestC1TriggerNodeCleanup:
     def test_already_triggered_event_unaffected(self, mgr, em):
         # Only Pending events are surfaced — Triggered ones already fired.
         mgr.add_node(_make_node("X"))
-        em.add_event(Event(name="E", trigger_node="X", status="Triggered"))
+        em.add_event(Event(name="E", trigger_nodes=["X"], status="Triggered"))
 
         mgr.delete_node("X")
 
@@ -257,12 +262,12 @@ class TestRenameStillWorks:
 
     def test_rename_propagates_event_trigger_node(self, mgr, em):
         mgr.add_node(_make_node("Old"))
-        em.add_event(Event(name="E", trigger_node="Old"))
+        em.add_event(Event(name="E", trigger_nodes=["Old"]))
 
         mgr.rename_node("Old", "New")
 
         ev = em.get_event("E")
-        assert ev.trigger_node == "New"
+        assert ev.trigger_nodes == ["New"]
 
     def test_rename_propagates_priority_goal(self, mgr):
         # Renaming a Goal in priority_goals must update the list, otherwise

@@ -193,7 +193,7 @@ class TestNodeCRUD:
         mgr.add_edge("U", "X", EDGE_NEEDS_HARD)   # incoming
         mgr.add_edge("X", "D", EDGE_NEEDS_HARD)   # outgoing
         mgr.set_aliases("X", ["X-Alias"])
-        em.add_event(Event(name="EvtX", trigger_node="X"))
+        em.add_event(Event(name="EvtX", trigger_nodes=["X"]))
         mgr.add_node(_make_node("Dormant", status="Open"))
         em.add_node_to_event("EvtX", "Dormant", delay_days=0)
         ConfigManager.set_priority_goals(["X"])
@@ -213,10 +213,10 @@ class TestNodeCRUD:
             # EventNodes referencing X (none in this test, but ensure none leak)
             cursor.execute("SELECT COUNT(*) FROM EventNodes WHERE node_name=?", ("X",))
             assert cursor.fetchone()[0] == 0
-        # Event's trigger_node is NULLed (event demotes to manual trigger)
+        # Trigger set is emptied by FK cascade (event demotes to manual)
         evt = em.get_event("EvtX")
         assert evt is not None
-        assert evt.trigger_node is None
+        assert evt.trigger_nodes == []
         # Priority goals list cleaned
         assert "X" not in ConfigManager.get_priority_goals()
         # Override parent cleared
@@ -510,7 +510,7 @@ class TestNodeRename:
         assert mgr.get_node("Goal2") is not None
 
     def test_rename_event_trigger_reference_updated(self, mgr):
-        """If an Event's trigger_node references the renamed node, it is updated."""
+        """If an Event's trigger set references the renamed node, it is updated."""
         from event_manager import EventManager
         from models import Event
 
@@ -518,21 +518,20 @@ class TestNodeRename:
         em = EventManager()
         em.add_event(Event(
             name="TestEvent",
-            trigger_node="TriggerNode",
+            trigger_nodes=["TriggerNode"],
             status="Pending"
         ))
 
         mgr.rename_node("TriggerNode", "TriggerRenamed")
 
-        # Read Events table directly to verify the trigger_node column changed
+        # Read the trigger table directly to verify the reference moved
         import database
         with database.get_connection() as conn:
-            row = conn.execute(
-                "SELECT trigger_node FROM Events WHERE name='TestEvent'"
-            ).fetchone()
-        assert row is not None
-        assert row[0] == "TriggerRenamed", \
-            "Event.trigger_node must be updated when the referenced node is renamed"
+            rows = conn.execute(
+                "SELECT node_name FROM EventTriggerNodes WHERE event_name='TestEvent'"
+            ).fetchall()
+        assert [r[0] for r in rows] == ["TriggerRenamed"], \
+            "Event trigger nodes must be updated when the referenced node is renamed"
 
 
 # ============================================================================

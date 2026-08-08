@@ -2,19 +2,25 @@
 Event + dormant-node persistence and activation logic.
 
 An Event has one of three trigger types — manual (user clicks "trigger"),
-date-based (an ISO date is reached), or node-based (a specific node flips
-to Done). Each Event owns zero or more *dormant* nodes that are not part
-of the live graph until the event fires, at which point they are awakened
-into the live graph (with an optional per-node delay) via
-check_pending_events(). "Activation" in this module refers exclusively to
-this awakening — it does NOT touch the orthogonal Node.now flag.
+date-based (an ISO date is reached), or node-based (a set of nodes flips
+to Done, combined with OR or AND). Each Event owns zero or more *dormant*
+nodes that are not part of the live graph until the event fires, at which
+point they are awakened into the live graph (with an optional per-node
+delay) via check_pending_events(). "Activation" in this module refers
+exclusively to this awakening — it does NOT touch the orthogonal Node.now
+flag.
 """
 
 import sqlite3
 from datetime import date, timedelta
 import database
-from models import Node, Event, STATUS_DONE
+from models import Node, Event, STATUS_DONE, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
 from typing import List, Dict, Optional
+
+
+# Columns hydrated onto Event. Listed explicitly rather than via SELECT * so a
+# legacy column left behind by a migration can't reach the dataclass.
+_EVENT_COLUMNS = ("name", "description", "status", "trigger_date", "trigger_mode")
 
 
 class EventManager:
@@ -31,6 +37,66 @@ class EventManager:
     def get_connection(self) -> sqlite3.Connection:
         return database.get_connection()
 
+    # --- Hydration helpers ---
+
+    @staticmethod
+    def _normalize_mode(mode: Optional[str]) -> str:
+        """Anything that isn't an explicit 'all' is treated as 'any'.
+
+        Keeps a malformed stored value from silently turning an OR trigger
+        into an AND one, which would leave an event stuck forever.
+        """
+        return TRIGGER_MODE_ALL if mode == TRIGGER_MODE_ALL else TRIGGER_MODE_ANY
+
+    def _trigger_map(self, cursor, event_names: Optional[List[str]] = None) -> Dict[str, List[str]]:
+        """Returns {event_name: [trigger node names]} in one query.
+
+        Fetching the whole map up front keeps list views off the N+1 path.
+        """
+        if event_names is None:
+            cursor.execute(
+                "SELECT event_name, node_name FROM EventTriggerNodes ORDER BY node_name"
+            )
+        elif not event_names:
+            return {}
+        else:
+            placeholders = ",".join("?" * len(event_names))
+            cursor.execute(
+                f"SELECT event_name, node_name FROM EventTriggerNodes "
+                f"WHERE event_name IN ({placeholders}) ORDER BY node_name",
+                tuple(event_names),
+            )
+        out: Dict[str, List[str]] = {}
+        for event_name, node_name in cursor.fetchall():
+            out.setdefault(event_name, []).append(node_name)
+        return out
+
+    def _hydrate(self, rows, trigger_map: Dict[str, List[str]]) -> List[Event]:
+        events = []
+        for row in rows:
+            d = {k: row[k] for k in _EVENT_COLUMNS}
+            d["trigger_mode"] = self._normalize_mode(d.get("trigger_mode"))
+            d["trigger_nodes"] = trigger_map.get(d["name"], [])
+            events.append(Event(**d))
+        return events
+
+    def _write_trigger_nodes(self, cursor, event_name: str, trigger_nodes: List[str]) -> None:
+        """Replaces an event's trigger set wholesale.
+
+        Delete-then-insert rather than a diff: the sets are tiny, and it keeps
+        the write idempotent regardless of what was there before.
+        """
+        cursor.execute("DELETE FROM EventTriggerNodes WHERE event_name=?", (event_name,))
+        seen = set()
+        for node_name in trigger_nodes or []:
+            if not node_name or node_name in seen:
+                continue
+            seen.add(node_name)
+            cursor.execute(
+                "INSERT OR IGNORE INTO EventTriggerNodes (event_name, node_name) VALUES (?, ?)",
+                (event_name, node_name),
+            )
+
     # --- Event CRUD ---
 
     def add_event(self, event: Event):
@@ -38,9 +104,12 @@ class EventManager:
             cursor = conn.cursor()
             try:
                 cursor.execute(
-                    "INSERT INTO Events (name, description, status, trigger_date, trigger_node) VALUES (?, ?, ?, ?, ?)",
-                    (event.name, event.description, event.status, event.trigger_date, event.trigger_node)
+                    "INSERT INTO Events (name, description, status, trigger_date, trigger_mode) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (event.name, event.description, event.status, event.trigger_date,
+                     self._normalize_mode(event.trigger_mode))
                 )
+                self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
                 conn.commit()
             except sqlite3.IntegrityError:
                 raise ValueError(f"Event with name '{event.name}' already exists.")
@@ -51,19 +120,28 @@ class EventManager:
             if old_name != event.name:
                 cursor.execute("PRAGMA foreign_keys = OFF")
                 cursor.execute(
-                    "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, trigger_node=? WHERE name=?",
-                    (event.name, event.description, event.status, event.trigger_date, event.trigger_node, old_name)
+                    "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, "
+                    "trigger_mode=? WHERE name=?",
+                    (event.name, event.description, event.status, event.trigger_date,
+                     self._normalize_mode(event.trigger_mode), old_name)
                 )
                 cursor.execute(
                     "UPDATE EventNodes SET event_name=? WHERE event_name=?",
                     (event.name, old_name)
                 )
+                cursor.execute(
+                    "UPDATE EventTriggerNodes SET event_name=? WHERE event_name=?",
+                    (event.name, old_name)
+                )
                 cursor.execute("PRAGMA foreign_keys = ON")
             else:
                 cursor.execute(
-                    "UPDATE Events SET description=?, status=?, trigger_date=?, trigger_node=? WHERE name=?",
-                    (event.description, event.status, event.trigger_date, event.trigger_node, old_name)
+                    "UPDATE Events SET description=?, status=?, trigger_date=?, "
+                    "trigger_mode=? WHERE name=?",
+                    (event.description, event.status, event.trigger_date,
+                     self._normalize_mode(event.trigger_mode), old_name)
                 )
+            self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
             conn.commit()
 
     def delete_event(self, event_name: str, delete_nodes: bool = True):
@@ -122,16 +200,17 @@ class EventManager:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM Events WHERE name=?", (name,))
             row = cursor.fetchone()
-            if row:
-                return Event(**dict(row))
-            return None
+            if not row:
+                return None
+            return self._hydrate([row], self._trigger_map(cursor, [name]))[0]
 
     def get_all_events(self) -> List[Event]:
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM Events ORDER BY status, name")
-            return [Event(**dict(row)) for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+            return self._hydrate(rows, self._trigger_map(cursor))
 
     # --- Event-Node Association ---
 
@@ -245,23 +324,54 @@ class EventManager:
             conn.commit()
 
     def get_events_triggered_by_node(self, node_name: str) -> List['Event']:
-        """Returns Pending events whose trigger_node matches this node name."""
+        """Returns Pending events that watch this node.
+
+        "Watches" only means the node is in the trigger set — for an AND
+        event that is necessary but not sufficient. Use
+        `is_trigger_condition_met` to decide whether it should actually fire.
+        """
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT * FROM Events WHERE trigger_node=? AND status='Pending'",
+                "SELECT e.* FROM Events e "
+                "JOIN EventTriggerNodes etn ON etn.event_name = e.name "
+                "WHERE etn.node_name=? AND e.status='Pending' ORDER BY e.name",
                 (node_name,)
             )
-            return [Event(**dict(row)) for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+            names = [row["name"] for row in rows]
+            return self._hydrate(rows, self._trigger_map(cursor, names))
+
+    def is_trigger_condition_met(self, event: Event) -> bool:
+        """True when `event`'s node-completion condition is satisfied.
+
+        OR is satisfied by any one Done node; AND needs every node in the set.
+        An empty set is never satisfied — that's a manual/date event, and
+        firing on vacuous truth would wake it the moment its last trigger node
+        was deleted.
+        """
+        if not event.trigger_nodes:
+            return False
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            placeholders = ",".join("?" * len(event.trigger_nodes))
+            cursor.execute(
+                f"SELECT COUNT(*) FROM Nodes WHERE name IN ({placeholders}) AND status=?",
+                (*event.trigger_nodes, STATUS_DONE),
+            )
+            done_count = cursor.fetchone()[0]
+        if self._normalize_mode(event.trigger_mode) == TRIGGER_MODE_ALL:
+            return done_count >= len(event.trigger_nodes)
+        return done_count >= 1
 
     def get_trigger_node_names(self) -> set:
-        """Returns names of nodes whose completion would trigger a Pending event."""
+        """Returns names of nodes whose completion could trigger a Pending event."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT trigger_node FROM Events "
-                "WHERE status='Pending' AND trigger_node IS NOT NULL"
+                "SELECT DISTINCT etn.node_name FROM EventTriggerNodes etn "
+                "JOIN Events e ON e.name = etn.event_name WHERE e.status='Pending'"
             )
             return {row[0] for row in cursor.fetchall() if row[0]}
 
@@ -432,28 +542,38 @@ class EventManager:
         return triggered
 
     def auto_trigger_by_node_completion(self, node_name: str) -> List[str]:
-        """Silently auto-triggers every Pending event whose trigger_node matches node_name.
+        """Silently auto-triggers every Pending event whose condition node_name just satisfied.
 
-        All dormant nodes of those events are activated (no per-node user selection).
-        Each auto-trigger appends a `node_triggered` notification entry for the app-load modal.
+        Every event watching this node is re-evaluated: an OR event fires
+        immediately, an AND event only once its whole set is Done. Watching
+        events that aren't satisfied yet are left Pending and re-checked on
+        the next completion.
+
+        All dormant nodes of the fired events are activated (no per-node user
+        selection). Each auto-trigger appends a `node_triggered` notification
+        entry for the app-load modal.
 
         Returns the list of event names that were triggered.
         """
         from config import ConfigManager
 
-        pending = self.get_events_triggered_by_node(node_name)
-        if not pending:
+        watching = self.get_events_triggered_by_node(node_name)
+        if not watching:
             return []
 
         today = date.today().isoformat()
         triggered: List[str] = []
-        for event in pending:
+        for event in watching:
+            if not self.is_trigger_condition_met(event):
+                continue
             result = self.trigger_event(event.name)
             triggered.append(event.name)
             ConfigManager.add_pending_event_notification({
                 "kind": "node_triggered",
                 "event": event.name,
                 "trigger_node": node_name,
+                "trigger_nodes": list(event.trigger_nodes),
+                "trigger_mode": self._normalize_mode(event.trigger_mode),
                 "activated": result.get('activated', []),
                 "scheduled": result.get('scheduled', []),
                 "when": today,

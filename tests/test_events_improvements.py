@@ -185,9 +185,9 @@ class TestNotificationHooks:
 
 class TestNodeCompletionAutoTrigger:
     def test_auto_trigger_by_node_completion_silently_activates_dormant_nodes(self, em, mgr):
-        mgr.add_node(_node("Key"))
+        mgr.add_node(_node("Key", status="Done"))
         mgr.add_node(_node("Reward"))
-        em.add_event(Event(name="OnKey", description="", trigger_node="Key"))
+        em.add_event(Event(name="OnKey", description="", trigger_nodes=["Key"]))
         em.add_node_to_event("OnKey", "Reward", delay_days=0)
 
         ConfigManager.clear_pending_event_notifications()
@@ -329,9 +329,9 @@ class TestAutoTriggerOverrideIntent:
         assert entry["current_override_descriptor"]["parent"] == "Existing"
 
     def test_node_completion_trigger_defers_conflict(self, em, mgr):
-        mgr.add_node(_node("Key"))
+        mgr.add_node(_node("Key", status="Done"))
         mgr.add_node(_node("Reward"))
-        em.add_event(Event(name="OnKey", description="", trigger_node="Key"))
+        em.add_event(Event(name="OnKey", description="", trigger_nodes=["Key"]))
         em.add_node_to_event("OnKey", "Reward", delay_days=0,
                              override_on_trigger=True, override_mode="hard")
 
@@ -352,9 +352,9 @@ class TestAutoTriggerOverrideIntent:
         assert entry["current_override_descriptor"]["nodes"] == ["Something"]
 
     def test_node_completion_trigger_silently_applies_when_no_conflict(self, em, mgr):
-        mgr.add_node(_node("Key"))
+        mgr.add_node(_node("Key", status="Done"))
         mgr.add_node(_node("Reward"))
-        em.add_event(Event(name="OnKey", description="", trigger_node="Key"))
+        em.add_event(Event(name="OnKey", description="", trigger_nodes=["Key"]))
         em.add_node_to_event("OnKey", "Reward", delay_days=0,
                              override_on_trigger=True, override_mode="hard")
 

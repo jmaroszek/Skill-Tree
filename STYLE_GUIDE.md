@@ -279,6 +279,27 @@ heading (Search locate) or promote the hidden control to its own always-visible
 field when it's almost always used (Subcontext is a permanent field in the node
 editor and both add-node modals).
 
+### Radio groups and nesting depth
+
+A mutually-exclusive choice is a `dbc.RadioItems` with `inline=True` when the
+options are short (`event-trigger-type`, `dormant-node-mode`, `events-sort-mode`)
+and stacked when the labels run long (`dormant-override-mode`). Use a
+`dbc.Checklist` only for independent toggles — see the pill group below.
+
+Size carries the nesting. A radio that *is* the section's question runs at the
+default size. A radio that refines a choice already made above it drops to
+`style={"fontSize": "0.85rem"}`, so it reads as a detail rather than competing
+with its parent. The Any/All selector inside the Node Completion trigger and
+`dormant-override-mode` are both at this second level.
+
+Help text under either sits in `html.Small(className="text-muted d-block mb-2",
+style={"fontSize": "0.8rem"})`.
+
+When the same control exists on two surfaces (the event editor and the
+dormant-node modal both build triggers), drive their help text from **one**
+shared formatting helper rather than duplicating literals — the copies drift
+otherwise. `_trigger_mode_hint` in `event_callbacks.py` feeds both.
+
 ### Toggle-pill group (multi-select day/option picker)
 
 For a compact set of mutually-independent toggles rendered as pills (e.g. the
