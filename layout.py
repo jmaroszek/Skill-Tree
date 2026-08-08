@@ -1165,16 +1165,22 @@ def build_app_layout(initial_elements, env="production"):
     )
 
     # --- Next Tab Content (hidden by default) ---
+    # The scrollable content lives in its own flex child (minHeight: 0 lets it
+    # shrink and own the scrollbar) so next-tab-content itself never scrolls.
+    # That keeps its box the fixed size of the viewport, which is what the
+    # bottom-right/bottom-left overlays are positioned against — otherwise
+    # scrolling the (taller) content also scrolls the overlays out of the
+    # visible corner.
     next_tab_content = html.Div(
         id="next-tab-content",
         children=[
             html.Div([
                 html.Div([next_view], className="px-4 pt-3 pb-4"),
-            ], style={"flex": "1", "overflowY": "auto"}),
+            ], style={"flex": "1", "minHeight": "0", "overflowY": "auto"}),
             html.Div(id="next-filter-indicator", className="canvas-stats-overlay"),
             html.Div(id="next-perf-stats", className="next-perf-overlay"),
         ],
-        style={"display": "block", "width": "100%", "height": "100%", "overflow": "auto",
+        style={"display": "flex", "width": "100%", "height": "100%", "overflow": "hidden",
                "position": "absolute", "top": "0", "left": "0", "flexDirection": "column",
                "visibility": "visible"}
     )

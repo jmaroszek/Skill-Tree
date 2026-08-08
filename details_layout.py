@@ -65,9 +65,8 @@ def build_graph_settings_panel(
 
     Callers pass the slider `defaults_getter` explicitly to select between
     `get_graph_layout_defaults` (main canvas) and
-    `get_details_graph_layout_defaults` (details/events). Events does not
-    support animated layout, so ``include_animate=False`` renders only Freeze
-    in the behavior row.
+    `get_details_graph_layout_defaults` (details/events). Pass
+    ``include_animate=False`` to render only Freeze in the behavior row.
     """
     gl = defaults_getter()
     p = prefix
