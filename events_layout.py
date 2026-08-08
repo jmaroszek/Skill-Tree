@@ -160,8 +160,8 @@ def build_events_tab_content():
                             dbc.RadioItems(
                                 id="dormant-new-event-trigger-mode",
                                 options=[
-                                    {"label": "Any (OR)", "value": "any"},
-                                    {"label": "All (AND)", "value": "all"},
+                                    {"label": "Any", "value": "any"},
+                                    {"label": "All", "value": "all"},
                                 ],
                                 value="any",
                                 inline=True,
@@ -543,8 +543,8 @@ def build_events_tab_content():
                     dbc.RadioItems(
                         id="event-trigger-mode",
                         options=[
-                            {"label": "Any (OR)", "value": "any"},
-                            {"label": "All (AND)", "value": "all"},
+                            {"label": "Any", "value": "any"},
+                            {"label": "All", "value": "all"},
                         ],
                         value="any",
                         inline=True,
