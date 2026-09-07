@@ -108,6 +108,19 @@ def on_commit(callback, key=None):
         session["callbacks"][key if key is not None else id(callback)] = callback
 
 
+def in_transaction():
+    return _session.get() is not None
+
+
+def consistent_read(func):
+    """Keep a graph read and its cache publication on the same revision."""
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        with state_lock:
+            return func(*args, **kwargs)
+    return wrapped
+
+
 def get_db_path() -> str:
     """Returns the absolute path to the SQLite database file."""
     global _db_path_cache

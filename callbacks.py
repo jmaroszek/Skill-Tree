@@ -474,10 +474,13 @@ def register_callbacks(app):
     @app.callback(
         Output('graph-version-store', 'data'),
         Input('cytoscape-graph', 'elements'),
+        Input('events-refresh-trigger', 'data'),
+        Input('details-refresh-trigger', 'data'),
+        Input('settings-save-status', 'children'),
         State('graph-version-store', 'data'),
         prevent_initial_call=True,
     )
-    def sync_graph_version(_elements, current):
+    def sync_graph_version(_elements, _events, _details, _settings, current):
         if manager._graph_version != current:
             return manager._graph_version
         return dash.no_update

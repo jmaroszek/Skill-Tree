@@ -9,6 +9,7 @@ counters that let the higher-level callback caches know when to rebuild.
 
 import sqlite3
 import threading
+from collections import deque
 from datetime import date
 import database
 import networkx as nx
@@ -259,6 +260,7 @@ class GraphManager:
                 if dep_name not in GraphManager._auto_done_candidates:
                     GraphManager._auto_done_candidates.append(dep_name)
 
+    @database.consistent_read
     def pop_auto_done_candidates(self) -> List[str]:
         """Return and clear the queued auto-Done candidate names.
 
@@ -271,6 +273,7 @@ class GraphManager:
         GraphManager._auto_done_candidates = []
         return candidates
 
+    @database.atomic
     def delete_node(self, node_name: str):
         """Deletes a node by name.
 
@@ -376,6 +379,7 @@ class GraphManager:
                         "INSERT OR IGNORE INTO Aliases (alias, node_name) VALUES (?, ?)",
                         (clean, node_name))
             conn.commit()
+        self._bump_version(scoring=False)
 
     def get_all_aliases(self) -> dict:
         """Return {alias: node_name} mapping for all aliases.
@@ -433,6 +437,7 @@ class GraphManager:
             cursor.execute('SELECT * FROM Nodes WHERE "now" > 0 AND dormant = 0 ORDER BY "now" ASC, name ASC')
             return [Node(**dict(row)) for row in cursor.fetchall()]
 
+    @database.atomic
     def reorder_now_nodes(self, ordered_names: List[str]):
         """Update the "now" rank for the provided nodes to match their order in the list.
 
@@ -491,7 +496,7 @@ class GraphManager:
             )
 
     @database.atomic
-    def add_edge(self, source: str, target: str, edge_type: str):
+    def add_edge(self, source: str, target: str, edge_type: str, *, _defer_updates=False):
         """Adds an edge to the DB, ensuring no self-loop, no cycle, and no
         conflicting edge type already on this pair."""
         if source == target:
@@ -510,10 +515,13 @@ class GraphManager:
                     raise ValueError(f"Cannot link missing node '{name}'.")
             self._check_pair_conflict(cursor, source, target, edge_type)
             cursor.execute("INSERT OR IGNORE INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
-            if edge_type == EDGE_NEEDS_HARD:
+            changed = cursor.rowcount > 0
+            if changed and not _defer_updates and edge_type == EDGE_NEEDS_HARD:
                 self._update_node_state(target)
-        self._bump_version()
+        if changed and not _defer_updates:
+            self._bump_version()
 
+    @database.atomic
     def remove_edge(self, source: str, target: str, edge_type: str):
         """Removes a specific edge."""
         with self.get_connection() as conn:
@@ -584,6 +592,12 @@ class GraphManager:
             # silently drop them (the INSERT loop below can't re-add them
             # because they're not in the input lists), corrupting the graph
             # on every save of a node that has dormant relationships.
+            previous_dependents = [row[0] for row in cursor.execute(
+                "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'", (node_name,)
+            ).fetchall()]
+            before_edges = {tuple(row) for row in cursor.execute(
+                "SELECT source, target, type FROM Edges WHERE source=? OR target=?",
+                (node_name, node_name)).fetchall()}
             cursor.execute(
                 """DELETE FROM Edges
                    WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')
@@ -607,7 +621,7 @@ class GraphManager:
             def _insert_edge(src, trgt, etype):
                 # Reuse the canonical validator on this transaction's current
                 # graph, including both the removals and preceding inserts.
-                self.add_edge(src, trgt, etype)
+                self.add_edge(src, trgt, etype, _defer_updates=True)
 
             for src in needs_hard: _insert_edge(src, node_name, EDGE_NEEDS_HARD)
             for src in needs_soft: _insert_edge(src, node_name, EDGE_NEEDS_SOFT)
@@ -619,9 +633,15 @@ class GraphManager:
 
             conn.commit()
 
+            after_edges = {tuple(row) for row in cursor.execute(
+                "SELECT source, target, type FROM Edges WHERE source=? OR target=?",
+                (node_name, node_name)).fetchall()}
+            if before_edges != after_edges:
+                self._bump_version()
+
         # Recalculate state for the saved node and all nodes affected by its edges
         self._update_node_state(node_name)
-        for trgt in supports_hard:
+        for trgt in set(supports_hard) | set(previous_dependents):
             self._update_node_state(trgt)
         for trgt in supports_soft:
             self._update_node_state(trgt)
@@ -658,6 +678,7 @@ class GraphManager:
             return False
         return p_node.status == STATUS_DONE
 
+    @database.atomic
     def _update_node_state(self, node_name: str):
         """Recompute Blocked/Open for ``node_name`` and cascade to dependents.
 
@@ -671,6 +692,7 @@ class GraphManager:
             self._cascade_update_states([node_name], cursor)
             conn.commit()
 
+    @database.atomic
     def _update_dependent_nodes_state(self, node_name: str):
         """Recompute every Hard-downstream dependent of ``node_name``."""
         with self.get_connection() as conn:
@@ -694,13 +716,12 @@ class GraphManager:
         un-mark work the user said they finished. Goals retain user-set
         status. Caller owns the connection commit.
         """
-        queue: List[str] = list(seeds)
-        seen: Set[str] = set()
+        queue = deque(dict.fromkeys(seeds))
+        pending = set(queue)
+        changed = False
         while queue:
-            node_name = queue.pop(0)
-            if node_name in seen:
-                continue
-            seen.add(node_name)
+            node_name = queue.popleft()
+            pending.discard(node_name)
 
             cursor.execute(
                 "SELECT type, status FROM Nodes WHERE name=?", (node_name,),
@@ -730,15 +751,19 @@ class GraphManager:
                 continue
 
             cursor.execute(
-                "UPDATE Nodes SET status=? WHERE name=?", (new_status, node_name),
+                "UPDATE Nodes SET status=?, done_date=NULL WHERE name=?", (new_status, node_name),
             )
+            changed = True
             cursor.execute(
                 "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'",
                 (node_name,),
             )
             for (dependent,) in cursor.fetchall():
-                if dependent not in seen:
+                if dependent not in pending:
                     queue.append(dependent)
+                    pending.add(dependent)
+        if changed:
+            self._bump_version()
 
     def get_downstream_done_dependents(self, node_name: str) -> List[str]:
         """Return Done downstream nodes that would re-block if `node_name` were un-Done.
@@ -769,6 +794,7 @@ class GraphManager:
                     stack.append(target)
         return result
 
+    @database.atomic
     def recompute_all_statuses(self) -> int:
         """Re-derive every non-Goal node's Blocked/Open status from scratch.
 
@@ -867,6 +893,7 @@ class GraphManager:
 
     # --- Logic ---
 
+    @database.consistent_read
     def calculate_priority_scores(self, now_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
         """Delegates scoring to the scoring module.
 
@@ -890,6 +917,8 @@ class GraphManager:
                 self._scoring_memo = {}
                 self._scoring_memo_key = cache_key
             memo = self._scoring_memo
+        if database.in_transaction():
+            memo = {}  # Never read/publish committed caches for pending writes.
 
         if ConfigManager.get_show_scoring_perf() and not GraphManager._startup_perf_recorded:
             from perf import append_perf_log
@@ -940,6 +969,7 @@ class GraphManager:
                     soft.append(row[0])
             return {'hard': hard, 'soft': soft}
 
+    @database.consistent_read
     def get_goal_subtree(self, goal_name: str, edge_types=None) -> Set[str]:
         """Returns all node names reachable as prerequisites of a goal (BFS over specified edge types).
 
@@ -967,7 +997,7 @@ class GraphManager:
         cache_key = (goal_name, tuple(sorted(edge_types)))
         with self._cache_lock:
             cached = self._goal_subtree_cache.get(cache_key)
-            if cached is not None and cached[0] == self._graph_version:
+            if not database.in_transaction() and cached is not None and cached[0] == self._graph_version:
                 return set(cached[1])
 
         # Separate directed and bidirectional edge types
@@ -1019,8 +1049,9 @@ class GraphManager:
                         if row[0] not in visited:
                             queue.append(row[0])
 
-        with self._cache_lock:
-            self._goal_subtree_cache[cache_key] = (self._graph_version, frozenset(visited))
+        if not database.in_transaction():
+            with self._cache_lock:
+                self._goal_subtree_cache[cache_key] = (self._graph_version, frozenset(visited))
         return visited
 
     def get_dependency_view(self, root_name: str, *, include_soft: bool = True,
@@ -1406,6 +1437,7 @@ class GraphManager:
                 orphans[f"{ctx} › {sub}"] = affected
         return orphans
 
+    @database.atomic
     def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Optional[Dict] = None):
         """Remap node attribute values in bulk.
 
@@ -1443,7 +1475,11 @@ class GraphManager:
                         cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE context=?", (new_val,))
 
             conn.commit()
+        self._bump_version(scoring=field == 'type')
+        if field == 'type':
+            self.recompute_all_statuses()
 
+    @database.atomic
     def apply_node_migration(self, node_name: str, field: str, new_val: str,
                              new_subcontexts: Optional[Dict] = None):
         """Remap a single node's attribute value.
@@ -1469,6 +1505,9 @@ class GraphManager:
                     cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE name=?", (node_name,))
 
             conn.commit()
+        self._bump_version(scoring=field == 'type')
+        if field == 'type':
+            self.recompute_all_statuses()
 
     def name_community(self, community: Set[str]) -> str:
         """Generate a descriptive name for a community based on member node attributes.
@@ -1531,6 +1570,7 @@ class GraphManager:
         # Final fallback
         return "Mixed"
 
+    @database.consistent_read
     def detect_communities(self, method: str = "components", filters: Optional[Dict] = None) -> List[Set[str]]:
         if filters:
             all_nodes = self.get_all_nodes()
@@ -1546,13 +1586,15 @@ class GraphManager:
         cache_key = (method, allowed_key, self._graph_version)
         with self._cache_lock:
             cached = self._community_cache.get(cache_key)
-        if cached is not None:
+        if cached is not None and not database.in_transaction():
             return [set(c) for c in cached]
 
         G = self._build_nx_graph(allowed_names=allowed_names)
         if len(G.nodes) == 0:
             result: List[Set[str]] = []
             with self._cache_lock:
+                if database.in_transaction():
+                    return [set(c) for c in result]
                 self._community_cache[cache_key] = result
             return result
 
@@ -1560,6 +1602,8 @@ class GraphManager:
             # Each isolated node (degree 0 in the filtered graph) is its own "community"
             result = [{node} for node in G.nodes if G.degree(node) == 0]
             with self._cache_lock:
+                if database.in_transaction():
+                    return [set(c) for c in result]
                 self._community_cache[cache_key] = result
             return [set(c) for c in result]
 
@@ -1577,5 +1621,6 @@ class GraphManager:
             communities = sorted(nx.connected_components(G), key=len, reverse=True)
 
         with self._cache_lock:
-            self._community_cache[cache_key] = communities
+            if not database.in_transaction():
+                self._community_cache[cache_key] = communities
         return [set(c) for c in communities]

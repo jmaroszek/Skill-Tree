@@ -14,6 +14,7 @@ so a single import is shared across all callback modules.
 """
 
 import json
+import database
 from pathlib import Path
 from typing import Optional
 from database import get_connection
@@ -486,11 +487,19 @@ class ConfigManager:
             return row[0] if row else None
 
     @staticmethod
+    @database.atomic
     def _set_db_value(key: str, value: str):
         with get_connection() as conn:
             cursor = conn.cursor()
+            previous = cursor.execute("SELECT value FROM Settings WHERE key=?", (key,)).fetchone()
+            if previous and previous[0] == value:
+                return
             cursor.execute("INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)", (key, value))
             conn.commit()
+        if key in {"HYPERPARAMS", "CONTEXT_WEIGHTS", "TIME_SETTINGS", "PRIORITY_GOALS",
+                   "OVERRIDE", "EVENT_OVERRIDE_NODES", "NODE_COLORS", "NODE_SHAPES"}:
+            from graph_manager import GraphManager
+            GraphManager()._bump_version(scoring=False)
 
     @classmethod
     def get_node_types(cls):
@@ -1019,6 +1028,7 @@ class ConfigManager:
         cls.set_event_override_nodes([])
 
     @classmethod
+    @database.atomic
     def atomic_set_event_override(cls, candidates: list, replace: bool = False) -> None:
         """Atomically clear the parent override and pin event_override_nodes.
 
@@ -1052,6 +1062,9 @@ class ConfigManager:
                 ("EVENT_OVERRIDE_NODES", new_event_nodes),
             )
             conn.commit()
+
+        from graph_manager import GraphManager
+        GraphManager()._bump_version(scoring=False)
 
     @classmethod
     def rename_node_references(cls, old_name: str, new_name: str) -> None:

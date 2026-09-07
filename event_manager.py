@@ -34,6 +34,11 @@ class EventManager:
     def __init__(self):
         database.init_db()
 
+    @staticmethod
+    def _graph_changed(scoring=True):
+        from graph_manager import GraphManager
+        GraphManager()._bump_version(scoring=scoring)
+
     def get_connection(self) -> sqlite3.Connection:
         return database.get_connection()
 
@@ -115,11 +120,13 @@ class EventManager:
             except sqlite3.IntegrityError:
                 raise ValueError(f"Event with name '{event.name}' already exists.")
 
+        self._graph_changed(scoring=False)
+
+    @database.atomic
     def update_event(self, old_name: str, event: Event):
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if old_name != event.name:
-                cursor.execute("PRAGMA foreign_keys = OFF")
                 cursor.execute(
                     "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, "
                     "trigger_mode=? WHERE name=?",
@@ -134,7 +141,6 @@ class EventManager:
                     "UPDATE EventTriggerNodes SET event_name=? WHERE event_name=?",
                     (event.name, old_name)
                 )
-                cursor.execute("PRAGMA foreign_keys = ON")
             else:
                 cursor.execute(
                     "UPDATE Events SET description=?, status=?, trigger_date=?, "
@@ -144,7 +150,9 @@ class EventManager:
                 )
             self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
             conn.commit()
+        self._graph_changed(scoring=False)
 
+    @database.atomic
     def delete_event(self, event_name: str, delete_nodes: bool = True):
         """Deletes an event. If delete_nodes is True, also deletes its dormant nodes.
         If False, activates them instead."""
@@ -159,8 +167,8 @@ class EventManager:
                 )
                 dormant_names = [row[0] for row in cursor.fetchall()]
                 for name in dormant_names:
-                    cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (name, name))
-                    cursor.execute("DELETE FROM Nodes WHERE name=?", (name,))
+                    from graph_manager import GraphManager
+                    GraphManager().delete_node(name)
             else:
                 # Activate all dormant nodes instead of deleting. Capture names
                 # so we can run the cascade after the bulk update — otherwise
@@ -179,6 +187,7 @@ class EventManager:
 
             cursor.execute("DELETE FROM Events WHERE name=?", (event_name,))
             conn.commit()
+        self._graph_changed()
 
         # Re-derive status for any newly-activated node so a Blocked-on-prereqs
         # node doesn't sit stuck at Open. Done-status nodes also fire any
@@ -215,6 +224,7 @@ class EventManager:
 
     # --- Event-Node Association ---
 
+    @database.atomic
     def add_node_to_event(self, event_name: str, node_name: str, delay_days: int = 0,
                           override_on_trigger: bool = False,
                           override_mode: Optional[str] = None):
@@ -236,7 +246,9 @@ class EventManager:
                  override_mode if override_on_trigger else None)
             )
             conn.commit()
+        self._graph_changed(scoring=True)
 
+    @database.atomic
     def remove_node_from_event(self, event_name: str, node_name: str):
         """Removes a dormant node from an event and deletes it."""
         with self.get_connection() as conn:
@@ -245,10 +257,11 @@ class EventManager:
                 "DELETE FROM EventNodes WHERE event_name=? AND node_name=?",
                 (event_name, node_name)
             )
-            cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (node_name, node_name))
-            cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
+            from graph_manager import GraphManager
+            GraphManager().delete_node(node_name)
             conn.commit()
 
+    @database.atomic
     def detach_node_from_all_events(self, node_name: str):
         """Severs a node's event associations and brings it back into play.
 
@@ -265,6 +278,7 @@ class EventManager:
             cursor.execute("DELETE FROM EventNodes WHERE node_name=?", (node_name,))
             cursor.execute("UPDATE Nodes SET dormant=0 WHERE name=?", (node_name,))
             conn.commit()
+        self._graph_changed(scoring=True)
         GraphManager()._update_node_state(node_name)
 
     def get_event_nodes(self, event_name: str) -> List[Dict]:
@@ -315,6 +329,7 @@ class EventManager:
             activated = cursor.fetchone()[0]
             return {'total': total, 'activated': activated}
 
+    @database.atomic
     def set_node_delay(self, event_name: str, node_name: str, delay_days: int):
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -323,6 +338,7 @@ class EventManager:
                 (delay_days, event_name, node_name)
             )
             conn.commit()
+        self._graph_changed(scoring=False)
 
     def get_events_triggered_by_node(self, node_name: str) -> List['Event']:
         """Returns Pending events that watch this node.
@@ -387,6 +403,7 @@ class EventManager:
 
     # --- Activation ---
 
+    @database.atomic
     def trigger_event(self, event_name: str, selected_nodes: Optional[List[str]] = None) -> Dict[str, list]:
         """Triggers an event, activating selected immediate nodes and scheduling delayed ones.
 
@@ -460,8 +477,12 @@ class EventManager:
                 except Exception:
                     pass
 
+        if result["activated"] or result["scheduled"]:
+            self._graph_changed()
+
         return result
 
+    @database.atomic
     def check_pending_activations(self) -> List[str]:
         """Checks for delayed nodes whose activation date has arrived.
 
@@ -510,8 +531,12 @@ class EventManager:
                 "when": today,
             })
 
+        if activated:
+            self._graph_changed()
+
         return activated
 
+    @database.atomic
     def check_scheduled_triggers(self) -> List[str]:
         """Auto-triggers events whose trigger_date has arrived.
 
@@ -542,6 +567,7 @@ class EventManager:
             self._apply_or_defer_override_intent(name, result.get('override_intent', []), today)
         return triggered
 
+    @database.atomic
     def auto_trigger_by_node_completion(self, node_name: str) -> List[str]:
         """Silently auto-triggers every Pending event whose condition node_name just satisfied.
 

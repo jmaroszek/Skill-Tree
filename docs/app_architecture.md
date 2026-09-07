@@ -108,3 +108,11 @@ Marking a node Done (or changing a hard prereq) calls `update_node`, which detec
 The list is the `_SCORING_RELEVANT_FIELDS` constant; `update_node` diffs it against the prior node to decide whether to pass `scoring=True` to `_bump_version`. The split is the optimization: cosmetic edits (description, paths, context, aliases) bump `_graph_version` only, so the scoring memo stays warm and the next ranking is near-free. **When you add a new scoring-relevant field, add it to `_SCORING_RELEVANT_FIELDS` or scores will silently go stale.**
 
 `ConfigManager` is deliberately the opposite — classmethod-only, every read round-trips through the `Settings` table, no in-process cache. That's what lets a value written by the Settings tab be immediately visible to every other tab's next read, without a cache-invalidation dance.
+
+All graph-affecting event operations and field migrations participate in the same
+transaction/version protocol. Removing relationships repairs the former hard
+dependents as well as the new ones. Status cascades invalidate scores when they
+change stored status, and may revisit a shared dependent after another prerequisite
+changes. Cache reads/publication share the write coordination lock; reads inside
+an uncommitted save bypass committed caches. The UI version bridge also observes
+event, Details and settings refreshes, independently of the main canvas.
