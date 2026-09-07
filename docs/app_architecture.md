@@ -54,6 +54,14 @@ The one-way rule has a payoff: a tab module sees only `app` and the three manage
 
 ### 2. Graph mutation → render (the central loop)
 
+Compound node saves use `database.transaction()`: nested manager/config writes
+share one request-local connection, and only the outer scope commits. Validation
+reads the proposed graph on that connection. `BEGIN IMMEDIATE` serializes writers;
+deferred foreign keys allow atomic renames without disabling integrity checks.
+A failed nested operation marks the entire save for rollback, including when a
+callback catches the error to display it. Cache-version changes and completion
+notifications are deferred until commit; rejected saves publish neither.
+
 This is the path almost every edit takes. Get it wrong and the canvas either doesn't update or jumps around.
 
 1. A callback (node editor in [sidebars_callbacks.py](../sidebars_callbacks.py), node ops in [callbacks.py](../callbacks.py), …) calls a `GraphManager` **mutator** (`add_node`, `update_node`, `add_edge`, `sync_edges`, …).

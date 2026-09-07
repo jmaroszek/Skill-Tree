@@ -2,6 +2,7 @@
 Callback definitions for the Details tab.
 """
 
+import database
 import os
 from dash import html, Input, Output, State, ALL, ctx, no_update
 import dash_bootstrap_components as dbc
@@ -1467,46 +1468,19 @@ def register_details_callbacks(app):
             )
 
             try:
-                graph_manager.add_node(new_node)
-                graph_manager.set_aliases(
-                    name.strip(), [a for a in (alias_values or []) if a and a.strip()])
-                graph_manager.add_edge(name.strip(), selected_node, EDGE_NEEDS_HARD)
-
-                node_name_clean = name.strip()
-                for target in (needs_hard or []):
-                    try:
-                        graph_manager.add_edge(target, node_name_clean, EDGE_NEEDS_HARD)
-                    except ValueError:
-                        pass
-                for target in (needs_soft or []):
-                    try:
-                        graph_manager.add_edge(target, node_name_clean, EDGE_NEEDS_SOFT)
-                    except ValueError:
-                        pass
-                for target in (supports_hard or []):
-                    try:
-                        graph_manager.add_edge(node_name_clean, target, EDGE_NEEDS_HARD)
-                    except ValueError:
-                        pass
-                for target in (supports_soft or []):
-                    try:
-                        graph_manager.add_edge(node_name_clean, target, EDGE_NEEDS_SOFT)
-                    except ValueError:
-                        pass
-                for target in (helps or []):
-                    try:
-                        graph_manager.add_edge(node_name_clean, target, EDGE_HELPS)
-                    except ValueError:
-                        pass
+                with database.transaction():
+                    graph_manager.add_node(new_node)
+                    graph_manager.set_aliases(
+                        name.strip(), [a for a in (alias_values or []) if a and a.strip()])
+                    graph_manager.sync_edges(
+                        name.strip(), needs_hard or [], needs_soft or [],
+                        list(dict.fromkeys([selected_node, *(supports_hard or [])])),
+                        supports_soft or [], helps or [])
+                    if override_toggle and "on" in override_toggle:
+                        ConfigManager.set_override({
+                            "parent": name.strip(), "mode": override_mode or "hard"})
             except ValueError as e:
                 return no_update, no_update, str(e)
-
-            # Apply override if requested
-            if override_toggle and "on" in override_toggle:
-                ConfigManager.set_override({
-                    "parent": name.strip(),
-                    "mode": override_mode or "hard"
-                })
 
             return False, f"add-{name}", ""
 

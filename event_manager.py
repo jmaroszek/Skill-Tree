@@ -99,6 +99,7 @@ class EventManager:
 
     # --- Event CRUD ---
 
+    @database.atomic
     def add_event(self, event: Event):
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -608,6 +609,7 @@ class EventManager:
 
     # --- Convenience ---
 
+    @database.atomic
     def create_dormant_node(self, node: Node, event_name: str, delay_days: int = 0,
                             override_on_trigger: bool = False,
                             override_mode: Optional[str] = None):
@@ -621,6 +623,7 @@ class EventManager:
                                override_on_trigger=override_on_trigger,
                                override_mode=override_mode)
 
+    @database.atomic
     def update_dormant_node(self, event_name: str, old_node_name: str, node: Node,
                             delay_days: int = 0,
                             override_on_trigger: bool = False,

@@ -4,6 +4,7 @@ Callback definitions for the Skill Tree Dash application.
 
 import json
 import logging
+import database
 import os
 import subprocess
 import urllib.parse
@@ -1907,73 +1908,74 @@ def register_callbacks(app):
                 msg = "Error: Node type is required."
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
             try:
-                # Track if this save marks the node Done. Only count a true
-                # Open/Blocked → Done transition (or a brand-new node created
-                # Done) — re-saving an already-Done node must not re-trigger
-                # the time-calibration modal.
-                if status_done and STATUS_DONE in (status_done or []):
-                    _prior_for_completion = prior_node_for_completion(
-                        manager, name, original_name)
-                    if not (_prior_for_completion
-                            and _prior_for_completion.status == STATUS_DONE):
-                        completion_check_node = name
+                with database.transaction():
+                    # Track if this save marks the node Done. Only count a true
+                    # Open/Blocked → Done transition (or a brand-new node created
+                    # Done) — re-saving an already-Done node must not re-trigger
+                    # the time-calibration modal.
+                    if status_done and STATUS_DONE in (status_done or []):
+                        _prior_for_completion = prior_node_for_completion(
+                            manager, name, original_name)
+                        if not (_prior_for_completion
+                                and _prior_for_completion.status == STATUS_DONE):
+                            completion_check_node = name
 
-                multiplier = ConfigManager.get_time_multiplier(time_unit)
-                t_o = float(time_o or 0) * multiplier
-                t_m = float(time_m or 0) * multiplier
-                t_p = float(time_p or 0) * multiplier
+                    multiplier = ConfigManager.get_time_multiplier(time_unit)
+                    t_o = float(time_o or 0) * multiplier
+                    t_m = float(time_m or 0) * multiplier
+                    t_p = float(time_p or 0) * multiplier
 
-                # Intercept rename: if original name differs from current name, rename node atomically
-                if (trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save') and
-                        original_name and original_name.strip() and
-                        name.strip() != original_name.strip() and
-                        manager.get_node(original_name.strip())):
-                    manager.rename_node(original_name.strip(), name.strip())
+                    # Intercept rename: if original name differs from current name, rename node atomically
+                    if (trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save') and
+                            original_name and original_name.strip() and
+                            name.strip() != original_name.strip() and
+                            manager.get_node(original_name.strip())):
+                        manager.rename_node(original_name.strip(), name.strip())
 
-                # Resolve the canonical time_mode via the shared helper —
-                # centralizes the Goal/Milestone-must-inherit invariant and
-                # eliminates drift across the three save paths (main editor,
-                # dormant-node creation, details-panel save).
-                time_mode = resolve_time_mode(n_type, time_mode_val, time_habit_mode_val)
-                if time_mode == 'habit':
-                    t_o, t_m, t_p = compute_habit_time_omp(
-                        habit_duration or 0, habit_duration_unit or 'weeks',
-                        habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
-                        habit_int_unit or 'min_per_session', habit_days,
-                    )
-                # Mirror time_mode: the shared resolver centralizes the
-                # Milestone-must-inherit-value invariant (Goals are exempt —
-                # they carry their own value).
-                value_mode = resolve_value_mode(n_type, value_mode_val)
-                msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
-                                  interest, diff, status_done, context, subctx,
-                                  obs_path, drive_path, website_path,
-                                  e_needs_h, e_needs_s,
-                                  e_supp_h, e_supp_s, e_helps,
-                                  time_mode=time_mode,
-                                  value_mode=value_mode,
-                                  habit_duration=habit_duration or 0,
-                                  habit_duration_unit=habit_duration_unit or 'weeks',
-                                  habit_intensity_o=habit_int_o or 0,
-                                  habit_intensity_m=habit_int_m or 0,
-                                  habit_intensity_p=habit_int_p or 0,
-                                  habit_intensity_unit=habit_int_unit or 'min_per_session',
-                                  habit_days=habit_days)
+                    # Resolve the canonical time_mode via the shared helper —
+                    # centralizes the Goal/Milestone-must-inherit invariant and
+                    # eliminates drift across the three save paths (main editor,
+                    # dormant-node creation, details-panel save).
+                    time_mode = resolve_time_mode(n_type, time_mode_val, time_habit_mode_val)
+                    if time_mode == 'habit':
+                        t_o, t_m, t_p = compute_habit_time_omp(
+                            habit_duration or 0, habit_duration_unit or 'weeks',
+                            habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
+                            habit_int_unit or 'min_per_session', habit_days,
+                        )
+                    # Mirror time_mode: the shared resolver centralizes the
+                    # Milestone-must-inherit-value invariant (Goals are exempt —
+                    # they carry their own value).
+                    value_mode = resolve_value_mode(n_type, value_mode_val)
+                    msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
+                                      interest, diff, status_done, context, subctx,
+                                      obs_path, drive_path, website_path,
+                                      e_needs_h, e_needs_s,
+                                      e_supp_h, e_supp_s, e_helps,
+                                      time_mode=time_mode,
+                                      value_mode=value_mode,
+                                      habit_duration=habit_duration or 0,
+                                      habit_duration_unit=habit_duration_unit or 'weeks',
+                                      habit_intensity_o=habit_int_o or 0,
+                                      habit_intensity_m=habit_int_m or 0,
+                                      habit_intensity_p=habit_int_p or 0,
+                                      habit_intensity_unit=habit_int_unit or 'min_per_session',
+                                      habit_days=habit_days)
 
-                # Save aliases
-                clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
-                manager.set_aliases(name, clean_aliases)
+                    # Save aliases
+                    clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
+                    manager.set_aliases(name, clean_aliases)
 
-                # Update priority goals for Goal nodes
-                if n_type == 'Goal':
-                    priority_goals = ConfigManager.get_priority_goals()
-                    if name in priority_goals:
-                        priority_goals.remove(name)
-                    if priority_rank_val and priority_rank_val != "none":
-                        rank_idx = int(priority_rank_val) - 1
-                        rank_idx = min(rank_idx, len(priority_goals))
-                        priority_goals.insert(rank_idx, name)
-                    ConfigManager.set_priority_goals(priority_goals)
+                    # Update priority goals for Goal nodes
+                    if n_type == 'Goal':
+                        priority_goals = ConfigManager.get_priority_goals()
+                        if name in priority_goals:
+                            priority_goals.remove(name)
+                        if priority_rank_val and priority_rank_val != "none":
+                            rank_idx = int(priority_rank_val) - 1
+                            rank_idx = min(rank_idx, len(priority_goals))
+                            priority_goals.insert(rank_idx, name)
+                        ConfigManager.set_priority_goals(priority_goals)
             except (ValueError, TypeError) as e:
                 msg = f"Error: {e}"
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)

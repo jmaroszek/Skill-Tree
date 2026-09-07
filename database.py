@@ -1,4 +1,8 @@
 import sqlite3
+from contextlib import contextmanager
+from contextvars import ContextVar
+from functools import wraps
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -10,6 +14,98 @@ from typing import Optional
 # need a different path monkeypatch get_db_path itself (see conftest), which
 # bypasses this cache entirely.
 _db_path_cache: Optional[str] = None
+
+# One write operation may cross GraphManager, EventManager and ConfigManager.
+# The lease keeps their nested context managers/commit calls from committing
+# part of that operation. ContextVar isolates concurrent Dash request threads.
+_session = ContextVar("skilltree_db_session", default=None)
+state_lock = threading.RLock()
+
+
+class _ConnectionLease:
+    def __init__(self, session):
+        object.__setattr__(self, "session", session)
+
+    def __getattr__(self, name):
+        return getattr(self.session["connection"], name)
+
+    def __setattr__(self, name, value):
+        setattr(self.session["connection"], name, value)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is not None:
+            self.session["failed"] = True
+        return False
+
+    def commit(self):
+        pass  # Only the outer transaction may commit.
+
+    def rollback(self):
+        self.session["failed"] = True
+
+    def close(self):
+        pass  # The outer transaction owns the connection.
+
+
+@contextmanager
+def transaction():
+    """Join one atomic write, rolling back even if a nested failure is caught.
+
+    BEGIN IMMEDIATE serializes validation with other writers. Deferred foreign
+    keys allow renames without disabling referential integrity. Notifications
+    and cache invalidations run only after the complete write commits.
+    """
+    existing = _session.get()
+    if existing is not None:
+        try:
+            yield _ConnectionLease(existing)
+        except BaseException:
+            existing["failed"] = True
+            raise
+        return
+    with state_lock:
+        conn = get_connection()
+        session = {"connection": conn, "failed": False, "callbacks": {}}
+        token = _session.set(session)
+        committed = False
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("PRAGMA defer_foreign_keys = ON")
+            yield _ConnectionLease(session)
+            if session["failed"]:
+                conn.rollback()
+            else:
+                conn.commit()
+                committed = True
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            _session.reset(token)
+            conn.close()
+        if committed:
+            for callback in session["callbacks"].values():
+                callback()
+
+
+def atomic(func):
+    """Make a manager operation (or compound save) a transaction boundary."""
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        with transaction():
+            return func(*args, **kwargs)
+    return wrapped
+
+
+def on_commit(callback, key=None):
+    session = _session.get()
+    if session is None:
+        callback()
+    else:
+        session["callbacks"][key if key is not None else id(callback)] = callback
 
 
 def get_db_path() -> str:
@@ -29,6 +125,9 @@ def get_db_path() -> str:
 
 def get_connection() -> sqlite3.Connection:
     """Creates and returns a new database connection with foreign keys enabled."""
+    session = _session.get()
+    if session is not None:
+        return _ConnectionLease(session)
     conn = sqlite3.connect(get_db_path())
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

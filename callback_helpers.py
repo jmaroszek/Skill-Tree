@@ -7,6 +7,7 @@ the callback registration files focused on Dash I/O wiring.
 
 import json
 import logging
+import database
 
 import dash
 from dash import html, dcc
@@ -894,6 +895,7 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
 
 # --- Node CRUD Helpers ---
 
+@database.atomic
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
                 status_done, context, subctx, obs_path, drive_path, website_path,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,

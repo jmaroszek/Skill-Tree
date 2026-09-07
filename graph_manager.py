@@ -76,9 +76,13 @@ class GraphManager:
         tags, paths) — graph_version still bumps so UI re-renders, but the
         scoring memo stays valid and the next get_suggestions() is near-free.
         """
-        GraphManager._graph_version += 1
-        if scoring:
+        def bump_graph():
+            GraphManager._graph_version += 1
+        def bump_scoring():
             GraphManager._scoring_version += 1
+        database.on_commit(bump_graph, key="graph_version")
+        if scoring:
+            database.on_commit(bump_scoring, key="scoring_version")
 
     def get_connection(self) -> sqlite3.Connection:
         """Returns a new database connection with foreign keys enabled."""
@@ -86,6 +90,7 @@ class GraphManager:
 
     # --- Node Operations ---
 
+    @database.atomic
     def add_node(self, node: Node):
         """Add a new node to the database."""
         if not node.context:
@@ -108,6 +113,7 @@ class GraphManager:
                 raise ValueError(f"Node with name '{node.name}' already exists.")
         self._bump_version()
 
+    @database.atomic
     def update_node(self, node: Node):
         """Updates an existing node."""
         if not node.context:
@@ -180,7 +186,10 @@ class GraphManager:
         # override parent, clear the override — the boost on its dependents
         # is no longer meaningful. Done is only ever set here (the cascade
         # in _update_dependent_nodes_state only flips Blocked/Open).
-        if node.status == STATUS_DONE:
+        def completed():
+            saved = self.get_node(node.name)
+            if saved is None or saved.status != STATUS_DONE:
+                return
             ConfigManager.clear_override_if_parent(node.name)
             # Fire any event whose trigger condition this completion satisfies
             # (OR fires on this node alone; AND needs its whole set Done), but only
@@ -204,6 +213,9 @@ class GraphManager:
                 # via a "Mark Done?" modal. Detection is scoped to true Done
                 # transitions so re-saves and graph edits don't spam.
                 self._collect_auto_done_candidates(node.name)
+
+        if node.status == STATUS_DONE:
+            database.on_commit(completed, key=("completion", node.name))
 
     def _collect_auto_done_candidates(self, just_done_name: str) -> None:
         """Append direct container dependents of ``just_done_name`` whose
@@ -315,38 +327,17 @@ class GraphManager:
         ConfigManager.delete_node_references(node_name)
         self._bump_version()
 
+    @database.atomic
     def rename_node(self, old_name: str, new_name: str):
-        """Renames a node, updating all edge and event references atomically.
-
-        FKs are temporarily disabled so the Nodes row can be renamed before
-        Edges/Events/EventNodes/Aliases catch up. The whole sequence runs in
-        an explicit transaction; any error rolls back to the pre-rename state
-        so a partial rename can never be left in the DB. The PRAGMA reset is
-        in a finally so FKs are restored even on failure.
-        """
+        """Rename a node and its SQL/settings references in one transaction."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = OFF")
-            try:
-                cursor.execute("BEGIN")
-                cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
-                cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
-                cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
-                # Update event trigger-set references. OR IGNORE guards the
-                # composite PK in case the event already watches new_name.
-                cursor.execute("UPDATE OR IGNORE EventTriggerNodes SET node_name=? WHERE node_name=?",
-                               (new_name, old_name))
-                cursor.execute("DELETE FROM EventTriggerNodes WHERE node_name=?", (old_name,))
-                # Also update EventNodes mapping table
-                cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
-                # Update Aliases table
-                cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
-            finally:
-                cursor.execute("PRAGMA foreign_keys = ON")
+            cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
+            cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
+            cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
+            cursor.execute("UPDATE EventTriggerNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
+            cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
+            cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
         ConfigManager.rename_node_references(old_name, new_name)
         self._bump_version()
 
@@ -368,6 +359,7 @@ class GraphManager:
             cursor.execute("SELECT alias FROM Aliases WHERE node_name=?", (node_name,))
             return [row[0] for row in cursor.fetchall()]
 
+    @database.atomic
     def set_aliases(self, node_name: str, aliases: list):
         """Replace all aliases for a node."""
         from config import ConfigManager
@@ -377,6 +369,9 @@ class GraphManager:
             for alias in aliases:
                 if alias and alias.strip():
                     clean = ConfigManager.apply_titlecase_linter(alias.strip())
+                    owner = cursor.execute("SELECT node_name FROM Aliases WHERE alias=?", (clean,)).fetchone()
+                    if owner and owner[0] != node_name:
+                        raise ValueError(f"Alias '{clean}' already belongs to '{owner[0]}'.")
                     cursor.execute(
                         "INSERT OR IGNORE INTO Aliases (alias, node_name) VALUES (?, ?)",
                         (clean, node_name))
@@ -495,6 +490,7 @@ class GraphManager:
                 "Only one directional edge type is allowed per pair of nodes."
             )
 
+    @database.atomic
     def add_edge(self, source: str, target: str, edge_type: str):
         """Adds an edge to the DB, ensuring no self-loop, no cycle, and no
         conflicting edge type already on this pair."""
@@ -509,14 +505,13 @@ class GraphManager:
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            for name in (source, target):
+                if cursor.execute("SELECT 1 FROM Nodes WHERE name=?", (name,)).fetchone() is None:
+                    raise ValueError(f"Cannot link missing node '{name}'.")
             self._check_pair_conflict(cursor, source, target, edge_type)
-            try:
-                cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
-                conn.commit()
-                if edge_type == EDGE_NEEDS_HARD:
-                    self._update_node_state(target)
-            except sqlite3.IntegrityError:
-                pass  # Exact duplicate row — silently no-op
+            cursor.execute("INSERT OR IGNORE INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
+            if edge_type == EDGE_NEEDS_HARD:
+                self._update_node_state(target)
         self._bump_version()
 
     def remove_edge(self, source: str, target: str, edge_type: str):
@@ -537,6 +532,7 @@ class GraphManager:
             cursor.execute("SELECT * FROM Edges")
             return [dict(row) for row in cursor.fetchall()]
 
+    @database.atomic
     def sync_edges(self, node_name: str, needs_hard: list, needs_soft: list, supports_hard: list, supports_soft: list, helps: list):
         needs_hard = needs_hard or []
         needs_soft = needs_soft or []
@@ -609,22 +605,9 @@ class GraphManager:
             )
 
             def _insert_edge(src, trgt, etype):
-                src, trgt = self._canonicalize_edge(src, trgt, etype)
-                if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) and self._will_create_cycle(src, trgt):
-                    return
-                # Pair-conflict against surviving (dormant-anchored) edges
-                # — silently skip rather than raise, since the form-level
-                # validation above already caught intra-form conflicts and
-                # this would only fire on edges to dormant nodes the user
-                # can't see.
-                try:
-                    self._check_pair_conflict(cursor, src, trgt, etype)
-                except ValueError:
-                    return
-                try:
-                    cursor.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)", (src, trgt, etype))
-                except sqlite3.IntegrityError:
-                    pass
+                # Reuse the canonical validator on this transaction's current
+                # graph, including both the removals and preceding inserts.
+                self.add_edge(src, trgt, etype)
 
             for src in needs_hard: _insert_edge(src, node_name, EDGE_NEEDS_HARD)
             for src in needs_soft: _insert_edge(src, node_name, EDGE_NEEDS_SOFT)

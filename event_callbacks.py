@@ -2,6 +2,7 @@
 Callback definitions for the Events tab.
 """
 
+import database
 import json
 import time
 import dash
@@ -1333,6 +1334,7 @@ def register_event_callbacks(app):
         State({"type": "dormant-alias-input", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
+    @database.atomic
     def save_dormant_node(n_clicks, selected_event,
                           event_name_val, event_desc_val, event_date_val,
                           name, node_type, context, subcontext, desc,
@@ -1553,11 +1555,15 @@ def register_event_callbacks(app):
             except ValueError as e:
                 return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg, no_update
 
-        graph_manager.set_aliases(
-            node.name, [a for a in (alias_values or []) if a and a.strip()])
+        try:
+            graph_manager.set_aliases(
+                node.name, [a for a in (alias_values or []) if a and a.strip()])
 
-        graph_manager.sync_edges(node.name, needs_hard or [], needs_soft or [],
-                                 supports_hard or [], supports_soft or [], helps or [])
+            graph_manager.sync_edges(node.name, needs_hard or [], needs_soft or [],
+                                     supports_hard or [], supports_soft or [], helps or [])
+
+        except ValueError as e:
+            return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
 
         event = event_manager.get_event(selected_event)
         event_nodes = event_manager.get_event_nodes(selected_event)
