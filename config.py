@@ -472,14 +472,16 @@ PROFILES = {
 class ConfigManager:
     """Classmethod-only facade over the Settings key/value table.
 
-    Every `get_*` reads from SQLite (falling back to a DEFAULT_* constant
-    on first run) and every `set_*` writes back. No in-process cache —
-    values are round-tripped through the DB on each access, which keeps
-    multiple callback modules consistent without coordination.
+    Getters read SQLite or the current operation's detached read snapshot,
+    falling back to DEFAULT_* constants. Setters write back and invalidate
+    that snapshot. There is no settings cache retained between operations.
     """
 
     @staticmethod
     def _get_db_value(key: str) -> Optional[str]:
+        snapshot = database.current_snapshot()
+        if snapshot is not None:
+            return snapshot.settings.get(key)
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM Settings WHERE key=?", (key,))

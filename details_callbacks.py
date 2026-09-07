@@ -300,6 +300,7 @@ def register_details_callbacks(app):
         State("details-hide-blocked", "value"),
         prevent_initial_call=True,
     )
+    @database.snapshot_read
     def select_detail_node(node_name, _refresh, _version, _override_data,
                            max_depth_val, include_soft_val, include_synergies_val,
                            f_context, f_subcontext, f_done,
@@ -641,6 +642,7 @@ def register_details_callbacks(app):
         Input("filter-dormant", "value"),
         Input("details-hide-blocked", "value"),
     )
+    @database.snapshot_read
     def update_details_graph(selected_node, _refresh, _version,
                              include_soft_val, include_synergies_val,
                              max_depth_val, show_cross_links_val,

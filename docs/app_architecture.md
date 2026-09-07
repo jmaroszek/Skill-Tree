@@ -10,7 +10,7 @@ The app is six layers. Each one only knows about the layer below it.
 - **Layout** (`layout.py`, `*_layout.py`) — pure structure. Builds the component tree and declares every `dcc.Store`. No callbacks, no behavior. `app.layout` is a *function* (`lambda: build_app_layout(generate_elements(), ...)`) so each page load gets fresh elements.
 - **Callbacks** (`callbacks.py`, `*_callbacks.py`) — all behavior. Each tab module attaches its callbacks in one `register_*_callbacks(app)` pass. [`callbacks.py`](../callbacks.py) is *not* a tab — it's the shared core engine (the main canvas, cross-cutting callbacks, and `generate_elements`).
 - **State gateway** (`graph_manager.py`, `event_manager.py`) — the only way a callback touches graph/event state. Owns CRUD, the status cascade, version counters, and caches.
-- **Config** (`config.py` / `ConfigManager`) — a classmethod-only facade over the `Settings` table. No in-process cache, which is *why* the per-tab manager instances stay coherent (see Versioning below).
+- **Config** (`config.py` / `ConfigManager`) — a classmethod-only facade over the `Settings` table. No persistent settings cache; operation-scoped snapshots reduce repeated reads (see Versioning below).
 - **Pure compute** (`scoring.py`, `simulation.py`) — data in, rankings/simulations out. No DB access, no globals.
 - **Persistence** (`database.py`) — resolves the DB path from `config.ENVIRONMENT` and runs `init_db` on first connect.
 
@@ -107,7 +107,20 @@ Marking a node Done (or changing a hard prereq) calls `update_node`, which detec
 
 The list is the `_SCORING_RELEVANT_FIELDS` constant; `update_node` diffs it against the prior node to decide whether to pass `scoring=True` to `_bump_version`. The split is the optimization: cosmetic edits (description, paths, context, aliases) bump `_graph_version` only, so the scoring memo stays warm and the next ranking is near-free. **When you add a new scoring-relevant field, add it to `_SCORING_RELEVANT_FIELDS` or scores will silently go stale.**
 
-`ConfigManager` is deliberately the opposite — classmethod-only, every read round-trips through the `Settings` table, no in-process cache. That's what lets a value written by the Settings tab be immediately visible to every other tab's next read, without a cache-invalidation dance.
+`ConfigManager` has no persistent settings cache. Hot read operations use
+`database.read_snapshot()` / `@database.snapshot_read` to share detached Nodes,
+Edges, Settings and pending-trigger rows across their nested helpers. Four SELECTs
+run on one connection/read transaction, which closes before rendering starts.
+The snapshot is discarded at the end of the operation; a local write invalidates
+it immediately. Subsequent operations read fresh state. Outside a snapshot,
+settings getters query SQLite normally. Connection context managers close their
+owned connection on both success and failure; nested write leases stay open until
+the owning transaction ends.
+
+Community caches retain at most 32 filter/method combinations and subtree caches
+at most 128 entries per manager. Both discard entries from older graph versions.
+Scoring memoization still survives cosmetic edits. See [performance.md](performance.md)
+for the synthetic benchmark and its limits.
 
 All graph-affecting event operations and field migrations participate in the same
 transaction/version protocol. Removing relationships repairs the former hard

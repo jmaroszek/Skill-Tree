@@ -3,6 +3,8 @@ Layout definitions for the Skill Tree Dash application.
 Contains all UI component definitions and the Cytoscape stylesheet.
 """
 
+import database
+
 from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
@@ -952,6 +954,7 @@ reflection_ratings_editor_modal = dbc.Modal([
 ], id="modal-reflection-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
+@database.snapshot_read
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
     

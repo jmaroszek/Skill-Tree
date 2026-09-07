@@ -384,6 +384,9 @@ class EventManager:
 
     def get_trigger_node_names(self) -> set:
         """Returns names of nodes whose completion could trigger a Pending event."""
+        snapshot = database.current_snapshot()
+        if snapshot is not None:
+            return set(snapshot.trigger_names)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(

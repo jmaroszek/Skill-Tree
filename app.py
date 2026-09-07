@@ -8,6 +8,7 @@ from pathlib import Path
 
 # Set environment before importing modules that read config.ENVIRONMENT (e.g. database.py)
 import config
+import database
 
 if "--sandbox" in sys.argv:
     config.ENVIRONMENT = "sandbox"
@@ -98,7 +99,8 @@ app = dash.Dash(__name__, external_stylesheets=[
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
 ])
 app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
-app.layout = lambda: build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT)
+app.layout = database.snapshot_read(
+    lambda: build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT))
 register_callbacks(app)
 register_event_callbacks(app)
 register_details_callbacks(app)

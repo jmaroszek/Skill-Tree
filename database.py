@@ -19,7 +19,64 @@ _db_path_cache: Optional[str] = None
 # The lease keeps their nested context managers/commit calls from committing
 # part of that operation. ContextVar isolates concurrent Dash request threads.
 _session = ContextVar("skilltree_db_session", default=None)
+_snapshot = ContextVar("skilltree_read_snapshot", default=None)
 state_lock = threading.RLock()
+
+
+class _ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            return super().__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+
+
+class ReadSnapshot:
+    """Detached rows from one SQLite read transaction, scoped to an operation."""
+    def __init__(self):
+        with get_connection() as conn:
+            conn.execute("BEGIN")
+            conn.row_factory = sqlite3.Row
+            self.nodes = {row["name"]: dict(row) for row in conn.execute("SELECT * FROM Nodes")}
+            self.edges = [dict(row) for row in conn.execute("SELECT * FROM Edges")]
+            self.settings = dict(conn.execute("SELECT key, value FROM Settings").fetchall())
+            self.trigger_names = {row[0] for row in conn.execute(
+                "SELECT DISTINCT etn.node_name FROM EventTriggerNodes etn "
+                "JOIN Events e ON e.name=etn.event_name WHERE e.status='Pending'")}
+        self.invalid = False
+
+
+def current_snapshot():
+    snapshot = _snapshot.get()
+    return snapshot if snapshot is not None and not snapshot.invalid else None
+
+
+@contextmanager
+def read_snapshot():
+    """Reuse graph/settings rows in nested helpers; never retain across requests.
+
+    The SQL connection is closed before computation starts. The coordination
+    lock keeps the snapshot and versioned caches consistent with local writes.
+    A write within this scope invalidates it, so subsequent reads see that write.
+    """
+    if in_transaction() or current_snapshot() is not None:
+        yield current_snapshot()
+        return
+    with state_lock:
+        snapshot = ReadSnapshot()
+        token = _snapshot.set(snapshot)
+        try:
+            yield snapshot
+        finally:
+            _snapshot.reset(token)
+
+
+def snapshot_read(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        with read_snapshot():
+            return func(*args, **kwargs)
+    return wrapped
 
 
 class _ConnectionLease:
@@ -67,6 +124,9 @@ def transaction():
             raise
         return
     with state_lock:
+        snapshot = _snapshot.get()
+        if snapshot is not None:
+            snapshot.invalid = True
         conn = get_connection()
         session = {"connection": conn, "failed": False, "callbacks": {}}
         token = _session.set(session)
@@ -141,7 +201,7 @@ def get_connection() -> sqlite3.Connection:
     session = _session.get()
     if session is not None:
         return _ConnectionLease(session)
-    conn = sqlite3.connect(get_db_path())
+    conn = sqlite3.connect(get_db_path(), factory=_ClosingConnection)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 

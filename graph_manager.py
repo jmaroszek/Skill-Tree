@@ -9,7 +9,7 @@ counters that let the higher-level callback caches know when to rebuild.
 
 import sqlite3
 import threading
-from collections import deque
+from collections import deque, OrderedDict
 from datetime import date
 import database
 import networkx as nx
@@ -63,12 +63,28 @@ class GraphManager:
 
     def __init__(self):
         database.init_db()
-        self._community_cache: Dict[tuple, List[Set[str]]] = {}
+        self._community_cache: Dict[tuple, List[Set[str]]] = OrderedDict()
         self._scoring_memo: Dict[str, float] = {}
         self._scoring_memo_key: Optional[tuple] = None
         # (goal_name, sorted_edge_types_tuple) -> (graph_version, frozenset of reachable nodes)
         self._goal_subtree_cache: Dict[tuple, tuple] = {}
         self._cache_lock = threading.Lock()
+        self._read_cache_epoch = None
+
+    def _prepare_read_caches(self):
+        epoch = (database.get_db_path(), self._graph_version)
+        if epoch != self._read_cache_epoch:
+            self._community_cache.clear()
+            self._goal_subtree_cache.clear()
+            self._read_cache_epoch = epoch
+
+    def _cache_communities(self, key, communities):
+        if database.in_transaction():
+            return
+        with self._cache_lock:
+            self._community_cache[key] = communities
+            while len(self._community_cache) > 32:
+                self._community_cache.popitem(last=False)
 
     def _bump_version(self, scoring: bool = True) -> None:
         """Invalidate memoization caches. Called by every node/edge mutator.
@@ -346,6 +362,10 @@ class GraphManager:
 
     def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
+        snapshot = database.current_snapshot()
+        if snapshot is not None:
+            row = snapshot.nodes.get(name)
+            return Node(**row) if row is not None else None
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -415,6 +435,10 @@ class GraphManager:
 
     def get_all_nodes(self, include_dormant: bool = False) -> List[Node]:
         """Retrieves all nodes. Excludes dormant nodes by default."""
+        snapshot = database.current_snapshot()
+        if snapshot is not None:
+            return [Node(**row) for row in snapshot.nodes.values()
+                    if include_dormant or not row['dormant']]
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -431,6 +455,9 @@ class GraphManager:
         "currently being worked on", and the Now section should never
         surface one.
         """
+        if database.current_snapshot() is not None:
+            return sorted((n for n in self.get_all_nodes() if n.now > 0),
+                          key=lambda n: (n.now, n.name))
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -534,6 +561,9 @@ class GraphManager:
 
     def get_edges(self) -> List[Dict[str, str]]:
         """Retrieves all edges."""
+        snapshot = database.current_snapshot()
+        if snapshot is not None:
+            return [dict(edge) for edge in snapshot.edges]
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -996,6 +1026,7 @@ class GraphManager:
         # each call re-runs the BFS + DB queries against an unchanged graph.
         cache_key = (goal_name, tuple(sorted(edge_types)))
         with self._cache_lock:
+            self._prepare_read_caches()
             cached = self._goal_subtree_cache.get(cache_key)
             if not database.in_transaction() and cached is not None and cached[0] == self._graph_version:
                 return set(cached[1])
@@ -1004,56 +1035,34 @@ class GraphManager:
         directed_types = tuple(t for t in edge_types if t != EDGE_HELPS)
         include_helps = EDGE_HELPS in edge_types
 
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            visited = set()
-            queue = []
-
-            # Seed with direct prerequisites of the goal (directed edges)
-            if directed_types:
-                placeholders = ','.join('?' for _ in directed_types)
-                cursor.execute(
-                    f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
-                    (goal_name, *directed_types)
-                )
-                queue.extend(row[0] for row in cursor.fetchall())
-
-            # Seed with Helps partners of the goal (bidirectional, 1 step only)
-            if include_helps:
-                cursor.execute(
-                    "SELECT source FROM Edges WHERE target=? AND type=?",
-                    (goal_name, EDGE_HELPS)
-                )
-                queue.extend(row[0] for row in cursor.fetchall())
-                cursor.execute(
-                    "SELECT target FROM Edges WHERE source=? AND type=?",
-                    (goal_name, EDGE_HELPS)
-                )
-                queue.extend(row[0] for row in cursor.fetchall())
-
-            while queue:
-                node = queue.pop()
-                if node in visited:
-                    continue
-                visited.add(node)
-
-                # Only directed edges are followed during BFS — Helps does not
-                # chain past the seed step.
-                if directed_types:
-                    placeholders = ','.join('?' for _ in directed_types)
-                    cursor.execute(
-                        f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
-                        (node, *directed_types)
-                    )
-                    for row in cursor.fetchall():
-                        if row[0] not in visited:
-                            queue.append(row[0])
+        incoming = {}
+        queue = []
+        for edge in self.get_edges():
+            source, target, kind = edge['source'], edge['target'], edge['type']
+            if kind in directed_types:
+                incoming.setdefault(target, []).append(source)
+            elif include_helps and kind == EDGE_HELPS:
+                if source == goal_name:
+                    queue.append(target)
+                elif target == goal_name:
+                    queue.append(source)
+        queue.extend(incoming.get(goal_name, ()))
+        visited = set()
+        while queue:
+            name = queue.pop()
+            if name in visited:
+                continue
+            visited.add(name)
+            queue.extend(n for n in incoming.get(name, ()) if n not in visited)
 
         if not database.in_transaction():
             with self._cache_lock:
+                if len(self._goal_subtree_cache) >= 128:
+                    self._goal_subtree_cache.pop(next(iter(self._goal_subtree_cache)))
                 self._goal_subtree_cache[cache_key] = (self._graph_version, frozenset(visited))
         return visited
 
+    @database.snapshot_read
     def get_dependency_view(self, root_name: str, *, include_soft: bool = True,
                             include_synergies: bool = False,
                             max_depth: int | None = None,
@@ -1160,6 +1169,7 @@ class GraphManager:
             "discovery_edges": discovery_edges,
         }
 
+    @database.snapshot_read
     def get_goal_completion(self, goal_name: str, include_soft: bool = True,
                             include_transitive: bool = True,
                             max_depth: int | None = None) -> dict:
@@ -1183,15 +1193,8 @@ class GraphManager:
         else:
             subtree = self.get_goal_subtree(goal_name, edge_types=edge_types)
         if include_transitive is False and not max_depth:
-            # Restrict to direct children only
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                placeholders = ','.join('?' for _ in edge_types)
-                cursor.execute(
-                    f"SELECT source FROM Edges WHERE target=? AND type IN ({placeholders})",
-                    (goal_name, *edge_types)
-                )
-                direct = {row[0] for row in cursor.fetchall()}
+            direct = {e['source'] for e in self.get_edges()
+                      if e['target'] == goal_name and e['type'] in edge_types}
             subtree = subtree & direct
         if not subtree:
             return {"total": 0, "done": 0, "pct": 0, "remaining_time": 0.0}
@@ -1209,6 +1212,7 @@ class GraphManager:
 
         return {"total": total, "done": done, "pct": pct, "remaining_time": round(remaining_time, 1), "is_blocked": is_blocked}
 
+    @database.snapshot_read
     def get_effective_time(self, node_name: str) -> float:
         """Returns the effective time estimate for a node.
 
@@ -1585,26 +1589,23 @@ class GraphManager:
         allowed_key = tuple(sorted(allowed_names)) if allowed_names is not None else None
         cache_key = (method, allowed_key, self._graph_version)
         with self._cache_lock:
+            self._prepare_read_caches()
             cached = self._community_cache.get(cache_key)
+            if cached is not None:
+                self._community_cache.move_to_end(cache_key)
         if cached is not None and not database.in_transaction():
             return [set(c) for c in cached]
 
         G = self._build_nx_graph(allowed_names=allowed_names)
         if len(G.nodes) == 0:
             result: List[Set[str]] = []
-            with self._cache_lock:
-                if database.in_transaction():
-                    return [set(c) for c in result]
-                self._community_cache[cache_key] = result
+            self._cache_communities(cache_key, result)
             return result
 
         if method == "orphans":
             # Each isolated node (degree 0 in the filtered graph) is its own "community"
             result = [{node} for node in G.nodes if G.degree(node) == 0]
-            with self._cache_lock:
-                if database.in_transaction():
-                    return [set(c) for c in result]
-                self._community_cache[cache_key] = result
+            self._cache_communities(cache_key, result)
             return [set(c) for c in result]
 
         if method == "louvain":
@@ -1620,7 +1621,5 @@ class GraphManager:
         else:
             communities = sorted(nx.connected_components(G), key=len, reverse=True)
 
-        with self._cache_lock:
-            if not database.in_transaction():
-                self._community_cache[cache_key] = communities
+        self._cache_communities(cache_key, communities)
         return [set(c) for c in communities]

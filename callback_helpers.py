@@ -632,6 +632,7 @@ NEW_NODE_SNAPSHOT = {
 }
 
 
+@database.snapshot_read
 def build_editor_snapshot(manager, node_name):
     """Build a snapshot of the editor form state for an existing node.
 
@@ -1056,6 +1057,7 @@ def _suggestion_dot(on, label, fill_color):
     )
 
 
+@database.snapshot_read
 def format_suggestions_table(suggs, manager, selected_node_id=None, override_set=None):
     """Render the top-scored nodes as bar-chart rows with normalized priority scores (0-100).
 
@@ -1258,6 +1260,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     return [bar_list]
 
 
+@database.snapshot_read
 def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     """Render the 'Now' section for the Next tab as a row of rich cards.
 

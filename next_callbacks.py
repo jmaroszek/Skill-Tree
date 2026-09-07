@@ -3,6 +3,8 @@ Callback definitions for the Next tab (priority suggestions).
 """
 
 import dash
+import database
+
 from dash import Input, Output, State, ALL, ctx, html
 from graph_manager import GraphManager
 from config import ConfigManager
@@ -12,6 +14,7 @@ from models import STATUS_DONE
 manager = GraphManager()
 
 
+@database.snapshot_read
 def get_suggestions(filters=None, count=5, exclude_override=False):
     """Retrieve top-N prioritized nodes based on ROI scoring.
 
@@ -63,6 +66,7 @@ def get_suggestions(filters=None, count=5, exclude_override=False):
         return valid[:count]
 
 
+@database.snapshot_read
 def get_container_suggestions(count=5, exclude_names=None):
     """Retrieve top-N container nodes ranked by total_value.
 

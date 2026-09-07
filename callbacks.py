@@ -388,6 +388,7 @@ def _friendly_time_estimates(time_o, time_m, time_p):
 
 
 
+@database.snapshot_read
 def generate_elements(filters=None, active_node_id=None, community_names=None):
     """Convert nodes and edges from the database into Cytoscape elements."""
     if filters is None: filters = {}

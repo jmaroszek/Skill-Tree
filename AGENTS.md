@@ -64,7 +64,7 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 - Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`callbacks.py`](callbacks.py). That function is the single source of truth for what Cytoscape sees.
 - Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip.
 - The JS-Dash bridge uses native HTML `value` setters (via `Object.getOwnPropertyDescriptor`) to get React to notice programmatic input changes — plain `el.value = ...` is silently ignored.
-- `ConfigManager` is classmethod-only and round-trips everything through the `Settings` SQLite table. There's no in-process cache, which is why multiple `GraphManager` / `EventManager` instances stay consistent across tab modules.
+- `ConfigManager` is classmethod-only and round-trips everything through the `Settings` SQLite table. There is no persistent settings cache. Read operations may share a `database.read_snapshot()`; it expires at the end of the operation and is invalidated by local writes, so subsequent operations see fresh state across tab modules.
 
 ## Testing
 
