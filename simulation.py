@@ -8,6 +8,7 @@ parallel execution.
 """
 
 import math
+from collections import deque
 
 import numpy as np
 from scipy.special import betaincinv
@@ -36,7 +37,7 @@ def _clamp_mode(o: float, m: float, p: float) -> float:
     return m
 
 
-def pert_beta_sample(o: float, m: float, p: float, size: int = 10000) -> np.ndarray:
+def pert_beta_sample(o: float, m: float, p: float, size: int = 10000, rng=None) -> np.ndarray:
     """Sample from a linear PERT-Beta distribution on [o, p] with mode m.
 
     This is the low-uncertainty primitive: a Beta on [o, p] with
@@ -50,11 +51,11 @@ def pert_beta_sample(o: float, m: float, p: float, size: int = 10000) -> np.ndar
     m = _clamp_mode(o, m, p)
     alpha, beta_param = _pert_alpha_beta(o, m, p)
 
-    samples = np.random.beta(alpha, beta_param, size=size)
+    samples = (rng if rng is not None else np.random).beta(alpha, beta_param, size=size)
     return o + (p - o) * samples
 
 
-def blended_pert_sample(o: float, m: float, p: float, size: int = 10000) -> np.ndarray:
+def blended_pert_sample(o: float, m: float, p: float, size: int = 10000, rng=None) -> np.ndarray:
     """Sample from the Blended PERT distribution — the sampler counterpart of
     `models.blend_time_estimate`.
 
@@ -71,18 +72,23 @@ def blended_pert_sample(o: float, m: float, p: float, size: int = 10000) -> np.n
     # inverted range has no spread to blend — defer to the linear primitive,
     # which handles both. (Callers resolve o to >= 0.1 before reaching here.)
     if o <= 0 or p <= o:
-        return pert_beta_sample(o, m, p, size)
+        return pert_beta_sample(o, m, p, size, rng=rng)
 
     w = pert_blend_weight(p / o)
     if w == 0.0:
-        return pert_beta_sample(o, m, p, size)
+        return pert_beta_sample(o, m, p, size, rng=rng)
 
     m = _clamp_mode(o, m, p)
 
     # Shared quantiles couple the two components (comonotonic blend): the same
     # percentile of the linear and the log view of this one task are combined,
     # rather than two independent draws (which would shrink the spread).
-    u = np.random.uniform(size=size)
+    random = rng if rng is not None else np.random
+    if w == 1.0:
+        lo, mode_log, hi = math.log(o), math.log(m), math.log(p)
+        a_log, b_log = _pert_alpha_beta(lo, mode_log, hi)
+        return np.exp(lo + (hi - lo) * random.beta(a_log, b_log, size=size))
+    u = random.uniform(size=size)
 
     a_lin, b_lin = _pert_alpha_beta(o, m, p)
     linear = o + (p - o) * betaincinv(a_lin, b_lin, u)
@@ -94,7 +100,7 @@ def blended_pert_sample(o: float, m: float, p: float, size: int = 10000) -> np.n
     return (1.0 - w) * linear + w * log_beta
 
 
-def _sample_node(node, n: int) -> np.ndarray:
+def _sample_node(node, n: int, rng=None) -> np.ndarray:
     """Sample duration for a single node from its PERT estimates."""
     o, m, p = node.time_o, node.time_m, node.time_p
 
@@ -104,7 +110,7 @@ def _sample_node(node, n: int) -> np.ndarray:
 
     # Only M provided → approximate spread around M
     if m > 0 and o == 0 and p == 0:
-        return blended_pert_sample(m * 0.5, m, m * 2.0, n)
+        return blended_pert_sample(m * 0.5, m, m * 2.0, n, rng=rng)
 
     # Only O and P provided → mode at geometric mean
     if m == 0 and o > 0 and p > 0:
@@ -120,7 +126,11 @@ def _sample_node(node, n: int) -> np.ndarray:
     if p == o:
         return np.full(n, m)
 
-    return blended_pert_sample(o, m, p, n)
+    return blended_pert_sample(o, m, p, n, rng=rng)
+
+
+class SimulationCancelled(Exception):
+    """A newer selection made this calculation unnecessary."""
 
 
 def simulate_task_chain(
@@ -130,6 +140,7 @@ def simulate_task_chain(
     include_soft: bool = True,
     include_helps: bool = False,
     n_simulations: int = 10000,
+    *, rng=None, should_cancel=None,
 ) -> dict:
     """Monte Carlo simulation of total time for a target node's dependency chain.
 
@@ -140,6 +151,13 @@ def simulate_task_chain(
 
     Returns dict with keys 'samples', 'stats', 'chain_nodes', 'chain_size'.
     """
+    if isinstance(n_simulations, bool) or not isinstance(n_simulations, (int, np.integer)) or not 1 <= n_simulations <= 1_000_000:
+        raise ValueError("Simulation trials must be between 1 and 1,000,000.")
+    def check_cancelled():
+        if should_cancel is not None and should_cancel():
+            raise SimulationCancelled()
+    check_cancelled()
+
     prereq_hard: Dict[str, List[str]] = {}
     prereq_soft: Dict[str, List[str]] = {}
     synergies: Dict[str, List[str]] = {}
@@ -156,11 +174,12 @@ def simulate_task_chain(
             
     # BFS to find all reachable nodes and their relationships for this simulation
     visited = set()
-    queue = [(target_name, True)]
+    queue = deque([(target_name, True)])
     sim_edges = set() # (prereq, dependent)
     
     while queue:
-        current, is_root = queue.pop(0)
+        check_cancelled()
+        current, is_root = queue.popleft()
         if current in visited:
             continue
         visited.add(current)
@@ -200,28 +219,19 @@ def simulate_task_chain(
             'chain_size': 0,
         }
 
-    # Sample durations for each incomplete node
-    task_samples = {}
-    for name in incomplete:
-        node = nodes_dict.get(name)
-        if node:
-            # Inherited-time nodes contribute zero own time — their
-            # constituents are already in the chain and sample independently.
-            # This covers Goals and Milestones (forced to inherited time by the
-            # model) as well as any other container with inherited time.
-            if node.time_mode == 'inherited':
-                task_samples[name] = np.zeros(n_simulations)
-            else:
-                task_samples[name] = _sample_node(node, n_simulations)
-        else:
-            task_samples[name] = np.full(n_simulations, 1.0)
-
-    # Serial execution: total time is the sum of all task durations.
-    # A single person works on one task at a time, so all tasks are sequential
-    # regardless of dependency structure.
+    # One accumulator and a small temporary chunk replace one full sample
+    # array per task. Independent draws preserve the serial-sum distribution.
     samples = np.zeros(n_simulations)
-    for name in incomplete:
-        samples += task_samples[name]
+    for name in sorted(incomplete):
+        check_cancelled()
+        node = nodes_dict[name]
+        if node.time_mode == 'inherited':
+            continue
+        for offset in range(0, n_simulations, 2048):
+            check_cancelled()
+            stop = min(offset + 2048, n_simulations)
+            samples[offset:stop] += _sample_node(node, stop - offset, rng=rng)
+    check_cancelled()
 
     chain_nodes = sorted(incomplete)
 
@@ -237,14 +247,15 @@ def _compute_stats(samples: np.ndarray) -> dict:
     """Compute summary statistics from simulation samples."""
     if np.all(samples == 0):
         return {k: 0.0 for k in ['mean', 'std', 'p10', 'p25', 'p50', 'p75', 'p90', 'min', 'max']}
+    percentiles = np.percentile(samples, [10, 25, 50, 75, 90])
     return {
         'mean': round(float(np.mean(samples)), 1),
         'std': round(float(np.std(samples)), 1),
-        'p10': round(float(np.percentile(samples, 10)), 1),
-        'p25': round(float(np.percentile(samples, 25)), 1),
-        'p50': round(float(np.percentile(samples, 50)), 1),
-        'p75': round(float(np.percentile(samples, 75)), 1),
-        'p90': round(float(np.percentile(samples, 90)), 1),
+        'p10': round(float(percentiles[0]), 1),
+        'p25': round(float(percentiles[1]), 1),
+        'p50': round(float(percentiles[2]), 1),
+        'p75': round(float(percentiles[3]), 1),
+        'p90': round(float(percentiles[4]), 1),
         'min': round(float(np.min(samples)), 1),
         'max': round(float(np.max(samples)), 1),
     }

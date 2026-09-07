@@ -744,7 +744,7 @@ class ConfigManager:
 
     @classmethod
     def format_time_friendly(cls, hours: float | None,
-                             force_one_decimal: bool = False) -> str:
+                             force_one_decimal: bool = False, *, time_settings=None) -> str:
         """Format an hour based on user configured time bounds.
 
         By default, integer values display without a decimal ("1w", "8h").
@@ -762,7 +762,7 @@ class ConfigManager:
         # AttributeError. float() makes the path version-agnostic.
         hours = float(hours)
 
-        settings = cls.get_time_settings()
+        settings = cls.get_time_settings() if time_settings is None else time_settings
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)
         hy = cls.HOURS_PER_YEAR_MULT * hm

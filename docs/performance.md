@@ -26,9 +26,27 @@ helpers now reuse the detached graph rows rather than issuing per-node queries.
 reads after writes, detached node objects, and bounded cache sizes. Timing
 thresholds are deliberately not asserted in ordinary unit tests.
 
-## Simulation baseline
+## Simulation
 
 A Goal with 100/500 independent hard prerequisites, each estimated at 1/2/4
 hours, took approximately 1.75/8.61 seconds at 10,000 trials, with `tracemalloc`
 enabled. Traced peak allocations were 8.14/38.81 MiB. This includes simulation
 and summary statistics, but excludes database reads and Plotly rendering.
+
+After task 4, the same fixed 10,000-trial engine benchmark took 1.86/9.59
+seconds, with peak traced allocations of 0.20/0.32 MiB. Streaming removes the
+per-node sample arrays; it does not make the blended inverse-CDF sampling faster.
+
+The interactive service caps work at 100,000 trials and two million node-trial
+samples. On these graphs it used 10,000/4,000 trials, taking 1.86/3.78 seconds
+without tracing. Reusing the cached summaries took 0.12/0.47 ms (excluding
+database reads, Plotly construction and browser rendering). Fewer trials trade
+some Monte Carlo precision for responsiveness; the panel reports the actual
+count whenever it limits the requested count.
+
+Regression tests cover streamed summation, cancellation during sampling,
+deterministic local random generators, bounded caches, and out-of-order browser
+responses. Full suite after tasks 1–4: 1,189 passing tests.
+Sandbox browser smoke check: Details rendered a selected goal's histogram and
+5,000-trial caption; dependency toggles and tab navigation worked with no captured
+browser errors. This was a functional check, not an end-to-end latency benchmark.

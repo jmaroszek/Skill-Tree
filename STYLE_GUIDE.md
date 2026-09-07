@@ -404,3 +404,10 @@ Do **not** add per-element scrollbar-hiding rules — the global rule covers eve
 | Context menu | `10000` |
 | Tooltip | `9999` |
 | Filters overlay | `100` |
+
+## Calculation status
+
+The Time Simulation panel uses a small muted, polite live-region caption for
+“Calculating…” and the actual trial count. Hide stale results while a different
+selection is calculating. If the responsiveness limit reduces trials, explain
+that beside the count without adding a modal or interrupting navigation.

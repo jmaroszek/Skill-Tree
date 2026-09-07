@@ -4,7 +4,8 @@ Callback definitions for the Details tab.
 
 import database
 import os
-from dash import html, Input, Output, State, ALL, ctx, no_update
+import logging
+from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
 import numpy as np
 import plotly.graph_objects as go
@@ -15,7 +16,8 @@ from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OP
 from details_layout import (build_details_subtasks_table,
                              _build_suggestion_row, build_details_suggestions,
                              build_milestone_tile)
-from simulation import simulate_task_chain
+from simulation import SimulationCancelled
+from simulation_service import simulation_service
 from callback_helpers import (render_link_rows, render_alias_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
                               is_filters_active,
@@ -73,53 +75,45 @@ def _build_milestones_section(subtask_nodes, parent_name, edges):
 
 
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
-                    global_filters=None, max_depth=None):
+                    global_filters=None, max_depth=None, should_cancel=None):
     """Shared helper: run the Monte Carlo simulation and return (figure, style, style)."""
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_helps = bool(include_synergies_val and "include" in include_synergies_val)
-    view = graph_manager.get_dependency_view(
-        node_name,
-        include_soft=include_soft,
-        include_synergies=include_helps,
-        max_depth=max_depth,
-        filters=global_filters,
-    )
-    allowed = set(view["node_names"])
-    nodes_dict = {
-        name: graph_manager.get_node(name) for name in allowed
-    }
-    nodes_dict = {name: node for name, node in nodes_dict.items() if node is not None}
-    if node_name not in nodes_dict:
-        return no_update, no_update, no_update
+    with database.read_snapshot():
+        view = graph_manager.get_dependency_view(
+            node_name,
+            include_soft=include_soft,
+            include_synergies=include_helps,
+            max_depth=max_depth,
+            filters=global_filters,
+        )
+        allowed = set(view["node_names"])
+        nodes_dict = {
+            name: graph_manager.get_node(name) for name in allowed
+        }
+        nodes_dict = {name: node for name, node in nodes_dict.items() if node is not None}
+        if node_name not in nodes_dict:
+            return no_update, no_update, no_update
 
-    permitted_types = {EDGE_NEEDS_HARD}
-    if include_soft:
-        permitted_types.add(EDGE_NEEDS_SOFT)
-    if include_helps:
-        permitted_types.add(EDGE_HELPS)
-    sim_edges = [
-        edge for edge in graph_manager.get_edges()
-        if edge['type'] in permitted_types
-        and edge['source'] in allowed and edge['target'] in allowed
-    ]
+        permitted_types = {EDGE_NEEDS_HARD}
+        if include_soft:
+            permitted_types.add(EDGE_NEEDS_SOFT)
+        if include_helps:
+            permitted_types.add(EDGE_HELPS)
+        sim_edges = [
+            edge for edge in graph_manager.get_edges()
+            if edge['type'] in permitted_types
+            and edge['source'] in allowed and edge['target'] in allowed
+        ]
 
-    result = simulate_task_chain(
-        target_name=node_name,
-        nodes_dict=nodes_dict,
-        edges=sim_edges,
-        include_soft=include_soft,
-        include_helps=include_helps,
-        n_simulations=ConfigManager.get_monte_carlo_trials(),
-    )
+        requested_trials = ConfigManager.get_monte_carlo_trials()
+        time_settings = ConfigManager.get_time_settings()
 
-    samples = result['samples']
+    result = simulation_service.summarize(
+        node_name, nodes_dict, sim_edges, include_soft, include_helps,
+        requested_trials, should_cancel=should_cancel)
     stats = result['stats']
-
-    # Pre-bin server-side: shipping 50 bars is ~50x smaller than shipping
-    # 10,000 raw samples for Plotly to bin in the browser.
-    counts, edges = np.histogram(samples, bins=50)
-    centers = (edges[:-1] + edges[1:]) / 2
-    width = edges[1] - edges[0]
+    counts, centers, width = result['counts'], result['centers'], result['width']
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -135,12 +129,14 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
     ]:
         fig.add_vline(
             x=val, line_dash="dash", line_color=color, line_width=2,
-            annotation_text=f"{label}: {ConfigManager.format_time_friendly(val)}",
+            annotation_text=f"{label}: {ConfigManager.format_time_friendly(val, time_settings=time_settings)}",
             annotation_position="top",
             annotation_font_color=color,
         )
 
     fig.update_layout(
+        meta={"trials": result['trials'], "requested_trials": requested_trials,
+              "chain_size": result['chain_size']},
         template="plotly_dark",
         paper_bgcolor='#1a1d21',
         plot_bgcolor='#1a1d21',
@@ -677,49 +673,70 @@ def register_details_callbacks(app):
             return no_update
         return tap_data.get("id", no_update)
 
-    # --- Run simulation on node selection or when any toggle changes ---
-    # Triggered by details-selected-node-store so it runs in parallel with the
-    # graph callback after select_detail_node writes the store — instead of
-    # blocking inside select_detail_node's 19-output batch.
-    @app.callback(
-        Output("details-sim-chart", "figure", allow_duplicate=True),
-        Output("details-sim-results", "style", allow_duplicate=True),
-        Output("details-sim-empty", "style", allow_duplicate=True),
+    # Browser-generated sequence numbers let both the worker and the chart
+    # discard superseded selections, even if responses arrive out of order.
+    app.clientside_callback(
+        ClientsideFunction(namespace="skillTreeSimulation", function_name="request"),
+        Output("details-sim-request", "data"),
         Input("details-selected-node-store", "data"),
         Input("details-include-soft-needs", "value"),
         Input("details-include-synergies", "value"),
         Input("details-max-depth", "value"),
-        Input("filter-context", "value"),
-        Input("filter-subcontext", "value"),
-        Input("filter-done", "value"),
-        Input("filter-value", "value"),
-        Input("filter-interest", "value"),
-        Input("filter-time", "value"),
-        Input("filter-difficulty", "value"),
-        Input("filter-node-type", "value"),
-        Input("filter-dormant", "value"),
-        Input("details-hide-blocked", "value"),
-        prevent_initial_call=True,
+        Input("filter-context", "value"), Input("filter-subcontext", "value"),
+        Input("filter-done", "value"), Input("filter-value", "value"),
+        Input("filter-interest", "value"), Input("filter-time", "value"),
+        Input("filter-difficulty", "value"), Input("filter-node-type", "value"),
+        Input("filter-dormant", "value"), Input("details-hide-blocked", "value"),
+        Input("filter-time-unit", "value"), Input("graph-version-store", "data"),
+        Input("settings-save-status", "children"), Input("main-tabs", "active_tab"),
     )
-    def run_details_simulation(node_name, include_soft_val,
-                                include_synergies_val, max_depth_val,
-                                f_context, f_subcontext, f_done,
-                                f_value, f_interest, f_time, f_difficulty,
-                                f_node_types, f_show_dormant, hide_blocked_val):
-        if not node_name:
-            empty_fig = go.Figure()
-            empty_fig.update_layout(template="plotly_dark",
-                                    paper_bgcolor='#1a1d21',
-                                    plot_bgcolor='#1a1d21')
-            return empty_fig, {"display": "none"}, {"display": "block"}
-        global_filters = build_filters(f_context, f_subcontext, f_done,
-                                       f_value, f_interest, f_time, f_difficulty,
-                                       f_node_types, f_show_dormant=f_show_dormant)
-        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
-            global_filters['hide_blocked'] = True
-        return _run_simulation(node_name, include_soft_val, include_synergies_val,
-                               global_filters=global_filters,
-                               max_depth=_normalize_max_depth(max_depth_val))
+
+    @app.callback(Output("details-sim-result", "data"),
+                  Input("details-sim-request", "data"), prevent_initial_call=True)
+    def run_details_simulation(request):
+        if not request:
+            return no_update
+        session, sequence = request['session'], request['sequence']
+        if not simulation_service.begin(session, sequence):
+            return no_update
+        identity = dict(session=session, sequence=sequence)
+        if not request.get('node'):
+            return no_update  # begin() still cancels work from the previous tab.
+        cancelled = lambda: simulation_service.cancelled(session, sequence)
+        filters = build_filters(
+            request.get('context'), request.get('subcontext'), request.get('done'),
+            request.get('value'), request.get('interest'), request.get('time'),
+            request.get('difficulty'), request.get('types'),
+            f_time_unit=request.get('timeUnit'), f_show_dormant=request.get('dormant'))
+        if 'hide_blocked' in (request.get('hideBlocked') or []):
+            filters['hide_blocked'] = True
+        try:
+            fig, results_style, empty_style = _run_simulation(
+                request['node'], request.get('soft'), request.get('helps'),
+                global_filters=filters, max_depth=_normalize_max_depth(request.get('depth')),
+                should_cancel=cancelled)
+            if cancelled():
+                return no_update
+            if fig is no_update:
+                return {**identity, 'error': 'This node is no longer available.'}
+            meta = fig.layout.meta
+            caption = f"{meta['trials']:,} trials"
+            if meta['trials'] < meta['requested_trials']:
+                caption += f" (requested {meta['requested_trials']:,}; limited for responsiveness)"
+            return {**identity, 'figure': fig, 'resultsStyle': results_style,
+                    'emptyStyle': empty_style, 'caption': caption}
+        except SimulationCancelled:
+            return no_update
+        except Exception:
+            logging.getLogger(__name__).exception("Time simulation failed")
+            return {**identity, 'error': 'Could not calculate this estimate.'}
+
+    app.clientside_callback(
+        ClientsideFunction(namespace="skillTreeSimulation", function_name="render"),
+        Output("details-sim-chart", "figure"), Output("details-sim-results", "style"),
+        Output("details-sim-empty", "style"), Output("details-sim-status", "children"),
+        Input("details-sim-result", "data"), Input("details-sim-request", "data"),
+    )
 
     # --- Run Simulation from context menu trigger ---
     @app.callback(

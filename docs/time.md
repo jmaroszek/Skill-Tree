@@ -220,6 +220,19 @@ $$ T_{\text{total}}^{(i)} = \sum_{n \in R} T_n^{(i)}, \qquad i = 1, \ldots, N $$
 
 where $R$ is the set of incomplete, non-container nodes collected above. The model assumes one person working one task at a time, so durations add sequentially regardless of dependency structure. 
 
+## Interactive Calculation Limits
+
+The Details panel uses the configured trial count up to 100,000 trials and a
+two-million node-trial work budget (counting incomplete, non-inherited nodes in
+the selected dependency view). Large views therefore use fewer trials; the
+caption reports both the actual and requested counts when capped. This reduces
+Monte Carlo precision, without changing the underlying duration model.
+
+Sampling accumulates into one trial array in chunks instead of retaining an
+array for every task. Unchanged inputs reuse a small summary cache and a stable
+private random seed. A new selection, filter change, or departure from Details
+cancels superseded work; older responses cannot replace the current chart.
+
 ## What's Not Modeled
 
 A few omissions are worth flagging, since they bound how the simulator's output should be read:

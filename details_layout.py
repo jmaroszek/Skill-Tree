@@ -536,6 +536,10 @@ def build_details_tab_content():
     )
 
     sim_section = html.Div([
+        dcc.Store(id="details-sim-request"),
+        dcc.Store(id="details-sim-result"),
+        html.Small(id="details-sim-status", className="text-muted d-block mb-1",
+                   style={"fontSize": "0.85rem"}, **{"aria-live": "polite"}),
         html.Div(id="details-sim-empty", children=[
             html.Div([
                 html.P("Select a node to see the time distribution.",

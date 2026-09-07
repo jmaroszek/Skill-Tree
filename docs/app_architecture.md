@@ -129,3 +129,18 @@ change stored status, and may revisit a shared dependent after another prerequis
 changes. Cache reads/publication share the write coordination lock; reads inside
 an uncommitted save bypass committed caches. The UI version bridge also observes
 event, Details and settings refreshes, independently of the main canvas.
+
+## Simulation requests
+
+`assets/simulation_requests.js` assigns a browser-session ID and increasing
+sequence to each Details simulation request. The server reads a detached graph
+and settings snapshot, releases database coordination, then calls
+`simulation_service.py`. At most two calculations sample concurrently; newer
+requests cancel older work between chunks. The client only displays a response
+matching its current request, including when server responses arrive out of order.
+
+The service retains at most 16 compact histogram/statistic summaries and 128
+session sequence records. Cache keys include relevant node times/statuses,
+relationships and effective trial count. Sampling uses a private deterministic
+generator, so cache eviction does not cause an unchanged estimate to jump.
+See [time.md](time.md) for the calculation budget and precision tradeoff.
