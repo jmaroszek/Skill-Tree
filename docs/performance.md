@@ -50,3 +50,17 @@ responses. Full suite after tasks 1–4: 1,189 passing tests.
 Sandbox browser smoke check: Details rendered a selected goal's histogram and
 5,000-trial caption; dependency toggles and tab navigation worked with no captured
 browser errors. This was a functional check, not an end-to-end latency benchmark.
+
+## Next interaction follow-up
+
+Next rows and Now cards now carry their descriptions in the initial layout.
+Selecting either updates the highlight and description in a clientside callback;
+no server callback subscribes to selection. Previously a click required a server
+selection request followed by description, Now-card and core graph/table work.
+Recommendation refreshes are now separate from the core graph callback, and
+layout generation no longer builds the hidden canvas before Next can render.
+
+Sandbox checks covered rapid row changes, Now selection and navigation to the
+populated Nodes canvas. Regression tests cover initial saved filters, selection
+refresh/removal, and the absence of server selection subscribers. These are
+functional and callback-dependency checks; no end-to-end latency number is claimed.

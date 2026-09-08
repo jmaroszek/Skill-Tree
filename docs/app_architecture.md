@@ -130,6 +130,21 @@ changes. Cache reads/publication share the write coordination lock; reads inside
 an uncommitted save bypass committed caches. The UI version bridge also observes
 event, Details and settings refreshes, independently of the main canvas.
 
+## Next responsiveness
+
+Next and Now content is included in the initial layout, using the same hydrated
+filter controls as the sidebar. The shared layout template is copied for each
+request. The hidden main canvas starts empty and is populated by the existing
+initial core callback, avoiding duplicate element generation during layout.
+
+`next_callbacks.py` owns recommendation refreshes for graph versions, filters,
+row count and settings. The core callback's legacy table output returns
+`no_update`; it no longer scores and renders Next during unrelated graph work.
+Descriptions travel with visible rows as text. `assets/next_selection.js` handles
+row/Now-card selection, highlights and description changes clientside. Selection
+is State, not Input, for server callbacks. Refreshes retain a still-visible
+selection, update its description, and clear it when the row disappears.
+
 ## Simulation requests
 
 `assets/simulation_requests.js` assigns a browser-session ID and increasing

@@ -100,7 +100,9 @@ app = dash.Dash(__name__, external_stylesheets=[
 ])
 app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
 app.layout = database.snapshot_read(
-    lambda: build_app_layout(initial_elements=generate_elements(), env=ENVIRONMENT))
+    # The initial core callback fills the canvas. Avoid generating the same
+    # hidden graph twice before the default Next tab becomes usable.
+    lambda: build_app_layout(initial_elements=[], env=ENVIRONMENT))
 register_callbacks(app)
 register_event_callbacks(app)
 register_details_callbacks(app)

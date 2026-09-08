@@ -2,16 +2,55 @@
 Callback definitions for the Next tab (priority suggestions).
 """
 
-import dash
 import database
+from copy import deepcopy
 
-from dash import Input, Output, State, ALL, ctx, html
+from dash import Input, Output, State, ALL, ClientsideFunction
 from graph_manager import GraphManager
 from config import ConfigManager
-from callback_helpers import get_trigger_id, format_now_nodes_section, SECTION_TITLE_STYLE
+from callback_helpers import get_trigger_id, format_now_nodes_section, format_suggestions_table, build_filters
 from models import STATUS_DONE
 
 manager = GraphManager()
+
+
+def _components_by_id(children):
+    """Index a component tree without modifying shared layout templates."""
+    found = {}
+    def visit(component):
+        if isinstance(component, (list, tuple)):
+            for child in component:
+                visit(child)
+        elif hasattr(component, 'to_plotly_json'):
+            identity = getattr(component, 'id', None)
+            if isinstance(identity, str):
+                found[identity] = component
+            visit(getattr(component, 'children', None))
+    visit(children)
+    return found
+
+
+@database.snapshot_read
+def _initial_next_view(template, sidebars):
+    """Ship usable Next content in the first layout, with the actual UI filters."""
+    view = deepcopy(template)
+    controls = _components_by_id(sidebars)
+    def value(identity):
+        return controls[identity].value
+    filters = build_filters(
+        value('filter-context'), value('filter-subcontext'), value('filter-done'),
+        value('filter-value'), value('filter-interest'), value('filter-time'),
+        value('filter-difficulty'), value('filter-node-type'),
+        f_time_unit=value('filter-time-unit'), f_show_dormant=value('filter-dormant'))
+    parts = _components_by_id(view)
+    count = ConfigManager.get_next_table_rows()
+    parts['suggestion-count-store'].data = count
+    parts['suggestion-count-display'].children = str(count)
+    parts['suggestions-table'].children = format_suggestions_table(
+        get_suggestions(filters, count=count), manager, override_set=get_override_set())
+    parts['now-nodes-table'].children = format_now_nodes_section(
+        manager.get_now_nodes(), ConfigManager.get_now_node_cap(), manager)
+    return view
 
 
 @database.snapshot_read
@@ -124,20 +163,41 @@ def register_next_callbacks(app):
             count = max(1, count - 1)
         return count, str(count)
 
-    # --- Suggestion Row / Now Card Selection ---
-    @app.callback(
+    # Selection uses descriptions already shipped with the visible rows.
+    # No Python request or graph/table refresh is needed for a click.
+    app.clientside_callback(
+        ClientsideFunction(namespace='skillTreeNext', function_name='select'),
         Output('selected-suggestion-store', 'data'),
+        Output('next-description-text', 'children'),
+        Output({'type': 'suggestion-row', 'index': ALL}, 'style'),
+        Output({'type': 'now-row', 'index': ALL}, 'style'),
+        Output('next-description-text', 'style'),
         Input({'type': 'suggestion-row', 'index': ALL}, 'n_clicks'),
         Input({'type': 'now-row', 'index': ALL}, 'n_clicks'),
-        prevent_initial_call=True
+        Input('suggestions-table', 'children'),
+        Input('now-nodes-table', 'children'),
+        State('selected-suggestion-store', 'data'),
     )
-    def update_selected_suggestion(sugg_clicks, now_clicks):
-        if not any(sugg_clicks or []) and not any(now_clicks or []):
-            return dash.no_update
-        trigger_id = ctx.triggered_id
-        if trigger_id and isinstance(trigger_id, dict) and 'index' in trigger_id:
-            return trigger_id['index']
-        return dash.no_update
+
+    @app.callback(
+        Output('suggestions-table', 'children'),
+        Input('graph-version-store', 'data'),
+        Input('suggestion-count-store', 'data'),
+        Input('filter-context', 'value'), Input('filter-subcontext', 'value'),
+        Input('filter-done', 'value'), Input('filter-value', 'value'),
+        Input('filter-interest', 'value'), Input('filter-time', 'value'),
+        Input('filter-time-unit', 'value'), Input('filter-difficulty', 'value'),
+        Input('filter-node-type', 'value'), Input('filter-dormant', 'value'),
+        Input('settings-save-status', 'children'),
+    )
+    @database.snapshot_read
+    def populate_suggestions(_version, count, context, subcontext, done, value,
+                             interest, time, time_unit, difficulty, types, dormant, _settings):
+        filters = build_filters(context, subcontext, done, value, interest, time,
+                                difficulty, types, f_time_unit=time_unit,
+                                f_show_dormant=dormant)
+        return format_suggestions_table(get_suggestions(filters, count=count or 10),
+                                        manager, override_set=get_override_set())
 
     # --- Now Section: populate now-nodes-table ---
     # Listens to graph-version-store so the section refreshes whenever any
@@ -146,7 +206,7 @@ def register_next_callbacks(app):
     @app.callback(
         Output('now-nodes-table', 'children'),
         Input('graph-version-store', 'data'),
-        Input('selected-suggestion-store', 'data'),
+        State('selected-suggestion-store', 'data'),
     )
     def populate_now_section(_version, selected_node_id):
         now_nodes = manager.get_now_nodes()
@@ -156,29 +216,3 @@ def register_next_callbacks(app):
             manager=manager,
             selected_node_id=selected_node_id,
         )
-
-    # --- Description area: populate from selected suggestion/card ---
-    @app.callback(
-        Output('next-description-area', 'children'),
-        Input('selected-suggestion-store', 'data'),
-        Input('graph-version-store', 'data'),
-    )
-    def populate_description_area(selected_node_id, _version):
-        title = html.H6("Description", className="text-muted mb-2",
-                        style=SECTION_TITLE_STYLE)
-        if not selected_node_id:
-            return [
-                title,
-                html.Div("Click a card or row to see its description",
-                         style={"color": "#6c757d", "whiteSpace": "pre-wrap",
-                                "fontSize": "0.95rem"}),
-            ]
-        node = manager.get_node(selected_node_id)
-        desc = (node.description.strip()
-                if node and node.description and node.description.strip()
-                else "No description")
-        return [
-            title,
-            html.Div(desc, style={"color": "#dee2e6", "whiteSpace": "pre-wrap",
-                                  "fontSize": "0.95rem"}),
-        ]

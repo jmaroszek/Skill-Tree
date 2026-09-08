@@ -147,7 +147,7 @@ next_view = html.Div([
         # Description area — populated when clicking a Now card or Next row.
         html.Div(id="next-description-area", children=[
             html.H6("Description", className="text-muted mb-2", style=_section_title_style),
-            html.Div("Click a card or row to see its description",
+            html.Div("Click a card or row to see its description", id="next-description-text",
                      style={"color": "#6c757d", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
         ], style={"flex": "1 1 0", "maxWidth": "800px"}),
     ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
@@ -957,6 +957,9 @@ reflection_ratings_editor_modal = dbc.Modal([
 @database.snapshot_read
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
+    from next_callbacks import _initial_next_view
+    sidebars = build_all_sidebars()
+    initial_next = _initial_next_view(next_view, sidebars)
     
     edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
@@ -1178,7 +1181,7 @@ def build_app_layout(initial_elements, env="production"):
         id="next-tab-content",
         children=[
             html.Div([
-                html.Div([next_view], className="px-4 pt-3 pb-4"),
+                html.Div([initial_next], className="px-4 pt-3 pb-4"),
             ], style={"flex": "1", "minHeight": "0", "overflowY": "auto"}),
             html.Div(id="next-filter-indicator", className="canvas-stats-overlay"),
             html.Div(id="next-perf-stats", className="next-perf-overlay"),
@@ -1347,7 +1350,7 @@ def build_app_layout(initial_elements, env="production"):
             events_tab_content,
             analyze_tab_content,
             # --- Cross-tab sidebar overlays (editor / goals / events / filters) ---
-            *build_all_sidebars()
+            *sidebars
         ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),
     ], style={"width": "100vw", "height": "100vh", "overflow": "hidden",
               "display": "flex", "flexDirection": "column"})

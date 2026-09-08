@@ -23,13 +23,12 @@ from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
                     DEFAULT_EVENTS_GRAPH_LAYOUT)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from next_callbacks import get_suggestions, get_override_set
 from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
     node_options, build_filters, is_filters_active,
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     prior_node_for_completion,
-    format_suggestions_table, format_traversal_ui,
+    format_traversal_ui,
     render_link_rows, render_alias_rows, spawn_local_file_picker,
     strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
@@ -1637,7 +1636,7 @@ def register_callbacks(app):
     # positions from drifting on save during bulk-edit freeze mode.
     @app.callback(
         [Output('elements-pending-store', 'data', allow_duplicate=True), Output('save-output', 'children'),
-         Output('suggestions-table', 'children'),
+         Output('suggestions-table', 'children', allow_duplicate=True),
          Output('traversal-chains-hard', 'children'), Output('traversal-chains-soft', 'children'),
          Output('synergies-list', 'children'), Output('node-info-description', 'children'),
          Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
@@ -1677,7 +1676,9 @@ def register_callbacks(app):
          Input('btn-toggle-done-node', 'n_clicks'),
          Input('group-delete-input', 'value'),
          Input('filter-node-type', 'value'),
-         Input('selected-suggestion-store', 'data'),
+         # State in this grouped list preserves the established argument order,
+         # while selection no longer triggers a server request.
+         State('selected-suggestion-store', 'data'),
          Input('focus-goal-store', 'data'),
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value'),
@@ -2100,8 +2101,7 @@ def register_callbacks(app):
             clear_focus_style = dash.no_update
 
             # Still format sidebar traversal UI
-            count = sugg_count if sugg_count else 10
-            sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
+            sugg_ui = dash.no_update  # Next owns recommendation rendering independently.
             effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
@@ -2140,8 +2140,7 @@ def register_callbacks(app):
             elements = generate_elements(filters, active_node_id,
                                         community_names=community_names)
 
-            count = sugg_count if sugg_count else 10
-            sugg_ui = format_suggestions_table(get_suggestions(filters, count=count), manager, active_suggestion_id, override_set=get_override_set())
+            sugg_ui = dash.no_update  # Next owns recommendation rendering independently.
             effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
