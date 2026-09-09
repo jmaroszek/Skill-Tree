@@ -247,10 +247,9 @@ class Node:
 
         This is the user-facing notion of "container": a node that draws at
         least some of its numbers from the work beneath it rather than holding
-        them itself. It still competes for recommendations as long as it keeps
-        one own dimension — e.g. a node with own ratings but inherited time is
-        a container, and is still ranked. See `is_pure_container` for the
-        stricter "nothing of its own" case that scoring excludes entirely.
+        them itself. It is a label, not a scoring gate. Whether a container is
+        recommended depends on which dimension it inherits — see
+        `has_no_own_work`, which is what the recommender actually tests.
         """
         return self.value_mode == 'inherited' or self.time_mode == 'inherited'
 
@@ -267,6 +266,27 @@ class Node:
         gate; `is_container` is the broader user-facing label.
         """
         return self.value_mode == 'inherited' and self.time_mode == 'inherited'
+
+    @property
+    def has_no_own_work(self) -> bool:
+        """True when the node has no hours of its own, so nothing to *do*.
+
+        `time_mode='inherited'` means the node draws its time from its hard
+        prerequisites. `scoring.is_eligible` requires every hard prerequisite
+        to be Done. Those are the same set, so at the moment such a node
+        becomes rankable, every hour it inherited has already been spent —
+        there is nothing left to work on, only a box to tick.
+
+        The Next tab answers "what should I work on next", so these are not
+        recommended; their prerequisites competed on their own hours, and the
+        Details tab surfaces containers separately. Cascade still flows through
+        them, exactly as it does for `is_pure_container`.
+
+        Note this deliberately keys on time alone. A node with inherited
+        *ratings* but its own time has real work to do and merely draws its
+        worth from what it unlocks, so it stays rankable.
+        """
+        return self.time_mode == 'inherited'
 
     def to_dict(self):
         # Shallow-copy the field values rather than dataclasses.asdict(),

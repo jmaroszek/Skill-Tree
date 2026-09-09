@@ -3,7 +3,7 @@
 
 The priority score answers the app's central question: *what should I work on next?*
 
-Not every node competes for that answer. Only **eligible** nodes do -- open *Learn*, *Action*, and *Resource* nodes. Goals and Milestones are each set aside for a different reason. Goals get their own ranking, while Milestones are transparent checkpoints that pass value through without competing. Eligibility is defined precisely in [Eligibility and the Status Cascade](#eligibility-and-the-status-cascade).
+Not every node competes for that answer. Only **eligible** nodes do -- open *Learn*, *Action*, and *Resource* nodes that hold hours of their own. Goals and Milestones are each set aside for a different reason. Goals get their own ranking, while Milestones are transparent checkpoints that pass value through without competing. Containers that inherit their time are set aside too, for the reason given in [Containers Are Not Recommended](#containers-are-not-recommended). Eligibility is defined precisely in [Eligibility and the Status Cascade](#eligibility-and-the-status-cascade).
 
 Every eligible node starts with a **base priority score**: a return-on-investment ratio of value over cost. Three multipliers then adjust it — the goal-priority boost, context weight, and density normalization. The adjusted scores are rescaled to 0–100 and sorted into the Next tab's suggestion list.
 
@@ -13,7 +13,15 @@ The sections that follow build the score one piece at a time: intrinsic value, p
 
 Intrinsic value ($IV$) measures how much a node is worth on its own, before its relationships to other nodes are considered. It comes from two of the user's 1–10 ratings. **Value** $V(n)$ is how important or useful the project is. **Interest** $I(n)$ is how much the user actually wants to do it. The two are kept separate because they often diverge: a project can be valuable but dull, or fun but trivial. The scoring profile sets how much each counts, through the weights $w_V$ and $w_I$.
 
-$$ \text{IV}(n) = w_V \cdot V(n) + w_I \cdot I(n) $$
+$$ \text{IV}(n) = w_V \cdot V(n)^{\gamma} + w_I \cdot I(n)^{\gamma} $$
+
+The exponent $\gamma$ decides how sharply the ratings separate. At $\gamma = 1$ the formula is a plain weighted sum, and a 10 counts exactly twice a 5. Sage uses $\gamma = 2$, where a 10 counts four times a 5.
+
+That exponent is not cosmetic, and the reason lies in the cascade. Total value sums intrinsic value across a node's descendants. A sum of many similar terms is governed by how *many* terms it has, not how large each one is. Ratings also cluster: on a real graph they span about $5\times$ end to end while subtree sizes span more than $40\times$. Averaging over a subtree then halves what spread the ratings had left, from $0.37$ to $0.23$ relative to the mean.
+
+The result at $\gamma = 1$ is that total value behaves close to a descendant count. Measured on a ~450-node graph, a node unlocking eight projects rated 9/9 scored only $3.3\times$ a node unlocking eight rated 2/2. At $\gamma = 2$ that gap widens to $9.4\times$, which is the intended reading: unlocking *valuable* work should beat unlocking *plentiful* work.
+
+A power was chosen over subtracting a baseline from each rating. Both widen the spread by similar amounts, but subtraction sends every rating at or below the baseline to exactly zero, so a single pessimistic rating can erase a node from the cascade entirely. A power never reaches zero: a 1 still contributes.
 
 A node with an **inherited** value mode has $\text{IV}(n) = 0$, regardless of any ratings stored for it. Such a node is a pure structural conduit: it derives its standing from its children rather than its own ratings. The cascade still flows through it, but it adds nothing on its own.
 
@@ -21,13 +29,23 @@ A node with an **inherited** value mode has $\text{IV}(n) = 0$, regardless of an
 
 Perceived cost is how *expensive* a node feels to complete, in terms of time and energy. It draws on two inputs: **difficulty** and **time**. The user sets the difficulty rating $D(n)$ directly. A point, range, or three-point time estimate collapses into the single value $t(n)$, as covered in [time.md](time.md).
 
-$$ \text{Cost}(n) = 1 + w_e \cdot D(n) + w_t \cdot t(n)^\beta $$
+$$ \text{Cost}(n) = 1 + w_e \cdot D(n) + w_t \cdot \left(\frac{t(n)}{t_{\text{ref}}}\right)^{\beta} $$
 
-A leading constant, two weights, and an exponent shape the cost. The $1$ keeps the denominator positive even when $D$ and $t$ are both zero, as they are for a container. The weights $w_e$ and $w_t$ are linear scalars, set by the scoring profile. Difficulty usually carries the larger per-unit weight, since a rating point of difficulty bites harder than an hour of time. The exponent $\beta \in (0, 1]$ is a sublinear damper. It makes long projects feel proportionally less expensive than their raw hours suggest, which matches how people perceive effort. At the Sage default $\beta = 0.85$, a 100-hour project carries about $50\times$ the time penalty of a 1-hour project — not $100\times$.
+A leading constant, two weights, a reference scale, and an exponent shape the cost. The $1$ keeps the denominator positive even when $D$ and $t$ are both zero, as they are for a container. The weights $w_e$ and $w_t$ are linear scalars, set by the scoring profile.
+
+The reference $t_{\text{ref}}$ is a fixed constant of 40 hours. That is roughly the size of a substantial project. Time is divided by it before the exponent applies. The division gives $w_t$ a plain reading: it is the time penalty of a project that takes exactly 40 hours. A 40-hour project always costs $w_t$, whatever $\beta$ happens to be.
+
+The exponent $\beta \in (0, 1]$ is a sublinear damper. It makes long projects feel proportionally less expensive than their raw hours suggest. That matches how people perceive effort. At the Sage default $\beta = 0.60$, a 400-hour project carries about $4\times$ the time penalty of a 4-hour project, not $100\times$.
+
+Separating out $t_{\text{ref}}$ matters more than it looks. Without it the formula is $w_t \cdot t^\beta$. There $\beta$ quietly does two jobs at once. It sets the curvature of the penalty. It also sets the magnitude, because $t^\beta$ shrinks everywhere as $\beta$ falls. On a real graph, lowering $\beta$ from $0.85$ to $0.45$ shrank the whole time term by about $5.7\times$. The intent of such a change is to stop time from dominating. The actual effect was to shrink the denominator until *difficulty* dominated instead. With the reference in place, $\beta$ changes only the shape of the curve. $w_t$ alone sets its height.
+
+$t_{\text{ref}}$ is deliberately hardcoded rather than measured from the graph. A reference taken from the live median would make every node's cost depend on the whole graph. Long projects would get quietly cheaper as work is completed. The scoring cache would also no longer be sound.
 
 ![Perceived Cost](../images/scoring-cost-beta.png)
 
-*The exponent $`\beta`$ bends the time penalty sublinearly. A lower $`\beta`$ bends harder.*
+*The exponent $`\beta`$ bends the time penalty sublinearly. A lower $`\beta`$ bends harder. Every curve meets at the reference.*
+
+The Goal ranker in the Analyze tab uses the same formula, with the same $w_t$ and $\beta$. Its cost is a Goal's entire remaining hard-prerequisite subtree rather than one node's estimate. Subtrees run about $33\times$ larger than single nodes. So the Goal ranker normalizes against its own reference of 1300 hours. Without a separate reference the same knob would mean two different things in the two places.
 
 ## The DAG Cascade
 
@@ -148,6 +166,8 @@ This is a counterweight to context size. Without it, a heavily decomposed contex
 
 $$ \delta(n) = \frac{1}{\max(1,\, |B(n)|)^\alpha} $$
 
+Bucket population is counted across the **whole graph**, not across whatever subset is currently being scored. This matters because callers routinely score a subset: the Next tab drops nodes already marked *Now* and applies the user's filters before scoring. Counting the subset would make every surviving node's density multiplier depend on the active filter, so a filter would re-sort the rows it kept rather than merely hiding rows. Measured on a ~450-node graph, a "minimum value 6" filter moved a surviving node by up to 101 places. A bucket's size is a property of the graph, so it is measured against the graph.
+
 The exponent $\alpha \in [0, 1]$ controls how aggressively dense buckets are damped. At $\alpha = 0$ the term vanishes, so there's no normalization. At $\alpha = 1$, a bucket's combined weight equals its single-node weight — full flattening, so a dense context never wins by sheer attrition. The Sage default $\alpha = 0.30$ damps heavily decomposed contexts without erasing their edge. The intent is to keep the user well-rounded: even if STEM holds the biggest projects, smaller contexts still get a fair chance to surface their best candidates.
 
 A note on buckets. Nodes with no subcontext, written `(context, None)`, share one bucket within their context. They represent broadly applicable work within a major life area — relationships, science, entertainment.
@@ -163,6 +183,8 @@ Putting it all together:
 $$ P(n) = P_{\text{base}}(n) \cdot \rho(n) \cdot w_c(\text{ctx}(n)) \cdot \delta(n) $$
 
 A node's final priority is its ROI ratio, scaled by the goal-priority boost, the context weight, and the density correction. The multipliers compound. A node in a small, weighted-up, priority-goal subtree can stack all three and surface aggressively. A node in a large, weighted-down, non-priority context gets pushed deep down the list.
+
+Nodes are **ordered** by the unrounded score, while the figure stored and displayed is rounded to two decimals. Rounding is lossy enough to matter: on a ~450-node graph it collapses about 440 distinct scores into roughly 170, so past about rank 30 most nodes would otherwise tie with a neighbour and fall back on list order, which carries no meaning. Ordering on the exact value keeps the displayed number readable without making the sequence arbitrary.
 
 For display on the Next tab, scores are linearly rescaled against the top eligible node.
 
@@ -200,31 +222,50 @@ The six built-in profiles are essentially hyperparameter bundles. The first tabl
 ### Profile Hyperparameters
 | Parameter | Symbol | Sage | Explorer | Compounder | Pragmatist | Creator | Glider |
 |---|---|---|---|---|---|---|---|
-| Value weight | $w_V$ | 1.00 | 1.00 | 1.00 | 1.50 | 1.00 | 1.00 |
-| Interest weight | $w_I$ | 1.00 | 1.50 | 1.00 | 1.00 | 1.00 | 1.00 |
-| Hard discount | $d_H$ | 0.60 | 0.60 | 0.80 | 0.65 | 0.60 | 0.45 |
-| Soft discount | $d_S$ | 0.40 | 0.40 | 0.50 | 0.20 | 0.40 | 0.30 |
-| Synergy pair bonus | $d_{\text{Syn,pair}}$ | 0.10 | 0.15 | 0.10 | 0.05 | 0.25 | 0.05 |
-| Synergy completion mult | $d_{\text{Syn,mul}}$ | 0.40 | 0.60 | 0.40 | 0.25 | 0.80 | 0.20 |
-| Cross-context synergy mult | $m_{\text{cross}}$ | 1.00 | 1.50 | 1.00 | 1.00 | 2.00 | 1.00 |
-| Difficulty weight | $w_e$ | 2.50 | 2.50 | 1.50 | 2.50 | 2.50 | 3.50 |
-| Time weight | $w_t$ | 1.00 | 1.00 | 0.85 | 1.50 | 1.00 | 4.00 |
-| Time exponent | $\beta$ | 0.85 | 0.85 | 0.70 | 0.85 | 0.85 | 0.95 |
-| Priority goal boost | $b$ | 1.50 | 1.50 | 1.50 | 2.00 | 1.50 | 1.00 |
-| Density exponent (scored) | $\alpha$ | 0.30 | 0.40 | 0.20 | 0.20 | 0.30 | 0.40 |
-| Density exponent (Goals) | $\alpha_g$ | 0.20 | 0.30 | 0.15 | 0.15 | 0.20 | 0.30 |
+| Value weight | $w_V$ | 1.00 | 0.50 | 1.60 | 2.00 | 1.00 | 1.00 |
+| Interest weight | $w_I$ | 1.00 | 2.00 | 0.40 | 0.50 | 1.00 | 1.00 |
+| Rating exponent | $\gamma$ | 2.00 | 2.50 | 1.50 | 2.50 | 2.00 | 1.00 |
+| Hard discount | $d_H$ | 0.60 | 0.50 | 0.92 | 0.65 | 0.55 | 0.40 |
+| Soft discount | $d_S$ | 0.40 | 0.35 | 0.20 | 0.02 | 0.45 | 0.25 |
+| Synergy pair bonus | $d_{\text{Syn,pair}}$ | 0.10 | 0.35 | 0.02 | 0.00 | 0.60 | 0.05 |
+| Synergy completion mult | $d_{\text{Syn,mul}}$ | 0.40 | 0.90 | 0.10 | 0.10 | 1.30 | 0.20 |
+| Cross-context synergy mult | $m_{\text{cross}}$ | 1.00 | 2.50 | 1.00 | 1.00 | 3.00 | 1.00 |
+| Difficulty weight | $w_e$ | 1.50 | 1.50 | 1.00 | 1.80 | 1.50 | 3.50 |
+| Time weight | $w_t$ | 6.00 | 6.00 | 5.00 | 7.00 | 6.00 | 135.0 |
+| Time exponent | $\beta$ | 0.60 | 0.60 | 0.50 | 0.70 | 0.60 | 0.95 |
+| Priority goal boost | $b$ | 1.50 | 1.00 | 1.00 | 4.00 | 1.00 | 1.00 |
+| Density exponent (scored) | $\alpha$ | 0.30 | 0.65 | 0.00 | 0.10 | 0.30 | 0.45 |
+| Density exponent (Goals) | $\alpha_g$ | 0.20 | 0.50 | 0.00 | 0.05 | 0.20 | 0.35 |
+
+$w_t$ is read against the 40-hour reference, so Glider's 135 is not a typo. It is the value that produces a very steep time penalty once time is divided by $t_{\text{ref}}$.
 
 A **Custom** profile is also available, exposing every parameter for fine tuning.
+
+### Two Knobs That Look Like Levers But Are Not
+
+Anyone tuning a profile should know about two parameters that do far less than their names suggest.
+
+Scaling $w_V$ and $w_I$ together changes nothing at all. Total value is homogeneous of degree 1 in intrinsic value. Multiplying both weights multiplies every node's score by the same constant, so the ranking is identical. Only the *ratio* between them does anything.
+
+Even that ratio is a weak lever. A node's own intrinsic value is a median of just 39% of its total value. The other 61% arrives through the cascade, which is scored with the same two weights on descendants. Swinging the ratio to 4:1 moves the top ten by about one position.
+
+The cross-context multiplier $m_{\text{cross}}$ is nearly inert on its own. It scales the synergy pair bonus, so it can only matter when $d_{\text{Syn,pair}}$ is large enough for that bonus to register. Raising $m_{\text{cross}}$ to 3.0 while leaving $d_{\text{Syn,pair}}$ at the Sage default leaves the top ten untouched. Creator raises both together, which is why the pairing works there.
+
+A third, $d_{\text{Syn,mul}}$, is inert for a different reason: it is real, but it only fires once a synergy partner is **Done**. On a graph early in its life almost nothing is finished, so $\mu_Y = 1$ nearly everywhere. On a ~450-node graph with 14 completed nodes, just 7 nodes had a Done synergy partner — so the multiplier applied to 1% of the graph. It is worth setting correctly for later, but it will not differentiate a profile until a good deal of work has been marked complete. Creator's character comes from its large $d_{\text{Syn,pair}}$ and $m_{\text{cross}}$, not from its $d_{\text{Syn,mul}}$.
+
+The parameters that genuinely re-sort the list are $\gamma$, $d_S$, $d_H$, the synergy pair bonus, $\alpha$, and $b$.
 
 ### The Perspective of Each Profile
 | Profile | Perspective | Parameter Tweaks |
 |---|---|---|
-| **Sage** | The reference baseline — balanced ROI ranking with no strong lean in any direction. | All other profiles are expressed as deltas off these defaults. |
-| **Explorer** | Curiosity-driven. Favors what you find interesting, rewards cross-domain links, and gives sparse contexts a fair shot. | $w_I > w_V$ flips the intrinsic value ranking toward interest. Synergy parameters elevated and $m_{\text{cross}} = 1.5$ rewards cross-domain pairs. Higher $\alpha$ damps dense contexts harder so obscure work surfaces. |
-| **Compounder** | Long-payoff foundational work. Distant downstream value matters; heavy investments shouldn't feel scary. | Cascade discounts $d_H, d_S$ raised so value carries further down the chain. Cost knobs $w_e, w_t, \beta$ all lowered so big projects have a smaller cost penalty. |
-| **Pragmatist** | Goal-driven execution. What you said matters most should dominate; ignore distractions. | $w_V$ favored over $w_I$. Synergy parameters minimized; $d_S$ slashed so soft-helpful work doesn't bubble up. $b = 2.0$ doubles the rank-1 priority-goal boost. |
-| **Creator** | Synthesis and cross-disciplinary work. Rewards pairings that blend across domains. | Synergy parameters 2-3× their Sage values; $m_{\text{cross}} = 2.0$ doubles cross-domain pair bonuses, the highest of any profile. |
-| **Glider** | Light, varied, low-friction work. For seasons when you need to coast. | Every cost knob raised ($w_e \uparrow$, $w_t \times 4$, $\beta \to 0.95$) so heavy work is penalized hard. Cascade and synergy contributions damped. $b = 1.0$ disables the priority-goal boost so non-priority work competes fairly. |
+| **Sage** | The reference baseline. A balanced ranking that leans no particular direction, landing near the graph's own median on time, value and interest alike. | All other profiles are expressed as deltas off these defaults. |
+| **Explorer** | Curiosity-driven. Favors what you find interesting, rewards cross-domain links, and gives sparse contexts a fair shot. | $w_I$ set to four times $w_V$, and the highest $\gamma$ of any profile so those ratings bite hard. Synergy parameters raised far enough that $m_{\text{cross}} = 2.5$ actually registers. A high $\alpha = 0.65$ damps dense contexts hard, so obscure work surfaces. $b = 1.0$ switches off the goal boost, since goals are not the point here. |
+| **Compounder** | Foundational depth. Work that unlocks long prerequisite chains, whether or not it is enjoyable. | The lowest $\gamma$ of the rating-driven profiles, deliberately: this profile is about structure, so ratings should not drown out reach. $d_H = 0.92$ carries value far along *hard* chains. $d_S = 0.20$ keeps soft links from flooding value everywhere. That contrast is what selects unlock-heavy nodes, and a high $d_S$ would erase it. $\alpha = 0$ lets deep contexts win on merit. |
+| **Pragmatist** | Goal-driven execution. What you said matters most should dominate, and distractions should not surface at all. | $w_V$ set to four times $w_I$. $d_S = 0.02$ all but removes soft prerequisites, and the synergy terms go to zero. $b = 4.0$ makes the priority-goal boost decisive. |
+| **Creator** | Synthesis and cross-disciplinary work. Rewards pairings that blend across domains. | $d_{\text{Syn,pair}} = 0.60$ and $d_{\text{Syn,mul}} = 1.30$ are the largest of any profile. That is what gives $m_{\text{cross}} = 3.0$ real leverage. Roughly seven in ten of its top picks carry a cross-context Helps edge. |
+| **Glider** | Light, varied, low-friction work. For seasons when you need to coast. | $\gamma = 1$ keeps ratings plain and linear — no need to agonise over them while coasting. Every cost knob raised so heavy work is penalized hard: $w_e = 3.5$, a very large $w_t$, and $\beta \to 0.95$ to keep the penalty close to linear in hours. Cascade and synergy contributions damped. $b = 1.0$ disables the priority-goal boost so non-priority work competes fairly. |
+
+The profiles are tuned to disagree. Across a roughly 450-node graph, any two of them share about 2 of their top 10 suggestions, and no pair shares more than 6. Switching profile is meant to hand you a genuinely different list, not a reshuffle of the same one.
 
 ## Worked Example
 
@@ -256,33 +297,35 @@ flowchart LR
 
 The steps below walk it through the pipeline in order.
 
-**Intrinsic value** — $`\text{IV} = w_V V + w_I I = (1)(9) + (1)(8) = 9 + 8 = 17`$.
+**Intrinsic value** — with $\gamma = 2$, $`\text{IV} = w_V V^\gamma + w_I I^\gamma = (1)(9^2) + (1)(8^2) = 81 + 64 = 145`$.
 
-**Cascade** — each Hard hop discounts by $d_H = 0.6$:
+**Cascade** — each Hard hop discounts by $d_H = 0.6$. The descendants' intrinsic values are computed the same way, from their own ratings:
 
-| Hop | Node | IV | Weight | Contribution |
-|---|---|---|---|---|
-| 1 | Strength | 14 | $0.6$ | $8.40$ |
-| 2 | Exercise | 20 | $0.6^2 = 0.36$ | $7.20$ |
-| 3 | Health | 17 | $0.6^3 = 0.216$ | $3.67$ |
+| Hop | Node | Ratings | IV | Weight | Contribution |
+|---|---|---|---|---|---|
+| 1 | Strength | $V=8, I=6$ | $100$ | $0.6$ | $60.0$ |
+| 2 | Exercise | $V=9, I=9$ | $162$ | $0.6^2 = 0.36$ | $58.3$ |
+| 3 | Health | $V=8, I=8$ | $128$ | $0.6^3 = 0.216$ | $27.6$ |
 
-Summing the contributions gives the cascade term $`\text{TV}_{\text{dag}} - \text{IV} \approx 19.3`$, so $`\text{TV}_{\text{dag}} \approx 17 + 19.3 = 36.3`$.
+Summing the contributions gives the cascade term $`\text{TV}_{\text{dag}} - \text{IV} \approx 145.9`$, so $`\text{TV}_{\text{dag}} \approx 145 + 145.9 = 290.9`$.
 
-**Synergy** — no partner is Done, so $`k = 0`$ and $`\mu_Y = 1 + d_{\text{Syn,mul}} \sqrt{k} = 1 + (0.40)(0) = 1`$. Taking *Functional Exercise*'s own total value as $`\approx 40`$, the pair bonus is $`\text{Syn}_+ = d_{\text{Syn,pair}} \cdot c \cdot \text{TV}_{\text{dag}}(\text{partner}) = (0.10)(1)(40) = 4`$.
+**Synergy** — no partner is Done, so $`k = 0`$ and $`\mu_Y = 1 + d_{\text{Syn,mul}} \sqrt{k} = 1 + (0.40)(0) = 1`$. Taking *Functional Exercise*'s own total value as $`\approx 300`$, the pair bonus is $`\text{Syn}_+ = d_{\text{Syn,pair}} \cdot c \cdot \text{TV}_{\text{dag}}(\text{partner}) = (0.10)(1)(300) = 30`$.
 
-**Total value** — $`\text{TV} = \mu_Y \cdot \text{IV} + (\text{TV}_{\text{dag}} - \text{IV}) + \text{Syn}_+ = (1)(17) + (36.3 - 17) + 4 = 17 + 19.3 + 4 \approx 40`$.
+**Total value** — $`\text{TV} = \mu_Y \cdot \text{IV} + (\text{TV}_{\text{dag}} - \text{IV}) + \text{Syn}_+ = (1)(145) + 145.9 + 30 \approx 321`$.
 
-**Perceived cost** — $`\text{Cost} = 1 + w_e D + w_t t^\beta = 1 + (2.5)(5) + (1)(83^{0.85}) = 1 + 12.5 + 42.8 \approx 56`$.
+**Perceived cost** — $`\text{Cost} = 1 + w_e D + w_t (t / t_{\text{ref}})^\beta = 1 + (1.5)(5) + (6)(83/40)^{0.60} = 1 + 7.5 + 9.3 \approx 17.8`$.
 
-**Base score** — $`P_{\text{base}} = \text{TV} / \text{Cost} = 40 / 56 \approx 0.71`$. This number is meaningful only *relative* to other nodes' base scores — it is not a percentage and is not bounded to $`[0, 1]`$.
+**Base score** — $`P_{\text{base}} = \text{TV} / \text{Cost} = 321 / 17.8 \approx 18.0`$. This number is meaningful only *relative* to other nodes' base scores — it is not a percentage and is not bounded to $`[0, 1]`$.
 
-**Goal boost** — *Compound Lifts* sits in Health's Hard-prereq subtree and Health is Priority #1, so $`\rho = b = 1.5`$. Then $`P_{\text{base}} \cdot \rho = 0.71 \times 1.5 \approx 1.07`$.
+**Goal boost** — *Compound Lifts* sits in Health's Hard-prereq subtree and Health is Priority #1, so $`\rho = b = 1.5`$. Then $`P_{\text{base}} \cdot \rho = 18.0 \times 1.5 \approx 27.0`$.
 
-**Context adjustment** — assume Health/Exercise is a dense bucket of $`\approx 19`$ eligible nodes and $`w_c = 1`$. Then $`\delta = 1 / 19^{0.30} \approx 0.41`$, giving $`1.07 \times (1) \times 0.41 \approx 0.44`$.
+**Context adjustment** — assume Health/Exercise is a dense bucket of $`\approx 19`$ eligible nodes and $`w_c = 1`$. Then $`\delta = 1 / 19^{0.30} \approx 0.41`$, giving $`27.0 \times (1) \times 0.41 \approx 11.2`$.
 
-**Display** — the Next tab rescales against the top eligible node, $`P_{\text{display}} = 100 \cdot P / \max`$. If the top node's adjusted score is $`\approx 1.0`$, *Compound Lifts* displays as $`100 \times (0.44 / 1.0) \approx \mathbf{44}`$; the Explain modal shows both the raw ($`0.44`$) and normalized ($`44`$) figures.
+**Display** — the Next tab rescales against the top eligible node, $`P_{\text{display}} = 100 \cdot P / \max`$. If the top node's adjusted score is $`\approx 25`$, *Compound Lifts* displays as $`100 \times (11.2 / 25) \approx \mathbf{45}`$; the Explain modal shows both the raw ($`11.2`$) and normalized ($`45`$) figures.
 
-Two things stand out. The cascade supplies about 19 of the 40 total-value points, so the node ranks largely for *what it unlocks*, not its own ratings. And the multipliers compound: the goal boost lifts a cascade-strong node further, though density normalization can temper it in a crowded bucket — as it does here, pulling 0.71 down to 0.44.
+Two things stand out. The cascade supplies about 146 of the 321 total-value points, so the node ranks substantially for *what it unlocks* as well as for its own ratings. And the multipliers compound: the goal boost lifts a cascade-strong node further, though density normalization can temper it in a crowded bucket — as it does here, pulling 18.0 down to 11.2.
+
+Raw scores are much larger than they were before $\gamma$ was raised above 1, because squaring the ratings inflates every intrinsic value. Only the ordering and the normalized 0–100 figure carry meaning, so the change in magnitude is cosmetic.
 
 # Goal Scoring
 
@@ -350,6 +393,18 @@ A Milestone marks an achievement, not the effort to reach it. "10 strict pull-up
 This creates a problem for Goal ranking. A Milestone often sits mid-tree, between a Goal and the real work beneath it. If it carried its own value and time ratings, those numbers would enter the Goal's ROI as though the checkpoint were itself a body of work.
 
 So the app treats every Milestone as transparent: its own value and time are set to zero, so it contributes nothing of its own to the score. Prerequisite value still cascades up through it, discounted by the usual per-hop factor. The milestone adds no value, but it still sits in the chain like any other node, so passing through it costs one discount hop. The work beneath it still counts toward cost.
+
+# Containers Are Not Recommended
+
+A node with `time_mode = inherited` draws its time estimate from its hard prerequisites rather than holding hours of its own. Such a node is never recommended on the Next tab.
+
+The reason is that two rules point at the same set of nodes. Time inheritance draws from a node's hard prerequisites. Eligibility requires every hard prerequisite to be Done. So at the exact moment such a node becomes rankable, every hour it inherited has already been spent. There is nothing left to work on, only a box to tick.
+
+Ranking it anyway produces a bad recommendation twice over. Its cost carries no time term at all, so it undercuts the whole pool on price. Its total value still collects the full cascade from everything it unlocks. Value of a subtree divided by the cost of nothing puts it near the top of the list: on a ~450-node graph, such a node landed in the top five the moment it unblocked.
+
+The exclusion keys on **time alone**, deliberately. A node with inherited *ratings* but its own hours is a different case: it has real work to do and merely draws its worth from what it unlocks, so it keeps competing normally.
+
+Excluded nodes are left out of the list, not out of the graph. Cascade still flows through them untouched, so they remain connective tissue. They are also left out of the density bucket counts, since a node that cannot be recommended should not shrink a rival's multiplier. The Details tab surfaces containers in its own list, which is where "this umbrella topic matters" belongs.
 
 # Eligibility and the Status Cascade
 

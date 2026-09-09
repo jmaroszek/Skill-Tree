@@ -64,6 +64,7 @@ def _baseline_score_nodes(
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
+    value_exponent = hyperparams.get('value_exponent', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -88,11 +89,13 @@ def _baseline_score_nodes(
                 if n not in node_to_boost or multiplier > node_to_boost[n]:
                     node_to_boost[n] = multiplier
 
+    # Mirrors score_nodes: bucket populations come from the whole graph, not
+    # the subset being scored, so a filtered call cannot shift the multiplier.
     n_active_map = {}
-    for n in active_nodes:
+    for n in all_nodes:
         if n.type in ('Goal', 'Milestone') or n.status in ('Done', 'Blocked'):
             continue
-        if n.is_pure_container:
+        if n.has_no_own_work:
             continue
         if n.context is None:  # mirror score_nodes: uncategorized nodes don't bucket
             continue
@@ -105,7 +108,7 @@ def _baseline_score_nodes(
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue
-        if node.is_pure_container:
+        if node.has_no_own_work:
             node.priority_score = -1.0
             scored_nodes.append(node)
             continue
@@ -125,7 +128,8 @@ def _baseline_score_nodes(
         # CRITICAL: memo=None — replicates pre-Phase-E behavior.
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn,
                          w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None,
-                         cross_context_mult=cross_context_mult)
+                         cross_context_mult=cross_context_mult,
+                         value_exponent=value_exponent)
         score = round(tv / cost, 2)
         if node.name in node_to_boost:
             score = round(score * node_to_boost[node.name], 2)

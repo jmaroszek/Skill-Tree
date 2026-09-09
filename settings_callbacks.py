@@ -118,6 +118,25 @@ def _clamp(val, lo, hi, default):
     return max(lo, min(hi, v))
 
 
+def _profile_knob(hp_profile, key):
+    """Carry forward a hyperparameter that has no Settings input of its own.
+
+    The save handler rebuilds the bundle from the visible form fields, so any
+    knob without a field would be dropped and then silently replaced by Sage's
+    default on the next read. That is not a rounding difference: `alpha_goal`
+    ranges 0.00-0.50 across profiles and `value_exponent` 1.00-2.50, so losing
+    either would quietly re-rank a non-Sage profile.
+
+    A named profile supplies its own value. Anything else (Custom, or an
+    unrecognised name) keeps whatever is already stored, so hand tuning done
+    outside the UI survives a Settings save.
+    """
+    from config import PROFILES, DEFAULT_HYPERPARAMS
+    if hp_profile in PROFILES:
+        return PROFILES[hp_profile].get(key, DEFAULT_HYPERPARAMS[key])
+    return ConfigManager.get_hyperparams().get(key, DEFAULT_HYPERPARAMS[key])
+
+
 def _migrate_context_weights(old_weights: dict, pending_weights: dict,
                              new_contexts: list, rename_map: dict) -> dict:
     """Resolve context weights after a save that renamed/merged/removed contexts.
@@ -546,6 +565,8 @@ def register_settings_callbacks(app):
                 'w_e': float(we), 'w_t': float(wt), 'beta': float(beta),
                 'goal_boost': float(goal_boost) if goal_boost is not None else 1.5,
                 'alpha': _clamp(alpha, 0.0, 1.5, 0.3),
+                'alpha_goal': _profile_knob(hp_profile, 'alpha_goal'),
+                'value_exponent': _profile_knob(hp_profile, 'value_exponent'),
             }
 
             new_ctx_weights: dict = {}

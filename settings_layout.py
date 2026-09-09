@@ -359,14 +359,23 @@ def _build_scoring_tab():
                 dbc.Col([dbc.Label("Interest Weight", className="mt-2"), dbc.Input(id="hp-wi", type="number", step="any")]),
                 dbc.Col([dbc.Label("Soft Need", className="mt-2"), dbc.Input(id="hp-ds", type="number", step="any")]),
                 dbc.Col([dbc.Label("Done Multiplier", className="mt-2"), dbc.Input(id="hp-dsyn-mul", type="number", step="any")]),
-                dbc.Col([dbc.Label("Time Weight", className="mt-2"), dbc.Input(id="hp-wt", type="number", step="any")]),
+                dbc.Col([
+                    dbc.Label("Time Weight", className="mt-2"),
+                    dbc.Input(id="hp-wt", type="number", step="any"),
+                    html.Small("cost of a 40-hour project", className="text-muted d-block"),
+                ]),
             ]),
             # Row 3 (only Perceived Cost carries a third param)
             dbc.Row([
                 dbc.Col([]),
                 dbc.Col([]),
                 dbc.Col([]),
-                dbc.Col([dbc.Label("Time Dampener", className="mt-2"), dbc.Input(id="hp-beta", type="number", step="any")]),
+                dbc.Col([
+                    dbc.Label("Time Dampener", className="mt-2"),
+                    dbc.Input(id="hp-beta", type="number", step="any"),
+                    html.Small("lower favours long projects; below 0.45 it inverts",
+                               className="text-muted d-block"),
+                ]),
             ], className="mb-2"),
 
             # --- Multipliers section ---

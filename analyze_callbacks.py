@@ -13,6 +13,7 @@ from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, ST
 from config import ConfigManager, BADGE_PALETTE
 from scoring import (
     build_adjacency as _scoring_build_adjacency, total_value, explain_score,
+    time_cost_term, GOAL_TIME_REF_HOURS,
 )
 
 graph_manager = GraphManager()
@@ -412,6 +413,7 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
     d_Syn_pair = hp.get('d_Syn_pair', 0.10)
     d_Syn_mul = hp.get('d_Syn_mul', 0.40)
     cross_context_mult = hp.get('cross_context_mult', 1.0)
+    value_exponent = hp.get('value_exponent', 1.0)
     w_t = hp.get('w_t', 1.0)
     beta = hp.get('beta', 0.85)
     goal_boost = hp.get('goal_boost', 1.5)
@@ -478,9 +480,17 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
             g.name, set(), all_nodes_dict, H_out, S_out, Syn,
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
             cross_context_mult=cross_context_mult,
+            value_exponent=value_exponent,
         )
         remaining_time = _hard_subtree_remaining(g.name)
-        cost = 1.0 + w_t * (remaining_time ** beta)
+        # A Goal's cost is its whole remaining hard subtree, which runs ~33x
+        # larger than a single node's estimate (median ~1300h vs ~40h). It
+        # therefore normalizes against GOAL_TIME_REF_HOURS rather than the leaf
+        # TIME_REF_HOURS, so that w_t and beta carry the same meaning here as
+        # they do in perceived_cost instead of silently denoting a much
+        # heavier time penalty.
+        cost = 1.0 + time_cost_term(remaining_time, w_t, beta,
+                                    ref=GOAL_TIME_REF_HOURS)
         raw = tv / cost
         rank_mult = 1.0
         rank_idx = None

@@ -12,7 +12,9 @@ from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DO
 from graph_manager import GraphManager
 from callback_helpers import compute_orphaned_subcontext_pairs, detect_context_renames
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
-from scoring import intrinsic_value, perceived_cost, is_eligible, build_adjacency, total_value, score_nodes
+from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
+                     total_value, score_nodes, time_cost_term,
+                     TIME_REF_HOURS, GOAL_TIME_REF_HOURS)
 
 
 # --- Fixtures ---
@@ -1274,7 +1276,20 @@ class TestScoringFunctions:
     def test_perceived_cost(self):
         node = _make_node(difficulty=5, time_o=2, time_m=2, time_p=2)
         cost = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85)
-        assert cost == pytest.approx(1.0 + 2.5 * 5 + 1.0 * (2.0 ** 0.85), rel=1e-4)
+        expected = 1.0 + 2.5 * 5 + 1.0 * ((2.0 / TIME_REF_HOURS) ** 0.85)
+        assert cost == pytest.approx(expected, rel=1e-4)
+
+    def test_perceived_cost_normalizes_time_against_the_reference(self):
+        """w_t is exactly the time term's value at t = TIME_REF_HOURS.
+
+        This is what decouples beta (curvature) from w_t (magnitude): at the
+        reference hour count the cost is w_t regardless of beta.
+        """
+        node = _make_node(difficulty=0, time_o=TIME_REF_HOURS,
+                          time_m=TIME_REF_HOURS, time_p=TIME_REF_HOURS)
+        for beta in (0.35, 0.60, 0.85, 1.0):
+            cost = perceived_cost(node, w_e=0.0, w_t=6.0, beta=beta)
+            assert cost == pytest.approx(1.0 + 6.0, rel=1e-6)
 
     def test_is_eligible_no_prereqs(self):
         assert is_eligible("A", {"A": []}, {"A": _make_node("A")}) is True
@@ -3614,7 +3629,7 @@ class TestPerceivedCostTimeOverride:
     def test_time_override_replaces_node_time(self):
         node = _make_node(difficulty=5, time_o=10, time_m=10, time_p=10)
         cost_overridden = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85, time_override=1.0)
-        expected = 1.0 + 2.5 * 5 + 1.0 * (1.0 ** 0.85)
+        expected = 1.0 + 2.5 * 5 + 1.0 * ((1.0 / TIME_REF_HOURS) ** 0.85)
         assert cost_overridden == pytest.approx(expected, rel=1e-4)
 
     def test_time_override_zero(self):
@@ -3629,24 +3644,21 @@ class TestPerceivedCostTimeOverride:
 # ============================================================================
 
 class TestScoringInheritedTimeMode:
-    def test_inherited_node_uses_zero_time_in_cost(self, mgr):
-        """A non-Goal node with time_mode='inherited' is a container — scoring
-        substitutes time=0 to avoid double-counting its dependencies' costs."""
-        mgr.add_node(_make_node("Dep", value=5, interest=5, time_o=10, time_m=10, time_p=10))
-        mgr.add_node(_make_node("Container", value=5, interest=5, time_o=10, time_m=10, time_p=10,
-                                time_mode='inherited'))
-        # Score with manual time_mode (high time cost)
-        manual_node = _make_node("Manual", value=5, interest=5, time_o=10, time_m=10, time_p=10,
-                                 time_mode='manual')
-        inherited_node = _make_node("Inherited", value=5, interest=5, time_o=10, time_m=10, time_p=10,
-                                    time_mode='inherited')
-        edges = []
-        scored = score_nodes([manual_node, inherited_node], [manual_node, inherited_node],
-                             edges, {})
-        manual_score = next(n for n in scored if n.name == "Manual").priority_score
-        inherited_score = next(n for n in scored if n.name == "Inherited").priority_score
-        # Inherited should score higher because its time cost is 0 vs the manual node's PERT-blended ~10.
-        assert inherited_score > manual_score
+    def test_inherited_node_uses_zero_time_in_cost(self):
+        """time=0 substitution avoids double-counting a container's children.
+
+        The substitution itself is still the contract — only whether such a
+        node gets *recommended* changed (see TestNoOwnWorkIsNotRecommended).
+        """
+        manual = _make_node("Manual", value=5, interest=5, difficulty=5,
+                            time_o=10, time_m=10, time_p=10, time_mode='manual')
+        inherited = _make_node("Inherited", value=5, interest=5, difficulty=5,
+                               time_o=10, time_m=10, time_p=10, time_mode='inherited')
+        c_manual = perceived_cost(manual, w_e=2.5, w_t=1.0, beta=0.85)
+        c_inherited = perceived_cost(inherited, w_e=2.5, w_t=1.0, beta=0.85,
+                                     time_override=0.0)
+        assert c_inherited < c_manual
+        assert c_inherited == pytest.approx(1.0 + 2.5 * 5)
 
     def test_manual_node_still_uses_full_time(self, mgr):
         """A manual-mode node should use its full PERT time in cost calculation."""
@@ -3658,7 +3670,7 @@ class TestScoringInheritedTimeMode:
         expected_score = round(iv / cost, 2)
         assert scored[0].priority_score == expected_score
 
-    def test_inherited_cost_arithmetic(self, mgr):
+    def test_inherited_cost_arithmetic(self):
         """Pin the exact cost formula for inherited nodes: 1 + w_e*difficulty + 0.
 
         Locks in the contract that the time term contributes nothing for
@@ -3666,11 +3678,8 @@ class TestScoringInheritedTimeMode:
         """
         node = _make_node("C", value=5, interest=5, difficulty=4,
                           time_o=10, time_m=10, time_p=10, time_mode='inherited')
-        scored = score_nodes([node], [node], [], {})
-        # cost = 1 + 2.5 * 4 + 1.0 * (0 ** 0.85) = 11.0
-        # iv = 1.0 * 5 + 1.0 * 5 = 10.0
-        # score = round(10.0 / 11.0, 2) = 0.91
-        assert scored[0].priority_score == 0.91
+        cost = perceived_cost(node, w_e=2.5, w_t=1.0, beta=0.85, time_override=0.0)
+        assert cost == pytest.approx(1.0 + 2.5 * 4)
 
     def test_chained_inherited_nodes_no_phantom_cost(self, mgr):
         """A chain of inherited nodes shouldn't accumulate phantom 1.0 costs.
@@ -3683,11 +3692,65 @@ class TestScoringInheritedTimeMode:
         a = _make_node("A", value=5, interest=5, difficulty=3, time_mode='inherited')
         b = _make_node("B", value=5, interest=5, difficulty=3, time_mode='inherited')
         c = _make_node("C", value=5, interest=5, difficulty=3, time_mode='inherited')
-        scored = score_nodes([a, b, c], [a, b, c], [], {})
-        # All three have the same intrinsic value, same difficulty, same
-        # (zero) time contribution, no edges → identical scores.
-        scores = [n.priority_score for n in scored]
-        assert scores[0] == scores[1] == scores[2]
+        # Compare costs directly: these nodes are no longer ranked, so equal
+        # priority_scores would only prove they share the same -1.0 sentinel.
+        costs = [perceived_cost(n, w_e=2.5, w_t=1.0, beta=0.85, time_override=0.0)
+                 for n in (a, b, c)]
+        assert costs[0] == costs[1] == costs[2] == pytest.approx(1.0 + 2.5 * 3)
+
+
+class TestNoOwnWorkIsNotRecommended:
+    """A node with no hours of its own has nothing left to do once eligible.
+
+    `time_mode='inherited'` draws time from the hard prerequisites that
+    eligibility already requires to be Done, so such a node is only rankable
+    at the point its inherited hours are already spent. Without this gate it
+    would collect the full cascade over a denominator carrying no time term
+    at all, and outrank real work.
+    """
+
+    def test_inherited_time_node_is_not_ranked(self):
+        node = _make_node("Container", value=9, interest=9, difficulty=3,
+                          time_o=10, time_m=10, time_p=10, time_mode='inherited')
+        scored = score_nodes([node], [node], [], {})
+        assert scored[0].priority_score == -1.0
+
+    def test_it_still_carries_total_value(self):
+        """Excluded from the list, not from the graph: cascade flows through."""
+        node = _make_node("Container", value=9, interest=9, time_mode='inherited')
+        scored = score_nodes([node], [node], [], {})
+        assert scored[0].total_value > 0
+
+    def test_inherited_ratings_with_own_time_is_still_ranked(self):
+        """The gate keys on time alone, deliberately.
+
+        A node with inherited *ratings* but its own hours has real work to do
+        and merely draws its worth from what it unlocks. It must keep ranking.
+        """
+        node = _make_node("Conduit", value=5, interest=5, difficulty=3,
+                          time_o=10, time_m=10, time_p=10, value_mode='inherited')
+        scored = score_nodes([node], [node], [], {})
+        assert scored[0].priority_score >= 0.0
+
+    def test_property_keys_on_time_only(self):
+        assert _make_node(time_mode='inherited').has_no_own_work is True
+        assert _make_node(value_mode='inherited').has_no_own_work is False
+        assert _make_node(time_mode='inherited',
+                          value_mode='inherited').has_no_own_work is True
+        assert _make_node().has_no_own_work is False
+
+    def test_excluded_nodes_do_not_dilute_density_buckets(self):
+        """Whatever cannot be recommended must not shrink a rival's multiplier."""
+        ranked = _make_node("Ranked", context="C", subcontext="S",
+                            time_o=10, time_m=10, time_p=10)
+        container = _make_node("Container", context="C", subcontext="S",
+                               time_mode='inherited')
+        hp = {'alpha': 1.0}
+        alone = score_nodes([ranked], [ranked], [], hp)[0].priority_score
+        with_container = next(
+            n for n in score_nodes([ranked, container], [ranked, container], [], hp)
+            if n.name == "Ranked").priority_score
+        assert alone == with_container
 
 
 # ============================================================================

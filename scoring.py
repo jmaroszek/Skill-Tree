@@ -46,17 +46,61 @@ def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dic
     return H_out, S_out, Syn, Hard_in
 
 
-def intrinsic_value(node: Node, w_v: float, w_i: float) -> float:
+def intrinsic_value(node: Node, w_v: float, w_i: float,
+                    value_exponent: float = 1.0) -> float:
     """Weighted sum of a node's Value and Interest.
 
     Returns 0 when `value_mode='inherited'`: the node is a pure structural
     conduit and shouldn't inject its own ratings as an IV bump into its
     descendants via the cascade. Mirrors the `time_mode='inherited'`
     short-circuit on `Node.time`.
+
+    `value_exponent` raises each rating to a power before weighting, which
+    widens the gap between a 9 and a 5. It exists because the cascade sums IV
+    over a node's descendants, and a sum of many similar terms is dominated by
+    how MANY terms there are rather than how large each one is. Measured on a
+    ~450-node graph, subtree averaging cut the ratings' relative spread almost
+    in half (0.37 -> 0.23), so total value behaved largely like a descendant
+    count: unlocking eight 9/9-rated nodes scored only 3.3x unlocking eight
+    2/2-rated ones. At the Sage default of 2.0 that gap widens to 9.4x.
+
+    Defaults to 1.0 (plain linear weighting) so direct callers that pass only
+    the two weights keep the original behaviour.
     """
     if node.value_mode == 'inherited':
         return 0.0
-    return (w_v * node.value) + (w_i * node.interest)
+    if value_exponent == 1.0:
+        return (w_v * node.value) + (w_i * node.interest)
+    return (w_v * (node.value ** value_exponent)) + (w_i * (node.interest ** value_exponent))
+
+
+# Reference scales for the time term. `t` is divided by one of these before
+# the beta exponent is applied, so beta is a pure *curvature* knob and w_t is
+# the only *magnitude* knob. Under the older `w_t * t**beta` form the two were
+# entangled: lowering beta silently shrank the whole time term (5.7x between
+# beta 0.85 and 0.45 at the median node), which handed the denominator to
+# difficulty instead of rebalancing toward value. See docs/scoring.md.
+#
+# Both MUST stay hardcoded constants. Deriving them from the live graph would
+# make every node's cost depend on the whole graph, so long tasks would get
+# quietly cheaper as work is completed, and the scoring cache keyed on
+# _SCORING_RELEVANT_FIELDS would no longer be sound.
+TIME_REF_HOURS = 40.0        # a typical substantial Learn node
+GOAL_TIME_REF_HOURS = 1300.0  # median remaining hours in a Goal's hard subtree
+
+
+def time_cost_term(t: float, w_t: float, beta: float,
+                   ref: float = TIME_REF_HOURS) -> float:
+    """The time contribution to a cost denominator: `w_t * (t / ref)**beta`.
+
+    Shared by `perceived_cost` (leaf nodes, ref = TIME_REF_HOURS) and the Goal
+    ranker in analyze_callbacks (whole subtrees, ref = GOAL_TIME_REF_HOURS).
+    The two operate at ~33x different argument scales, so they need different
+    references for `w_t` to mean the same thing in both places.
+    """
+    if t <= 0:
+        return 0.0
+    return w_t * ((t / ref) ** beta)
 
 
 def perceived_cost(node: Node, w_e: float, w_t: float, beta: float,
@@ -68,10 +112,15 @@ def perceived_cost(node: Node, w_e: float, w_t: float, beta: float,
     `effort_override` substitutes for `node.difficulty` similarly when
     `value_mode='inherited'`, so a pure container contributes neither
     intrinsic value nor own-effort cost.
+
+    Time enters as `w_t * (t / TIME_REF_HOURS)**beta`. Note the scale change
+    from the pre-normalization form: a stored `w_t` from an older bundle must
+    be multiplied by `TIME_REF_HOURS**beta` to mean the same thing
+    (ConfigManager.get_hyperparams handles that migration).
     """
     t = time_override if time_override is not None else node.time
     e = effort_override if effort_override is not None else node.difficulty
-    return 1.0 + (w_e * e) + (w_t * (t ** beta))
+    return 1.0 + (w_e * e) + time_cost_term(t, w_t, beta)
 
 
 def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
@@ -93,6 +142,7 @@ def _tv_dag(
     H_out: dict, S_out: dict,
     w_v: float, w_i: float, d_H: float, d_S: float,
     memo: dict, computing: set,
+    value_exponent: float = 1.0,
 ) -> float:
     """DAG-cascade portion of Total Value. Fully memoized.
 
@@ -114,12 +164,14 @@ def _tv_dag(
         return 0.0
 
     computing.add(node_name)
-    iv = intrinsic_value(node, w_v, w_i)
+    iv = intrinsic_value(node, w_v, w_i, value_exponent)
     nv = 0.0
     for x in H_out.get(node_name, []):
-        nv += d_H * _tv_dag(x, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S, memo, computing)
+        nv += d_H * _tv_dag(x, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
+                            memo, computing, value_exponent)
     for y in S_out.get(node_name, []):
-        nv += d_S * _tv_dag(y, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S, memo, computing)
+        nv += d_S * _tv_dag(y, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
+                            memo, computing, value_exponent)
     computing.discard(node_name)
 
     result = iv + nv
@@ -134,6 +186,7 @@ def total_value(
     d_Syn_pair: float, d_Syn_mul: float,
     memo: Optional[dict] = None,
     cross_context_mult: float = 1.0,
+    value_exponent: float = 1.0,
 ) -> float:
     """Computes Total Value = scaled intrinsic + DAG cascade + Syn pair bonus.
 
@@ -168,9 +221,9 @@ def total_value(
 
     full_dag = _tv_dag(
         node_name, all_nodes, H_out, S_out,
-        w_v, w_i, d_H, d_S, memo, computing,
+        w_v, w_i, d_H, d_S, memo, computing, value_exponent,
     )
-    iv = intrinsic_value(node, w_v, w_i)
+    iv = intrinsic_value(node, w_v, w_i, value_exponent)
     cascade = full_dag - iv  # cascade-only portion (Hard + Soft contributions)
 
     syn_additive = 0.0
@@ -189,7 +242,7 @@ def total_value(
             ctx_mult = cross_context_mult
         syn_additive += ctx_mult * d_Syn_pair * _tv_dag(
             z, all_nodes, H_out, S_out,
-            w_v, w_i, d_H, d_S, memo, computing,
+            w_v, w_i, d_H, d_S, memo, computing, value_exponent,
         )
         if z_node is not None and z_node.status == STATUS_DONE:
             done_syn += 1
@@ -211,14 +264,19 @@ def _compute_priority_score(
     node_to_boost: Dict[str, float],
     n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int],
     memo: Optional[Dict[str, float]] = None,
-) -> Tuple[float, float]:
+) -> Tuple[float, float, float]:
     """Single source of truth for the per-node ROI formula.
 
     Used by both ``score_nodes`` (batch ranking) and ``explain_score``
     (per-node breakdown) so the two paths can never drift on the order or
-    composition of cost / TV / boost / density / weight. Returns a tuple
-    of (final rounded priority score, raw total_value); callers handle
+    composition of cost / TV / boost / density / weight. Callers handle
     ineligibility / Goal / Done / Blocked filtering before calling this.
+
+    Returns (rounded priority score, raw total_value, exact priority score).
+    The rounded figure is what the UI displays and what callers store on the
+    node; the exact one exists purely so `score_nodes` can order nodes that
+    round to the same 2dp value. Both apply the identical boost, context
+    weight and density multipliers — they differ only in rounding.
     """
     w_v = hyperparams.get('w_v', 1.0)
     w_i = hyperparams.get('w_i', 1.0)
@@ -227,6 +285,7 @@ def _compute_priority_score(
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
+    value_exponent = hyperparams.get('value_exponent', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -245,19 +304,25 @@ def _compute_priority_score(
         node.name, set(), all_nodes_dict, H_out, S_out, Syn,
         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
         cross_context_mult=cross_context_mult,
+        value_exponent=value_exponent,
     )
-    score = round(tv / cost, 2) if cost > 0 else 0.0
+    ratio = (tv / cost) if cost > 0 else 0.0
+    score = round(ratio, 2)
+    exact = ratio
 
     if node.name in node_to_boost:
-        score = round(score * node_to_boost[node.name], 2)
+        boost = node_to_boost[node.name]
+        score = round(score * boost, 2)
+        exact *= boost
 
     weight = context_weights.get(node.context, 1.0) if node.context else 1.0
     n_bucket = max(1, n_per_bucket.get((node.context, node.subcontext), 1))
     density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
     if weight != 1.0 or density_mult != 1.0:
         score = round(score * weight * density_mult, 2)
+        exact *= weight * density_mult
 
-    return score, tv
+    return score, tv, exact
 
 
 def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
@@ -295,6 +360,7 @@ def score_nodes(
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
+    value_exponent = hyperparams.get('value_exponent', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -314,11 +380,20 @@ def score_nodes(
     # specific subarea" — so subcontext being None doesn't disqualify.
     # context=None is rejected at add_node; defensively skip if any legacy
     # row slipped through.
+    #
+    # Counted over `all_nodes`, NOT `nodes_to_score`. Callers routinely pass a
+    # filtered subset to score (the Next tab drops Now nodes and applies the
+    # user's rating/type/time filters), and counting the subset made a bucket's
+    # population — and therefore every surviving node's density multiplier —
+    # depend on the active filter. A filter would then re-sort the rows it kept
+    # rather than merely hiding rows: on a ~450-node graph, "min value >= 6"
+    # moved a surviving node by up to 101 places. Bucket population is a
+    # property of the graph, so it is measured against the graph.
     n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int] = {}
-    for n in nodes_to_score:
+    for n in all_nodes:
         if n.type in ('Goal', 'Milestone') or n.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
-        if n.is_pure_container:
+        if n.has_no_own_work:
             continue
         if n.context is None:
             continue
@@ -357,9 +432,12 @@ def score_nodes(
             name, set(), all_nodes_dict, H_out, S_out, Syn,
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
             cross_context_mult=cross_context_mult,
+            value_exponent=value_exponent,
         )
 
     scored_nodes = []
+    # name -> unrounded priority, used only for ordering (see the sort below).
+    exact_scores: Dict[str, float] = {}
     for node in nodes_to_score:
         if node.type in ('Goal', 'Milestone'):
             node.priority_score = -1.0
@@ -367,12 +445,16 @@ def score_nodes(
             scored_nodes.append(node)
             continue
 
-        # Pure structural conduits (both modes inherited) are not recommended.
-        # Their children compete on their own; the container itself shouldn't
-        # ride the cascade up into the top of the list with a nearly-empty
-        # cost denominator (1.0) — see Node.is_pure_container. A node with only
-        # ONE mode inherited still has a real score and IS ranked.
-        if node.is_pure_container:
+        # Nodes with no hours of their own are not recommended. Their cost
+        # carries no time term at all, so they undercut the pool on price
+        # while still collecting the full cascade in the numerator — on a real
+        # graph such a node lands in the top five the moment it unblocks,
+        # despite having nothing left to do. `time_mode='inherited'` draws
+        # time from the hard prerequisites that eligibility already requires
+        # to be Done, so by the time it ranks, its inherited hours are spent.
+        # See Node.has_no_own_work. Their prerequisites competed on their own
+        # hours; cascade still flows through these nodes untouched.
+        if node.has_no_own_work:
             node.priority_score = -1.0
             node.total_value = _tv_for(node.name)
             scored_nodes.append(node)
@@ -390,7 +472,7 @@ def score_nodes(
             scored_nodes.append(node)
             continue
 
-        node.priority_score, node.total_value = _compute_priority_score(
+        node.priority_score, node.total_value, exact_scores[node.name] = _compute_priority_score(
             node,
             all_nodes_dict=all_nodes_dict,
             H_out=H_out, S_out=S_out, Syn=Syn,
@@ -403,7 +485,20 @@ def score_nodes(
 
     t3 = time.perf_counter() if time_phases else 0.0
 
-    ranked = sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1.0), reverse=True)
+    # Sort on the unrounded ratio, falling back to the rounded score for nodes
+    # that never went through _compute_priority_score (Goals, Milestones, Done,
+    # Blocked and ineligible nodes all carry a flat -1.0).
+    #
+    # `priority_score` is rounded to 2dp for display, which collapses ~440
+    # distinct scores into ~170 on a real graph: past about rank 30 the large
+    # majority of nodes share a score with a neighbour, and the tie then breaks
+    # on list order, which carries no meaning. Ordering on the exact value
+    # keeps the displayed number stable while making the sequence meaningful.
+    ranked = sorted(
+        scored_nodes,
+        key=lambda n: exact_scores.get(n.name, getattr(n, 'priority_score', -1.0)),
+        reverse=True,
+    )
 
     if not time_phases:
         return ranked
@@ -595,6 +690,7 @@ def explain_score(
     d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
+    value_exponent = hyperparams.get('value_exponent', 1.0)
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
@@ -615,14 +711,14 @@ def explain_score(
     for n_ in all_nodes:
         if n_.type in ('Goal', 'Milestone') or n_.status in (STATUS_DONE, STATUS_BLOCKED):
             continue
-        if n_.is_pure_container:
+        if n_.has_no_own_work:
             continue
         if n_.context is None:
             continue
         key = (n_.context, n_.subcontext)
         n_per_bucket[key] = n_per_bucket.get(key, 0) + 1
 
-    iv = intrinsic_value(node, w_v, w_i)
+    iv = intrinsic_value(node, w_v, w_i, value_exponent)
     time_overridden = (node.time_mode == 'inherited')
     value_overridden = (node.value_mode == 'inherited')
     t_override = 0.0 if time_overridden else None
@@ -659,7 +755,7 @@ def explain_score(
         other = all_nodes_dict.get(name)
         if other is None:
             continue
-        iv_n = intrinsic_value(other, w_v, w_i)
+        iv_n = intrinsic_value(other, w_v, w_i, value_exponent)
         contribution = weight * iv_n
         total_value_sum += contribution
         v = via.get(name, 'Self')
@@ -716,7 +812,7 @@ def explain_score(
     if node.type in ('Goal', 'Milestone'):
         eligible = False
         block_reason = f"{node.type}s are not ranked"
-    elif node.is_pure_container:
+    elif node.has_no_own_work:
         eligible = False
         block_reason = "Container — children are recommended instead"
     elif node.status == STATUS_DONE:

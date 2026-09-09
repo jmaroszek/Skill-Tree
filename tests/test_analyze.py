@@ -369,9 +369,10 @@ class TestComputeGoalComparison:
         comps = {g.name: c for g, c in ranked}
         work = next(n for n in nodes if n.name == "Work")
 
+        g = hp.get('value_exponent', 1.0)
         expected_tv = (
-            hp['w_v'] * 1 + hp['w_i'] * 1
-            + (hp['d_H'] ** 2) * (hp['w_v'] * 10 + hp['w_i'] * 10)
+            hp['w_v'] * 1 ** g + hp['w_i'] * 1 ** g
+            + (hp['d_H'] ** 2) * (hp['w_v'] * 10 ** g + hp['w_i'] * 10 ** g)
         )
         assert comps["G"]["tv"] == pytest.approx(expected_tv)
         assert comps["G"]["remaining_time"] == pytest.approx(work.time)
