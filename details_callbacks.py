@@ -22,6 +22,7 @@ from callback_helpers import (render_link_rows, render_alias_rows, strip_gdrive_
                               spawn_local_file_picker, build_filters,
                               is_filters_active,
                               build_explain_summary, build_explain_chart,
+                              format_value_rank,
                               habit_to_hours, compute_habit_time_omp,
                               habit_preview_text,
                               resolve_time_mode, resolve_value_mode, get_trigger_id)
@@ -1050,6 +1051,24 @@ def register_details_callbacks(app):
         subs = sort_subcontexts(ConfigManager.get_subcontexts().get(context, []))
         return base + [{"label": s, "value": s} for s in subs]
 
+    # --- Explain modal: the arithmetic is a disclosure, closed by default ---
+    @app.callback(
+        Output("collapse-details-explain-summary", "is_open"),
+        Input("btn-details-explain-summary-toggle", "n_clicks"),
+        State("collapse-details-explain-summary", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_details_explain_summary(n, is_open):
+        if n:
+            return not is_open
+        return is_open
+
+    app.clientside_callback(
+        "function(isOpen){ return 'editor-chevron on-dark' + (isOpen ? ' open' : ''); }",
+        Output("details-explain-summary-chevron", "className"),
+        Input("collapse-details-explain-summary", "is_open"),
+    )
+
     # --- Add Node Modal: Aliases (mirrors the main node editor) ---
     @app.callback(
         Output("collapse-details-add-aliases", "is_open"),
@@ -1723,6 +1742,7 @@ def register_details_callbacks(app):
 
     @app.callback(
         [Output("details-explain-title", "children"),
+         Output("details-explain-subtitle", "children"),
          Output("details-explain-summary", "children"),
          Output("details-explain-contrib-store", "data"),
          Output("details-explain-count", "value")],
@@ -1732,7 +1752,7 @@ def register_details_callbacks(app):
     )
     def populate_explain_modal(is_open, node_name):
         if not is_open or not node_name:
-            return no_update, no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update, no_update
         all_nodes = graph_manager.get_all_nodes()
         priority_goals = ConfigManager.get_priority_goals()
         hypers = ConfigManager.get_hyperparams()
@@ -1781,11 +1801,36 @@ def register_details_callbacks(app):
                     if top > 0:
                         normalized = round((breakdown['score'] / top) * 100)
         title = node_name if breakdown else "Node not found"
+
+        # Where this node's total value sits among comparable ones. Goals are
+        # ranked against Goals because their value is computed on the inverted
+        # prerequisite graph and is not comparable to an ordinary node's.
+        subtitle = ""
+        tv = breakdown['composition']['total_value'] if breakdown else None
+        if tv is not None:
+            if is_goal:
+                from analyze_callbacks import _rank_goals
+                goals = [n for n in all_nodes if n.type == 'Goal']
+                ranked_goals = _rank_goals(
+                    goals, all_nodes, graph_manager.get_edges(),
+                    priority_goals, hypers, with_components=True,
+                )
+                peers = [c.get('tv') for _, c in ranked_goals]
+                subtitle = format_value_rank(tv, peers, "goals")
+            else:
+                peer_nodes = graph_manager.calculate_priority_scores(
+                    all_nodes, priority_goals=priority_goals,
+                )
+                peers = [getattr(n, 'total_value', None) for n in peer_nodes
+                         if n.type not in ('Goal', 'Milestone')
+                         and n.status != STATUS_DONE]
+                subtitle = format_value_rank(tv, peers, "projects")
+
         contributors = breakdown['contributors'] if breakdown else []
         # Reset count to default only when the modal opens — not when the
         # user selects a different node while it's already open.
         count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
-        return (title, build_explain_summary(breakdown, normalized),
+        return (title, subtitle, build_explain_summary(breakdown, normalized),
                 contributors, count_out)
 
     @app.callback(

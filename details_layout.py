@@ -607,10 +607,18 @@ def build_details_tab_content():
         ], className="me-3"))
 
     explain_modal = dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle(id="details-explain-title")),
+        dbc.ModalHeader(html.Div([
+            dbc.ModalTitle(id="details-explain-title"),
+            # Total value means little on its own, so the header states where
+            # this node lands among comparable ones.
+            html.Div(id="details-explain-subtitle", className="text-muted",
+                     style={"fontSize": "0.82rem", "marginTop": "2px"}),
+        ])),
         dbc.ModalBody([
-            html.Div(id="details-explain-summary"),
-            html.Hr(className="my-3"),
+            # Contributors lead: "which work is driving this score" is the
+            # question the modal is opened to answer. The arithmetic that
+            # produces the number is the follow-up, so it sits behind a
+            # disclosure rather than ahead of the chart.
             html.Div([
                 html.H5("Top Contributors", className="mt-2 mb-1"),
                 html.Div([
@@ -633,6 +641,17 @@ def build_details_tab_content():
                       config={"displayModeBar": False}),
             html.Div(explain_legend_items,
                      style={"fontSize": "0.78rem", "textAlign": "right"}),
+            html.Hr(className="my-3"),
+            dbc.Button([
+                html.Span(id="details-explain-summary-chevron",
+                          className="editor-chevron on-dark"),
+                html.Span("Calculation details", className="ms-2"),
+            ], id="btn-details-explain-summary-toggle", color="link",
+               className="p-0 text-decoration-none text-muted d-flex align-items-center"),
+            dbc.Collapse(
+                html.Div(id="details-explain-summary"),
+                id="collapse-details-explain-summary", is_open=False,
+            ),
         ]),
         dbc.ModalFooter([
             dbc.InputGroup([

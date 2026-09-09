@@ -15,6 +15,7 @@ from callback_helpers import (
     snapshot_from_form_state, build_explain_summary,
     resolve_time_mode, resolve_value_mode,
     editor_form_values, ALL_WEEKDAYS,
+    format_value_rank, _ordinal,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -993,3 +994,62 @@ class TestExplainSummaryAdjustments:
         table = build_explain_summary(bd, normalized=None)
         text = _render_text(table)
         assert "Blocked" in text
+
+
+# ============================================================================
+# format_value_rank — the Explain modal's header stat
+# ============================================================================
+
+class TestFormatValueRank:
+    """Total value is an internal quantity, so only the rank is shown."""
+
+    POOL = [900.0, 800.0, 700.0, 600.0, 500.0, 400.0, 300.0, 200.0, 100.0, 50.0]
+
+    def test_best_node(self):
+        assert format_value_rank(900.0, self.POOL, "projects") == \
+            "Ranks 1st of 10 projects"
+
+    def test_worst_node(self):
+        assert format_value_rank(50.0, self.POOL, "projects") == \
+            "Ranks 10th of 10 projects"
+
+    def test_middle_node(self):
+        assert format_value_rank(600.0, self.POOL) == "Ranks 4th of 10 projects"
+
+    def test_ties_share_the_better_rank(self):
+        assert format_value_rank(5.0, [10.0, 5.0, 5.0, 1.0]) == "Ranks 2nd of 4 projects"
+
+    def test_noun_is_used_verbatim(self):
+        assert format_value_rank(900.0, self.POOL, "goals").endswith("goals")
+
+    def test_the_raw_value_is_never_shown(self):
+        """The number has no units and shifts with the profile; it stays out."""
+        out = format_value_rank(12345.6, [99999.0, 12345.6, 1.0])
+        assert "12345" not in out and "12,345" not in out
+
+    def test_no_percentile_is_shown(self):
+        assert "%" not in format_value_rank(900.0, self.POOL)
+
+    def test_returns_empty_when_there_is_nothing_to_compare(self):
+        assert format_value_rank(5.0, [5.0]) == ""
+        assert format_value_rank(5.0, []) == ""
+        assert format_value_rank(5.0, None) == ""
+
+    def test_returns_empty_without_a_value(self):
+        assert format_value_rank(None, self.POOL) == ""
+
+    def test_ignores_missing_peer_values(self):
+        """A peer with no computed total value must not skew the count."""
+        assert format_value_rank(10.0, [10.0, 5.0, None, None]) == "Ranks 1st of 2 projects"
+
+
+class TestOrdinal:
+    def test_common_suffixes(self):
+        assert [_ordinal(n) for n in (1, 2, 3, 4)] == ["1st", "2nd", "3rd", "4th"]
+
+    def test_teens_are_all_th(self):
+        assert [_ordinal(n) for n in (11, 12, 13)] == ["11th", "12th", "13th"]
+
+    def test_suffix_repeats_past_twenty(self):
+        assert [_ordinal(n) for n in (21, 22, 23, 111, 112)] == \
+            ["21st", "22nd", "23rd", "111th", "112th"]

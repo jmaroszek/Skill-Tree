@@ -409,15 +409,32 @@ node_editor_content = html.Div(
             ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='website-links-container'),
 
-            html.Hr(className="my-2"),
+            # The five actions stay pinned to the bottom of the panel while the
+            # fields above them scroll. `position: sticky` keeps them in normal
+            # flow, so the panel's full height still scrolls to the very end and
+            # nothing sits permanently behind the bar. The opaque background is
+            # what stops scrolling fields showing through; it matches the
+            # sidebar's own bg-sidebar (see STYLE_GUIDE.md).
             html.Div([
-                dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
-                dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
-                dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
-                dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0", "backgroundColor": _DONE_COLOR, "borderColor": _DONE_COLOR})
-            ], className="d-flex mt-4"),
-            dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
-                       style={"padding": "8px 0"}),
+                html.Hr(className="my-2"),
+                html.Div([
+                    dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
+                    dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
+                    dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
+                    dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0", "backgroundColor": _DONE_COLOR, "borderColor": _DONE_COLOR})
+                ], className="d-flex mt-4"),
+                dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
+                           style={"padding": "8px 0"}),
+                # Kept inside the bar so a save confirmation is visible from
+                # wherever the user was scrolled when they pressed Save.
+                html.Div(id="save-output", className="text-success fw-bold text-end mt-2"),
+            ], id="node-editor-actions", style={
+                "position": "sticky",
+                "bottom": "0",
+                "zIndex": 3,
+                "backgroundColor": "#212529",
+                "paddingBottom": "10px",
+            }),
             dbc.Tooltip("Discard unsaved changes and revert this node to its last saved state", target="btn-revert", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Tooltip("Save changes", target="btn-save", placement="top",
@@ -428,7 +445,6 @@ node_editor_content = html.Div(
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             dbc.Tooltip("Create a new node", target="btn-new-node", placement="top",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            html.Div(id="save-output", className="text-success fw-bold text-end mt-2 mb-5"),
             dcc.Interval(id='clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
             dcc.Store(id='node-time-unit-prev', data='weeks'),
             dcc.Store(id='node-original-name', data=None)

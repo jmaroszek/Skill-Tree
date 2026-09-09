@@ -273,6 +273,11 @@ chevron (stroke #303030, width 2) so it matches the native Context/Subcontext
 arrows instead of the thinner `bi-chevron-down`; a clientside callback adds
 `.open` to rotate it 180° while the collapse is open.
 
+That stroke only reads against a white field. On a dark panel — the Explain
+modal's "Calculation details" disclosure — add `.on-dark`, which repaints the
+identical glyph in muted panel text. Any callback that rewrites the className
+must carry `on-dark` through alongside `.open`.
+
 Do **not** stack such a chevron beside a `dbc.Select`/`dcc.Dropdown` — it would
 double up with the native one. For those, either move the affordance to the
 heading (Search locate) or promote the hidden control to its own always-visible

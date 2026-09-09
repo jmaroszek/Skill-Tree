@@ -665,6 +665,13 @@
 .editor-chevron.open {
     transform: rotate(180deg);
 }
+/* The stroke above is dark because that chevron sits inside a white field. On a
+   dark panel (the Explain modal's "Calculation details" disclosure) it is
+   invisible, so this variant repaints the same 16x12 glyph in the muted panel
+   text colour. Geometry and rotation are unchanged. */
+.editor-chevron.on-dark {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23adb5bd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
 /* The disclosure button drops the fixed 38px icon-box width and instead mirrors
    the select's right padding (0.75rem) so the chevron lines up with the native
    ones on the fields stacked below it. */

@@ -1835,6 +1835,38 @@ def build_explain_summary(breakdown: dict, normalized=None):
     return _explain_summary_table(breakdown, normalized)
 
 
+def _ordinal(n: int) -> str:
+    """1 -> '1st', 2 -> '2nd', 11 -> '11th'."""
+    if 10 <= (n % 100) <= 20:
+        return f"{n}th"
+    return f"{n}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th') }"
+
+
+def format_value_rank(total_value, peer_values, noun="projects"):
+    """Where a node sits among comparable nodes, as a plain rank.
+
+    Deliberately reports only the position. Total value itself is an internal
+    quantity: it has no units, and its magnitude moves with the scoring profile,
+    so printing the number invites the reader to interpret a figure that means
+    nothing on its own. The rank carries everything useful about it.
+
+    `peer_values` is every comparable node's total value and must include this
+    node's own. Goals are ranked against Goals: their value is computed on the
+    inverted prerequisite graph and runs an order of magnitude larger, so mixing
+    them with ordinary nodes would rank every Goal near the top.
+
+    Returns '' when there is nothing to compare against, so the caller can drop
+    the line rather than render a lone "1st of 1".
+    """
+    if total_value is None:
+        return ""
+    peers = [v for v in (peer_values or []) if v is not None]
+    if len(peers) < 2:
+        return ""
+    rank = sum(1 for v in peers if v > total_value) + 1
+    return f"Ranks {_ordinal(rank)} of {len(peers)} {noun}"
+
+
 def build_explain_chart(contributors, top_n: int = 10):
     """Plotly figure for the Top Contributors bar chart.
 
