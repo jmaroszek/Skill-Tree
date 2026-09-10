@@ -46,6 +46,11 @@ const first = request('details-mini-graph');
 assert.equal(first.name, 'cose');
 assert.equal(first.randomize, true);
 assert.equal(first.skillTreeRequestId, 1);
+// CoSE's animate:true repaints the running physics and skips the first 250 ms,
+// so a subtree this small finished before anything reached the screen. 'end'
+// tweens start -> final, the same motion fCoSE animates through.
+assert.equal(first.animate, 'end');
+assert.equal(first.animationDuration, 1000);
 
 // Cytoscape's echo changes positions and ordinary display data, not topology.
 const echoed = nodes.map(element => ({
@@ -94,6 +99,15 @@ const largeLayout = request('details-mini-graph', large, 'Large');
 assert.equal(largeLayout.name, 'fcose');
 assert.equal(largeLayout.quality, 'proof');
 assert.equal(largeLayout.randomize, true);
+// fCoSE has no 'end' mode: true already means "tween to the final positions".
+assert.equal(largeLayout.animate, true);
+assert.equal(largeLayout.animationDuration, 1000);
+
+// Turning the animate toggle off must still mean no motion, both sizes.
+window.dash_clientside.callback_context.triggered = [{prop_id: 'details-mini-graph.data'}];
+assert.equal(build(50, 0.25, 4500, false, 0, [...large, {data: {id: 'extra'}}], false, 'Large').animate, false);
+window.dash_clientside.callback_context.triggered = [{prop_id: 'details-mini-graph.data'}];
+assert.equal(build(50, 0.25, 4500, false, 0, [...nodes, {data: {id: 'extra2'}}], false, 'B').animate, false);
 
 // Explicit Settle keeps its forced randomized pass and freeze bypass.
 const settled = request('details-graph-settings-relayout', rerooted, 'A', true);

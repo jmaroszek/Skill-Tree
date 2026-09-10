@@ -125,9 +125,28 @@
             // views perfectly collinear. Cytoscape's force-only CoSE keeps
             // those local views spatial, while fCoSE remains the faster
             // choice once a Details subtree is large.
+            var name = nodeCount <= 24 ? 'cose' : 'fcose';
+
+            // The two layouts read `animate` differently, and taking CoSE's
+            // `true` at face value is what made small subtrees snap into place
+            // with no motion at all.
+            //
+            // CoSE's `true` means "repaint the physics as it runs", and it
+            // suppresses those repaints for the first animationThreshold
+            // (250 ms) so a fast run doesn't flash. A subtree this small
+            // converges well inside that window, so every intermediate frame
+            // was skipped and only the final jump ever reached the screen.
+            // `'end'` instead tweens from the starting positions to the
+            // computed ones — the same layoutPositions() path fCoSE animates
+            // through, so both sizes now expand out of the centre alike.
+            // fCoSE has no 'end' mode; `true` already means exactly that.
             var layout = {
-                name: nodeCount <= 24 ? 'cose' : 'fcose',
-                animate: Boolean(animate),
+                name: name,
+                animate: animate ? (name === 'cose' ? 'end' : true) : false,
+                // CoSE leaves this undefined, which Cytoscape reads as 400 ms.
+                // State it so the short views run at fCoSE's pace instead of
+                // rushing past at less than half of it.
+                animationDuration: 1000,
                 fit: true,
                 // A new subtree needs a randomized seed. Same-root
                 // topology changes remain incremental to preserve its mental
