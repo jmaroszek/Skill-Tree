@@ -141,6 +141,23 @@ def _format_node_counts(activated, scheduled):
 
 def register_event_callbacks(app):
 
+    # Events arrival gate. The three data-heavy Events callbacks below still
+    # refresh when the user opens Events, but switching between any other tabs
+    # now stays entirely clientside instead of posting their hidden content.
+    app.clientside_callback(
+        """
+        function(active_tab) {
+            if (active_tab !== 'tab-events') {
+                return window.dash_clientside.no_update;
+            }
+            return Date.now();
+        }
+        """,
+        Output("events-active-store", "data"),
+        Input("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+
     # --- Tab Visibility Toggle ---
     @app.callback(
         Output("next-tab-content", "style"),
@@ -175,14 +192,14 @@ def register_event_callbacks(app):
         Output("events-list-container", "children"),
         Input("events-refresh-trigger", "data"),
         Input("events-ui-refresh-trigger", "data"),
-        Input("main-tabs", "active_tab"),
+        Input("events-active-store", "data"),
         Input("event-order-store", "data"),
         Input("events-search-input", "value"),
         Input("events-hide-triggered-toggle", "value"),
         Input("events-sort-mode", "value"),
         State("selected-event-store", "data"),
     )
-    def render_events_list(refresh_trigger, ui_refresh, active_tab, event_order, search_text, hide_triggered, sort_mode, selected_event):
+    def render_events_list(refresh_trigger, ui_refresh, _arrived, event_order, search_text, hide_triggered, sort_mode, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
@@ -238,9 +255,9 @@ def register_event_callbacks(app):
     @app.callback(
         Output("events-search-datalist", "children"),
         Input("events-refresh-trigger", "data"),
-        Input("main-tabs", "active_tab"),
+        Input("events-active-store", "data"),
     )
-    def populate_events_search_datalist(refresh_trigger, active_tab):
+    def populate_events_search_datalist(refresh_trigger, _arrived):
         from dash import html as _html
         events = event_manager.get_all_events()
         return [_html.Option(value=e.name) for e in events]
@@ -262,13 +279,13 @@ def register_event_callbacks(app):
                 pass
         return no_update
 
-    # --- Populate trigger node dropdown when events tab opens ---
+    # --- Populate trigger node dropdown when Events data changes/arrives ---
     @app.callback(
         Output("event-trigger-node", "options"),
-        Input("main-tabs", "active_tab"),
         Input("events-refresh-trigger", "data"),
+        Input("events-active-store", "data"),
     )
-    def populate_trigger_node_dropdown(active_tab, _refresh):
+    def populate_trigger_node_dropdown(_refresh, _arrived):
         nodes = graph_manager.get_all_nodes()
         return [{"label": n.name, "value": n.name} for n in sorted(nodes, key=lambda n: n.name)]
 
@@ -2121,7 +2138,7 @@ def register_event_callbacks(app):
     # function that returns the layout dict — see callbacks.py for the rationale.
     app.clientside_callback(
         """
-        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on) {
+        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on, root) {
             var ctx = window.dash_clientside.callback_context;
             var trig = ctx.triggered_id
                 || (ctx.triggered && ctx.triggered.length
@@ -2132,7 +2149,16 @@ def register_event_callbacks(app):
                 return window.dash_clientside.no_update;
             }
             var is_relayout = relayout_triggers.indexOf(trig) !== -1;
-            var randomize = is_relayout || (trig === 'events-detail-graph');
+            // Seed a new event's graph, nudge the one already on screen — see
+            // the matching comment in details_callbacks.py for why fcose needs
+            // randomize only when the nodes have no positions yet.
+            var st = window.SkillTree || (window.SkillTree = {});
+            var elements_changed = (trig === 'events-detail-graph');
+            var randomize = is_relayout
+                || (elements_changed && st._eventsLayoutRoot !== root);
+            if (elements_changed) {
+                st._eventsLayoutRoot = root;
+            }
             if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
                 window.SkillTree.allowOneLayout('events');
             }
@@ -2158,6 +2184,8 @@ def register_event_callbacks(app):
         Input('events-graph-settings-relayout', 'n_clicks'),
         Input('events-detail-graph', 'elements'),
         State('events-freeze-rerender-store', 'data'),
+        # Which event's graph these elements belong to — see details_callbacks.py.
+        State('selected-event-store', 'data'),
     )
 
     # --- Events Sidebar Toggle + Tab-Inner Shift (CLIENTSIDE) ---

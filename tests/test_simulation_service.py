@@ -117,20 +117,60 @@ def test_browser_ignores_old_results_after_and_before_current_result():
     asset = Path(__file__).resolve().parents[1] / 'assets' / 'simulation_requests.js'
     script = r'''
 const assert = require('node:assert/strict');
-global.window = {crypto: require('node:crypto'), dash_clientside: {no_update: 'NO'}};
+global.window = {
+    crypto: require('node:crypto'),
+    dash_clientside: {no_update: 'NO', callback_context: {triggered: []}}
+};
 require(process.argv[1]);
 const ui = window.dash_clientside.skillTreeSimulation;
-function request(name) {
-    const args = Array(18).fill(null); args[0] = name; args[17] = 'tab-details';
+function request(name, triggerId, settledRoot = null, frozen = false) {
+    window.dash_clientside.callback_context.triggered = triggerId ? [{
+        prop_id: `${triggerId}.data`
+    }] : [];
+    const args = Array(20).fill(null);
+    args[0] = name;
+    args[17] = settledRoot ? JSON.stringify({root: settledRoot}) : '';
+    args[18] = 'tab-details';
+    args[19] = frozen;
     return ui.request(...args);
 }
-const old = request('A'), latest = request('B');
+const waitingA = request('A', 'details-selected-node-store');
+assert.equal(waitingA.node, null);
+assert.equal(waitingA.waitingForLayout, true);
+assert.deepEqual(ui.render(null, waitingA), [
+    'NO', {display: 'none'}, {display: 'none'}, 'Calculating…'
+]);
+
+const old = request('A', 'details-simulation-settled-trigger-input', 'A');
+assert.equal(old.node, 'A');
+assert.equal(old.waitingForLayout, false);
+const waitingB = request('B', 'details-selected-node-store', 'A');
+assert.equal(waitingB.node, null);
+const latest = request('B', 'details-simulation-settled-trigger-input', 'B');
+assert.equal(latest.node, 'B');
 const staleResult = {...old, figure: 'A'};
 assert.equal(ui.render(staleResult, latest)[3], 'Calculating…');
 const result = {...latest, figure: 'B', resultsStyle: {display:'flex'}, emptyStyle: {}, caption:'100 trials'};
 assert.equal(ui.render(result, latest)[0], 'B');
 assert.deepEqual(ui.render(staleResult, latest), ['NO','NO','NO','NO']);
-assert.equal(ui.render(result, request(null))[1].display, 'none');
+
+// An old settled token cannot release a same-root re-selection. Further
+// layout-affecting inputs stay gated until a new layoutstop signal arrives.
+const reselected = request('B', 'details-selected-node-store', 'B');
+assert.equal(reselected.node, null);
+assert.equal(request('B', 'filter-context', 'B').node, null);
+assert.equal(request('B', 'details-simulation-settled-trigger-input', 'B').node, 'B');
+
+// Every settled layout emits that signal, including the ones a graph-settings
+// slider starts. With nothing pending, it must not issue a request of its own.
+assert.equal(request('B', 'details-simulation-settled-trigger-input', 'B'), 'NO');
+
+// Frozen canvases intentionally emit no layout events, so selection is ready.
+const frozen = request('C', 'details-selected-node-store', null, true);
+assert.equal(frozen.node, 'C');
+assert.equal(frozen.waitingForLayout, false);
+
+assert.equal(ui.render(result, request(null, 'details-selected-node-store'))[1].display, 'none');
 assert(latest.sequence > old.sequence);
 '''
     result = subprocess.run([node_binary, '-e', script, str(asset)],

@@ -145,6 +145,56 @@ row/Now-card selection, highlights and description changes clientside. Selection
 is State, not Input, for server callbacks. Refreshes retain a still-visible
 selection, update its description, and clear it when the row disappears.
 
+## Hidden-tab and Details responsiveness
+
+All tab layouts remain mounted. Heavy callbacks therefore do not subscribe
+directly to every `main-tabs.active_tab` change: Analyze and Events use small
+clientside arrival stores that only notify their server callbacks when their
+own tab opens. Details dropdown options are hydrated initially and refreshed
+from graph/version stores, so opening Details does not resend an unchanged
+node list. Empty-state suggestions likewise ignore node selection once hidden.
+
+The Details selection callback returns the summary and selected-node store but
+not the large subtasks table. `assets/details_deferred_subtasks.js` observes the
+Cytoscape layout lifecycle, ignores superseded layout generations, and writes
+the settled root to `details-layout-settled-trigger-input` after a short quiet
+window. Only then does the table callback render its rows; a stale root is
+rejected server-side. Existing filter and graph refresh inputs still update an
+already-visible table immediately. When the canvas is frozen, no layout runs,
+so selection renders the table immediately instead of waiting for an event that
+cannot occur.
+
+That placeholder makes `details-selected-node-store` load-bearing. Dash re-fires
+dependent callbacks on any write, including one whose value is unchanged. Most
+of the selection callback's Inputs are refresh signals, so it holds the store
+slot at `no_update` unless the selection actually moved. Without that guard a
+plain graph refresh looks like a fresh selection, and the table falls back to
+its placeholder with no root transition left to release it. The same rule
+applies wherever a deferred render is keyed off a store: write the store only
+when its value changes. `handle_edit_trigger` in `callbacks.py` guards
+`main-tabs.active_tab` for the same reason.
+
+Details layout requests are built by `assets/details_layout.js`. The
+dash-cytoscape component echoes its live elements, now carrying positions,
+roughly 100 ms after add/remove events. The layout callback must still listen
+to `details-mini-graph.elements` so a real topology reaches Cytoscape before
+layout starts, but a structural signature filters that position-only echo. A
+new root gets one randomized pass; same-root topology changes get one
+incremental pass; display-only data changes get none. `autoRefreshLayout`
+remains disabled so dash-cytoscape cannot independently start another pass.
+The signature is reset when `onCytoReady` reports a replacement Cytoscape
+instance; otherwise a remount of the same subtree would be mistaken for an
+echo and its nodes would remain stacked at the default origin. Details views
+with at most 24 nodes use force-only CoSE, which avoids the collinear spectral
+seed fCoSE can produce for small, sparse dependency graphs. Larger views retain
+fCoSE for its performance advantage. The selected node is also marked as the
+view root inside the elements payload, so a new selection is randomized even
+if Dash has not yet propagated the matching selected-node State. Every accepted
+layout request also carries a monotonically increasing client sequence. This
+keeps the `layout` prop distinct when two views happen to produce identical
+CoSE options; without it, `autoRefreshLayout=False` would leave the second
+view's new nodes stacked at their default origin.
+
 ## Simulation requests
 
 `assets/simulation_requests.js` assigns a browser-session ID and increasing
@@ -153,6 +203,14 @@ and settings snapshot, releases database coordination, then calls
 `simulation_service.py`. At most two calculations sample concurrently; newer
 requests cancel older work between chunks. The client only displays a response
 matching its current request, including when server responses arrive out of order.
+
+Inputs that also change the Details graph first issue a node-less cancellation
+request. `assets/details_deferred_subtasks.js` releases the real simulation
+request only after the newest layout generation has stopped and stayed quiet,
+keeping sampling and chart serialization out of the animation-critical window.
+The status remains `Calculating…` and stale results stay hidden while waiting.
+A frozen canvas bypasses this gate because it intentionally emits no layout
+events; simulation-only inputs such as time units and settings remain immediate.
 
 The service retains at most 16 compact histogram/statistic summaries and 128
 session sequence records. Cache keys include relevant node times/statuses,

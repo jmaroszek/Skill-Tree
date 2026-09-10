@@ -6,6 +6,7 @@
  *   - persistent (every Now node pulses for as long as the class is set)
  *   - per-node self-termination via `hasClass('now')` check on each cycle
  *   - keyed registry to avoid double-starting the same node
+ *   - pulses only on the canvas the user can actually see
  *
  * A 1s periodic scan picks up newly-flagged-Now nodes after element updates
  * without requiring an explicit clientside-callback hook. The cost is trivial
@@ -27,6 +28,18 @@
         var wrapper = document.getElementById(canvasId);
         if (!wrapper || !wrapper._cyreg || !wrapper._cyreg.cy) return null;
         return wrapper._cyreg.cy;
+    }
+
+    // All three canvases stay mounted at once — the inactive tabs are only
+    // hidden by an ancestor's display:none. Cytoscape can't see that, so a
+    // pulse left running on a hidden canvas keeps its animation ticking and
+    // redrawing the full graph every frame, stealing time from whatever the
+    // visible tab is animating. getClientRects() is empty for a display:none
+    // subtree and non-empty for a fixed-position one, so it reads correctly
+    // whether the canvas is off-tab or in fullscreen.
+    function isCanvasVisible(canvasId) {
+        var wrapper = document.getElementById(canvasId);
+        return !!wrapper && wrapper.getClientRects().length > 0;
     }
 
     function cleanupNode(node) {
@@ -70,7 +83,11 @@
     function scanCanvas(canvasId) {
         var cy = getCyInstance(canvasId);
         if (!cy) return;
-        var now = cy.nodes('.now');
+        // A hidden canvas is treated as having no Now nodes: nothing starts,
+        // and the stale-key sweep below stops and clears anything still
+        // running from when it was visible. Coming back into view, the next
+        // scan finds the nodes again and restarts the pulse.
+        var now = isCanvasVisible(canvasId) ? cy.nodes('.now') : cy.collection();
         var liveKeys = new Set();
         now.forEach(function (node) {
             liveKeys.add(canvasId + '|' + node.id());

@@ -638,6 +638,11 @@ def build_events_tab_content():
                 userPanningEnabled=False,
                 boxSelectionEnabled=True,
                 autoungrabify=False,
+                # Same reason as details-mini-graph: this canvas's layout
+                # callback already takes `elements` as an Input, so
+                # dash-cytoscape's own add/remove refresh would run fcose a
+                # second time and restart the animation. See details_layout.py.
+                autoRefreshLayout=False,
             ),
             dbc.Button(html.I(className="bi bi-gear"),
                        id="btn-events-graph-settings",
@@ -683,6 +688,9 @@ def build_events_tab_content():
         dcc.Store(id='selected-event-store', data=None),
         dcc.Store(id='editing-dormant-node-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
+        # Bumped clientside only when Events is actually opened. Heavy Events
+        # content listens here instead of to every main-tab switch.
+        dcc.Store(id='events-active-store', data=None),
         # UI-only refresh for the events sidebar list. Bumped by events_sidebar.js
         # on open so render_events_list re-runs — but NOT an input to core_engine,
         # so opening doesn't block the animation on a graph regen.

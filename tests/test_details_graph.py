@@ -146,6 +146,24 @@ class TestPostFilterReachability:
 
 
 class TestBuildGraphElementsInvariants:
+    def test_selected_node_is_marked_as_view_root(self, mgr):
+        mgr.add_node(_make_node("Root"))
+        mgr.add_node(_make_node("Child"))
+        mgr.add_edge("Child", "Root", EDGE_NEEDS_HARD)
+
+        elements = _build_graph_elements(
+            selected_node="Root",
+            include_soft_val=["include"],
+            include_synergies_val=[],
+        )
+
+        roots = {
+            element["data"]["id"]
+            for element in elements
+            if element["data"].get("details_root")
+        }
+        assert roots == {"Root"}
+
     def test_selected_node_always_present(self, mgr):
         """Even a selected node with no prereqs and filters that would normally
         hide it still appears — it's the anchor of the view."""

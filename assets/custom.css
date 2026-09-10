@@ -151,6 +151,21 @@ input[type=number] {
 .dash-dropdown {
     min-height: 38px;
 }
+
+/* The Details selector places its clear action immediately beside the menu
+   chevron. Keep the visible x at its native size, but give the link a larger
+   hit target that grows into the unused space on its left. Because the padded
+   region belongs to the clear link itself, clicks there clear the selection
+   instead of bubbling to the dropdown trigger. */
+#details-node-select .dash-dropdown-clear {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
 .dash-dropdown-trigger-icon {
     /* Bootstrap renders its form-select chevron at 16x12 via
        background-image. Match those dimensions so the trigger reads

@@ -1,8 +1,8 @@
 """Tests for the Phase D core_engine tab-switch short-circuit guard.
 
-Switching to Events / Analyze shouldn't trigger a full graph regen — those
-tabs have their own refresh callbacks. The guard short-circuits to no_update
-when the trigger is `main-tabs` and the destination tab is non-graph.
+Only tab-canvas shows `cytoscape-graph`, so only a switch to it needs a graph
+regen. Every other tab refreshes its own content, and the guard short-circuits
+to no_update when the trigger is `main-tabs` and the destination is one of them.
 """
 
 import dash
@@ -66,10 +66,12 @@ def test_noop_tuple_arity():
 
 
 def test_non_graph_tabs_set_content():
-    assert _NON_GRAPH_TABS == frozenset({"tab-events", "tab-analyze"})
+    assert _NON_GRAPH_TABS == frozenset({
+        "tab-events", "tab-analyze", "tab-details", "tab-next",
+    })
 
 
-@pytest.mark.parametrize("tab", ["tab-events", "tab-analyze"])
+@pytest.mark.parametrize("tab", ["tab-events", "tab-analyze", "tab-details", "tab-next"])
 def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     """Switching to a non-graph tab short-circuits to all no_update."""
     cb, _ = _core_engine_fn()
@@ -86,9 +88,9 @@ def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     )
 
 
-@pytest.mark.parametrize("tab", ["tab-next", "tab-canvas", "tab-details"])
+@pytest.mark.parametrize("tab", ["tab-canvas"])
 def test_core_engine_runs_on_graph_tabs(monkeypatch, tab):
-    """Graph-facing tabs (Next, Nodes, Details) must NOT short-circuit."""
+    """tab-canvas owns cytoscape-graph, so it must NOT short-circuit."""
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "main-tabs")
     args = _core_engine_args()

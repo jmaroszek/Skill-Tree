@@ -3,6 +3,7 @@ Callback definitions for the Details tab.
 """
 
 import database
+import json
 import os
 import logging
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
@@ -73,6 +74,20 @@ def _build_milestones_section(subtask_nodes, parent_name, edges):
     ]
     # Milestones shown → bottom toggles hidden (top toggles take over).
     return {"display": "block"}, {"display": "none"}, tiles
+
+
+def _collect_details_subtasks(node_name, include_soft, include_synergies,
+                              max_depth, global_filters):
+    """Return the filtered, sorted dependency rows shared by Details views."""
+    view = graph_manager.get_dependency_view(
+        node_name, include_soft=include_soft,
+        include_synergies=include_synergies, max_depth=max_depth,
+        filters=global_filters)
+    subtree = set(view["node_names"]) - {node_name}
+    subtask_nodes = [graph_manager.get_node(name) for name in subtree]
+    subtask_nodes = [node for node in subtask_nodes if node is not None]
+    subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
+    return subtask_nodes, graph_manager.get_edges()
 
 
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
@@ -160,14 +175,16 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
 
 def register_details_callbacks(app):
 
-    # --- Populate node dropdown when tab becomes active ---
+    # --- Populate node dropdown when its underlying data changes ---
+    # All tab contents stay mounted, so the initial call hydrates this once;
+    # graph/version refreshes keep it current without resending ~42 KB merely
+    # because the user opened Details.
     @app.callback(
         Output("details-node-select", "options"),
-        Input("main-tabs", "active_tab"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
     )
-    def populate_details_dropdown(active_tab, _refresh, _version):
+    def populate_details_dropdown(_refresh, _version):
         nodes = graph_manager.get_all_nodes()
         return [{"label": n.name, "value": n.name}
                 for n in sorted(nodes, key=lambda n: n.name)]
@@ -265,8 +282,6 @@ def register_details_callbacks(app):
         # Priority
         Output("details-priority-section", "style"),
         Output("details-priority-badge", "children"),
-        # Subtasks
-        Output("details-subtasks-table-container", "children"),
         # Milestones roster (above the subtasks table, filter-aware) +
         # canonical bottom toggle visibility (hidden when milestones show).
         Output("details-milestones-section", "style"),
@@ -295,6 +310,11 @@ def register_details_callbacks(app):
         State("filter-node-type", "value"),
         State("filter-dormant", "value"),
         State("details-hide-blocked", "value"),
+        # What the store already holds. Most of this callback's Inputs are
+        # refresh signals, not selection changes, so the store slot below is
+        # left untouched unless the selection actually moved — see the note
+        # on `_selection_output`.
+        State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     @database.snapshot_read
@@ -302,17 +322,24 @@ def register_details_callbacks(app):
                            max_depth_val, include_soft_val, include_synergies_val,
                            f_context, f_subcontext, f_done,
                            f_value, f_interest, f_time, f_difficulty,
-                           f_node_types, f_show_dormant, hide_blocked_val):
+                           f_node_types, f_show_dormant, hide_blocked_val,
+                           current_selection):
+        # Dash re-fires every dependent callback when an Output is written,
+        # even with an unchanged value. Writing the same node name back on a
+        # refresh would make render_details_subtasks see a fresh selection and
+        # swap the table for its "Loading subtasks…" placeholder — which then
+        # waits for a layout settle that a same-root refresh never produces.
+        def _selection_output(value):
+            return no_update if value == current_selection else value
+
         if not node_name:
             return (
                 {"display": "block"},
                 {"display": "none"},
-                None,
+                _selection_output(None),
                 "", [], "", "", "", "", "", "", "", "",
                 {"display": "none"}, 0, "",
                 {"display": "none"}, "",
-                html.Div("Select a node to see subtasks.",
-                         className="text-muted text-center py-3"),
                 {"display": "none"}, {}, [],
                 # Ratings display (own group shown, inherited row hidden).
                 {}, {"display": "none"}, "",
@@ -320,7 +347,7 @@ def register_details_callbacks(app):
 
         node = graph_manager.get_node(node_name)
         if not node:
-            return (no_update,) * 25
+            return (no_update,) * 24
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
@@ -446,24 +473,9 @@ def register_details_callbacks(app):
                                        f_node_types, f_show_dormant=f_show_dormant)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
-        view = graph_manager.get_dependency_view(
-            node_name, include_soft=include_soft,
-            include_synergies=include_synergies, max_depth=max_depth,
-            filters=global_filters)
-        subtree = set(view["node_names"]) - {node_name}
-        subtask_nodes = [graph_manager.get_node(name) for name in subtree]
-        subtask_nodes = [node for node in subtask_nodes if node is not None]
-
-        subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
-        edges = graph_manager.get_edges()
-
-        # Milestones get their own dedicated strip above the table, so the
-        # table itself excludes them — avoids redundant rendering.
-        non_milestone_subtasks = [n for n in subtask_nodes if n.type != "Milestone"]
-        subtasks_table = build_details_subtasks_table(
-            non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
-            parent_name=node_name, include_soft=include_soft,
-            include_synergies=include_synergies)
+        subtask_nodes, edges = _collect_details_subtasks(
+            node_name, include_soft, include_synergies, max_depth,
+            global_filters)
 
         # Milestones roster — derived from the same filtered subtask_nodes the
         # Subtasks table uses, so the strip stays in lockstep with the table.
@@ -474,7 +486,7 @@ def register_details_callbacks(app):
             {"display": "none"},
             {"display": "flex", "flexDirection": "column", "flex": "1",
              "padding": "0 18px", "overflowY": "auto"},
-            node_name,
+            _selection_output(node_name),
             node.name,
             badges,
             node.description or "No description.",
@@ -487,14 +499,91 @@ def register_details_callbacks(app):
             str(node.difficulty),
             show_progress, progress_val, progress_text,
             show_priority, priority_badge,
-            subtasks_table,
             ms_section_style, bottom_toggles_style, ms_tiles,
             ratings_own_style, ratings_inherited_style, ratings_inherited_text,
         )
 
-    # --- Toggle subtask filters ---
+    # --- Subtasks table: selection placeholder, then render after layout ---
+    # The full table is the largest remaining Details response. Keep it out of
+    # the initial animation window: selection clears the stale table cheaply,
+    # and details_deferred_subtasks.js requests the real rows only after the
+    # newest Cytoscape layout has stopped. Filter/refresh changes on an already
+    # rendered node remain immediate.
     @app.callback(
-        Output("details-subtasks-table-container", "children", allow_duplicate=True),
+        Output("details-subtasks-table-container", "children"),
+        Input("details-selected-node-store", "data"),
+        Input("details-layout-settled-trigger-input", "value"),
+        Input("details-refresh-trigger", "data"),
+        Input("graph-version-store", "data"),
+        Input("override-store", "data"),
+        Input("details-include-soft-needs", "value"),
+        Input("details-include-synergies", "value"),
+        Input("details-max-depth", "value"),
+        Input("filter-context", "value"),
+        Input("filter-subcontext", "value"),
+        Input("filter-done", "value"),
+        Input("filter-value", "value"),
+        Input("filter-interest", "value"),
+        Input("filter-time", "value"),
+        Input("filter-difficulty", "value"),
+        Input("filter-node-type", "value"),
+        Input("filter-dormant", "value"),
+        Input("details-hide-blocked", "value"),
+        State("details-freeze-rerender-store", "data"),
+        prevent_initial_call=True,
+    )
+    @database.snapshot_read
+    def render_details_subtasks(selected_node, settled_token, _refresh,
+                                _version, _override_data,
+                                include_soft_val, include_synergies_val,
+                                max_depth_val, f_context, f_subcontext,
+                                f_done, f_value, f_interest, f_time,
+                                f_difficulty, f_node_types, f_show_dormant,
+                                hide_blocked_val, freeze_on):
+        if not selected_node:
+            return html.Div(
+                "Select a node to see subtasks.",
+                className="text-muted text-center py-3")
+
+        trigger = get_trigger_id()
+        if trigger == "details-selected-node-store" and not freeze_on:
+            return html.Div(
+                "Loading subtasks…",
+                className="text-muted text-center py-3",
+                role="status")
+
+        if trigger == "details-layout-settled-trigger-input":
+            try:
+                settled_root = json.loads(settled_token or "{}").get("root")
+            except (TypeError, ValueError, AttributeError):
+                return no_update
+            # A superseded layout may finish after the user selected another
+            # node. Never let its late signal overwrite the current table.
+            if settled_root != selected_node:
+                return no_update
+
+        include_soft = bool(include_soft_val and "include" in include_soft_val)
+        include_synergies = bool(
+            include_synergies_val and "include" in include_synergies_val)
+        max_depth = _normalize_max_depth(max_depth_val)
+        global_filters = build_filters(
+            f_context, f_subcontext, f_done, f_value, f_interest, f_time,
+            f_difficulty, f_node_types, f_show_dormant=f_show_dormant)
+        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
+            global_filters["hide_blocked"] = True
+
+        subtask_nodes, edges = _collect_details_subtasks(
+            selected_node, include_soft, include_synergies, max_depth,
+            global_filters)
+        non_milestone_subtasks = [
+            node for node in subtask_nodes if node.type != "Milestone"]
+        return build_details_subtasks_table(
+            non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
+            parent_name=selected_node, include_soft=include_soft,
+            include_synergies=include_synergies)
+
+    # --- Toggle milestone filters ---
+    @app.callback(
         Output("details-milestones-section", "style", allow_duplicate=True),
         Output("details-subtask-toggles-bottom", "style", allow_duplicate=True),
         Output("details-milestones-tiles", "children", allow_duplicate=True),
@@ -514,14 +603,15 @@ def register_details_callbacks(app):
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
+    @database.snapshot_read
     def toggle_details_subtask_filters(include_soft_val, include_synergies_val,
-                                        max_depth_val,
-                                        f_context, f_subcontext, f_done,
-                                        f_value, f_interest, f_time, f_difficulty,
-                                        f_node_types, f_show_dormant,
-                                        hide_blocked_val, selected_node):
+                                       max_depth_val,
+                                       f_context, f_subcontext, f_done,
+                                       f_value, f_interest, f_time, f_difficulty,
+                                       f_node_types, f_show_dormant,
+                                       hide_blocked_val, selected_node):
         if not selected_node:
-            return no_update, no_update, no_update, no_update
+            return no_update, no_update, no_update
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
@@ -532,30 +622,16 @@ def register_details_callbacks(app):
                                        f_node_types, f_show_dormant=f_show_dormant)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
-        view = graph_manager.get_dependency_view(
-            selected_node, include_soft=include_soft,
-            include_synergies=include_synergies, max_depth=max_depth,
-            filters=global_filters)
-        subtree = set(view["node_names"]) - {selected_node}
-        subtask_nodes = [graph_manager.get_node(name) for name in subtree]
-        subtask_nodes = [node for node in subtask_nodes if node is not None]
-
-        subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
-        edges = graph_manager.get_edges()
-
-        # Milestones get their own dedicated strip — exclude them from the table.
-        non_milestone_subtasks = [n for n in subtask_nodes if n.type != "Milestone"]
-        subtasks_table = build_details_subtasks_table(
-            non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
-            parent_name=selected_node, include_soft=include_soft,
-            include_synergies=include_synergies)
+        subtask_nodes, edges = _collect_details_subtasks(
+            selected_node, include_soft, include_synergies, max_depth,
+            global_filters)
 
         # Milestones roster shares the same filtered, depth-limited view as
         # the table, so both surfaces stay in lockstep.
         ms_section_style, bottom_toggles_style, ms_tiles = _build_milestones_section(
             subtask_nodes, selected_node, edges)
 
-        return subtasks_table, ms_section_style, bottom_toggles_style, ms_tiles
+        return ms_section_style, bottom_toggles_style, ms_tiles
 
     # --- Sync "Hide Done" toggle with sidebar filter ---
     @app.callback(
@@ -676,6 +752,10 @@ def register_details_callbacks(app):
 
     # Browser-generated sequence numbers let both the worker and the chart
     # discard superseded selections, even if responses arrive out of order.
+    # Layout-affecting changes first send a node-less request, which cancels
+    # older work without starting another simulation. The selected node is
+    # released only after the newest Cytoscape layout settles. Frozen canvases
+    # bypass the gate because they intentionally produce no layout events.
     app.clientside_callback(
         ClientsideFunction(namespace="skillTreeSimulation", function_name="request"),
         Output("details-sim-request", "data"),
@@ -689,7 +769,10 @@ def register_details_callbacks(app):
         Input("filter-difficulty", "value"), Input("filter-node-type", "value"),
         Input("filter-dormant", "value"), Input("details-hide-blocked", "value"),
         Input("filter-time-unit", "value"), Input("graph-version-store", "data"),
-        Input("settings-save-status", "children"), Input("main-tabs", "active_tab"),
+        Input("settings-save-status", "children"),
+        Input("details-simulation-settled-trigger-input", "value"),
+        Input("main-tabs", "active_tab"),
+        State("details-freeze-rerender-store", "data"),
     )
 
     @app.callback(Output("details-sim-result", "data"),
@@ -859,9 +942,8 @@ def register_details_callbacks(app):
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
         Input("override-store", "data"),
-        Input("details-selected-node-store", "data"),
     )
-    def build_empty_state_suggestions(_refresh, _version, _override_data, _selected):
+    def build_empty_state_suggestions(_refresh, _version, _override_data):
         from next_callbacks import get_container_suggestions
 
         seen = set()
@@ -1673,52 +1755,15 @@ def register_details_callbacks(app):
         return text
 
     # --- Details Graph Layout: Apply Layout Parameters ---
-    # Clientside so allowOneLayout('details') is set in the same synchronous
-    # function that returns the layout dict — see callbacks.py for the rationale.
+    # details_layout.js distinguishes a genuine nodes/edges change from
+    # dash-cytoscape's delayed elements echo (which only adds positions). That
+    # echo used to start a second incremental layout about 100 ms after the
+    # randomized pass, producing the late reset. Small, sparse subtrees use
+    # force-only CoSE because fCoSE's spectral seed can make them collinear.
+    # Settle still calls allowOneLayout synchronously there.
     app.clientside_callback(
-        """
-        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on) {
-            var ctx = window.dash_clientside.callback_context;
-            var trig = ctx.triggered_id
-                || (ctx.triggered && ctx.triggered.length
-                    ? ctx.triggered[0].prop_id.split('.')[0]
-                    : null);
-            // While frozen, suppress layout prop updates (sliders/element changes)
-            // EXCEPT explicit re-layout clicks — those bypass the JS guard.
-            var relayout_triggers = ['details-graph-settings-relayout'];
-            if (freeze_on && relayout_triggers.indexOf(trig) === -1) {
-                return window.dash_clientside.no_update;
-            }
-            var is_relayout = relayout_triggers.indexOf(trig) !== -1;
-            // Randomize on re-layout click or when elements change (new node selected).
-            var randomize = is_relayout || (trig === 'details-mini-graph');
-            if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
-                window.SkillTree.allowOneLayout('details');
-            }
-            // Scale fcose iterations with graph size. Small subtrees converge
-            // fast and don't need 2500 iters; large ones still do.
-            var node_count = 0;
-            if (Array.isArray(elements)) {
-                for (var i = 0; i < elements.length; i++) {
-                    var e = elements[i];
-                    if (e && e.data && e.data.source === undefined) node_count++;
-                }
-            }
-            var num_iter = Math.max(500, Math.min(2500, node_count * 25));
-            return {
-                name: 'fcose',
-                quality: 'proof',
-                animate: !!animate,
-                fit: true,
-                randomize: randomize,
-                padding: 20,
-                idealEdgeLength: edge_length || 100,
-                nodeRepulsion: repulsion || 4500,
-                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0.25,
-                numIter: num_iter,
-            };
-        }
-        """,
+        ClientsideFunction(
+            namespace="skillTreeDetailsLayout", function_name="build"),
         Output('details-mini-graph', 'layout'),
         Input('details-graph-settings-edge-length', 'value'),
         Input('details-graph-settings-gravity', 'value'),
@@ -1727,6 +1772,10 @@ def register_details_callbacks(app):
         Input('details-graph-settings-relayout', 'n_clicks'),
         Input('details-mini-graph', 'elements'),
         State('details-freeze-rerender-store', 'data'),
+        # The subtree root the current elements belong to. Compared against the
+        # root the live layout was built for, to decide whether this is a new
+        # graph (seed it) or the same graph re-rendered (nudge it).
+        State('details-selected-node-store', 'data'),
     )
 
     # --- Explain Score modal ---------------------------------------------
@@ -1969,6 +2018,10 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
             'data': {
                 'id': node.name,
                 'label': node.name,
+                # Lets the client distinguish a newly selected view from an
+                # incremental same-root topology change without depending on
+                # Dash's ordering of separate callback outputs.
+                'details_root': node.name == selected_node,
                 'color': (
                     colors.get(STATUS_DONE, '#198754') if node.status == STATUS_DONE
                     else colors.get(STATUS_BLOCKED, '#dc3545') if node.status == STATUS_BLOCKED

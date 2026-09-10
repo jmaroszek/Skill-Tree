@@ -4,7 +4,7 @@ Computes and renders aggregate analytics about the graph.
 """
 
 import math
-from dash import html, dcc, Input, Output, no_update
+from dash import html, dcc, Input, Output, State, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from collections import defaultdict
@@ -1693,6 +1693,26 @@ def _render_hours_by_context(ctx_data, height=None):
 
 def register_analyze_callbacks(app):
 
+    # Arrival gate. Listening to `main-tabs.active_tab` directly meant every
+    # tab switch anywhere in the app posted a request to the server just to
+    # have refresh_analyze_tab answer no_update six times — a round-trip that
+    # queued behind the real work the user was waiting on. This clientside
+    # filter only bumps the store when Analyze is the tab being opened, so
+    # switching to Details or Next now costs nothing here.
+    app.clientside_callback(
+        """
+        function(active_tab) {
+            if (active_tab !== 'tab-analyze') {
+                return window.dash_clientside.no_update;
+            }
+            return Date.now();
+        }
+        """,
+        Output("analyze-active-store", "data"),
+        Input("main-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+
     @app.callback(
         Output("analyze-overview-content", "children"),
         Output("analyze-goals-content", "children"),
@@ -1700,7 +1720,7 @@ def register_analyze_callbacks(app):
         Output("analyze-graph-content", "children"),
         Output("analyze-contexts-content", "children"),
         Output("analyze-throughput-content", "children"),
-        Input("main-tabs", "active_tab"),
+        Input("analyze-active-store", "data"),
         Input("setting-analyze-bottlenecks", "value"),
         Input("setting-analyze-goals", "value"),
         Input("setting-analyze-throughput-granularity", "value"),
@@ -1712,10 +1732,14 @@ def register_analyze_callbacks(app):
         # misses them. Listening to save-output picks them up; the active_tab
         # guard below short-circuits when the user is not on this tab.
         Input("save-output", "children"),
+        # Read as State now that arrival is signalled by analyze-active-store.
+        # Still needed: the settings and save-output Inputs fire from any tab.
+        State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
-    def refresh_analyze_tab(active_tab, bottlenecks, goals,
-                            thru_gran, thru_start, thru_end, _save_output):
+    def refresh_analyze_tab(_arrived, bottlenecks, goals,
+                            thru_gran, thru_start, thru_end, _save_output,
+                            active_tab):
         if active_tab != "tab-analyze":
             return (no_update,) * 6
 

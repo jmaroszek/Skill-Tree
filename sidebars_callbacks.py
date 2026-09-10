@@ -20,6 +20,16 @@ from details_layout import build_goal_card
 graph_manager = GraphManager()
 
 
+def _goal_sidebar_is_open(style):
+    """True when the goals overlay is slid into view (left == 0px).
+
+    Every writer of `details-goal-sidebar.style` keeps `left` on the dict, and
+    a missing/blank style means the initial closed state, so absence reads as
+    closed.
+    """
+    return bool(style) and style.get("left") == "0px"
+
+
 def register_sidebars_callbacks(app):
     """Register the cross-tab sidebar callbacks: goals (toggle, new, render,
     priority, context-menu, drag-reorder), filters toggle, editor fast-path."""
@@ -64,6 +74,14 @@ def register_sidebars_callbacks(app):
         return goal_style, "Goal", ed_style
 
     # --- Populate Goal Sidebar ---
+    # Only renders while the sidebar is actually open. It is a per-goal
+    # completion walk over the whole graph and the result is ~110 KB of
+    # component JSON, and it used to run on every tab switch and every graph
+    # mutation whether or not anyone could see it. Skipping it while closed is
+    # safe because the only thing that opens the sidebar is
+    # `goals.toggle_sidebar` in assets/goals_sidebar.js, which bumps
+    # goals-ui-refresh-trigger in the same return — so the list is always
+    # rebuilt on the way open. Every other writer of this style only closes it.
     @app.callback(
         Output("details-goal-list-container", "children"),
         Input("main-tabs", "active_tab"),
@@ -74,8 +92,12 @@ def register_sidebars_callbacks(app):
         Input("details-goal-sort", "value"),
         Input("details-goal-order-store", "data"),
         State("details-selected-node-store", "data"),
+        State("details-goal-sidebar", "style"),
     )
-    def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val, sort_mode, manual_order, selected_node):
+    def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val, sort_mode, manual_order, selected_node, goal_sidebar_style):
+
+        if not _goal_sidebar_is_open(goal_sidebar_style):
+            return no_update
 
         all_nodes = graph_manager.get_all_nodes()
         goals = [n for n in all_nodes if n.type == "Goal"]

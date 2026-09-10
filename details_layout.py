@@ -378,6 +378,11 @@ def build_details_tab_content():
                 userPanningEnabled=False,
                 boxSelectionEnabled=True,
                 autoungrabify=False,
+                # Details owns layout triggering: the callback responds to a
+                # real topology change but filters dash-cytoscape's delayed
+                # position-only elements echo. Its built-in add/remove refresh
+                # must stay off or it would independently start another pass.
+                autoRefreshLayout=False,
             ),
             dbc.Button(html.I(className="bi bi-gear"),
                        id="btn-details-graph-settings",
@@ -694,6 +699,15 @@ def build_details_tab_content():
         dcc.Input(id='details-goal-drag-order-input', type='text', value='',
                   style={'display': 'none'}),
         dcc.Input(id='details-simulate-trigger-input', type='text', value='',
+                  style={'display': 'none'}),
+        # Set by details_deferred_subtasks.js after the newest Details graph
+        # layout has stopped. The subtasks table uses it as its render gate.
+        dcc.Input(id='details-layout-settled-trigger-input', type='text', value='',
+                  style={'display': 'none'}),
+        # Emitted after every newest Details layout settles. Time Simulation
+        # waits for this separate signal so filter-driven layouts do not
+        # compete with the opening animation or delay table-only behavior.
+        dcc.Input(id='details-simulation-settled-trigger-input', type='text', value='',
                   style={'display': 'none'}),
         dcc.Input(id='details-edit-trigger-input', type='text', value='',
                   style={'display': 'none'}),

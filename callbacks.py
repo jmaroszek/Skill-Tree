@@ -51,8 +51,15 @@ event_manager = EventManager()
 _CORE_ENGINE_NUM_OUTPUTS = 28
 
 # Tabs whose own callbacks already refresh their content; switching to them
-# should NOT trigger a graph regen via core_engine.
-_NON_GRAPH_TABS = frozenset({"tab-events", "tab-analyze"})
+# should NOT trigger a graph regen via core_engine. That is every tab except
+# tab-canvas, which is the only one that shows `cytoscape-graph`:
+#   Events / Analyze — their own refresh callbacks.
+#   Details          — update_details_graph + select_detail_node.
+#   Next             — next_callbacks.populate_suggestions, which listens to
+#                      graph-version-store and the filters directly.
+# The regen core_engine ran here cost ~750 KB and ~700 ms of serialize +
+# diff per tab switch, landing right on top of whatever the user did next.
+_NON_GRAPH_TABS = frozenset({"tab-events", "tab-analyze", "tab-details", "tab-next"})
 
 # Triggers that only open/close the editor sidebar without touching graph data,
 # filters, or focus. When core_engine fires on one of these (and nothing else

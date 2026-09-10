@@ -1339,6 +1339,10 @@ def build_app_layout(initial_elements, env="production"):
         # ConfigManager whenever any sidebar control changes; this Store
         # exists only to give that callback a valid Output target.
         dcc.Store(id='filter-persist-sink', data=None),
+        # Bumped by a clientside filter only when the user opens the Analyze
+        # tab. refresh_analyze_tab listens to this instead of main-tabs
+        # directly, so switching to any other tab makes no request at all.
+        dcc.Store(id='analyze-active-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
 
         main_tabs,
