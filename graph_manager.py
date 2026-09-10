@@ -64,7 +64,7 @@ class GraphManager:
     def __init__(self):
         database.init_db()
         self._community_cache: Dict[tuple, List[Set[str]]] = OrderedDict()
-        self._scoring_memo: Dict[str, float] = {}
+        self._scoring_memo: dict = {}
         self._scoring_memo_key: Optional[tuple] = None
         # (goal_name, sorted_edge_types_tuple) -> (graph_version, frozenset of reachable nodes)
         self._goal_subtree_cache: Dict[tuple, tuple] = {}
@@ -927,19 +927,20 @@ class GraphManager:
     def calculate_priority_scores(self, now_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
         """Delegates scoring to the scoring module.
 
-        Reuses a per-manager total_value memo across calls: a filter toggle,
+        Reuses per-manager route and required-work maps across calls: a filter toggle,
         priority-goal change, or cosmetic edit (description, tags, paths)
-        doesn't alter scoring inputs, so the expensive recursive cascade
-        doesn't need re-walking. Invalidated only when _scoring_version
+        doesn't alter scoring inputs, so the strongest-route and prerequisite maps
+        do not need re-walking. Invalidated only when _scoring_version
         advances (a scoring-relevant node/edge mutation) or a TV-affecting
         hyperparam changes. Cost params (w_e, w_t, beta), goal_boost, and the
         context-adjustment params (alpha, context_weights) don't affect the
-        cached TV cascade, so they are excluded from the key.
+        cached structural maps, so they are excluded from the key.
         """
         hypers = ConfigManager.get_hyperparams()
         hypers['context_weights'] = ConfigManager.get_context_weights()
         TV_AFFECTING_KEYS = ('w_v', 'w_i', 'value_exponent', 'd_H', 'd_S',
-                             'd_Syn_pair', 'd_Syn_mul', 'cross_context_mult')
+                             'd_Syn_pair', 'd_Syn_mul', 'cross_context_mult',
+                             'future_work_half_credit_hours', 'future_work_exponent')
         hypers_key = tuple((k, hypers.get(k)) for k in TV_AFFECTING_KEYS)
         cache_key = (self._scoring_version, hypers_key)
         with self._cache_lock:

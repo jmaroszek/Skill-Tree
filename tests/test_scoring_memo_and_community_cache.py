@@ -97,13 +97,13 @@ def test_total_value_memo_populates_full_dag_reach():
     ]
     memo: dict = {}
     tv_a = _call_tv("A", nodes, edges, memo=memo)
-    # All DAG-reachable nodes are now cached.
-    assert set(memo.keys()) == {"A", "B", "C", "D"}
-    # Cached values should match fresh computations for each.
-    for name in ("A", "B", "C", "D"):
-        assert memo[name] == _call_tv(name, nodes, edges, memo=None), (
-            f"cached memo[{name}] != fresh total_value({name})"
-        )
+    # Cache the source's unique beneficiary map, rather than scalar subtree sums.
+    routes = memo[('routes', 'A', HYPERS['d_H'], HYPERS['d_S'])]
+    assert set(routes) == {'A', 'B', 'C', 'D'}
+    assert routes['D'][0] == pytest.approx(HYPERS['d_H'] ** 3)
+    assert _call_tv('A', nodes, edges, memo=memo) == tv_a
+    for name in ('B', 'C', 'D'):
+        assert _call_tv(name, nodes, edges, memo=memo) == _call_tv(name, nodes, edges)
 
 
 def test_total_value_memo_reuse_within_score_nodes_keeps_results_stable():

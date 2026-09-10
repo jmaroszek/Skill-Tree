@@ -1785,7 +1785,8 @@ def _explain_bar_chart(contributors: list, top_n: int):
     bar_texts = [f"{r['contribution']:.2f}" for r in rows]
     customdata = [
         [full_names[i], rows[i]['via'], rows[i]['pct_of_tv'],
-         rows[i]['depth'], rows[i]['weight'], rows[i]['iv']]
+         rows[i]['depth'], rows[i]['weight'], rows[i]['iv'],
+         rows[i].get('remaining_hours', 0.0), rows[i].get('future_discount', 1.0)]
         for i in range(len(rows))
     ]
 
@@ -1804,7 +1805,9 @@ def _explain_bar_chart(contributors: list, top_n: int):
             "Via: %{customdata[1]}<br>"
             "Depth: %{customdata[3]}<br>"
             "Weight: %{customdata[4]:.3f}<br>"
-            "Intrinsic value: %{customdata[5]:.2f}"
+            "Intrinsic value: %{customdata[5]:.2f}<br>"
+            "Required hours used for discount: %{customdata[6]:.1f}<br>"
+            "Future credit retained: %{customdata[7]:.1%}"
             "<extra></extra>"
         ),
     ))

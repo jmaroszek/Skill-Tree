@@ -302,12 +302,14 @@ def register_settings_callbacks(app):
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-monte-carlo-trials', 'value'),
         Output('setting-now-node-cap', 'value'),
+        Output('hp-future-hours', 'value'),
+        Output('hp-future-exponent', 'value'),
         Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 46
+            return (dash.no_update,) * 48
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -395,6 +397,8 @@ def register_settings_callbacks(app):
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
             ConfigManager.get_monte_carlo_trials(),
             ConfigManager.get_now_node_cap(),
+            hp['future_work_half_credit_hours'],
+            hp['future_work_exponent'],
         )
 
     # --- Settings: Apply Hyperparameter Profile ---
@@ -411,6 +415,8 @@ def register_settings_callbacks(app):
         Output('hp-beta', 'value', allow_duplicate=True),
         Output('hp-goal-boost', 'value', allow_duplicate=True),
         Output('hp-alpha', 'value', allow_duplicate=True),
+        Output('hp-future-hours', 'value', allow_duplicate=True),
+        Output('hp-future-exponent', 'value', allow_duplicate=True),
         Input('setting-hp-profile', 'value'),
         prevent_initial_call=True,
     )
@@ -422,8 +428,9 @@ def register_settings_callbacks(app):
                     p['d_Syn_pair'], p['d_Syn_mul'],
                     p.get('cross_context_mult', 1.0),
                     p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5),
-                    p.get('alpha', 0.3))
-        return (dash.no_update,) * 12
+                    p.get('alpha', 0.3), p['future_work_half_credit_hours'],
+                    p['future_work_exponent'])
+        return (dash.no_update,) * 14
 
     # --- Settings: Sync Time Estimates ---
     # 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see ConfigManager.HOURS_PER_YEAR_MULT).
@@ -520,6 +527,8 @@ def register_settings_callbacks(app):
         State('setting-time-calibration-enabled', 'value'),
         State('setting-monte-carlo-trials', 'value'),
         State('setting-now-node-cap', 'value'),
+        State('hp-future-hours', 'value'),
+        State('hp-future-exponent', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul,
@@ -537,7 +546,8 @@ def register_settings_callbacks(app):
                       egl_edge_length, egl_gravity, egl_repulsion,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
-                      monte_carlo_trials_val, now_node_cap_val):
+                      monte_carlo_trials_val, now_node_cap_val,
+                      future_hours=None, future_exponent=None):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
@@ -567,6 +577,10 @@ def register_settings_callbacks(app):
                 'alpha': _clamp(alpha, 0.0, 1.5, 0.3),
                 'alpha_goal': _profile_knob(hp_profile, 'alpha_goal'),
                 'value_exponent': _profile_knob(hp_profile, 'value_exponent'),
+                'future_work_half_credit_hours': _clamp(future_hours, 0.0, 1000000.0,
+                    ConfigManager.get_hyperparams()['future_work_half_credit_hours']),
+                'future_work_exponent': _clamp(future_exponent, 0.05, 2.0,
+                    ConfigManager.get_hyperparams()['future_work_exponent']),
             }
 
             new_ctx_weights: dict = {}

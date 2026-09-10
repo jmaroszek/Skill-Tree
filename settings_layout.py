@@ -373,8 +373,22 @@ def _build_scoring_tab():
                 dbc.Col([
                     dbc.Label("Time Dampener", className="mt-2"),
                     dbc.Input(id="hp-beta", type="number", step="any"),
-                    html.Small("lower favours long projects; below 0.45 it inverts",
+                    html.Small("lower values soften the penalty for long projects",
                                className="text-muted d-block"),
+                ]),
+            ], className="mb-2"),
+
+            html.H6("Future Work", className="mt-3 mb-1"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Half-Credit Hours"),
+                    dbc.Input(id="hp-future-hours", type="number", min=0, max=1000000, step="any"),
+                    html.Small("Remaining required hours that halve a downstream benefit's credit. 0 disables.", className="text-muted d-block"),
+                ]),
+                dbc.Col([
+                    dbc.Label("Discount Exponent"),
+                    dbc.Input(id="hp-future-exponent", type="number", min=0.05, max=2, step="any"),
+                    html.Small("Shapes the future-work discount independently of today's time cost.", className="text-muted d-block"),
                 ]),
             ], className="mb-2"),
 

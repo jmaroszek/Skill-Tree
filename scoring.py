@@ -55,14 +55,10 @@ def intrinsic_value(node: Node, w_v: float, w_i: float,
     descendants via the cascade. Mirrors the `time_mode='inherited'`
     short-circuit on `Node.time`.
 
-    `value_exponent` raises each rating to a power before weighting, which
-    widens the gap between a 9 and a 5. It exists because the cascade sums IV
-    over a node's descendants, and a sum of many similar terms is dominated by
-    how MANY terms there are rather than how large each one is. Measured on a
-    ~450-node graph, subtree averaging cut the ratings' relative spread almost
-    in half (0.37 -> 0.23), so total value behaved largely like a descendant
-    count: unlocking eight 9/9-rated nodes scored only 3.3x unlocking eight
-    2/2-rated ones. At the Sage default of 2.0 that gap widens to 9.4x.
+    `value_exponent` raises ratings before weighting. This is a preference
+    transform, not objective utility. With equal weights, 10/1 at exponent 2
+    outweighs 7/7 (101 versus 98). Graph relationships represent downstream
+    leverage separately from the node's own intrinsic benefit.
 
     Defaults to 1.0 (plain linear weighting) so direct callers that pass only
     the two weights keep the original behaviour.
@@ -137,122 +133,133 @@ def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
     return True
 
 
-def _tv_dag(
-    node_name: str, all_nodes: dict,
-    H_out: dict, S_out: dict,
-    w_v: float, w_i: float, d_H: float, d_S: float,
-    memo: dict, computing: set,
-    value_exponent: float = 1.0,
-) -> float:
-    """DAG-cascade portion of Total Value. Fully memoized.
+def _strongest_routes(start, H_out, S_out, d_H, d_S, memo):
+    """One strongest route per beneficiary; deterministic ties prefer fewer hops.
 
-    Sums IV(n) + discounted children along Hard + Soft edges only. Because
-    Hard + Soft form a DAG (enforced by `GraphManager.add_edge` cycle
-    checks), diamonds collapse naturally under memoization and the
-    algorithm is O(N + E_dag) amortized across all calls.
-
-    The `computing` set is a belt-and-braces cycle guard: in the unlikely
-    event a Hard/Soft cycle slips through, a node re-entered while being
-    computed short-circuits to 0 rather than infinite-recursing.
+    Cache route maps separately from value and completion work. Invalid graphs
+    fail closed at their cyclic portion rather than enumerating cyclic paths.
     """
-    if node_name in memo:
-        return memo[node_name]
-    if node_name in computing:
-        return 0.0  # cycle safeguard (should be unreachable in valid DB)
-    node = all_nodes.get(node_name)
-    if not node:
-        return 0.0
-
-    computing.add(node_name)
-    iv = intrinsic_value(node, w_v, w_i, value_exponent)
-    nv = 0.0
-    for x in H_out.get(node_name, []):
-        nv += d_H * _tv_dag(x, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
-                            memo, computing, value_exponent)
-    for y in S_out.get(node_name, []):
-        nv += d_S * _tv_dag(y, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
-                            memo, computing, value_exponent)
-    computing.discard(node_name)
-
-    result = iv + nv
-    memo[node_name] = result
-    return result
-
-
-def total_value(
-    node_name: str, visited: set, all_nodes: dict,
-    H_out: dict, S_out: dict, Syn: dict,
-    w_v: float, w_i: float, d_H: float, d_S: float,
-    d_Syn_pair: float, d_Syn_mul: float,
-    memo: Optional[dict] = None,
-    cross_context_mult: float = 1.0,
-    value_exponent: float = 1.0,
-) -> float:
-    """Computes Total Value = scaled intrinsic + DAG cascade + Syn pair bonus.
-
-    M3 hybrid synergy model:
-    1. DAG cascade (`_tv_dag`): recursive sum over Hard + Soft edges,
-       fully memoized across all calls. O(N + E) amortized.
-    2. Syn pair bonus (additive, partner-state-blind): each immediate
-       Syn (Helps) neighbor z contributes `d_Syn_pair * _tv_dag(z)`.
-       Co-promotes synergy pairs into joint consideration before any
-       work has started.
-    3. Syn completion multiplier on intrinsic: `iv * (1 + d_Syn_mul *
-       count_done_partners)`. Captures the "doing both > sum of parts"
-       intent — kicks in only once partners are Done. Multiplier
-       applies to *intrinsic value only*, not to cascade or pair bonus.
-
-    Rationale: Hard + Soft are acyclic, so memoization is safe. Helps
-    edges can form cycles (they're bidirectional), so Syn stays shallow
-    (depth-1 only) from the starting node — synergies do not chain.
-
-    `visited` is still honored at the top level (legacy callers may pass
-    a non-empty set). `memo` is the cross-call DAG cache.
-    """
-    if node_name in visited:
-        return 0.0
-    if memo is None:
-        memo = {}
-    computing: set = set()
-
-    node = all_nodes.get(node_name)
-    if not node:
-        return 0.0
-
-    full_dag = _tv_dag(
-        node_name, all_nodes, H_out, S_out,
-        w_v, w_i, d_H, d_S, memo, computing, value_exponent,
-    )
-    iv = intrinsic_value(node, w_v, w_i, value_exponent)
-    cascade = full_dag - iv  # cascade-only portion (Hard + Soft contributions)
-
-    syn_additive = 0.0
-    done_syn = 0
-    for z in Syn.get(node_name, set()):
-        if z in visited or z == node_name:
+    key = ('routes', start, d_H, d_S)
+    if key in memo:
+        return memo[key]
+    routes = {start: (1.0, 0, 'Self')}
+    order = _reachable_topo(start, H_out, S_out, {})
+    preference = {'Self': 0, 'Hard': 1, 'Soft': 2}
+    for name in order:
+        if name not in routes:
             continue
-        z_node = all_nodes.get(z)
-        # Cross-context Helps edges get a multiplier — the Creator profile
-        # uses this to reward lateral cross-domain links over within-domain
-        # synergies. Applies to the pair bonus only (the multiplicative kick
-        # on intrinsic is a node-level scalar and stays context-blind).
-        ctx_mult = 1.0
-        if cross_context_mult != 1.0 and z_node is not None and node.context is not None \
-                and z_node.context is not None and z_node.context != node.context:
-            ctx_mult = cross_context_mult
-        syn_additive += ctx_mult * d_Syn_pair * _tv_dag(
-            z, all_nodes, H_out, S_out,
-            w_v, w_i, d_H, d_S, memo, computing, value_exponent,
-        )
-        if z_node is not None and z_node.status == STATUS_DONE:
-            done_syn += 1
+        weight, depth, via = routes[name]
+        for adjacency, discount, kind in ((H_out, d_H, 'Hard'), (S_out, d_S, 'Soft')):
+            for target in adjacency.get(name, []):
+                candidate = (weight * discount, depth + 1, kind if name == start else via)
+                old = routes.get(target)
+                if old is None or (-candidate[0], candidate[1], preference[candidate[2]]) < (-old[0], old[1], preference[old[2]]):
+                    routes[target] = candidate
+    memo[key] = routes
+    return routes
 
-    # Sub-linear (sqrt) accumulation so dense synergy hubs don't run away —
-    # 4 Done partners give 2× the kick of 1, not 4×, and a node with 16 Done
-    # partners caps near 4× rather than 16×. Keeps "more partners = more
-    # boost" without unbounded inflation in heavily-synergy-linked graphs.
-    syn_multiplier = 1.0 + d_Syn_mul * math.sqrt(done_syn)
-    return iv * syn_multiplier + cascade + syn_additive
+
+def _remaining_hours(target, source, all_nodes, H_out, memo):
+    """Unique unfinished hard closure, including target, excluding today's work."""
+    if target == source:
+        return 0.0
+    if ('hard_in',) not in memo:
+        incoming = {name: [] for name in all_nodes}
+        for name, dependents in H_out.items():
+            for dependent in dependents:
+                incoming.setdefault(dependent, []).append(name)
+        memo[('hard_in',)] = incoming
+    key = ('work', target)
+    if key not in memo:
+        seen, stack = set(), [target]
+        while stack:
+            name = stack.pop()
+            if name in seen:
+                continue
+            seen.add(name)
+            stack.extend(memo[('hard_in',)].get(name, []))
+        work = frozenset(name for name in seen if name in all_nodes
+                         and all_nodes[name].status != STATUS_DONE
+                         and not all_nodes[name].has_no_own_work)
+        memo[key] = (work, math.fsum(all_nodes[name].time for name in work))
+    work, hours = memo[key]
+    return max(0.0, hours - (all_nodes[source].time if source in work else 0.0))
+
+
+def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
+                         d_H, d_S, d_Syn_pair, cross_context_mult=1.0,
+                         value_exponent=1.0, memo=None,
+                         future_work_half_credit_hours=0.0,
+                         future_work_exponent=0.6):
+    """Shared scoring/Explain attribution. Synergy is a separate additive channel."""
+    memo = {} if memo is None else memo
+    if start not in all_nodes:
+        return []
+    channels = [(start, 1.0, False)]
+    context = all_nodes[start].context
+    for partner in sorted(Syn.get(start, set()) - {start}):
+        other = all_nodes.get(partner)
+        if other is None:
+            continue
+        cross = cross_context_mult if context is not None and other.context is not None and context != other.context else 1.0
+        if d_Syn_pair * cross:
+            channels.append((partner, d_Syn_pair * cross, True))
+    rows = {}
+    for seed, coefficient, synergy in channels:
+        for name, (route_weight, depth, via) in _strongest_routes(seed, H_out, S_out, d_H, d_S, memo).items():
+            if name not in all_nodes:
+                continue
+            weight = coefficient * route_weight
+            hours = _remaining_hours(name, start, all_nodes, H_out, memo) if future_work_half_credit_hours > 0 else 0.0
+            discount = 1.0 / (1.0 + (hours / future_work_half_credit_hours) ** future_work_exponent) if future_work_half_credit_hours > 0 else 1.0
+            iv = intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
+            kind = 'Synergy' if synergy else via
+            row = rows.setdefault(name, dict(name=name, depth=depth + int(synergy), via=kind,
+                iv=iv, weight=0.0, remaining_hours=hours, future_discount=discount,
+                contribution=0.0, channel_routes={}, channels={'Self': 0.0, 'Hard': 0.0, 'Soft': 0.0, 'Synergy': 0.0}))
+            amount = weight * iv * discount
+            row['weight'] += weight
+            row['contribution'] += amount
+            row['channels'][kind] += amount
+            if amount > row['channel_routes'].get(kind, (-1, 0))[0]:
+                row['channel_routes'][kind] = (amount, depth + int(synergy))
+    for row in rows.values():
+        # Mixed routes retain exact channel attribution; the bar uses the largest channel.
+        row['via'] = max(row['channels'], key=row['channels'].get)
+        row['depth'] = row.pop('channel_routes').get(row['via'], (0, row['depth']))[1]
+    return list(rows.values())
+
+
+def _tv_dag(node_name, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
+            memo, computing, value_exponent=1.0):
+    """Undiscounted completion-work value over unique strongest DAG routes."""
+    if node_name in computing:
+        return 0.0
+    value = math.fsum(weight * intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
+        for name, (weight, _, _) in _strongest_routes(node_name, H_out, S_out, d_H, d_S, memo).items()
+        if name in all_nodes)
+    return value
+
+
+def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
+                w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None,
+                cross_context_mult=1.0, value_exponent=1.0,
+                future_work_half_credit_hours=0.0, future_work_exponent=0.6):
+    """Strongest-path value, completion-work discount, and distinct synergy bonuses.
+
+    Direct callers may disable the future-work discount with a zero half-credit
+    scale. Profiles supply a positive scale; Goal ranking explicitly disables it.
+    """
+    if node_name in visited or node_name not in all_nodes:
+        return 0.0
+    partners = {node_name: Syn.get(node_name, set()) - visited}
+    rows = _value_contributions(node_name, all_nodes, H_out, S_out, partners,
+        w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent, memo,
+        future_work_half_credit_hours, future_work_exponent)
+    done = sum(all_nodes[z].status == STATUS_DONE for z in partners[node_name]
+               if z != node_name and z in all_nodes)
+    kick = intrinsic_value(all_nodes[node_name], w_v, w_i, value_exponent) * d_Syn_mul * math.sqrt(done)
+    return math.fsum(row['contribution'] for row in rows) + kick
 
 
 def _compute_priority_score(
@@ -263,13 +270,12 @@ def _compute_priority_score(
     hyperparams: dict,
     node_to_boost: Dict[str, float],
     n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int],
-    memo: Optional[Dict[str, float]] = None,
+    memo: Optional[dict] = None,
 ) -> Tuple[float, float, float]:
     """Single source of truth for the per-node ROI formula.
 
-    Used by both ``score_nodes`` (batch ranking) and ``explain_score``
-    (per-node breakdown) so the two paths can never drift on the order or
-    composition of cost / TV / boost / density / weight. Callers handle
+    Used by batch ranking. Explain shares _value_contributions and perceived_cost
+    and reconstructs the same adjustments for display. Callers handle
     ineligibility / Goal / Done / Blocked filtering before calling this.
 
     Returns (rounded priority score, raw total_value, exact priority score).
@@ -305,6 +311,8 @@ def _compute_priority_score(
         w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
         cross_context_mult=cross_context_mult,
         value_exponent=value_exponent,
+        future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
+        future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
     )
     ratio = (tv / cost) if cost > 0 else 0.0
     score = round(ratio, 2)
@@ -344,7 +352,7 @@ def score_nodes(
     nodes_to_score: List[Node], all_nodes: List[Node],
     edges: List[Dict], hyperparams: dict,
     priority_goals: Optional[List[str]] = None,
-    external_memo: Optional[Dict[str, float]] = None,
+    external_memo: Optional[dict] = None,
     time_phases: bool = False,
 ) -> Union[List[Node], Tuple[List[Node], Dict[str, float]]]:
     """Scores nodes by priority (TV / Cost) and returns them sorted descending.
@@ -405,8 +413,8 @@ def score_nodes(
     # — safe because GraphManager invalidates on _graph_version / hyperparam
     # changes, which are the only inputs outer total_value depends on.
     # Direct callers (tests) without a memo get fresh per-call state.
-    # Inner recursive calls are path-dependent on cycles and never cache.
-    memo: Dict[str, float] = external_memo if external_memo is not None else {}
+    # Maps contain unique beneficiaries and required hard work, not scalar subtree sums.
+    memo: dict = external_memo if external_memo is not None else {}
 
     # Pre-compute per-node boost from ranked priority goals
     # Index 0 = rank 1 (full boost), index 1 = rank 2 (66%), index 2 = rank 3 (33%)
@@ -433,6 +441,8 @@ def score_nodes(
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
             cross_context_mult=cross_context_mult,
             value_exponent=value_exponent,
+            future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
+            future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
         )
 
     scored_nodes = []
@@ -571,43 +581,21 @@ def _contribution_weights(
     all_nodes_dict: Optional[Dict] = None,
     cross_context_mult: float = 1.0,
 ) -> Dict[str, float]:
-    """Forward-propagate discount weights from `start`.
+    """Structural weights: strongest DAG route plus distinct synergy channels.
 
-    Returns {name: W(name)} where W(D) is the sum over all paths
-    (H/S from start, plus syn-seeded + H/S from each syn neighbor)
-    of the product of edge discounts. By linearity of the additive
-    portion of TV, `contribution(D) = W(D) * IV(D)` and the contributions
-    sum to (intrinsic + cascade + syn_additive). The synergy multiplier
-    on intrinsic is a node-level scalar, applied separately by callers.
-
-    `cross_context_mult` mirrors the same logic in `total_value`: when a
-    synergy partner is in a different context from `start`, its seed
-    weight gets multiplied. Requires `all_nodes_dict` to look up contexts;
-    falls back to no-multiplier behavior if not supplied (e.g. legacy
-    callers).
+    Completion-work discount is applied by _value_contributions, which supplies
+    the exact attribution used by both scoring and Explain.
     """
-    topo = _reachable_topo(start, H_out, S_out, Syn)
-    W: Dict[str, float] = {start: 1.0}
-    start_node = all_nodes_dict.get(start) if all_nodes_dict else None
-    start_ctx = start_node.context if start_node is not None else None
-    for z in Syn.get(start, set()):
-        if z == start:
-            continue
-        ctx_mult = 1.0
-        if cross_context_mult != 1.0 and start_ctx is not None and all_nodes_dict is not None:
-            z_node = all_nodes_dict.get(z)
-            if z_node is not None and z_node.context is not None and z_node.context != start_ctx:
-                ctx_mult = cross_context_mult
-        W[z] = W.get(z, 0.0) + ctx_mult * d_Syn_pair
-
-    for n in topo:
-        w = W.get(n, 0.0)
-        if w == 0.0:
-            continue
-        for c in H_out.get(n, []):
-            W[c] = W.get(c, 0.0) + w * d_H
-        for c in S_out.get(n, []):
-            W[c] = W.get(c, 0.0) + w * d_S
+    memo = {}
+    W = {name: route[0] for name, route in _strongest_routes(start, H_out, S_out, d_H, d_S, memo).items()}
+    for partner in Syn.get(start, set()) - {start}:
+        cross = 1.0
+        if all_nodes_dict and start in all_nodes_dict and partner in all_nodes_dict:
+            a, b = all_nodes_dict[start].context, all_nodes_dict[partner].context
+            if a is not None and b is not None and a != b:
+                cross = cross_context_mult
+        for name, route in _strongest_routes(partner, H_out, S_out, d_H, d_S, memo).items():
+            W[name] = W.get(name, 0.0) + d_Syn_pair * cross * route[0]
     return W
 
 
@@ -726,11 +714,10 @@ def explain_score(
     cost = perceived_cost(node, w_e, w_t, beta,
                           time_override=t_override, effort_override=e_override)
 
-    # Contribution weights + per-node metadata
-    W = _contribution_weights(node_name, H_out, S_out, Syn, d_H, d_S, d_Syn_pair,
-                              all_nodes_dict=all_nodes_dict,
-                              cross_context_mult=cross_context_mult)
-    depth, via = _depth_and_via(node_name, H_out, S_out, Syn, W)
+    contributors = _value_contributions(node_name, all_nodes_dict, H_out, S_out, Syn,
+        w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent,
+        future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
+        future_work_exponent=hyperparams.get('future_work_exponent', 0.6))
 
     # Synergy multiplier on intrinsic: kicks in when partners are Done.
     # This is a node-level scalar, not a per-contributor weight, so it
@@ -746,35 +733,10 @@ def explain_score(
     iv_multiplier = 1.0 + d_Syn_mul * math.sqrt(done_syn_count)
     iv_multiplier_contribution = iv * (iv_multiplier - 1.0)
 
-    contributors = []
-    hard_cascade = 0.0
-    soft_cascade = 0.0
-    synergy_cascade = 0.0
-    total_value_sum = 0.0
-    for name, weight in W.items():
-        other = all_nodes_dict.get(name)
-        if other is None:
-            continue
-        iv_n = intrinsic_value(other, w_v, w_i, value_exponent)
-        contribution = weight * iv_n
-        total_value_sum += contribution
-        v = via.get(name, 'Self')
-        if name == node_name:
-            pass  # intrinsic, tracked separately
-        elif v == 'Hard':
-            hard_cascade += contribution
-        elif v == 'Soft':
-            soft_cascade += contribution
-        elif v == 'Synergy':
-            synergy_cascade += contribution
-        contributors.append({
-            'name': name,
-            'depth': depth.get(name, 0),
-            'via': v,
-            'iv': iv_n,
-            'weight': weight,
-            'contribution': contribution,
-        })
+    hard_cascade = math.fsum(c['channels']['Hard'] for c in contributors)
+    soft_cascade = math.fsum(c['channels']['Soft'] for c in contributors)
+    synergy_cascade = math.fsum(c['channels']['Synergy'] for c in contributors)
+    total_value_sum = math.fsum(c['contribution'] for c in contributors)
 
     # Percentages (guard against TV=0). Use the *full* TV including the
     # multiplicative kick so contributor percentages reflect the actual
@@ -861,6 +823,9 @@ def explain_score(
             'cross_context_mult': cross_context_mult,
             'goal_boost': goal_boost,
             'alpha': alpha,
+            'value_exponent': value_exponent,
+            'future_work_half_credit_hours': hyperparams.get('future_work_half_credit_hours', 0.0),
+            'future_work_exponent': hyperparams.get('future_work_exponent', 0.6),
         },
         'intrinsic': {
             'value': node.value,

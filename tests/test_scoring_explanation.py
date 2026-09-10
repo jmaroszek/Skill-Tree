@@ -83,7 +83,7 @@ def test_known_weights_grandchild_hard_chain():
     assert by_name['B']['via'] == 'Hard'
 
 
-def test_diamond_paths_sum_both_weights():
+def test_diamond_counts_beneficiary_once():
     """S→A→D and S→B→D — W(D) = 2 * d_H²."""
     nodes = [_node("S"), _node("A"), _node("B"), _node("D", value=10, interest=0)]
     edges = [
@@ -94,7 +94,7 @@ def test_diamond_paths_sum_both_weights():
     ]
     breakdown = explain_score("S", nodes, edges, HYPERS)
     by_name = {c['name']: c for c in breakdown['contributors']}
-    assert math.isclose(by_name['D']['weight'], 2 * HYPERS['d_H'] ** 2, rel_tol=1e-9)
+    assert math.isclose(by_name['D']['weight'], HYPERS['d_H'] ** 2, rel_tol=1e-9)
 
     # Sum identity still holds
     contributed = sum(c['contribution'] for c in breakdown['contributors'])

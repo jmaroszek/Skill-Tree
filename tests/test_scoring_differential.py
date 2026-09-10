@@ -129,7 +129,9 @@ def _baseline_score_nodes(
         tv = total_value(node.name, set(), all_nodes_dict, H_out, S_out, Syn,
                          w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None,
                          cross_context_mult=cross_context_mult,
-                         value_exponent=value_exponent)
+                         value_exponent=value_exponent,
+                         future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
+                         future_work_exponent=hyperparams.get('future_work_exponent', 0.6))
         score = round(tv / cost, 2)
         if node.name in node_to_boost:
             score = round(score * node_to_boost[node.name], 2)

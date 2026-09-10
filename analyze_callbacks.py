@@ -381,26 +381,12 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
     """Rank goals by ROI — prerequisite-subtree value per unit of time,
     scaled by priority-rank boost and context weight.
 
-    Goals are sinks in the prereq DAG (work flows into them), so the
-    scoring module's forward ``total_value`` collapses to a Goal's own
-    intrinsic value. We invert Hard/Soft edges and run the same
-    ``total_value`` machinery on the flipped graph instead, yielding
-    IV(goal) + Σ d_H^depth * IV(prereq) over the prereq subtree.
-
-    That raw value is extensive — it grows with subtree size — so alone
-    it just ranks goals by how big they are. Dividing by the goal's
-    aggregate cost turns it into a priority signal. Cost is the
-    beta-compressed sum of remaining hard-prereq time, mirroring the
-    time term of ``perceived_cost`` (effort is omitted — a 1-10 rating
-    has no meaningful subtree aggregate). Final score:
-
-        TV / cost * rank_boost * context_weight * density_mult
-
-    where density_mult = 1 / max(1, |B_goals|)^alpha_goal damps Goals
-    sharing a (context, subcontext) bucket with other open Goals — the
-    Goal-level analogue of the leaf-node ``alpha`` density correction.
-    Bucket counts use Goal headcount only (not scored nodes) and exclude
-    Done goals. alpha_goal=0 disables the correction.
+    Reverse Hard edges only and count each prerequisite beneficiary through
+    its strongest route. Optional Soft/Helps work is outside both value and
+    cost. Completed prerequisite value remains part of the capacity's value.
+    Cost is 1 + w_t * (remaining hard hours / GOAL_TIME_REF_HOURS)**beta;
+    no second future-work discount or aggregate difficulty penalty applies.
+    Goal density uses alpha_goal and counts non-Done Goals in each bucket.
 
     rank_boost gives priority rank 1 the full ``goal_boost``, rank 2 66%
     of the bump, rank 3 33%. Returns goals sorted by score descending;
@@ -435,15 +421,12 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
             continue
         goal_bucket_counts[(g.context, g.subcontext)] += 1
 
-    # Invert Hard/Soft edges so the cascade walks upstream toward prereqs.
-    # Helps is symmetric (bidirectional), so leave it alone.
+    # Goal value and cost both stay inside its required Hard scope.
     inverted = []
     for e in edges:
-        if e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+        if e['type'] == EDGE_NEEDS_HARD:
             inverted.append({'source': e['target'], 'target': e['source'],
                              'type': e['type']})
-        else:
-            inverted.append(e)
 
     # Milestones are stored as pure containers (both modes inherited, enforced
     # in Node.__post_init__), so they carry no own value or time and pass
@@ -538,8 +521,8 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
     This stitches the two correct halves together:
 
       * value composition + contributors — ``explain_score`` run on the
-        Hard/Soft-*inverted* edge set, so its forward cascade now walks the
-        prerequisite subtree. Helps edges are symmetric and left alone.
+        Hard-only inverted edge set, so its forward cascade now walks the
+        prerequisite subtree. Optional Soft and Helps edges are excluded.
       * headline score + cost — taken straight from ``_rank_goals`` so the
         modal's number matches the Goals sidebar and Analyze tab exactly.
 
@@ -568,18 +551,17 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
     top = max(valid) if valid else 0.0
     normalized = round(me['score'] / top * 100) if top > 0 else None
 
-    # Invert Hard/Soft so explain_score's forward cascade walks prereqs.
+    # Use the same Hard-only scope as the Goal ranker.
     inverted = []
     for e in edges:
-        if e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+        if e['type'] == EDGE_NEEDS_HARD:
             inverted.append({'source': e['target'], 'target': e['source'],
                              'type': e['type']})
-        else:
-            inverted.append(e)
 
     # Milestones are stored as pure containers (see _rank_goals), so they're
     # already transparent — pass all_nodes straight through.
-    bd = explain_score(goal_name, all_nodes, inverted, hp, priority_goals)
+    bd = explain_score(goal_name, all_nodes, inverted,
+                       dict(hp, future_work_half_credit_hours=0.0), priority_goals)
     if bd is None:
         return None
 

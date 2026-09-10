@@ -414,18 +414,15 @@ DEFAULT_TIME_CALIBRATION_ENABLED = True
 # `w_t * (t / TIME_REF_HOURS)**beta`, which rescales `w_t` by a factor of
 # `TIME_REF_HOURS**beta`. `ConfigManager.get_hyperparams` converts any stored
 # v1 bundle on read, so an existing install keeps the cost curve it had.
-HYPERPARAMS_SCHEMA_VERSION = 2
+HYPERPARAMS_SCHEMA_VERSION = 3
 
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
     'w_i': 1.00,
-    # Ratings are raised to this power before weighting. The cascade sums IV
-    # over a node's descendants, and a sum of many similar terms tracks the
-    # COUNT of terms more than their size — so at 1.0 total value behaves
-    # largely like a descendant count. Raising it makes "unlocks 8 valuable
-    # things" separate from "unlocks 8 trivial things": measured on the
-    # production graph that gap goes from 3.3x at 1.0 to 9.4x at 2.0.
+    # Preference transform on own ratings; relationships carry downstream value.
     'value_exponent': 2.00,
+    'future_work_half_credit_hours': 1300.0,
+    'future_work_exponent': 0.60,
     'd_H': 0.60,
     'd_S': 0.40,
     'd_Syn_pair': 0.10,
@@ -445,18 +442,9 @@ DEFAULT_HYPERPARAMS = {
     'alpha_goal': 0.20,
 }
 
-# Each profile is a distinct *perspective*, not a cosmetic tweak: the intent is
-# that switching profiles genuinely re-sorts the Next list. Two knobs that look
-# like differentiators are not, and the tables below avoid leaning on them:
-#   - w_v and w_i scaled together are an exact no-op. TV is homogeneous of
-#     degree 1 in IV, so multiplying both leaves the ranking untouched. Only
-#     the *ratio* does anything, and even a 4:1 swing moves little because a
-#     node's own IV is a median 39% of its TV.
-#   - cross_context_mult alone is nearly inert; it only bites when
-#     d_Syn_pair is large enough for the pair bonus to matter.
-# The knobs that actually re-sort the list are d_S, d_H, the synergy pair
-# terms, alpha and goal_boost. Measured pairwise top-10 overlap on a ~450-node
-# graph: mean 2.1/10, max 6/10 (was mean 4.7, max 8 before this retune).
+# Profiles express different priorities. Scaling w_v and w_i together does
+# not change rankings; their ratio does. Reassess profile behavior after any
+# graph-model change rather than targeting a particular top-ten overlap.
 PROFILES = {
     'Sage': DEFAULT_HYPERPARAMS,
     # Curiosity-driven: interest over value, sparse contexts amplified, and
@@ -471,7 +459,7 @@ PROFILES = {
     },
     # Foundational depth. d_H near 1 with a low d_S makes value travel far
     # along *hard* prerequisite chains only, so nodes that unlock large
-    # subtrees rise (median 14 downstream nodes in its top 10, vs Sage's 6).
+    # subtrees rise without repeatedly counting the same beneficiary.
     # A high d_S would flood value everywhere and erase the distinction.
     'Compounder': {
         'w_v': 1.60, 'w_i': 0.40, 'value_exponent': 1.50,
@@ -494,7 +482,7 @@ PROFILES = {
         'goal_boost': 4.00, 'alpha': 0.10, 'alpha_goal': 0.05,
     },
     # Synthesis: the pair bonus is large enough that cross_context_mult has
-    # real leverage (70% of its top 10 carries a cross-context Helps edge).
+    # substantial influence on cross-context relationships.
     'Creator': {
         'w_v': 1.00, 'w_i': 1.00, 'value_exponent': 2.00,
         'd_H': 0.55, 'd_S': 0.45,
@@ -514,6 +502,12 @@ PROFILES = {
         'goal_boost': 1.00, 'alpha': 0.45, 'alpha_goal': 0.35,
     },
 }
+
+# Seed independently persisted future preferences from each profile's starting
+# curvature. Later changes to beta do not change this preference.
+for _profile in PROFILES.values():
+    _profile.setdefault('future_work_half_credit_hours', 1300.0)
+    _profile.setdefault('future_work_exponent', _profile['beta'])
 
 class ConfigManager:
     """Classmethod-only facade over the Settings key/value table.
@@ -654,15 +648,24 @@ class ConfigManager:
         # `alpha_goal`) is filled in for users whose stored bundle predates it.
         merged = dict(DEFAULT_HYPERPARAMS)
         merged.update(stored)
+        if stored.get('_schema', 1) < 2:
+            # Resolve missing legacy cost fields before merging new defaults.
+            for key, old_default in dict(value_exponent=1.0, w_e=2.5, w_t=1.0, beta=0.85).items():
+                merged[key] = stored.get(key, old_default)
         return cls._migrate_hyperparams(merged)
 
     @staticmethod
     def _migrate_hyperparams(hp: dict) -> dict:
         """Bring a stored bundle up to HYPERPARAMS_SCHEMA_VERSION.
 
+        v3 explicitly changes cascade and Goal scope, and adds future-work settings.
+        Legacy rating exponents and the v2 task cost curve remain intact.
+        The Goal curve was intentionally retuned in v2; one shared coefficient
+        cannot preserve both old curves with different reference scales.
+
         v1 -> v2: the time term changed from `w_t * t**beta` to
-        `w_t * (t / TIME_REF_HOURS)**beta`, so a v1 `w_t` means
-        `w_t / TIME_REF_HOURS**beta` on the new scale. Multiplying through
+        `w_t * (t / TIME_REF_HOURS)**beta`, so a v1 `w_t` becomes
+        `w_t * TIME_REF_HOURS**beta` on the new scale. Multiplying through
         keeps an existing install on exactly the cost curve it already had,
         rather than silently reinterpreting w_t=1.0 as a 40x weaker time term.
 
@@ -674,8 +677,12 @@ class ConfigManager:
         if hp.get('_schema', 1) >= HYPERPARAMS_SCHEMA_VERSION:
             return hp
         out = dict(hp)
-        beta = out.get('beta', DEFAULT_HYPERPARAMS['beta'])
-        out['w_t'] = out.get('w_t', 1.0) * (TIME_REF_HOURS ** beta)
+        if hp.get('_schema', 1) < 2:
+            beta = out.get('beta', 0.85)
+            out['w_t'] = out.get('w_t', 1.0) * (TIME_REF_HOURS ** beta)
+            out.setdefault('value_exponent', 1.0)
+        out.setdefault('future_work_half_credit_hours', 1300.0)
+        out.setdefault('future_work_exponent', 0.6)
         out['_schema'] = HYPERPARAMS_SCHEMA_VERSION
         return out
 
