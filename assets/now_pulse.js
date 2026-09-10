@@ -8,9 +8,9 @@
  *   - keyed registry to avoid double-starting the same node
  *   - pulses only on the canvas the user can actually see
  *
- * A 1s periodic scan picks up newly-flagged-Now nodes after element updates
- * without requiring an explicit clientside-callback hook. The cost is trivial
- * (three cy lookups + a forEach per second).
+ * A short periodic scan (SCAN_INTERVAL_MS) picks up newly-flagged-Now nodes
+ * after element updates without requiring an explicit clientside-callback
+ * hook. The cost is trivial: three cy lookups plus a forEach over a tiny set.
  */
 (function () {
     var CANVAS_IDS = ['cytoscape-graph', 'details-mini-graph', 'events-detail-graph'];
@@ -42,12 +42,23 @@
         return !!wrapper && wrapper.getClientRects().length > 0;
     }
 
-    function cleanupNode(node) {
+    function cleanupNode(node, canvasId) {
         // Force-stop any in-flight animations and clear the inline border
         // override. Cytoscape's class-removal alone is not enough: the
         // animate() call sets border-width as an inline style override that
         // persists until removeStyle.
-        try { node.stop(true, true); } catch (e) {}
+        //
+        // The exception is a node mid-"locate" pulse. stop() takes the whole
+        // element, and a pulse half still sitting in the queue is discarded
+        // without running the callback that clears its inline width/height —
+        // stranding the node at three times its size. Clear only our own
+        // border override there and let locate_node.js finish its own run.
+        var locating = window.SkillTree
+            && typeof window.SkillTree.isLocating === 'function'
+            && window.SkillTree.isLocating(canvasId, node.id());
+        if (!locating) {
+            try { node.stop(true, true); } catch (e) {}
+        }
         try { node.removeStyle('border-width'); } catch (e) {}
     }
 
@@ -57,7 +68,7 @@
         // Exit the loop and clear any inline override so the static rule resumes.
         if (!node.hasClass('now')) {
             pulsing.delete(key);
-            cleanupNode(node);
+            cleanupNode(node, canvasId);
             return;
         }
         var target = expanding ? BORDER_MAX : BORDER_MIN;
@@ -104,7 +115,7 @@
                 pulsing.delete(key);
                 var nodeId = key.substring(canvasId.length + 1);
                 var node = cy.getElementById(nodeId);
-                if (node && node.length) cleanupNode(node);
+                if (node && node.length) cleanupNode(node, canvasId);
             }
         });
     }

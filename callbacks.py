@@ -1509,9 +1509,10 @@ def register_callbacks(app):
         Output('locate-animate-trigger', 'data'),
         Input('btn-locate-node', 'n_clicks'),
         State('node-original-name', 'data'),
+        State('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
-    def handle_locate_click(n_clicks, name):
+    def handle_locate_click(n_clicks, name, current_tab):
         if not n_clicks or not name:
             return (dash.no_update,) * 5
         node = manager.get_node(name)
@@ -1520,7 +1521,14 @@ def register_callbacks(app):
         if node.dormant:
             msg = f"'{name}' is dormant — its event must be triggered before it appears on the graph."
             return msg, False, 0, dash.no_update, dash.no_update
-        return "", True, 0, 'tab-canvas', n_clicks
+        # The Locate button only exists in the editor sidebar, so the user is
+        # almost always on the canvas already. Writing the same value back
+        # still re-fires every Input on main-tabs.active_tab — core_engine
+        # included, which would push a fresh element list into Cytoscape in the
+        # middle of the pulse and make it stutter. handle_edit_trigger skips
+        # the write for the same reason.
+        next_tab = dash.no_update if current_tab == 'tab-canvas' else 'tab-canvas'
+        return "", True, 0, next_tab, n_clicks
 
     # Run the pulse animation once the gateway has cleared the dormant check.
     # The fcose layout may still be running, so locateNodeOnGraph retries
