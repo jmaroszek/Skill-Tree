@@ -13,6 +13,11 @@
  * trust that nothing ever will, a deadline armed at layoutstart releases the
  * same work regardless. The visible cost of a missed stop is then a slightly
  * late table, not one that never loads.
+ *
+ * Both of those need a layout to start. A payload with the same nodes and
+ * edges starts none, so details_layout.js releases the simulation for it
+ * directly. It first checks `detailsLayoutSettling` so it cannot cut ahead of
+ * an earlier layout that is still running.
  */
 (function () {
     if (!window.SkillTree || !window.SkillTree.onCytoReady) return;
@@ -36,6 +41,11 @@
         var deadlineTimer = null;
         var lastStartedRoot = null;
         var pendingRoot = null;
+
+        // True from a layout's start until its release (or its deadline).
+        window.SkillTree.detailsLayoutSettling = function () {
+            return deadlineTimer !== null || quietTimer !== null;
+        };
 
         function writeTrigger(id, root) {
             var input = document.getElementById(id);

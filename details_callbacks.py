@@ -1778,6 +1778,20 @@ def register_details_callbacks(app):
         State('details-selected-node-store', 'data'),
     )
 
+    # Time Simulation waits for the layout a filter change causes. A change
+    # that leaves this subtree's nodes and edges as they were (a context with
+    # no nodes here) starts no layout, so that wait would never end. This
+    # sends the settle signal itself whenever a payload will not be laid out.
+    app.clientside_callback(
+        ClientsideFunction(
+            namespace="skillTreeDetailsLayout", function_name="settleUnchanged"),
+        Output('details-simulation-settled-trigger-input', 'value'),
+        Input('details-elements-pending-store', 'data'),
+        State('details-freeze-rerender-store', 'data'),
+        State('details-selected-node-store', 'data'),
+        prevent_initial_call=True,
+    )
+
     # --- Explain Score modal ---------------------------------------------
     @app.callback(
         Output("modal-details-explain", "is_open"),

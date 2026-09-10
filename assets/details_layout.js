@@ -56,6 +56,15 @@
         return wrapper && wrapper._cyreg ? wrapper._cyreg.cy : null;
     }
 
+    // build() lays out an elements update only when its root or its nodes and
+    // edges differ from the layout already on screen. settleUnchanged() asks
+    // the same question, so the two can never disagree about whether a layout
+    // is coming.
+    function matchesLiveLayout(state, root, signature) {
+        return state._detailsLayoutRoot === root &&
+            state._detailsLayoutSignature === signature;
+    }
+
     // The signature describes one live Cytoscape instance, not the wrapper
     // DOM node. Dash can replace the instance during a remount/hot reload
     // while leaving window.SkillTree intact. Reset on that boundary or the
@@ -100,9 +109,11 @@
             var rootChanged = state._detailsLayoutRoot !== layoutRoot;
             if (isElementsUpdate) {
                 var signature = topologySignature(elements);
-                if (!rootChanged && signature === state._detailsLayoutSignature) {
-                    // Same nodes and edges, now carrying positions: this is
-                    // dash-cytoscape's feedback echo, not a new graph.
+                if (matchesLiveLayout(state, layoutRoot, signature)) {
+                    // Same nodes and edges: dash-cytoscape's positional
+                    // feedback echo, or a server payload the filters left
+                    // unchanged. Neither is a new graph. settleUnchanged()
+                    // releases the simulation for the second.
                     return noUpdate;
                 }
                 state._detailsLayoutRoot = layoutRoot;
@@ -170,6 +181,40 @@
                 (state._detailsLayoutSequence || 0) + 1;
             layout.skillTreeRequestId = state._detailsLayoutSequence;
             return layout;
+        },
+
+        /**
+         * Release Time Simulation for a payload that will not be laid out.
+         *
+         * Layout-affecting inputs hold the simulation until the layout they
+         * cause settles. An input that changes nothing in this subtree — a
+         * context with no nodes here, a depth past its deepest branch — sends
+         * back the same nodes and edges, build() starts no layout, and that
+         * settle never comes. This runs alongside the elements forward, before
+         * build() records the payload, so it still compares against the
+         * layout on screen. Returns the settled token, or no_update.
+         */
+        settleUnchanged: function (pending, freezeOn, root) {
+            var noUpdate = window.dash_clientside.no_update;
+            // A frozen canvas already bypasses the simulation's layout gate.
+            if (freezeOn || !Array.isArray(pending)) return noUpdate;
+            var state = window.SkillTree || {};
+            var layoutRoot = topologyRoot(pending, root);
+            if (!layoutRoot) return noUpdate;
+            // A replacement instance has lost its signature; build() will
+            // lay this payload out.
+            var cy = currentCyInstance();
+            if (cy && state._detailsLayoutCy !== cy) return noUpdate;
+            if (!matchesLiveLayout(state, layoutRoot, topologySignature(pending))) {
+                return noUpdate;
+            }
+            // An earlier payload's layout is still running. Its own settle
+            // releases the simulation; releasing now would start sampling
+            // inside the animation.
+            if (state.detailsLayoutSettling && state.detailsLayoutSettling()) {
+                return noUpdate;
+            }
+            return JSON.stringify({root: layoutRoot, settledAt: Date.now()});
         }
     };
 })();

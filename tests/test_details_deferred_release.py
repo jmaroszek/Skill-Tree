@@ -154,6 +154,32 @@ assert.equal(written.table, undefined);
 ''')
 
 
+def test_reports_settling_from_layout_start_until_release():
+    """details_layout.js reads this before releasing a payload that starts no
+    layout, so it must cover the animation and the quiet window after it."""
+    _run(r'''
+const settling = () => window.SkillTree.detailsLayoutSettling();
+window.SkillTree._detailsLayoutRoot = 'Root';
+assert.equal(settling(), false);
+const layout = {};
+fire('layoutstart', layout);
+assert.equal(settling(), true);
+fire('layoutstop', layout);
+advanceTo(100);
+assert.equal(settling(), true, 'still inside the quiet window');
+advanceTo(200);
+assert.equal(rootOf('sim'), 'Root');
+assert.equal(settling(), false);
+
+// A swallowed layoutstop stops counting as settling once the deadline fires.
+fire('layoutstart', {});
+advanceTo(3000);
+assert.equal(settling(), true);
+advanceTo(5000);
+assert.equal(settling(), false);
+''')
+
+
 def test_superseded_layout_generation_is_ignored():
     _run(r'''
 window.SkillTree._detailsLayoutRoot = 'Root';
