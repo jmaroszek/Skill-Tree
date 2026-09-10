@@ -263,6 +263,16 @@ keeps the `layout` prop distinct when two views happen to produce identical
 CoSE options; without it, `autoRefreshLayout=False` would leave the second
 view's new nodes stacked at their default origin.
 
+The Events graph filters the same echo, in `assets/events_layout.js`. Its
+layout callback also listens to `events-detail-graph.elements` with
+`autoRefreshLayout` disabled. Without the signature, the echo started a second
+incremental pass from half-animated positions, and the two tweens finishing
+out of step read as a jerk. A new event gets one randomized pass, and same-event
+topology changes get one incremental pass. The request sequence keeps two
+events' otherwise identical options distinct. Events needs no root marker in
+its payload: the selected-event store drives the graph render, so its State
+already names the event the elements belong to.
+
 ## Simulation requests
 
 `assets/simulation_requests.js` assigns a browser-session ID and increasing
@@ -279,6 +289,17 @@ keeping sampling and chart serialization out of the animation-critical window.
 The status remains `Calculating…` and stale results stay hidden while waiting.
 A frozen canvas bypasses this gate because it intentionally emits no layout
 events; simulation-only inputs such as time units and settings remain immediate.
+
+A payload that starts no layout would leave that wait open for good. A filter
+change can send back the selected subtree's nodes and edges unchanged, such as
+a context with no nodes in it, and `build()` skips that payload like the echo.
+So `settleUnchanged()` in `assets/details_layout.js` runs on the same payload,
+before `build()` records it, and applies the same signature check. When no
+layout will run, it sends the settled token itself. It does nothing on a frozen
+canvas, which already bypasses the gate, or on a replacement Cytoscape
+instance, which will lay the payload out. It also defers while
+`detailsLayoutSettling()` reports an earlier layout still running, because that
+layout's own release will clear the wait.
 
 The service retains at most 16 compact histogram/statistic summaries and 128
 session sequence records. Cache keys include relevant node times/statuses,
