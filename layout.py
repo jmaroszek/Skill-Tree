@@ -135,8 +135,6 @@ next_view = html.Div([
         ], className="align-middle"),
     ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     
-    html.Small("Recommendations balance contexts and subcontexts. Scores show underlying priority.",
-               className="text-muted d-block mb-2"),
     dcc.Store(id='selected-suggestion-store', data=None),
     dcc.Store(id='focus-goal-store', data=None),
     
