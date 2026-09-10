@@ -38,10 +38,17 @@ def create_graph_view(initial_elements):
         html.Div([
             cyto.Cytoscape(
                 id='cytoscape-graph',
+                # Filter changes re-run this layout, so it describes a
+                # transition: keep the current positions, and animate to match
+                # the Smooth switch, which starts on. The graph-settings
+                # callback only rewrites this prop once a control is touched,
+                # so until then Smooth read on but ran off. The cold start
+                # from nodes stacked at the origin is the exception, adjusted
+                # by assets/canvas_first_paint.js.
                 layout={
                     'name': 'fcose', 'quality': 'proof',
-                    'fit': True, 'animate': False,
-                    'padding': 30, 'numIter': 2500, 'randomize': True,
+                    'fit': True, 'animate': True, 'animationDuration': 1000,
+                    'padding': 30, 'numIter': 2500, 'randomize': False,
                     'idealEdgeLength': gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
                     'nodeRepulsion': gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
                     'gravity': gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
@@ -73,6 +80,24 @@ def create_graph_view(initial_elements):
             dbc.Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left",
                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
+            # First-paint cover. This canvas mounts inside the hidden Nodes
+            # tab, where Cytoscape stacks every node at the origin until its
+            # layout runs and `fit` is a no-op at 0x0 — so opening the tab
+            # early used to show the graph piled into the top-left corner and
+            # then jump. It starts opaque and is lifted by
+            # assets/canvas_first_paint.js once the graph is laid out and
+            # framed. Last child so it covers the overlays above it too.
+            html.Div(
+                html.Div([
+                    dbc.Spinner(spinner_style={"width": "2rem", "height": "2rem",
+                                               "color": "#1e90ff"}),
+                    html.Div("Preparing the graph…", className="canvas-cover-label"),
+                ], className="canvas-cover-inner"),
+                id="canvas-first-paint-cover",
+                className="canvas-cover",
+                role="status",
+                **{"aria-live": "polite"},  # type: ignore[reportArgumentType]
+            ),
         ], id="canvas-container", className="canvas-container h-100", style={"overflow": "hidden", "borderRadius": "8px"}),
     ], className="h-100", style={"overflow": "hidden"})
 
@@ -1339,6 +1364,10 @@ def build_app_layout(initial_elements, env="production"):
         # ConfigManager whenever any sidebar control changes; this Store
         # exists only to give that callback a valid Output target.
         dcc.Store(id='filter-persist-sink', data=None),
+        # Sink for the clientside callback that hands each element payload to
+        # the Nodes-tab first-paint cover. Same story: the callback only needs
+        # somewhere valid to write.
+        dcc.Store(id='canvas-first-paint-sink', data=None),
         # Bumped by a clientside filter only when the user opens the Analyze
         # tab. refresh_analyze_tab listens to this instead of main-tabs
         # directly, so switching to any other tab makes no request at all.

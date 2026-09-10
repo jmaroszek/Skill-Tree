@@ -82,6 +82,57 @@
     opacity: 0.9;
 }
 
+/* Nodes-tab first-paint cover.
+
+   The canvas mounts hidden, so its nodes are stacked at the origin until the
+   layout runs and nothing can frame them while the container is 0x0. This
+   holds that state back until the graph is laid out and fitted; see
+   assets/canvas_first_paint.js, which owns the classes below. Opaque in the
+   canvas color, so the reveal reads as an empty canvas rather than a panel. */
+.canvas-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 30;  /* over the overlay buttons (10) and the layout panel (20) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1a1d21;
+    border-radius: 8px;
+}
+
+.canvas-cover.is-lifting {
+    opacity: 0;
+    transition: opacity 200ms ease-out;  /* LIFT_MS in canvas_first_paint.js */
+}
+
+.canvas-cover.is-lifted {
+    display: none;
+}
+
+/* canvas_first_paint.js adds is-waiting in the same task that reveals a tab
+   whose graph isn't ready, so the caption arrives with the tab. It appears
+   outright rather than fading in: the main thread often stalls right after
+   the reveal, and a transition needs frames to get anywhere, so a fade-in
+   could sit near zero opacity for the whole wait. A graph that is already
+   ready never shows it, because the reveal lifts the cover before that frame
+   is painted. */
+.canvas-cover-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+}
+
+.canvas-cover.is-waiting .canvas-cover-inner {
+    opacity: 1;
+}
+
+.canvas-cover-label {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
 /* Graph Layout Panel */
 .graph-settings-panel {
     position: absolute;

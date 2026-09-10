@@ -138,88 +138,6 @@
         });
     }
 
-    // --- Fit the graph the moment its canvas first has a size ---
-    function centerGraph(selector) {
-        var el = document.querySelector(selector);
-        if (!el || !el._cyreg || !el._cyreg.cy) {
-            return false;
-        }
-        el._cyreg.cy.resize();
-        el._cyreg.cy.fit(null, 30);
-        el._cyreg.cy.center();
-        return true;
-    }
-
-    // The Nodes tab isn't the default, so this canvas mounts inside a
-    // display:none subtree. Its layout still computes sensible positions, but
-    // `fit: true` is a no-op at 0x0 — Cytoscape leaves zoom at 1 and pan at the
-    // origin, which parks the whole graph in the canvas's top-left corner.
-    // Nothing corrects that until something fits again, so opening the tab used
-    // to show the graph crammed into the corner for about half a second and
-    // then jump into place.
-    //
-    // Three independent triggers, all idempotent, first one wins:
-    //   - a ResizeObserver on the canvas, whose callback runs before the browser
-    //     paints the frame, so the fit lands in the same frame the tab is
-    //     revealed and the corner state is never drawn;
-    //   - a MutationObserver on the tab pane, for the same reveal;
-    //   - a bounded poll, because both observers are delivered as part of the
-    //     rendering lifecycle and a document that never composites gets neither.
-    // The old version fitted on fixed 100 ms and 600 ms timers after the reveal,
-    // which is exactly the delay that made the corner state visible.
-    var POLL_INTERVAL_MS = 100;
-    var POLL_MAX_TRIES = 6000;  // 10 minutes
-
-    function fitWhenFirstVisible(cyId, paneId) {
-        var el = document.getElementById(cyId);
-        if (!el) {
-            setTimeout(function () { fitWhenFirstVisible(cyId, paneId); }, 300);
-            return;
-        }
-
-        var done = false;
-        var cleanups = [];
-
-        function attempt() {
-            if (done) return true;
-            // clientWidth forces the pending reflow, so this reads the size the
-            // canvas has now rather than the one it had before the reveal.
-            if (!el.clientWidth || !el.clientHeight) return false;
-            // Cytoscape mounts long before the tab is opened, but never latch
-            // on a canvas that has no instance yet.
-            if (!centerGraph('#' + cyId)) return false;
-            done = true;
-            cleanups.forEach(function (fn) { fn(); });
-            cleanups = [];
-            return true;
-        }
-
-        if (typeof ResizeObserver !== 'undefined') {
-            var ro = new ResizeObserver(attempt);
-            ro.observe(el);
-            cleanups.push(function () { ro.disconnect(); });
-        }
-
-        var pane = paneId && document.getElementById(paneId);
-        if (pane && typeof MutationObserver !== 'undefined') {
-            var mo = new MutationObserver(attempt);
-            mo.observe(pane, { attributes: true, attributeFilter: ['style', 'class'] });
-            cleanups.push(function () { mo.disconnect(); });
-        }
-
-        // The tab may be opened at any point in a session, so this backstop
-        // has to outlive "shortly after load" — a short-lived one is expired
-        // by the time it would be needed. The check is a single clientWidth
-        // read; the cap only exists so it cannot leak forever.
-        var tries = 0;
-        var poll = setInterval(function () {
-            if (attempt() || ++tries > POLL_MAX_TRIES) clearInterval(poll);
-        }, POLL_INTERVAL_MS);
-        cleanups.push(function () { clearInterval(poll); });
-
-        attempt();
-    }
-
     function initAll() {
         initScrollSensitivity('#cytoscape-graph');
         initScrollSensitivity('#goal-mini-graph');
@@ -232,7 +150,6 @@
         initRightClickPan('#goal-mini-graph');
         initRightClickPan('#details-mini-graph');
         initRightClickPan('#events-detail-graph');
-        fitWhenFirstVisible('cytoscape-graph', 'canvas-tab-content');
     }
 
     if (document.readyState === 'loading') {

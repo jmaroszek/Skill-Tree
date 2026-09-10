@@ -409,6 +409,9 @@ Do **not** add per-element scrollbar-hiding rules — the global rule covers eve
 | Context menu | `10000` |
 | Tooltip | `9999` |
 | Filters overlay | `100` |
+| Canvas first-paint cover | `30` |
+| Graph layout panel | `20` |
+| Canvas overlays (buttons, stats) | `10` |
 
 ## Calculation status
 
@@ -416,3 +419,23 @@ The Time Simulation panel uses a small muted, polite live-region caption for
 “Calculating…” and the actual trial count. Hide stale results while a different
 selection is calculating. If the responsiveness limit reduces trials, explain
 that beside the count without adding a modal or interrupting navigation.
+
+## Canvas loading cover
+
+A canvas that isn't ready is covered, not shown mid-assembly. The cover is
+opaque in the canvas color (`#1a1d21`), fills the canvas container, and sits
+above every canvas overlay, so the wait reads as an empty canvas rather than a
+panel laid over a half-drawn graph.
+
+Show its caption in the same task that reveals the tab, never on a timer. The
+wait a loading caption explains is usually main-thread work, and a timer can't
+fire during it, so a delayed caption tends to arrive after the content it was
+announcing. Let it appear outright rather than fading in; a fade needs rendered
+frames to get going, and the main thread often stalls right after the reveal.
+A canvas that is already ready still shows nothing, because the cover lifts
+before that frame is painted. Fade the cover out when it has been
+on screen, and cut straight to the content when it hasn't — a cross-fade over a
+cover the user never saw only reads as lag.
+
+Every cover needs a backstop that lifts it regardless. Content the user can see
+is always better than a spinner with nothing behind it.

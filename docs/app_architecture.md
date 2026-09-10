@@ -145,6 +145,74 @@ row/Now-card selection, highlights and description changes clientside. Selection
 is State, not Input, for server callbacks. Refreshes retain a still-visible
 selection, update its description, and clear it when the row disappears.
 
+## Nodes-tab first paint
+
+The main canvas mounts inside a hidden tab, and two consequences of that used
+to be visible. Elements reach Cytoscape well before any layout runs, and until
+it runs every position-less node sits stacked at the origin. Meanwhile `fit` is
+a no-op while the container is 0x0, so the layout's own fit leaves zoom at 1 and
+pan at the origin. Opening the tab inside that window drew the whole graph piled
+into the top-left corner, and then it jumped.
+
+Measured on the 568-node sandbox graph: elements land about 3.6 s after load,
+the layout starts about 1.6 s later, and fcose itself takes 45 ms. That gap is
+not scheduling — calling `layout.run()` the instant the elements land does not
+start it any sooner, because it queues behind the same blocked main thread. It
+only adds a second randomized pass that reshuffles the graph again.
+
+So the canvas is generated eagerly, as it already was, and held behind an opaque
+cover instead. `assets/canvas_first_paint.js` lifts it once the graph is both
+laid out (`layoutstop` on a graph with nodes, positions away from the origin, or
+an element payload with no nodes to lay out) and framed (the canvas has a real
+size, so the fit can land). That fit used to live in `fullscreen.js`, which
+framed the graph the moment the canvas had a size but held back none of the
+frames before it. The empty-graph check matters because dash-cytoscape runs the
+layout prop once at mount, over no elements, and that `layoutstop` says nothing
+about the payload still on its way.
+
+Two rules keep the cover from becoming its own defect. The first is that its
+caption goes up in the same task that reveals the tab. It first waited 400 ms,
+so a nearly-ready graph wouldn't flash a spinner. But a timer can't fire during
+the main-thread work it was explaining. Due at 400 ms, it fired at 915 ms, and
+arriving just before the payload was ingested left the tab blank until the
+graph appeared. A graph that is already laid out still shows nothing, because
+the reveal lifts the cover before that frame is painted.
+
+Holding to that at startup took two more changes. The module now waits for Dash
+to render the canvas with a `MutationObserver` instead of a 300 ms retry. That
+retry was starved as well, so a tab opened early went unwatched until the poll
+noticed it, 542 ms after the reveal. With the observer, the caption lands in the
+reveal task itself. The caption also appears outright instead of fading in,
+because a fade needs rendered frames that a stalled main thread doesn't produce.
+
+The second rule is a backstop timed from the reveal, which lifts the cover no
+matter what: an unframed graph beats a canvas stranded behind a spinner. The
+cover is first-paint only. Covering the graph the user is looking at would be
+worse than any transition it could hide.
+
+### Layout transitions
+
+Filter changes make dash-cytoscape re-run whatever `layout` prop the canvas
+holds, on every `add` or `remove`. The graph-settings callback only rewrites
+that prop once a control is touched, and the prop in `layout.py` said
+`animate: False` while the Smooth switch said on. So Smooth did nothing until a
+slider moved, and every filter change also re-randomized the whole graph.
+
+The prop now describes a transition, as Details does for same-root changes. It
+keeps the current positions (`randomize: False`) and animates when Smooth is on.
+Adding the 127-node STEM context back that way spread it through its own region,
+with none of its nodes within 12 px of another. Existing nodes moved 152 px on
+average across a 3,200 px graph. In the running sandbox, switching the context
+filter to Health (67 nodes) and back to All (568) started fCoSE with
+`animate: true` and `randomize: false` both ways.
+
+The one run that can't be a transition is the cold start, from every node
+stacked at the origin. Incremental from that pile, fCoSE left 547 of 568 nodes
+within 12 px of a neighbor; a randomized seed left none. `canvas_first_paint.js`
+wraps `cy.layout` so that run randomizes, and skips its animation while the
+cover is still up, since nobody can watch it. Settle passes through untouched,
+because its graph is already laid out.
+
 ## Hidden-tab and Details responsiveness
 
 All tab layouts remain mounted. Heavy callbacks therefore do not subscribe

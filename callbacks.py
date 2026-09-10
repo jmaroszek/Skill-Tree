@@ -3562,6 +3562,24 @@ def register_callbacks(app):
         container_id='events-detail-graph-container',
     )
 
+    # --- Nodes-tab first paint: report the element payload to the cover ---
+    # The cover waits for the main canvas's layout to settle, and a graph with
+    # no nodes never runs one — no `layoutstop` is ever coming, so nothing else
+    # would release it. Only the empty case matters; the JS ignores the rest.
+    app.clientside_callback(
+        """
+        function(pending) {
+            if (window.SkillTree && window.SkillTree.notifyCanvasElements) {
+                window.SkillTree.notifyCanvasElements(pending);
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('canvas-first-paint-sink', 'data'),
+        Input('elements-pending-store', 'data'),
+        prevent_initial_call=True,
+    )
+
     # --- Graph Layout: Apply Layout Parameters ---
     # Clientside so allowOneLayout('main') is set in the same synchronous
     # function that returns the new layout dict. A previous server-side
@@ -3602,6 +3620,9 @@ def register_callbacks(app):
                 quality: 'proof',
                 fit: true,
                 animate: !!animate,
+                // Stated rather than left to fCoSE, so a settings change runs
+                // at the same pace as the initial prop in layout.py.
+                animationDuration: 1000,
                 randomize: is_relayout,
                 idealEdgeLength: edge_length || 100,
                 nodeRepulsion: repulsion || 50000,
