@@ -1,13 +1,4 @@
-"""Tests for context-aware adjustments in priority scoring.
-
-Covers the two post-TV/cost multipliers added to `score_nodes`:
-- Context weights (user-assigned, per parent context, subcontexts inherit)
-- Density normalization via `1 / n_active^alpha` keyed on
-  (context, subcontext) bucket.
-
-Both default to no-op (weight=1.0, alpha=0.0) — the regression check ensures
-existing behavior is preserved when those defaults are in place.
-"""
+"""Context weights remain; legacy task density no longer affects merit."""
 
 import pytest
 
@@ -63,170 +54,18 @@ def test_alpha_zero_and_empty_weights_is_no_op():
            {n.name: n.priority_score for n in scored_off}
 
 
-# ---------------------------------------------------------------------------
-# Density normalization
-# ---------------------------------------------------------------------------
-
-def test_alpha_full_inverts_dominance_toward_smaller_bucket():
-    """alpha=1.0 fully cancels density: smaller bucket wins per-node."""
-    big = [_node(f"L{i}", context="Life", subcontext=None) for i in range(20)]
-    small = [_node(f"M{i}", context="Mind", subcontext=None) for i in range(5)]
-    nodes = big + small
-    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
+@pytest.mark.parametrize('alpha', [0, .3, .5, 1, 1.5])
+@pytest.mark.parametrize('subcontext', [None, 'Area'])
+def test_legacy_density_does_not_change_merit(alpha, subcontext):
+    nodes = [_node('Target', context='Life', subcontext=subcontext)]
+    hp = {**BASE_HYPERS, 'alpha': alpha}
+    alone = score_nodes(nodes, nodes, [], hp)[0].priority_score_exact
+    nodes += [_node(f'Other{i}', context='Life', subcontext=subcontext) for i in range(20)]
     scored = score_nodes(nodes, nodes, [], hp)
-
-    life_scores = [n.priority_score for n in scored if n.context == "Life"]
-    mind_scores = [n.priority_score for n in scored if n.context == "Mind"]
-    # Identical node ratings → per-node raw score equal; alpha=1.0 divides by
-    # bucket size, so Mind (n=5) nodes score 4x higher than Life (n=20).
-    assert min(mind_scores) > max(life_scores)
-
-
-def test_alpha_half_compensates_without_inverting():
-    """alpha=0.5 narrows the gap but preserves ranking within buckets."""
-    big = [_node(f"L{i}", value=8, context="Life") for i in range(4)]
-    small = [_node(f"M{i}", value=8, context="Mind") for i in range(1)]
-    nodes = big + small
-    hp = {**BASE_HYPERS, 'alpha': 0.5, 'context_weights': {}}
-    scored = score_nodes(nodes, nodes, [], hp)
-
-    m_score = next(n.priority_score for n in scored if n.name == "M0")
-    l_score = next(n.priority_score for n in scored if n.name == "L0")
-    # Mind bucket has 1 node (mult=1), Life has 4 (mult=1/sqrt(4)=0.5).
-    # So Mind/Life ratio is ~2.0 (within 2-decimal rounding).
-    assert abs(m_score / l_score - 2.0) < 0.05
-
-
-def test_density_keys_on_context_subcontext_pair():
-    """Subcontexts bucket separately — normalization happens at that level."""
-    # Life/A has 4 nodes; Life/B has 1 node. alpha=1.0 fully normalizes.
-    # Using larger value reduces the impact of 2-decimal rounding on the ratio.
-    nodes = [
-        _node(f"A{i}", value=10, interest=10, context="Life", subcontext="A")
-        for i in range(4)
-    ] + [_node("B0", value=10, interest=10, context="Life", subcontext="B")]
-    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
-    scored = score_nodes(nodes, nodes, [], hp)
-    a_score = next(n.priority_score for n in scored if n.name == "A0")
-    b_score = next(n.priority_score for n in scored if n.name == "B0")
-    # Life/A nodes get mult = 1/4; Life/B gets mult = 1/1 → B scores 4x higher.
-    assert abs(b_score / a_score - 4.0) < 0.1
-
-
-def test_done_and_blocked_excluded_from_density_count():
-    """Done/Blocked nodes don't dilute the active-node bucket."""
-    nodes = [
-        _node("Active", context="Life"),
-        _node("Done1", context="Life", status="Done"),
-        _node("Done2", context="Life", status="Done"),
-        _node("Solo", context="Mind"),
-    ]
-    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
-    scored = score_nodes(nodes, nodes, [], hp)
-    active = next(n.priority_score for n in scored if n.name == "Active")
-    solo = next(n.priority_score for n in scored if n.name == "Solo")
-    # Life has 1 ACTIVE node (Done ones excluded); Mind has 1. So scores equal.
-    assert abs(active - solo) < 0.02
-
-
-# ---------------------------------------------------------------------------
-# Density normalization — uncategorized (context=None) exemption
-#
-# Nodes with context=None aren't a meaningful conceptual bucket — they're
-# pending categorization. Pre-fix, ALL of them shared one (None, None) bucket
-# and penalized each other under alpha. Now they bucket independently.
-#
-# Crucially: (context, None) is NOT exempt — that's "broad area" semantics
-# which IS a meaningful bucket. Only context=None is exempted.
-# ---------------------------------------------------------------------------
-
-def test_uncategorized_nodes_dont_penalize_each_other():
-    """Two context=None nodes score as if each were alone in its bucket."""
-    nodes = [
-        _node("U1", context=None),
-        _node("U2", context=None),
-    ]
-    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
-    scored = score_nodes(nodes, nodes, [], hp)
-    # Density normalization is exempt → density_mult = 1.0 for both → identical scores.
-    s1 = next(n.priority_score for n in scored if n.name == "U1")
-    s2 = next(n.priority_score for n in scored if n.name == "U2")
-    # And both should equal the score they'd get if they were the only node.
-    solo_scored = score_nodes([_node("U1", context=None)], [_node("U1", context=None)], [], hp)
-    solo = solo_scored[0].priority_score
-    assert s1 == s2 == solo
-
-
-def test_uncategorized_score_independent_of_pile_size():
-    """Adding more uncategorized nodes doesn't shift any of their scores."""
-    base = [_node("Pinned", context=None)]
-    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
-
-    score_alone = score_nodes(base, base, [], hp)[0].priority_score
-
-    crowd = base + [_node(f"Other{i}", context=None) for i in range(10)]
-    pinned_in_crowd = next(
-        n.priority_score for n in score_nodes(crowd, crowd, [], hp)
-        if n.name == "Pinned"
-    )
-    assert pinned_in_crowd == score_alone
-
-
-def test_broad_area_subcontext_none_still_buckets():
-    """(context, None) is a legit "broad area" bucket — nodes there DO compete.
-
-    Per user convention: subcontext=None means "applies broadly to the parent
-    context, not a specific subarea." Density normalization should treat this
-    as a real bucket so broad-area siblings normalize against each other.
-    """
-    nodes = [
-        _node(f"Broad{i}", value=10, interest=10, context="Life", subcontext=None)
-        for i in range(4)
-    ] + [_node("Solo", value=10, interest=10, context="Mind")]
-    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
-    scored = score_nodes(nodes, nodes, [], hp)
-    broad = next(n.priority_score for n in scored if n.name == "Broad0")
-    solo = next(n.priority_score for n in scored if n.name == "Solo")
-    # Life/None has 4 nodes (mult 1/4); Mind/None has 1 (mult 1/1). Solo scores 4x.
-    assert abs(solo / broad - 4.0) < 0.1
-
-
-def test_uncategorized_unaffected_by_categorized_pile():
-    """An uncategorized node isn't penalized by a large categorized bucket either."""
-    nodes = [_node("U", context=None)] + [
-        _node(f"L{i}", context="Life") for i in range(10)
-    ]
-    hp = {**BASE_HYPERS, 'alpha': 1.0, 'context_weights': {}}
-    scored = score_nodes(nodes, nodes, [], hp)
-    u = next(n.priority_score for n in scored if n.name == "U")
-    # Same node, scored alone — should match.
-    solo = score_nodes([_node("U", context=None)], [_node("U", context=None)], [], hp)[0].priority_score
-    assert u == solo
-
-
-def test_explain_score_reports_n_bucket_1_for_uncategorized():
-    """The explain-score popup's context_adjustment.n_bucket should read 1
-    for an uncategorized node, regardless of how many other uncategorized
-    nodes exist — self-documents the exemption to the user."""
-    nodes = [
-        _node("Target", context=None),
-        _node("Other1", context=None),
-        _node("Other2", context=None),
-    ]
-    hp = {**BASE_HYPERS, 'alpha': 0.5, 'context_weights': {}}
-    breakdown = explain_score("Target", nodes, [], hp)
-    assert breakdown['context_adjustment']['n_bucket'] == 1
-    assert breakdown['context_adjustment']['density_mult'] == 1.0
-
-
-def test_explain_score_reports_actual_n_bucket_for_broad_area():
-    """And for a broad-area (context, None) node, n_bucket reflects the count."""
-    nodes = [
-        _node(f"Broad{i}", context="Life", subcontext=None) for i in range(3)
-    ]
-    hp = {**BASE_HYPERS, 'alpha': 0.5, 'context_weights': {}}
-    breakdown = explain_score("Broad0", nodes, [], hp)
-    assert breakdown['context_adjustment']['n_bucket'] == 3
+    assert next(n.priority_score_exact for n in scored if n.name == 'Target') == alone
+    adj = explain_score('Target', nodes, [], hp)['context_adjustment']
+    assert adj['density_mult'] == 1
+    assert adj['alpha'] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -274,8 +113,8 @@ def test_subcontexts_inherit_parent_weight():
     assert abs(sens / life - 3.0) < 0.02
 
 
-def test_weights_and_alpha_compose():
-    """Both multipliers apply together."""
+def test_weights_apply_and_legacy_alpha_is_ignored():
+    """Explicit context weights remain meaningful after density retirement."""
     # Use larger values so the base score is large enough that 2-decimal
     # rounding at each multiplication step doesn't dominate the ratio.
     nodes = [
@@ -286,10 +125,8 @@ def test_weights_and_alpha_compose():
     scored = score_nodes(nodes, nodes, [], hp)
     m = next(n.priority_score for n in scored if n.name == "M0")
     l = next(n.priority_score for n in scored if n.name == "L0")
-    # Mind: base × 2.0 × (1/1^0.5) = base × 2.0
-    # Life: base × 1.0 × (1/4^0.5) = base × 0.5
-    # Ratio = 4.0
-    assert abs(m / l - 4.0) < 0.1
+    assert m / l == pytest.approx(2.0)
+
 
 
 # ---------------------------------------------------------------------------
@@ -337,10 +174,9 @@ def test_explain_score_reports_context_adjustment():
     breakdown = explain_score("A", nodes, [], hp)
     adj = breakdown['context_adjustment']
     assert adj['weight'] == 2.0
-    assert adj['n_bucket'] == 3  # Life nodes: A, B, C
-    assert adj['alpha'] == 0.5
-    # density_mult = 1 / 3^0.5
-    assert abs(adj['density_mult'] - (1.0 / (3 ** 0.5))) < 1e-6
+    assert adj['n_bucket'] == 1  # Retired density has neutral compatibility fields.
+    assert adj['alpha'] == 0.0
+    assert adj['density_mult'] == 1.0
     assert abs(adj['combined_multiplier'] - adj['weight'] * adj['density_mult']) < 1e-6
 
 

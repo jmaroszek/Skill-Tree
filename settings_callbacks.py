@@ -267,7 +267,7 @@ def register_settings_callbacks(app):
         Output('hp-wt', 'value'),
         Output('hp-beta', 'value'),
         Output('hp-goal-boost', 'value'),
-        Output('hp-alpha', 'value'),
+        Output('hp-context-repeat', 'value'),
         Output('setting-node-types', 'value'),
         Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
@@ -302,6 +302,7 @@ def register_settings_callbacks(app):
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-monte-carlo-trials', 'value'),
         Output('setting-now-node-cap', 'value'),
+        Output('hp-subcontext-repeat', 'value'),
         Output('hp-future-hours', 'value'),
         Output('hp-future-exponent', 'value'),
         Input('settings-modal', 'is_open'),
@@ -309,7 +310,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 48
+            return (dash.no_update,) * 49
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -362,7 +363,7 @@ def register_settings_callbacks(app):
             hp.get('cross_context_mult', 1.0),
             hp.get('w_e', 2.5), hp.get('w_t', 1.0), hp.get('beta', 0.85),
             hp.get('goal_boost', 1.5),
-            hp.get('alpha', 0.3),
+            hp['suggestion_context_premium'],
             ', '.join(node_types),
             sub_val,
             profile,
@@ -397,6 +398,7 @@ def register_settings_callbacks(app):
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
             ConfigManager.get_monte_carlo_trials(),
             ConfigManager.get_now_node_cap(),
+            hp['suggestion_subcontext_premium'],
             hp['future_work_half_credit_hours'],
             hp['future_work_exponent'],
         )
@@ -414,7 +416,8 @@ def register_settings_callbacks(app):
         Output('hp-wt', 'value', allow_duplicate=True),
         Output('hp-beta', 'value', allow_duplicate=True),
         Output('hp-goal-boost', 'value', allow_duplicate=True),
-        Output('hp-alpha', 'value', allow_duplicate=True),
+        Output('hp-context-repeat', 'value', allow_duplicate=True),
+        Output('hp-subcontext-repeat', 'value', allow_duplicate=True),
         Output('hp-future-hours', 'value', allow_duplicate=True),
         Output('hp-future-exponent', 'value', allow_duplicate=True),
         Input('setting-hp-profile', 'value'),
@@ -428,9 +431,9 @@ def register_settings_callbacks(app):
                     p['d_Syn_pair'], p['d_Syn_mul'],
                     p.get('cross_context_mult', 1.0),
                     p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5),
-                    p.get('alpha', 0.3), p['future_work_half_credit_hours'],
+                    p['suggestion_context_premium'], p['suggestion_subcontext_premium'], p['future_work_half_credit_hours'],
                     p['future_work_exponent'])
-        return (dash.no_update,) * 14
+        return (dash.no_update,) * 15
 
     # --- Settings: Sync Time Estimates ---
     # 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see ConfigManager.HOURS_PER_YEAR_MULT).
@@ -492,7 +495,7 @@ def register_settings_callbacks(app):
         State('hp-cross-context-mult', 'value'),
         State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
         State('hp-goal-boost', 'value'),
-        State('hp-alpha', 'value'),
+        State('hp-context-repeat', 'value'),
         State('setting-node-types', 'value'),
         State('setting-subcontexts', 'value'),
         State('setting-obsidian-path', 'value'),
@@ -529,12 +532,13 @@ def register_settings_callbacks(app):
         State('setting-now-node-cap', 'value'),
         State('hp-future-hours', 'value'),
         State('hp-future-exponent', 'value'),
+        State('hp-subcontext-repeat', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul,
                       cross_context_mult,
                       we, wt, beta, goal_boost,
-                      alpha,
+                      context_repeat,
                       n_types_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
                       ctx_weight_values, ctx_weight_ids,
@@ -547,9 +551,16 @@ def register_settings_callbacks(app):
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
                       monte_carlo_trials_val, now_node_cap_val,
-                      future_hours=None, future_exponent=None):
+                      future_hours=None, future_exponent=None, subcontext_repeat=None):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+
+        context_premium = _clamp(context_repeat, 0.0, 100.0, 5.0)
+        subcontext_premium = _clamp(subcontext_repeat, 0.0, 100.0,
+                                   ConfigManager.get_hyperparams()['suggestion_subcontext_premium'])
+        if subcontext_premium < context_premium:
+            return ("Same-subcontext percentage must be at least the same-context percentage.",
+                    dash.no_update, dash.no_update, dash.no_update, dash.no_update)
 
         try:
             # Perf-toggle is independent of any migrated setting — persist
@@ -574,7 +585,8 @@ def register_settings_callbacks(app):
                 'cross_context_mult': float(cross_context_mult) if cross_context_mult is not None else 1.0,
                 'w_e': float(we), 'w_t': float(wt), 'beta': float(beta),
                 'goal_boost': float(goal_boost) if goal_boost is not None else 1.5,
-                'alpha': _clamp(alpha, 0.0, 1.5, 0.3),
+                'suggestion_context_premium': context_premium,
+                'suggestion_subcontext_premium': subcontext_premium,
                 'alpha_goal': _profile_knob(hp_profile, 'alpha_goal'),
                 'value_exponent': _profile_knob(hp_profile, 'value_exponent'),
                 'future_work_half_credit_hours': _clamp(future_hours, 0.0, 1000000.0,

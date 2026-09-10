@@ -422,21 +422,23 @@ def _build_scoring_tab():
                 ], width=9),
             ], className="mb-2"),
 
-            html.H6("Context Density", className="mt-3 mb-1"),
+            html.H6("Suggestion Variety", className="mt-3 mb-1"),
             dbc.Row([
                 dbc.Col([
-                    dbc.Input(id="hp-alpha", type="number",
-                              min=0, max=1.5, step="any"),
-                ], width=3),
+                    dbc.Label("Same context (%)", html_for="hp-context-repeat"),
+                    dbc.Input(id="hp-context-repeat", type="number", min=0, max=100, step="any"),
+                ], width=6),
                 dbc.Col([
-                    html.Small(
-                        "Normalizes scores by (context, subcontext) bucket size "
-                        "(score × 1 / n^α). Higher values penalize larger "
-                        "buckets more. 0 disables; 0.3 (Sage profile) "
-                        "compensates mildly; 1.0 fully cancels size bias.",
-                        className="text-muted d-block"),
-                ], width=9),
+                    dbc.Label("Same subcontext, total (%)", html_for="hp-subcontext-repeat"),
+                    dbc.Input(id="hp-subcontext-repeat", type="number", min=0, max=100, step="any"),
+                ], width=6),
             ], className="mb-2"),
+            html.Small(
+                "Extra priority needed after one recommendation from the same area. "
+                "The subcontext percentage includes the context percentage and must be at least as large. "
+                "Repetition accumulates gently as the list fills. Zero for both disables variety. "
+                "These settings change recommendation order, not scores or Goal rankings.",
+                className="text-muted d-block mb-2"),
 
             # --- Context Priority Weights ---
             html.H6("Context Priority Weights", className="mt-3 mb-1"),

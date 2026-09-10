@@ -269,7 +269,6 @@ def _compute_priority_score(
     H_out: dict, S_out: dict, Syn: dict,
     hyperparams: dict,
     node_to_boost: Dict[str, float],
-    n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int],
     memo: Optional[dict] = None,
 ) -> Tuple[float, float, float]:
     """Single source of truth for the per-node ROI formula.
@@ -282,7 +281,7 @@ def _compute_priority_score(
     The rounded figure is what the UI displays and what callers store on the
     node; the exact one exists purely so `score_nodes` can order nodes that
     round to the same 2dp value. Both apply the identical boost, context
-    weight and density multipliers — they differ only in rounding.
+    weight multipliers — they differ only in rounding.
     """
     w_v = hyperparams.get('w_v', 1.0)
     w_i = hyperparams.get('w_i', 1.0)
@@ -295,7 +294,6 @@ def _compute_priority_score(
     w_e = hyperparams.get('w_e', 2.5)
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
-    alpha = hyperparams.get('alpha', 0.0)
     context_weights = hyperparams.get('context_weights', {}) or {}
 
     # Inherited-time containers carry no marginal time cost; inherited-value
@@ -324,11 +322,9 @@ def _compute_priority_score(
         exact *= boost
 
     weight = context_weights.get(node.context, 1.0) if node.context else 1.0
-    n_bucket = max(1, n_per_bucket.get((node.context, node.subcontext), 1))
-    density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
-    if weight != 1.0 or density_mult != 1.0:
-        score = round(score * weight * density_mult, 2)
-        exact *= weight * density_mult
+    if weight != 1.0:
+        score = round(score * weight, 2)
+        exact *= weight
 
     return score, tv, exact
 
@@ -373,7 +369,6 @@ def score_nodes(
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
     goal_boost = hyperparams.get('goal_boost', 1.5)
-    alpha = hyperparams.get('alpha', 0.0)
     context_weights = hyperparams.get('context_weights', {}) or {}
 
     all_nodes_dict = {n.name: n for n in all_nodes}
@@ -381,32 +376,6 @@ def score_nodes(
     t0 = time.perf_counter() if time_phases else 0.0
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
     t1 = time.perf_counter() if time_phases else 0.0
-
-    # Per-bucket active counts for density normalization. Goal/Done/Blocked
-    # nodes don't compete for top-N slots, so they don't dilute the budget.
-    # (context, None) IS a meaningful bucket — it means "broad area, not a
-    # specific subarea" — so subcontext being None doesn't disqualify.
-    # context=None is rejected at add_node; defensively skip if any legacy
-    # row slipped through.
-    #
-    # Counted over `all_nodes`, NOT `nodes_to_score`. Callers routinely pass a
-    # filtered subset to score (the Next tab drops Now nodes and applies the
-    # user's rating/type/time filters), and counting the subset made a bucket's
-    # population — and therefore every surviving node's density multiplier —
-    # depend on the active filter. A filter would then re-sort the rows it kept
-    # rather than merely hiding rows: on a ~450-node graph, "min value >= 6"
-    # moved a surviving node by up to 101 places. Bucket population is a
-    # property of the graph, so it is measured against the graph.
-    n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int] = {}
-    for n in all_nodes:
-        if n.type in ('Goal', 'Milestone') or n.status in (STATUS_DONE, STATUS_BLOCKED):
-            continue
-        if n.has_no_own_work:
-            continue
-        if n.context is None:
-            continue
-        key = (n.context, n.subcontext)
-        n_per_bucket[key] = n_per_bucket.get(key, 0) + 1
 
     # Outer-call memo for total_value. When external_memo is supplied (by
     # GraphManager), reuse its cached values across score_nodes invocations
@@ -488,9 +457,9 @@ def score_nodes(
             H_out=H_out, S_out=S_out, Syn=Syn,
             hyperparams=hyperparams,
             node_to_boost=node_to_boost,
-            n_per_bucket=n_per_bucket,
             memo=memo,
         )
+        node.priority_score_exact = exact_scores[node.name]
         scored_nodes.append(node)
 
     t3 = time.perf_counter() if time_phases else 0.0
@@ -683,7 +652,6 @@ def explain_score(
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
     goal_boost = hyperparams.get('goal_boost', 1.5)
-    alpha = hyperparams.get('alpha', 0.0)
     context_weights = hyperparams.get('context_weights', {}) or {}
 
     all_nodes_dict = {n.name: n for n in all_nodes}
@@ -692,19 +660,6 @@ def explain_score(
         return None
 
     H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
-
-    # Bucket counts match score_nodes: exclude Goal/Done/Blocked AND
-    # uncategorized (context=None) from density. See score_nodes for rationale.
-    n_per_bucket: Dict[Tuple[Optional[str], Optional[str]], int] = {}
-    for n_ in all_nodes:
-        if n_.type in ('Goal', 'Milestone') or n_.status in (STATUS_DONE, STATUS_BLOCKED):
-            continue
-        if n_.has_no_own_work:
-            continue
-        if n_.context is None:
-            continue
-        key = (n_.context, n_.subcontext)
-        n_per_bucket[key] = n_per_bucket.get(key, 0) + 1
 
     iv = intrinsic_value(node, w_v, w_i, value_exponent)
     time_overridden = (node.time_mode == 'inherited')
@@ -797,9 +752,7 @@ def explain_score(
 
     # Context-aware adjustments (mirrors score_nodes).
     ctx_weight = context_weights.get(node.context, 1.0) if node.context else 1.0
-    n_bucket = max(1, n_per_bucket.get((node.context, node.subcontext), 1))
-    density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
-    combined_ctx_mult = ctx_weight * density_mult
+    combined_ctx_mult = ctx_weight
 
     if eligible:
         score = round(raw_score, 2)
@@ -822,7 +775,7 @@ def explain_score(
             'd_Syn_pair': d_Syn_pair, 'd_Syn_mul': d_Syn_mul,
             'cross_context_mult': cross_context_mult,
             'goal_boost': goal_boost,
-            'alpha': alpha,
+            'alpha': 0.0,  # Compatibility for older Explain consumers.
             'value_exponent': value_exponent,
             'future_work_half_credit_hours': hyperparams.get('future_work_half_credit_hours', 0.0),
             'future_work_exponent': hyperparams.get('future_work_exponent', 0.6),
@@ -851,9 +804,9 @@ def explain_score(
         'goal_boost': goal_boost_info,
         'context_adjustment': {
             'weight': ctx_weight,
-            'n_bucket': n_bucket,
-            'alpha': alpha,
-            'density_mult': density_mult,
+            'n_bucket': 1,
+            'alpha': 0.0,  # Compatibility for older Explain consumers.
+            'density_mult': 1.0,
             'combined_multiplier': combined_ctx_mult,
         },
         'contributors': contributors,

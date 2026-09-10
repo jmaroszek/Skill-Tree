@@ -9,6 +9,7 @@ from dash import Input, Output, State, ALL, ClientsideFunction
 from graph_manager import GraphManager
 from config import ConfigManager
 from callback_helpers import get_trigger_id, format_now_nodes_section, format_suggestions_table, build_filters
+from callback_helpers import assemble_suggestions
 from models import STATUS_DONE
 
 manager = GraphManager()
@@ -55,11 +56,11 @@ def _initial_next_view(template, sidebars):
 
 @database.snapshot_read
 def get_suggestions(filters=None, count=5, exclude_override=False):
-    """Retrieve top-N prioritized nodes based on ROI scoring.
+    """Assemble top-N suggestions using ROI merit and hierarchical variety.
 
     When a manual override is active, uses two-tier sorting:
     Tier 1 (top): overridden nodes, scored among themselves.
-    Tier 2 (bottom): normal nodes, scored among themselves.
+    Tier 2 (bottom): filtered candidates, diversified after counting Tier 1.
 
     If ``exclude_override`` is True, skip the override tier entirely and
     return only non-override recommendations (useful for the Details tab
@@ -77,12 +78,13 @@ def get_suggestions(filters=None, count=5, exclude_override=False):
     priority_goals = ConfigManager.get_priority_goals()
 
     override_set = ConfigManager.get_override_node_set(manager)
+    hp = ConfigManager.get_hyperparams()
 
     if exclude_override and override_set:
         filtered_nodes = [n for n in filtered_nodes if n.name not in override_set]
         scored = manager.calculate_priority_scores(filtered_nodes, priority_goals=priority_goals)
         valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
-        return valid[:count]
+        return assemble_suggestions(valid, count, hp)
 
     if override_set:
         # Tier 1 (override) bypasses the user filter: a pin is an explicit
@@ -98,11 +100,11 @@ def get_suggestions(filters=None, count=5, exclude_override=False):
         valid_t1 = [n for n in scored_t1 if getattr(n, 'priority_score', -1) >= 0]
         valid_t2 = [n for n in scored_t2 if getattr(n, 'priority_score', -1) >= 0]
 
-        return valid_t1 + valid_t2[:max(0, count - len(valid_t1))]
+        return valid_t1 + assemble_suggestions(valid_t2, count - len(valid_t1), hp, valid_t1)
     else:
         scored = manager.calculate_priority_scores(filtered_nodes, priority_goals=priority_goals)
         valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
-        return valid[:count]
+        return assemble_suggestions(valid, count, hp)
 
 
 @database.snapshot_read

@@ -5,7 +5,7 @@ The priority score answers the app's central question: *what should I work on ne
 
 Not every node competes for that answer. Only **eligible** nodes do -- open *Learn*, *Action*, and *Resource* nodes that hold hours of their own. Goals and Milestones are each set aside for a different reason. Goals get their own ranking, while Milestones are transparent checkpoints that pass value through without competing. Containers that inherit their time are set aside too, for the reason given in [Containers Are Not Recommended](#containers-are-not-recommended). Eligibility is defined precisely in [Eligibility and the Status Cascade](#eligibility-and-the-status-cascade).
 
-Every eligible node starts with a **base priority score**: a return-on-investment ratio of value over cost. Three multipliers then adjust it — the goal-priority boost, context weight, and density normalization. The adjusted scores are rescaled to 0–100 and sorted into the Next tab's suggestion list.
+Every eligible node starts with a **base priority score**: a return-on-investment ratio of value over cost. Goal-priority boost and context weight adjust it. The suggestion list balances repetition across contexts and subcontexts while displaying underlying merit on a 0-100 scale.
 
 The sections that follow build the score one piece at a time: intrinsic value, perceived cost, the cascade and synergies that combine into total value, and the multipliers that finish the ranking.
 
@@ -146,45 +146,52 @@ $$ \rho(n) = \max\big(\{1\} \cup \{\rho_r : n \in A_H(g_r)\}\big) $$
 
 
 ## Context Multipliers
-Two final adjustments apply after the goal boost, both multiplicative. Each reflects a context-level concern, not a per-node one.
+Context weight applies after the goal boost. Suggestion variety is a separate list-selection step.
 
 ### Context Weight
 Each context carries a weight $w_c$, a user-configurable scalar that defaults to 1. It lets the user emphasize or de-emphasize a whole life area. For example: double the weight on Money during a tight quarter, or halve it on Humanities during a STEM stretch.
 
-### Density Normalization
-This is a counterweight to context size. Without it, a heavily decomposed context (say, 60 nodes) would crowd out a sparser one (say, 5 nodes) on headcount alone, even if the sparse context has higher per-node value. Density normalization corrects for that. Let $B(n) = (\text{ctx}(n), \text{subctx}(n))$ be a node's (context, subcontext) bucket, and let $|B(n)|$ be the count of [eligible](#eligibility-and-the-status-cascade) nodes in it. Then
+### Suggestion Variety
 
-$$ \delta(n) = \frac{1}{\max(1,\, |B(n)|)^\alpha} $$
+Task merit no longer depends on how many projects are stored in a context. Instead, suggestions are selected one at a time, discounting repetition in the list already assembled. This gives other areas a chance without making unrelated additions to the graph reduce a task's score.
 
-Bucket population is counted across the **whole graph**, not across whatever subset is currently being scored. This matters because callers routinely score a subset: the Next tab drops nodes already marked *Now* and applies the user's filters before scoring. Counting the subset would make every surviving node's density multiplier depend on the active filter, so a filter would re-sort the rows it kept rather than merely hiding rows. Measured on a ~450-node graph, a "minimum value 6" filter moved a surviving node by up to 101 places. A bucket's size is a property of the graph, so it is measured against the graph.
+Let `c` be the number already selected in the candidate's context, and `s` the number in its `(context, subcontext)` pair. At each step select the greatest:
 
-The exponent $\alpha \in [0, 1]$ controls how aggressively dense buckets are damped. At $\alpha = 0$ the term vanishes, so there's no normalization. At $\alpha = 1$, a bucket's combined weight equals its single-node weight — full flattening, so a dense context never wins by sheer attrition. The Sage default $\alpha = 0.30$ damps heavily decomposed contexts without erasing their edge. The intent is to keep the user well-rounded: even if STEM holds the biggest projects, smaller contexts still get a fair chance to surface their best candidates.
+`selection_merit = P(n) / ((1+c)^a * (1+s)^b)`
 
-A note on buckets. Nodes with no subcontext, written `(context, None)`, share one bucket within their context. They represent broadly applicable work within a major life area — relationships, science, entertainment.
+Settings use percentages of extra merit required after **one** earlier recommendation: `p_context` and `p_subcontext` (total). Convert with `a = log2(1+p_context/100)` and `b = log2((1+p_subcontext/100)/(1+p_context/100))`. The subcontext premium includes the context premium; it is not an additional penalty. It must be at least as large as the context premium.
 
-![Density Normalization](../images/scoring-density.png)
+Sage uses **5% / 15%**. After three earlier recommendations from one subcontext, another from that subcontext needs 32.25% extra merit; a sibling subcontext needs 10.25%. Accumulation grows gently. These percentages describe extra merit required, not a literal percentage subtraction from the score.
 
-*Density weight falls as a bucket grows, damping crowded contexts. A higher $`\alpha`$ damps harder; $`\alpha = 1`$ flattens a bucket to its single-node weight.*
+Profiles use context/subcontext premiums: Sage 5/15, Explorer 10/20, Compounder 0/0, Pragmatist 2/5, Creator 5/15, Glider 5/20. The non-Sage defaults are conservative policy choices, not empirically optimized values. Both zero restores merit ordering.
+
+Filters define the candidate pool. Valid pins bypass filters and remain first in merit order, even when they exceed the requested count; they seed repetition counts for the remaining slots. Now nodes are excluded. The Details recommendation list uses the same selection rule; excluded overrides do not seed it. Goal and container ranking remain separate.
+
+Selection uses exact merit, then exact merit and name to break adjusted ties. Increasing the requested count preserves the existing prefix for an unchanged graph, filter, and settings. Displayed scores are never divided by the selection penalty, so they need not descend down the list. `(context, None)` is a broad-area bucket; identical subcontext labels under different contexts remain distinct. Legacy uncategorized nodes are exempt.
+
+This balances a slate, not exposure over time: repeatedly requesting an unchanged list returns the same list. It does not guarantee every context a slot or periodically rotate neglected tasks.
 
 ## Final Score
 
 Putting it all together:
 
-$$ P(n) = P_{\text{base}}(n) \cdot \rho(n) \cdot w_c(\text{ctx}(n)) \cdot \delta(n) $$
+$$ P(n) = P_{\text{base}}(n) \cdot \rho(n) \cdot w_c(\text{ctx}(n)) $$
 
-A node's final priority is its ROI ratio, scaled by the goal-priority boost, the context weight, and the density correction. The multipliers compound. A node in a small, weighted-up, priority-goal subtree can stack all three and surface aggressively. A node in a large, weighted-down, non-priority context gets pushed deep down the list.
+A node's final priority is its ROI ratio scaled by the goal-priority boost and context weight. Suggestion variety changes list order without altering this merit.
 
-Nodes are **ordered** by the unrounded score, while the figure stored and displayed is rounded to two decimals. Rounding is lossy enough to matter: on a ~450-node graph it collapses about 440 distinct scores into roughly 170, so past about rank 30 most nodes would otherwise tie with a neighbour and fall back on list order, which carries no meaning. Ordering on the exact value keeps the displayed number readable without making the sequence arbitrary.
+The underlying merit ranking uses the unrounded score, while the figure stored and displayed is rounded to two decimals. Rounding is lossy enough to matter: on a ~450-node graph it collapses about 440 distinct scores into roughly 170, so past about rank 30 most nodes would otherwise tie with a neighbour and fall back on list order, which carries no meaning. Ordering on the exact value keeps the displayed number readable without making the sequence arbitrary.
 
 For display on the Next tab, scores are linearly rescaled against the top eligible node.
 
 $$ P_{\text{display}}(n) = 100 \cdot \frac{P(n)}{\max_{m \in \text{eligible}} P(m)} $$
 
-The top-ranked node always shows 100. Every other project shows its share of that.
+The highest-merit displayed node shows 100 within the existing override-tier normalization. List position also reflects variety; it does not redefine merit.
 
 (The Explain feature reports both the raw and normalized score.)
 
 ## Complexity
+
+Suggestion assembly scans the remaining candidates for each slot: O(NK) time for N candidates and K recommendations, with O(N) temporary storage. It reuses exact scores and does not recompute graph values during selection.
 
 Per-source strongest-route maps replace scalar subtree sums. Per-beneficiary required-work sets and hours are cached separately. A cold route map visits its reachable DAG; subsequent candidate and synergy calculations reuse it.
 
@@ -217,7 +224,8 @@ The six built-in profiles are essentially hyperparameter bundles. The first tabl
 | Time weight | $w_t$ | 6.00 | 6.00 | 5.00 | 7.00 | 6.00 | 135.0 |
 | Time exponent | $\beta$ | 0.60 | 0.60 | 0.50 | 0.70 | 0.60 | 0.95 |
 | Priority goal boost | $b$ | 1.50 | 1.00 | 1.00 | 4.00 | 1.00 | 1.00 |
-| Density exponent (scored) | $\alpha$ | 0.30 | 0.65 | 0.00 | 0.10 | 0.30 | 0.45 |
+| Same-context premium (%) | | 5 | 10 | 0 | 2 | 5 | 5 |
+| Same-subcontext total premium (%) | | 15 | 20 | 0 | 5 | 15 | 20 |
 | Density exponent (Goals) | $\alpha_g$ | 0.20 | 0.50 | 0.00 | 0.05 | 0.20 | 0.35 |
 
 $w_t$ is read against the 40-hour reference, so Glider's 135 is not a typo. It is the value that produces a very steep time penalty once time is divided by $t_{\text{ref}}$.
@@ -238,8 +246,8 @@ The Done-synergy multiplier only differentiates scores once partners are complet
 | Profile | Perspective | Parameter Tweaks |
 |---|---|---|
 | **Sage** | The reference baseline. A balanced ranking that leans no particular direction, landing near the graph's own median on time, value and interest alike. | All other profiles are expressed as deltas off these defaults. |
-| **Explorer** | Curiosity-driven. Favors what you find interesting, rewards cross-domain links, and gives sparse contexts a fair shot. | $w_I$ set to four times $w_V$, and the highest $\gamma$ of any profile so those ratings bite hard. Synergy parameters raised far enough that $m_{\text{cross}} = 2.5$ actually registers. A high $\alpha = 0.65$ damps dense contexts hard, so obscure work surfaces. $b = 1.0$ switches off the goal boost, since goals are not the point here. |
-| **Compounder** | Foundational depth. Work that unlocks long prerequisite chains, whether or not it is enjoyable. | The lowest $\gamma$ of the rating-driven profiles, deliberately: this profile is about structure, so ratings should not drown out reach. $d_H = 0.92$ carries value far along *hard* chains. $d_S = 0.20$ keeps soft links from flooding value everywhere. That contrast is what selects unlock-heavy nodes, and a high $d_S$ would erase it. $\alpha = 0$ lets deep contexts win on merit. |
+| **Explorer** | Curiosity-driven. Favors what you find interesting, rewards cross-domain links, and gives sparse contexts a fair shot. | $w_I$ set to four times $w_V$, and the highest $\gamma$ of any profile so those ratings bite hard. Synergy parameters raised far enough that $m_{\text{cross}} = 2.5$ actually registers. The 10%/20% premiums encourage a wider recommendation list. $b = 1.0$ switches off the goal boost, since goals are not the point here. |
+| **Compounder** | Foundational depth. Work that unlocks long prerequisite chains, whether or not it is enjoyable. | The lowest $\gamma$ of the rating-driven profiles, deliberately: this profile is about structure, so ratings should not drown out reach. $d_H = 0.92$ carries value far along *hard* chains. $d_S = 0.20$ keeps soft links from flooding value everywhere. That contrast is what selects unlock-heavy nodes, and a high $d_S$ would erase it. Zero repetition premiums let deep contexts win on merit. |
 | **Pragmatist** | Goal-driven execution. What you said matters most should dominate, and distractions should not surface at all. | $w_V$ set to four times $w_I$. $d_S = 0.02$ all but removes soft prerequisites, and the additive synergy bonus is zero. $b = 4.0$ makes the priority-goal boost decisive. |
 | **Creator** | Synthesis and cross-disciplinary work. Rewards pairings that blend across domains. | $d_{\text{Syn,pair}} = 0.60$ and $d_{\text{Syn,mul}} = 1.30$ are the largest of any profile. That is what gives $m_{\text{cross}} = 3.0$ real leverage. Roughly seven in ten of its top picks carry a cross-context Helps edge. |
 | **Glider** | Light, varied, low-friction work. For seasons when you need to coast. | $\gamma = 1$ keeps ratings plain and linear — no need to agonise over them while coasting. Every cost knob raised so heavy work is penalized hard: $w_e = 3.5$, a very large $w_t$, and $\beta \to 0.95$ to keep the penalty close to linear in hours. Cascade and synergy contributions damped. $b = 1.0$ disables the priority-goal boost so non-priority work competes fairly. |
@@ -250,7 +258,7 @@ Profiles express different preferences; disagreement alone is not evidence of qu
 
 A and downstream D each have Value 5 and Interest 5 under Sage: intrinsic value 50 each. A has difficulty 5 and 40 own hours. D directly requires A and has 1300 own hours, with no other relationships.
 
-A's cost is 1 + 1.5 * 5 + 6 * (40/40)^0.6 = 14.5. Its own value contributes 50. D contributes 0.6 * 50 * 0.5 = 15. Total value is 65, giving base priority 65/14.5 = 4.48 before context, density, and goal adjustments.
+A's cost is 1 + 1.5 * 5 + 6 * (40/40)^0.6 = 14.5. Its own value contributes 50. D contributes 0.6 * 50 * 0.5 = 15. Total value is 65, giving base priority 65/14.5 = 4.48 before context and goal adjustments.
 
 # Goal Scoring
 
@@ -296,17 +304,17 @@ The primary cost includes a difficulty term for the node's own effort. Goal cost
 
 ## Goal Score
 
-Like the primary ranking, a Goal's priority is a base score adjusted by the same family of multipliers: rank, context weight, and a density correction. Rank and context weight carry over directly. Only the density correction is re-fit, because Goal populations are far smaller.
+A Goal's priority retains rank, context weight, and its own density correction. Suggestion variety does not change Goal ranking.
 
 $$ P_g(g) = \underbrace{\frac{\text{TV}'(g)}{\text{Cost}'(g)}}_{\text{Base Score}} \cdot \underbrace{\rho(g)}_{\text{Goal Priority}} \cdot \underbrace{w_c(\text{ctx}(g))}_{\text{Context Weight}} \cdot \underbrace{\delta_g(g)}_{\text{Goal Density}} $$
 
-The Goal density correction mirrors the leaf-node $\delta$, but bucketed by Goal headcount alone. Let $B_g(g) = (\text{ctx}(g), \text{subctx}(g))$ be the Goal's bucket. Let $|B_g(g)|$ be the count of **open** Goals sharing that bucket. Done Goals are excluded, since they aren't competing for sidebar attention. Then:
+Goal density is bucketed by Goal headcount alone. Let $B_g(g) = (\text{ctx}(g), \text{subctx}(g))$ be the Goal's bucket. Let $|B_g(g)|$ be the count of **open** Goals sharing that bucket. Done Goals are excluded, since they aren't competing for sidebar attention. Then:
 
 $$ \delta_g(g) = \frac{1}{\max(1,\, |B_g(g)|)^{\alpha_g}} $$
 
-Goal density has its own exponent, alpha_goal: Sage 0.20, Explorer 0.50, Compounder 0, Pragmatist 0.05, Creator 0.20, and Glider 0.35. These settings are unchanged by v3. Zero disables the correction.
+Goal density has its own exponent, alpha_goal: Sage 0.20, Explorer 0.50, Compounder 0, Pragmatist 0.05, Creator 0.20, and Glider 0.35. These settings are unchanged by v3 and v4. Zero disables the correction.
 
-Why a Goal-only bucket count, rather than the full scored-node count from the leaf-level density multiplier? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized twice: once for its own subtree size (already inflating $`\text{Cost}'(g)`$), and again for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
+Why count only Goals? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized twice: once for its own subtree size (already inflating $`\text{Cost}'(g)`$), and again for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
 
 > [!NOTE] Note
 > The Goals sidebar and the Analyze tab's Completion chart both rank Goals by the priority ranking explained here.
@@ -329,7 +337,7 @@ Ranking it anyway produces a bad recommendation twice over. Its cost carries no 
 
 The exclusion keys on **time alone**, deliberately. A node with inherited *ratings* but its own hours is a different case: it has real work to do and merely draws its worth from what it unlocks, so it keeps competing normally.
 
-Excluded nodes are left out of the list, not out of the graph. Cascade still flows through them untouched, so they remain connective tissue. They are also left out of the density bucket counts, since a node that cannot be recommended should not shrink a rival's multiplier. The Details tab surfaces containers in its own list, which is where "this umbrella topic matters" belongs.
+Excluded nodes are left out of the list, not out of the graph. Cascade still flows through them untouched, so they remain connective tissue. The Details tab surfaces containers in its own list, which is where "this umbrella topic matters" belongs.
 
 # Eligibility and the Status Cascade
 
@@ -428,12 +436,14 @@ The full edge set is $E = E_H \cup E_S \cup E_Y$. An edge $A \to B$ means $A$ is
 | $P_{\text{base}}(n)$ | Base score (ROI) | [Base Score](#base-score) |
 | $\rho(n)$ | Goal-priority boost | [Goal Priority Boost](#goal-priority-boost) |
 | $w_c$ | Context weight | [Context Weight](#context-weight) |
-| $\delta(n)$ | Density normalization | [Density Normalization](#density-normalization) |
+| `a`, `b` | Repetition exponents | [Suggestion Variety](#suggestion-variety) |
 | $P(n)$ | Final score | [Final Score](#final-score) |
 
-Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{\text{Syn,mul}}$, $m_{\text{cross}}$, $w_e$, $w_t$, $\beta$, $b$, $\alpha$, $\alpha_g$) are listed in [Profile Hyperparameters](#profile-hyperparameters).
+Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{\text{Syn,mul}}$, $m_{\text{cross}}$, $w_e$, $w_t$, $\beta$, $b$, $\alpha_g$, and suggestion premiums) are listed in [Profile Hyperparameters](#profile-hyperparameters).
 
 ## Versioned Settings
+
+Schema v4 retires task alpha and adds suggestion premiums. Existing named profiles receive their new defaults; Custom receives Sage defaults unless explicit premiums are stored. Reads do not write settings. Goal density and future-work settings are preserved.
 
 Schema v3 intentionally changes cascade and Goal scope and adds future-work controls. V1 bundles without a rating exponent retain 1; v2 bundles without one retain 2. The old task time-cost coefficient is rescaled only for v1, never again for v2/v3. Reads migrate in memory; saving stamps the version.
 

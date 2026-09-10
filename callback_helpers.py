@@ -1878,3 +1878,41 @@ def build_explain_chart(contributors, top_n: int = 10):
     callback assigns it to the static dcc.Graph's figure prop.
     """
     return _explain_bar_chart(contributors or [], top_n)
+
+
+def assemble_suggestions(nodes, count, hyperparams, selected=()):
+    """Greedy hierarchical variety, preserving merit and a deterministic prefix.
+
+    Same-subcontext premium is the total, including the context component.
+    Only returned recommendations (including pins) seed the counters.
+    """
+    from collections import Counter
+    from math import log2, isfinite
+
+    def premium(key, default):
+        try:
+            value = float(hyperparams.get(key, default))
+            return max(0.0, min(100.0, value)) if isfinite(value) else default
+        except (TypeError, ValueError):
+            return default
+
+    context = premium('suggestion_context_premium', 5.0)
+    subcontext = max(context, premium('suggestion_subcontext_premium', 15.0))
+    a = log2(1 + context / 100)
+    b = log2((1 + subcontext / 100) / (1 + context / 100))
+    contexts = Counter(n.context for n in selected)
+    pairs = Counter((n.context, n.subcontext) for n in selected)
+    remaining = list(nodes)
+    result = []
+    for _ in range(min(max(0, count), len(remaining))):
+        def key(n):
+            merit = getattr(n, 'priority_score_exact', n.priority_score)
+            divisor = ((1 + contexts[n.context]) ** a *
+                       (1 + pairs[n.context, n.subcontext]) ** b) if n.context is not None else 1.0
+            return (-merit / divisor, -merit, n.name)
+        winner = min(remaining, key=key)
+        remaining.remove(winner)
+        result.append(winner)
+        contexts[winner.context] += 1
+        pairs[winner.context, winner.subcontext] += 1
+    return result

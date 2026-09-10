@@ -69,7 +69,7 @@ def _baseline_score_nodes(
     w_t = hyperparams.get('w_t', 1.0)
     beta = hyperparams.get('beta', 0.85)
     goal_boost = hyperparams.get('goal_boost', 1.5)
-    alpha = hyperparams.get('alpha', 0.0)
+    alpha = 0.0  # Task density retired in v4.
     context_weights = hyperparams.get('context_weights', {}) or {}
 
     all_nodes_dict = {n.name: n for n in all_nodes}

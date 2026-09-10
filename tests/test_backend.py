@@ -2605,11 +2605,8 @@ class TestScoringMilestoneSkip:
         scored = mgr.calculate_priority_scores([mgr.get_node("M")])
         assert scored[0].priority_score == -1.0
 
-    def test_milestone_excluded_from_density_bucket(self, mgr):
-        # Two Learns + one Milestone in same (context, subcontext) bucket.
-        # Density is computed only from competing nodes, so the Milestone
-        # should NOT inflate the bucket count and dilute the Learn scores.
-        # Using score_nodes directly so we can pass alpha=1.0 (density on).
+    def test_unrelated_inventory_does_not_change_merit(self, mgr):
+        # Neither unrelated milestones nor learn nodes dilute task merit.
         hypers = {**DEFAULT_HYPERPARAMS, 'alpha': 1.0}
         mgr.add_node(_make_node("L1", type="Learn", context="Mind", subcontext="Rational"))
         mgr.add_node(_make_node("L2", type="Learn", context="Mind", subcontext="Rational"))
@@ -2617,17 +2614,13 @@ class TestScoringMilestoneSkip:
         active = [mgr.get_node("L1"), mgr.get_node("L2"), mgr.get_node("MS")]
         scored_with_ms = score_nodes(active, active, mgr.get_edges(), hypers)
 
-        # Now add another Learn — this DOES increase density and should lower
-        # L1's score. Confirms density is sensitive to competing nodes only.
         mgr.add_node(_make_node("L3", type="Learn", context="Mind", subcontext="Rational"))
         active2 = [mgr.get_node(n) for n in ("L1", "L2", "L3", "MS")]
         scored_with_l3 = score_nodes(active2, active2, mgr.get_edges(), hypers)
 
         l1_with_ms = next(n for n in scored_with_ms if n.name == "L1").priority_score
         l1_with_l3 = next(n for n in scored_with_l3 if n.name == "L1").priority_score
-        # Adding a real competing Learn lowers density-adjusted score for L1;
-        # adding a Milestone (already present) did not.
-        assert l1_with_l3 < l1_with_ms
+        assert l1_with_l3 == l1_with_ms
 
 
 # ============================================================================

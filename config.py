@@ -414,7 +414,7 @@ DEFAULT_TIME_CALIBRATION_ENABLED = True
 # `w_t * (t / TIME_REF_HOURS)**beta`, which rescales `w_t` by a factor of
 # `TIME_REF_HOURS**beta`. `ConfigManager.get_hyperparams` converts any stored
 # v1 bundle on read, so an existing install keeps the cost curve it had.
-HYPERPARAMS_SCHEMA_VERSION = 3
+HYPERPARAMS_SCHEMA_VERSION = 4
 
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
@@ -434,8 +434,9 @@ DEFAULT_HYPERPARAMS = {
     'w_t': 6.00,
     'beta': 0.60,
     'goal_boost': 1.50,
-    'alpha': 0.30,
-    # alpha_goal mirrors `alpha` but for the Goal-ranker. Goal-per-bucket
+    'suggestion_context_premium': 5.0,
+    'suggestion_subcontext_premium': 15.0,
+    # Goal density remains independent of suggestion diversity. Goal-per-bucket
     # populations are an order of magnitude smaller than scored-node bucket
     # populations (typically 1-5 Goals vs. 20-40 scored nodes per bucket),
     # so a gentler exponent gives proportionate damping. Set to 0 to disable.
@@ -455,7 +456,7 @@ PROFILES = {
         'd_Syn_pair': 0.35, 'd_Syn_mul': 0.90,
         'cross_context_mult': 2.50,
         'w_e': 1.50, 'w_t': 6.00, 'beta': 0.60,
-        'goal_boost': 1.00, 'alpha': 0.65, 'alpha_goal': 0.50,
+        'goal_boost': 1.00, 'alpha_goal': 0.50,
     },
     # Foundational depth. d_H near 1 with a low d_S makes value travel far
     # along *hard* prerequisite chains only, so nodes that unlock large
@@ -467,7 +468,7 @@ PROFILES = {
         'd_Syn_pair': 0.02, 'd_Syn_mul': 0.10,
         'cross_context_mult': 1.00,
         'w_e': 1.00, 'w_t': 5.00, 'beta': 0.50,
-        'goal_boost': 1.00, 'alpha': 0.00, 'alpha_goal': 0.00,
+        'goal_boost': 1.00, 'alpha_goal': 0.00,
     },
     # Goal-driven execution: a strong goal boost, soft prerequisites all but
     # switched off, no synergy wandering. Pre-v2 this profile carried w_t=1.5,
@@ -479,7 +480,7 @@ PROFILES = {
         'd_Syn_pair': 0.00, 'd_Syn_mul': 0.10,
         'cross_context_mult': 1.00,
         'w_e': 1.80, 'w_t': 7.00, 'beta': 0.70,
-        'goal_boost': 4.00, 'alpha': 0.10, 'alpha_goal': 0.05,
+        'goal_boost': 4.00, 'alpha_goal': 0.05,
     },
     # Synthesis: the pair bonus is large enough that cross_context_mult has
     # substantial influence on cross-context relationships.
@@ -489,7 +490,7 @@ PROFILES = {
         'd_Syn_pair': 0.60, 'd_Syn_mul': 1.30,
         'cross_context_mult': 3.00,
         'w_e': 1.50, 'w_t': 6.00, 'beta': 0.60,
-        'goal_boost': 1.00, 'alpha': 0.30, 'alpha_goal': 0.20,
+        'goal_boost': 1.00, 'alpha_goal': 0.20,
     },
     # Deliberately short-task biased — this is the profile's purpose, not a
     # defect. w_t 135 is the normalized equivalent of the pre-v2 w_t 4.0.
@@ -499,13 +500,21 @@ PROFILES = {
         'd_Syn_pair': 0.05, 'd_Syn_mul': 0.20,
         'cross_context_mult': 1.00,
         'w_e': 3.50, 'w_t': 135.00, 'beta': 0.95,
-        'goal_boost': 1.00, 'alpha': 0.45, 'alpha_goal': 0.35,
+        'goal_boost': 1.00, 'alpha_goal': 0.35,
     },
 }
 
 # Seed independently persisted future preferences from each profile's starting
 # curvature. Later changes to beta do not change this preference.
-for _profile in PROFILES.values():
+# Premiums are percent extra merit needed after one previous recommendation.
+SUGGESTION_PREMIUMS = {
+    'Sage': (5.0, 15.0), 'Explorer': (10.0, 20.0),
+    'Compounder': (0.0, 0.0), 'Pragmatist': (2.0, 5.0),
+    'Creator': (5.0, 15.0), 'Glider': (5.0, 20.0),
+}
+for _name, _profile in PROFILES.items():
+    (_profile['suggestion_context_premium'],
+     _profile['suggestion_subcontext_premium']) = SUGGESTION_PREMIUMS[_name]
     _profile.setdefault('future_work_half_credit_hours', 1300.0)
     _profile.setdefault('future_work_exponent', _profile['beta'])
 
@@ -648,6 +657,14 @@ class ConfigManager:
         # `alpha_goal`) is filled in for users whose stored bundle predates it.
         merged = dict(DEFAULT_HYPERPARAMS)
         merged.update(stored)
+        if stored.get('_schema', 1) < 4:
+            name = cls._get_db_value("HP_PROFILE")
+            name = {'Industrious': 'Pragmatist', 'Pragmatic': 'Pragmatist',
+                    'Default': 'Sage', 'Curious': 'Explorer', 'Sprinter': 'Glider'}.get(name, name)
+            profile = PROFILES.get(name, DEFAULT_HYPERPARAMS)
+            for key in ('suggestion_context_premium', 'suggestion_subcontext_premium'):
+                merged[key] = stored.get(key, profile[key])
+        merged.pop('alpha', None)
         if stored.get('_schema', 1) < 2:
             # Resolve missing legacy cost fields before merging new defaults.
             for key, old_default in dict(value_exponent=1.0, w_e=2.5, w_t=1.0, beta=0.85).items():
@@ -658,7 +675,8 @@ class ConfigManager:
     def _migrate_hyperparams(hp: dict) -> dict:
         """Bring a stored bundle up to HYPERPARAMS_SCHEMA_VERSION.
 
-        v3 explicitly changes cascade and Goal scope, and adds future-work settings.
+        v4 replaces task density with hierarchical suggestion premiums.
+        v3 changes cascade and Goal scope, and adds future-work settings.
         Legacy rating exponents and the v2 task cost curve remain intact.
         The Goal curve was intentionally retuned in v2; one shared coefficient
         cannot preserve both old curves with different reference scales.
@@ -677,6 +695,9 @@ class ConfigManager:
         if hp.get('_schema', 1) >= HYPERPARAMS_SCHEMA_VERSION:
             return hp
         out = dict(hp)
+        out.pop('alpha', None)
+        out.setdefault('suggestion_context_premium', 5.0)
+        out.setdefault('suggestion_subcontext_premium', 15.0)
         if hp.get('_schema', 1) < 2:
             beta = out.get('beta', 0.85)
             out['w_t'] = out.get('w_t', 1.0) * (TIME_REF_HOURS ** beta)
@@ -689,6 +710,7 @@ class ConfigManager:
     @classmethod
     def set_hyperparams(cls, params: dict):
         stamped = dict(params)
+        stamped.pop('alpha', None)
         stamped['_schema'] = HYPERPARAMS_SCHEMA_VERSION
         cls._set_db_value("HYPERPARAMS", json.dumps(stamped))
 

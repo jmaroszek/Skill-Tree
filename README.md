@@ -108,3 +108,8 @@ Follow the map at the footer of each page. By the end, you will know how to use 
 | Resource | What's there |
 |---|---|
 | [setup.md](docs/setup.md) | How to clone the repo and get the app running locally. |
+
+
+### Variety in Next suggestions
+
+Next gently favors variety as the list fills. Sage asks for 5% more priority for a second recommendation in the same context, or 15% more in the same subcontext (total). The effect accumulates for further repetitions. Settings > Suggestion Variety controls these percentages; setting both to zero restores priority order. Scores still show underlying priority, and pins stay first. Adding unrelated projects to a context no longer reduces a task score. Goal ranking keeps its separate density setting.
