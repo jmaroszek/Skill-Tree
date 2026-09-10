@@ -167,6 +167,9 @@
     //     rendering lifecycle and a document that never composites gets neither.
     // The old version fitted on fixed 100 ms and 600 ms timers after the reveal,
     // which is exactly the delay that made the corner state visible.
+    var POLL_INTERVAL_MS = 100;
+    var POLL_MAX_TRIES = 6000;  // 10 minutes
+
     function fitWhenFirstVisible(cyId, paneId) {
         var el = document.getElementById(cyId);
         if (!el) {
@@ -204,10 +207,14 @@
             cleanups.push(function () { mo.disconnect(); });
         }
 
+        // The tab may be opened at any point in a session, so this backstop
+        // has to outlive "shortly after load" — a short-lived one is expired
+        // by the time it would be needed. The check is a single clientWidth
+        // read; the cap only exists so it cannot leak forever.
         var tries = 0;
         var poll = setInterval(function () {
-            if (attempt() || ++tries > 100) clearInterval(poll);
-        }, 100);
+            if (attempt() || ++tries > POLL_MAX_TRIES) clearInterval(poll);
+        }, POLL_INTERVAL_MS);
         cleanups.push(function () { clearInterval(poll); });
 
         attempt();
