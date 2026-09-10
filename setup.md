@@ -21,18 +21,22 @@ cd "Skill Tree\electron"
 
 `setup.ps1` runs `npm install` and makes sure the Electron binary is in place.
 
-### Known quirk: Electron's unzip step
+### Fixed: Electron's unzip step
 
-In this environment, Electron's npm post-install **fails to extract its binary**.
-`node_modules/electron/dist/` ends up with only a `locales/` folder — no
-`electron.exe` — even though the download itself succeeds and passes its
-checksum. The cause is Electron's bundled `extract-zip` step, not the download
-and not antivirus: `Expand-Archive` extracts the very same cached zip perfectly.
+Electron's npm post-install used to **fail to extract its binary** here.
+`node_modules/electron/dist/` ended up with only a `locales/` folder — no
+`electron.exe` — even though the download itself succeeded and passed its
+checksum. The cause was the `extract-zip` package Electron bundled for that
+step, not the download and not antivirus.
 
-`setup.ps1` works around it. If `electron.exe` is missing after `npm install`, it
-extracts the cached (or freshly downloaded) zip with `Expand-Archive` and writes
-`node_modules/electron/path.txt`. So run `setup.ps1` — a bare `npm install` is
-not enough here on its own.
+Electron 42.4.0 replaced `extract-zip` with its own maintained
+`@electron-internal/extract-zip` fork, and the extraction now works. A bare
+`npm install` is enough. The same swap closed CVE-2026-56876, a symlink path
+traversal in `extract-zip` that had no fix of its own.
+
+`setup.ps1` keeps its `Expand-Archive` fallback as a safety net. It is a no-op
+whenever the binary is already in place, so running the script is still the
+recommended way to install.
 
 ## Launching
 

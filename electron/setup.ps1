@@ -1,8 +1,13 @@
 # Skill Tree — Electron desktop shell setup.
 #
 # Run from the electron/ folder with the skill-tree conda env active (so npm/node
-# are the env's). Installs the npm dependencies and works around a broken Electron
-# unzip step in this environment (see setup.md) by extracting the binary manually.
+# are the env's). Installs the npm dependencies and makes sure the Electron
+# binary is in place.
+#
+# The manual extraction below is now a fallback, not the normal path: Electron's
+# own post-install used to leave dist/ without electron.exe, and 42.4.0 fixed it
+# by swapping the bundled extract-zip for @electron-internal/extract-zip. Kept as
+# a safety net; it is skipped whenever the binary is already there. See setup.md.
 #
 #   conda activate skill-tree
 #   cd "C:\Users\jonah\Documents\Code\Skill Tree\electron"
@@ -19,7 +24,7 @@ try {
     $exe   = Join-Path $elDir 'dist\electron.exe'
 
     if (-not (Test-Path $exe)) {
-        Write-Host "Electron binary missing - extracting it manually..."
+        Write-Host "Electron binary missing - falling back to manual extraction..."
         $ver     = (Get-Content (Join-Path $elDir 'package.json') -Raw | ConvertFrom-Json).version
         $zipName = "electron-v$ver-win32-x64.zip"
 
