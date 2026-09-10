@@ -2134,48 +2134,15 @@ def register_event_callbacks(app):
         )
 
     # --- Events Graph Layout: Apply Layout Parameters ---
-    # Clientside so allowOneLayout('events') is set in the same synchronous
+    # events_layout.js distinguishes a genuine nodes/edges change from
+    # dash-cytoscape's delayed elements echo (which only adds positions). That
+    # echo used to start a second incremental layout about 100 ms after the
+    # randomized pass, producing a jerk near the end of the animation. It stays
+    # clientside so allowOneLayout('events') is set in the same synchronous
     # function that returns the layout dict — see callbacks.py for the rationale.
     app.clientside_callback(
-        """
-        function(edge_length, gravity, repulsion, animate, relayout_n, elements, freeze_on, root) {
-            var ctx = window.dash_clientside.callback_context;
-            var trig = ctx.triggered_id
-                || (ctx.triggered && ctx.triggered.length
-                    ? ctx.triggered[0].prop_id.split('.')[0]
-                    : null);
-            var relayout_triggers = ['events-graph-settings-relayout'];
-            if (freeze_on && relayout_triggers.indexOf(trig) === -1) {
-                return window.dash_clientside.no_update;
-            }
-            var is_relayout = relayout_triggers.indexOf(trig) !== -1;
-            // Seed a new event's graph, nudge the one already on screen — see
-            // the matching comment in details_callbacks.py for why fcose needs
-            // randomize only when the nodes have no positions yet.
-            var st = window.SkillTree || (window.SkillTree = {});
-            var elements_changed = (trig === 'events-detail-graph');
-            var randomize = is_relayout
-                || (elements_changed && st._eventsLayoutRoot !== root);
-            if (elements_changed) {
-                st._eventsLayoutRoot = root;
-            }
-            if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
-                window.SkillTree.allowOneLayout('events');
-            }
-            return {
-                name: 'fcose',
-                quality: 'proof',
-                animate: !!animate,
-                fit: true,
-                randomize: randomize,
-                padding: 20,
-                idealEdgeLength: edge_length || 100,
-                nodeRepulsion: repulsion || 4500,
-                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0.25,
-                numIter: 2500,
-            };
-        }
-        """,
+        ClientsideFunction(
+            namespace="skillTreeEventsLayout", function_name="build"),
         Output('events-detail-graph', 'layout'),
         Input('events-graph-settings-edge-length', 'value'),
         Input('events-graph-settings-gravity', 'value'),
