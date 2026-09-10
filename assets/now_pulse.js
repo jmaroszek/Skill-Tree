@@ -2,7 +2,7 @@
  * Continuous border-width pulse for `.now` nodes on every Cytoscape canvas.
  *
  * Pattern mirrors `locate_node.js`: walk each canvas, find matching nodes,
- * drive a recursive `.animate()` loop. Differences from locate:
+ * drive a recursive animation loop. Differences from locate:
  *   - persistent (every Now node pulses for as long as the class is set)
  *   - per-node self-termination via `hasClass('now')` check on each cycle
  *   - keyed registry to avoid double-starting the same node
@@ -22,7 +22,9 @@
     var BORDER_MIN = 5;
     var BORDER_MAX = 7;
 
-    var pulsing = new Set();  // keys: "canvasId|nodeId"
+    // key "canvasId|nodeId" -> the run pulsing that node, holding the one
+    // animation we own so it can be stopped without touching any other.
+    var pulsing = new Map();
 
     function getCyInstance(canvasId) {
         var wrapper = document.getElementById(canvasId);
@@ -42,52 +44,58 @@
         return !!wrapper && wrapper.getClientRects().length > 0;
     }
 
-    function cleanupNode(node, canvasId) {
-        // Force-stop any in-flight animations and clear the inline border
-        // override. Cytoscape's class-removal alone is not enough: the
-        // animate() call sets border-width as an inline style override that
-        // persists until removeStyle.
-        //
-        // The exception is a node mid-"locate" pulse. stop() takes the whole
-        // element, and a pulse half still sitting in the queue is discarded
-        // without running the callback that clears its inline width/height —
-        // stranding the node at three times its size. Clear only our own
-        // border override there and let locate_node.js finish its own run.
-        var locating = window.SkillTree
-            && typeof window.SkillTree.isLocating === 'function'
-            && window.SkillTree.isLocating(canvasId, node.id());
-        if (!locating) {
-            try { node.stop(true, true); } catch (e) {}
+    function cleanupNode(key, node) {
+        // Stop ONLY the border animation this module started, never the whole
+        // element. `node.stop()` reaches every animation on the node: it wipes
+        // the queue without running those callbacks, and force-completes what
+        // is currently running by setting its duration to 0. A layout's own
+        // per-node position tween lives there, so a sweep landing mid-layout
+        // used to snap that node straight to its final spot — and anything
+        // waiting on the queue it cleared never heard back. Holding our own
+        // Animation lets us stop exactly one.
+        var run = pulsing.get(key);
+        pulsing.delete(key);
+        if (run && run.ani) {
+            try { run.ani.stop(); } catch (e) {}
         }
-        try { node.removeStyle('border-width'); } catch (e) {}
+        // The animation set border-width as an inline bypass, which outlives
+        // the class. Clear it so the static rule takes over again.
+        if (node) {
+            try { node.removeStyle('border-width'); } catch (e) {}
+        }
     }
 
     function pulseStep(node, canvasId, expanding) {
         var key = canvasId + '|' + node.id();
+        var run = pulsing.get(key);
+        if (!run) return;
         // Class removed (user cleared Now, or elements regenerated without it)?
         // Exit the loop and clear any inline override so the static rule resumes.
         if (!node.hasClass('now')) {
-            pulsing.delete(key);
-            cleanupNode(node, canvasId);
+            cleanupNode(key, node);
             return;
         }
         var target = expanding ? BORDER_MAX : BORDER_MIN;
-        node.animate(
-            { style: { 'border-width': target } },
-            {
-                duration: PULSE_HALF_DURATION_MS,
-                easing: 'ease-in-out-sine',
-                complete: function () {
-                    pulseStep(node, canvasId, !expanding);
-                },
+        // animation() rather than animate(): animate() queues behind whatever
+        // is already running on the node, so during a layout tween the pulse
+        // would wait out the tween instead of continuing through it.
+        var ani = node.animation({
+            style: { 'border-width': target },
+            duration: PULSE_HALF_DURATION_MS,
+            easing: 'ease-in-out-sine',
+            complete: function () {
+                if (pulsing.get(key) !== run) return;
+                pulseStep(node, canvasId, !expanding);
             }
-        );
+        });
+        run.ani = ani;
+        ani.play();
     }
 
     function startPulse(node, canvasId) {
         var key = canvasId + '|' + node.id();
         if (pulsing.has(key)) return;
-        pulsing.add(key);
+        pulsing.set(key, { ani: null });
         pulseStep(node, canvasId, true);
     }
 
@@ -104,18 +112,17 @@
             liveKeys.add(canvasId + '|' + node.id());
             startPulse(node, canvasId);
         });
-        // Drop stale registry entries for this canvas AND forcefully stop
-        // any animation still running on the corresponding node. The
-        // recursive pulseStep loop alone is unreliable if Cytoscape replaces
-        // the element on re-render — the in-closure node reference may go
-        // stale and the cleanup branch never fires. Doing it from the scan
-        // closes that gap.
-        Array.from(pulsing).forEach(function (key) {
+        // Drop stale registry entries for this canvas and stop the pulse we
+        // started on each. The recursive pulseStep loop alone is unreliable if
+        // Cytoscape replaces the element on re-render — the in-closure node
+        // reference may go stale and the cleanup branch never fires. Doing it
+        // from the scan closes that gap. The node may already be gone, in
+        // which case there is no inline style left to clear.
+        Array.from(pulsing.keys()).forEach(function (key) {
             if (key.indexOf(canvasId + '|') === 0 && !liveKeys.has(key)) {
-                pulsing.delete(key);
                 var nodeId = key.substring(canvasId.length + 1);
                 var node = cy.getElementById(nodeId);
-                if (node && node.length) cleanupNode(node, canvasId);
+                cleanupNode(key, (node && node.length) ? node : null);
             }
         });
     }
