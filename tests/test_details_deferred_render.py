@@ -90,6 +90,60 @@ def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
             assert result[1] is dash.no_update
 
 
+def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):
+    import event_callbacks
+
+    node = Node(
+        name="Dormant", type="Action", description="A future action",
+        value=8, time_o=2, time_m=4, time_p=8,
+        interest=7, difficulty=6, status="Open",
+        context="Self", subcontext="Projects", dormant=1,
+        time_mode="manual", value_mode="manual",
+    )
+    app = _app_with(register_event_callbacks)
+    monkeypatch.setattr(
+        event_callbacks.event_manager, "get_event_nodes",
+        lambda _event: [{"node": node}],
+    )
+    monkeypatch.setattr(event_callbacks.graph_manager, "get_edges", lambda: [])
+    monkeypatch.setattr(
+        event_callbacks.graph_manager, "get_node",
+        lambda name: node if name == node.name else None,
+    )
+    monkeypatch.setattr(
+        event_callbacks.event_manager, "get_trigger_node_names", lambda: set(),
+    )
+
+    callback = next(
+        _raw_callback(spec)
+        for spec in app.callback_map.values()
+        if spec.get("callback")
+        and _raw_callback(spec).__name__ == "render_event_graph"
+    )
+    elements = callback("Future", 0)
+    data = next(
+        element["data"] for element in elements
+        if "source" not in element["data"]
+    )
+
+    assert data["id"] == "Dormant"
+    assert data["label"] == "Dormant"
+    assert data["dormant"] == 1
+    assert {
+        key: data[key]
+        for key in (
+            "type", "status", "value", "interest", "difficulty",
+            "context", "subcontext", "time", "time_mode", "value_mode",
+        )
+    } == {
+        key: node.to_dict()[key]
+        for key in (
+            "type", "status", "value", "interest", "difficulty",
+            "context", "subcontext", "time", "time_mode", "value_mode",
+        )
+    }
+
+
 def test_selection_callback_no_longer_serializes_subtasks_table():
     app = _app_with(register_details_callbacks)
     spec = _spec_for_output(app, "details-empty.style")

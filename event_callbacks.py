@@ -2057,9 +2057,13 @@ def register_event_callbacks(app):
                 "data": {
                     "id": name,
                     "label": name,
-                    "type": node.type,
                     "color": node_colors.get(node.type, "#6c757d"),
                     "shape": node_shapes.get(node.type, "rectangle"),
+                    # The shared hover tooltip reads ratings, time modes,
+                    # status, and context directly from Cytoscape node data.
+                    # Keep the Events canvas payload in parity with the main
+                    # canvas instead of sending display metadata alone.
+                    **node.to_dict(),
                     "dormant": 1 if name in dormant_names else 0,
                 },
             }
