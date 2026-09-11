@@ -243,6 +243,16 @@ class TestStylesheets:
         mini_node = next(r for r in mini_stylesheet if r['selector'] == 'node')
         assert main_node['style']['width'] != mini_node['style']['width']
 
+    def test_selection_border_wins_over_dormant_border(self):
+        """Cytoscape resolves overlapping style rules in list order."""
+        for rules in (stylesheet, mini_stylesheet):
+            selectors = [rule['selector'] for rule in rules]
+            assert selectors.index('.dormant') < selectors.index('node:selected')
+            selected_rule = next(
+                rule for rule in rules if rule['selector'] == 'node:selected')
+            assert selected_rule['style']['border-color'] == '#ffffff'
+            assert selected_rule['style']['border-style'] == 'solid'
+
 
 # ============================================================================
 # get_all_triggered_ids

@@ -43,6 +43,19 @@ stylesheet = [
         }
     },
     {
+        # Dormant: muted ghost effect with a high-contrast dashed border.
+        # Keep this before :selected so a clicked dormant node receives the
+        # same white selection outline as every other node. Reduced opacity
+        # still reads as "asleep / not part of the live workspace".
+        'selector': '.dormant',
+        'style': {
+            'border-width': 2,
+            'border-color': '#adb5bd',
+            'border-style': 'dashed',
+            'opacity': 0.6,
+        }
+    },
+    {
         # Selection indicator: thick white border, no background override.
         # Previously used cyan #0dcaf0 as the bg, which clashed with the
         # Milestone type color (teal #17a2b8) — the two looked nearly
@@ -52,6 +65,7 @@ stylesheet = [
         'style': {
             'border-width': 5,
             'border-color': '#ffffff',
+            'border-style': 'solid',
             'border-opacity': 1,
         }
     },
@@ -110,19 +124,6 @@ stylesheet = [
             'background-height': '32%',
             'background-position-x': '100%',
             'background-position-y': '0%',
-        }
-    },
-    {
-        # Dormant: muted ghost effect with a high-contrast dashed border.
-        # Light gray contrasts against every node fill (especially Learn,
-        # which previously made the old blue ring invisible). Reduced
-        # opacity reads as "asleep / not part of the live workspace".
-        'selector': '.dormant',
-        'style': {
-            'border-width': 2,
-            'border-color': '#adb5bd',
-            'border-style': 'dashed',
-            'opacity': 0.6,
         }
     },
 ]
