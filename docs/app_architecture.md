@@ -283,11 +283,27 @@ matching selected-node State. Events needs no marker, because the
 selected-event store drives its graph render. Its State already names the
 event the elements belong to.
 
-Views with at most 24 nodes use force-only CoSE, which avoids the collinear
-spectral seed fCoSE can produce for small, sparse dependency graphs. Larger
-views keep fCoSE for its speed, with an iteration budget scaled to node count.
-Nodes shows the whole graph, so it keeps fCoSE and its full 2,500 iterations
-at every size.
+Views without cross-links, trees or forests of them, use force-only CoSE.
+Everything else uses fCoSE, with an iteration budget scaled to node count.
+fCoSE seeds its layout from the top two eigenvectors of the view's squared
+graph distances. A chain's distances run along one dimension, so the second
+eigenvector is nearly zero and every node lands on one line. fCoSE's
+refinement adds no randomness, so the chain stays there. A spine with a short
+branch comes out nearly as flat. Nodes shows the whole graph, a single
+cross-linked component, so it keeps fCoSE and its full 2,500 iterations at
+every size.
+
+The rule comes from measuring the sandbox's 182 default Details views, three
+layouts each per algorithm. A layout counted as flat when its narrow side was
+under 20% of its long side. 44% of fCoSE's chain layouts were flat, against 5%
+of CoSE's. Two near-chains were flat in every fCoSE run. No view with a
+cross-link was ever flat. On those views fCoSE crossed fewer edges up to 24
+nodes, 0.31 against CoSE's 1.15 per layout at 11–24 nodes. Above 24 nodes it
+ran two to four times faster. A read-only check of production found the same
+profile. Its 56 chains are all 3–7 nodes, and no tree has more than 20 nodes.
+No cross-linked view there has a seed flatter than ones fCoSE drew in two
+dimensions in the sandbox. The earlier cutoff of 24 nodes sent small
+cross-linked views to CoSE, and it would have left a chain of 25 to fCoSE.
 
 Every layout tweens to its final positions over 1000 ms. CoSE has to be asked
 for that tween with `animate: 'end'`, but dash-cytoscape declares

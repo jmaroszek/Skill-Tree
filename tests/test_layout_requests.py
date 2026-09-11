@@ -33,14 +33,28 @@ global.window = {
 global.document = {
     getElementById: id => liveCy[id] ? {_cyreg: {cy: liveCy[id]}} : null
 };
-// A Cytoscape stand-in whose layout() records the options each run received.
-function fakeCy(nodeCount = 0) {
+// A Cytoscape stand-in: nodes n0..n<count-1>, the given [source, target]
+// edges, and a layout() that records the options each run received.
+function fakeCy(nodeCount = 0, edges = []) {
+    const ids = Array.from({length: nodeCount}, (_, i) => 'n' + i);
     const cy = {
         runs: [],
-        nodes: () => ({length: nodeCount}),
+        nodes: () => ids.map(id => ({id: () => id})),
+        edges: () => edges.map(([source, target]) => ({data: key => (key === 'source' ? source : target)})),
         layout(options) { cy.runs.push(options); return {run() {}}; }
     };
     return cy;
+}
+const nodesOf = ids => ids.map(id => ({data: {id}}));
+const edgesOf = (pairs, prefix = 'e') => pairs.map(([source, target], i) => (
+    {data: {id: `${prefix}${i}`, source, target, type: 'Needs_Hard'}}));
+function chainElements(count, prefix = 'c') {
+    const ids = Array.from({length: count}, (_, i) => prefix + i);
+    return [...nodesOf(ids), ...edgesOf(ids.slice(1).map((id, i) => [id, ids[i]]), prefix + '-e')];
+}
+function ringElements(count, prefix = 'r') {
+    const ids = Array.from({length: count}, (_, i) => prefix + i);
+    return [...nodesOf(ids), ...edgesOf(ids.map((id, i) => [id, ids[(i + 1) % count]]), prefix + '-e')];
 }
 require(process.argv[1]);
 const api = window.dash_clientside.skillTreeLayout;
@@ -122,22 +136,23 @@ assert.equal(rerootedLayout.randomize, true);
 assert(rerootedLayout.skillTreeRequestId > incremental.skillTreeRequestId);
 assert.equal(window.SkillTree.layoutRoot('details'), 'A');
 
-// Larger subtrees keep fCoSE, whose animate:true already tweens to the end.
-const large = Array.from({length: 25}, (_, index) => ({
-    data: {id: `large-${index}`, details_root: index === 0}
-}));
-const largeLayout = request(details.cytoscapeId, large, 'Large');
-assert.equal(largeLayout.name, 'fcose');
-assert.equal(largeLayout.quality, 'proof');
-assert.equal(largeLayout.randomize, true);
-assert.equal(largeLayout.animate, true);
-assert.equal(largeLayout.skillTreeTween, undefined);
+// A view with cross-links uses fCoSE, whose animate:true already tweens to
+// the end.
+const linked = ringElements(25, 'large');
+linked[0].data.details_root = true;
+const linkedLayout = request(details.cytoscapeId, linked, 'Large');
+assert.equal(linkedLayout.name, 'fcose');
+assert.equal(linkedLayout.quality, 'proof');
+assert.equal(linkedLayout.randomize, true);
+assert.equal(linkedLayout.animate, true);
+assert.equal(linkedLayout.skillTreeTween, undefined);
 
-// Turning Smooth off must still mean no motion, at both sizes.
-assert.equal(request(details.cytoscapeId, [...large, {data: {id: 'extra'}}],
+// Turning Smooth off must still mean no motion, with either layout.
+assert.equal(request(details.cytoscapeId, [...linked, {data: {id: 'extra'}}],
                      'Large', false, false).animate, false);
 const still = request(details.cytoscapeId, [...nodes, {data: {id: 'extra2'}}],
                       'B', false, false);
+assert.equal(still.name, 'cose');
 assert.equal(still.animate, false);
 assert.equal(still.skillTreeTween, undefined);
 
@@ -289,14 +304,51 @@ const settled = request(events.settleButtonId, grown, 'Move', true);
 assert.equal(settled.randomize, true);
 assert.equal(window.allowed, 'events');
 
-const large = Array.from({length: 39}, (_, i) => ({data: {id: 'N' + i}}));
-const largeLayout = request(events.cytoscapeId, large, 'Video');
-assert.equal(largeLayout.name, 'fcose');
-assert.equal(largeLayout.quality, 'proof');
-assert.equal(largeLayout.animate, true);
-assert.equal(largeLayout.animationDuration, 1000);
-assert.equal(largeLayout.numIter, 975);
-assert.equal(request(events.cytoscapeId, large, 'Video'), 'NO');
+const linked = ringElements(39, 'N');
+const linkedLayout = request(events.cytoscapeId, linked, 'Video');
+assert.equal(linkedLayout.name, 'fcose');
+assert.equal(linkedLayout.quality, 'proof');
+assert.equal(linkedLayout.animate, true);
+assert.equal(linkedLayout.animationDuration, 1000);
+assert.equal(linkedLayout.numIter, 975);
+assert.equal(request(events.cytoscapeId, linked, 'Video'), 'NO');
+''')
+
+
+def test_views_without_cross_links_use_cose_at_any_size():
+    """fCoSE's spectral seed lays a chain on a single line, and a spine with a
+    short branch nearly so. On the sandbox and production graphs that happened
+    only to trees: views with cross-links never came out flat, and fCoSE
+    crossed fewer of their edges."""
+    _run(r'''
+const details = canvas('details');
+liveCy[details.cytoscapeId] = fakeCy();
+function request(elements, root) {
+    trigger(details.cytoscapeId, 'elements');
+    return api.details(50, 0.25, 4500, true, 0, elements, false, root);
+}
+
+// Forty prerequisites in a row is past any size cutoff, and still a chain.
+const longChain = request(chainElements(40), 'long');
+assert.equal(longChain.name, 'cose');
+assert.equal(longChain.skillTreeTween, true);
+assert.equal(longChain.numIter, 1000);
+
+// Branching trees, and separate trees side by side, are trees too.
+const branching = [...nodesOf(['root', 'a', 'b', 'c']),
+                   ...edgesOf([['a', 'root'], ['b', 'root'], ['c', 'a']], 'branch')];
+assert.equal(request(branching, 'branching').name, 'cose');
+assert.equal(request([...chainElements(5, 'x'), ...chainElements(5, 'y')], 'forest').name, 'cose');
+
+// A second relationship between the same two nodes adds no cross-link.
+const doubled = [...nodesOf(['p', 'q', 's']),
+                 ...edgesOf([['p', 'q'], ['p', 'q'], ['q', 's']], 'doubled')];
+assert.equal(request(doubled, 'doubled').name, 'cose');
+
+// One cross-link is enough for fCoSE, at any size.
+assert.equal(request(ringElements(3), 'triangle').name, 'fcose');
+const shortcut = [...chainElements(12, 'k'), ...edgesOf([['k11', 'k9']], 'shortcut')];
+assert.equal(request(shortcut, 'shortcut').name, 'fcose');
 ''')
 
 
@@ -308,7 +360,8 @@ liveCy[main.cytoscapeId] = fakeCy(5);
 
 trigger(main.settleButtonId, 'n_clicks');
 const settle = api.main(120, 0, 50000, true, 1, false);
-// The whole graph keeps fCoSE and its full iteration budget at every size.
+// The whole graph keeps fCoSE and its full iteration budget, even when what's
+// on screen is a tree.
 assert.equal(settle.name, 'fcose');
 assert.equal(settle.numIter, 2500);
 assert.equal(settle.padding, 30);
@@ -336,15 +389,17 @@ def test_freeze_holds_control_changes_until_the_freeze_off_layout():
     canvas. Each canvas's own request now lays it out, with the controls that
     changed while it was frozen."""
     _run(r'''
+// What's on screen: 30 nodes in a ring. The prop still holds one node, which a
+// frozen canvas never forwarded.
+const ring = Array.from({length: 30}, (_, i) => ['n' + i, 'n' + ((i + 1) % 30)]);
 function call(c, {edgeLength = 100, gravity = 0.25, repulsion = 4500, frozen = false} = {}) {
-    // A frozen canvas can show elements the prop never received.
     const stale = [{data: {id: 'stale'}}];
     return c.laysOutElements
         ? api[c.key](edgeLength, gravity, repulsion, true, 0, stale, frozen, null)
         : api[c.key](edgeLength, gravity, repulsion, true, 0, frozen);
 }
 for (const c of window.SkillTree.canvases) {
-    liveCy[c.cytoscapeId] = fakeCy(30);
+    liveCy[c.cytoscapeId] = fakeCy(30, ring);
     trigger(c.freezeStoreId, 'data');
     assert.equal(call(c, {frozen: true}), 'NO', c.key);
     trigger(c.settleButtonId.replace(/relayout$/, 'edge-length'));
@@ -356,8 +411,9 @@ for (const c of window.SkillTree.canvases) {
     assert.equal(thawed.gravity, 0.4, c.key);
     assert.equal(thawed.nodeRepulsion, 6000, c.key);
     assert.equal(thawed.randomize, false, c.key);
-    // Sized by the 30 nodes on screen, not the one-node prop.
+    // Described by the ring on screen, not the one-node prop.
     assert.equal(thawed.name, 'fcose', c.key);
+    assert.equal(thawed.numIter, c.laysOutElements ? 750 : 2500, c.key);
 }
 ''')
 

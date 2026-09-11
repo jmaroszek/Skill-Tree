@@ -20,13 +20,17 @@
     window.dash_clientside = window.dash_clientside || {};
     var SkillTree = window.SkillTree = window.SkillTree || {};
 
-    // Views this small use force-only CoSE. fCoSE's spectral seed tends to
-    // make small, sparse dependency views perfectly collinear, while fCoSE
-    // stays the faster choice for anything larger.
-    var SMALL_VIEW_NODES = 24;
-
+    // Views without cross-links, trees or forests of them, use force-only
+    // CoSE. fCoSE seeds positions from the top two eigenvectors of the view's
+    // distance structure. A chain's distances run along one dimension, so the
+    // second eigenvector is nearly zero and every node gets the same y. The
+    // refinement adds no randomness, so the chain stays on that line, and a
+    // spine with a short branch comes out nearly as flat. Cross-links make the
+    // distances two-dimensional. There fCoSE never came out flat, crossed
+    // fewer edges than CoSE up to 24 nodes, and ran faster on larger views.
+    // docs/app_architecture.md has the measurements.
     var DEFAULT_POLICY = {
-        smallViewsUseCose: true,
+        treesUseCose: true,
         scaleIterations: true,
         padding: 20,
         physics: { edgeLength: 100, repulsion: 4500, gravity: 0.25 },
@@ -37,7 +41,7 @@
         // The whole graph: fCoSE at every size, its full iteration budget,
         // and its own physics fallbacks.
         main: {
-            smallViewsUseCose: false,
+            treesUseCose: false,
             scaleIterations: false,
             padding: 30,
             physics: { edgeLength: 100, repulsion: 50000, gravity: 0 }
@@ -67,14 +71,55 @@
         return null;
     }
 
-    function countNodes(elements) {
-        if (!Array.isArray(elements)) return 0;
-        var count = 0;
+    function topologyOf(elements) {
+        var topology = { nodes: [], edges: [] };
+        if (!Array.isArray(elements)) return topology;
         for (var i = 0; i < elements.length; i++) {
             var data = elements[i] && elements[i].data;
-            if (data && data.source === undefined) count += 1;
+            if (!data) continue;
+            if (data.source === undefined) {
+                topology.nodes.push(String(data.id));
+            } else {
+                topology.edges.push([String(data.source), String(data.target)]);
+            }
         }
-        return count;
+        return topology;
+    }
+
+    function liveTopology(cy) {
+        return {
+            nodes: cy.nodes().map(function (node) { return node.id(); }),
+            edges: cy.edges().map(function (edge) {
+                return [edge.data('source'), edge.data('target')];
+            })
+        };
+    }
+
+    // True when no two nodes are joined by more than one route, so every
+    // component is a tree. A second relationship between the same pair adds
+    // no route, so it isn't a cross-link.
+    function isForest(topology) {
+        var parent = Object.create(null);
+        var joined = Object.create(null);
+        function find(id) {
+            while (parent[id] !== id) {
+                parent[id] = parent[parent[id]];
+                id = parent[id];
+            }
+            return id;
+        }
+        topology.nodes.forEach(function (id) { parent[id] = id; });
+        for (var i = 0; i < topology.edges.length; i++) {
+            var a = topology.edges[i][0], b = topology.edges[i][1];
+            if (a === b || !(a in parent) || !(b in parent)) continue;
+            var pair = JSON.stringify(a < b ? [a, b] : [b, a]);
+            if (joined[pair]) continue;
+            joined[pair] = true;
+            var rootA = find(a), rootB = find(b);
+            if (rootA === rootB) return false;
+            parent[rootA] = rootB;
+        }
+        return true;
     }
 
     function topologySignature(elements) {
@@ -185,9 +230,9 @@
         };
     }
 
-    function layoutOptions(policy, controls, nodeCount, randomize) {
-        var name = policy.smallViewsUseCose && nodeCount <= SMALL_VIEW_NODES
-            ? 'cose' : 'fcose';
+    function layoutOptions(policy, controls, topology, randomize) {
+        var nodeCount = topology.nodes.length;
+        var name = policy.treesUseCose && isForest(topology) ? 'cose' : 'fcose';
         var animate = Boolean(controls.animate);
         var layout = {
             name: name,
@@ -250,17 +295,18 @@
 
         if (isSettle && SkillTree.allowOneLayout) SkillTree.allowOneLayout(canvas.key);
 
-        // An elements update is sized by its payload, which Cytoscape may not
-        // have received yet. Every other request lays out what is on screen,
-        // which a frozen canvas may have changed without touching the prop.
-        var nodeCount = isElementsUpdate || !cy
-            ? countNodes(controls.elements)
-            : cy.nodes().length;
+        // An elements update is described by its payload, which Cytoscape may
+        // not have received yet. Every other request lays out what is on
+        // screen, which a frozen canvas may have changed without touching the
+        // prop.
+        var topology = isElementsUpdate || !cy
+            ? topologyOf(controls.elements)
+            : liveTopology(cy);
 
         // A new view needs a randomized seed. Same-view topology changes,
         // control changes and the freeze-off transition stay incremental, to
         // preserve the mental map.
-        var layout = layoutOptions(policy, controls, nodeCount, isSettle || newView);
+        var layout = layoutOptions(policy, controls, topology, isSettle || newView);
 
         // dash-cytoscape starts a layout only when this prop changes, and two
         // requests can produce byte-for-byte identical options, such as two
