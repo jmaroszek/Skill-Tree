@@ -63,6 +63,7 @@ import urllib.error
 import urllib.request
 import dash_bootstrap_components as dbc
 from layout import build_app_layout
+from canvases import install_client_registry
 
 cyto.load_extra_layouts()
 from callbacks import generate_elements, register_callbacks
@@ -99,6 +100,7 @@ app = dash.Dash(__name__, external_stylesheets=[
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
 ])
 app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
+install_client_registry(app)
 app.layout = database.snapshot_read(
     # The initial core callback fills the canvas. Avoid generating the same
     # hidden graph twice before the default Next tab becomes usable.

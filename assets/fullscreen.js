@@ -1,5 +1,6 @@
 /**
- * Fullscreen toggle, scroll sensitivity, and right-click-to-pan for the Skill Tree canvas.
+ * Fullscreen toggle, scroll sensitivity, and right-click-to-pan for every canvas
+ * in window.SkillTree.canvases.
  *
  * Pure JS — no Dash callback needed.
  */
@@ -139,17 +140,12 @@
     }
 
     function initAll() {
-        initScrollSensitivity('#cytoscape-graph');
-        initScrollSensitivity('#goal-mini-graph');
-        initScrollSensitivity('#details-mini-graph');
-        initScrollSensitivity('#events-detail-graph');
-        initCanvasFullscreen('btn-fullscreen', 'canvas-container', 'cytoscape-graph');
-        initCanvasFullscreen('btn-details-graph-fullscreen', 'details-dep-graph-container', 'details-mini-graph');
-        initCanvasFullscreen('btn-events-graph-fullscreen', 'events-detail-graph-container', 'events-detail-graph');
-        initRightClickPan('#cytoscape-graph');
-        initRightClickPan('#goal-mini-graph');
-        initRightClickPan('#details-mini-graph');
-        initRightClickPan('#events-detail-graph');
+        window.SkillTree.canvases.forEach(function (canvas) {
+            var selector = '#' + canvas.cytoscapeId;
+            initScrollSensitivity(selector);
+            initCanvasFullscreen(canvas.fullscreenButtonId, canvas.containerId, canvas.cytoscapeId);
+            initRightClickPan(selector);
+        });
     }
 
     if (document.readyState === 'loading') {

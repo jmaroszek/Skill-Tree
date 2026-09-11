@@ -13,15 +13,13 @@ import pytest
 import callbacks
 from callback_helpers import CanvasNodeStyles, build_node_element, node_fill_color
 from callbacks import generate_elements, register_callbacks
+from canvases import CANVASES
 from config import DEFAULT_NODE_COLORS, ConfigManager
 from details_callbacks import _build_graph_elements
 from event_callbacks import register_event_callbacks
 from event_manager import EventManager
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
-
-# The positional order of display_hover_data's inputs.
-CANVAS_IDS = ('cytoscape-graph', 'details-mini-graph', 'events-detail-graph')
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -61,7 +59,7 @@ def _nodes(elements):
 
 @pytest.fixture
 def canvases():
-    """The seeded graph as each canvas renders it, keyed by Cytoscape id.
+    """The seeded graph as each canvas renders it, keyed by canvas key.
 
     Root is dormant, attached to the Trip event, and Blocked. Every other
     shared node leads into Root, so it is one of Root's prerequisites on
@@ -90,17 +88,19 @@ def canvases():
 
     show_dormant = {'show_dormant': True}
     render_event_graph = _callback(_app(register_event_callbacks), 'render_event_graph')
-    return {
-        'cytoscape-graph': generate_elements(filters=show_dormant),
-        'details-mini-graph': _build_graph_elements(
+    rendered = {
+        'main': generate_elements(filters=show_dormant),
+        'details': _build_graph_elements(
             'Root', ['include'], ['include'], global_filters=show_dormant),
-        'events-detail-graph': render_event_graph('Trip', 0),
+        'events': render_event_graph('Trip', 0),
     }
+    assert set(rendered) == {canvas.key for canvas in CANVASES}
+    return rendered
 
 
 def test_every_canvas_renders_the_shared_nodes(canvases):
-    for canvas_id, elements in canvases.items():
-        assert SHARED <= set(_nodes(elements)), canvas_id
+    for key, elements in canvases.items():
+        assert SHARED <= set(_nodes(elements)), key
 
 
 def test_fill_follows_one_rule_on_every_canvas(canvases):
@@ -113,35 +113,36 @@ def test_fill_follows_one_rule_on_every_canvas(canvases):
         'Open Prereq': colors['Learn'],
         'Hub': colors['Learn'],
     }
-    for canvas_id, elements in canvases.items():
+    for key, elements in canvases.items():
         nodes = _nodes(elements)
-        assert {name: nodes[name]['data']['color'] for name in expected} == expected, canvas_id
+        assert {name: nodes[name]['data']['color'] for name in expected} == expected, key
 
 
 def test_shared_nodes_carry_the_same_classes_on_every_canvas(canvases):
     expected = {name: set() for name in SHARED}
     expected['Root'] = {'dormant'}
     expected['Open Prereq'] = {'trigger', 'now'}
-    for canvas_id, elements in canvases.items():
+    for key, elements in canvases.items():
         nodes = _nodes(elements)
         classes = {name: set(nodes[name]['classes'].split()) for name in SHARED}
-        assert classes == expected, canvas_id
+        assert classes == expected, key
 
 
 def test_hovering_a_node_shows_the_same_tooltip_on_every_canvas(canvases, monkeypatch):
     display_hover_data = _callback(_app(register_callbacks), 'display_hover_data')
 
-    def tooltip(canvas_id, name):
-        monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: canvas_id)
-        data = _nodes(canvases[canvas_id])[name]['data']
+    def tooltip(key, name):
+        trigger = next(canvas.cytoscape_id for canvas in CANVASES if canvas.key == key)
+        monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: trigger)
+        data = _nodes(canvases[key])[name]['data']
         return str(display_hover_data(
-            *(data if other == canvas_id else None for other in CANVAS_IDS)))
+            *(data if canvas.key == key else None for canvas in CANVASES)))
 
     for name in SHARED:
-        tooltips = {canvas_id: tooltip(canvas_id, name) for canvas_id in CANVAS_IDS}
+        tooltips = {key: tooltip(key, name) for key in canvases}
         assert len(set(tooltips.values())) == 1, (name, tooltips)
     # Hub inherits both its ratings and its time, so it reads as a container.
-    assert "children='Container'" in tooltip('details-mini-graph', 'Hub')
+    assert "children='Container'" in tooltip('details', 'Hub')
 
 
 _STYLES = CanvasNodeStyles(colors=dict(DEFAULT_NODE_COLORS), shapes={},

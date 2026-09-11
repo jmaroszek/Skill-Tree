@@ -173,10 +173,9 @@
             }
         }
 
-        attachCytoEvents('#cytoscape-graph');
-        attachCytoEvents('#goal-mini-graph');
-        attachCytoEvents('#details-mini-graph');
-        attachCytoEvents('#events-detail-graph');
+        window.SkillTree.canvases.forEach(function (canvas) {
+            attachCytoEvents('#' + canvas.cytoscapeId);
+        });
     }
 
     if (document.readyState === 'loading') {

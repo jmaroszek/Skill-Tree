@@ -18,6 +18,7 @@ import dash_bootstrap_components as dbc
 
 from graph_manager import GraphManager
 from event_manager import EventManager
+from canvases import CANVASES
 from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
                     SIDEBAR_WIDTH_PX, SIDEBAR_WIDTH_NEG_PX, SIDEBAR_TRANSLATE_CLOSED,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
@@ -494,16 +495,14 @@ def register_callbacks(app):
     # --- Tooltip Formatting ---
     @app.callback(
         Output('hover-tooltip', 'children'),
-        Input('cytoscape-graph', 'mouseoverNodeData'),
-        Input('details-mini-graph', 'mouseoverNodeData'),
-        Input('events-detail-graph', 'mouseoverNodeData'),
+        *(Input(canvas.cytoscape_id, 'mouseoverNodeData') for canvas in CANVASES),
     )
-    def display_hover_data(data, details_data, events_data):
+    def display_hover_data(*hover_data):
+        # Only the canvas that fired holds the node under the cursor. Before
+        # any hover nothing has fired, and the first canvas's value is empty.
         trigger = get_trigger_id()
-        if trigger == 'details-mini-graph':
-            data = details_data
-        elif trigger == 'events-detail-graph':
-            data = events_data
+        data = next((value for canvas, value in zip(CANVASES, hover_data)
+                     if canvas.cytoscape_id == trigger), hover_data[0])
         if not data: return ""
 
         node_type = data.get('type', '')
@@ -3421,7 +3420,7 @@ def register_callbacks(app):
         )
 
     # --- Freeze feature: per-canvas clientside wiring ---
-    # Each Cytoscape canvas (main / details / events) gets three parameterized
+    # Each canvas in canvases.CANVASES gets three parameterized
     # clientside callbacks: pending-store → elements bypass, switch → store
     # sync (also flips the JS frozen flag so the freeze-off refresh doesn't
     # race it), and snowflake/class-name indicator. The Settle (re-layout)
@@ -3492,33 +3491,16 @@ def register_callbacks(app):
             State(container_id, 'className'),
         )
 
-    _register_freeze_callbacks(
-        canvas_id='main',
-        switch_id='graph-settings-freeze-rerender',
-        store_id='freeze-rerender-store',
-        pending_id='elements-pending-store',
-        cytoscape_id='cytoscape-graph',
-        indicator_id='freeze-indicator',
-        container_id='canvas-container',
-    )
-    _register_freeze_callbacks(
-        canvas_id='details',
-        switch_id='details-graph-settings-freeze-rerender',
-        store_id='details-freeze-rerender-store',
-        pending_id='details-elements-pending-store',
-        cytoscape_id='details-mini-graph',
-        indicator_id='details-freeze-indicator',
-        container_id='details-dep-graph-container',
-    )
-    _register_freeze_callbacks(
-        canvas_id='events',
-        switch_id='events-graph-settings-freeze-rerender',
-        store_id='events-freeze-rerender-store',
-        pending_id='events-elements-pending-store',
-        cytoscape_id='events-detail-graph',
-        indicator_id='events-freeze-indicator',
-        container_id='events-detail-graph-container',
-    )
+    for canvas in CANVASES:
+        _register_freeze_callbacks(
+            canvas_id=canvas.key,
+            switch_id=canvas.freeze_switch_id,
+            store_id=canvas.freeze_store_id,
+            pending_id=canvas.pending_store_id,
+            cytoscape_id=canvas.cytoscape_id,
+            indicator_id=canvas.freeze_indicator_id,
+            container_id=canvas.container_id,
+        )
 
     # --- Nodes-tab first paint: report the element payload to the cover ---
     # The cover waits for the main canvas's layout to settle, and a graph with

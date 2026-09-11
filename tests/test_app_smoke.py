@@ -43,6 +43,11 @@ def test_app_callback_map_has_many_callbacks(isolated_app_import):
     )
 
 
+def test_app_publishes_the_canvas_registry(isolated_app_import):
+    app_module = isolated_app_import
+    assert 'window.SkillTree.canvases' in app_module.app.index_string
+
+
 def test_app_title_reflects_environment(isolated_app_import):
     app_module = isolated_app_import
     assert app_module.app.title in {"Skill Tree", "Skill Tree (Sandbox)"}

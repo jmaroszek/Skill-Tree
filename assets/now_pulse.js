@@ -10,14 +10,17 @@
  *
  * A short periodic scan (SCAN_INTERVAL_MS) picks up newly-flagged-Now nodes
  * after element updates without requiring an explicit clientside-callback
- * hook. The cost is trivial: three cy lookups plus a forEach over a tiny set.
+ * hook. The cost is trivial: one cy lookup per canvas plus a forEach over a
+ * tiny set.
  */
 (function () {
-    var CANVAS_IDS = ['cytoscape-graph', 'details-mini-graph', 'events-detail-graph'];
+    var CANVAS_IDS = window.SkillTree.canvases.map(function (canvas) {
+        return canvas.cytoscapeId;
+    });
     // Half-period of the pulse: 1s up + 1s down = 2s full cycle.
     var PULSE_HALF_DURATION_MS = 1000;
     // Short scan interval so a Now-clear feels instant; the scan itself
-    // is cheap (three lookups + a forEach on a tiny set).
+    // is cheap (one lookup per canvas + a forEach on a tiny set).
     var SCAN_INTERVAL_MS = 250;
     var BORDER_MIN = 5;
     var BORDER_MAX = 7;
@@ -32,7 +35,7 @@
         return wrapper._cyreg.cy;
     }
 
-    // All three canvases stay mounted at once — the inactive tabs are only
+    // Every canvas stays mounted at once — the inactive tabs are only
     // hidden by an ancestor's display:none. Cytoscape can't see that, so a
     // pulse left running on a hidden canvas keeps its animation ticking and
     // redrawing the full graph every frame, stealing time from whatever the

@@ -6,8 +6,16 @@
     var _currentNodeData = null;
     var _menuSource = 'main';
 
+    // bindCyEvents gives the Nodes canvas the full handler set. Every other
+    // canvas in the registry shares bindMiniGraphMenu.
+    var MAIN_CANVAS = window.SkillTree.canvases.filter(function (canvas) {
+        return canvas.key === 'main';
+    })[0];
+    // Canvases where right-clicking a node also selects it, as on Nodes.
+    var SELECT_ON_RIGHT_CLICK = { events: true };
+
     function initContextMenu() {
-        var cyWrapper = document.getElementById('cytoscape-graph');
+        var cyWrapper = document.getElementById(MAIN_CANVAS.cytoscapeId);
         var menu = document.getElementById('node-context-menu');
 
         var editItem = document.getElementById('ctx-menu-edit');
@@ -111,7 +119,7 @@
             }
             var clickedId = _currentNodeData.id;
             // Read selection from whichever canvas raised the menu (main or any
-            // mini-graph) so bulk toggle works on Details/Goal/Events tabs too.
+            // mini-graph) so bulk toggle works on the Details and Events tabs too.
             var sourceCy = _menuCy || _mainCy;
             var selectedIds = [];
             if (sourceCy) {
@@ -143,8 +151,8 @@
             hideMenu();
             if (!_currentNodeData || !_currentNodeData.id) return;
             var clickedId = _currentNodeData.id;
-            // Read selection from whichever canvas raised the menu — main
-            // canvas, Details mini-graph, Goal mini-graph, or Events mini-graph.
+            // Read selection from whichever canvas raised the menu — the main
+            // canvas, or the Details or Events mini-graph.
             // Falls back to _mainCy when null (e.g. menu raised from a non-cy
             // source like the suggestion-bar) but in that case the clickedId
             // won't be among _mainCy's selection, so bulk mode is skipped.
@@ -195,7 +203,7 @@
         // The cy instance that raised the currently-displayed context menu.
         // Used by handlers that need to read the active selection on whichever
         // canvas the user right-clicked (main canvas or any mini-graph), so
-        // bulk-mode actions work on the Details/Goal/Events tabs too.
+        // bulk-mode actions work on the Details and Events tabs too.
         var _menuCy = null;
 
         // Adds Ctrl/Cmd+click additive multi-select to a Cytoscape instance.
@@ -444,18 +452,20 @@
         }
 
         // Main canvas binds via the same lifecycle hook so its handlers
-        // follow cy replacement. Mini graphs share bindMiniGraphMenu.
+        // follow cy replacement. The other canvases share bindMiniGraphMenu.
         if (window.SkillTree && window.SkillTree.onCytoReady) {
-            window.SkillTree.onCytoReady('#cytoscape-graph', bindCyEvents);
+            window.SkillTree.onCytoReady('#' + MAIN_CANVAS.cytoscapeId, bindCyEvents);
         } else {
             // Rare: helper not yet loaded. Retry the whole init — cyto_lifecycle
             // is typically loaded alongside us, so this falls through quickly.
             setTimeout(initContextMenu, 100);
             return;
         }
-        bindMiniGraphMenu('#goal-mini-graph', 'goal', false);
-        bindMiniGraphMenu('#details-mini-graph', 'details', false);
-        bindMiniGraphMenu('#events-detail-graph', 'events', true);
+        window.SkillTree.canvases.forEach(function (canvas) {
+            if (canvas === MAIN_CANVAS) return;
+            bindMiniGraphMenu('#' + canvas.cytoscapeId, canvas.key,
+                              SELECT_ON_RIGHT_CLICK[canvas.key] === true);
+        });
     }
 
     if (document.readyState === 'loading') {

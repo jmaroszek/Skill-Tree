@@ -1,6 +1,6 @@
 /**
  * Freeze-rerender: preserve node positions and viewport during freeze,
- * across multiple independent Cytoscape canvases (main / details / events).
+ * independently for every Cytoscape canvas in window.SkillTree.canvases.
  *
  * Each canvas gets its own state bundle (frozen flag, position lock, viewport
  * lock, interaction flags) keyed by a short canvas id. Dash wires up per-canvas
@@ -347,14 +347,14 @@
     }
 
     function registerAll() {
-        window.SkillTree.registerCanvas('main', 'cytoscape-graph');
-        window.SkillTree.registerCanvas('details', 'details-mini-graph');
-        window.SkillTree.registerCanvas('events', 'events-detail-graph');
-        if (window.SkillTree.onCytoReady) {
-            window.SkillTree.onCytoReady('#cytoscape-graph',     function (cy) { onCySwap('main', cy); });
-            window.SkillTree.onCytoReady('#details-mini-graph',  function (cy) { onCySwap('details', cy); });
-            window.SkillTree.onCytoReady('#events-detail-graph', function (cy) { onCySwap('events', cy); });
-        }
+        window.SkillTree.canvases.forEach(function (canvas) {
+            window.SkillTree.registerCanvas(canvas.key, canvas.cytoscapeId);
+            if (window.SkillTree.onCytoReady) {
+                window.SkillTree.onCytoReady('#' + canvas.cytoscapeId, function (cy) {
+                    onCySwap(canvas.key, cy);
+                });
+            }
+        });
     }
     registerAll();
 })();
