@@ -49,8 +49,14 @@ global.document = {getElementById: id => inputs[id] || null};
 const handlers = {};
 const cy = {on: (name, fn) => { (handlers[name] = handlers[name] || []).push(fn); }};
 
+// The view the Details layout on screen belongs to, as layout_requests.js
+// reports it.
+let detailsRoot;
 global.window = {
-    SkillTree: {onCytoReady: (_sel, cb) => cb(cy)},
+    SkillTree: {
+        onCytoReady: (_sel, cb) => cb(cy),
+        layoutRoot: key => (key === 'details' ? detailsRoot : undefined)
+    },
     HTMLInputElement: {prototype: {}}
 };
 Object.defineProperty(window.HTMLInputElement.prototype, 'value', {
@@ -80,7 +86,7 @@ def _run(body):
 
 def test_settled_layout_releases_both_panels():
     _run(r'''
-window.SkillTree._detailsLayoutRoot = 'Root';
+detailsRoot = 'Root';
 const layout = {};
 fire('layoutstart', layout);
 fire('layoutstop', layout);
@@ -94,7 +100,7 @@ def test_a_swallowed_layoutstop_still_releases_on_the_deadline():
     """The regression: a Now node's animations being stopped mid-layout meant
     layoutstop never fired, and both panels waited on it forever."""
     _run(r'''
-window.SkillTree._detailsLayoutRoot = 'Root';
+detailsRoot = 'Root';
 fire('layoutstart', {});
 // No layoutstop ever arrives.
 advanceTo(2000);
@@ -109,7 +115,7 @@ assert.equal(rootOf('sim'), 'Root', 'deadline must release the simulation');
 
 def test_deadline_does_not_fire_again_after_a_normal_settle():
     _run(r'''
-window.SkillTree._detailsLayoutRoot = 'Root';
+detailsRoot = 'Root';
 const layout = {};
 fire('layoutstart', layout);
 fire('layoutstop', layout);
@@ -124,10 +130,10 @@ assert.equal(written.sim, undefined);
 
 def test_deadline_release_is_rejected_once_the_root_moved_on():
     _run(r'''
-window.SkillTree._detailsLayoutRoot = 'Root';
+detailsRoot = 'Root';
 fire('layoutstart', {});
 // The user picks something else; that selection's own layout will release it.
-window.SkillTree._detailsLayoutRoot = 'Other';
+detailsRoot = 'Other';
 advanceTo(9000);
 assert.equal(written.table, undefined);
 assert.equal(written.sim, undefined);
@@ -136,7 +142,7 @@ assert.equal(written.sim, undefined);
 
 def test_same_root_relayout_releases_simulation_but_not_the_table():
     _run(r'''
-window.SkillTree._detailsLayoutRoot = 'Root';
+detailsRoot = 'Root';
 const first = {};
 fire('layoutstart', first);
 fire('layoutstop', first);
@@ -155,11 +161,11 @@ assert.equal(written.table, undefined);
 
 
 def test_reports_settling_from_layout_start_until_release():
-    """details_layout.js reads this before releasing a payload that starts no
+    """layout_requests.js reads this before releasing a payload that starts no
     layout, so it must cover the animation and the quiet window after it."""
     _run(r'''
 const settling = () => window.SkillTree.detailsLayoutSettling();
-window.SkillTree._detailsLayoutRoot = 'Root';
+detailsRoot = 'Root';
 assert.equal(settling(), false);
 const layout = {};
 fire('layoutstart', layout);
@@ -182,7 +188,7 @@ assert.equal(settling(), false);
 
 def test_superseded_layout_generation_is_ignored():
     _run(r'''
-window.SkillTree._detailsLayoutRoot = 'Root';
+detailsRoot = 'Root';
 const stale = {};
 fire('layoutstart', stale);
 const current = {};

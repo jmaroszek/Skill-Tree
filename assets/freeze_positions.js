@@ -216,25 +216,11 @@
         var cy = getCy(state);
         if (!cy) return;
         bindGuards(state, cy);
+        // Turning freeze off starts no layout here. The freeze store is an
+        // input of the canvas's layout request (layout_requests.js), which
+        // lays the graph out with the canvas's own controls.
         if (state.frozen && !prev) {
             captureAll(state, cy);
-        } else if (!state.frozen && prev) {
-            // Freeze just turned off — deterministic fcose refresh.
-            requestAnimationFrame(function () {
-                try {
-                    cy.layout({
-                        name: 'fcose',
-                        quality: 'proof',
-                        fit: true,
-                        animate: true,
-                        randomize: false,
-                        idealEdgeLength: 100,
-                        nodeRepulsion: 4500,
-                        gravity: 0.25,
-                        numIter: 2500,
-                    }).run();
-                } catch (e) { /* best effort */ }
-            });
         }
     };
 

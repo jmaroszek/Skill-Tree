@@ -1756,29 +1756,9 @@ def register_details_callbacks(app):
             return f"{text} · filtered"
         return text
 
-    # --- Details Graph Layout: Apply Layout Parameters ---
-    # details_layout.js distinguishes a genuine nodes/edges change from
-    # dash-cytoscape's delayed elements echo (which only adds positions). That
-    # echo used to start a second incremental layout about 100 ms after the
-    # randomized pass, producing the late reset. Small, sparse subtrees use
-    # force-only CoSE because fCoSE's spectral seed can make them collinear.
-    # Settle still calls allowOneLayout synchronously there.
-    app.clientside_callback(
-        ClientsideFunction(
-            namespace="skillTreeDetailsLayout", function_name="build"),
-        Output('details-mini-graph', 'layout'),
-        Input('details-graph-settings-edge-length', 'value'),
-        Input('details-graph-settings-gravity', 'value'),
-        Input('details-graph-settings-repulsion', 'value'),
-        Input('details-graph-settings-animate', 'value'),
-        Input('details-graph-settings-relayout', 'n_clicks'),
-        Input('details-mini-graph', 'elements'),
-        State('details-freeze-rerender-store', 'data'),
-        # The subtree root the current elements belong to. Compared against the
-        # root the live layout was built for, to decide whether this is a new
-        # graph (seed it) or the same graph re-rendered (nudge it).
-        State('details-selected-node-store', 'data'),
-    )
+    # --- Details Graph Layout: layout requests ---
+    # Registered with every canvas's in callbacks.py; built by
+    # assets/layout_requests.js.
 
     # Time Simulation waits for the layout a filter change causes. A change
     # that leaves this subtree's nodes and edges as they were (a context with
@@ -1786,7 +1766,7 @@ def register_details_callbacks(app):
     # sends the settle signal itself whenever a payload will not be laid out.
     app.clientside_callback(
         ClientsideFunction(
-            namespace="skillTreeDetailsLayout", function_name="settleUnchanged"),
+            namespace="skillTreeLayout", function_name="settleUnchanged"),
         Output('details-simulation-settled-trigger-input', 'value'),
         Input('details-elements-pending-store', 'data'),
         State('details-freeze-rerender-store', 'data'),

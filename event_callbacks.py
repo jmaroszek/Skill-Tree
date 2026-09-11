@@ -2127,27 +2127,9 @@ def register_event_callbacks(app):
             False,
         )
 
-    # --- Events Graph Layout: Apply Layout Parameters ---
-    # events_layout.js distinguishes a genuine nodes/edges change from
-    # dash-cytoscape's delayed elements echo (which only adds positions). That
-    # echo used to start a second incremental layout about 100 ms after the
-    # randomized pass, producing a jerk near the end of the animation. It stays
-    # clientside so allowOneLayout('events') is set in the same synchronous
-    # function that returns the layout dict — see callbacks.py for the rationale.
-    app.clientside_callback(
-        ClientsideFunction(
-            namespace="skillTreeEventsLayout", function_name="build"),
-        Output('events-detail-graph', 'layout'),
-        Input('events-graph-settings-edge-length', 'value'),
-        Input('events-graph-settings-gravity', 'value'),
-        Input('events-graph-settings-repulsion', 'value'),
-        Input('events-graph-settings-animate', 'value'),
-        Input('events-graph-settings-relayout', 'n_clicks'),
-        Input('events-detail-graph', 'elements'),
-        State('events-freeze-rerender-store', 'data'),
-        # Which event's graph these elements belong to — see details_callbacks.py.
-        State('selected-event-store', 'data'),
-    )
+    # --- Events Graph Layout: layout requests ---
+    # Registered with every canvas's in callbacks.py; built by
+    # assets/layout_requests.js.
 
     # --- Events Sidebar Toggle + Tab-Inner Shift (CLIENTSIDE) ---
     # Prior server-side implementations of this toggle exhibited a persistent

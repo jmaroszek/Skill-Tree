@@ -15,7 +15,7 @@
  * late table, not one that never loads.
  *
  * Both of those need a layout to start. A payload with the same nodes and
- * edges starts none, so details_layout.js releases the simulation for it
+ * edges starts none, so layout_requests.js releases the simulation for it
  * directly. It first checks `detailsLayoutSettling` so it cannot cut ahead of
  * an earlier layout that is still running.
  */
@@ -33,6 +33,14 @@
     // Long enough that a healthy layout always settles first: the animation
     // itself runs 1s, plus the 150ms quiet window and room for a slow frame.
     var RELEASE_DEADLINE_MS = 4000;
+
+    // The view the Details layout on screen was built for, as
+    // layout_requests.js reports it.
+    function layoutRoot() {
+        return window.SkillTree.layoutRoot
+            ? window.SkillTree.layoutRoot('details') || null
+            : null;
+    }
 
     window.SkillTree.onCytoReady('#details-mini-graph', function (cy) {
         var generation = 0;
@@ -57,7 +65,7 @@
         // Shared by the normal settle and the deadline, so a late release is
         // the same release, never a second variant of it.
         function release(root) {
-            if (!root || root !== window.SkillTree._detailsLayoutRoot) return;
+            if (!root || root !== layoutRoot()) return;
             if (deadlineTimer !== null) {
                 clearTimeout(deadlineTimer);
                 deadlineTimer = null;
@@ -77,7 +85,7 @@
                 clearTimeout(quietTimer);
                 quietTimer = null;
             }
-            var root = window.SkillTree._detailsLayoutRoot || null;
+            var root = layoutRoot();
             // A root transition starts a new table-render cycle. Keep the
             // pending root through duplicate layout starts for that selection,
             // then clear it once the newest one settles. Passing through null
@@ -107,7 +115,7 @@
             if (!record) {
                 record = {
                     generation: generation,
-                    root: window.SkillTree._detailsLayoutRoot || null
+                    root: layoutRoot()
                 };
             }
             // Only the most recently started layout may release deferred work.

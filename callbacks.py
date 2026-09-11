@@ -3494,7 +3494,7 @@ def register_callbacks(app):
     for canvas in CANVASES:
         _register_freeze_callbacks(
             canvas_id=canvas.key,
-            switch_id=canvas.freeze_switch_id,
+            switch_id=canvas.control_id('freeze-rerender'),
             store_id=canvas.freeze_store_id,
             pending_id=canvas.pending_store_id,
             cytoscape_id=canvas.cytoscape_id,
@@ -3520,66 +3520,41 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
 
-    # --- Graph Layout: Apply Layout Parameters ---
-    # Clientside so allowOneLayout('main') is set in the same synchronous
-    # function that returns the new layout dict. A previous server-side
-    # implementation paired with a separate clientside allowOneLayout callback
-    # was racy: Dash doesn't order parallel callbacks bound to the same input,
-    # so the layout prop sometimes reached Cytoscape before the JS guard's
-    # allowNextLayout flag was set, causing the freeze guard at layoutstart
-    # to stop the layout (Settle button silently no-op).
-    app.clientside_callback(
-        """
-        function(edge_length, gravity, repulsion, animate, relayout_n, freeze_on) {
-            var ctx = window.dash_clientside.callback_context;
-            var trig = ctx.triggered_id
-                || (ctx.triggered && ctx.triggered.length
-                    ? ctx.triggered[0].prop_id.split('.')[0]
-                    : null);
-            var relayout_triggers = ['graph-settings-relayout'];
-            // Freeze toggle fired: run layout only on the off-transition (refresh).
-            // On the on-transition we stay put so the user's current positions hold.
-            if (trig === 'freeze-rerender-store' && freeze_on) {
-                return window.dash_clientside.no_update;
-            }
-            // While frozen, slider changes are deferred — they'll apply on the
-            // next freeze-off transition. But relayout clicks still force a
-            // refresh (user's explicit "update now" action).
-            if (freeze_on && trig !== 'freeze-rerender-store'
-                && relayout_triggers.indexOf(trig) === -1) {
-                return window.dash_clientside.no_update;
-            }
-            var is_relayout = relayout_triggers.indexOf(trig) !== -1;
-            // Sequence the freeze-guard bypass synchronously with the layout-
-            // prop write so layoutstart sees allowNextLayout=true next tick.
-            if (is_relayout && window.SkillTree && window.SkillTree.allowOneLayout) {
-                window.SkillTree.allowOneLayout('main');
-            }
-            return {
-                name: 'fcose',
-                quality: 'proof',
-                fit: true,
-                animate: !!animate,
-                // Stated rather than left to fCoSE, so a settings change runs
-                // at the same pace as the initial prop in layout.py.
-                animationDuration: 1000,
-                randomize: is_relayout,
-                idealEdgeLength: edge_length || 100,
-                nodeRepulsion: repulsion || 50000,
-                gravity: (gravity !== null && gravity !== undefined) ? gravity : 0,
-                numIter: 2500,
-            };
-        }
-        """,
-        Output('cytoscape-graph', 'layout'),
-        Input('graph-settings-edge-length', 'value'),
-        Input('graph-settings-gravity', 'value'),
-        Input('graph-settings-repulsion', 'value'),
-        Input('graph-settings-animate', 'value'),
-        Input('graph-settings-relayout', 'n_clicks'),
-        Input('freeze-rerender-store', 'data'),
-        prevent_initial_call=True,
-    )
+    # --- Graph Layout: one layout request per canvas ---
+    # assets/layout_requests.js builds each canvas's layout prop. It stays
+    # clientside so allowOneLayout() is set in the same synchronous function
+    # that returns the new layout dict. A previous server-side implementation
+    # paired with a separate clientside allowOneLayout callback was racy: Dash
+    # doesn't order parallel callbacks bound to the same input, so the layout
+    # prop sometimes reached Cytoscape before the JS guard's allowNextLayout
+    # flag was set, causing the freeze guard at layoutstart to stop the layout
+    # (Settle button silently no-op).
+    def _register_layout_callback(canvas):
+        inputs = [
+            Input(canvas.control_id('edge-length'), 'value'),
+            Input(canvas.control_id('gravity'), 'value'),
+            Input(canvas.control_id('repulsion'), 'value'),
+            Input(canvas.control_id('animate'), 'value'),
+            Input(canvas.control_id('relayout'), 'n_clicks'),
+        ]
+        if canvas.lays_out_elements:
+            inputs.append(Input(canvas.cytoscape_id, 'elements'))
+        # Control changes wait while the canvas is frozen. The freeze-off
+        # transition lays the graph out with them.
+        inputs.append(Input(canvas.freeze_store_id, 'data'))
+        states = [State(canvas.view_store_id, 'data')] if canvas.view_store_id else []
+        app.clientside_callback(
+            ClientsideFunction(namespace='skillTreeLayout', function_name=canvas.key),
+            Output(canvas.cytoscape_id, 'layout'),
+            *inputs,
+            *states,
+            # Nodes keeps the transition prop layout.py gives it until a
+            # control is touched.
+            prevent_initial_call=not canvas.lays_out_elements,
+        )
+
+    for canvas in CANVASES:
+        _register_layout_callback(canvas)
 
     # =====================================================================
     # Override callbacks

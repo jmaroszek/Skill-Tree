@@ -30,12 +30,12 @@ The one-way rule has a payoff: a tab module sees only `app` and the three manage
 | [event_manager.py](../event_manager.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. |
 | [scoring.py](../scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, focus paths. |
 | [simulation.py](../simulation.py) | Monte Carlo time simulation. Pure NumPy. |
-| [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, time calibration, override handling, the undo/done flow, and the parametrized freeze-rerender registration. |
+| [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, time calibration, override handling, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
 | [callback_helpers.py](../callback_helpers.py) | Stateless helpers extracted from the `*_callbacks.py` files (link parsing, filters, form-state diffs). |
 | [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. |
 | [styles.py](../styles.py) | Dash component style dicts. |
-| [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip and freeze wiring loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse) loop over that. |
-| [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, sortables, the JS-Dash value-setter bridge. |
+| [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests) loop over that. |
+| [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. |
 | Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
 
 ## State flow: stores are the wiring
@@ -209,6 +209,11 @@ average across a 3,200 px graph. In the running sandbox, switching the context
 filter to Health (67 nodes) and back to All (568) started fCoSE with
 `animate: true` and `randomize: false` both ways.
 
+A Settle writes `randomize: true` into that same prop. Every later add or
+remove re-ran it as is, so each filter change after a Settle reshuffled the
+whole graph. `assets/layout_requests.js` now randomizes a request only on its
+first run. The re-runs are transitions.
+
 The one run that can't be a transition is the cold start, from every node
 stacked at the origin. Incremental from that pile, fCoSE left 547 of 568 nodes
 within 12 px of a neighbor; a randomized seed left none. `canvas_first_paint.js`
@@ -245,43 +250,62 @@ applies wherever a deferred render is keyed off a store: write the store only
 when its value changes. `handle_edit_trigger` in `callbacks.py` guards
 `main-tabs.active_tab` for the same reason.
 
-Details layout requests are built by `assets/details_layout.js`. The
+Selecting an event does not emit a data refresh. A clientside ALL callback
+updates card styles without remounting the list or rebuilding search
+suggestions and trigger-node options alongside the animation. Actual event
+mutations still emit the shared refresh.
+
+## Layout requests
+
+Every canvas's `layout` prop comes from `assets/layout_requests.js`.
+`callbacks.py` registers one clientside callback per canvas in `CANVASES`, and
+the module builds the prop each one returns. The canvases share its rules and
+differ only in a small policy table.
+
+Nodes leaves element updates to dash-cytoscape's `autoRefreshLayout`, which
+re-runs the current prop on every add or remove (see Layout transitions).
+Details and Events turn it off and lay out their own element updates. The
 dash-cytoscape component echoes its live elements, now carrying positions,
-roughly 100 ms after add/remove events. The layout callback must still listen
-to `details-mini-graph.elements` so a real topology reaches Cytoscape before
-layout starts, but a structural signature filters that position-only echo. A
-new root gets one randomized pass; same-root topology changes get one
-incremental pass; display-only data changes get none. `autoRefreshLayout`
-remains disabled so dash-cytoscape cannot independently start another pass.
-The signature is reset when `onCytoReady` reports a replacement Cytoscape
-instance; otherwise a remount of the same subtree would be mistaken for an
-echo and its nodes would remain stacked at the default origin. Details views
-with at most 24 nodes use force-only CoSE, which avoids the collinear spectral
-seed fCoSE can produce for small, sparse dependency graphs. Larger views retain
-fCoSE for its performance advantage. The selected node is also marked as the
-view root inside the elements payload, so a new selection is randomized even
-if Dash has not yet propagated the matching selected-node State. Every accepted
-layout request also carries a monotonically increasing client sequence. This
-keeps the `layout` prop distinct when two views happen to produce identical
-CoSE options; without it, `autoRefreshLayout=False` would leave the second
-view's new nodes stacked at their default origin.
+roughly 100 ms after add/remove events. Their layout callbacks must still
+listen to `elements`, so a real topology reaches Cytoscape before layout
+starts. A structural signature filters the position-only echo. Without it, the
+echo started a second incremental pass from half-animated positions, and the
+two tweens finishing out of step read as a jerk. A new view gets one
+randomized pass. Same-view topology changes get one incremental pass.
+Display-only data changes get none. The signature is reset when `onCytoReady`
+reports a replacement Cytoscape instance. Otherwise a remount of the same view
+would be mistaken for an echo, and its nodes would stay stacked at the default
+origin.
 
-The Events graph filters the same echo, in `assets/events_layout.js`. Its
-layout callback also listens to `events-detail-graph.elements` with
-`autoRefreshLayout` disabled. Without the signature, the echo started a second
-incremental pass from half-animated positions, and the two tweens finishing
-out of step read as a jerk. A new event gets one randomized pass, and same-event
-topology changes get one incremental pass. The request sequence keeps two
-events' otherwise identical options distinct. Events needs no root marker in
-its payload: the selected-event store drives the graph render, so its State
-already names the event the elements belong to.
+Details marks the selected node as the view root inside the elements payload.
+A new selection is then randomized even if Dash has not yet propagated the
+matching selected-node State. Events needs no marker, because the
+selected-event store drives its graph render. Its State already names the
+event the elements belong to.
 
-Events follows Details' size-based layout policy: CoSE for up to 24 nodes,
-fCoSE above that, a 1000 ms final-position tween, and a bounded iteration
-budget scaled to node count. Selecting an event does not emit a data refresh:
-a clientside ALL callback updates card styles without remounting the list or
-rebuilding search suggestions and trigger-node options alongside the animation.
-Actual event mutations still emit the shared refresh.
+Views with at most 24 nodes use force-only CoSE, which avoids the collinear
+spectral seed fCoSE can produce for small, sparse dependency graphs. Larger
+views keep fCoSE for its speed, with an iteration budget scaled to node count.
+Nodes shows the whole graph, so it keeps fCoSE and its full 2,500 iterations
+at every size.
+
+Every layout tweens to its final positions over 1000 ms. CoSE has to be asked
+for that tween with `animate: 'end'`, but dash-cytoscape declares
+`layout.animate` a boolean. In debug mode Dash checks prop types, and the
+string tore the Details and Events canvases down on every page load. So the
+prop carries a boolean plus `skillTreeTween`, and a `cy.layout` hook swaps in
+`'end'` as dash-cytoscape starts the layout. The same hook lets a randomized
+request randomize only its first run.
+
+Every accepted request carries a monotonically increasing client sequence. It
+keeps the `layout` prop distinct when two requests happen to produce identical
+options. Without it, `autoRefreshLayout=False` would leave a second view's new
+nodes stacked at their default origin.
+
+While a canvas is frozen, control changes wait. The freeze store is an input
+of each layout request, so the freeze-off transition lays the graph out with
+the canvas's current controls. `freeze_positions.js` used to run its own
+relayout there, with one hard-coded set of physics for every canvas.
 
 ## Simulation requests
 
@@ -302,9 +326,10 @@ events; simulation-only inputs such as time units and settings remain immediate.
 
 A payload that starts no layout would leave that wait open for good. A filter
 change can send back the selected subtree's nodes and edges unchanged, such as
-a context with no nodes in it, and `build()` skips that payload like the echo.
-So `settleUnchanged()` in `assets/details_layout.js` runs on the same payload,
-before `build()` records it, and applies the same signature check. When no
+a context with no nodes in it, and the layout request skips that payload like
+the echo. So `settleUnchanged()` in `assets/layout_requests.js` runs on the
+same payload, before the request records it, and applies the same signature
+check. When no
 layout will run, it sends the settled token itself. It does nothing on a frozen
 canvas, which already bypasses the gate, or on a replacement Cytoscape
 instance, which will lay the payload out. It also defers while
