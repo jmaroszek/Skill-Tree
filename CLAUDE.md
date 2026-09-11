@@ -37,7 +37,7 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 
 - Every tab module exposes exactly one public function: `register_*_callbacks(app)`. `app.py` imports and calls each. New tab = one more `register_*` call.
 - Node `name` is the primary key; edges have composite PK `(source, target, type)` so the same pair can carry both a prerequisite and a synergy.
-- Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`callbacks.py`](callbacks.py). That function is the single source of truth for what Cytoscape sees.
+- Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`callbacks.py`](callbacks.py). That function is the single source of truth for what the Nodes canvas shows.
 - Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip.
 - The JS-Dash bridge uses native HTML `value` setters (via `Object.getOwnPropertyDescriptor`) to get React to notice programmatic input changes — plain `el.value = ...` is silently ignored.
 - `ConfigManager` is classmethod-only and round-trips everything through the `Settings` SQLite table. There is no persistent settings cache. Read operations may share a `database.read_snapshot()`; it expires at the end of the operation and is invalidated by local writes, so subsequent operations see fresh state across tab modules.
@@ -54,6 +54,7 @@ Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to
 
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.
 - Prefer extracting pure logic to [`callback_helpers.py`](callback_helpers.py) (stateless) or [`graph_manager.py`](graph_manager.py) (DB-backed) rather than growing the already-large `*_callbacks.py` files further.
+- Build canvas elements with `build_node_element` / `build_edge_element` in [`callback_helpers.py`](callback_helpers.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
 - For anything time/duration-related, let the `Node.time` property do the PERT blend; don't compute a single "time" from `time_o/m/p` yourself.
 - When you add a scoring-relevant field to `Node`, also add it to `graph_manager._SCORING_RELEVANT_FIELDS`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).

@@ -37,6 +37,7 @@ from callback_helpers import (
     snapshot_from_form_state, editor_form_values,
     habit_to_hours, compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
+    build_node_element, build_edge_element, canvas_node_styles,
 )
 
 logger = logging.getLogger(__name__)
@@ -408,60 +409,17 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
         filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
 
     valid_names = {n.name for n in filtered_nodes}
-    edges = manager.get_edges()
-    colors = ConfigManager.get_node_colors()
-    shapes = ConfigManager.get_node_shapes()
-    override_set = ConfigManager.get_override_node_set(manager)
-    override_color = colors.get('Override', '#e83e8c')
-    trigger_names = event_manager.get_trigger_node_names()
+    styles = canvas_node_styles(manager, event_manager)
 
-    elements = []
-    for node in filtered_nodes:
-        if node.name in override_set:
-            node_color = override_color
-        elif node.status == STATUS_DONE:
-            node_color = colors.get(STATUS_DONE, '#198754')
-        elif node.status == STATUS_BLOCKED:
-            node_color = colors.get(STATUS_BLOCKED, '#dc3545')
-        else:
-            node_color = colors.get(node.type, colors.get(STATUS_OPEN, '#0d6efd'))
-
-        node_data = {
-            'data': {
-                'id': node.name,
-                'label': node.name,
-                'color': node_color,
-                'shape': shapes.get(node.type, 'rectangle'),
-                **node.to_dict()
-            },
-            'selected': node.name == active_node_id if active_node_id else False
-        }
-        node_classes = []
-        if node.name in trigger_names:
-            node_classes.append('trigger')
-        if node.dormant:
-            node_classes.append('dormant')
-        if node.now:
-            node_classes.append('now')
-            node_data['data']['now_color'] = colors.get('Now', '#ffd000')
-        # Always emit `classes` (possibly empty) so Cytoscape's element diff
-        # actually clears the class when a node loses it — omitting the key
-        # leaves the prior value in place and a node that was just cleared
-        # of Now would keep its pulse.
-        node_data['classes'] = ' '.join(node_classes)
-        elements.append(node_data)
-
-    for e in edges:
-        if e['source'] in valid_names and e['target'] in valid_names:
-            elements.append({
-                'data': {
-                    'id': f"{e['source']}_{e['target']}_{e['type']}",
-                    'source': e['source'],
-                    'target': e['target'],
-                    'type': e['type']
-                }
-            })
-
+    elements = [
+        build_node_element(
+            node, styles,
+            selected=node.name == active_node_id if active_node_id else False)
+        for node in filtered_nodes
+    ]
+    elements.extend(
+        build_edge_element(e) for e in manager.get_edges()
+        if e['source'] in valid_names and e['target'] in valid_names)
     return elements
 
 

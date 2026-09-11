@@ -7,6 +7,7 @@ the callback registration files focused on Dash I/O wiring.
 
 import json
 import logging
+from dataclasses import dataclass
 import database
 
 import dash
@@ -17,7 +18,7 @@ import plotly.graph_objects as go
 logger = logging.getLogger(__name__)
 
 from config import BADGE_PALETTE, ConfigManager, badge_style
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_DONE
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -287,6 +288,104 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
 def node_options(nodes, exclude=None):
     """Build dropdown options from a list of nodes, optionally excluding one by name."""
     return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]
+
+
+# --- Canvas Elements ---
+# The Nodes, Details and Events canvases each choose which nodes to show, then
+# build every element here. The hover tooltip, context menu, stylesheet and
+# Now pulse read these fields on whichever canvas raised them, so a node has
+# to look and describe itself the same way everywhere.
+
+@dataclass(frozen=True)
+class CanvasNodeStyles:
+    """The lookups a canvas reads once per render to paint its nodes."""
+    colors: dict
+    shapes: dict
+    override_names: frozenset
+    trigger_names: frozenset
+
+
+def canvas_node_styles(manager, events):
+    """Read every lookup ``build_node_element`` paints from.
+
+    They travel as one bundle so no canvas can render without one of them.
+    The Details graph used to skip the override set, so it never showed the
+    Override color.
+    """
+    return CanvasNodeStyles(
+        colors=ConfigManager.get_node_colors(),
+        shapes=ConfigManager.get_node_shapes(),
+        override_names=frozenset(ConfigManager.get_override_node_set(manager)),
+        trigger_names=frozenset(events.get_trigger_node_names()),
+    )
+
+
+def node_fill_color(node, colors, override_names):
+    """The Override color first, then Done or Blocked, then the node's type color."""
+    if node.name in override_names:
+        return colors.get('Override', '#e83e8c')
+    if node.status == STATUS_DONE:
+        return colors.get(STATUS_DONE, '#198754')
+    if node.status == STATUS_BLOCKED:
+        return colors.get(STATUS_BLOCKED, '#dc3545')
+    return colors.get(node.type, colors.get(STATUS_OPEN, '#0d6efd'))
+
+
+def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=None):
+    """Build a Cytoscape node element carrying the node's full field set.
+
+    A canvas passes only what is its own:
+      selected    Cytoscape's selection state. Omitted when None, so the
+                  render leaves the user's clicks alone.
+      dormant     Replaces the node's own dormant flag, in the data and in
+                  the class. Events marks its attached nodes this way.
+      extra_data  Keys only one canvas reads, such as Details' view root.
+    """
+    data = {
+        'id': node.name,
+        'label': node.name,
+        'color': node_fill_color(node, styles.colors, styles.override_names),
+        'shape': styles.shapes.get(node.type, 'rectangle'),
+        **node.to_dict(),
+    }
+    if dormant is None:
+        dormant = bool(node.dormant)
+    else:
+        data['dormant'] = 1 if dormant else 0
+    if extra_data:
+        data.update(extra_data)
+
+    classes = []
+    if node.name in styles.trigger_names:
+        classes.append('trigger')
+    if dormant:
+        classes.append('dormant')
+    if node.now:
+        classes.append('now')
+        data['now_color'] = styles.colors.get('Now', '#ffd000')
+
+    element = {'data': data}
+    if selected is not None:
+        element['selected'] = bool(selected)
+    # Always emit `classes` (possibly empty) so Cytoscape's element diff
+    # actually clears the class when a node loses it — omitting the key
+    # leaves the prior value in place and a node that was just cleared
+    # of Now would keep its pulse.
+    element['classes'] = ' '.join(classes)
+    return element
+
+
+def build_edge_element(edge):
+    """Build a Cytoscape edge element from a ``GraphManager.get_edges()`` row."""
+    source, target, edge_type = edge['source'], edge['target'], edge['type']
+    return {
+        'data': {
+            'id': f"{source}_{target}_{edge_type}",
+            'source': source,
+            'target': target,
+            'type': edge_type,
+        },
+    }
 
 
 def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,

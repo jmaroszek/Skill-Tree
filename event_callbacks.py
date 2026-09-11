@@ -16,7 +16,9 @@ from callback_helpers import (render_link_rows, render_alias_rows, serialize_lin
                               spawn_local_file_picker,
                               strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp,
                               habit_preview_text, habit_editor_view,
-                              resolve_time_mode, resolve_value_mode)
+                              resolve_time_mode, resolve_value_mode,
+                              build_node_element, build_edge_element,
+                              canvas_node_styles)
 
 event_manager = EventManager()
 graph_manager = GraphManager()
@@ -2044,53 +2046,22 @@ def register_event_callbacks(app):
                 neighbor_names.add(e['source'])
 
         all_names = dormant_names | neighbor_names
-        node_colors = ConfigManager.get_node_colors()
-        node_shapes = ConfigManager.get_node_shapes()
-        trigger_names = event_manager.get_trigger_node_names()
+        styles = canvas_node_styles(graph_manager, event_manager)
 
         elements = []
         for name in all_names:
             node = graph_manager.get_node(name)
             if not node:
                 continue
-            element = {
-                "data": {
-                    "id": name,
-                    "label": name,
-                    "color": node_colors.get(node.type, "#6c757d"),
-                    "shape": node_shapes.get(node.type, "rectangle"),
-                    # The shared hover tooltip reads ratings, time modes,
-                    # status, and context directly from Cytoscape node data.
-                    # Keep the Events canvas payload in parity with the main
-                    # canvas instead of sending display metadata alone.
-                    **node.to_dict(),
-                    "dormant": 1 if name in dormant_names else 0,
-                },
-            }
-            classes = []
-            if name in dormant_names:
-                classes.append("dormant")
-            if name in trigger_names:
-                classes.append("trigger")
-            if node.now:
-                classes.append("now")
-                element["data"]["now_color"] = node_colors.get("Now", "#ffd000")
-            # Always emit `classes` (possibly empty) so Cytoscape's diff
-            # clears the class when it leaves the new render — see
-            # callbacks.py:generate_elements for the rationale.
-            element["classes"] = " ".join(classes)
-            elements.append(element)
+            # "Dormant" on this canvas means attached to the selected event,
+            # whatever the node's own flag says. The context menu routes Edit
+            # on those nodes to the dormant-node editor.
+            elements.append(build_node_element(
+                node, styles, dormant=name in dormant_names))
 
         for e in all_edges:
             if e['source'] in all_names and e['target'] in all_names:
-                elements.append({
-                    "data": {
-                        "id": f"{e['source']}_{e['target']}_{e['type']}",
-                        "source": e['source'],
-                        "target": e['target'],
-                        "type": e['type'],
-                    },
-                })
+                elements.append(build_edge_element(e))
 
         return elements
 

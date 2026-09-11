@@ -26,7 +26,9 @@ from callback_helpers import (render_link_rows, render_alias_rows, strip_gdrive_
                               format_value_rank,
                               habit_to_hours, compute_habit_time_omp,
                               habit_preview_text,
-                              resolve_time_mode, resolve_value_mode, get_trigger_id)
+                              resolve_time_mode, resolve_value_mode, get_trigger_id,
+                              build_node_element, build_edge_element,
+                              canvas_node_styles)
 from scoring import explain_score, shortest_paths_focus_data
 
 graph_manager = GraphManager()
@@ -2017,9 +2019,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     node_names = set(view["node_names"])
     discovery_edges = set(view["discovery_edges"])
 
-    colors = ConfigManager.get_node_colors()
-    shapes = ConfigManager.get_node_shapes()
-    trigger_names = event_manager.get_trigger_node_names()
+    styles = canvas_node_styles(graph_manager, event_manager)
 
     elements = []
     filtered_names = set()
@@ -2028,50 +2028,20 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         if not node:
             continue
         filtered_names.add(name)
-        element = {
-            'data': {
-                'id': node.name,
-                'label': node.name,
-                # Lets the client distinguish a newly selected view from an
-                # incremental same-root topology change without depending on
-                # Dash's ordering of separate callback outputs.
-                'details_root': node.name == selected_node,
-                'color': (
-                    colors.get(STATUS_DONE, '#198754') if node.status == STATUS_DONE
-                    else colors.get(STATUS_BLOCKED, '#dc3545') if node.status == STATUS_BLOCKED
-                    else colors.get(node.type, colors.get(STATUS_OPEN, '#0d6efd'))
-                ),
-                'shape': shapes.get(node.type, 'ellipse'),
-                'type': node.type,
-                'status': node.status,
-                'value': node.value,
-                'interest': node.interest,
-                'difficulty': node.difficulty,
-                'context': node.context or '',
-                'subcontext': node.subcontext or '',
-                'time': round(graph_manager.get_effective_time(node.name), 1),
-                'time_o': node.time_o,
-                'time_m': node.time_m,
-                'time_p': node.time_p,
-            },
+        is_root = node.name == selected_node
+        elements.append(build_node_element(
+            node, styles,
             # Keep the node this Details view is centered on in Cytoscape's
             # actual selection state. Canvas taps do this implicitly, but
             # dropdown searches and empty-state suggestions create the view
             # without a tap, so the root otherwise misses the shared white
             # `node:selected` outline.
-            'selected': node.name == selected_node,
-        }
-        node_classes = []
-        if name in trigger_names:
-            node_classes.append('trigger')
-        if node.now:
-            node_classes.append('now')
-            element['data']['now_color'] = colors.get('Now', '#ffd000')
-        # Always emit `classes` (possibly empty) — see the comment in
-        # callbacks.py:generate_elements for why omission leaves a stale
-        # class on the live element.
-        element['classes'] = ' '.join(node_classes)
-        elements.append(element)
+            selected=is_root,
+            # Lets the client distinguish a newly selected view from an
+            # incremental same-root topology change without depending on
+            # Dash's ordering of separate callback outputs.
+            extra_data={'details_root': is_root},
+        ))
 
     edges = sorted(
         graph_manager.get_edges(),
@@ -2081,13 +2051,6 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         if (e['source'] in filtered_names and e['target'] in filtered_names
                 and e['type'] in edge_types
                 and (show_cross_links or edge_key in discovery_edges)):
-            elements.append({
-                'data': {
-                    'id': f"{e['source']}_{e['target']}_{e['type']}",
-                    'source': e['source'],
-                    'target': e['target'],
-                    'type': e['type'],
-                },
-            })
+            elements.append(build_edge_element(e))
 
     return elements

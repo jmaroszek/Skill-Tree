@@ -114,6 +114,13 @@ consistent meaning across the app.
 | selected-node   | `#0dcaf0` |
 | selected-border | `#055160` |
 
+### Canvas node fill
+Every canvas fills a node by the same precedence, in
+`callback_helpers.node_fill_color`. The Override color comes first. Done and
+Blocked come next. Otherwise the node takes its type color. Settings →
+Appearance sets all of these colors. A dormant node keeps its fill and adds
+the dashed `.dormant` style on top.
+
 ## Typography
 
 ### Heading Hierarchy
