@@ -2054,6 +2054,12 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
                 'time_m': node.time_m,
                 'time_p': node.time_p,
             },
+            # Keep the node this Details view is centered on in Cytoscape's
+            # actual selection state. Canvas taps do this implicitly, but
+            # dropdown searches and empty-state suggestions create the view
+            # without a tap, so the root otherwise misses the shared white
+            # `node:selected` outline.
+            'selected': node.name == selected_node,
         }
         node_classes = []
         if name in trigger_names:

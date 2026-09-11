@@ -146,7 +146,7 @@ class TestPostFilterReachability:
 
 
 class TestBuildGraphElementsInvariants:
-    def test_selected_node_is_marked_as_view_root(self, mgr):
+    def test_selected_node_is_view_root_and_cytoscape_selected(self, mgr):
         mgr.add_node(_make_node("Root"))
         mgr.add_node(_make_node("Child"))
         mgr.add_edge("Child", "Root", EDGE_NEEDS_HARD)
@@ -163,6 +163,14 @@ class TestBuildGraphElementsInvariants:
             if element["data"].get("details_root")
         }
         assert roots == {"Root"}
+
+        nodes = {
+            element["data"]["id"]: element
+            for element in elements
+            if "source" not in element["data"]
+        }
+        assert nodes["Root"].get("selected") is True
+        assert nodes["Child"].get("selected") is False
 
     def test_selected_node_always_present(self, mgr):
         """Even a selected node with no prereqs and filters that would normally
