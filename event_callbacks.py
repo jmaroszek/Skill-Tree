@@ -251,6 +251,25 @@ def register_event_callbacks(app):
             ))
         return cards
 
+    # Selection only changes card decoration; keep the cards and their
+    # tooltips mounted while the graph opens. Rebuilt lists already carry
+    # the selected style from render_events_list's State.
+    app.clientside_callback(
+        """function(selected, ids, styles) {
+            return (ids || []).map(function(id, index) {
+                var style = Object.assign({}, (styles || [])[index] || {});
+                var active = id.index === selected;
+                style.border = active ? '2px solid #0d6efd' : '1px solid #495057';
+                style.backgroundColor = active ? '#2b3035' : '#212529';
+                return style;
+            });
+        }""",
+        Output({'type': 'event-card', 'index': ALL}, 'style'),
+        Input('selected-event-store', 'data'),
+        Input({'type': 'event-card', 'index': ALL}, 'id'),
+        State({'type': 'event-card', 'index': ALL}, 'style'),
+    )
+
     # --- Autocomplete datalist for events search ---
     @app.callback(
         Output("events-search-datalist", "children"),
@@ -430,7 +449,7 @@ def register_event_callbacks(app):
 
         return (
             event_name,
-            f"select-{event_name}",
+            no_update,  # Selection does not invalidate event data or dropdowns.
             {"display": "none"},
             {"display": "block"},
             event.name,
@@ -474,7 +493,7 @@ def register_event_callbacks(app):
 
         detail = (
             event_name,
-            f"ctx-{action}-{event_name}-{time.time()}",
+            no_update,
             {"display": "none"},
             {"display": "block"},
             event.name,

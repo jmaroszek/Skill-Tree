@@ -44,9 +44,9 @@ function request(trigger, elements = moveGraph, event = 'Move',
 }
 
 const first = request('events-detail-graph');
-assert.equal(first.name, 'fcose');
-assert.equal(first.quality, 'proof');
-assert.equal(first.animate, true);
+assert.equal(first.name, 'cose');
+assert.equal(first.animate, 'end');
+assert.equal(first.animationDuration, 1000);
 assert.equal(first.randomize, true);
 assert.equal(first.skillTreeRequestId, 1);
 
@@ -103,6 +103,15 @@ assert.equal(request('events-detail-graph', [...grown, {data: {id: 'F'}}], 'Move
 const settled = request('events-graph-settings-relayout', grown, 'Move', true);
 assert.equal(settled.randomize, true);
 assert.equal(window.allowed, 'events');
+
+const large = Array.from({length: 39}, (_, i) => ({data: {id: 'N' + i}}));
+const largeLayout = request('events-detail-graph', large, 'Video');
+assert.equal(largeLayout.name, 'fcose');
+assert.equal(largeLayout.quality, 'proof');
+assert.equal(largeLayout.animate, true);
+assert.equal(largeLayout.animationDuration, 1000);
+assert.equal(largeLayout.numIter, 975);
+assert.equal(request('events-detail-graph', large, 'Video'), 'NO');
 '''
     result = subprocess.run(
         [node_binary, "-e", script, str(asset)],

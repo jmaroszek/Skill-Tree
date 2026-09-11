@@ -273,6 +273,13 @@ events' otherwise identical options distinct. Events needs no root marker in
 its payload: the selected-event store drives the graph render, so its State
 already names the event the elements belong to.
 
+Events follows Details' size-based layout policy: CoSE for up to 24 nodes,
+fCoSE above that, a 1000 ms final-position tween, and a bounded iteration
+budget scaled to node count. Selecting an event does not emit a data refresh:
+a clientside ALL callback updates card styles without remounting the list or
+rebuilding search suggestions and trigger-node options alongside the animation.
+Actual event mutations still emit the shared refresh.
+
 ## Simulation requests
 
 `assets/simulation_requests.js` assigns a browser-session ID and increasing

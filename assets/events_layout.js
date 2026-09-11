@@ -100,10 +100,16 @@
                 state.allowOneLayout('events');
             }
 
+            // Match Details: small views use force-only CoSE, with a final
+            // tween rather than its thresholded live-physics animation.
+            var nodeCount = (elements || []).filter(function (element) {
+                return element.data && element.data.source === undefined;
+            }).length;
+            var name = nodeCount <= 24 ? 'cose' : 'fcose';
             var layout = {
-                name: 'fcose',
-                quality: 'proof',
-                animate: Boolean(animate),
+                name: name,
+                animate: animate ? (name === 'cose' ? 'end' : true) : false,
+                animationDuration: 1000,
                 fit: true,
                 // A new event's graph needs a randomized seed. Same-event
                 // topology changes remain incremental to preserve its mental
@@ -113,8 +119,9 @@
                 idealEdgeLength: edgeLength || 100,
                 nodeRepulsion: repulsion || 4500,
                 gravity: gravity !== null && gravity !== undefined ? gravity : 0.25,
-                numIter: 2500
+                numIter: Math.max(500, Math.min(2500, nodeCount * 25))
             };
+            if (name === 'fcose') layout.quality = 'proof';
 
             // With autoRefreshLayout disabled, dash-cytoscape only starts a
             // layout when this prop changes. Two events' requests are

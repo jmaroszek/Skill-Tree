@@ -64,6 +64,32 @@ def test_empty_suggestions_do_not_rebuild_after_selection():
     assert "details-selected-node-store" not in _input_ids(spec)
 
 
+def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
+    from types import SimpleNamespace
+    import event_callbacks
+    from models import Event
+
+    app = _app_with(register_event_callbacks)
+    monkeypatch.setattr(event_callbacks, 'ctx', SimpleNamespace(
+        triggered_id={'type': 'event-card', 'index': 'Music'}))
+    monkeypatch.setattr(event_callbacks.event_manager, 'get_event',
+                        lambda name: Event(name=name))
+    monkeypatch.setattr(event_callbacks.event_manager, 'get_event_nodes',
+                        lambda name: [])
+    for spec in app.callback_map.values():
+        if 'callback' not in spec:
+            continue
+        callback = _raw_callback(spec)
+        if callback.__name__ == 'select_event':
+            result = callback([1], 'tab-events')
+            assert result[0] == 'Music'
+            assert result[1] is dash.no_update
+        elif callback.__name__ == 'handle_event_context_action':
+            result = callback('Music|edit', 'tab-events')
+            assert result[0] == 'Music'
+            assert result[1] is dash.no_update
+
+
 def test_selection_callback_no_longer_serializes_subtasks_table():
     app = _app_with(register_details_callbacks)
     spec = _spec_for_output(app, "details-empty.style")
