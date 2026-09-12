@@ -35,7 +35,7 @@ and summary statistics, but excludes database reads and Plotly rendering.
 
 After task 4, the same fixed 10,000-trial engine benchmark took 1.86/9.59
 seconds, with peak traced allocations of 0.20/0.32 MiB. Streaming removes the
-per-node sample arrays; it does not make the blended inverse-CDF sampling faster.
+per-node sample arrays; it does not make the per-task duration sampling faster.
 
 The interactive service caps work at 100,000 trials and two million node-trial
 samples. On these graphs it used 10,000/4,000 trials, taking 1.86/3.78 seconds

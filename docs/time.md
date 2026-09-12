@@ -2,246 +2,234 @@
 
 This document explains how Skill Tree turns a time estimate into a single number, $t(n)$. The estimate can be one, two, or three numbers; the app always returns one. That single number feeds node priority scoring, Goal ranking, and the project-duration simulation. It is also the "expected time" shown throughout the app.
 
-# Why Time Estimates Live in Ratio Space
+# What the Three Numbers Mean
 
-Most project-management tools collapse a time estimate into a plain arithmetic average. Skill Tree takes a different path. It works with durations in ratio space, using geometric and logarithmic methods rather than ordinary averages. The choice is not cosmetic. It changes which tasks rise to the top of the ranking, so it is worth explaining before the mechanics.
+The node editor asks for three figures: **Lower**, **Expected**, and **Upper**. Everything downstream depends on what those words are taken to mean, so it is worth settling before any formula appears.
 
-## Task Durations Are Multiplicative, Not Additive
+Skill Tree reads them as **percentiles** of the task's duration.
+
+| Field | Reads as | In plain terms |
+|---|---|---|
+| Lower | 10th percentile | You would be surprised to finish faster |
+| Expected | 50th percentile | A coin flip either way |
+| Upper | 90th percentile | You would be surprised to take longer |
+
+## A Bracket, Not a Boundary
+
+The natural way to read "Upper" is as a ceiling. It is the worst case you can picture, so it feels like a limit the task cannot pass.
+
+Skill Tree does not read it that way. Your upper estimate is the point you overrun one time in ten.
+
+That is not pedantry. It is the difference between a model that can be wrong and one that cannot. Treat the upper estimate as a hard ceiling and you have told the math that overrunning it is impossible. No amount of care downstream can recover from that, because the possibility was removed at the input.
+
+The reason to distrust the ceiling reading is that nobody can produce a real one. A worst case is imagined, and imagination runs out well before reality does. This is the most reliable finding in the study of estimation: people asked for a range they are almost certain about produce one that is far too narrow. Reading your upper estimate as a 90th percentile is not an insult to it. It is the correction that finding calls for.
+
+![One bracket of 20, 40 and 80 hours drawn twice: as a bounded Beta-PERT that stops dead at 80 hours, and as a log-normal whose right tail carries a tenth of its mass past 80](../images/time-quantile-reading.png)
+
+Both curves come from the same three numbers. The bounded reading puts every possible outcome between 20 and 80 hours. The percentile reading keeps the same centre and the same 20-to-80 span, then adds what the bounded reading cannot: the tenth of the time you run past your own worst case. That shaded tail is where projects actually go wrong.
+
+## Why the Tenth and the Ninetieth
+
+If the bounds are percentiles rather than limits, a fair question follows. Why the 10th and the 90th, and not something more extreme?
+
+The answer is that the reading determines how much the app can learn from your bounds. Below, each row assumes a different reading of Lower and Upper, then asks what weighting best recovers a task's true expected duration.
+
+| If Lower and Upper meant | Best weights on $l$, $m$, $u$ | What that implies |
+|---|---|---|
+| 10th and 90th | 0.36, 0.30, 0.34 | All three numbers carry real weight |
+| 5th and 95th | 0.20, 0.61, 0.19 | The bounds start to fade |
+| 2nd and 98th | 0.10, 0.79, 0.11 | The answer is nearly your best guess alone |
+| 5th and 85th | 0.33, 0.19, 0.48 | The best guess starts to fade |
+| 5th and 80th | 0.38, −0.06, 0.67 | Negative weight; the rule has broken |
+
+Two patterns run through that table.
+
+Declaring the bounds more extreme makes them count for less. At the 2nd and 98th percentiles the upper estimate carries a weight of 0.11. The app would be discarding a number you took the trouble to supply. A bound so far out says almost nothing about where the task will land.
+
+Pushing the ceiling inward eventually breaks the arithmetic. Reading Upper as an 80th percentile puts a negative weight on your best guess, which would mean a larger Expected produced a smaller forecast. That is nonsense, and it marks the edge of how far this correction can be taken.
+
+The 10th and 90th sit between those failures. Your bounds keep about a third of the weight each, and nothing goes negative.
+
+## Durations Are Multiplicative
+
+One more property of task durations shapes what the app does with the bracket.
 
 Standard estimation imagines that errors add up. Each surprise tacks on a fixed amount: one more bug, one more hour. If that were true, task durations would cluster symmetrically around their expected value in a Normal distribution.
 
-Real delays do not add, they multiply. Waiting on feedback doesn't cost a flat hour; it stretches whatever work remains. A wrong assumption doesn't add a step; it doubles the remaining effort. Pile up enough of these independent multipliers and the durations spread into a **log-normal** shape: bounded by zero on the left, with a long tail running out to the right. The exact distribution is not the point. The asymmetry is. A task can run many times over, but it can never take less than no time at all.
+Real delays do not add, they multiply. Waiting on feedback doesn't cost a flat hour; it stretches whatever work remains. A wrong assumption doesn't add a step; it doubles the remaining effort. Pile up enough of these independent multipliers and the durations spread into a **log-normal** shape: bounded by zero on the left, with a long tail running out to the right.
 
 ![Additive vs multiplicative error: a symmetric Normal that leaks below zero versus a right-skewed log-normal bounded at zero](../images/time-lognormal-tail.png)
 
 An additive view implies a Normal distribution: symmetric, and assigning probability to negative durations that cannot happen. The multiplicative view bounds the task at zero and lets the surprises stretch out into the long right tail.
 
-This shape is why estimation should happen in ratio space. The brain already works there. It is far easier to say with confidence that a task will take "no less than 50 hours and no more than 500" than to pin it to "between 150 and 250." The wide, order-of-magnitude bracket activates a reliable gut-check. The narrow one demands a precision we don't have.
+The exact distribution is not the point. The asymmetry is. A task can run many times over, but it can never take less than no time at all. This is the shape the simulator samples from, and it is why the tail past your upper estimate is longer than the room below your lower one.
 
-## The Typical Task Takes the Median Time
+# Turning the Bracket Into One Number
 
-Widening the bracket so dramatically seems like it should ruin the estimate. It only does if you take the arithmetic mean.
+## Expected, Not Typical
 
-The arithmetic midpoint of a 10-to-100 hour range is $(10 + 100) / 2 = 55$ hours. That number splits the linear distance, but it is warped in ratio terms. It sits $5.5\times$ above the lower bound and only $1.8\times$ below the upper one. It leans hard toward the worst case.
+There are two honest summaries of a duration, and they are not the same number.
 
-The geometric mean, $\sqrt{10 \cdot 100} \approx 31.6$ hours, splits the range evenly in ratio space. It is $3.16\times$ from each endpoint, favoring neither bound. On the log-normal shape those bounds imply, that same value is the **median**: the point with an even chance of being beaten. So it is both the neutral center of the bracket and the honest answer to "how long will this usually take." That is the number the app estimates around.
+The **median** is the typical case. Half the time you beat it. The **mean** is the long-run average, which sits higher because the long right tail pulls it up.
 
-![The arithmetic mean of a 10-to-100 hour range sits at 55 hours, far closer to the upper bound in ratio terms; the geometric mean sits at 31.6 hours, an equal 3.16x from each end](../images/time-arith-vs-geo-mean.png)
+Skill Tree computes the mean. The reason is not that the mean is a better description of one task. For a single task the median is arguably the more useful thing to know. The reason is that these numbers get added together.
 
-## Why the Median Matters for a Ranking Tool
+Scoring sums $t(n)$ across a Goal's entire prerequisite subtree to price the Goal. The simulator sums across a dependency chain. Only means survive that operation:
 
-Skill Tree ranks tasks. It does not schedule them. That changes which number is the right one to compute.
+$$ E\left[\sum_n T_n\right] = \sum_n E[T_n] $$
 
-The arithmetic mean is hostage to that long right tail. A single rare worst case drags it upward, far past anything the task will usually cost. In a scheduler padding for safety, that caution has its place. In a ranking tool, it is a distortion. An inflated estimate buries a valuable task beneath cheaper ones and delays it indefinitely.
+That identity holds whatever the tasks do, however they are related to one another. Medians have no such property. Add up a hundred medians and you get a number that is not the median of the total, and not the mean of it either. It is not any property of the project at all.
 
-It also punishes honesty. A user who reports a fat but truthful worst case should not watch their task sink in priority for the admission. Computing around the median keeps the ranking incentive-compatible: the realistic cost drives the score, and an honest tail does not tank it. The median is also the more actionable planning number, the duration to expect rather than to fear.
+So a median would be defensible for one task and wrong for a hundred. The app reports the mean, and the arithmetic stays honest at every scale.
 
-## The Median Is Recovered, Not Estimated
+There is a fair objection here. An honest upper estimate raises the mean, which raises the task's cost, which pushes it down the ranking. Does that punish candour?
 
-There is a fair objection lurking here. You cannot estimate a median directly. Nobody can. A reader who has followed this far might ask how the app expects a number no one knows how to name.
+It would, if the score used those hours raw. It does not. The cost term in [scoring.md](scoring.md) puts time through a sublinear exponent, so a task that takes twice as long feels about one and a half times as expensive rather than twice. The protection against a heavy tail already exists, in the place designed for it. Building a second copy into the duration estimate would only distort the forecast to solve a problem that is already solved.
 
-It doesn't. What a person can do is bracket a task: a plausible low, a plausible high, and maybe a most-likely value between them. Skill Tree asks only for those. The median is never supplied by the user. It is recovered by the math. For the log-normal distribution a low and high imply, the geometric mean $\sqrt{l \cdot u}$ lands on the median, so the typical-case duration falls out of the only numbers the user ever had to give.
+## Swanson's Rule
 
-This is also why the app elicits in ratio space. The same instinct that makes an order-of-magnitude bracket easy to state is the one the math relies on. The user thinks in ratios, the computation works in ratios, and the two stay coherent. Nobody is asked for a number their intuition cannot produce.
+Given three percentiles, the expected duration is a weighted average of them:
 
-## Why Ratios Feel Natural
+$$ t(n) = 0.3\,l + 0.4\,m + 0.3\,u $$
 
-The claim that people think in ratios is not just a convenient assumption. It is how perception works. The Weber-Fechner law holds that perceived magnitude tracks the logarithm of the actual quantity. The smallest change a person can notice is a fixed proportion of the whole, not a fixed amount. Stevens' power law refines the same point. Even our raw sense of number runs on this scale: asked to place values on a line, young children and people without formal schooling space them logarithmically, so the step from 1 to 10 looks as wide as the step from 10 to 100. The linear ruler is a learned overlay.
+This is **Swanson's rule**, a standard result for recovering a mean from three quantiles. The weights are not arbitrary. They are what the arithmetic requires when $l$, $m$ and $u$ are the 10th, 50th and 90th percentiles of a moderately skewed quantity.
 
-That gives ratio space a rare property. The estimator and the estimated agree. Durations arrive multiplicatively, because delays compound. People perceive multiplicatively, because that is how magnitude registers. Estimating in ratios is the one frame where the human and the world already speak the same language. Any other frame forces a translation at both ends.
+The rule has a quiet virtue beyond accuracy. It never extrapolates. It weighs the three points you gave and stops. A model that instead fits a curve through your numbers has to invent the tail beyond them, and that invented tail can swing wildly on a small change to one input. Skill Tree's estimates come from a rubric, so they arrive in coarse steps. A rule that amplifies a one-notch change is the wrong tool for coarse input.
 
-## When Uncertainty Is Low, Linear Is Fine
+![Error in recovering a task's true expected duration, plotted against the spread of the underlying distribution, for the PERT weighting and the Swanson weighting](../images/time-estimator-accuracy.png)
 
-None of this means the arithmetic mean is wrong. It means it breaks down as uncertainty grows.
+The figure holds the three percentiles fixed and varies how spread out the underlying task really is. The Swanson weighting tracks the truth to within a percent across the range this graph occupies. The PERT weighting drifts low, and the drift grows as the task gets less certain.
 
-When the bracket is narrow, multiplicative and additive views nearly agree, and the arithmetic mean is a perfectly good summary. The geometric machinery only earns its keep when the spread is wide and the tail starts to matter. This is the tension the app resolves by *blending* the two: it leans linear when uncertainty is low and shifts toward geometric as it rises. Blended PERT, described below, is how that shift is made.
+## Why Not Classic PERT
 
-# Three Levels of Precision
+PERT stands for Program Evaluation and Review Technique. The US Navy developed it in the late 1950s to manage massive defense programs. Exact durations were impossible to pin down, but any single task could be bracketed. From three numbers, classic PERT produces one estimate:
 
-The app accepts one, two, or three numbers from the user and produces a sensible $t(n)$ from each. Every number you add sharpens the estimate.
+$$ t_e = \frac{l + 4m + u}{6} $$
+
+The same shape as Swanson's rule, with different weights. The middle value counts four times as much as either endpoint.
+
+The gap between the two is not a disagreement about arithmetic. It is a disagreement about what the three numbers are.
+
+Classic PERT assumes $l$ and $u$ are the absolute limits of a Beta distribution, and that $m$ is its **mode** rather than its median. Under those assumptions the 1:4:1 weighting is close to correct, and Swanson's rule is the one that misreads the input. Neither rule is universally better. Each is right about a different question.
+
+Skill Tree does not use PERT's assumptions, for the reason given in [A Bracket, Not a Boundary](#a-bracket-not-a-boundary). Absolute limits are not something a person can supply. Once the bounds are read as percentiles instead, the 1:4:1 weighting is simply the wrong one. It errs in a consistent direction. Too much weight lands on the middle and too little on the ends, so it reports less time than the task will take.
+
+The table below fixes the three percentiles and varies the true shape of the task. Both rules see exactly the same three numbers.
+
+| True distribution | Swanson | PERT 1:4:1 |
+|---|---|---|
+| Log-normal, $\sigma = 0.2$ | −0.0% | −0.9% |
+| Log-normal, $\sigma = 0.4$ | −0.3% | −3.6% |
+| Log-normal, $\sigma = 0.6$ | −0.9% | −7.8% |
+| Gamma, $k = 1.5$ | −0.1% | −9.4% |
+| Gamma, $k = 4$ | −0.1% | −3.7% |
+| Weibull, $c = 1.2$ | +0.1% | −9.6% |
+| Weibull, $c = 2.5$ | −0.1% | −1.2% |
+
+Every entry is negative or near zero, for both rules. That is worth flagging honestly. Three percentiles cannot see mass beyond the 90th, so any rule of this kind reads a very heavy tail slightly low. Swanson's stays within a percent over the spreads this graph carries. It reaches about −5% once a task's spread doubles beyond that, and further still past it.
+
+## Three Levels of Precision
+
+The app accepts one, two, or three numbers and produces a sensible $t(n)$ from each. Every number you add sharpens the estimate.
 
 | Input | Method | $t(n)$ |
 |---|---|---|
 | Only $m$ | Used directly | $t = m$ |
-| $l$ and $u$ | Geometric mean | $t = \sqrt{l \cdot u}$ |
-| All three | Blended PERT | A principled blend, discussed below |
+| $l$ and $u$ | Middle filled in, then weighted | $t = 0.3l + 0.4\sqrt{l \cdot u} + 0.3u$ |
+| All three | Swanson's rule | $t = 0.3l + 0.4m + 0.3u$ |
 
-With a single number, the app takes it at face value: $t = m$. The two- and three-number cases each deserve a closer look.
+With a single number, the app takes it at face value. One figure carries no spread, so there is nothing to weight.
 
-## Two Numbers
+With two, the app supplies the missing middle itself. For a log-normal shape, a 10th and a 90th percentile imply a median of $\sqrt{l \cdot u}$, the geometric mean. That value goes into the same rule as if you had typed it.
 
-When the user supplies a low and a high, $(l, u)$, the app takes their geometric mean:
-
-$$ t(n) = \sqrt{l \cdot u} $$
-
-This is the logarithmic midpoint from [The Typical Task Takes the Median Time](#the-typical-task-takes-the-median-time). It sits the same ratio away from each bound rather than the same distance, splitting the bracket where the typical case actually falls.
-
-## Three Numbers
-
-The three-point estimate $(l, m, u)$ — low, expected, and high — is the smallest input that captures both expectation and uncertainty. Supplying all three is optional but encouraged. It unlocks the app's most capable estimator, Blended PERT.
-
-# PERT
-
-PERT stands for Program Evaluation and Review Technique. The US Navy developed it in the late 1950s to manage massive defense programs. Exact durations were impossible to pin down, but any single task could be bracketed by a best, typical, and worst case. From those three numbers, classic PERT produces one estimate:
-
-$$ t_e = \frac{l + 4m + u}{6} $$
-
-This is a weighted arithmetic average. The expected value $m$ counts four times as much as either endpoint. The classic technique models the task's duration as a **Beta distribution** on the interval $[l, u]$.
-
-The Beta may look like a departure from the log-normal of the intro. It is not. A Beta is bounded, so it respects the hard low and high the user actually named. The log-normal's open-ended tail would not. Its peak also sits exactly at $m$, honoring the most-likely value. And the right-skew the intro argued for is only deferred, not dropped: [The Statistical Bridge](#the-statistical-bridge-beta-and-log-normal) recovers it by running this same construction in log space.
-
-In Skill Tree, this formula is only the baseline. Human time-estimation is non-linear and dogged by multiplicative uncertainty. To counter that bias, Skill Tree recomputes the same PERT weighting in log space.
-
-## Geometric PERT
-
-The logarithmic version keeps the same $1{:}4{:}1$ weighting. The difference is that it is symmetric in multiplicative space. It carries the same advantage over arithmetic PERT that the geometric mean carries over the arithmetic mean.
-
-$$
-\bar{t}_{\text{log}} = \exp\left(\frac{\log l + 4 \log m + \log u}{6}\right)
-$$
-
-## Blended PERT
-
-**Blended PERT is a weighted average of the two:** the arithmetic PERT mean and its logarithmic counterpart. The blend tilts between them according to the **uncertainty ratio** $r = u/l$. This ratio is a compact measure of how unsure the user is. A small $r$ means tight, confident estimates. A large $r$ means deep uncertainty.
-
-$$
-w(r) =
-\begin{cases}
-0 & \text{if } r \le 2 \\
-\dfrac{\log r - \log 2}{\log 10 - \log 2} & \text{if } 2 < r < 10 \\
-1 & \text{if } r \ge 10
-\end{cases}
-$$
-
-The final estimate is the weighted average:
-
-$$ t(n) = (1 - w(r)) \cdot \bar{t}_{\text{arith}} + w(r) \cdot \bar{t}_{\text{log}} $$
-
-## The Statistical Bridge: Beta and Log-Normal
-
-Project-management statistics offers two natural models for a task's duration, and they pull in opposite directions.
-
-The classical PERT baseline uses a **Beta distribution** on the bounded interval $[l, u]$. It is convenient to work with, and it enforces a hard constraint: the task cannot take less than $l$ or more than $u$.
-
-The real-world view is the **log-normal distribution** on $[0, \infty)$. Delays compound multiplicatively, which skews durations to the right and leaves an open-ended tail.
-
-Blended PERT bridges the two. Computing $\bar{t}_{\text{log}}$ applies the $1{:}4{:}1$ weighting in log space, which is the same as assuming the *logarithm* of the duration follows a Beta distribution. Exponentiating that gives a **Log-Beta distribution**: bounded like the Beta, right-skewed like the log-normal. The weight $w(r)$ chooses between the regimes, holding to the plain Beta model when uncertainty is low and sliding toward Log-Beta as it grows.
-
-## Why the Weight Shifts With Uncertainty
-
-The transition between the arithmetic and logarithmic means tracks a real shift in how uncertainty behaves as the bracket widens.
-
-When estimates are tight — say 10 to 20 hours, or 40 to 60 — the uncertainty is roughly additive and symmetric. The scope is clear, and the variation is minor, linear noise. Here the arithmetic mean is the right tool. It suits symmetric, near-normal spreads, and switching to the logarithmic mean would only drag $t(n)$ below the most likely value $m$ for no reason. So the app trusts the bounds and uses $\bar{t}_{\text{arith}}$ directly ($w = 0$).
-
-When estimates span an order of magnitude — say 50 to 600 hours — the uncertainty turns multiplicative. The large upper bound is speculative: blockers, unknowns, the occasional disaster. Now the arithmetic mean breaks down, because a single big $u$ dominates it. Estimate $(50, 100, 600)$ and the arithmetic mean climbs to 175 hours, well above the most likely 100. That inflated number would sink the task's priority and delay it, purely as punishment for naming a cautious worst case. The logarithmic mean compresses that tail. For the same $(50, 100, 600)$ it returns about 120 hours: anchored near $m$, nudged up slightly for the uncertainty, but not hijacked by it. Shifting fully to $\bar{t}_{\text{log}}$ ($w = 1$) rewards an honest upper bound instead of penalizing it.
-
-Between these regimes, $w(r)$ slides smoothly from one to the other as confidence degrades. The interpolation runs in log space because $r$ is itself multiplicative. Each doubling of the ratio — $r = 2$ to $4$, then $4$ to $8$ — is an equal step in lost confidence, so each should move the weight equally.
-
-## Example - Comparing PERTs
-
-The table below holds the most likely estimate fixed at $m = 480$ hours, roughly three months of full-time work. It sweeps the uncertainty ratio $r$ through successive doublings: $2, 4, 8, 16$.
-
-| $l$ | $m$ | $u$ | $r = u/l$ | $\bar{t}_{\text{arith}}$ | $\bar{t}_{\text{log}}$ | $w(r)$ | $t(n)$ |
-|---|---|---|---|---|---|---|---|
-| 360 | 480 | 720 | 2.00 | 500.00 | 489.52 | 0.00 | 500.00 |
-| 240 | 480 | 960 | 4.00 | 520.00 | 480.00 | 0.43 | 502.77 |
-| 180 | 480 | 1440 | 8.00 | 590.00 | 489.52 | 0.86 | 503.45 |
-| 150 | 480 | 2400 | 16.00 | 745.00 | 517.07 | 1.00 | 517.07 |
-
-The first row is the confident estimate. Its ratio is $r \le 2$, so the blend returns $\bar{t}_{\text{arith}}$ unchanged. As the bracket widens, the arithmetic mean climbs fast — too fast. By the last row, an upper bound of 2400 hours pushes the arithmetic average to 745 hours, even though the best guess is still 480. The logarithmic mean holds the tail in check, settling at a stable 517 hours instead. That is the blend working as intended: it lifts the estimate above $m$ to acknowledge the uncertainty, without letting one speculative worst case send it skyward.
-
-The figure below tells the same story as a smooth curve, and its real subject is one line. Holding $m = 480$ fixed, it plots the arithmetic, geometric, and blended estimators against the uncertainty ratio. Watch how quickly the arithmetic mean stops being realistic as the ratio grows.
-
-While the bracket is tight, the three agree. As the ratio grows, the arithmetic mean (red) runs away upward, chasing the speculative worst case. The geometric mean (teal) stays level: the figure places $l$ and $u$ symmetrically in ratio space around $m$, pinning it at exactly 480. The blended estimate (gold) is the compromise, tracking the arithmetic mean while uncertainty is low, then bending back toward the geometric median as $w(r)$ ramps from 0 to 1 in the panel below.
-
-![Arithmetic, geometric, and blended PERT estimates plotted against the uncertainty ratio, above the weight curve that drives the blend](../images/time-blend-weight.png)
+The geometric mean is worth a note, because it is tempting to stop there and report it. It splits the bracket evenly in ratio terms, sitting the same multiple away from each bound. That makes it a genuinely good answer to "how long will this usually take." It is the wrong answer to "how much time should I budget." The geometric mean is the median. At this graph's typical bracket it under-reads the expected duration by around a tenth.
 
 ## The Reflection Feature
 
-After you finish a project, the reflection feature lets you record how long it actually took. The [features guide](features.md) covers how to enter it. What matters here is that the recorded time runs through the same pipeline as the estimate, so the before-and-after numbers stay directly comparable.
+After you finish a project, the reflection feature lets you record how long it actually took. The [features guide](features.md) covers how to enter it. What matters here is that the recorded time runs through the same rule as the estimate, so the before-and-after numbers stay directly comparable.
+
+Reflections also have a second job, described in [Shared Estimating Error](#shared-estimating-error). They are the only way to measure the one number in this document that theory cannot pin down.
 
 # Habit Estimates
 
 Some work is not a single sitting. It is a small effort repeated over weeks. For these, a lump-sum hours estimate is awkward to give. Habit mode lets you describe the cadence instead — a duration, a per-session amount, and the days you will do it — and works out the total for you. The [features guide](features.md) shows the full setup.
 
-The point for this document is that nothing downstream changes. Habit mode is a more natural way to *arrive at* the number, not a different way of treating it. The per-session amount still takes the same low, expected, and high bracket; the cadence only multiplies it into a total; and that total runs through Blended PERT, the score, and the simulation exactly like a hand-entered estimate.
+The point for this document is that nothing downstream changes. Habit mode is a more natural way to *arrive at* the number, not a different way of treating it. The per-session amount still takes the same lower, expected, and upper bracket. The cadence only multiplies it into a total. That total then runs through the same rule, the same score, and the same simulation as a hand-entered estimate.
 
 # Monte Carlo Simulation
 
-The blended estimate gives one number per node. That is enough to rank tasks, but not enough to answer a question like "if I commit to this Goal today, how long until I finish?" The Monte Carlo simulator in [`simulation.py`](../simulation.py) answers it. It samples each node from the same Blended PERT distribution the point estimate uses, then draws thousands of samples across the full prerequisite chain. The result is an empirical distribution for the whole project, shown on the Details Tab. The panel plots a histogram marked with the $P_{10}, P_{50}, P_{90}$ percentiles. Now the user can say "I'm 90% confident this will take less than 200 hours," instead of trusting a single fragile point estimate.
+One number per node is enough to rank tasks. It is not enough to answer a question like "if I commit to this Goal today, how long until I finish?" The Monte Carlo simulator in [`simulation.py`](../simulation.py) answers it. It walks the full prerequisite chain, draws thousands of samples, and plots the result as a histogram marked with the $P_{10}$, $P_{50}$ and $P_{90}$ percentiles on the Details tab. Now you can say "I am 90% confident this lands under 200 hours," instead of trusting one fragile number.
 
-## Blended PERT Sampling
+## Sampling One Task
 
-That distribution is built from two pieces, combined by the uncertainty weight $w(r)$ from [Blended PERT](#blended-pert).
+Each task is sampled from a log-normal, for the reason given in [Durations Are Multiplicative](#durations-are-multiplicative). Two properties fix it in place:
 
-The first piece is the linear Beta-PERT on $[l, u]$. Draw $X \sim \text{Beta}(\alpha, \beta)$ on $[0, 1]$ with shape parameters
+- Its 10th-to-90th percentile span is exactly the $u/l$ ratio you typed.
+- Its **mean is exactly $t(n)$**, the number the score uses.
 
-$$ \alpha = 1 + \lambda \cdot \frac{m - l}{u - l}, \qquad \beta = 1 + \lambda \cdot \frac{u - m}{u - l} $$
+That second property is what keeps the app internally consistent. The histogram on the Details tab is centred on the same figure that priced the task in the ranking. The two views cannot drift apart, and no simulation is needed to compute the total: summing $t(n)$ over a chain gives its mean exactly.
 
-using $\lambda = 4$, then rescale to the user's range with $T_{\text{linear}} = l + (u - l) \cdot X$. This is a unimodal distribution on $[l, u]$ with its mode exactly at $m$.
+There is a compromise buried in this. Three numbers over-determine a two-parameter shape. A log-normal can honour a lower bound, an upper bound, and a median only when the median happens to be the geometric mean of the bounds, and yours usually is not. Something has to give. The app keeps the width and the mean, because those are what the forecast and the score are built on, and lets the median absorb the mismatch. In practice the sampled bounds land within a few percent of the ones you typed.
 
-The second piece is the Log-Beta. It runs the same construction in log space: $\log T$ follows a Beta-PERT on $[\log l, \log u]$ with mode at $\log m$. Exponentiating bends the bracket into the right-skewed, multiplicative shape from [The Statistical Bridge](#the-statistical-bridge-beta-and-log-normal).
+## Shared Estimating Error
 
-A single shared quantile draw feeds both pieces, and $w(r)$ blends them:
+Sampling every task independently produces a strange result. Errors cancel. The more tasks a project holds, the more they cancel, and a long project's uncertainty shrinks toward nothing.
 
-$$ T = (1 - w)\, T_{\text{linear}} + w\, T_{\text{log}} $$
+The effect is not subtle. Sample 116 independent tasks, each carrying a bracket three or four times as wide as it is deep, and the total comes out quoted to within a few percent. The app would be claiming to forecast a decade of work to a precision it has no business claiming.
 
-Sharing the draw is what makes this a blend rather than an average of two independent samples. Two independent draws would partly cancel and shrink the spread. One shared draw interpolates the two distributions cleanly. The result slides from the plain Beta when the bracket is tight ($w = 0$) to the Log-Beta when it is wide ($w = 1$), tracking the point estimate at every step.
+The flaw is the independence, not the tasks. Estimating errors are not independent. If you are running long on one task this year, you are probably running long on the next one too. Optimism is a property of the estimator, not of the task.
 
-![Densities of the linear Beta-PERT and the Log-Beta for the same low, expected, and high estimate; the Log-Beta concentrates near the most-likely value while the linear Beta's heavier tail pulls its mean higher](../images/time-beta-vs-logbeta.png)
+So the simulator splits each task's uncertainty in two. One part is specific to the task. The other is shared with every other task in the chain. A single setting, **Shared estimate error**, sets the fraction that is common:
 
-The two pieces share the bracket $[l, u]$ but place their mass differently. The linear Beta-PERT spreads toward the high end, so its mean is dragged up to $\bar{t}_{\text{arith}} = 175$. The Log-Beta concentrates near the most-likely value, with its center at the geometric estimate $t(n) = 120$. For an uncertain task the blend leans toward the Log-Beta, which is why the simulated median stays near the honest typical case rather than the inflated arithmetic mean.
+$$ \log T_n = \log(\text{median}_n) + \sigma_n\left(\sqrt{\rho}\,Z_{\text{shared}} + \sqrt{1-\rho}\,Z_n\right) $$
 
-Three properties anchor the result.
+$Z_{\text{shared}}$ is drawn once per trial and reused by every task. $Z_n$ is drawn fresh for each one. The combination is still a standard normal at any $\rho$, which is what makes this safe: no individual task's distribution changes at all. Only the way they add up does.
 
-- The simulated median tracks the blended point estimate $t(n)$. The histogram is centered on the same number the ranking uses.
-- At $w = 0$ the distribution is exactly the linear Beta-PERT. Its mean is exactly $\bar{t}_{\text{arith}} = \frac{l + 4m + u}{6}$, and its standard deviation is exactly $\sigma = \sqrt{(\mu - l)(u - \mu)/7}$ with $\mu$ that mean. 
-- The samples stay within $[l, u]$ at every weight.
+![Width of a project's 80 percent forecast plotted against the number of tasks remaining, for independent tasks and for tasks sharing 40 percent of their estimating error](../images/time-chain-correlation.png)
 
-If the user does not supply all three time estimates, the simulation falls back to one of two methods:
+With independent tasks the forecast collapses toward a point as the project grows. With a shared component it settles instead, holding a realistic band however long the chain runs. Both curves start in the same place, because a one-task project has nothing to share error with.
 
-| Input | Treatment |
+| Shared estimate error | 80% band on a 116-task project |
 |---|---|
-| Only $m$ | Sample from $(0.5m,\, m,\, 2m)$ — an approximated spread that preserves $m$ as the mode |
-| Only $l, u$ | Set $m = \sqrt{l \cdot u}$ and sample as usual |
+| 0 | 1.16× |
+| 0.3 | 2.13× |
+| 0.5 | 2.63× |
+| 1 | 3.87× |
 
+Both ends of that range are wrong. At 0 a decade of work is forecast to within a few percent. At 1 no task ever surprises you on its own, so a whole project is no more certain than a single task. The app ships at 0.4, and somewhere between 0.3 and 0.5 is the defensible band.
+
+This is the one number in the duration model that theory can bound but not fix. It is measurable, and the reflection feature is how. With enough recorded outcomes, split the spread of $\log(\text{actual} / \text{estimate})$ in two: the part common to all your estimates, and the part specific to each. That ratio is exactly this setting. Until then, 0.4 is a considered default rather than a derived one.
+
+Raising it widens the forecast without moving its centre. The expected total is unchanged at every value, so the score never shifts.
 
 ## Chain Collection
 
-Before sampling begins, the simulator BFS-walks backward from the target node along Hard edges, collecting every prerequisite. At the *root* node only (not deeper in the chain), Soft and Helps edges may also be followed, depending on the user's "include soft / include helps" toggles on the Details Tab. This asymmetry is deliberate: the user's question is "how long until I finish *this* node, including its broader context," not "how long until I finish this node plus the soft prereqs of every node in its subtree" — which would explode the chain.
+Before sampling begins, the simulator BFS-walks backward from the target node along Hard edges, collecting every prerequisite. At the *root* node only (not deeper in the chain), Soft and Helps edges may also be followed, depending on the "include soft / include helps" toggles on the Details tab. This asymmetry is deliberate: the question is "how long until I finish this node, including its broader context," not "how long until I finish this node plus the soft prereqs of every node in its subtree" — which would explode the chain.
 
-Two exclusions follow naturally to prevent inflating the simulation results. First, completed tasks are dropped because their time has already been paid; including done nodes would distort the remaining time estimate. Second, time-container nodes contribute zero duration. Because these containers act as structural conduits, their child tasks are already added to the chain and sampled independently.
+Two exclusions follow naturally to prevent inflating the results. Completed tasks are dropped, because their time has already been paid. Time-container nodes contribute zero duration, because they act as structural conduits and their children are already in the chain and sampled on their own.
 
 ## Serial Summation
 
-For $N = 10{,}000$ trials, draw one duration sample per remaining node and sum across the chain:
+For $N$ trials, draw one duration sample per remaining node and sum across the chain:
 
 $$ T_{\text{total}}^{(i)} = \sum_{n \in R} T_n^{(i)}, \qquad i = 1, \ldots, N $$
 
-where $R$ is the set of incomplete, non-container nodes collected above. The model assumes one person working one task at a time, so durations add sequentially regardless of dependency structure. 
+where $R$ is the set of incomplete, non-container nodes collected above. The model assumes one person working one task at a time, so durations add sequentially regardless of dependency structure.
 
 ## Interactive Calculation Limits
 
-The Details panel uses the configured trial count up to 100,000 trials and a
-two-million node-trial work budget (counting incomplete, non-inherited nodes in
-the selected dependency view). Large views therefore use fewer trials; the
-caption reports both the actual and requested counts when capped. This reduces
-Monte Carlo precision, without changing the underlying duration model.
+The Details panel uses the configured trial count up to 100,000 trials and a two-million node-trial work budget (counting incomplete, non-inherited nodes in the selected dependency view). Large views therefore use fewer trials; the caption reports both the actual and requested counts when capped. This reduces Monte Carlo precision, without changing the underlying duration model.
 
-Sampling accumulates into one trial array in chunks instead of retaining an
-array for every task. Unchanged inputs reuse a small summary cache and a stable
-private random seed. A new selection, filter change, or departure from Details
-cancels superseded work; older responses cannot replace the current chart.
+Sampling accumulates into one trial array in chunks instead of retaining an array for every task. Unchanged inputs reuse a small summary cache and a stable private random seed. A new selection, filter change, or departure from Details cancels superseded work; older responses cannot replace the current chart.
 
 ## What's Not Modeled
 
-A few omissions are worth flagging, since they bound how the simulator's output should be read:
+Two omissions are worth flagging, since they bound how the output should be read:
 
-- **Calendar time.** The simulator outputs total *work* hours. Translating that into "weeks until done" depends on how many hours per week the user actually puts in, which the user controls in the Time subtab of Settings.
-- **Parallel work.** The simulator assumes you are an individual who does one thing at a time. You are not, for example, a group of people who can work on multiple projects at once, like a business with multiple employees.
-- **Correlation between tasks.** Each node samples independently. In reality, a user who's underestimating one task is often underestimating its neighbors too — independent sampling smooths over that correlation, so the headline percentiles end up slightly tighter than perfectly-correlated worst cases would imply.
+- **Calendar time.** The simulator outputs total *work* hours. Translating that into "weeks until done" depends on how many hours per week you actually put in, which you control in the Time subtab of Settings.
+- **Parallel work.** The simulator assumes one person doing one thing at a time. It is not modeling a team that can run several projects at once.
 
-Each of these would be tractable to add, but each would require more input from the user without dramatically changing the answer for the typical use case.
+Correlation between tasks used to belong on this list. It no longer does, and [Shared Estimating Error](#shared-estimating-error) is why.
 
 # Navigation
 ## Tutorial
@@ -271,5 +259,5 @@ flowchart LR
 
 | Resource | What's there |
 |---|---|
-| [models.py](../models.py) | The module that implements `blend_time_estimate` — every formula in the first half of this document maps to identifiable lines there |
-| [simulation.py](../simulation.py) | The module that implements the Monte Carlo sampler — `blended_pert_sample` (the linear/Log-Beta blend), the chain-collection BFS, and the container exclusion logic |
+| [models.py](../models.py) | The module that implements `expected_time_estimate` — the weighting rule and its one- and two-number fallbacks |
+| [simulation.py](../simulation.py) | The module that implements the Monte Carlo sampler — the log-normal marginal, the shared-error draw, the chain-collection BFS, and the container exclusion logic |

@@ -49,7 +49,7 @@ Don't duplicate these in this file — they're the source of truth for their res
 
 - [`docs/app_architecture.md`](docs/app_architecture.md) — module responsibilities, tab-callback pattern, Cytoscape pipeline, JS-Dash bridge, persistence and caching.
 - [`docs/scoring.md`](docs/scoring.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
-- [`docs/time.md`](docs/time.md) — the PERT blend that produces `t(n)` and the Monte Carlo simulator behind the Time Simulation panel.
+- [`docs/time.md`](docs/time.md) — what the lower/expected/upper bracket means, the weighting rule that produces `t(n)`, and the Monte Carlo simulator behind the Time Simulation panel.
 - [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.
 
@@ -79,4 +79,4 @@ Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.
 - Prefer extracting pure logic to [`callback_helpers.py`](callback_helpers.py) (stateless) or [`graph_manager.py`](graph_manager.py) (DB-backed) rather than growing the already-large `*_callbacks.py` files further.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
-- For anything time/duration-related, let the `Node.time` property do the PERT blend; don't compute a single "time" from `time_o/m/p` yourself.
+- For anything time/duration-related, let the `Node.time` property weight the bracket; don't compute a single "time" from `time_o/m/p` yourself.

@@ -143,8 +143,8 @@ Time estimation is the most valuable thing in project management to get right â€
 | Inputs | Values | Time Estimation Method |
 |---|---|---|
 | One | Expected duration | **Identity.** The app uses your estimate as-is. Skip this option when you can. The methods below are almost always better. |
-| Two | Lower and upper bound | **Geometric Mean.** A better default than the arithmetic ("normal") average. The arithmetic mean gets dragged upward by the worst-case bound. The geometric mean lands on the typical, median-case duration instead. See [time.md](time.md) for why. |
-| Three | Expected, lower, and upper bound | **Custom Algorithm**. A weighted blend of your three estimates based on PERT -- a technique developed by the US Navy for estimating the duration of long projects. |
+| Two | Lower and upper bound | **Implied Middle.** The app works out the missing middle from your two bounds, then weights all three as below. |
+| Three | Expected, lower, and upper bound | **Swanson's Rule.** A weighted average of your three estimates. It reads them as percentiles rather than hard limits, so your worst case is a figure you pass one time in ten rather than a ceiling. See [time.md](time.md) for why that matters. |
 
 ### Habits
 

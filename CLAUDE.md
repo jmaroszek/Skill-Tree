@@ -25,7 +25,7 @@ Don't duplicate these in this file — they're the source of truth for their res
 
 - [`docs/app_architecture.md`](docs/app_architecture.md) — the layering, module map, `dcc.Store` wiring, and the cross-file flows (mutation→render, right-click→editor, status cascade, scoring) plus versioning/caching.
 - [`docs/scoring.md`](docs/scoring.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
-- [`docs/time.md`](docs/time.md) — the PERT blend that produces `t(n)` and the Monte Carlo simulator behind the Time Simulation panel.
+- [`docs/time.md`](docs/time.md) — what the lower/expected/upper bracket means, the weighting rule that produces `t(n)`, and the Monte Carlo simulator behind the Time Simulation panel.
 - [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.
 
@@ -57,5 +57,5 @@ Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to
 - Build canvas elements with `build_node_element` / `build_edge_element` in [`callback_helpers.py`](callback_helpers.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
 - Behavior that belongs on every canvas loops over `CANVASES` in [`canvases.py`](canvases.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
-- For anything time/duration-related, let the `Node.time` property do the PERT blend; don't compute a single "time" from `time_o/m/p` yourself.
+- For anything time/duration-related, let the `Node.time` property weight the bracket; don't compute a single "time" from `time_o/m/p` yourself.
 - When you add a scoring-relevant field to `Node`, also add it to `graph_manager._SCORING_RELEVANT_FIELDS`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).
