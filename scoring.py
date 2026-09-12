@@ -9,8 +9,10 @@ Each node's priority is: P = eligibility * (TotalValue / PerceivedCost)
 See README.md for full mathematical specification and hyperparameter profiles.
 """
 
+import heapq
 import math
 import time
+from collections import Counter
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from typing import List, Dict, Tuple, Optional, Union
 
@@ -329,6 +331,91 @@ def _compute_priority_score(
     return score, tv, exact
 
 
+def variety_exponents(hyperparams: dict) -> Tuple[float, float]:
+    """The (a, b) repetition exponents from the configured premiums.
+
+    Settings store percentages of extra merit a node must carry to earn a
+    second recommendation in a context (`suggestion_context_premium`) or in
+    a subcontext (`suggestion_subcontext_premium`). The subcontext figure is
+    the *total*, so it is clamped to at least the context figure and `b`
+    carries only the difference between them. Both zero disables variety.
+    """
+    def premium(key, default):
+        try:
+            value = float(hyperparams.get(key, default))
+            return max(0.0, min(100.0, value)) if math.isfinite(value) else default
+        except (TypeError, ValueError):
+            return default
+
+    context = premium('suggestion_context_premium', 5.0)
+    subcontext = max(context, premium('suggestion_subcontext_premium', 15.0))
+    a = math.log2(1 + context / 100)
+    b = math.log2((1 + subcontext / 100) / (1 + context / 100))
+    return a, b
+
+
+def variety_divisors(pool: List[Tuple[str, Optional[str], Optional[str], float]],
+                     hyperparams: dict) -> Dict[str, dict]:
+    """Hierarchical-variety divisors for an entire pool of scorable nodes.
+
+    Variety is part of a node's score rather than a re-ordering applied to a
+    finished list: the Next tab prints the number it sorts on, so anything
+    that moves a row has to move its number too. Computing the divisors over
+    the whole pool — every scorable non-Now node in the graph — is what makes
+    the number a property of the node instead of a property of one list. A
+    filter then narrows which rows appear without altering any of them.
+
+    The walk itself is the original greedy: repeatedly take the node with the
+    best merit-after-divisor, then charge its context and subcontext one more
+    repetition. Merit ties break toward the higher raw merit, then the
+    alphabetically earlier name. Because a divisor only ever grows, a heap
+    entry can be revalidated lazily — a stale key is always too optimistic,
+    so it is re-pushed rather than trusted.
+
+    `pool` is (name, context, subcontext, exact merit). Returns name -> dict
+    with the divisor and the 1-based repetition ranks behind it, which the
+    Explain modal reports, in the order the walk selected them. Empty when
+    both premiums are zero, which restores plain merit ordering.
+    """
+    a, b = variety_exponents(hyperparams)
+    if a <= 0.0 and b <= 0.0:
+        return {}
+
+    contexts: Counter = Counter()
+    pairs: Counter = Counter()
+
+    def divisor_for(context, subcontext) -> float:
+        if context is None:
+            return 1.0
+        return ((1 + contexts[context]) ** a
+                * (1 + pairs[context, subcontext]) ** b)
+
+    # Every node starts on an empty board, so its first key uses divisor 1.0.
+    heap = [(-merit, -merit, name, context, subcontext, 1.0)
+            for name, context, subcontext, merit in pool]
+    heapq.heapify(heap)
+
+    out: Dict[str, dict] = {}
+    while heap:
+        _, neg_merit, name, context, subcontext, charged = heapq.heappop(heap)
+        current = divisor_for(context, subcontext)
+        if current != charged:
+            heapq.heappush(heap, (neg_merit / current, neg_merit, name,
+                                  context, subcontext, current))
+            continue
+        out[name] = {
+            'divisor': current,
+            'context': context,
+            'subcontext': subcontext,
+            'context_rank': contexts[context] + 1,
+            'subcontext_rank': pairs[context, subcontext] + 1,
+        }
+        if context is not None:
+            contexts[context] += 1
+            pairs[context, subcontext] += 1
+    return out
+
+
 def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
     """BFS over Hard_in to find all prerequisite descendants of a goal."""
     visited = set()
@@ -414,44 +501,33 @@ def score_nodes(
             future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
         )
 
-    scored_nodes = []
-    # name -> unrounded priority, used only for ordering (see the sort below).
-    exact_scores: Dict[str, float] = {}
-    for node in nodes_to_score:
-        if node.type in ('Goal', 'Milestone'):
-            node.priority_score = -1.0
-            node.total_value = _tv_for(node.name)
-            scored_nodes.append(node)
-            continue
+    def _is_scorable(node: Node) -> bool:
+        """Whether the ROI formula applies to this node at all.
 
-        # Nodes with no hours of their own are not recommended. Their cost
-        # carries no time term at all, so they undercut the pool on price
-        # while still collecting the full cascade in the numerator — on a real
-        # graph such a node lands in the top five the moment it unblocks,
-        # despite having nothing left to do. `time_mode='inherited'` draws
-        # time from the hard prerequisites that eligibility already requires
-        # to be Done, so by the time it ranks, its inherited hours are spent.
-        # See Node.has_no_own_work. Their prerequisites competed on their own
-        # hours; cascade still flows through these nodes untouched.
-        if node.has_no_own_work:
-            node.priority_score = -1.0
-            node.total_value = _tv_for(node.name)
-            scored_nodes.append(node)
-            continue
+        Everything else carries a flat -1.0. The one non-obvious exclusion is
+        `has_no_own_work`: such a node's cost carries no time term, so it
+        undercuts the pool on price while still collecting the full cascade in
+        the numerator — on a real graph it lands in the top five the moment it
+        unblocks, despite having nothing left to do. `time_mode='inherited'`
+        draws time from the hard prerequisites that eligibility already
+        requires to be Done, so by the time it ranks, its inherited hours are
+        spent. See Node.has_no_own_work. Their prerequisites competed on their
+        own hours; cascade still flows through these nodes untouched.
+        """
+        return (node.type not in ('Goal', 'Milestone')
+                and not node.has_no_own_work
+                and node.status not in (STATUS_DONE, STATUS_BLOCKED)
+                and is_eligible(node.name, Hard_in, all_nodes_dict))
 
-        if node.status in (STATUS_DONE, STATUS_BLOCKED):
-            node.priority_score = -1.0
-            node.total_value = _tv_for(node.name)
-            scored_nodes.append(node)
-            continue
-
-        if not is_eligible(node.name, Hard_in, all_nodes_dict):
-            node.priority_score = -1.0
-            node.total_value = _tv_for(node.name)
-            scored_nodes.append(node)
-            continue
-
-        node.priority_score, node.total_value, exact_scores[node.name] = _compute_priority_score(
+    # Merit is computed for the whole graph, not just the caller's slice,
+    # because the variety divisor below ranks a node against every peer it
+    # could be recommended alongside. A caller's own objects win over the
+    # graph's copy of the same name: they may carry edits not yet written
+    # back, and scoring them as they are is what the old per-node pass did.
+    merit_inputs = {n.name: n for n in all_nodes}
+    merit_inputs.update({n.name: n for n in nodes_to_score})
+    merits = {
+        name: _compute_priority_score(
             node,
             all_nodes_dict=all_nodes_dict,
             H_out=H_out, S_out=S_out, Syn=Syn,
@@ -459,7 +535,37 @@ def score_nodes(
             node_to_boost=node_to_boost,
             memo=memo,
         )
-        node.priority_score_exact = exact_scores[node.name]
+        for name, node in merit_inputs.items() if _is_scorable(node)
+    }
+
+    # Now nodes are pulled out of the suggestion list entirely (see
+    # next_callbacks.get_suggestions), so they neither earn a divisor nor
+    # spend a repetition against their context.
+    variety = variety_divisors(
+        [(name, merit_inputs[name].context, merit_inputs[name].subcontext,
+          merits[name][2])
+         for name in merits if not getattr(merit_inputs[name], 'now', 0)],
+        hyperparams,
+    )
+
+    scored_nodes = []
+    # name -> unrounded priority, used only for ordering (see the sort below).
+    exact_scores: Dict[str, float] = {}
+    for node in nodes_to_score:
+        if node.name not in merits:
+            node.priority_score = -1.0
+            node.total_value = _tv_for(node.name)
+            scored_nodes.append(node)
+            continue
+
+        score, node.total_value, exact = merits[node.name]
+        adjustment = variety.get(node.name)
+        node.variety = adjustment
+        if adjustment is not None and adjustment['divisor'] != 1.0:
+            score = round(score / adjustment['divisor'], 2)
+            exact /= adjustment['divisor']
+        node.priority_score = score
+        node.priority_score_exact = exact_scores[node.name] = exact
         scored_nodes.append(node)
 
     t3 = time.perf_counter() if time_phases else 0.0
@@ -473,10 +579,16 @@ def score_nodes(
     # majority of nodes share a score with a neighbour, and the tie then breaks
     # on list order, which carries no meaning. Ordering on the exact value
     # keeps the displayed number stable while making the sequence meaningful.
+    #
+    # Remaining ties break toward the higher pre-variety merit and then the
+    # earlier name, matching the order the variety walk itself resolved them
+    # in. Without that, two nodes whose adjusted scores coincide could rank
+    # here in a different order than the divisors were assigned in.
     ranked = sorted(
         scored_nodes,
-        key=lambda n: exact_scores.get(n.name, getattr(n, 'priority_score', -1.0)),
-        reverse=True,
+        key=lambda n: (-exact_scores.get(n.name, getattr(n, 'priority_score', -1.0)),
+                       -merits.get(n.name, (0.0, 0.0, -1.0))[2],
+                       n.name),
     )
 
     if not time_phases:
@@ -625,6 +737,7 @@ def explain_score(
     edges: List[Dict],
     hyperparams: dict,
     priority_goals: Optional[List[str]] = None,
+    variety: Optional[dict] = None,
 ) -> Optional[Dict]:
     """Decomposes a node's priority score into its constituent parts.
 
@@ -637,6 +750,12 @@ def explain_score(
     Handles ineligible, Done, Blocked, and Goal nodes gracefully: the
     breakdown is still computed but `eligible=False` and `block_reason`
     is set.
+
+    `variety` is the node's entry from `variety_divisors` — the repetition
+    adjustment already folded into its ranked score. It is passed in rather
+    than recomputed because it depends on the whole pool: the caller has the
+    ranked list to hand, and reproducing it here would mean scoring the graph
+    a second time and risking a number that disagrees with the ranking.
 
     Returns None if the node is not in `all_nodes`.
     """
@@ -754,12 +873,16 @@ def explain_score(
     ctx_weight = context_weights.get(node.context, 1.0) if node.context else 1.0
     combined_ctx_mult = ctx_weight
 
+    variety_divisor = (variety or {}).get('divisor', 1.0)
+
     if eligible:
         score = round(raw_score, 2)
         if goal_boost_info is not None:
             score = round(score * goal_boost_info['multiplier'], 2)
         if combined_ctx_mult != 1.0:
             score = round(score * combined_ctx_mult, 2)
+        if variety_divisor != 1.0:
+            score = round(score / variety_divisor, 2)
     else:
         score = -1.0
 
@@ -802,6 +925,7 @@ def explain_score(
             'total_value': total_value_sum + iv_multiplier_contribution,
         },
         'goal_boost': goal_boost_info,
+        'variety': variety,
         'context_adjustment': {
             'weight': ctx_weight,
             'n_bucket': 1,

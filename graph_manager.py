@@ -7,6 +7,7 @@ detection, filtering, and priority scoring — and owns the invalidation
 counters that let the higher-level callback caches know when to rebuild.
 """
 
+import json
 import sqlite3
 import threading
 from collections import deque, OrderedDict
@@ -20,13 +21,17 @@ from typing import List, Dict, Optional, Set, Tuple
 
 
 # Fields whose mutation changes a node's priority_score. Anything else
-# (description, paths, context, aliases) is cosmetic
+# (description, paths, aliases) is cosmetic
 # for scoring purposes and must not invalidate the scoring memo.
+# context/subcontext are in the list because they are what a node is
+# discounted against for suggestion variety, and they also pick its context
+# weight and decide which cascade hops count as cross-context.
 _SCORING_RELEVANT_FIELDS = frozenset({
     'type', 'value', 'interest', 'difficulty',
     'time_o', 'time_m', 'time_p', 'time_mode',
     'value_mode',
     'status', 'dormant',
+    'context', 'subcontext',
 })
 
 
@@ -66,6 +71,9 @@ class GraphManager:
         self._community_cache: Dict[tuple, List[Set[str]]] = OrderedDict()
         self._scoring_memo: dict = {}
         self._scoring_memo_key: Optional[tuple] = None
+        # The 0-100 display base — see get_priority_normalizer.
+        self._normalizer: float = 0.0
+        self._normalizer_key: Optional[tuple] = None
         # (goal_name, sorted_edge_types_tuple) -> (graph_version, frozenset of reachable nodes)
         self._goal_subtree_cache: Dict[tuple, tuple] = {}
         self._cache_lock = threading.Lock()
@@ -971,6 +979,50 @@ class GraphManager:
             priority_goals=priority_goals,
             external_memo=memo,
         )
+
+    @database.consistent_read
+    def get_priority_normalizer(self) -> float:
+        """The priority score that displays as 100 everywhere in the app.
+
+        Every surface that prints a 0–100 priority divides by this one
+        number, so the same node reads the same on the Next tab, in a
+        subtask table and in the Explain modal. Normalizing against
+        whichever nodes happen to be on screen would make the figure a
+        property of the current list instead of the node.
+
+        The base is the top score among nodes that can actually be
+        recommended: Now nodes are excluded because the Next list pulls
+        them into their own section, and a cheap Now node is often the
+        top score overall — including it would shrink every bar on the
+        tab below it. Returns 0.0 when nothing is scorable.
+
+        Cached against the scoring version and every hyperparameter that
+        can move a score: the Next tab and the subtask tables each want
+        this number alongside a ranking they already paid for, and a
+        second full scoring pass per render is worth avoiding.
+        """
+        hypers = ConfigManager.get_hyperparams()
+        hypers['context_weights'] = ConfigManager.get_context_weights()
+        priority_goals = ConfigManager.get_priority_goals()
+        cache_key = (self._scoring_version,
+                     json.dumps(hypers, sort_keys=True, default=str),
+                     tuple(priority_goals or ()))
+        with self._cache_lock:
+            if cache_key == self._normalizer_key:
+                return self._normalizer
+
+        scored = self.calculate_priority_scores(
+            self.get_all_nodes(), priority_goals=priority_goals,
+        )
+        eligible = [n.priority_score for n in scored
+                    if getattr(n, 'priority_score', -1) > 0
+                    and not getattr(n, 'now', 0)]
+        base = max(eligible) if eligible else 0.0
+
+        if not database.in_transaction():
+            with self._cache_lock:
+                self._normalizer_key, self._normalizer = cache_key, base
+        return base
 
     def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
         with self.get_connection() as conn:

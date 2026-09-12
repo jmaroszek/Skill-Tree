@@ -1394,18 +1394,21 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     priority_sort_key = {}  # numeric value used for sorting; -1 for unscored nodes
     if graph_manager:
         scored = graph_manager.calculate_priority_scores(subtask_nodes)
-        raw_scores = [getattr(n, 'priority_score', -1.0) for n in scored]
-        valid_scores = [s for s in raw_scores if s >= 0]
-        max_score = max(valid_scores) if valid_scores else 0.0
+        # Normalized against the whole graph, not against these few rows: a
+        # child's priority has to read the same here as on the Next tab and
+        # in the Explain modal. A local maximum would print 100 next to the
+        # best of a weak set.
+        max_score = graph_manager.get_priority_normalizer()
         for n in scored:
             raw = getattr(n, 'priority_score', -1.0)
             if raw < 0 or max_score == 0:
                 priority_scores[n.name] = "—"
                 priority_sort_key[n.name] = -1.0
             else:
-                normalized = round((raw / max_score) * 100)
-                priority_scores[n.name] = str(normalized)
-                priority_sort_key[n.name] = normalized
+                priority_scores[n.name] = str(round((raw / max_score) * 100))
+                # Sort on the unrounded score so rows that print the same
+                # number still fall in true priority order.
+                priority_sort_key[n.name] = raw
 
     # Sort: eligible nodes descending by score, then unscored alphabetically below
     subtask_nodes = sorted(

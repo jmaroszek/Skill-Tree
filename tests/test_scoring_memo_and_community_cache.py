@@ -362,3 +362,41 @@ def test_detect_communities_returns_fresh_objects_not_cache_reference():
     # Re-fetch from cache — mutation must not have leaked.
     second = mgr.detect_communities(method="components")
     assert all("MUTATED" not in s for s in second)
+
+
+# ---------------------------------------------------------------------------
+# Display-base cache
+# ---------------------------------------------------------------------------
+
+def test_priority_normalizer_tracks_the_top_scorable_node():
+    """The 0-100 base follows the graph, and Now nodes never anchor it."""
+    mgr = GraphManager()
+    mgr.add_node(_make_node("Low", value=2, interest=2))
+    mgr.add_node(_make_node("High", value=10, interest=10))
+
+    top = max(n.priority_score for n in
+              mgr.calculate_priority_scores(mgr.get_all_nodes()))
+    assert mgr.get_priority_normalizer() == pytest.approx(top)
+
+    # A cheap Now node would otherwise become the base and shrink every bar.
+    mgr.add_node(_make_node("Busy", value=10, interest=10, time_o=.1,
+                            time_m=.1, time_p=.1, now=1))
+    assert mgr.get_priority_normalizer() == pytest.approx(top)
+
+    # A scoring edit must move the cached base.
+    mgr.update_node(_make_node("High", value=10, interest=10, difficulty=1))
+    assert mgr.get_priority_normalizer() > top
+
+
+def test_priority_normalizer_cache_invalidated_on_hyperparam_change(monkeypatch):
+    from config import ConfigManager
+    mgr = GraphManager()
+    mgr.add_node(_make_node("A"))
+
+    base = ConfigManager.get_hyperparams()
+    monkeypatch.setattr(ConfigManager, "get_hyperparams",
+                        classmethod(lambda cls: dict(base, w_e=2.5)))
+    first = mgr.get_priority_normalizer()
+    monkeypatch.setattr(ConfigManager, "get_hyperparams",
+                        classmethod(lambda cls: dict(base, w_e=10.0)))
+    assert mgr.get_priority_normalizer() < first

@@ -1165,45 +1165,29 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
       - name + context line
       - priority bar (color = type, or override color if pinned; length = priority/maxPriority)
       - time + V/I/E micro-chart + Obsidian/Drive/Website link dots
+
+    The number is the node's own normalized priority, against the same base
+    the Explain modal and the subtask tables use, so a node reads the same
+    everywhere. It descends down the list because suggestion variety is part
+    of the score itself rather than a re-ordering applied afterwards. Bar
+    *length* stays relative to the longest row on screen, so the column still
+    fills its width when a filter leaves the top row below 100.
+
+    Pinned rows are the one exception to the descent: a pin sits on top
+    whatever it scores. They keep their true number rather than a flattering
+    one, and the override bar color marks them as their own group.
     """
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
 
-    # When an override pin is active and the suggestion list mixes priority
-    # and non-priority nodes, normalize each tier separately so that no
-    # non-priority row can display a higher score than the lowest priority
-    # row. This is a display-only transform — `priority_score` values and
-    # row ordering are unchanged. Tier 1 (overrides) maps to its own
-    # [min%, 100] range; tier 2 (non-overrides) maps to [0, tier1_min% - 2],
-    # so after rounding the highest non-priority row sits at least one
-    # point below the lowest priority row.
-    override_names = override_set or set()
-    tier1_raw = [getattr(s, 'priority_score', 0) for s in suggs if s.name in override_names]
-    tier2_raw = [getattr(s, 'priority_score', 0) for s in suggs if s.name not in override_names]
+    max_score = manager.get_priority_normalizer()
 
-    if tier1_raw and tier2_raw:
-        tier1_max = max(tier1_raw)
-        tier1_min = min(tier1_raw)
-        tier2_max = max(tier2_raw)
-        tier1_min_displayed = (tier1_min / tier1_max * 100) if tier1_max > 0 else 0.0
-        tier2_ceiling = max(0.0, tier1_min_displayed - 2.0)
+    def normalize(score):
+        if max_score <= 0:
+            return 0.0
+        return round((score / max_score) * 100, 1)
 
-        def normalize(score, is_override):
-            if is_override:
-                return round((score / tier1_max) * 100, 1) if tier1_max > 0 else 0.0
-            return round((score / tier2_max) * tier2_ceiling, 1) if tier2_max > 0 else 0.0
-    else:
-        max_score = max(tier1_raw + tier2_raw) if (tier1_raw or tier2_raw) else 0
-
-        def normalize(score, is_override=False):
-            if max_score == 0:
-                return 0.0
-            return round((score / max_score) * 100, 1)
-
-    normalized_scores = [
-        normalize(getattr(s, 'priority_score', 0), s.name in override_names)
-        for s in suggs
-    ]
+    normalized_scores = [normalize(getattr(s, 'priority_score', 0)) for s in suggs]
     max_priority = max(normalized_scores) if normalized_scores else 0
 
     # Bar colors come from the static BADGE_PALETTE (in config.py), NOT the
@@ -1223,7 +1207,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
 
         eff_time = manager.get_effective_time(s.name)
 
-        priority_int = round(normalize(getattr(s, 'priority_score', 0), is_override))
+        priority_int = round(normalize(getattr(s, 'priority_score', 0)))
         if max_priority > 0:
             bar_width_pct = max(8.0, (priority_int / max_priority) * 100.0)
         else:
@@ -1802,10 +1786,13 @@ def _explain_summary_table(breakdown: dict, normalized):
     density_mult = ctx_adj.get('density_mult', 1.0)
     n_bucket = ctx_adj.get('n_bucket', 1)
     alpha_val = ctx_adj.get('alpha', 0.0)
+    variety = breakdown.get('variety') or {}
+    variety_mult = 1.0 / variety['divisor'] if variety.get('divisor') else 1.0
     has_boost = boost is not None
     has_weight = abs(ctx_weight - 1.0) > 1e-9
     has_density = abs(density_mult - 1.0) > 1e-9
-    has_any_adjustment = has_boost or has_weight or has_density
+    has_variety = abs(variety_mult - 1.0) > 1e-9
+    has_any_adjustment = has_boost or has_weight or has_density or has_variety
 
     if has_any_adjustment:
         rows.append(html.Tr([html.Td("Adjustments", colSpan=2, style=header_style)]))
@@ -1832,6 +1819,20 @@ def _explain_summary_table(breakdown: dict, normalized):
                 html.Td(f"\u00d7{density_mult:.3f}", style=num_style),
             ]))
             combined *= density_mult
+        if has_variety:
+            # What the node gives up for being the nth recommendation from
+            # its context. Reported as a multiplier like every other row
+            # here, though the scorer applies it as a divisor.
+            where = [f"{_ordinal(variety['context_rank'])} in {variety['context']}"]
+            if variety.get('subcontext'):
+                where.append(f"{_ordinal(variety['subcontext_rank'])} in {variety['subcontext']}")
+            rows.append(html.Tr([
+                html.Td([html.Span("Variety"),
+                         html.Span(f" ({', '.join(where)})",
+                                   style={**muted_style, "marginLeft": "4px"})]),
+                html.Td(f"×{variety_mult:.3f}", style=num_style),
+            ]))
+            combined *= variety_mult
         rows.append(html.Tr([
             html.Td("Combined", style=total_style),
             html.Td(f"\u00d7{combined:.3f}", style={**num_style, **total_style}),
@@ -1983,41 +1984,3 @@ def build_explain_chart(contributors, top_n: int = 10):
     callback assigns it to the static dcc.Graph's figure prop.
     """
     return _explain_bar_chart(contributors or [], top_n)
-
-
-def assemble_suggestions(nodes, count, hyperparams, selected=()):
-    """Greedy hierarchical variety, preserving merit and a deterministic prefix.
-
-    Same-subcontext premium is the total, including the context component.
-    Only returned recommendations (including pins) seed the counters.
-    """
-    from collections import Counter
-    from math import log2, isfinite
-
-    def premium(key, default):
-        try:
-            value = float(hyperparams.get(key, default))
-            return max(0.0, min(100.0, value)) if isfinite(value) else default
-        except (TypeError, ValueError):
-            return default
-
-    context = premium('suggestion_context_premium', 5.0)
-    subcontext = max(context, premium('suggestion_subcontext_premium', 15.0))
-    a = log2(1 + context / 100)
-    b = log2((1 + subcontext / 100) / (1 + context / 100))
-    contexts = Counter(n.context for n in selected)
-    pairs = Counter((n.context, n.subcontext) for n in selected)
-    remaining = list(nodes)
-    result = []
-    for _ in range(min(max(0, count), len(remaining))):
-        def key(n):
-            merit = getattr(n, 'priority_score_exact', n.priority_score)
-            divisor = ((1 + contexts[n.context]) ** a *
-                       (1 + pairs[n.context, n.subcontext]) ** b) if n.context is not None else 1.0
-            return (-merit / divisor, -merit, n.name)
-        winner = min(remaining, key=key)
-        remaining.remove(winner)
-        result.append(winner)
-        contexts[winner.context] += 1
-        pairs[winner.context, winner.subcontext] += 1
-    return result

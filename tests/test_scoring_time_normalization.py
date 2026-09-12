@@ -148,8 +148,13 @@ class TestHyperparamMigration:
         v1 = {**DEFAULT_HYPERPARAMS, "w_v": 1.0, "w_i": 1.0,
               "w_e": 2.5, "w_t": 1.0, "beta": 0.85, "alpha": 0.0,
               # This test pins the w_t rescaling, so hold the value shape
-              # linear; value_exponent is exercised separately.
-              "value_exponent": 1.0}
+              # linear; value_exponent is exercised separately. Suggestion
+              # variety is off for the same reason: all three nodes share a
+              # context, and the repetition discount would land on the
+              # expected ROI figures below.
+              "value_exponent": 1.0,
+              "suggestion_context_premium": 0.0,
+              "suggestion_subcontext_premium": 0.0}
         migrated = ConfigManager._migrate_hyperparams(dict(v1))
 
         ranked = score_nodes([n for n in nodes], list(nodes), [], migrated)

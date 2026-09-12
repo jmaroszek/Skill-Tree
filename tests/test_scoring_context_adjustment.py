@@ -33,6 +33,10 @@ BASE_HYPERS = {
     'd_Syn_pair': 0.10, 'd_Syn_mul': 0.40,
     'w_e': 2.5, 'w_t': 1.0, 'beta': 0.85,
     'goal_boost': 1.5,
+    # Suggestion variety is off here: these cases stack same-context nodes
+    # deliberately, and the repetition discount would confound the context
+    # weight and density effects they exist to measure.
+    'suggestion_context_premium': 0.0, 'suggestion_subcontext_premium': 0.0,
 }
 
 

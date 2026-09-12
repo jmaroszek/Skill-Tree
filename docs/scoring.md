@@ -146,52 +146,54 @@ $$ \rho(n) = \max\big(\{1\} \cup \{\rho_r : n \in A_H(g_r)\}\big) $$
 
 
 ## Context Multipliers
-Context weight applies after the goal boost. Suggestion variety is a separate list-selection step.
+Context weight applies after the goal boost. Suggestion variety applies after both.
 
 ### Context Weight
 Each context carries a weight $w_c$, a user-configurable scalar that defaults to 1. It lets the user emphasize or de-emphasize a whole life area. For example: double the weight on Money during a tight quarter, or halve it on Humanities during a STEM stretch.
 
 ### Suggestion Variety
 
-Task merit no longer depends on how many projects are stored in a context. Instead, suggestions are selected one at a time, discounting repetition in the list already assembled. This gives other areas a chance without making unrelated additions to the graph reduce a task's score.
+Task merit no longer depends on how many projects are stored in a context. Instead, each node is discounted for how many higher-ranked peers already speak for its context. This gives other areas a chance without making unrelated additions to the graph reduce a task's score.
 
-Let `c` be the number already selected in the candidate's context, and `s` the number in its `(context, subcontext)` pair. At each step select the greatest:
+The discount comes from a walk over the **pool**: every scorable node in the graph, Now nodes excluded. Take the node with the greatest adjusted merit, record its divisor, then charge its context and its `(context, subcontext)` pair one more repetition. Repeat until the pool is empty. Let `c` be the repetitions charged to the candidate's context when its turn comes, and `s` those charged to its pair:
 
-`selection_merit = P(n) / ((1+c)^a * (1+s)^b)`
+`divisor(n) = (1+c)^a * (1+s)^b`
 
 Settings use percentages of extra merit required after **one** earlier recommendation: `p_context` and `p_subcontext` (total). Convert with `a = log2(1+p_context/100)` and `b = log2((1+p_subcontext/100)/(1+p_context/100))`. The subcontext premium includes the context premium; it is not an additional penalty. It must be at least as large as the context premium.
 
 Sage uses **5% / 15%**. After three earlier recommendations from one subcontext, another from that subcontext needs 32.25% extra merit; a sibling subcontext needs 10.25%. Accumulation grows gently. These percentages describe extra merit required, not a literal percentage subtraction from the score.
 
-Profiles use context/subcontext premiums: Sage 5/15, Explorer 10/20, Compounder 0/0, Pragmatist 2/5, Creator 5/15, Glider 5/20. The non-Sage defaults are conservative policy choices, not empirically optimized values. Both zero restores merit ordering.
+Profiles use context/subcontext premiums: Sage 5/15, Explorer 10/20, Compounder 0/0, Pragmatist 2/5, Creator 5/15, Glider 5/20. The non-Sage defaults are conservative policy choices, not empirically optimized values. Both zero disables the walk and restores merit ordering.
 
-Filters define the candidate pool. Valid pins bypass filters and remain first in merit order, even when they exceed the requested count; they seed repetition counts for the remaining slots. Now nodes are excluded. The Details recommendation list uses the same selection rule; excluded overrides do not seed it. Goal and container ranking remain separate.
+The pool is the whole graph, never the current view. Filters, the requested row count and the Details recommendation list all narrow which nodes are *shown*; none of them changes a divisor. That is what lets one number stand for a node everywhere in the app. The cost is that a filtered list still carries discounts earned against nodes the filter hides. Now nodes are outside the pool entirely: they neither earn a divisor nor spend a repetition. Valid pins bypass filters and lead the list whatever they score. Goal and container ranking remain separate.
 
-Selection uses exact merit, then exact merit and name to break adjusted ties. Increasing the requested count preserves the existing prefix for an unchanged graph, filter, and settings. Displayed scores are never divided by the selection penalty, so they need not descend down the list. `(context, None)` is a broad-area bucket; identical subcontext labels under different contexts remain distinct. Legacy uncategorized nodes are exempt.
+The walk uses exact merit, then exact merit and name to break adjusted ties. `(context, None)` is a broad-area bucket; identical subcontext labels under different contexts remain distinct. Legacy uncategorized nodes are exempt.
 
-This balances a slate, not exposure over time: repeatedly requesting an unchanged list returns the same list. It does not guarantee every context a slot or periodically rotate neglected tasks.
+This balances a slate, not exposure over time: an unchanged graph returns an unchanged list. It does not guarantee every context a slot or periodically rotate neglected tasks.
 
 ## Final Score
 
 Putting it all together:
 
-$$ P(n) = P_{\text{base}}(n) \cdot \rho(n) \cdot w_c(\text{ctx}(n)) $$
+$$ P(n) = \frac{P_{\text{base}}(n) \cdot \rho(n) \cdot w_c(\text{ctx}(n))}{\text{divisor}(n)} $$
 
-A node's final priority is its ROI ratio scaled by the goal-priority boost and context weight. Suggestion variety changes list order without altering this merit.
+A node's final priority is its ROI ratio scaled by the goal-priority boost and context weight, then discounted for repetition. Variety is part of the score rather than a re-ordering applied to a finished list. The Next tab prints the number it sorts on, so anything that moves a row has to move its number too.
 
 The underlying merit ranking uses the unrounded score, while the figure stored and displayed is rounded to two decimals. Rounding is lossy enough to matter: on a ~450-node graph it collapses about 440 distinct scores into roughly 170, so past about rank 30 most nodes would otherwise tie with a neighbour and fall back on list order, which carries no meaning. Ordering on the exact value keeps the displayed number readable without making the sequence arbitrary.
 
-For display on the Next tab, scores are linearly rescaled against the top eligible node.
+For display, scores are linearly rescaled against the top node of the pool.
 
-$$ P_{\text{display}}(n) = 100 \cdot \frac{P(n)}{\max_{m \in \text{eligible}} P(m)} $$
+$$ P_{\text{display}}(n) = 100 \cdot \frac{P(n)}{\max_{m \in \text{pool}} P(m)} $$
 
-The highest-merit displayed node shows 100 within the existing override-tier normalization. List position also reflects variety; it does not redefine merit.
+Every surface that prints a 0–100 priority divides by that same base: the Next tab, the subtask tables, and Explain. A node therefore reads the same wherever it appears. Under a filter the top row can sit below 100, because the node anchoring the scale may not be on screen. Bar *length* stays relative to the longest row shown, so the column still fills its width.
 
-(The Explain feature reports both the raw and normalized score.)
+The Next column descends, since the number and the sort key are now the same quantity. Pinned rows are the exception: a pin leads the list whatever it scores, and keeps its true number rather than a rescaled one.
+
+(The Explain feature reports both the raw and normalized score, with the repetition discount listed among the adjustments.)
 
 ## Complexity
 
-Suggestion assembly scans the remaining candidates for each slot: O(NK) time for N candidates and K recommendations, with O(N) temporary storage. It reuses exact scores and does not recompute graph values during selection.
+The variety walk is a lazy-greedy over a heap of the pool. A divisor only ever grows, so a heap entry that was pushed under a smaller one is always too optimistic and is re-pushed rather than trusted. Each node is selected once and re-pushed only when its own bucket is charged in the meantime. It reuses exact scores and does not recompute graph values during the walk.
 
 Per-source strongest-route maps replace scalar subtree sums. Per-beneficiary required-work sets and hours are cached separately. A cold route map visits its reachable DAG; subsequent candidate and synergy calculations reuse it.
 

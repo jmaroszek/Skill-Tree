@@ -44,6 +44,7 @@ from scoring import (
     build_adjacency,
     perceived_cost,
     is_eligible,
+    variety_divisors,
     _get_goal_subtree_from_adjacency,
 )
 
@@ -102,25 +103,13 @@ def _baseline_score_nodes(
         key = (n.context, n.subcontext)
         n_active_map[key] = n_active_map.get(key, 0) + 1
 
-    scored_nodes = []
-    for node in active_nodes:
-        if node.type in ('Goal', 'Milestone'):
-            node.priority_score = -1.0
-            scored_nodes.append(node)
-            continue
-        if node.has_no_own_work:
-            node.priority_score = -1.0
-            scored_nodes.append(node)
-            continue
-        if node.status in ("Done", "Blocked"):
-            node.priority_score = -1.0
-            scored_nodes.append(node)
-            continue
-        if not is_eligible(node.name, Hard_in, all_nodes_dict):
-            node.priority_score = -1.0
-            scored_nodes.append(node)
-            continue
+    def _scorable(node):
+        return (node.type not in ('Goal', 'Milestone')
+                and not node.has_no_own_work
+                and node.status not in ("Done", "Blocked")
+                and is_eligible(node.name, Hard_in, all_nodes_dict))
 
+    def _merit(node):
         t_override = 0.0 if node.time_mode == 'inherited' else None
         e_override = 0.0 if node.value_mode == 'inherited' else None
         cost = perceived_cost(node, w_e, w_t, beta,
@@ -132,18 +121,52 @@ def _baseline_score_nodes(
                          value_exponent=value_exponent,
                          future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
                          future_work_exponent=hyperparams.get('future_work_exponent', 0.6))
-        score = round(tv / cost, 2)
+        ratio = (tv / cost) if cost > 0 else 0.0
+        score, exact = round(ratio, 2), ratio
         if node.name in node_to_boost:
             score = round(score * node_to_boost[node.name], 2)
+            exact *= node_to_boost[node.name]
         weight = context_weights.get(node.context, 1.0) if node.context else 1.0
         n_bucket = max(1, n_active_map.get((node.context, node.subcontext), 1))
         density_mult = (1.0 / (n_bucket ** alpha)) if alpha > 0 else 1.0
         if weight != 1.0 or density_mult != 1.0:
             score = round(score * weight * density_mult, 2)
+            exact *= weight * density_mult
+        return score, exact
+
+    # Mirrors score_nodes: merit for the whole graph, then one variety walk
+    # over every scorable non-Now node, then the caller's slice.
+    merit_inputs = {n.name: n for n in all_nodes}
+    merit_inputs.update({n.name: n for n in active_nodes})
+    merits = {name: _merit(node) for name, node in merit_inputs.items()
+              if _scorable(node)}
+    variety = variety_divisors(
+        [(name, merit_inputs[name].context, merit_inputs[name].subcontext,
+          merits[name][1])
+         for name in merits if not getattr(merit_inputs[name], 'now', 0)],
+        hyperparams,
+    )
+
+    scored_nodes = []
+    exact_scores = {}
+    for node in active_nodes:
+        if node.name not in merits:
+            node.priority_score = -1.0
+            scored_nodes.append(node)
+            continue
+        score, exact = merits[node.name]
+        divisor = (variety.get(node.name) or {}).get('divisor', 1.0)
+        if divisor != 1.0:
+            score = round(score / divisor, 2)
+            exact /= divisor
         node.priority_score = score
+        exact_scores[node.name] = exact
         scored_nodes.append(node)
 
-    return sorted(scored_nodes, key=lambda n: getattr(n, 'priority_score', -1.0), reverse=True)
+    return sorted(scored_nodes,
+                  key=lambda n: (-exact_scores.get(n.name, getattr(n, 'priority_score', -1.0)),
+                                 -merits.get(n.name, (0.0, -1.0))[1],
+                                 n.name))
 
 
 # ---------------------------------------------------------------------------
