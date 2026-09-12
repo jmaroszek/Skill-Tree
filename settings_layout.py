@@ -571,12 +571,11 @@ def _build_time_tab():
                       min=100, max=1000000, step=100,
                       style={"width": "128px"}),
             html.Small(
-                "How much duration uncertainty tasks share. At 0 their errors "
-                "are independent; at 1 their log-duration shocks move together. "
-                "Higher values increase the total variance without changing "
-                "mean work hours. The default 0.4 is provisional, not measured "
-                "from your outcomes. Details compares the current setting "
-                "with 0 and 1 as illustrative cases.",
+                "How much of your estimating error is systematic rather than "
+                "task-specific. At 0 every task surprises you independently, so "
+                "a long project's uncertainty cancels away to almost nothing. "
+                "At 1 a whole project is as uncertain as a single task. Raising "
+                "this widens the forecast without changing its average.",
                 className="text-muted d-block mt-3 mb-2"),
             dbc.Label("Shared estimate error"),
             dbc.Input(id="setting-estimate-correlation", type="number",

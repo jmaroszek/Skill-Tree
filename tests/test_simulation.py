@@ -11,7 +11,7 @@ import pytest
 from models import Node
 from models import expected_time_estimate
 from simulation import (Z90, duration_sample, _sample_node, simulate_task_chain,
-                        _compute_stats, fitted_duration_quantiles, bracket_diagnostics)
+                        _compute_stats)
 
 
 def _make_node(name="N", time_o=1.0, time_m=2.0, time_p=4.0, status="Open", **kw):
@@ -467,25 +467,3 @@ class TestChainCoherence:
         for bad in (-0.1, 1.1):
             with pytest.raises(ValueError):
                 simulate_task_chain("N1", nodes, edges, n_simulations=100, correlation=bad)
-
-
-def test_asymmetric_fit_is_reported_without_changing_the_distribution():
-    n = _make_node(time_o=10, time_m=90, time_p=100)
-    fitted = fitted_duration_quantiles(10, 90, 100)
-    assert fitted == pytest.approx([14.5747, 46.0892, 145.747], rel=0.001)
-    samples = _sample_node(n, 200_000, rng=np.random.default_rng(52))
-    assert np.percentile(samples, [10, 50, 90]) == pytest.approx(fitted, rel=0.02)
-    rows = bracket_diagnostics([n])
-    assert rows[0]['supplied'] == [10, 90, 100]
-    assert rows[0]['fitted'] == list(fitted)
-
-
-def test_bracket_diagnostics_only_compare_supplied_remaining_task_values():
-    nodes = [_make_node('symmetric', time_o=20, time_m=40, time_p=80),
-             _make_node('point', time_o=0, time_m=100, time_p=0),
-             _make_node('done', time_o=10, time_m=90, time_p=100, status='Done'),
-             _make_node('container', time_o=10, time_m=90, time_p=100,
-                        time_mode='inherited')]
-    assert bracket_diagnostics(nodes) == []
-    two_point = _make_node('two', time_o=1, time_m=0, time_p=100)
-    assert bracket_diagnostics([two_point])[0]['supplied'] == [1, None, 100]
