@@ -789,7 +789,7 @@ def register_event_callbacks(app):
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 57
+            return (no_update,) * 56
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -1093,7 +1093,7 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def open_modal_for_existing_nodes(trigger_val):
-        _N = 24
+        _N = 23
         if not trigger_val:
             return (no_update,) * _N
         try:
@@ -1751,7 +1751,7 @@ def register_event_callbacks(app):
         prevent_initial_call=True,
     )
     def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
-        _N = 49
+        _N = 48
         if not selected_event:
             return (no_update,) * _N
         triggered = ctx.triggered_id

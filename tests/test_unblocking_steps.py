@@ -166,9 +166,9 @@ def _row_ids(table):
 
 
 def test_a_step_row_stays_an_ordinary_suggestion_row(mgr):
-    """next_selection.js styles rows as a positional ALL-list and context_menu.js
-    resolves a right-click through `.suggestion-bar-row`, so a step cannot be
-    rendered as some other kind of element."""
+    """next_selection.js styles rows as a positional ALL-list through
+    `.suggestion-bar-row`, so a step cannot be rendered as some other kind of
+    element."""
     step, plain = _scored(mgr, ("Step", 10), ("Plain", 8))
     table = format_suggestions_table([step, plain], mgr,
                                      pinned_steps={"Step": "Publishing"})

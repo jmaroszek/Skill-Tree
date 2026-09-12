@@ -734,8 +734,6 @@ def build_details_tab_content():
                   style={'display': 'none'}),
         dcc.Input(id='goal-priority-trigger-input', type='text', value='',
                   style={'display': 'none'}),
-        dcc.Input(id='goal-details-trigger-input', type='text', value='',
-                  style={'display': 'none'}),
         subtask_remove_modal,
         add_node_modal,
         explain_modal,
@@ -843,8 +841,12 @@ def build_details_suggestions(goal_rows, rec_rows):
 
 def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,
                     show_order_buttons: bool = False, is_first: bool = False, is_last: bool = False,
-                    corner_text: Optional[str] = None):
-    """Builds a single goal card for the goal sidebar list."""
+                    corner_text: Optional[str] = None, menu_attributes: Optional[dict] = None):
+    """Builds a single goal card for the goal sidebar list.
+
+    ``menu_attributes`` are the goal's ``node_menu_attributes``, which give the
+    card the shared node context menu on right-click.
+    """
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
     pct = completion.get("pct", 0)
@@ -926,7 +928,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     return html.Div(children, id={"type": "goal-card", "index": name},
        className="mb-2 goal-card rounded",
-       **{"data-goal-name": name},
+       **{"data-goal-name": name, **(menu_attributes or {})},
        style={
            "border": border_style,
            "backgroundColor": "#2b3035" if is_selected else "#212529",

@@ -808,7 +808,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
 
     return html.Div(children, id={"type": "event-card", "index": event_name},
        className="mb-2 event-card rounded",
-       **{"data-event-name": event_name},
+       **{"data-event-name": event_name, "data-event-status": status},
        style={
            "cursor": "pointer",
            "border": border_style,

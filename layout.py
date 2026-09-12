@@ -25,7 +25,6 @@ from review_hub_layout import build_review_hub_modal
 from analyze_layout import build_analyze_tab_content
 from sidebars_layout import build_all_sidebars
 from styles import stylesheet
-from models import STATUS_DONE
 
 
 
@@ -940,6 +939,43 @@ reflection_ratings_editor_modal = dbc.Modal([
 ], id="modal-reflection-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
+# --- Floating menus ---
+# Every right-click menu and popover is built from these, so a row, divider
+# or destructive item can't look different from one menu to the next.
+# assets/menus.js gives them the same behavior.
+
+def _menu_item(label, item_id, danger=False):
+    """One clickable row. ``danger`` marks a destructive command."""
+    class_name = "ctx-menu-item ctx-menu-item-danger" if danger else "ctx-menu-item"
+    return html.Div(label, id=item_id, className=class_name)
+
+
+def _menu_divider(divider_id=None):
+    """A separator between groups. Give it an id when a script hides it."""
+    if divider_id:
+        return html.Hr(id=divider_id, style={"margin": "2px"})
+    return html.Hr(style={"margin": "2px"})
+
+
+def _floating_menu(menu_id, children):
+    return html.Div(children, id=menu_id, className="ctx-menu",
+                    style={"display": "none"})
+
+
+def _priority_items(prefix):
+    """Priority 1–3 and Clear Priority, ids ``<prefix>-1`` … ``<prefix>-clear``.
+
+    Shared by the node menu's Set Priority submenu and the goal rank popover.
+    """
+    return [
+        _menu_item("Priority 1", f"{prefix}-1"),
+        _menu_item("Priority 2", f"{prefix}-2"),
+        _menu_item("Priority 3", f"{prefix}-3"),
+        _menu_divider(),
+        _menu_item("Clear Priority", f"{prefix}-clear"),
+    ]
+
+
 @database.snapshot_read
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
@@ -950,114 +986,54 @@ def build_app_layout(initial_elements, env="production"):
     edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
 
-    context_menu = html.Div(
-        id="node-context-menu",
-        children=[
-            html.Div("Edit", id="ctx-menu-edit", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("View Details", id="ctx-menu-details", className="ctx-menu-item"),
-            html.Div("Explain Priority", id="ctx-menu-explain", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("Add to Now", id="ctx-menu-toggle-now", className="ctx-menu-item"),
-            html.Div("Add to Event…", id="ctx-menu-add-to-event", className="ctx-menu-item"),
-            html.Div("Mark Done", id="ctx-menu-toggle-done", className="ctx-menu-item"),
-            html.Hr(id="ctx-menu-links-divider", style={"margin": "2px"}),
-            html.Div("Open Website", id="ctx-menu-website", className="ctx-menu-item"),
-            html.Div("Open in Obsidian", id="ctx-menu-obsidian", className="ctx-menu-item"),
-            html.Div("Open in Drive", id="ctx-menu-drive", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("Delete…", id="ctx-menu-delete", className="ctx-menu-item ctx-menu-item-danger"),
-        ],
-        style={
-            "display": "none",
-            "position": "fixed",
-            "zIndex": 10000,
-            "backgroundColor": "#2b3035",
-            "border": "1px solid #495057",
-            "borderRadius": "6px",
-            "padding": "4px 0",
-            "minWidth": "160px",
-            "boxShadow": "0 4px 16px rgba(0,0,0,0.4)",
-        }
-    )
+    # --- Node context menu: every canvas, Next rows, Now cards, goal cards ---
+    # Grouped by intent: Edit; inspection; Set Priority; workflow state;
+    # external links; Delete on its own. context_menu.js relabels the toggles
+    # for the node and hides the sections that don't apply: links that aren't
+    # set, and Set Priority for anything but a single Goal. So a Goal's menu is
+    # every other node's menu plus one section.
+    context_menu = _floating_menu("node-context-menu", [
+        _menu_item("Edit", "ctx-menu-edit"),
+        _menu_divider(),
+        _menu_item("View Details", "ctx-menu-details"),
+        _menu_item("Explain Priority", "ctx-menu-explain"),
+        _menu_divider("ctx-menu-priority-divider"),
+        html.Div(
+            [
+                html.Span("Set Priority"),
+                html.Span("▸", className="ctx-menu-caret"),
+                html.Div(_priority_items("ctx-menu-priority"),
+                         className="ctx-menu-submenu"),
+            ],
+            id="ctx-menu-priority",
+            className="ctx-menu-item ctx-menu-submenu-parent",
+        ),
+        _menu_divider(),
+        _menu_item("Add to Now", "ctx-menu-toggle-now"),
+        _menu_item("Add to Event…", "ctx-menu-add-to-event"),
+        _menu_item("Mark Done", "ctx-menu-toggle-done"),
+        _menu_divider("ctx-menu-links-divider"),
+        _menu_item("Open Website", "ctx-menu-website"),
+        _menu_item("Open in Obsidian", "ctx-menu-obsidian"),
+        _menu_item("Open in Drive", "ctx-menu-drive"),
+        _menu_divider(),
+        _menu_item("Delete…", "ctx-menu-delete", danger=True),
+    ])
 
-    # --- Goal sidebar: rank popover (click rank badge / hover star) ---
-    _floating_menu_style = {
-        "display": "none",
-        "position": "fixed",
-        "zIndex": 10001,
-        "backgroundColor": "#2b3035",
-        "border": "1px solid #495057",
-        "borderRadius": "6px",
-        "padding": "4px 0",
-        "minWidth": "140px",
-        "boxShadow": "0 4px 16px rgba(0,0,0,0.4)",
-    }
-
-    goal_rank_popover = html.Div(
-        id="goal-rank-popover",
-        children=[
-            html.Div("Priority 1", id="goal-rank-set-1", className="ctx-menu-item"),
-            html.Div("Priority 2", id="goal-rank-set-2", className="ctx-menu-item"),
-            html.Div("Priority 3", id="goal-rank-set-3", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("Clear", id="goal-rank-clear", className="ctx-menu-item"),
-        ],
-        style=_floating_menu_style,
-    )
+    # --- Goal sidebar: rank popover (click a priority goal's rank badge) ---
+    goal_rank_popover = _floating_menu(
+        "goal-rank-popover", _priority_items("goal-rank"))
 
     # --- Events sidebar: right-click context menu ---
-    event_context_menu = html.Div(
-        id="event-context-menu",
-        children=[
-            html.Div("Edit", id="event-ctx-edit", className="ctx-menu-item"),
-            html.Div("Trigger", id="event-ctx-trigger", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("Delete", id="event-ctx-delete", className="ctx-menu-item"),
-        ],
-        style=_floating_menu_style,
-    )
-
-    # --- Goal sidebar: right-click context menu ---
-    # Section layout mirrors the canvas context menu so right-click feels
-    # consistent app-wide: edit/explain → navigation → priority → state/delete.
-    # The Priority section is a single parent row with a hover-out submenu;
-    # CSS handles the flyout and goal_context_menu.js handles off-screen flip.
-    goal_context_menu = html.Div(
-        id="goal-context-menu",
-        children=[
-            html.Div("Edit", id="goal-ctx-edit", className="ctx-menu-item"),
-            html.Div("Explain", id="goal-ctx-explain", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("Details", id="goal-ctx-details", className="ctx-menu-item"),
-            html.Div("Event", id="goal-ctx-event", className="ctx-menu-item"),
-            html.Hr(style={"margin": "2px"}),
-            html.Div(
-                id="goal-ctx-priority-parent",
-                className="ctx-menu-item ctx-menu-submenu-parent",
-                children=[
-                    html.Span("Set Priority"),
-                    html.Span("▸", className="ctx-menu-caret"),
-                    html.Div(
-                        id="goal-ctx-priority-submenu",
-                        className="ctx-menu-submenu",
-                        children=[
-                            html.Div("Set Priority 1", id="goal-ctx-set-1", className="ctx-menu-item"),
-                            html.Div("Set Priority 2", id="goal-ctx-set-2", className="ctx-menu-item"),
-                            html.Div("Set Priority 3", id="goal-ctx-set-3", className="ctx-menu-item"),
-                            html.Hr(style={"margin": "2px"}),
-                            html.Div("Clear Priority", id="goal-ctx-clear", className="ctx-menu-item"),
-                        ],
-                    ),
-                ],
-            ),
-            html.Hr(style={"margin": "2px"}),
-            html.Div("Now", id="goal-ctx-toggle-now", className="ctx-menu-item"),
-            html.Div(STATUS_DONE, id="goal-ctx-toggle-done", className="ctx-menu-item"),
-            html.Div("Delete", id="goal-ctx-delete", className="ctx-menu-item ctx-menu-item-danger"),
-        ],
-        style={**_floating_menu_style, "minWidth": "180px"},
-    )
+    # Same grouping as the node menu. event_context_menu.js hides Trigger Now
+    # and its divider for an event that has already triggered.
+    event_context_menu = _floating_menu("event-context-menu", [
+        _menu_item("Edit", "event-ctx-edit"),
+        _menu_divider("event-ctx-trigger-divider"),
+        _menu_item("Trigger Now…", "event-ctx-trigger"),
+        _menu_divider(),
+        _menu_item("Delete…", "event-ctx-delete", danger=True),
+    ])
 
     # --- Tab Navigation (toolbar: left buttons | centered tabs | right buttons) ---
     main_tabs = html.Div([
@@ -1204,7 +1180,6 @@ def build_app_layout(initial_elements, env="production"):
         toggle_trigger,
         context_menu,
         goal_rank_popover,
-        goal_context_menu,
         event_context_menu,
         dcc.Input(id='event-ctx-action-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='ctx-obsidian-path-store', data=None),

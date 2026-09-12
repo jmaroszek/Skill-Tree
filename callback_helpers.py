@@ -374,6 +374,24 @@ def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=
     return element
 
 
+def node_menu_attributes(node):
+    """Data attributes that open the node context menu on a row or card.
+
+    context_menu.js reads them on right-click as it reads a canvas node's data,
+    so a node listed on Next or in the Goals sidebar gets the same menu it gets
+    on a canvas: the same toggle labels, links and Goal-only items.
+    """
+    return {
+        "data-node-menu": node.name,
+        "data-type": node.type,
+        "data-status": node.status,
+        "data-now": str(int(bool(node.now))),
+        "data-website": node.website or "",
+        "data-obsidian-path": node.obsidian_path or "",
+        "data-google-drive-path": node.google_drive_path or "",
+    }
+
+
 def build_edge_element(edge):
     """Build a Cytoscape edge element from a ``GraphManager.get_edges()`` row."""
     source, target, edge_type = edge['source'], edge['target'], edge['type']
@@ -1183,8 +1201,8 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
     Every row — step or not — stays a `suggestion-row` with the
     `suggestion-bar-row` class. next_selection.js styles them as a positional
-    ALL-list and context_menu.js resolves a right-click through that class, so
-    a step must not be rendered as some other kind of element.
+    ALL-list through that class, so a step must not be rendered as some other
+    kind of element.
     """
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
@@ -1370,11 +1388,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             style=row_style,
             **{
                 "data-description": (s.description or "").strip(),
-                "data-obsidian-path": s.obsidian_path or "",
-                "data-google-drive-path": s.google_drive_path or "",
-                "data-website": s.website or "",
-                "data-status": s.status,
-                "data-now": str(int(bool(s.now))),
+                **node_menu_attributes(s),
             },  # type: ignore[reportArgumentType]
         ))
 
@@ -1498,11 +1512,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             className="now-card",
             style=card_style,
             **{
-                "data-obsidian-path": n.obsidian_path or "",
-                "data-google-drive-path": n.google_drive_path or "",
-                "data-website": n.website or "",
-                "data-status": n.status,
-                "data-now": str(int(bool(n.now))),
+                **node_menu_attributes(n),
                 "data-description": (n.description or "").strip(),
                 "data-node-name": n.name,
             },  # type: ignore[reportArgumentType]

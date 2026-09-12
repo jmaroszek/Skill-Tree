@@ -16,6 +16,7 @@ from graph_manager import GraphManager
 from config import ConfigManager, SIDEBAR_WIDTH_NEG_PX
 from models import STATUS_DONE
 from details_layout import build_goal_card
+from callback_helpers import node_menu_attributes
 
 graph_manager = GraphManager()
 
@@ -32,7 +33,7 @@ def _goal_sidebar_is_open(style):
 
 def register_sidebars_callbacks(app):
     """Register the cross-tab sidebar callbacks: goals (toggle, new, render,
-    priority, context-menu, drag-reorder), filters toggle, editor fast-path."""
+    priority, drag-reorder), filters toggle, editor fast-path."""
 
     # --- Goal Sidebar Toggle (CLIENTSIDE) ---
     # Handled in the browser via assets/goals_sidebar.js to eliminate the
@@ -198,10 +199,11 @@ def register_sidebars_callbacks(app):
                 priority_rank=rank,
                 show_order_buttons=is_manual,
                 corner_text=corner_map.get(goal.name),
+                menu_attributes=node_menu_attributes(goal),
             ))
         return cards
 
-    # --- Goal Sidebar: Priority Change (from rank popover or context menu) ---
+    # --- Goal Priority Change (from the rank popover or Set Priority in the node menu) ---
     @app.callback(
         Output('details-refresh-trigger', 'data', allow_duplicate=True),
         Input('goal-priority-trigger-input', 'value'),
@@ -224,23 +226,6 @@ def register_sidebars_callbacks(app):
             priority_goals.insert(rank_idx, goal_name)
         ConfigManager.set_priority_goals(priority_goals)
         return f'goal-priority-{_time.time()}'
-
-    # --- Goal Sidebar: Context Menu → Open in Details ---
-    @app.callback(
-        Output("details-node-select", "value", allow_duplicate=True),
-        Output("main-tabs", "active_tab", allow_duplicate=True),
-        Input("goal-details-trigger-input", "value"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def goal_ctx_to_details(payload, active_tab):
-        if not payload:
-            return no_update, no_update
-        goal_name = payload.split('|')[0]
-        if not goal_name:
-            return no_update, no_update
-        next_tab = "tab-details" if active_tab != "tab-details" else no_update
-        return goal_name, next_tab
 
     # --- Goal Drag Reorder ---
     @app.callback(

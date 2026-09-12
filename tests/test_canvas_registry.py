@@ -20,8 +20,9 @@ from layout import build_app_layout
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
 
 # The assets that act on every canvas. They take the canvases from the page.
-SHARED_CANVAS_ASSETS = ('context_menu.js', 'freeze_positions.js', 'fullscreen.js',
-                        'layout_requests.js', 'now_pulse.js', 'tooltip.js')
+SHARED_CANVAS_ASSETS = ('canvas_fit.js', 'context_menu.js', 'freeze_positions.js',
+                        'fullscreen.js', 'layout_requests.js', 'now_pulse.js',
+                        'tooltip.js')
 
 # The Graph Layout controls each canvas's layout request listens to, in order.
 LAYOUT_CONTROLS = ('edge-length', 'gravity', 'repulsion', 'animate', 'relayout')

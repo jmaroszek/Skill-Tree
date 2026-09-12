@@ -856,20 +856,23 @@ def register_details_callbacks(app):
         return f"{selected_node}|{int(time.time())}"
 
 
-    # --- Context Menu "Details" → Navigate to Details tab with node selected ---
+    # --- Context Menu "View Details" → Navigate to Details tab with node selected ---
     @app.callback(
         Output("main-tabs", "active_tab", allow_duplicate=True),
         Output("details-node-select", "value", allow_duplicate=True),
         Input("details-navigate-trigger-input", "value"),
+        State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
-    def context_menu_details_navigate(trigger_val):
+    def context_menu_details_navigate(trigger_val, active_tab):
         if not trigger_val:
             return no_update, no_update
         node_name = trigger_val.split('|')[0].strip()
         if not node_name:
             return no_update, no_update
-        return "tab-details", node_name
+        # Re-sending the current tab would re-run everything keyed on it.
+        next_tab = "tab-details" if active_tab != "tab-details" else no_update
+        return next_tab, node_name
 
     # --- Context Menu "Explain" → select node + open modal (stay on current tab) ---
     # The modal renders via React Portal (dbc.Modal uses createPortal), so it is
@@ -1038,7 +1041,7 @@ def register_details_callbacks(app):
     )
     def open_add_node_modal(n_clicks, selected_node):
         if not n_clicks:
-            return (no_update,) * 43
+            return (no_update,) * 42
 
         types = ConfigManager.get_node_types()
         contexts = sort_contexts(ConfigManager.get_contexts())

@@ -4,8 +4,8 @@ The Nodes, Details and Events tabs each render the graph in their own
 Cytoscape component. Behavior every canvas shares loops over this list instead
 of naming the canvases again. In Python that is the hover tooltip, the freeze
 wiring and the layout requests. In assets/ it is the tooltip binding, freeze,
-fullscreen, scroll zoom, right-click pan, the node context menu, the Now pulse
-and the layout requests.
+fullscreen, scroll zoom, right-click pan, the node context menu, the Now pulse,
+the layout requests and framing a layout that ran on a hidden tab.
 """
 
 import json

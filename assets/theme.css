@@ -186,12 +186,8 @@
     z-index: 10001;
 }
 
-/* Ensure tooltip and context menu render above fullscreen overlay */
+/* Ensure the tooltip renders above the fullscreen overlay (.ctx-menu does too) */
 #hover-tooltip {
-    z-index: 10002 !important;
-}
-
-#node-context-menu {
     z-index: 10002 !important;
 }
 
@@ -397,6 +393,24 @@
 }
 
 /* --- Right-click Context Menu --- */
+/* Every floating menu and popover (layout.py _floating_menu), and the
+   submenus inside them, share one panel look. */
+
+.ctx-menu,
+.ctx-menu-submenu {
+    background-color: #2b3035;
+    border: 1px solid #495057;
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 160px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.ctx-menu {
+    position: fixed;
+    /* Above a fullscreen canvas and its settings panel (10001). */
+    z-index: 10002;
+}
 
 .ctx-menu-item {
     padding: 6px 16px;
@@ -423,9 +437,9 @@
 
 /* --- Submenu (flyout) on a context-menu item -------------------------- */
 /* The parent row anchors the submenu; the caret hints that hovering will
-   reveal more. goal_context_menu.js flips left/right via a class when the
-   submenu would render off-screen, and a small JS timeout tolerates the
-   diagonal mouse drift between parent and submenu. */
+   reveal more. menus.js flips left/right via a class when the submenu would
+   render off-screen, and a small JS timeout tolerates the diagonal mouse
+   drift between parent and submenu. */
 
 .ctx-menu-submenu-parent {
     position: relative;
@@ -447,17 +461,11 @@
     top: -1px;            /* 1px overlap bridges the hover gap between menus */
     left: 100%;
     margin-left: 0;       /* shared edge — no horizontal gap to drift across */
-    background-color: #2b3035;
-    border: 1px solid #495057;
-    border-radius: 6px;
-    padding: 4px 0;
-    min-width: 160px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     z-index: 1;
 }
 
 /* Flip the submenu to the left when there's no room on the right;
-   goal_context_menu.js toggles this class on hover based on viewport space. */
+   menus.js toggles this class on hover based on viewport space. */
 .ctx-menu-submenu-parent.ctx-menu-submenu-flip .ctx-menu-submenu {
     left: auto;
     right: 100%;

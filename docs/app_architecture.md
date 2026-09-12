@@ -34,7 +34,7 @@ The one-way rule has a payoff: a tab module sees only `app` and the three manage
 | [callback_helpers.py](../callback_helpers.py) | Stateless helpers extracted from the `*_callbacks.py` files (link parsing, filters, form-state diffs). |
 | [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. |
 | [styles.py](../styles.py) | Dash component style dicts. |
-| [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests) loop over that. |
+| [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
 | [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. |
 | Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
 
@@ -86,12 +86,12 @@ All three canvases build their elements with `build_node_element` and `build_edg
 
 ### 3. Right-click → editor (the JS-Dash bridge)
 
-1. `context_menu.js` shows a menu on node right-click and stashes `_currentNodeData`.
-2. "Edit" calls `triggerEdit()`, which routes by source tab: events+dormant → `dormant-edit-trigger-input`; details/events/next → `details-edit-trigger-input` (opens the editor *in place*, no tab switch); main canvas → `edit-trigger-input` (which switches to the canvas tab).
+1. `context_menu.js` shows the node menu on right-click and stashes `_currentNodeData`. On a canvas the data is the Cytoscape node's; on a Next row, Now card or goal card it comes from the `node_menu_attributes` data attributes. `menus.js` positions and closes it, as it does every floating menu.
+2. "Edit" calls `triggerEdit()`, which routes by source: events+dormant → `dormant-edit-trigger-input`; the Nodes canvas → `edit-trigger-input` (which switches to the canvas tab); anywhere else → `details-edit-trigger-input` (opens the editor *in place*, no tab switch).
 3. It pokes that hidden Dash input via the **value-setter bridge**: the native `HTMLInputElement` value setter plus a synthetic `input` event. A plain `el.value = x` is silently ignored because the input is React-controlled. The value is suffixed with `'|' + Date.now()` so that re-editing the *same* node still changes the value and re-fires the callback.
 4. The Dash callback bound to that input opens and populates the editor sidebar.
 
-This bridge pattern recurs across `assets/` (sortables, event/goal context menus) — same setter + `input`-event trick everywhere a server value must land in a controlled component.
+This bridge pattern recurs across `assets/` (sortables, the event menu, the goal rank popover) — same setter + `input`-event trick everywhere a server value must land in a controlled component.
 
 ### 4. Status cascade
 
@@ -276,6 +276,16 @@ Display-only data changes get none. The signature is reset when `onCytoReady`
 reports a replacement Cytoscape instance. Otherwise a remount of the same view
 would be mistaken for an echo, and its nodes would stay stacked at the default
 origin.
+
+Every layout asks Cytoscape to fit the graph, and Cytoscape fits against the
+canvas size it has cached. That cache lags a revealed tab by 100 ms, and at 0x0
+the fit does nothing. So a context menu's View Details, which opens the Details
+tab and selects the node in one step, could draw the graph in the canvas's
+top-left corner. Explain Priority does the same from another tab, since Details
+lays out a selection while hidden. `assets/canvas_fit.js` refreshes the cached
+size before every layout. A layout that still finds no size owes its fit, and
+pays it when the canvas gets a size and the layout has stopped. Nothing else
+moves the viewport, so returning to a tab keeps its pan and zoom.
 
 Details marks the selected node as the view root inside the elements payload.
 A new selection is then randomized even if Dash has not yet propagated the

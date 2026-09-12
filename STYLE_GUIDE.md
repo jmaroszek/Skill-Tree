@@ -247,16 +247,35 @@ live *inside* the field as a trailing chevron — see *Unified field* below.
 - Unselected card: `1px solid #495057`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars, settings, modals
 - **Standalone section dividers**: `html.Hr(className="my-3")` — more spacious, for filter panels and major sections
-- **Context menu dividers**: `html.Hr(style={"margin": "2px"})` — ultra-tight
+- **Context menu dividers**: `_menu_divider()` in `layout.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
 - Never use bare `html.Hr()` — always specify a margin class
-- Context menu: `border-radius: 6px`, `box-shadow: 0 4px 16px rgba(0,0,0,0.4)`
+- Context menu panel: the `.ctx-menu` class in `theme.css` (`border-radius: 6px`, `box-shadow: 0 4px 16px rgba(0,0,0,0.4)`)
 
-The shared node context menu is grouped by user intent: primary Edit; inspection
-(View Details / Explain Priority); workflow state (Now / Event / Done); conditional external links; and an isolated destructive Delete
-row. Toggle labels describe the resulting action (`Add to Now` / `Remove from
-Now`, `Mark Done` / `Reopen`) rather than naming the underlying field. Commands
-that open another choice or confirmation use an ellipsis. When no external link
-exists, hide that whole section, including its leading divider.
+## Context Menus
+
+Build every right-click menu and popover from `_floating_menu`, `_menu_item`
+and `_menu_divider` in `layout.py`, and open it through `assets/menus.js`, which
+positions, dismisses and runs submenus for all of them. Don't hand-build a menu
+or give one its own inline panel style.
+
+A node has exactly one menu, `#node-context-menu`, wherever it appears:
+canvases, Next rows, Now cards and Goals sidebar cards. Rows and cards opt in
+with `node_menu_attributes` (`callback_helpers.py`). An option that fits only
+some nodes is hidden for the rest rather than living in a separate menu:
+external links appear only when set, and Set Priority only for a single Goal.
+
+Group items by user intent: primary Edit; inspection (View Details / Explain
+Priority); Set Priority, alone in a Goal-only section; workflow state (Now /
+Event / Done); conditional external links; and an isolated destructive Delete
+row with `_menu_item(..., danger=True)`. An option that fits only some nodes
+gets a section of its own where it can, so hiding it leaves the rest of the
+menu identical for every node. The Events sidebar menu follows the same
+grouping: Edit; Trigger Now…; Delete…. Labels name the command in full rather
+than a bare noun (`View Details`, not `Details`). Toggle labels describe the
+resulting action (`Add to Now` / `Remove from Now`, `Mark Done` / `Reopen`)
+rather than naming the underlying field. Commands that open another choice or
+confirmation use an ellipsis; a submenu row uses a caret instead. When a
+section has nothing to show, hide it along with its leading divider.
 
 ## Cards
 

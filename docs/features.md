@@ -262,7 +262,7 @@ Left-click any row to see the node's description beside the table. Right-click i
 Importantly, only Learn, Action, and Resource nodes appear as suggestions. Goals and Milestones are excluded — you'll complete them naturally by clearing their subtasks. 
 
 ## Context Menu
-Right-click any node — on this tab or anywhere else a node appears — to open the context menu. The menu is the same everywhere, except the [goals sidebar](#goals-sidebar), which has additional functionality.
+Right-click any node — on this tab or anywhere else a node appears — to open the context menu. The menu is the same everywhere, including the [goals sidebar](#goals-sidebar). Options that don't apply to a node are hidden.
 
 <table>
   <tr>
@@ -274,6 +274,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Edit | Opens the node editor. |
 | View Details | Jumps to the Details tab pre-loaded with this node. |
 | Explain Priority | Opens the priority-score breakdown. |
+| Set Priority | Goals only. Makes the goal Priority 1, 2 or 3, or clears its priority. |
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. |
 | Add to Event… | Adds the node to an Event. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. |
@@ -288,7 +289,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 
 ## Explain
 
-A score on its own doesn't tell you much. Explain tells you where that score came from. Right-click any suggestion and choose **Explain** to open it. It works anywhere a node appears, not just here.
+A score on its own doesn't tell you much. Explain tells you where that score came from. Right-click any suggestion and choose **Explain Priority** to open it. It works anywhere a node appears, not just here.
 
 <p align="center">
     <img src="../images/explain-modal.png" >
@@ -492,7 +493,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
 | Suggestions | When nothing is selected, the left panel shows a suggestion list. There are two sections: your top three priority goals, and the top five time [containers](#containers) with the highest total value. |
-| Context Menu | Right-click a node and pick **Details** in the context menu. The app jumps here with the project loaded.|
+| Context Menu | Right-click a node and pick **View Details** in the context menu. The app jumps here with the project loaded.|
 
 </td>
   </tr>
@@ -628,7 +629,7 @@ The **+** next to "Goals" creates a new one; you can search for existing goals u
 
 Your top three goals are your **Priority Goals.** Because Skill Tree respects your autonomy, you must set these explicitly. While the app functions perfectly well without them, designating Priority Goals allows the [scoring](scoring.md#goal-priority-boost) algorithm to apply a priority boost to all tasks in their subtrees.
 
-You can set a goal's priority in two ways: open the context menu in the goal sidebar, as seen on the left, or set the priority field that appears only for goal nodes in the [Node Editor](#node-editor).
+You can set a goal's priority in two ways. Right-click the goal and choose **Set Priority**, as seen on the left. This works in the goal sidebar and anywhere else the goal appears. Or set the priority field that appears only for goal nodes in the [Node Editor](#node-editor).
 
 </td>
   </tr>
@@ -679,7 +680,7 @@ The Events tab is where you create, edit, and trigger events. Unlike the other t
 ### Events Sidebar
 Open the sidebar from the calendar icon in the top-left, or via the empty-state button on the Events Tab. 
 
-The sidebar lists every event as a card showing its name, description, trigger, and a node count. Three self-explanatory controls sit at the top. Click any card to load it into the Events Tab. 
+The sidebar lists every event as a card showing its name, description, trigger, and a node count. Three self-explanatory controls sit at the top. Click any card to load it into the Events Tab. Right-click a card to edit, trigger, or delete that event.
 
 Once an event is loaded, the tab splits in two: the **Event Editor** on the left and the **Event Canvas** on the right.
 
