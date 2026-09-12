@@ -277,11 +277,10 @@ DEFAULT_MONTE_CARLO_TRIALS = 10000
 # specific to one task. At 0 the simulator treats tasks as independent, which
 # makes a long project's relative spread shrink like 1/sqrt(N) and quotes a
 # 116-task forecast to +/-3%. At 1 there is no diversification at all and a
-# whole project is as uncertain as one task. Both extremes are wrong; 0.3-0.5 is
-# the defensible band, and this is the one number in the duration model that
-# theory can bound but not pin. It is measurable from reflections once enough
-# have accumulated: decompose log(actual/estimate) into a common component and a
-# residual, and that variance ratio is this value.
+# whole project has fully shared log-duration shocks. The 0.4 default is a
+# provisional modeling assumption, not a calibrated estimate. Future estimation
+# requires original forecasts and grouped outcomes across projects or periods
+# to separate common variation from task-specific error and persistent bias.
 DEFAULT_ESTIMATE_CORRELATION = 0.4
 
 DEFAULT_TIME_ESTIMATE_DEFAULTS = {

@@ -19,6 +19,7 @@ from details_layout import (build_details_subtasks_table,
                              build_milestone_tile)
 from simulation import SimulationCancelled
 from simulation_service import simulation_service
+from duration_ui import simulation_caption
 from callback_helpers import (render_link_rows, render_alias_rows, strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
                               is_filters_active,
@@ -154,7 +155,9 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
 
     fig.update_layout(
         meta={"trials": result['trials'], "requested_trials": requested_trials,
-              "chain_size": result['chain_size']},
+              "chain_size": result['chain_size'],
+              **{key: result[key] for key in ('mean_hours', 'correlation',
+                                              'sensitivity', 'diagnostics')}},
         template="plotly_dark",
         paper_bgcolor='#1a1d21',
         plot_bgcolor='#1a1d21',
@@ -806,9 +809,7 @@ def register_details_callbacks(app):
             if fig is no_update:
                 return {**identity, 'error': 'This node is no longer available.'}
             meta = fig.layout.meta
-            caption = f"{meta['trials']:,} trials"
-            if meta['trials'] < meta['requested_trials']:
-                caption += f" (requested {meta['requested_trials']:,}; limited for responsiveness)"
+            caption = simulation_caption(meta)
             return {**identity, 'figure': fig, 'resultsStyle': results_style,
                     'emptyStyle': empty_style, 'caption': caption}
         except SimulationCancelled:

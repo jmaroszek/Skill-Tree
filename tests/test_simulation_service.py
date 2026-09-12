@@ -32,15 +32,15 @@ def test_service_reuses_relevant_inputs_and_returns_detached_results(monkeypatch
     first = service.summarize('Goal', nodes, edges, True, False, 1000)
     nodes['N0'].description = 'Cosmetic edit'
     again = service.summarize('Goal', nodes, edges, True, False, 1000)
-    assert first == again and len(calls) == 1
+    assert first == again and len(calls) == 3
     again['counts'][0] = -100
     assert service.summarize('Goal', nodes, edges, True, False, 1000) == first
     nodes['N0'].time_p = 8
     service.summarize('Goal', nodes, edges, True, False, 1000)
-    assert len(calls) == 2
+    assert len(calls) == 6
     nodes['N0'].status = 'Done'
     service.summarize('Goal', nodes, edges, True, False, 1000)
-    assert len(calls) == 3
+    assert len(calls) == 9
 
 
 def test_private_rng_reproduces_results_without_changing_global_rng():
@@ -59,6 +59,57 @@ def test_trial_budget_is_enforced_on_server():
     assert effective_trials(10_000, nodes) == 4000
     assert effective_trials(10**12, nodes) * 500 <= MAX_SAMPLE_WORK
     assert effective_trials(10**12, {'N': node('N')}) == 100_000
+    assert effective_trials(10_000, nodes, scenarios=3) * 500 * 3 <= MAX_SAMPLE_WORK
+
+
+def test_sensitivity_reports_current_and_extremes_and_invalidates_cache(monkeypatch):
+    from config import ConfigManager
+    rho = [0.4]
+    monkeypatch.setattr(ConfigManager, 'get_estimate_correlation', lambda: rho[0])
+    nodes, edges = data(20)
+    for n in nodes.values():
+        if n.type != 'Goal':
+            n.time_o, n.time_m, n.time_p = 20, 40, 80
+    service = SimulationService()
+    first = service.summarize('Goal', nodes, edges, True, False, 20_000)
+    assert [r['correlation'] for r in first['sensitivity']] == [0, 0.4, 1]
+    assert first['mean_hours'] == 920
+    spreads = [r['p90'] - r['p10'] for r in first['sensitivity']]
+    assert spreads == sorted(spreads)
+    assert first['sensitivity'][1]['p90'] == first['stats']['p90']
+    rho[0] = 1.0
+    second = service.summarize('Goal', nodes, edges, True, False, 20_000)
+    assert [r['correlation'] for r in second['sensitivity']] == [0, 1]
+    assert second['mean_hours'] == first['mean_hours']
+    assert len(service._cache) == 2
+
+
+def test_cancellation_between_sensitivity_runs_does_not_cache(monkeypatch):
+    nodes, edges = data()
+    original = service_module.simulate_task_chain
+    calls = []
+    def run(*args, **kwargs):
+        if calls:
+            raise SimulationCancelled()
+        calls.append(True)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(service_module, 'simulate_task_chain', run)
+    service = SimulationService()
+    with pytest.raises(SimulationCancelled):
+        service.summarize('Goal', nodes, edges, True, False, 100)
+    assert not service._cache
+
+
+def test_caption_serializes_for_client_side_delivery():
+    from duration_ui import simulation_caption
+    from plotly.utils import PlotlyJSONEncoder
+    nodes = {'N': node('N', time_o=10, time_m=90, time_p=100)}
+    summary = SimulationService().summarize('N', nodes, [], True, False, 100)
+    caption = simulation_caption({**summary, 'requested_trials': 100})
+    encoded = json.dumps(caption, cls=PlotlyJSONEncoder)
+    assert 'Approximate percentiles' in encoded
+    assert 'Entered P10 / P50 / P90' in encoded
+    assert 'Mean work hours: 69.0' in encoded
 
 
 def test_superseded_and_out_of_order_requests_are_cancelled():

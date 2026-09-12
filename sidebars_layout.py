@@ -14,6 +14,7 @@ Per-tab filter sidebars (e.g. the Details tab's mini-graph filter at
 `details-filters-sidebar`) live with their owning tab module, not here.
 """
 
+from duration_ui import estimate_guidance
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 from config import (
@@ -271,6 +272,7 @@ node_editor_content = html.Div(
             html.Div(id="section-time-estimates", children=[
                 html.Hr(className="my-2"),
                 html.H5("Time Estimates", className="mt-2 mb-2"),
+                estimate_guidance(),
                 html.Div([
                     dbc.Checklist(
                         options=[{"label": "Inherit", "value": "inherited"}],

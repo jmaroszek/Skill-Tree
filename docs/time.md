@@ -6,7 +6,7 @@ This document explains how Skill Tree turns a time estimate into a single number
 
 The node editor asks for three figures: **Lower**, **Expected**, and **Upper**. Everything downstream depends on what those words are taken to mean, so it is worth settling before any formula appears.
 
-Skill Tree reads them as **percentiles** of the task's duration.
+Skill Tree reads them as **percentiles** of the task's duration. The editor explains this alongside the inputs. Existing stored values are unchanged: when revisiting older estimates, check whether they describe these probabilities rather than absolute best and worst cases.
 
 | Field | Reads as | In plain terms |
 |---|---|---|
@@ -92,7 +92,7 @@ Given three percentiles, the expected duration is a weighted average of them:
 
 $$ t(n) = 0.3\,l + 0.4\,m + 0.3\,u $$
 
-This is **Swanson's rule**, a standard result for recovering a mean from three quantiles. The weights are not arbitrary. They are what the arithmetic requires when $l$, $m$ and $u$ are the 10th, 50th and 90th percentiles of a moderately skewed quantity.
+This is **Swanson's rule**, an approximation to the mean for moderately skewed distributions. The weights are useful under these assumptions, not uniquely determined by three percentiles. See [Hurst, Brown and Swanson (2000)](https://doi.org/10.1306/8626C70D-173B-11D7-8645000102C1865D).
 
 The rule has a quiet virtue beyond accuracy. It never extrapolates. It weighs the three points you gave and stops. A model that instead fits a curve through your numbers has to invent the tail beyond them, and that invented tail can swing wildly on a small change to one input. Skill Tree's estimates come from a rubric, so they arrive in coarse steps. A rule that amplifies a one-notch change is the wrong tool for coarse input.
 
@@ -138,7 +138,7 @@ The app accepts one, two, or three numbers and produces a sensible $t(n)$ from e
 | $l$ and $u$ | Middle filled in, then weighted | $t = 0.3l + 0.4\sqrt{l \cdot u} + 0.3u$ |
 | All three | Swanson's rule | $t = 0.3l + 0.4m + 0.3u$ |
 
-With a single number, the app takes it at face value. One figure carries no spread, so there is nothing to weight.
+With a single number, the app takes it at face value as the mean. The simulator supplies the spread implied by a half-to-double bracket but preserves that original mean; it does not reweight the invented bracket.
 
 With two, the app supplies the missing middle itself. For a log-normal shape, a 10th and a 90th percentile imply a median of $\sqrt{l \cdot u}$, the geometric mean. That value goes into the same rule as if you had typed it.
 
@@ -148,7 +148,7 @@ The geometric mean is worth a note, because it is tempting to stop there and rep
 
 After you finish a project, the reflection feature lets you record how long it actually took. The [features guide](features.md) covers how to enter it. What matters here is that the recorded time runs through the same rule as the estimate, so the before-and-after numbers stay directly comparable.
 
-Reflections also have a second job, described in [Shared Estimating Error](#shared-estimating-error). They are the only way to measure the one number in this document that theory cannot pin down.
+Reflections can eventually support calibration, described in [Shared Estimating Error](#shared-estimating-error). Enough grouped outcomes and original forecasts will be needed before using them to change the model.
 
 # Habit Estimates
 
@@ -167,9 +167,9 @@ Each task is sampled from a log-normal, for the reason given in [Durations Are M
 - Its 10th-to-90th percentile span is exactly the $u/l$ ratio you typed.
 - Its **mean is exactly $t(n)$**, the number the score uses.
 
-That second property is what keeps the app internally consistent. The histogram on the Details tab is centred on the same figure that priced the task in the ranking. The two views cannot drift apart, and no simulation is needed to compute the total: summing $t(n)$ over a chain gives its mean exactly.
+That second property keeps the app internally consistent: summing $t(n)$ over a chain gives its theoretical mean exactly. Details displays that mean separately from the simulated P50. Finite samples can fluctuate around the theoretical mean, and the histogram's peak need not coincide with it.
 
-There is a compromise buried in this. Three numbers over-determine a two-parameter shape. A log-normal can honour a lower bound, an upper bound, and a median only when the median happens to be the geometric mean of the bounds, and yours usually is not. Something has to give. The app keeps the width and the mean, because those are what the forecast and the score are built on, and lets the median absorb the mismatch. In practice the sampled bounds land within a few percent of the ones you typed.
+There is a compromise buried in this. Three numbers over-determine a two-parameter shape. A log-normal can honour a lower bound, an upper bound, and a median only when the median happens to be the geometric mean of the bounds, and yours usually is not. Something has to give. The app keeps the width and the mean, because those are what the forecast and the score are built on, and lets the median absorb the mismatch. The mismatch can be substantial for asymmetric brackets. For example, entering 10 / 90 / 100 hours produces fitted P10 / P50 / P90 values of about 14.6 / 46.1 / 145.7 hours. Details flags tasks when any supplied percentile moves by more than 10%, and shows entered and fitted values. This is a display threshold, not a claim about calibration. The current fitting method remains in place while outcome evidence accumulates.
 
 ## Shared Estimating Error
 
@@ -196,11 +196,11 @@ With independent tasks the forecast collapses toward a point as the project grow
 | 0.5 | 2.63× |
 | 1 | 3.87× |
 
-Both ends of that range are wrong. At 0 a decade of work is forecast to within a few percent. At 1 no task ever surprises you on its own, so a whole project is no more certain than a single task. The app ships at 0.4, and somewhere between 0.3 and 0.5 is the defensible band.
+The app ships at 0.4 as a provisional modeling assumption. Neither the default nor a narrow band around it has been calibrated against your outcomes. Details compares 0 (independent), the current setting, and 1 (fully shared log-duration shocks). These are illustrative sensitivity cases, not a confidence interval for the setting itself.
 
-This is the one number in the duration model that theory can bound but not fix. It is measurable, and the reflection feature is how. With enough recorded outcomes, split the spread of $\log(\text{actual} / \text{estimate})$ in two: the part common to all your estimates, and the part specific to each. That ratio is exactly this setting. Until then, 0.4 is a considered default rather than a derived one.
+Future calibration would require original forecasts and repeated groups of outcomes across projects or time periods. Individual actual/estimate ratios alone cannot identify shared correlation: persistent bias, shared variation, task-specific variation, and uncertainty in recalled actual hours need to be distinguished. There is not enough evidence yet to fit this automatically; the current model and default remain in use.
 
-Raising it widens the forecast without moving its centre. The expected total is unchanged at every value, so the score never shifts.
+Raising it increases total variance while leaving the expected total unchanged. The median and individual percentiles can move, so the score stays fixed even when the displayed P50 changes.
 
 ## Chain Collection
 
@@ -218,7 +218,7 @@ where $R$ is the set of incomplete, non-container nodes collected above. The mod
 
 ## Interactive Calculation Limits
 
-The Details panel uses the configured trial count up to 100,000 trials and a two-million node-trial work budget (counting incomplete, non-inherited nodes in the selected dependency view). Large views therefore use fewer trials; the caption reports both the actual and requested counts when capped. This reduces Monte Carlo precision, without changing the underlying duration model.
+The Details panel uses the configured trial count per scenario up to 100,000 trials and a two-million node-trial work budget shared across the distinct sensitivity scenarios (counting incomplete, non-inherited nodes in the selected dependency view). Large views therefore use fewer trials; the caption reports both the actual and requested counts when capped. This reduces Monte Carlo precision, without changing the underlying duration model.
 
 Sampling accumulates into one trial array in chunks instead of retaining an array for every task. Unchanged inputs reuse a small summary cache and a stable private random seed. A new selection, filter change, or departure from Details cancels superseded work; older responses cannot replace the current chart.
 

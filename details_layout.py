@@ -6,6 +6,7 @@ subtasks, and time simulation — merging the best parts of the Goals
 and Simulation tabs.
 """
 
+from duration_ui import estimate_guidance
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -543,7 +544,7 @@ def build_details_tab_content():
     sim_section = html.Div([
         dcc.Store(id="details-sim-request"),
         dcc.Store(id="details-sim-result"),
-        html.Small(id="details-sim-status", className="text-muted d-block mb-1",
+        html.Div(id="details-sim-status", className="text-muted d-block mb-1",
                    style={"fontSize": "0.85rem"}, **{"aria-live": "polite"}),
         html.Div(id="details-sim-empty", children=[
             html.Div([
@@ -1152,6 +1153,7 @@ def _build_add_node_modal(ted):
 
                 html.Hr(className="my-2"),
                 html.H5("Time Estimates", className="mt-2 mb-2"),
+                estimate_guidance(),
                 html.Div([
                     dbc.Checklist(
                         options=[{"label": "Inherit", "value": "inherited"}],
