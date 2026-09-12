@@ -566,6 +566,17 @@ def _build_time_tab():
             dbc.Input(id="setting-monte-carlo-trials", type="number",
                       min=100, max=1000000, step=100,
                       style={"width": "128px"}),
+            html.Small(
+                "How much of your estimating error is systematic rather than "
+                "task-specific. At 0 every task surprises you independently, so "
+                "a long project's uncertainty cancels away to almost nothing. "
+                "At 1 a whole project is as uncertain as a single task. Raising "
+                "this widens the forecast without changing its average.",
+                className="text-muted d-block mt-3 mb-2"),
+            dbc.Label("Shared estimate error"),
+            dbc.Input(id="setting-estimate-correlation", type="number",
+                      min=0, max=1, step=0.05,
+                      style={"width": "128px"}),
         ], className="p-2")
     ])
 

@@ -27,33 +27,40 @@ STATUS_DONE = 'Done'
 ALL_STATUSES = (STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE)
 
 
-def pert_blend_weight(ratio: float) -> float:
-    """Weight w(r) that blends the arithmetic PERT mean toward the geometric
-    (log) one as the uncertainty ratio r = p/o grows.
+# The three time inputs are read as QUANTILES of the task's duration, not as
+# hard limits: `o` is the 10th percentile ("I would be shocked to finish
+# faster"), `m` the 50th ("what I actually expect"), `p` the 90th ("my imagined
+# worst case"). Under that reading the stated worst case is exceeded one time in
+# ten rather than never, which is what keeps the simulation's tail credible.
+#
+# Swanson's rule recovers the MEAN of a duration from those three quantiles:
+#
+#     E[T] ~= 0.3*P10 + 0.4*P50 + 0.3*P90
+#
+# It holds to well under 1% across lognormal, gamma and Weibull shapes over the
+# spread range this graph occupies, and it never extrapolates past the points
+# the user actually named — so input noise passes through at roughly 1:1 instead
+# of being amplified the way a fitted-tail model amplifies it.
+#
+# The mean is the right functional because these numbers get SUMMED: scoring
+# adds `Node.time` across a Goal's whole prerequisite subtree, and only means add
+# exactly (E[sum] = sum of E, whatever the correlation between tasks). A median
+# is individually defensible and collectively wrong.
+SWANSON_WEIGHTS = (0.3, 0.4, 0.3)
 
-    0 for r <= 2 (tight bracket, trust the linear mean), 1 for r >= 10 (wide
-    bracket, lean fully geometric), log-interpolated between. This is the
-    single source of truth for the blend weight — both the point estimate
-    (`blend_time_estimate`) and the Monte Carlo sampler
-    (`simulation.blended_pert_sample`) call it, so the headline number and the
-    simulated distribution can never drift apart.
-    """
-    if ratio <= 2:
-        return 0.0
-    if ratio >= 10:
-        return 1.0
-    return (math.log(ratio) - math.log(2)) / (math.log(10) - math.log(2))
 
+def expected_time_estimate(o: float, m: float, p: float) -> float:
+    """Expected duration in hours from the lower / expected / upper bracket.
 
-def blend_time_estimate(o: float, m: float, p: float) -> float:
-    """Blend optimistic / most-likely / pessimistic values into one expected
-    figure. Shared by the forecast estimate (`Node.time`) and the captured
-    actual time so both are computed identically and stay comparable.
+    Shared by the forecast estimate (`Node.time`) and the captured actual time
+    so both are computed identically and stay comparable.
 
-    - Only M supplied: return M.
-    - Only O and P (two-point): geometric mean ``sqrt(O*P)``.
-    - All three: weighted blend of the arithmetic and geometric PERT means,
-      shifting toward geometric as the P/O uncertainty ratio grows.
+    - Only M supplied: return M — one number carries no spread to weight.
+    - Only O and P (two-point): fill the middle with ``sqrt(O*P)``, the median
+      the two bounds imply, then weight as usual. Returning the bare geometric
+      mean here would under-read the expected duration by ~12% at this graph's
+      typical bracket, because it reports the median of a right-skewed spread.
+    - All three: Swanson's rule (see SWANSON_WEIGHTS above).
     - Nothing supplied: return 1.0.
 
     Accepts None for any argument (treated as 0) so it can take nullable
@@ -69,25 +76,20 @@ def blend_time_estimate(o: float, m: float, p: float) -> float:
 
     # Fallback 2: Only O and P are provided
     if m == 0 and o > 0 and p > 0:
-        return math.sqrt(o * p)
+        m = math.sqrt(o * p)
 
     # Fallback 3: All missing
     if o == 0 and m == 0 and p == 0:
         return 1.0
 
+    # Guarantee 0 < o <= m <= p. The quantile reading is meaningless otherwise,
+    # and `simulation.duration_sample` needs a positive lower bound for log().
     if o <= 0: o = 0.1
     if m < o: m = o
     if p < m: p = m
 
-    e_arith = (o + 4*m + p) / 6.0
-    try:
-        e_log = math.exp((math.log(o) + 4*math.log(m) + math.log(p)) / 6.0)
-    except ValueError:
-        e_log = e_arith
-
-    w = pert_blend_weight(p / o)
-
-    return round((1 - w) * e_arith + w * e_log, 2)
+    w_o, w_m, w_p = SWANSON_WEIGHTS
+    return round(w_o * o + w_m * m + w_p * p, 2)
 
 
 @dataclass
@@ -235,11 +237,11 @@ class Node:
 
     @property
     def time(self) -> float:
-        """Blended PERT time estimate (in hours), or 0 for inherited-mode
-        nodes. See `blend_time_estimate` for the blend rules."""
+        """Expected time estimate (in hours), or 0 for inherited-mode
+        nodes. See `expected_time_estimate` for how the bracket is weighted."""
         if self.time_mode == 'inherited':
             return 0.0
-        return blend_time_estimate(self.time_o, self.time_m, self.time_p)
+        return expected_time_estimate(self.time_o, self.time_m, self.time_p)
 
     @property
     def is_container(self) -> bool:

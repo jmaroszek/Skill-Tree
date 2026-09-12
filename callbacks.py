@@ -1334,7 +1334,7 @@ def register_callbacks(app):
         """Enforce one of the supported (l, m, u) input patterns and the
         Lower <= Expected <= Upper ordering; disable Save on violation.
 
-        Valid patterns (mirroring `blend_time_estimate` in models.py):
+        Valid patterns (mirroring `expected_time_estimate` in models.py):
           - Expected only          {m}
           - Lower + Upper          {o, p}
           - All three              {o, m, p}

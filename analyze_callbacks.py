@@ -192,10 +192,10 @@ def _compute_hub_score(nodes, edges, limits):
 
 def _compute_estimation_accuracy(nodes):
     """Pair each completed node's forecast estimate against its captured
-    actual time. Both figures run through the same `blend_time_estimate`
+    actual time. Both figures run through the same `expected_time_estimate`
     blend so they are directly comparable. Nodes with no actual-time data,
     or with no own estimate (inherited-time Goals), are skipped."""
-    from models import blend_time_estimate
+    from models import expected_time_estimate
     rows = []
     for n in nodes:
         if n.status != STATUS_DONE:
@@ -206,7 +206,7 @@ def _compute_estimation_accuracy(nodes):
         estimate = n.time
         if estimate <= 0:
             continue
-        actual = blend_time_estimate(lo, mid, hi)
+        actual = expected_time_estimate(lo, mid, hi)
         rows.append({
             'name': n.name,
             'type': n.type,
@@ -278,13 +278,13 @@ def _compute_throughput(nodes, granularity='quarter',
     natural extent). Per-node hours use captured actual time when present,
     otherwise the forecast estimate; each segment carries its ``nodes``
     list (``(name, hours)`` tuples, hours-descending) for tooltips."""
-    from models import blend_time_estimate
+    from models import expected_time_estimate
 
     if granularity not in ('month', 'quarter', 'year'):
         granularity = 'quarter'
 
     def _hours(n):
-        actual = blend_time_estimate(
+        actual = expected_time_estimate(
             n.actual_time_lower, n.actual_time_point, n.actual_time_upper)
         if actual > 0 and (n.actual_time_lower is not None
                            or n.actual_time_point is not None

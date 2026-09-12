@@ -272,6 +272,18 @@ DEFAULT_TIME_SETTINGS = {
 
 DEFAULT_MONTE_CARLO_TRIALS = 10000
 
+# Fraction of each task's log-variance that is shared with every other task in a
+# simulated chain — systematic estimating bias, as opposed to a surprise
+# specific to one task. At 0 the simulator treats tasks as independent, which
+# makes a long project's relative spread shrink like 1/sqrt(N) and quotes a
+# 116-task forecast to +/-3%. At 1 there is no diversification at all and a
+# whole project is as uncertain as one task. Both extremes are wrong; 0.3-0.5 is
+# the defensible band, and this is the one number in the duration model that
+# theory can bound but not pin. It is measurable from reflections once enough
+# have accumulated: decompose log(actual/estimate) into a common component and a
+# residual, and that variance ratio is this value.
+DEFAULT_ESTIMATE_CORRELATION = 0.4
+
 DEFAULT_TIME_ESTIMATE_DEFAULTS = {
     'optimistic': 2,
     'expected': 4,
@@ -796,6 +808,18 @@ class ConfigManager:
         except (TypeError, ValueError):
             return DEFAULT_MONTE_CARLO_TRIALS
         return n if n > 0 else DEFAULT_MONTE_CARLO_TRIALS
+
+    @classmethod
+    def get_estimate_correlation(cls) -> float:
+        """Shared-bias fraction used by the Time Simulation panel."""
+        try:
+            rho = float(cls.get_time_settings().get(
+                'estimate_correlation', DEFAULT_ESTIMATE_CORRELATION))
+        except (TypeError, ValueError):
+            return DEFAULT_ESTIMATE_CORRELATION
+        if not 0.0 <= rho <= 1.0:
+            return DEFAULT_ESTIMATE_CORRELATION
+        return rho
 
     @classmethod
     def get_time_estimate_defaults(cls):

@@ -6,6 +6,7 @@ import threading
 
 import numpy as np
 
+from config import ConfigManager
 from models import STATUS_DONE
 from simulation import simulate_task_chain, SimulationCancelled
 
@@ -50,8 +51,9 @@ class SimulationService:
         if cancelled():
             raise SimulationCancelled()
         trials = effective_trials(requested_trials, nodes)
+        correlation = ConfigManager.get_estimate_correlation()
         # Cosmetic edits and unrelated graph changes do not change this key.
-        key = (target, include_soft, include_helps, trials,
+        key = (target, include_soft, include_helps, trials, correlation,
                tuple((name, n.status, n.time_mode, n.time_o, n.time_m, n.time_p)
                      for name, n in sorted(nodes.items())),
                tuple(sorted((e['source'], e['target'], e['type']) for e in edges)))
@@ -71,7 +73,8 @@ class SimulationService:
             seed = int.from_bytes(hashlib.sha256(repr(key).encode()).digest()[:8], 'big')
             result = simulate_task_chain(target, nodes, edges, include_soft, include_helps,
                                          trials, rng=np.random.default_rng(seed),
-                                         should_cancel=cancelled)
+                                         should_cancel=cancelled,
+                                         correlation=correlation)
             counts, bins = np.histogram(result['samples'], bins=50)
             summary = dict(stats=result['stats'], chain_size=result['chain_size'],
                            trials=trials, centers=((bins[:-1] + bins[1:]) / 2).tolist(),

@@ -1,132 +1,101 @@
 """
-Monte Carlo simulation engine for PERT-based time estimation.
+Monte Carlo simulation engine for duration forecasting.
 
-Samples per-node durations from the same Blended PERT distribution the point
-estimate uses (`models.blend_time_estimate`) and sums them serially across the
-dependency chain — this assumes one person working on one task at a time, not
-parallel execution.
+Samples per-node durations from a lognormal matched to the node's quantile
+bracket (see `models.expected_time_estimate` for what the three inputs mean) and
+sums them across the dependency chain — this assumes one person working on one
+task at a time, not parallel execution.
+
+Two properties tie this module to the headline number the rest of the app shows:
+
+* Each node's marginal is mean-matched, so ``E[chain total]`` is exactly the sum
+  of the nodes' `Node.time` values. The histogram and the score cannot drift.
+* Tasks are coupled by a shared factor (`correlation`) rather than sampled
+  independently. Independence makes a chain's relative spread shrink like
+  1/sqrt(N), which quoted a 116-task project to +/-3% — an artefact of the
+  assumption, not a forecast. The shared factor leaves every marginal (and
+  therefore every mean) untouched and only changes how the chain adds up.
 """
 
 import math
 from collections import deque
 
 import numpy as np
-from scipy.special import betaincinv
 from typing import Dict, List
-from models import STATUS_DONE, pert_blend_weight
+from models import STATUS_DONE, expected_time_estimate
 
-_LAMBDA = 4.0  # Conventional PERT weighting; keeps alpha, beta >= 1 (unimodal).
+# Phi^-1(0.90). The bracket [o, p] is read as a P10/P90 pair, so it spans
+# 2 * Z90 standard deviations of log-duration.
+Z90 = 1.2815515655446004
 
-
-def _pert_alpha_beta(lo: float, mode: float, hi: float):
-    """PERT-Beta shape parameters for a unimodal Beta on [lo, hi] with the
-    given mode, using the conventional lambda=4 weighting."""
-    span = hi - lo
-    alpha = 1.0 + _LAMBDA * (mode - lo) / span
-    beta = 1.0 + _LAMBDA * (hi - mode) / span
-    return alpha, beta
+_CHUNK = 2048
 
 
-def _clamp_mode(o: float, m: float, p: float) -> float:
-    """Nudge the mode strictly inside (o, p) so both shape parameters stay
-    above 1 and the density is unimodal and interior."""
-    if m <= o:
-        return o + 0.001 * (p - o)
-    if m >= p:
-        return p - 0.001 * (p - o)
-    return m
+def _standard_normal(size: int, rng, correlation: float, shared) -> np.ndarray:
+    """A standard normal draw carrying `correlation` of its variance in common
+    with every other task in the chain.
 
-
-def pert_beta_sample(o: float, m: float, p: float, size: int = 10000, rng=None) -> np.ndarray:
-    """Sample from a linear PERT-Beta distribution on [o, p] with mode m.
-
-    This is the low-uncertainty primitive: a Beta on [o, p] with
-        alpha = 1 + 4*(m-o)/(p-o),  beta = 1 + 4*(p-m)/(p-o).
-    `blended_pert_sample` uses it for the w=0 regime; wider brackets blend it
-    with a Log-Beta. Its mean is exactly (o+4m+p)/6 and its mode is exactly m.
+    ``Z = sqrt(rho)*Z_shared + sqrt(1-rho)*Z_own`` is itself standard normal for
+    any rho in [0, 1], which is why raising rho widens the chain without
+    touching any single task's own distribution.
     """
-    if p <= o or p <= 0:
-        return np.full(size, max(m, 0.1))
-
-    m = _clamp_mode(o, m, p)
-    alpha, beta_param = _pert_alpha_beta(o, m, p)
-
-    samples = (rng if rng is not None else np.random).beta(alpha, beta_param, size=size)
-    return o + (p - o) * samples
-
-
-def blended_pert_sample(o: float, m: float, p: float, size: int = 10000, rng=None) -> np.ndarray:
-    """Sample from the Blended PERT distribution — the sampler counterpart of
-    `models.blend_time_estimate`.
-
-    Comonotonically blends a linear Beta-PERT on [o, p] with a Log-Beta
-    (a Beta-PERT in log space, i.e. log(T) ~ Beta-PERT on [log o, log p]),
-    weighting the two by w(p/o) — the same uncertainty-ratio weight the point
-    estimate uses. A single shared uniform draw drives both components via the
-    Beta quantile function, so the distribution slides smoothly from the plain
-    Beta (w=0, tight brackets) to the Log-Beta (w=1, wide brackets) without
-    averaging away its spread. Both components keep their mode at m and stay
-    within [o, p], so the blend does too.
-    """
-    # Non-positive lower bound makes the log map undefined, and a collapsed or
-    # inverted range has no spread to blend — defer to the linear primitive,
-    # which handles both. (Callers resolve o to >= 0.1 before reaching here.)
-    if o <= 0 or p <= o:
-        return pert_beta_sample(o, m, p, size, rng=rng)
-
-    w = pert_blend_weight(p / o)
-    if w == 0.0:
-        return pert_beta_sample(o, m, p, size, rng=rng)
-
-    m = _clamp_mode(o, m, p)
-
-    # Shared quantiles couple the two components (comonotonic blend): the same
-    # percentile of the linear and the log view of this one task are combined,
-    # rather than two independent draws (which would shrink the spread).
     random = rng if rng is not None else np.random
-    if w == 1.0:
-        lo, mode_log, hi = math.log(o), math.log(m), math.log(p)
-        a_log, b_log = _pert_alpha_beta(lo, mode_log, hi)
-        return np.exp(lo + (hi - lo) * random.beta(a_log, b_log, size=size))
-    u = random.uniform(size=size)
-
-    a_lin, b_lin = _pert_alpha_beta(o, m, p)
-    linear = o + (p - o) * betaincinv(a_lin, b_lin, u)
-
-    lo, mode_log, hi = math.log(o), math.log(m), math.log(p)
-    a_log, b_log = _pert_alpha_beta(lo, mode_log, hi)
-    log_beta = np.exp(lo + (hi - lo) * betaincinv(a_log, b_log, u))
-
-    return (1.0 - w) * linear + w * log_beta
+    if shared is None or correlation <= 0.0:
+        return random.standard_normal(size)
+    if correlation >= 1.0:
+        return shared
+    return math.sqrt(correlation) * shared + math.sqrt(1.0 - correlation) * random.standard_normal(size)
 
 
-def _sample_node(node, n: int, rng=None) -> np.ndarray:
-    """Sample duration for a single node from its PERT estimates."""
+def duration_sample(o: float, m: float, p: float, size: int = 10000, rng=None,
+                    *, correlation: float = 0.0, shared=None) -> np.ndarray:
+    """Sample a task's duration — the sampler counterpart of
+    `models.expected_time_estimate`.
+
+    Lognormal, with two parameters read straight off the bracket:
+
+    * ``sigma = log(p/o) / (2*Z90)``, so the sampled 10th-to-90th percentile
+      span is exactly the ``p/o`` ratio the user typed.
+    * the location set so the sample MEAN equals `expected_time_estimate`
+      exactly.
+
+    Unbounded above, which the bounded Beta-PERT it replaces was not: `p` is the
+    90th percentile, so a tenth of the mass has to sit beyond it.
+
+    The three inputs over-determine any two-parameter family (a lognormal can
+    only honour all three when ``m == sqrt(o*p)``), so something has to give.
+    The width and the mean are kept because those are what the chain forecast
+    and the score are built on; the median absorbs the mismatch.
+    """
+    mean = expected_time_estimate(o, m, p)
+    if not (o > 0 and p > o):
+        # No spread to sample (or a degenerate bracket) — the point estimate is
+        # the whole distribution.
+        return np.full(size, mean)
+
+    sigma = math.log(p / o) / (2.0 * Z90)
+    z = _standard_normal(size, rng, correlation, shared)
+    return mean * np.exp(sigma * z - 0.5 * sigma * sigma)
+
+
+def _sample_node(node, n: int, rng=None, *, correlation: float = 0.0, shared=None) -> np.ndarray:
+    """Sample duration for a single node from its time estimates."""
     o, m, p = node.time_o, node.time_m, node.time_p
 
     # All missing → default 1 hour
     if o == 0 and m == 0 and p == 0:
         return np.full(n, 1.0)
 
-    # Only M provided → approximate spread around M
+    # Only M provided → assume a bracket half to double it, matching the
+    # spread the graph's typical three-point estimate carries.
     if m > 0 and o == 0 and p == 0:
-        return blended_pert_sample(m * 0.5, m, m * 2.0, n, rng=rng)
+        o, p = m * 0.5, m * 2.0
 
-    # Only O and P provided → mode at geometric mean
+    # Only O and P provided → the two bounds imply this median
     if m == 0 and o > 0 and p > 0:
-        m = np.sqrt(o * p)
+        m = math.sqrt(o * p)
 
-    # Validate
-    if o <= 0:
-        o = 0.1
-    if m < o:
-        m = o
-    if p < m:
-        p = m
-    if p == o:
-        return np.full(n, m)
-
-    return blended_pert_sample(o, m, p, n, rng=rng)
+    return duration_sample(o, m, p, n, rng=rng, correlation=correlation, shared=shared)
 
 
 class SimulationCancelled(Exception):
@@ -140,17 +109,27 @@ def simulate_task_chain(
     include_soft: bool = True,
     include_helps: bool = False,
     n_simulations: int = 10000,
-    *, rng=None, should_cancel=None,
+    *, rng=None, should_cancel=None, correlation: float = 0.0,
 ) -> dict:
     """Monte Carlo simulation of total time for a target node's dependency chain.
 
     Walks backward from `target_name` via hard (and optionally soft /
     synergistic) prereq edges, collects every incomplete node along
-    the way, samples each node's duration from its PERT-Beta
-    distribution, and returns a distribution of the serial sum.
+    the way, samples each node's duration, and returns a distribution of the
+    serial sum.
+
+    `correlation` is the fraction of each task's log-variance shared with every
+    other task in the chain — "am I systematically an optimistic estimator", as
+    against "did this one task surprise me". It widens the total without moving
+    it: the mean of the returned samples equals the sum of the chain's
+    `Node.time` values at every value of `correlation`. Callers in the app pass
+    `ConfigManager.get_estimate_correlation()`; the 0.0 default keeps this
+    function a pure, explicit primitive for tests.
 
     Returns dict with keys 'samples', 'stats', 'chain_nodes', 'chain_size'.
     """
+    if not 0.0 <= correlation <= 1.0:
+        raise ValueError("Estimate correlation must be between 0 and 1.")
     if isinstance(n_simulations, bool) or not isinstance(n_simulations, (int, np.integer)) or not 1 <= n_simulations <= 1_000_000:
         raise ValueError("Simulation trials must be between 1 and 1,000,000.")
     def check_cancelled():
@@ -219,18 +198,25 @@ def simulate_task_chain(
             'chain_size': 0,
         }
 
-    # One accumulator and a small temporary chunk replace one full sample
-    # array per task. Independent draws preserve the serial-sum distribution.
+    # One accumulator and a small temporary chunk replace one full sample array
+    # per task. The shared factor has to be drawn once up front and reused for
+    # the same trial index across every task — that reuse IS the correlation —
+    # so it is the one full-length array besides the accumulator.
     samples = np.zeros(n_simulations)
+    shared = None
+    if correlation > 0.0:
+        shared = (rng if rng is not None else np.random).standard_normal(n_simulations)
     for name in sorted(incomplete):
         check_cancelled()
         node = nodes_dict[name]
         if node.time_mode == 'inherited':
             continue
-        for offset in range(0, n_simulations, 2048):
+        for offset in range(0, n_simulations, _CHUNK):
             check_cancelled()
-            stop = min(offset + 2048, n_simulations)
-            samples[offset:stop] += _sample_node(node, stop - offset, rng=rng)
+            stop = min(offset + _CHUNK, n_simulations)
+            samples[offset:stop] += _sample_node(
+                node, stop - offset, rng=rng, correlation=correlation,
+                shared=None if shared is None else shared[offset:stop])
     check_cancelled()
 
     chain_nodes = sorted(incomplete)

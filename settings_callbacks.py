@@ -301,6 +301,7 @@ def register_settings_callbacks(app):
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-monte-carlo-trials', 'value'),
+        Output('setting-estimate-correlation', 'value'),
         Output('setting-now-node-cap', 'value'),
         Output('hp-subcontext-repeat', 'value'),
         Output('hp-future-hours', 'value'),
@@ -310,7 +311,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 49
+            return (dash.no_update,) * 50
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -397,6 +398,7 @@ def register_settings_callbacks(app):
             ConfigManager.get_context_sort_mode(),
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
             ConfigManager.get_monte_carlo_trials(),
+            ConfigManager.get_estimate_correlation(),
             ConfigManager.get_now_node_cap(),
             hp['suggestion_subcontext_premium'],
             hp['future_work_half_credit_hours'],
@@ -529,6 +531,7 @@ def register_settings_callbacks(app):
         State('setting-context-sort-mode', 'value'),
         State('setting-time-calibration-enabled', 'value'),
         State('setting-monte-carlo-trials', 'value'),
+        State('setting-estimate-correlation', 'value'),
         State('setting-now-node-cap', 'value'),
         State('hp-future-hours', 'value'),
         State('hp-future-exponent', 'value'),
@@ -550,7 +553,7 @@ def register_settings_callbacks(app):
                       egl_edge_length, egl_gravity, egl_repulsion,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
-                      monte_carlo_trials_val, now_node_cap_val,
+                      monte_carlo_trials_val, estimate_correlation_val, now_node_cap_val,
                       future_hours=None, future_exponent=None, subcontext_repeat=None):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
@@ -603,7 +606,7 @@ def register_settings_callbacks(app):
                         continue
                     new_ctx_weights[name] = _clamp(wval, 0.0, 10.0, 1.0)
 
-            from config import DEFAULT_MONTE_CARLO_TRIALS
+            from config import DEFAULT_MONTE_CARLO_TRIALS, DEFAULT_ESTIMATE_CORRELATION
             try:
                 mc_trials = int(monte_carlo_trials_val)
             except (TypeError, ValueError):
@@ -612,6 +615,8 @@ def register_settings_callbacks(app):
                 'hours_per_week': float(hpw) if hpw is not None else 40,
                 'hours_per_month': float(hpm) if hpm is not None else 160,
                 'monte_carlo_trials': mc_trials if mc_trials > 0 else DEFAULT_MONTE_CARLO_TRIALS,
+                'estimate_correlation': _clamp(estimate_correlation_val, 0.0, 1.0,
+                                               DEFAULT_ESTIMATE_CORRELATION),
             }
 
             from config import DEFAULT_TIME_ESTIMATE_DEFAULTS

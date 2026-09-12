@@ -109,27 +109,30 @@ class TestPERTTime:
         assert node.time == 5.0
 
     def test_only_o_and_p_provided(self):
+        # Middle filled with sqrt(4*9)=6, then Swanson-weighted.
         node = _make_node(time_o=4.0, time_m=0, time_p=9.0)
-        assert node.time == pytest.approx(math.sqrt(4.0 * 9.0))
+        assert node.time == pytest.approx(.3 * 4.0 + .4 * 6.0 + .3 * 9.0)
 
     def test_equal_estimates(self):
         node = _make_node(time_o=2.0, time_m=2.0, time_p=2.0)
         assert node.time == 2.0
 
-    def test_low_uncertainty_pure_arithmetic(self):
-        # P/O = 2/1 = 2, weight should be 0 → pure arithmetic PERT
+    def test_tight_bracket(self):
         node = _make_node(time_o=1.0, time_m=1.5, time_p=2.0)
-        expected = (1.0 + 4 * 1.5 + 2.0) / 6.0
-        assert node.time == pytest.approx(expected, rel=1e-2)
+        assert node.time == pytest.approx(.3 * 1.0 + .4 * 1.5 + .3 * 2.0)
 
-    def test_high_uncertainty_pure_geometric(self):
-        # P/O = 100/1 = 100 ≥ 10, weight should be 1 → pure geometric PERT
+    def test_wide_bracket_is_weighted_not_capped(self):
+        # The upper estimate keeps its full 0.3 share however wide the bracket
+        # gets — no regime switch, no blend weight.
         node = _make_node(time_o=1.0, time_m=10.0, time_p=100.0)
-        e_log = math.exp((math.log(1) + 4 * math.log(10) + math.log(100)) / 6.0)
-        assert node.time == pytest.approx(e_log, rel=1e-2)
+        assert node.time == pytest.approx(.3 * 1.0 + .4 * 10.0 + .3 * 100.0)
 
-    def test_medium_uncertainty_blended(self):
-        # P/O = 5, between 2 and 10 → blended
+    def test_estimate_rises_monotonically_with_the_upper_bound(self):
+        widen = [_make_node(time_o=2.0, time_m=5.0, time_p=p).time
+                 for p in (10.0, 20.0, 40.0, 200.0)]
+        assert widen == sorted(widen) and len(set(widen)) == 4
+
+    def test_medium_uncertainty_within_bounds(self):
         node = _make_node(time_o=2.0, time_m=5.0, time_p=10.0)
         assert 2.0 < node.time < 10.0
 
@@ -3807,3 +3810,31 @@ class TestDetectCommunities:
         for c in result:
             all_names |= c
         assert "C" not in all_names
+
+class TestEstimateCorrelationSetting:
+    """The one free parameter in the duration model — guard its bounds."""
+
+    def _with(self, stored, temp_database):
+        from config import ConfigManager, DEFAULT_ESTIMATE_CORRELATION
+        settings = dict(ConfigManager.get_time_settings())
+        if stored is not None:
+            settings['estimate_correlation'] = stored
+        ConfigManager.set_time_settings(settings)
+        return ConfigManager.get_estimate_correlation(), DEFAULT_ESTIMATE_CORRELATION
+
+    def test_default_when_unset(self, temp_database):
+        value, default = self._with(None, temp_database)
+        assert value == default
+
+    def test_reads_a_stored_value(self, temp_database):
+        value, _ = self._with(0.25, temp_database)
+        assert value == 0.25
+
+    def test_accepts_the_endpoints(self, temp_database):
+        assert self._with(0.0, temp_database)[0] == 0.0
+        assert self._with(1.0, temp_database)[0] == 1.0
+
+    def test_falls_back_on_out_of_range_or_junk(self, temp_database):
+        for bad in (-0.5, 1.5, "abc", None if False else float('nan')):
+            value, default = self._with(bad, temp_database)
+            assert value == default, bad

@@ -1,15 +1,17 @@
 """
 Tests for the Monte Carlo simulation engine (simulation.py).
 
-Covers PERT-Beta sampling, single-node duration sampling, full task-chain
-simulation with critical-path analysis, and statistics computation.
+Covers quantile-matched duration sampling, single-node duration sampling, full
+task-chain simulation, chain correlation, and statistics computation.
 """
 
 import math
 import numpy as np
 import pytest
 from models import Node
-from simulation import pert_beta_sample, _sample_node, simulate_task_chain, _compute_stats
+from models import expected_time_estimate
+from simulation import (Z90, duration_sample, _sample_node, simulate_task_chain,
+                        _compute_stats)
 
 
 def _make_node(name="N", time_o=1.0, time_m=2.0, time_p=4.0, status="Open", **kw):
@@ -23,43 +25,58 @@ def _make_node(name="N", time_o=1.0, time_m=2.0, time_p=4.0, status="Open", **kw
 
 
 # ============================================================================
-# pert_beta_sample
+# duration_sample
 # ============================================================================
 
-class TestPertBetaSample:
+class TestDurationSample:
     def test_output_shape(self):
-        samples = pert_beta_sample(1.0, 3.0, 5.0, size=500)
-        assert samples.shape == (500,)
+        assert duration_sample(1.0, 3.0, 5.0, size=500).shape == (500,)
 
-    def test_samples_within_bounds(self):
-        samples = pert_beta_sample(2.0, 5.0, 10.0, size=5000)
-        assert np.all(samples >= 2.0)
-        assert np.all(samples <= 10.0)
+    def test_mean_matches_the_point_estimate(self):
+        # The contract the whole module rests on: E[sample] == Node.time.
+        rng = np.random.default_rng(0)
+        samples = duration_sample(50.0, 116.0, 200.0, size=400_000, rng=rng)
+        expected = expected_time_estimate(50.0, 116.0, 200.0)
+        assert abs(np.mean(samples) / expected - 1) < 0.01
 
-    def test_mean_near_mode(self):
-        # PERT distribution with symmetric spread — mean should be near mode
-        samples = pert_beta_sample(1.0, 5.0, 9.0, size=50000)
-        assert abs(np.mean(samples) - 5.0) < 0.5
+    def test_p10_to_p90_span_equals_the_stated_bracket(self):
+        rng = np.random.default_rng(1)
+        samples = duration_sample(20.0, 40.0, 80.0, size=400_000, rng=rng)
+        lo, hi = np.percentile(samples, [10, 90])
+        assert abs((hi / lo) / (80.0 / 20.0) - 1) < 0.02
 
-    def test_degenerate_p_leq_o_returns_constant(self):
-        samples = pert_beta_sample(5.0, 3.0, 2.0, size=100)
+    def test_upper_estimate_is_exceeded_about_a_tenth_of_the_time(self):
+        # The point of reading `p` as P90 rather than as a hard ceiling.
+        rng = np.random.default_rng(2)
+        samples = duration_sample(20.0, 40.0, 80.0, size=200_000, rng=rng)
+        assert 0.03 < np.mean(samples > 80.0) < 0.20
+
+    def test_always_positive(self):
+        rng = np.random.default_rng(3)
+        assert np.all(duration_sample(1.0, 2.0, 40.0, size=20_000, rng=rng) > 0)
+
+    def test_degenerate_bracket_returns_the_point_estimate(self):
+        samples = duration_sample(3.0, 3.0, 3.0, size=100)
         assert np.all(samples == 3.0)
 
-    def test_degenerate_p_leq_zero(self):
-        samples = pert_beta_sample(0.0, 2.0, 0.0, size=100)
-        assert np.all(samples == 2.0)
+    def test_inverted_bracket_returns_constant(self):
+        samples = duration_sample(5.0, 3.0, 2.0, size=100)
+        assert np.all(samples == expected_time_estimate(5.0, 3.0, 2.0))
 
-    def test_mode_clamped_to_o(self):
-        # m <= o should be clamped up slightly
-        samples = pert_beta_sample(5.0, 3.0, 10.0, size=1000)
-        assert np.all(samples >= 5.0)
-        assert np.all(samples <= 10.0)
+    def test_shared_draw_is_reused_when_fully_correlated(self):
+        shared = np.random.default_rng(4).standard_normal(1000)
+        a = duration_sample(10., 20., 40., 1000, correlation=1.0, shared=shared)
+        b = duration_sample(10., 20., 40., 1000, correlation=1.0, shared=shared)
+        assert np.allclose(a, b)
 
-    def test_mode_clamped_to_p(self):
-        # m >= p should be clamped down slightly
-        samples = pert_beta_sample(1.0, 12.0, 10.0, size=1000)
-        assert np.all(samples >= 1.0)
-        assert np.all(samples <= 10.0)
+    def test_correlation_does_not_change_the_marginal(self):
+        lo = duration_sample(10., 20., 40., 300_000, rng=np.random.default_rng(5),
+                             correlation=0.0)
+        hi = duration_sample(10., 20., 40., 300_000, rng=np.random.default_rng(6),
+                             correlation=0.6,
+                             shared=np.random.default_rng(7).standard_normal(300_000))
+        assert abs(np.mean(lo) / np.mean(hi) - 1) < 0.02
+        assert abs(np.std(lo) / np.std(hi) - 1) < 0.05
 
 
 # ============================================================================
@@ -80,15 +97,18 @@ class TestSampleNode:
 
     def test_only_o_and_p_provided(self):
         node = _make_node(time_o=4.0, time_m=0, time_p=16.0)
-        samples = _sample_node(node, 5000)
-        geo_mean = math.sqrt(4.0 * 16.0)  # 8.0
-        assert abs(np.mean(samples) - geo_mean) < 2.0
+        samples = _sample_node(node, 20000)
+        assert np.mean(samples) == pytest.approx(
+            expected_time_estimate(4.0, 0.0, 16.0), rel=0.05)
 
     def test_full_estimates(self):
         node = _make_node(time_o=2.0, time_m=5.0, time_p=10.0)
         samples = _sample_node(node, 5000)
-        assert np.all(samples >= 2.0)
-        assert np.all(samples <= 10.0)
+        assert np.all(samples > 0)
+        # Not bounded by [o, p] any more — those are the 10th and 90th
+        # percentiles, so mass has to fall outside them.
+        assert np.mean(samples) == pytest.approx(
+            expected_time_estimate(2.0, 5.0, 10.0), rel=0.06)
 
     def test_equal_estimates_returns_constant(self):
         node = _make_node(time_o=3.0, time_m=3.0, time_p=3.0)
@@ -381,3 +401,62 @@ class TestSerialExecutionRegression:
         ]
         result = simulate_task_chain("C", nodes, edges, n_simulations=1000)
         assert result['stats']['mean'] == pytest.approx(9.0, abs=0.2)
+
+
+# ============================================================================
+# Chain coherence and correlation
+#
+# These pin the two properties the duration model is built around: the
+# simulated total is centred on exactly the number the score uses, and chain
+# uncertainty does not evaporate as the chain gets longer.
+# ============================================================================
+
+def _chain(n, **kw):
+    nodes = {f"N{i}": _make_node(f"N{i}", **kw) for i in range(n)}
+    edges = [{"source": f"N{i}", "target": f"N{i+1}", "type": "Needs_Hard"}
+             for i in range(n - 1)]
+    return nodes, edges
+
+
+class TestChainCoherence:
+    def test_chain_mean_equals_sum_of_node_times(self):
+        nodes, edges = _chain(12, time_o=20.0, time_m=40.0, time_p=80.0)
+        result = simulate_task_chain(f"N11", nodes, edges, n_simulations=120_000,
+                                     rng=np.random.default_rng(0))
+        assert result['stats']['mean'] == pytest.approx(
+            sum(n.time for n in nodes.values()), rel=0.01)
+
+    def test_correlation_leaves_the_chain_mean_alone(self):
+        nodes, edges = _chain(12, time_o=20.0, time_m=40.0, time_p=80.0)
+        expected = sum(n.time for n in nodes.values())
+        for rho in (0.0, 0.4, 1.0):
+            result = simulate_task_chain("N11", nodes, edges, n_simulations=120_000,
+                                         rng=np.random.default_rng(1), correlation=rho)
+            assert result['stats']['mean'] == pytest.approx(expected, rel=0.02), rho
+
+    def test_correlation_widens_the_chain(self):
+        nodes, edges = _chain(30, time_o=20.0, time_m=40.0, time_p=80.0)
+        spreads = []
+        for rho in (0.0, 0.3, 0.7):
+            s = simulate_task_chain("N29", nodes, edges, n_simulations=60_000,
+                                    rng=np.random.default_rng(2), correlation=rho)['stats']
+            spreads.append(s['p90'] / s['p10'])
+        assert spreads == sorted(spreads)
+        # Independence collapses a 30-task chain to a near-point estimate; the
+        # shared factor is what keeps a long project honestly uncertain.
+        assert spreads[0] < 1.35 < spreads[2]
+
+    def test_independent_chain_spread_shrinks_with_length_but_correlated_does_not(self):
+        def spread(n, rho):
+            nodes, edges = _chain(n, time_o=20.0, time_m=40.0, time_p=80.0)
+            s = simulate_task_chain(f"N{n-1}", nodes, edges, n_simulations=60_000,
+                                    rng=np.random.default_rng(3), correlation=rho)['stats']
+            return s['p90'] / s['p10']
+        assert spread(60, 0.0) < spread(6, 0.0) - 0.15
+        assert spread(60, 0.5) == pytest.approx(spread(6, 0.5), rel=0.15)
+
+    def test_rejects_out_of_range_correlation(self):
+        nodes, edges = _chain(2, time_o=1.0, time_m=2.0, time_p=4.0)
+        for bad in (-0.1, 1.1):
+            with pytest.raises(ValueError):
+                simulate_task_chain("N1", nodes, edges, n_simulations=100, correlation=bad)

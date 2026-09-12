@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from models import Node, blend_time_estimate, STATUS_DONE, STATUS_OPEN
+from models import Node, expected_time_estimate, STATUS_DONE, STATUS_OPEN
 from graph_manager import GraphManager
 from callback_helpers import handle_save, prior_node_for_completion
 from config import ConfigManager
@@ -39,35 +39,36 @@ def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
 
 
 # ============================================================================
-# blend_time_estimate — shared by Node.time and the captured actual time
+# expected_time_estimate — shared by Node.time and the captured actual time
 # ============================================================================
 
-class TestBlendTimeEstimate:
+class TestExpectedTimeEstimate:
     def test_only_most_likely(self):
-        assert blend_time_estimate(0, 5, 0) == 5
+        assert expected_time_estimate(0, 5, 0) == 5
 
-    def test_two_point_is_geometric_mean(self):
-        # O and P only -> sqrt(O * P)
-        assert blend_time_estimate(4, 0, 9) == math.sqrt(36)
+    def test_two_point_fills_middle_with_geometric_mean(self):
+        # O and P only -> middle becomes sqrt(O*P)=6, then Swanson weights it.
+        assert expected_time_estimate(4, 0, 9) == round(.3*4 + .4*6 + .3*9, 2)
 
     def test_all_missing_returns_one(self):
-        assert blend_time_estimate(0, 0, 0) == 1.0
+        assert expected_time_estimate(0, 0, 0) == 1.0
 
     def test_none_arguments_treated_as_zero(self):
-        assert blend_time_estimate(None, None, None) == 1.0
-        assert blend_time_estimate(None, 7, None) == 7
+        assert expected_time_estimate(None, None, None) == 1.0
+        assert expected_time_estimate(None, 7, None) == 7
 
-    def test_three_point_low_uncertainty_is_arithmetic(self):
-        # ratio P/O == 1 -> pure arithmetic PERT mean (2+4*2+2)/6 == 2.0
-        assert blend_time_estimate(2, 2, 2) == 2.0
+    def test_collapsed_bracket_returns_that_value(self):
+        assert expected_time_estimate(2, 2, 2) == 2.0
 
-    def test_three_point_blend_within_bounds(self):
-        result = blend_time_estimate(2, 4, 16)
-        assert 2 <= result <= 16
+    def test_three_point_is_swanson_weighted(self):
+        assert expected_time_estimate(2, 4, 16) == round(.3*2 + .4*4 + .3*16, 2)
+
+    def test_three_point_within_bounds(self):
+        assert 2 <= expected_time_estimate(2, 4, 16) <= 16
 
 
 class TestNodeTimeDelegates:
-    def test_manual_node_uses_blend(self):
+    def test_manual_node_uses_estimate(self):
         node = _make_node(time_o=0, time_m=5, time_p=0)
         assert node.time == 5
 
