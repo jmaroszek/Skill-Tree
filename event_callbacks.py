@@ -212,6 +212,24 @@ def register_event_callbacks(app):
         # Apply ordering based on sort mode
         if sort_mode == "az":
             events = sorted(events, key=lambda e: (e.name or "").lower())
+        elif sort_mode == "type":
+            # Group by trigger type; within Scheduled, soonest date first.
+            type_order = {"date": 0, "node": 1, "manual": 2}
+            events = sorted(
+                events,
+                key=lambda e: (
+                    type_order[_event_trigger_type(e)],
+                    e.trigger_date or "" if _event_trigger_type(e) == "date" else "",
+                    (e.name or "").lower(),
+                ),
+            )
+        elif sort_mode == "impact":
+            # Most dormant nodes unlocked first.
+            node_counts = {e.name: event_manager.get_event_node_count(e.name) for e in events}
+            events = sorted(
+                events,
+                key=lambda e: (-node_counts[e.name]["total"], (e.name or "").lower()),
+            )
         else:
             # Manual: apply drag-and-drop order from store
             stored_order = event_order or []
@@ -239,7 +257,7 @@ def register_event_callbacks(app):
                 className="text-center py-5"
             )
 
-        is_manual = sort_mode != "az"
+        is_manual = sort_mode not in ("az", "type", "impact")
         cards = []
         for event in events:
             counts = event_manager.get_event_node_count(event.name)

@@ -41,23 +41,38 @@ def build_events_sidebar_content():
                 **{"list": "events-search-datalist"},
             ),
             html.Div([
-                dbc.RadioItems(
-                    id="events-sort-mode",
-                    options=[
-                        {"label": "Manual", "value": "manual"},
-                        {"label": "A\u2013Z", "value": "az"},
-                    ],
-                    value="manual",
-                    inline=True,
-                    style={"fontSize": "0.8rem", "color": "#adb5bd"},
+                html.Div(
+                    dbc.Select(
+                        id="events-sort-mode",
+                        options=[
+                            {"label": "Manual", "value": "manual"},
+                            {"label": "Alphabetical", "value": "az"},
+                            {"label": "Trigger Type", "value": "type"},
+                            {"label": "Node Count", "value": "impact"},
+                        ],
+                        value="type",
+                        size="sm",
+                        persistence=True, persistence_type="local",
+                        style={"backgroundColor": "#2b3035",
+                               "border": "1px solid #495057",
+                               "color": "#dee2e6", "fontSize": "0.8rem"},
+                    ),
+                    style={"flex": "3"},
                 ),
-                dbc.Switch(
-                    id="events-hide-triggered-toggle",
-                    label="Hide triggered",
-                    value=True,
-                    style={"fontSize": "0.85rem", "color": "#adb5bd", "marginBottom": "0"},
+                html.Div(
+                    dbc.Switch(
+                        id="events-hide-triggered-toggle",
+                        label="Hide triggered",
+                        value=True,
+                        style={"fontSize": "0.85rem", "color": "#adb5bd", "marginBottom": "0",
+                               "width": "fit-content", "display": "flex", "alignItems": "center",
+                               "gap": "8px"},
+                        label_style={"marginBottom": "0", "position": "relative", "top": "2px"},
+                    ),
+                    style={"flex": "2", "display": "flex", "justifyContent": "center",
+                           "alignItems": "center"},
                 ),
-            ], className="d-flex justify-content-between align-items-center mb-2"),
+            ], className="d-flex align-items-center mb-2", style={"gap": "8px"}),
         ], style={"padding": "0 12px"}),
         html.Div(id="events-list-container",
                  style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),

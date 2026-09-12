@@ -294,9 +294,14 @@ editor and both add-node modals).
 ### Radio groups and nesting depth
 
 A mutually-exclusive choice is a `dbc.RadioItems` with `inline=True` when the
-options are short (`event-trigger-type`, `dormant-node-mode`, `events-sort-mode`)
-and stacked when the labels run long (`dormant-override-mode`). Use a
-`dbc.Checklist` only for independent toggles — see the pill group below.
+options are short (`event-trigger-type`, `dormant-node-mode`) and stacked when
+the labels run long (`dormant-override-mode`). Use a `dbc.Checklist` only for
+independent toggles — see the pill group below.
+
+Once a choice grows past two or three options, switch to a `dbc.Select`
+instead of letting radios wrap or crowd a shared row — see the sort-mode
+dropdowns (`details-goal-sort`, `events-sort-mode`), both `size="sm"` with
+`persistence=True, persistence_type="local"` so the choice survives a reload.
 
 Size carries the nesting. A radio that *is* the section's question runs at the
 default size. A radio that refines a choice already made above it drops to
