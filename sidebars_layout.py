@@ -14,7 +14,7 @@ Per-tab filter sidebars (e.g. the Details tab's mini-graph filter at
 `details-filters-sidebar`) live with their owning tab module, not here.
 """
 
-from duration_ui import estimate_guidance
+from duration_ui import estimate_guidance, bracket_label
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 from config import (
@@ -271,8 +271,10 @@ node_editor_content = html.Div(
             # --- Section: Time Estimates ---
             html.Div(id="section-time-estimates", children=[
                 html.Hr(className="my-2"),
-                html.H5("Time Estimates", className="mt-2 mb-2"),
-                estimate_guidance(),
+                html.Div([
+                    html.H5("Time Estimates", className="mb-0"),
+                    estimate_guidance("node"),
+                ], className="d-flex align-items-center mt-2 mb-2"),
                 html.Div([
                     dbc.Checklist(
                         options=[{"label": "Inherit", "value": "inherited"}],
@@ -313,9 +315,9 @@ node_editor_content = html.Div(
                          children=""),
                 html.Div(id="section-time-omp", children=[
                     dbc.Row([
-                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"), dbc.Input(id="node-time-o", type="number", min=0)]),
-                        dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"), dbc.Input(id="node-time-m", type="number", min=0)]),
-                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"), dbc.Input(id="node-time-p", type="number", min=0)]),
+                        dbc.Col([*bracket_label("Lower", "node-time-o-label"), dbc.Input(id="node-time-o", type="number", min=0)]),
+                        dbc.Col([*bracket_label("Expected", "node-time-m-label"), dbc.Input(id="node-time-m", type="number", min=0)]),
+                        dbc.Col([*bracket_label("Upper", "node-time-p-label"), dbc.Input(id="node-time-p", type="number", min=0)]),
                     ]),
                     html.Div(id="time-validation-error", children="",
                              style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
@@ -339,11 +341,11 @@ node_editor_content = html.Div(
                     ], className="mb-2"),
                     dbc.Label("Minutes per Session", className="mb-0 mt-2"),
                     dbc.Row([
-                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Lower", "node-habit-intensity-o-label"),
                                  dbc.Input(id="node-habit-intensity-o", type="number", min=0)]),
-                        dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Expected", "node-habit-intensity-m-label"),
                                  dbc.Input(id="node-habit-intensity-m", type="number", min=0)]),
-                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Upper", "node-habit-intensity-p-label"),
                                  dbc.Input(id="node-habit-intensity-p", type="number", min=0)]),
                     ]),
                     # Cadence is always minutes-per-session; the unit is fixed
