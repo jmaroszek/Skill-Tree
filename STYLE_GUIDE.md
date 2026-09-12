@@ -144,12 +144,17 @@ the dashed `.dormant` style on top.
 
 ### Labels
 
-Duration inputs share `duration_ui.estimate_guidance` for the percentile reading
-and the Expected-only exception. The simulation caption shows mean work hours
-separately from P50. Sensitivity comparisons and material bracket-fit differences
-use native expandable Details/Summary sections; expanded content scrolls within
-180px so it does not displace the chart indefinitely. A bracket difference over
-10% is an informational display threshold, not a calibrated error limit.
+Duration inputs share `duration_ui.bracket_label` to attach the percentile
+reading (10% chance of finishing sooner / a 50/50 estimate / 10% chance of
+taking longer) as a hover tooltip on the Lower/Expected/Upper word itself,
+rather than as inline paragraph text. `duration_ui.estimate_guidance` renders
+the small (i) info icon next to the "Time Estimates" header explaining the
+Expected-only exception, following the same info-icon + tooltip pattern used
+for "Ratings". The simulation caption shows mean work hours separately from
+P50. Sensitivity comparisons and material bracket-fit differences use native
+expandable Details/Summary sections; expanded content scrolls within 180px so
+it does not displace the chart indefinitely. A bracket difference over 10% is
+an informational display threshold, not a calibrated error limit.
 | Context | Pattern | Usage |
 |---------|---------|-------|
 | Top-level settings label | `dbc.Label("Name", className="fw-bold mt-2")` | Section-level fields in Settings Nodes tab (Node Types, Contexts) |

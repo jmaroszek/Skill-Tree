@@ -6,7 +6,7 @@ subtasks, and time simulation — merging the best parts of the Goals
 and Simulation tabs.
 """
 
-from duration_ui import estimate_guidance
+from duration_ui import estimate_guidance, bracket_label
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -1152,8 +1152,10 @@ def _build_add_node_modal(ted):
                 ]),
 
                 html.Hr(className="my-2"),
-                html.H5("Time Estimates", className="mt-2 mb-2"),
-                estimate_guidance(),
+                html.Div([
+                    html.H5("Time Estimates", className="mb-0"),
+                    estimate_guidance("details-add"),
+                ], className="d-flex align-items-center mt-2 mb-2"),
                 html.Div([
                     dbc.Checklist(
                         options=[{"label": "Inherit", "value": "inherited"}],
@@ -1179,13 +1181,13 @@ def _build_add_node_modal(ted):
                 ], className="d-flex align-items-center mb-2"),
                 html.Div(id="details-add-time-omp", children=[
                     dbc.Row([
-                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Lower", "details-add-time-o-label"),
                                  dbc.Input(id="details-add-time-o", type="number", min=0,
                                            value=ted.get('optimistic', 2))]),
-                        dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Expected", "details-add-time-m-label"),
                                  dbc.Input(id="details-add-time-m", type="number", min=0,
                                            value=ted.get('expected', 4))]),
-                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Upper", "details-add-time-p-label"),
                                  dbc.Input(id="details-add-time-p", type="number", min=0,
                                            value=ted.get('pessimistic', 6))]),
                     ]),
@@ -1210,13 +1212,13 @@ def _build_add_node_modal(ted):
                     ], className="mb-2"),
                     dbc.Label("Minutes per Session", className="mb-0 mt-2"),
                     dbc.Row([
-                        dbc.Col([dbc.Label("Lower", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Lower", "details-add-habit-intensity-o-label"),
                                  dbc.Input(id="details-add-habit-intensity-o",
                                            type="number", min=0, value=0)]),
-                        dbc.Col([dbc.Label("Expected", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Expected", "details-add-habit-intensity-m-label"),
                                  dbc.Input(id="details-add-habit-intensity-m",
                                            type="number", min=0, value=0)]),
-                        dbc.Col([dbc.Label("Upper", className="small text-muted mb-0"),
+                        dbc.Col([*bracket_label("Upper", "details-add-habit-intensity-p-label"),
                                  dbc.Input(id="details-add-habit-intensity-p",
                                            type="number", min=0, value=0)]),
                     ]),
