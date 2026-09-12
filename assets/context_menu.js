@@ -21,6 +21,8 @@
         var editItem = document.getElementById('ctx-menu-edit');
         var detailsItem = document.getElementById('ctx-menu-details');
         var explainItem = document.getElementById('ctx-menu-explain');
+        var overrideItem = document.getElementById('ctx-menu-override');
+        var websiteItem = document.getElementById('ctx-menu-website');
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
         var linksDivider = document.getElementById('ctx-menu-links-divider');
@@ -29,7 +31,7 @@
         var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
 
-        if (!cyWrapper || !menu || !obsidianItem || !deleteItem || !detailsItem) {
+        if (!cyWrapper || !menu || !websiteItem || !obsidianItem || !deleteItem || !detailsItem) {
             setTimeout(initContextMenu, 300);
             return;
         }
@@ -47,12 +49,59 @@
             menu.style.display = 'none';
         }
 
+        function _currentTargetNodes() {
+            if (!_currentNodeData || !_currentNodeData.id) return [];
+            var sourceCy = _menuCy || _mainCy;
+            if (!sourceCy) return [_currentNodeData];
+
+            var selected = sourceCy.$('node:selected');
+            var includesCurrent = false;
+            selected.forEach(function (node) {
+                if (node.id() === _currentNodeData.id) includesCurrent = true;
+            });
+            if (selected.length <= 1 || !includesCurrent) {
+                return [_currentNodeData];
+            }
+
+            var nodes = [];
+            selected.forEach(function (node) { nodes.push(node.data()); });
+            return nodes;
+        }
+
+        function _currentTargetIds() {
+            return _currentTargetNodes().map(function (node) { return node.id; });
+        }
+
         function showMenu(x, y, nodeData) {
             menu.style.left = x + 'px';
             menu.style.top = y + 'px';
             menu.style.display = 'block';
             
             _currentNodeData = nodeData;
+
+            var targets = _currentTargetNodes();
+            var targetCount = targets.length || 1;
+            var allNow = targets.length > 0 && targets.every(function (node) {
+                return Number(node.now) > 0;
+            });
+            var allDone = targets.length > 0 && targets.every(function (node) {
+                return node.status === 'Done';
+            });
+            toggleNowItem.textContent = targetCount > 1
+                ? (allNow ? 'Remove ' + targetCount + ' from Now' : 'Add ' + targetCount + ' to Now')
+                : (allNow ? 'Remove from Now' : 'Add to Now');
+            toggleDoneItem.textContent = targetCount > 1
+                ? (allDone ? 'Reopen ' + targetCount : 'Mark ' + targetCount + ' Done')
+                : (allDone ? 'Reopen' : 'Mark Done');
+            addToEventItem.textContent = targetCount > 1
+                ? 'Add ' + targetCount + ' to Event…'
+                : 'Add to Event…';
+            deleteItem.textContent = targetCount > 1
+                ? 'Delete ' + targetCount + '…'
+                : 'Delete…';
+
+            var hasWebsite = _getFirstLink(nodeData.website);
+            websiteItem.style.display = hasWebsite ? '' : 'none';
 
             var hasObsidian = _getFirstLink(nodeData.obsidian_path);
             obsidianItem.style.display = hasObsidian ? '' : 'none';
@@ -63,7 +112,7 @@
             // Collapse the upper divider when neither link is present, so the
             // remaining (lower) Hr doesn't sit doubled-up against this one.
             if (linksDivider) {
-                linksDivider.style.display = (hasObsidian || hasDrive) ? '' : 'none';
+                linksDivider.style.display = (hasWebsite || hasObsidian || hasDrive) ? '' : 'none';
             }
 
             var rect = menu.getBoundingClientRect();
@@ -117,54 +166,21 @@
                 _clickDashBtn('btn-toggle-done-node');
                 return;
             }
-            var clickedId = _currentNodeData.id;
-            // Read selection from whichever canvas raised the menu (main or any
-            // mini-graph) so bulk toggle works on the Details and Events tabs too.
-            var sourceCy = _menuCy || _mainCy;
-            var selectedIds = [];
-            if (sourceCy) {
-                sourceCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
-            }
-            // Bulk mode only when right-clicking within an existing multi-selection.
-            var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
-                ? selectedIds
-                : [clickedId];
+            var targetIds = _currentTargetIds();
             _setHiddenInput('toggle-done-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 
         function triggerToggleNow() {
             hideMenu();
             if (!_currentNodeData || !_currentNodeData.id) return;
-            var clickedId = _currentNodeData.id;
-            var sourceCy = _menuCy || _mainCy;
-            var selectedIds = [];
-            if (sourceCy) {
-                sourceCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
-            }
-            var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
-                ? selectedIds
-                : [clickedId];
+            var targetIds = _currentTargetIds();
             _setHiddenInput('toggle-now-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 
         function triggerAddToEvent() {
             hideMenu();
             if (!_currentNodeData || !_currentNodeData.id) return;
-            var clickedId = _currentNodeData.id;
-            // Read selection from whichever canvas raised the menu — the main
-            // canvas, or the Details or Events mini-graph.
-            // Falls back to _mainCy when null (e.g. menu raised from a non-cy
-            // source like the suggestion-bar) but in that case the clickedId
-            // won't be among _mainCy's selection, so bulk mode is skipped.
-            var sourceCy = _menuCy || _mainCy;
-            var selectedIds = [];
-            if (sourceCy) {
-                sourceCy.$('node:selected').forEach(function (n) { selectedIds.push(n.id()); });
-            }
-            // Bulk mode when right-clicking inside a multi-selection; otherwise just the clicked node.
-            var targetIds = (selectedIds.length > 1 && selectedIds.indexOf(clickedId) !== -1)
-                ? selectedIds
-                : [clickedId];
+            var targetIds = _currentTargetIds();
             _setHiddenInput('dormant-existing-trigger-input', JSON.stringify(targetIds));
         }
 
@@ -345,6 +361,9 @@
                 id: nodeName,
                 obsidian_path: rowEl.getAttribute('data-obsidian-path') || null,
                 google_drive_path: rowEl.getAttribute('data-google-drive-path') || null,
+                website: rowEl.getAttribute('data-website') || null,
+                status: rowEl.getAttribute('data-status') || null,
+                now: Number(rowEl.getAttribute('data-now') || 0),
             };
             _menuSource = 'next';
             // Suggestion-bar rows aren't tied to a cy — clear so bulk-aware
@@ -380,11 +399,30 @@
             });
         }
 
+        if (overrideItem) {
+            overrideItem.addEventListener('click', function () {
+                hideMenu();
+                if (_currentNodeData && _currentNodeData.id) {
+                    _setHiddenInput('context-override-trigger-input', _currentNodeData.id);
+                }
+            });
+        }
+
         if (toggleNowItem) toggleNowItem.addEventListener('click', triggerToggleNow);
 
         if (toggleDoneItem) toggleDoneItem.addEventListener('click', triggerToggleDone);
 
         if (addToEventItem) addToEventItem.addEventListener('click', triggerAddToEvent);
+
+        if (websiteItem) {
+            websiteItem.addEventListener('click', function () {
+                hideMenu();
+                if (_currentNodeData) {
+                    var link = _getFirstLink(_currentNodeData.website);
+                    if (link) window.open(link, '_blank');
+                }
+            });
+        }
 
         if (obsidianItem) {
             obsidianItem.addEventListener('click', function () {
@@ -406,7 +444,7 @@
             deleteItem.addEventListener('click', function () {
                 hideMenu();
                 if (_currentNodeData && _currentNodeData.id) {
-                    requestGroupDelete([_currentNodeData.id]);
+                    requestGroupDelete(_currentTargetIds());
                 }
             });
         }

@@ -1352,6 +1352,9 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
                 "data-description": (s.description or "").strip(),
                 "data-obsidian-path": s.obsidian_path or "",
                 "data-google-drive-path": s.google_drive_path or "",
+                "data-website": s.website or "",
+                "data-status": s.status,
+                "data-now": str(int(bool(s.now))),
             },  # type: ignore[reportArgumentType]
         ))
 
@@ -1483,6 +1486,9 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             **{
                 "data-obsidian-path": n.obsidian_path or "",
                 "data-google-drive-path": n.google_drive_path or "",
+                "data-website": n.website or "",
+                "data-status": n.status,
+                "data-now": str(int(bool(n.now))),
                 "data-description": (n.description or "").strip(),
                 "data-node-name": n.name,
             },  # type: ignore[reportArgumentType]

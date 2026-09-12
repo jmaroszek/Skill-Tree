@@ -3561,6 +3561,91 @@ def register_callbacks(app):
     # =====================================================================
 
     @app.callback(
+        Output('modal-context-override', 'is_open'),
+        Output('context-override-body', 'children'),
+        Output('context-override-mode-radio', 'value'),
+        Output('btn-context-override-clear', 'style'),
+        Output('context-override-target-store', 'data'),
+        Input('context-override-trigger-input', 'value'),
+        prevent_initial_call=True,
+    )
+    def open_context_override(trigger_value):
+        """Open the context-menu override chooser for one explicit node."""
+        if not trigger_value:
+            return no_update, no_update, no_update, no_update, no_update
+        node_name = trigger_value.rsplit('|', 1)[0].strip()
+        if not node_name or not manager.get_node(node_name):
+            return no_update, no_update, no_update, no_update, no_update
+
+        override = ConfigManager.get_override()
+        current_parent = override.get('parent')
+        event_pinned = ConfigManager.get_event_override_nodes()
+        mode = override.get('mode', 'hard') if current_parent == node_name else 'hard'
+        danger_color = ConfigManager.get_danger_color()
+        clear_style = {
+            'display': 'inline-block' if current_parent == node_name else 'none',
+            'backgroundColor': danger_color,
+            'borderColor': danger_color,
+        }
+
+        if current_parent == node_name:
+            body = (f'"{node_name}" currently anchors the active override. '
+                    'Choose a scope to update it, or clear it.')
+        elif current_parent:
+            inherited = node_name in ConfigManager.get_override_node_set(manager)
+            relationship = ' inherits from' if inherited else ' will replace'
+            body = (f'"{node_name}"{relationship} the active override anchored at '
+                    f'"{current_parent}". Applying here will make "{node_name}" '
+                    'the new anchor.')
+        elif event_pinned:
+            body = (f'Applying an override to "{node_name}" will replace the '
+                    f'current event override on {len(event_pinned)} node(s).')
+        else:
+            body = (f'Pin "{node_name}" to the top of Next. Choose which of '
+                    'its dependencies should be included.')
+
+        return True, body, mode, clear_style, node_name
+
+    @app.callback(
+        Output('modal-context-override', 'is_open', allow_duplicate=True),
+        Output('override-store', 'data', allow_duplicate=True),
+        Output('details-refresh-trigger', 'data', allow_duplicate=True),
+        Output('context-override-target-store', 'data', allow_duplicate=True),
+        Input('btn-context-override-cancel', 'n_clicks'),
+        Input('btn-context-override-clear', 'n_clicks'),
+        Input('btn-context-override-apply', 'n_clicks'),
+        State('context-override-mode-radio', 'value'),
+        State('context-override-target-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def resolve_context_override(cancel_clicks, clear_clicks, apply_clicks,
+                                 mode, node_name):
+        """Apply, clear, or cancel the context-menu priority override."""
+        trigger = get_trigger_id()
+        if trigger == 'btn-context-override-cancel':
+            return False, no_update, no_update, None
+        if not node_name or not manager.get_node(node_name):
+            return False, no_update, no_update, None
+
+        import time as _time
+        if trigger == 'btn-context-override-clear':
+            if ConfigManager.get_override().get('parent') != node_name:
+                return False, no_update, no_update, None
+            ConfigManager.clear_override()
+        elif trigger == 'btn-context-override-apply':
+            with database.transaction():
+                ConfigManager.clear_event_override_nodes()
+                ConfigManager.set_override({
+                    'parent': node_name,
+                    'mode': mode or 'hard',
+                })
+        else:
+            return no_update, no_update, no_update, no_update
+
+        return (False, ConfigManager.get_override(),
+                f"override-{_time.time()}", None)
+
+    @app.callback(
         Output('override-toggle', 'value'),
         Input('node-original-name', 'data'),
         Input('override-store', 'data'),
@@ -3884,9 +3969,10 @@ def register_callbacks(app):
     # --- Context-Menu Now Toggle ---
     # Right-click → "Now" on the canvas / mini-graphs / goal sidebar
     # writes a JSON list of names + timestamp to toggle-now-trigger-input.
-    # Flip each node's Now flag, then bump node-now-trigger-input to
-    # cause the canvas to re-render. Bulk operation supported for parity
-    # with toggle-done, though Now's soft cap makes bulk unlikely.
+    # Set the selection to one deterministic state, then bump node-now-trigger-
+    # input to cause the canvas to re-render. If any target is not Now, every
+    # target is set Now; only an all-Now selection is cleared. This mirrors the
+    # Done bulk action and avoids a mixed selection silently swapping states.
     @app.callback(
         Output("node-now-trigger-input", "value", allow_duplicate=True),
         Output("now-cap-refused-trigger", "value", allow_duplicate=True),
@@ -3904,6 +3990,11 @@ def register_callbacks(app):
             return no_update, no_update
         if not names:
             return no_update, no_update
+        nodes = [n for n in (manager.get_node(name) for name in names) if n]
+        if not nodes:
+            return no_update, no_update
+        wants_now = any(node.now <= 0 for node in nodes)
+
         # Track count locally so a bulk set-Now stops at the cap. Pull
         # the live count once, then update it as we flip — get_now_nodes
         # would re-query the DB each iteration and miss our pending writes.
@@ -3911,21 +4002,20 @@ def register_callbacks(app):
         current_count = len(now_nodes)
         max_now = max([n.now for n in now_nodes]) if now_nodes else 0
         refused_any = False
-        for name in names:
-            node = manager.get_node(name)
-            if not node:
-                continue
-            if node.now > 0:
-                # Clearing Now is always allowed.
+        for node in nodes:
+            if not wants_now and node.now > 0:
+                # Clearing an all-Now selection is always allowed.
                 node.now = 0
                 current_count -= 1
-            else:
+            elif wants_now and node.now <= 0:
                 if current_count >= ConfigManager.get_now_node_cap():
                     refused_any = True
                     continue  # Cap reached — skip this set-Now.
                 max_now += 1
                 node.now = max_now
                 current_count += 1
+            else:
+                continue
             manager.update_node(node)
         ts = int(_time.time() * 1000)
         refused_out = f"refused|{ts}" if refused_any else no_update

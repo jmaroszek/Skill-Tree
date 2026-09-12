@@ -232,6 +232,14 @@ live *inside* the field as a trailing chevron — see *Unified field* below.
 - Never use bare `html.Hr()` — always specify a margin class
 - Context menu: `border-radius: 6px`, `box-shadow: 0 4px 16px rgba(0,0,0,0.4)`
 
+The shared node context menu is grouped by user intent: primary Edit; inspection
+(View Details / Explain Priority); workflow state (Now / Priority Override /
+Event / Done); conditional external links; and an isolated destructive Delete
+row. Toggle labels describe the resulting action (`Add to Now` / `Remove from
+Now`, `Mark Done` / `Reopen`) rather than naming the underlying field. Commands
+that open another choice or confirmation use an ellipsis. When no external link
+exists, hide that whole section, including its leading divider.
+
 ## Cards
 
 ```python

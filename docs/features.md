@@ -265,13 +265,16 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Option | What it does |
 |---|---|
 | Edit | Opens the node editor. |
-| Explain | Opens the score breakdown. |
-| Details | Jumps to the Details tab pre-loaded with this node. |
-| Event | Adds the node to an Event. |
-| Obsidian | Opens the linked Obsidian note. Only shown when the link is set. |
-| Drive | Opens the linked Google Drive file. Only shown when the link is set. |
-| Done | Toggles Done — marks complete, or re-opens if already Done. |
-| Delete | Deletes the node (with confirmation). |
+| View Details | Jumps to the Details tab pre-loaded with this node. |
+| Explain Priority | Opens the priority-score breakdown. |
+| Add to Now / Remove from Now | Moves the node into or out of your current-work list. |
+| Priority Override… | Opens the override scope chooser. |
+| Add to Event… | Adds the node to an Event. |
+| Mark Done / Reopen | Marks the node complete, or reopens it if already Done. |
+| Open Website | Opens the linked website. Only shown when the link is set. |
+| Open in Obsidian | Opens the linked Obsidian note. Only shown when the link is set. |
+| Open in Drive | Opens the linked Google Drive file. Only shown when the link is set. |
+| Delete… | Deletes the node (with confirmation). |
 
 </td>
   </tr>
