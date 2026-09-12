@@ -1177,7 +1177,7 @@ class TestCommunityNaming:
         mgr.add_node(_make_node("A", context="Mind", subcontext="Logic"))
         mgr.add_node(_make_node("B", context="Mind", subcontext="Logic"))
         name = mgr.name_community({"A", "B"})
-        assert name == "Mind › Logic"
+        assert name == "Mind > Logic"
 
     def test_type_fallback(self, mgr):
         # No dominant context — all different contexts
@@ -1809,12 +1809,12 @@ class TestBuildMigrationContent:
     # --- Subcontext-orphan smart default ------------------------------------
 
     def test_subcontext_orphan_smart_default_when_unique_new_parent(self):
-        """`Old › Sub` label and `Sub` lives under exactly one new ctx →
+        """`Old > Sub` label and `Sub` lives under exactly one new ctx →
         pre-pick that (parent, sub) pair on every node row."""
         nodes = [self._ns('A', context='STEM'),
                  self._ns('B', context='STEM')]
         children, _ = self._build(
-            orphans_by_field={'subcontext': {'STEM › Psychology': nodes}},
+            orphans_by_field={'subcontext': {'STEM > Psychology': nodes}},
             new_values_by_field={'context': ['STEM', 'Social'], 'subcontext': [], 'type': []},
             subcontexts_by_context={'STEM': ['Math'], 'Social': ['Psychology']},
             rename_map={},
@@ -1828,7 +1828,7 @@ class TestBuildMigrationContent:
         """`Sub` under multiple new parents → can't auto-pick → __keep__."""
         nodes = [self._ns('A', context='STEM')]
         children, _ = self._build(
-            orphans_by_field={'subcontext': {'STEM › Psychology': nodes}},
+            orphans_by_field={'subcontext': {'STEM > Psychology': nodes}},
             new_values_by_field={'context': ['Social', 'Mind'], 'subcontext': [], 'type': []},
             subcontexts_by_context={'Social': ['Psychology'], 'Mind': ['Psychology']},
             rename_map={},
@@ -1840,7 +1840,7 @@ class TestBuildMigrationContent:
     def test_subcontext_orphan_falls_back_when_sub_under_no_new_parent(self):
         nodes = [self._ns('A', context='STEM')]
         children, _ = self._build(
-            orphans_by_field={'subcontext': {'STEM › Vanished': nodes}},
+            orphans_by_field={'subcontext': {'STEM > Vanished': nodes}},
             new_values_by_field={'context': ['STEM'], 'subcontext': [], 'type': []},
             subcontexts_by_context={'STEM': ['Math']},
             rename_map={},
@@ -1940,7 +1940,7 @@ class TestBuildMigrationContent:
     def test_bulk_row_renders_for_subcontext_orphan_groups(self):
         nodes = [self._ns('A', context='STEM')]
         children, _ = self._build(
-            orphans_by_field={'subcontext': {'STEM › Psychology': nodes}},
+            orphans_by_field={'subcontext': {'STEM > Psychology': nodes}},
             new_values_by_field={'context': ['Social'], 'subcontext': [], 'type': []},
             subcontexts_by_context={'Social': ['Psychology']},
             rename_map={},
@@ -2140,7 +2140,7 @@ class TestApplyPerNodeMigrations:
         mgr.add_node(_make_node('A', context='STEM', subcontext='Psychology'))
         # field is 'subcontext' for sub_nodes entries, but the helper only
         # uses node_name regardless of field
-        entries = [{'field': 'subcontext', 'old_value': 'STEM › Psychology',
+        entries = [{'field': 'subcontext', 'old_value': 'STEM > Psychology',
                     'node_name': 'A', 'group_idx': 0}]
         self._apply(mgr, entries, ['Social'], ['Psychology'],
                     {'STEM': [], 'Social': ['Psychology']})
@@ -2158,9 +2158,9 @@ class TestFindOrphanedSubcontextPairs:
         old = {"STEM": ["Psychology", "Math"]}
         new = {"STEM": ["Math"], "Social": ["Psychology"]}
         result = mgr.find_orphaned_subcontext_pairs(old, new, ["STEM", "Social"])
-        assert "STEM › Psychology" in result
-        assert [n.name for n in result["STEM › Psychology"]] == ["A"]
-        assert "STEM › Math" not in result
+        assert "STEM > Psychology" in result
+        assert [n.name for n in result["STEM > Psychology"]] == ["A"]
+        assert "STEM > Math" not in result
 
     def test_pair_removed_but_no_nodes_returns_empty(self, mgr):
         mgr.add_node(_make_node("A", context="STEM", subcontext="Math"))

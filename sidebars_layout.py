@@ -695,8 +695,8 @@ def build_filters_content():
         html.H5("Communities", className="mt-2 mb-1"),
         dbc.Label("Detection Method", className="mt-2"),
         dbc.Select(id="community-method", options=[
-            {"label": "Islands", "value": "components"},
             {"label": "Clusters", "value": "louvain"},
+            {"label": "Islands", "value": "components"},
             {"label": "Orphans", "value": "orphans"},
         ], value=f["community_method"]),
 

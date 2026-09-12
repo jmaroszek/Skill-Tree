@@ -1423,7 +1423,7 @@ class GraphManager:
 
         Subcontext identity is the (context, subcontext) tuple, not the bare name —
         moving a subcontext between parents leaves the bare name in the flat list but
-        invalidates the pair. Returns a dict keyed by 'ctx › sub' display labels.
+        invalidates the pair. Returns a dict keyed by 'ctx > sub' display labels.
 
         Includes dormant nodes for the same reason as find_orphaned_nodes: their
         stale (context, subcontext) pair would survive a config delete and only
@@ -1439,7 +1439,7 @@ class GraphManager:
         for ctx, sub in pairs:
             affected = [n for n in all_nodes if n.context == ctx and n.subcontext == sub]
             if affected:
-                orphans[f"{ctx} › {sub}"] = affected
+                orphans[f"{ctx} > {sub}"] = affected
         return orphans
 
     @database.atomic
@@ -1545,7 +1545,7 @@ class GraphManager:
                     sub_counts = Counter(subcontexts)
                     top_sub, sub_count = sub_counts.most_common(1)[0]
                     if sub_count / top_count >= 0.5:
-                        return f"{top_ctx} › {top_sub}"
+                        return f"{top_ctx} > {top_sub}"
                 return top_ctx
 
         # --- Strategy 2: Dominant type ---

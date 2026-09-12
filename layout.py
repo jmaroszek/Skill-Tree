@@ -400,12 +400,12 @@ def build_migration_content(orphans_by_field, new_values_by_field,
     if sub_orphans:
         children.append(html.H5("Subcontext Changes", className="mt-3 mb-2"))
         for group_i, (old_val, nodes) in enumerate(sub_orphans.items()):
-            # Smart default: if old label is "ctx › sub" and `sub` now lives
+            # Smart default: if old label is "ctx > sub" and `sub` now lives
             # under exactly one new parent, pre-pick that (parent, sub).
             default_ctx = "__keep__"
             default_sub = "__keep__"
-            if " › " in old_val:
-                _, sub_name = old_val.split(" › ", 1)
+            if " > " in old_val:
+                _, sub_name = old_val.split(" > ", 1)
                 candidates = [c for c, ss in subcontexts_map.items() if sub_name in ss]
                 if len(candidates) == 1:
                     default_ctx = candidates[0]

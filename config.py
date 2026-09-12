@@ -1023,7 +1023,7 @@ class ConfigManager:
         "node_type": [],
         "context": [],
         "subcontext": [],
-        "community_method": "components",
+        "community_method": "louvain",
         "community": "All",
         "value": 1,
         "interest": 1,

@@ -408,7 +408,7 @@ def register_details_callbacks(app):
 
         ctx_str = node.context or "—"
         if node.subcontext:
-            ctx_str += f" › {node.subcontext}"
+            ctx_str += f" > {node.subcontext}"
 
         effective_time = graph_manager.get_effective_time(node_name)
         time_str = ConfigManager.format_time_friendly(effective_time) if effective_time else "—"

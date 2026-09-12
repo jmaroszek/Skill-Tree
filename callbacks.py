@@ -472,7 +472,7 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
     def clear_filters(_clear_clicks, _focus_clicks):
-        return [], [], 'components', 'All', 1, 1, 10, None, 'hours', [], []
+        return [], [], 'louvain', 'All', 1, 1, 10, None, 'hours', [], []
 
     # Clientside reset of filter-subcontext.value on Clear Filters / Focus.
     # Server-side reset would put a callback Output on this prop, which Dash
@@ -2078,7 +2078,7 @@ def register_callbacks(app):
             hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
         else:
-            community_method = community_method or "components"
+            community_method = community_method or "louvain"
             communities = manager.detect_communities(method=community_method, filters=filters)
             community_options = [{"label": "All", "value": "All"}]
             name_counts: dict[str, int] = {}
@@ -2940,7 +2940,7 @@ def register_callbacks(app):
                 "node_type": f_type or [],
                 "context": f_ctx or [],
                 "subcontext": f_sub or [],
-                "community_method": f_comm_method or "components",
+                "community_method": f_comm_method or "louvain",
                 "community": f_comm or "All",
                 "value": f_val if f_val is not None else 1,
                 "interest": f_int if f_int is not None else 1,
@@ -2976,7 +2976,7 @@ def register_callbacks(app):
             "node_type": f_type or [],
             "context": f_ctx or [],
             "subcontext": f_sub or [],
-            "community_method": f_comm_method or "components",
+            "community_method": f_comm_method or "louvain",
             "community": f_comm or "All",
             "value": f_val if f_val is not None else 1,
             "interest": f_int if f_int is not None else 1,
