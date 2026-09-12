@@ -269,29 +269,6 @@ class TestDormantNodeEdit:
         ens = em.get_event_nodes("E1")
         assert ens[0]['delay_days'] == 14
 
-    def test_update_roundtrips_override_on_trigger(self, em, mgr):
-        em.add_event(Event(name="E1"))
-        em.create_dormant_node(_make_node("N1"), "E1", delay_days=0,
-                               override_on_trigger=False, override_mode=None)
-
-        em.update_dormant_node(
-            "E1", "N1", _make_node("N1"),
-            delay_days=0,
-            override_on_trigger=True, override_mode="soft",
-        )
-        en = em.get_event_nodes("E1")[0]
-        assert en['override_on_trigger'] is True
-        assert en['override_mode'] == "soft"
-
-        em.update_dormant_node(
-            "E1", "N1", _make_node("N1"),
-            delay_days=0,
-            override_on_trigger=False, override_mode=None,
-        )
-        en = em.get_event_nodes("E1")[0]
-        assert en['override_on_trigger'] is False
-        assert en['override_mode'] is None
-
     def test_update_followed_by_sync_edges_rewrites_relationships(self, em, mgr):
         em.add_event(Event(name="E1"))
         mgr.add_node(_make_node("Other1"))
@@ -319,12 +296,12 @@ class TestDormantNodeEdit:
         em.add_event(Event(name="E1"))
         mgr.add_node(_make_node("Other"))
         em.create_dormant_node(_make_node("OldName"), "E1", delay_days=3,
-                               override_on_trigger=True, override_mode="hard")
+                               now_on_trigger=True)
         mgr.add_edge("OldName", "Other", EDGE_HELPS)
 
         renamed = _make_node("NewName", description="renamed")
         em.update_dormant_node("E1", "OldName", renamed, delay_days=3,
-                               override_on_trigger=True, override_mode="hard")
+                               now_on_trigger=True)
 
         assert mgr.get_node("OldName") is None
         after = mgr.get_node("NewName")
@@ -338,13 +315,12 @@ class TestDormantNodeEdit:
                    and e['type'] == EDGE_HELPS for e in edges)
         assert not any(e['source'] == "OldName" for e in edges)
 
-        # EventNodes row moved to the new name, preserving delay + override
+        # EventNodes row moved to the new name, preserving delay + Now intent
         ens = em.get_event_nodes("E1")
         assert len(ens) == 1
         assert ens[0]['node'].name == "NewName"
         assert ens[0]['delay_days'] == 3
-        assert ens[0]['override_on_trigger'] is True
-        assert ens[0]['override_mode'] == "hard"
+        assert ens[0]['now_on_trigger'] is True
 
 
 # ============================================================================

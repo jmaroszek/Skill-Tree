@@ -62,11 +62,7 @@ def _trigger_mode_hint(trigger_mode, trigger_nodes):
 
 
 def _render_announcements(entries):
-    """Formats pending event notification entries into a readable list for the modal body.
-
-    Only renders informational kinds — override_conflict entries are handled separately
-    via a choice modal, not shown here.
-    """
+    """Formats pending event notification entries into a readable list for the modal body."""
     items = []
     for entry in entries:
         kind = entry.get("kind")
@@ -74,10 +70,12 @@ def _render_announcements(entries):
         event_name = entry.get("event")
         activated = entry.get("activated") or []
         scheduled = entry.get("scheduled") or []
+        now_pinned = entry.get("now_pinned") or []
+        now_skipped = entry.get("now_skipped") or []
 
         if kind == "date_triggered":
             summary = html.Strong(f"{event_name} — date-triggered ({when})")
-            detail = _format_node_counts(activated, scheduled)
+            detail = _format_node_counts(activated, scheduled, now_pinned, now_skipped)
         elif kind == "node_triggered":
             trig = entry.get("trigger_node", "?")
             trig_set = entry.get("trigger_nodes") or []
@@ -87,7 +85,7 @@ def _render_announcements(entries):
                     f"last was {trig} ({when})")
             else:
                 summary = html.Strong(f"{event_name} — triggered by completing {trig} ({when})")
-            detail = _format_node_counts(activated, scheduled)
+            detail = _format_node_counts(activated, scheduled, now_pinned, now_skipped)
         elif kind == "delayed_activated":
             nodes = entry.get("nodes") or []
             summary = html.Strong(f"{event_name} — delayed nodes activated ({when})")
@@ -110,34 +108,24 @@ def _render_announcements(entries):
                              "left, so these are now manual-trigger only.")
             detail = " ".join(parts) if parts else ""
         else:
-            continue  # override_conflict and unknowns are not shown here
+            continue  # unknown kinds are not shown here
 
         items.append(html.Li([summary, html.Br(), html.Span(detail, className="text-muted small")] if detail else [summary]))
     return html.Ul(items, style={"marginBottom": 0})
 
 
-def _format_override_conflict_body(entry):
-    """Builds the conflict-modal body text for a deferred override_conflict entry."""
-    ev = entry.get("event", "?")
-    candidates = entry.get("candidate_nodes") or []
-    desc = entry.get("current_override_descriptor") or {}
-    if desc.get("kind") == "parent":
-        current_desc = f'the node "{desc.get("parent")}"'
-    else:
-        nodes = desc.get("nodes") or []
-        current_desc = f"{len(nodes)} event-pinned node(s): {', '.join(nodes)}"
-    cand_desc = ", ".join(candidates)
-    return (f'Event "{ev}" activated {len(candidates)} node(s) configured for priority '
-            f'override: {cand_desc}. An override is already active for {current_desc}. '
-            f'Only one override can be active at a time — which do you want to keep?')
-
-
-def _format_node_counts(activated, scheduled):
+def _format_node_counts(activated, scheduled, now_pinned=(), now_skipped=()):
     parts = []
     if activated:
         parts.append(f"{len(activated)} activated: {', '.join(activated)}")
     if scheduled:
         parts.append(f"{len(scheduled)} scheduled: {', '.join(scheduled)}")
+    if now_pinned:
+        parts.append(f"added to Now: {', '.join(now_pinned)}")
+    # A skip is the Now cap doing its job, but the user still needs telling —
+    # they asked for these on the list and they aren't there.
+    if now_skipped:
+        parts.append(f"Now is full, so these stayed off it: {', '.join(now_skipped)}")
     return " — ".join(parts) if parts else "No nodes"
 
 
@@ -678,23 +666,18 @@ def register_event_callbacks(app):
         Output("event-save-status", "children", allow_duplicate=True),
         Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
         Output("event-trigger-date", "value", allow_duplicate=True),
-        Output("pending-event-override-store", "data", allow_duplicate=True),
-        Output("modal-override-conflict", "is_open", allow_duplicate=True),
-        Output("override-conflict-body", "children", allow_duplicate=True),
-        Output("override-store", "data", allow_duplicate=True),
-        Output("override-conflict-mode-wrapper", "style", allow_duplicate=True),
         Input("btn-trigger-confirm", "n_clicks"),
         Input("btn-trigger-all-confirm", "n_clicks"),
         State("selected-event-store", "data"),
         State({"type": "dormant-node-select", "index": ALL}, "value"),
         State({"type": "dormant-node-select", "index": ALL}, "id"),
-        State("manual-override-trigger-toggle", "value"),
+        State("manual-now-trigger-toggle", "value"),
         prevent_initial_call=True,
     )
-    def trigger_event(checked_clicks, all_clicks, selected_event, checkbox_values, checkbox_ids, override_toggle):
+    def trigger_event(checked_clicks, all_clicks, selected_event, checkbox_values, checkbox_ids, now_toggle):
         triggered = ctx.triggered_id
         if not triggered or not selected_event:
-            return (no_update,) * 14
+            return (no_update,) * 9
 
         if triggered == "btn-trigger-all-confirm":
             selected_nodes = None
@@ -709,46 +692,14 @@ def register_event_callbacks(app):
 
         activated = list(result.get('activated', []))
         scheduled = list(result.get('scheduled', []))
-        stored_intent = set(result.get('override_intent', []))
-        pin_toggle_on = bool(override_toggle)
+        stored_intent = set(result.get('now_intent', []))
 
-        # Candidates = stored intent ∪ (all triggered nodes if user ticked "Pin activated nodes")
+        # Candidates = the nodes flagged "Add to Now" on this event, or every
+        # node it just woke when the user ticks the switch in the confirm modal.
         triggered_set = set(activated) | set(scheduled)
-        if pin_toggle_on:
-            candidates = sorted(triggered_set)
-        else:
-            candidates = sorted(triggered_set & stored_intent)
-
-        override_store_update = no_update
-        pending_store = no_update
-        conflict_open = no_update
-        conflict_body = no_update
-        mode_wrapper_style = no_update
-
-        if candidates:
-            if ConfigManager.has_any_override_active():
-                # Conflict — stash candidates, open modal. No override change yet.
-                existing = ConfigManager.get_override()
-                if existing.get("parent"):
-                    current_desc = f'the node "{existing.get("parent")}"'
-                else:
-                    ev_nodes = ConfigManager.get_event_override_nodes()
-                    current_desc = f"{len(ev_nodes)} event-pinned node(s): {', '.join(ev_nodes)}"
-                cand_desc = ", ".join(candidates)
-                conflict_body = (
-                    f'Event "{selected_event}" activated {len(candidates)} node(s) configured '
-                    f'for priority override: {cand_desc}. An override is already active for '
-                    f'{current_desc}. Only one override can be active at a time — which do '
-                    f'you want to keep?'
-                )
-                pending_store = {"event": selected_event, "candidates": candidates}
-                conflict_open = True
-                # Event-batch resolution ignores mode — hide the radio.
-                mode_wrapper_style = {"display": "none"}
-            else:
-                ConfigManager.atomic_set_event_override(candidates, replace=False)
-                import time as _t
-                override_store_update = {"parent": None, "mode": "hard", "_t": _t.time()}
+        candidates = sorted(triggered_set if now_toggle
+                            else triggered_set & stored_intent)
+        now_pinned, now_skipped = event_manager._apply_now_intent(candidates)
 
         event_nodes = event_manager.get_event_nodes(selected_event)
         msg_parts = []
@@ -756,10 +707,10 @@ def register_event_callbacks(app):
             msg_parts.append(f"{len(activated)} node(s) activated")
         if scheduled:
             msg_parts.append(f"{len(scheduled)} node(s) scheduled")
-        if candidates and conflict_open is not True:
-            msg_parts.append(f"{len(candidates)} pinned to top of Next")
-        elif candidates and conflict_open is True:
-            msg_parts.append(f"{len(candidates)} override candidate(s) awaiting your choice")
+        if now_pinned:
+            msg_parts.append(f"{len(now_pinned)} added to Now")
+        if now_skipped:
+            msg_parts.append(f"{len(now_skipped)} left off Now (cap reached)")
 
         return (
             selected_event,
@@ -770,11 +721,6 @@ def register_event_callbacks(app):
             "Event triggered. " + (", ".join(msg_parts) if msg_parts else "No nodes selected."),
             False,
             "",
-            pending_store,
-            conflict_open,
-            conflict_body,
-            override_store_update,
-            mode_wrapper_style,
         )
 
     # --- Open Dormant Node Modal ---
@@ -801,7 +747,7 @@ def register_event_callbacks(app):
         Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
         Output("dormant-drive-links-store", "data", allow_duplicate=True),
         Output("dormant-website-links-store", "data", allow_duplicate=True),
-        Output("dormant-override-toggle", "value", allow_duplicate=True),
+        Output("dormant-now-toggle", "value", allow_duplicate=True),
         Output("dormant-node-value-mode", "value", allow_duplicate=True),
         Output("dormant-node-value", "value", allow_duplicate=True),
         Output("dormant-node-interest", "value", allow_duplicate=True),
@@ -811,7 +757,6 @@ def register_event_callbacks(app):
         Output("dormant-node-time-p", "value", allow_duplicate=True),
         Output("dormant-node-delay-value", "value", allow_duplicate=True),
         Output("dormant-node-delay-unit", "value", allow_duplicate=True),
-        Output("dormant-override-mode", "value", allow_duplicate=True),
         Output("editing-dormant-node-store", "data", allow_duplicate=True),
         Output("modal-dormant-node-title", "children", allow_duplicate=True),
         Output("btn-dormant-node-save", "children", allow_duplicate=True),
@@ -868,7 +813,7 @@ def register_event_callbacks(app):
                 _ted.get('optimistic', 2),
                 _ted.get('expected', 4),
                 _ted.get('pessimistic', 6),
-                0, "days", "hard",
+                0, "days",
                 None, "Add Dormant Node", "Add Node",
                 # Habit reset
                 [], 0, 'weeks', 0, 0, 0, 'min_per_session', [0, 1, 2, 3, 4, 5, 6],
@@ -1128,8 +1073,7 @@ def register_event_callbacks(app):
         Output("dormant-new-event-desc", "value", allow_duplicate=True),
         Output("dormant-node-delay-value", "value", allow_duplicate=True),
         Output("dormant-node-delay-unit", "value", allow_duplicate=True),
-        Output("dormant-override-toggle", "value", allow_duplicate=True),
-        Output("dormant-override-mode", "value", allow_duplicate=True),
+        Output("dormant-now-toggle", "value", allow_duplicate=True),
         Output("editing-dormant-node-store", "data", allow_duplicate=True),
         Output("dormant-node-save-status", "children", allow_duplicate=True),
         Output("modal-dormant-node-title", "children", allow_duplicate=True),
@@ -1181,8 +1125,7 @@ def register_event_callbacks(app):
             "",                                 # new-event-desc
             0,                                  # delay-value
             "days",                             # delay-unit
-            [],                                 # override-toggle (checklist list)
-            "hard",                             # override-mode
+            [],                                 # now-toggle (checklist list)
             None,                               # editing store cleared
             "",                                 # save status cleared
             "Add to Event",                     # title
@@ -1369,9 +1312,8 @@ def register_event_callbacks(app):
         State({"type": "dormant-obsidian-link", "index": ALL}, "value"),
         State({"type": "dormant-drive-link", "index": ALL}, "value"),
         State({"type": "dormant-website-link", "index": ALL}, "value"),
-        # Override
-        State("dormant-override-toggle", "value"),
-        State("dormant-override-mode", "value"),
+        # Add to Now on trigger
+        State("dormant-now-toggle", "value"),
         # Value-inherit toggle (Inherit ratings)
         State("dormant-node-value-mode", "value"),
         State("editing-dormant-node-store", "data"),
@@ -1403,7 +1345,7 @@ def register_event_callbacks(app):
                           delay_value, delay_unit,
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
                           obsidian_vals, drive_vals, website_vals,
-                          override_toggle, override_mode,
+                          now_toggle,
                           value_mode_val,
                           editing_original_name,
                           mode, existing_picker_vals,
@@ -1415,10 +1357,10 @@ def register_event_callbacks(app):
         if not n_clicks:
             return _nu8
 
-        # Override toggle is now a switch-style Checklist (value is a list like
-        # ["on"]) to match the main editor — normalize to a bool for the
+        # The Add-to-Now toggle is a switch-style Checklist (value is a list
+        # like ["on"]) to match the main editor — normalize to a bool for the
         # event-manager calls below.
-        override_toggle = bool(override_toggle and "on" in override_toggle)
+        now_toggle = bool(now_toggle and "on" in now_toggle)
 
         is_edit = bool(editing_original_name)
 
@@ -1492,8 +1434,7 @@ def register_event_callbacks(app):
                     continue
                 event_manager.add_node_to_event(
                     target_event, node_name, delay_days_val,
-                    override_on_trigger=bool(override_toggle),
-                    override_mode=(override_mode or "hard") if override_toggle else None,
+                    now_on_trigger=now_toggle,
                 )
                 added += 1
 
@@ -1596,8 +1537,7 @@ def register_event_callbacks(app):
                 event_manager.update_dormant_node(
                     selected_event, editing_original_name, node,
                     delay_days=delay_days,
-                    override_on_trigger=bool(override_toggle),
-                    override_mode=(override_mode or "hard") if override_toggle else None,
+                    now_on_trigger=now_toggle,
                 )
             except ValueError as e:
                 return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
@@ -1605,8 +1545,7 @@ def register_event_callbacks(app):
             try:
                 event_manager.create_dormant_node(
                     node, selected_event, delay_days=delay_days,
-                    override_on_trigger=bool(override_toggle),
-                    override_mode=(override_mode or "hard") if override_toggle else None,
+                    now_on_trigger=now_toggle,
                 )
             except ValueError as e:
                 return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg, no_update
@@ -1634,16 +1573,6 @@ def register_event_callbacks(app):
             event_status_msg,
             None,
         )
-
-    # --- Dormant Node Override toggle visibility ---
-    @app.callback(
-        Output("dormant-override-options", "style"),
-        Input("dormant-override-toggle", "value"),
-        prevent_initial_call=True,
-    )
-    def toggle_dormant_override_options(on):
-        # Checklist value is a list (e.g. ["on"]); show options when non-empty.
-        return {"display": "block"} if (on and "on" in on) else {"display": "none"}
 
     # --- Dormant Node Link Render Callbacks ---
     @app.callback(
@@ -1802,8 +1731,7 @@ def register_event_callbacks(app):
         Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
         Output("dormant-drive-links-store", "data", allow_duplicate=True),
         Output("dormant-website-links-store", "data", allow_duplicate=True),
-        Output("dormant-override-toggle", "value", allow_duplicate=True),
-        Output("dormant-override-mode", "value", allow_duplicate=True),
+        Output("dormant-now-toggle", "value", allow_duplicate=True),
         Output("dormant-node-save-status", "children", allow_duplicate=True),
         # Habit-mode pre-fill (7 new outputs)
         Output("dormant-node-time-habit-mode", "value", allow_duplicate=True),
@@ -1849,8 +1777,7 @@ def register_event_callbacks(app):
 
         node = matching['node']
         delay_days = matching['delay_days'] or 0
-        override_on_trigger = bool(matching['override_on_trigger'])
-        override_mode_val = matching['override_mode'] or "hard"
+        now_on_trigger = bool(matching['now_on_trigger'])
 
         # Derive edge buckets for this node (same mapping as callbacks.populate_editor).
         from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
@@ -1887,7 +1814,7 @@ def register_event_callbacks(app):
         time_mode_val = ["inherited"] if node.time_mode == 'inherited' else []
         time_habit_mode_val = ["habit"] if node.time_mode == 'habit' else []
         value_mode_val = ["inherited"] if node.value_mode == 'inherited' else []
-        override_toggle_val = ["on"] if override_on_trigger else []
+        now_toggle_val = ["on"] if now_on_trigger else []
         # Fold stored habit fields onto the per-session editor widgets.
         h_unit, h_o, h_m, h_p, h_days = habit_editor_view(
             node.habit_intensity_unit, node.habit_intensity_o,
@@ -1939,8 +1866,7 @@ def register_event_callbacks(app):
             obs_links,                         # obsidian store
             drive_links,                       # drive store
             website_links,                     # website store
-            override_toggle_val,               # override toggle (checklist list)
-            override_mode_val,                 # override mode
+            now_toggle_val,                    # add-to-Now toggle (checklist list)
             "",                                # save-status
             # Habit-mode pre-fill
             time_habit_mode_val,
@@ -1987,56 +1913,27 @@ def register_event_callbacks(app):
     @app.callback(
         Output("modal-event-announcements", "is_open", allow_duplicate=True),
         Output("event-announcements-body", "children"),
-        Output("modal-override-conflict", "is_open", allow_duplicate=True),
-        Output("override-conflict-body", "children", allow_duplicate=True),
-        Output("pending-event-override-store", "data", allow_duplicate=True),
-        Output("override-conflict-mode-wrapper", "style", allow_duplicate=True),
         Input("app-load-interval", "n_intervals"),
         prevent_initial_call=True,
     )
     def show_event_announcements_on_load(n_intervals):
         if not n_intervals:
-            return no_update, no_update, no_update, no_update, no_update, no_update
+            return no_update, no_update
         entries = ConfigManager.get_pending_event_notifications()
-        info_entries = [e for e in entries if e.get("kind") != "override_conflict"]
-        if info_entries:
-            return True, _render_announcements(info_entries), no_update, no_update, no_update, no_update
-        # No informational entries — jump straight to first override conflict (if any).
-        # Event-batch resolution ignores mode, so hide the radio.
-        first = ConfigManager.pop_next_override_conflict()
-        if first:
-            return (
-                False, no_update,
-                True, _format_override_conflict_body(first),
-                {"event": first.get("event"), "candidates": first.get("candidate_nodes", [])},
-                {"display": "none"},
-            )
-        return False, no_update, no_update, no_update, no_update, no_update
+        if entries:
+            return True, _render_announcements(entries)
+        return False, no_update
 
     @app.callback(
         Output("modal-event-announcements", "is_open", allow_duplicate=True),
-        Output("modal-override-conflict", "is_open", allow_duplicate=True),
-        Output("override-conflict-body", "children", allow_duplicate=True),
-        Output("pending-event-override-store", "data", allow_duplicate=True),
-        Output("override-conflict-mode-wrapper", "style", allow_duplicate=True),
         Input("btn-event-announcements-dismiss", "n_clicks"),
         prevent_initial_call=True,
     )
     def dismiss_event_announcements(n_clicks):
         if not n_clicks:
-            return no_update, no_update, no_update, no_update, no_update
-        # Drop informational entries only; override_conflict entries stay queued.
+            return no_update
         ConfigManager.clear_pending_announcements_only()
-        first = ConfigManager.pop_next_override_conflict()
-        if first:
-            return (
-                False,
-                True,
-                _format_override_conflict_body(first),
-                {"event": first.get("event"), "candidates": first.get("candidate_nodes", [])},
-                {"display": "none"},
-            )
-        return False, no_update, no_update, no_update, no_update
+        return False
 
     # --- Event Graph: render dormant nodes + immediate neighbors ---
     # Outputs to events-elements-pending-store; freeze bypass applied by a
@@ -2064,7 +1961,7 @@ def register_event_callbacks(app):
                 neighbor_names.add(e['source'])
 
         all_names = dormant_names | neighbor_names
-        styles = canvas_node_styles(graph_manager, event_manager)
+        styles = canvas_node_styles(event_manager)
 
         elements = []
         for name in all_names:

@@ -190,8 +190,8 @@ class TestNodeCRUD:
         em = EventManager()
 
         # Set up X with edges in/out, an alias, an event triggered by X,
-        # an EventNode attachment, X as priority goal, and X as override
-        # parent — covering every reference path delete_node has to clean.
+        # an EventNode attachment, and X as a priority goal — covering every
+        # reference path delete_node has to clean.
         mgr.add_node(_make_node("X", type="Goal"))
         mgr.add_node(_make_node("U"))
         mgr.add_node(_make_node("D"))
@@ -202,7 +202,6 @@ class TestNodeCRUD:
         mgr.add_node(_make_node("Dormant", status="Open"))
         em.add_node_to_event("EvtX", "Dormant", delay_days=0)
         ConfigManager.set_priority_goals(["X"])
-        ConfigManager.set_override({"parent": "X", "mode": "hard"})
 
         mgr.delete_node("X")
 
@@ -224,8 +223,6 @@ class TestNodeCRUD:
         assert evt.trigger_nodes == []
         # Priority goals list cleaned
         assert "X" not in ConfigManager.get_priority_goals()
-        # Override parent cleared
-        assert ConfigManager.get_override().get("parent") is None
 
     def test_get_all_nodes(self, mgr):
         mgr.add_node(_make_node("A"))

@@ -202,24 +202,12 @@ node_editor_content = html.Div(
                     value=[],
                     id="node-value-mode",
                     switch=True,
-                    className="mb-0 me-3",
-                ),
-                dbc.Checklist(
-                    options=[{"label": "Override", "value": "on"}],
-                    value=[],
-                    id="override-toggle",
-                    switch=True,
                     className="mb-0",
                 ),
             ], className="d-flex align-items-center mt-2 mb-2"),
             dbc.Tooltip(
                 "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
                 target="node-value-mode", placement="left",
-                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-            ),
-            dbc.Tooltip(
-                "Boost this node's priority manually. Click for scope options.",
-                target="override-toggle", placement="left",
                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
             # Locked-on notice for Milestones (mirrors the time-mode warning).
@@ -243,31 +231,6 @@ node_editor_content = html.Div(
                     html.Div("Derived from subtasks", className="text-muted small"),
                 ]),
             ]),
-            dbc.Popover(
-                [
-                    dbc.PopoverHeader("Override Mode"),
-                    dbc.PopoverBody([
-                        dbc.RadioItems(
-                            id="override-mode-radio",
-                            options=[
-                                {"label": "Node Only", "value": "node_only"},
-                                {"label": "Node + Hard Dependencies", "value": "hard"},
-                                {"label": "Node + Soft Dependencies", "value": "soft"},
-                                {"label": "Node + All Dependencies", "value": "all"},
-                            ],
-                            value="hard",
-                            className="mb-2",
-                        ),
-                        dbc.Button("Apply", id="btn-override-apply", color="primary",
-                                   size="sm", className="w-100"),
-                    ]),
-                ],
-                id="popover-override-mode",
-                target="override-toggle",
-                is_open=False,
-                placement="bottom",
-            ),
-
             # --- Section: Time Estimates ---
             html.Div(id="section-time-estimates", children=[
                 html.Hr(className="my-2"),

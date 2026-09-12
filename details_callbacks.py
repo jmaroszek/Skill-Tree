@@ -301,7 +301,6 @@ def register_details_callbacks(app):
         Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
-        Input("override-store", "data"),
         Input("details-max-depth", "value"),
         State("details-include-soft-needs", "value"),
         State("details-include-synergies", "value"),
@@ -323,7 +322,7 @@ def register_details_callbacks(app):
         prevent_initial_call=True,
     )
     @database.snapshot_read
-    def select_detail_node(node_name, _refresh, _version, _override_data,
+    def select_detail_node(node_name, _refresh, _version,
                            max_depth_val, include_soft_val, include_synergies_val,
                            f_context, f_subcontext, f_done,
                            f_value, f_interest, f_time, f_difficulty,
@@ -358,24 +357,14 @@ def register_details_callbacks(app):
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
         max_depth = _normalize_max_depth(max_depth_val)
 
-        # Build badges. Order: Override → Status → Priority → Type → RelPriority.
+        # Build badges. Order: Status → Priority → Type → RelPriority.
         # Goal type tile is suppressed when a Priority N tile is shown
         # (the Priority tile already implies "this is a Goal").
         badges = []
         priority_goals = ConfigManager.get_priority_goals()
         is_priority_goal = node_name in priority_goals
 
-        # 1. Override (always first if active)
-        override = ConfigManager.get_override()
-        if override.get("parent"):
-            override_set = ConfigManager.get_override_node_set(graph_manager)
-            if node_name in override_set:
-                is_parent = (node_name == override["parent"])
-                override_label = "Override" if is_parent else "Override (Dependent)"
-                badges.append(html.Span(override_label, className="badge",
-                                        style=badge_style('Override')))
-
-        # 2. Status (always)
+        # 1. Status (always)
         badges.append(html.Span(node.status, className="badge",
                                 style=badge_style(node.status)))
 
@@ -385,18 +374,18 @@ def register_details_callbacks(app):
             badges.append(html.Span("Now", className="badge",
                                     style=badge_style('Now')))
 
-        # 3. Priority (Priority N for priority Goals)
+        # 2. Priority (Priority N for priority Goals)
         if is_priority_goal:
             rank = priority_goals.index(node_name) + 1
             badges.append(html.Span(f"Priority {rank}", className="badge",
                                     style=badge_style('Priority')))
 
-        # 4. Type (skip Goal when Priority N already rendered above)
+        # 3. Type (skip Goal when Priority N already rendered above)
         if node.type and not is_priority_goal:
             badges.append(html.Span(node.type, className="badge",
                                     style=badge_style(node.type)))
 
-        # 5. Relationship Priority (Hard/Soft N for non-priority nodes in a priority Goal's subtree)
+        # 4. Relationship Priority (Hard/Soft N for non-priority nodes in a priority Goal's subtree)
         if not is_priority_goal:
             for rank_idx, goal_name in enumerate(priority_goals[:3]):
                 subtree = graph_manager.get_goal_subtree(goal_name)
@@ -520,7 +509,6 @@ def register_details_callbacks(app):
         Input("details-layout-settled-trigger-input", "value"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
-        Input("override-store", "data"),
         Input("details-include-soft-needs", "value"),
         Input("details-include-synergies", "value"),
         Input("details-max-depth", "value"),
@@ -539,7 +527,7 @@ def register_details_callbacks(app):
     )
     @database.snapshot_read
     def render_details_subtasks(selected_node, settled_token, _refresh,
-                                _version, _override_data,
+                                _version,
                                 include_soft_val, include_synergies_val,
                                 max_depth_val, f_context, f_subcontext,
                                 f_done, f_value, f_interest, f_time,
@@ -939,25 +927,16 @@ def register_details_callbacks(app):
             return no_update
         return triggered["index"]
 
-    # --- Empty-state suggestions: override + priority goals + top recs ---
+    # --- Empty-state suggestions: priority goals + top recs ---
     @app.callback(
         Output("details-suggestions-container", "children"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
-        Input("override-store", "data"),
     )
-    def build_empty_state_suggestions(_refresh, _version, _override_data):
+    def build_empty_state_suggestions(_refresh, _version):
         from next_callbacks import get_container_suggestions
 
         seen = set()
-
-        override_row = None
-        override_name = ConfigManager.get_override().get("parent")
-        if override_name:
-            override_node = graph_manager.get_node(override_name)
-            if override_node and not override_node.dormant:
-                override_row = _build_suggestion_row(override_name, "Override", "pink")
-                seen.add(override_name)
 
         goal_rows = []
         for i, goal_name in enumerate(ConfigManager.get_priority_goals()[:3]):
@@ -990,7 +969,7 @@ def register_details_callbacks(app):
                 tooltip_text=tooltip_text,
             ))
 
-        return build_details_suggestions(override_row, goal_rows, rec_rows)
+        return build_details_suggestions(goal_rows, rec_rows)
 
     # --- Suggestion Click → Select that node in Details ---
     @app.callback(
@@ -1047,8 +1026,6 @@ def register_details_callbacks(app):
         Output("details-add-obsidian-store", "data"),
         Output("details-add-drive-store", "data"),
         Output("details-add-website-store", "data"),
-        # Override reset
-        Output("details-add-override-toggle", "value"),
         # Value mode reset
         Output("details-add-value-mode", "value"),
         # Habit-mode reset (7 new outputs)
@@ -1098,8 +1075,6 @@ def register_details_callbacks(app):
             [],
             # Reset external resource stores
             [''], [''], [''],
-            # Override reset
-            [],
             # Value mode reset
             [],
             # Habit reset
@@ -1504,9 +1479,6 @@ def register_details_callbacks(app):
         State({'type': 'details-add-obsidian-link', 'index': ALL}, 'value'),
         State({'type': 'details-add-drive-link', 'index': ALL}, 'value'),
         State({'type': 'details-add-website-link', 'index': ALL}, 'value'),
-        # Override
-        State("details-add-override-toggle", "value"),
-        State("details-add-override-mode", "value"),
         # Aliases
         State({"type": "details-add-alias-input", "index": ALL}, "value"),
         prevent_initial_call=True,
@@ -1522,8 +1494,7 @@ def register_details_callbacks(app):
                       habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
                       habit_days,
                       needs_hard, needs_soft, supports_hard, supports_soft, helps,
-                      obsidian_vals, drive_vals, website_vals,
-                      override_toggle, override_mode, alias_values):
+                      obsidian_vals, drive_vals, website_vals, alias_values):
         from callback_helpers import serialize_links
         if not n_clicks or not selected_node:
             return no_update, no_update, no_update
@@ -1599,25 +1570,10 @@ def register_details_callbacks(app):
                         name.strip(), needs_hard or [], needs_soft or [],
                         list(dict.fromkeys([selected_node, *(supports_hard or [])])),
                         supports_soft or [], helps or [])
-                    if override_toggle and "on" in override_toggle:
-                        ConfigManager.set_override({
-                            "parent": name.strip(), "mode": override_mode or "hard"})
             except ValueError as e:
                 return no_update, no_update, str(e)
 
             return False, f"add-{name}", ""
-
-    # --- Add Node Modal: Override toggle visibility ---
-    app.clientside_callback(
-        """
-        function(on) {
-            return (on && on.indexOf('on') >= 0) ? {display: 'block'} : {display: 'none'};
-        }
-        """,
-        Output("details-add-override-options", "style"),
-        Input("details-add-override-toggle", "value"),
-        prevent_initial_call=True,
-    )
 
     # --- Subtask Remove: Open Modal ---
     @app.callback(
@@ -2015,7 +1971,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     node_names = set(view["node_names"])
     discovery_edges = set(view["discovery_edges"])
 
-    styles = canvas_node_styles(graph_manager, event_manager)
+    styles = canvas_node_styles(event_manager)
 
     elements = []
     filtered_names = set()

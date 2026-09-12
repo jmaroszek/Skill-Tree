@@ -817,7 +817,7 @@ def _build_suggestion_row(node_name, badge_text, badge_color,
     )
 
 
-def build_details_suggestions(override_row, goal_rows, rec_rows):
+def build_details_suggestions(goal_rows, rec_rows):
     """Assemble the Details empty-state suggestion list from pre-built rows."""
     sections = []
 
@@ -830,15 +830,13 @@ def build_details_suggestions(override_row, goal_rows, rec_rows):
             html.Div(rows),
         ])
 
-    if override_row is not None:
-        sections.append(_section("Manual Override", [override_row]))
     if goal_rows:
         sections.append(_section("Priority Goals", goal_rows))
     if rec_rows:
         sections.append(_section("Top Recommendations", rec_rows))
 
     if not sections:
-        return html.P("No suggestions yet — add priority goals or an override.",
+        return html.P("No suggestions yet — add a priority goal to see one here.",
                       className="text-muted small text-center mt-3")
     return sections
 
@@ -1096,24 +1094,12 @@ def _build_add_node_modal(ted):
                         value=[],
                         id="details-add-value-mode",
                         switch=True,
-                        className="mb-0 me-3",
-                    ),
-                    dbc.Checklist(
-                        options=[{"label": "Override", "value": "on"}],
-                        value=[],
-                        id="details-add-override-toggle",
-                        switch=True,
                         className="mb-0",
                     ),
                 ], className="d-flex align-items-center mt-2 mb-2"),
                 dbc.Tooltip(
                     "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
                     target="details-add-value-mode", placement="left",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-                ),
-                dbc.Tooltip(
-                    "Boost this node's priority manually. Click for scope options.",
-                    target="details-add-override-toggle", placement="left",
                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                 ),
                 # Locked-on notice for Milestones (mirrors the main editor).
@@ -1137,20 +1123,6 @@ def _build_add_node_modal(ted):
                         html.Div("Derived from subtasks", className="text-muted small"),
                     ]),
                 ]),
-                html.Div(id="details-add-override-options", style={"display": "none"}, children=[
-                    dbc.RadioItems(
-                        id="details-add-override-mode",
-                        options=[
-                            {"label": "Node Only", "value": "node_only"},
-                            {"label": "Node + Hard Dependencies", "value": "hard"},
-                            {"label": "Node + Soft Dependencies", "value": "soft"},
-                            {"label": "Node + All Dependencies", "value": "all"},
-                        ],
-                        value="hard",
-                        style={"fontSize": "0.85rem"},
-                    ),
-                ]),
-
                 html.Hr(className="my-2"),
                 html.Div([
                     html.H5("Time Estimates", className="mb-0"),

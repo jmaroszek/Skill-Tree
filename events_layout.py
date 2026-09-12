@@ -243,7 +243,7 @@ def build_events_tab_content():
 
             html.Hr(className="my-2"),
             html.H5("Ratings", className="mt-2 mb-1"),
-            # Inherit-value + Override toggles on one row — mirrors the main
+            # Inherit-value + Add-to-Now toggles on one row — mirrors the main
             # node editor (sidebars_layout). Both are switch-style checklists.
             html.Div([
                 dbc.Checklist(
@@ -254,9 +254,9 @@ def build_events_tab_content():
                     className="mb-0 me-3",
                 ),
                 dbc.Checklist(
-                    options=[{"label": "Override", "value": "on"}],
+                    options=[{"label": "Add to Now", "value": "on"}],
                     value=[],
-                    id="dormant-override-toggle",
+                    id="dormant-now-toggle",
                     switch=True,
                     className="mb-0",
                 ),
@@ -267,8 +267,8 @@ def build_events_tab_content():
                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
             dbc.Tooltip(
-                "Boost this node's priority when the event triggers. Click for scope options.",
-                target="dormant-override-toggle", placement="left",
+                "When this event wakes the node, move it straight onto the Now list. Skipped if Now is already full.",
+                target="dormant-now-toggle", placement="left",
                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
             # Locked-on notice for Milestones (mirrors the time-mode warning).
@@ -291,25 +291,6 @@ def build_events_tab_content():
                     html.Div("Derived from subtasks", className="text-muted small"),
                 ]),
             ]),
-            html.Div(id="dormant-override-options", style={"display": "none"}, children=[
-                dbc.RadioItems(
-                    id="dormant-override-mode",
-                    options=[
-                        {"label": "Node Only", "value": "node_only"},
-                        {"label": "Node + Hard Dependencies", "value": "hard"},
-                        {"label": "Node + Soft Dependencies", "value": "soft"},
-                        {"label": "Node + All Dependencies", "value": "all"},
-                    ],
-                    value="hard",
-                    style={"fontSize": "0.85rem"},
-                ),
-                html.Small(
-                    "Applied when this event triggers; you'll be prompted if an override is already active.",
-                    className="text-muted d-block mt-1",
-                    style={"fontSize": "0.75rem"},
-                ),
-            ]),
-
             html.Hr(className="my-2"),
             html.Div([
                 html.H5("Time Estimates", className="mb-0"),
@@ -604,8 +585,8 @@ def build_events_tab_content():
                     dbc.ModalBody([
                         html.P("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
                         dbc.Switch(
-                            id="manual-override-trigger-toggle",
-                            label="Activate all nodes with an override status",
+                            id="manual-now-trigger-toggle",
+                            label="Add nodes flagged \"Add to Now\" to the Now list",
                             value=False,
                             className="mt-2",
                         ),

@@ -79,7 +79,6 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-details",
         "ctx-menu-explain",
         "ctx-menu-toggle-now",
-        "ctx-menu-override",
         "ctx-menu-add-to-event",
         "ctx-menu-toggle-done",
         "ctx-menu-links-divider",
@@ -90,7 +89,6 @@ def test_shared_menu_groups_actions_by_intent():
     ]
     assert _find(menu, "ctx-menu-details").children == "View Details"
     assert _find(menu, "ctx-menu-explain").children == "Explain Priority"
-    assert _find(menu, "ctx-menu-override").children == "Priority Override…"
     assert _find(menu, "ctx-menu-delete").children == "Delete…"
 
 
@@ -140,25 +138,3 @@ def test_bulk_now_action_sets_mixed_selection_then_clears_all():
     assert manager.get_node("Not Now").now == 0
 
 
-def test_context_override_uses_scope_modal_and_replaces_event_pins(monkeypatch):
-    manager = GraphManager()
-    manager.add_node(_node("Target"))
-    ConfigManager.set_event_override_nodes(["Elsewhere"])
-    app = _app()
-    open_callback = _callback(app, "open_context_override")
-    resolve_callback = _callback(app, "resolve_context_override")
-
-    opened = open_callback("Target|1")
-    assert opened[0] is True
-    assert "replace the current event override" in opened[1]
-    assert opened[4] == "Target"
-
-    monkeypatch.setattr(callbacks, "get_trigger_id",
-                        lambda: "btn-context-override-apply")
-    resolved = resolve_callback(0, 0, 1, "node_only", "Target")
-    assert resolved[0] is False
-    assert ConfigManager.get_override() == {
-        "parent": "Target",
-        "mode": "node_only",
-    }
-    assert ConfigManager.get_event_override_nodes() == []

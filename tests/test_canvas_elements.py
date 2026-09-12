@@ -23,7 +23,7 @@ from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
-          'Override Prereq', 'Hub'}
+          'Soft Prereq', 'Hub'}
 
 
 def _node(name, **overrides):
@@ -70,16 +70,15 @@ def canvases():
     graph.add_node(_node('Done Prereq', status='Done'))
     graph.add_node(_node('Upstream'))
     graph.add_node(_node('Blocked Prereq'))
-    graph.add_node(_node('Override Prereq'))
+    graph.add_node(_node('Soft Prereq'))
     graph.add_node(_node('Hub', value_mode='inherited', time_mode='inherited'))
     events.add_event(Event(name='Trip', trigger_nodes=['Open Prereq']))
     events.create_dormant_node(_node('Root'), 'Trip')
     graph.add_edge('Upstream', 'Blocked Prereq', EDGE_NEEDS_HARD)
     graph.add_edge('Open Prereq', 'Root', EDGE_NEEDS_HARD)
     graph.add_edge('Done Prereq', 'Root', EDGE_NEEDS_HARD)
-    for name in ('Blocked Prereq', 'Override Prereq', 'Hub'):
+    for name in ('Blocked Prereq', 'Soft Prereq', 'Hub'):
         graph.add_edge(name, 'Root', EDGE_NEEDS_SOFT)
-    ConfigManager.set_override({'parent': 'Override Prereq', 'mode': 'node_only'})
 
     # The premises the tests below rely on.
     assert graph.get_node('Root').status == 'Blocked'
@@ -109,7 +108,7 @@ def test_fill_follows_one_rule_on_every_canvas(canvases):
         'Root': colors['Blocked'],              # dormant, and still red on Events
         'Blocked Prereq': colors['Blocked'],
         'Done Prereq': colors['Done'],
-        'Override Prereq': colors['Override'],  # pink on Details too
+        'Soft Prereq': colors['Learn'],
         'Open Prereq': colors['Learn'],
         'Hub': colors['Learn'],
     }
@@ -146,14 +145,15 @@ def test_hovering_a_node_shows_the_same_tooltip_on_every_canvas(canvases, monkey
 
 
 _STYLES = CanvasNodeStyles(colors=dict(DEFAULT_NODE_COLORS), shapes={},
-                           override_names=frozenset({'Pinned'}),
                            trigger_names=frozenset())
 
 
-def test_override_color_takes_precedence_over_status():
-    pinned = _node('Pinned', status='Done')
-    assert node_fill_color(pinned, _STYLES.colors, _STYLES.override_names) \
-        == DEFAULT_NODE_COLORS['Override']
+def test_status_beats_type_in_the_fill():
+    """Now has no say in the fill — it is drawn as the pulsing border."""
+    assert (node_fill_color(_node('Finished', status='Done'), _STYLES.colors)
+            == DEFAULT_NODE_COLORS['Done'])
+    assert (node_fill_color(_node('Busy', now=3), _STYLES.colors)
+            == DEFAULT_NODE_COLORS['Learn'])
 
 
 def test_classes_are_always_emitted_and_selection_only_on_request():

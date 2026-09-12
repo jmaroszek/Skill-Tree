@@ -211,7 +211,7 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def _has_column(cursor, table: str, column: str) -> bool:
@@ -256,6 +256,31 @@ def _migrate(cursor, from_version: int) -> None:
                 # DROP COLUMN needs SQLite 3.35+. On older builds the column
                 # just lingers unused — every read path selects explicitly.
                 print(f"NOTE: left legacy Events.trigger_node in place ({exc}).")
+
+    # --- v6: the manual priority override is retired; the event intent it
+    # carried becomes "add to Now on trigger" ---
+    if from_version < 6:
+        if not _has_column(cursor, "EventNodes", "now_on_trigger"):
+            cursor.execute(
+                "ALTER TABLE EventNodes ADD COLUMN now_on_trigger INTEGER NOT NULL DEFAULT 0"
+            )
+            if _has_column(cursor, "EventNodes", "override_on_trigger"):
+                cursor.execute(
+                    "UPDATE EventNodes SET now_on_trigger = override_on_trigger"
+                )
+        for column in ("override_on_trigger", "override_mode"):
+            if not _has_column(cursor, "EventNodes", column):
+                continue
+            try:
+                cursor.execute(f"ALTER TABLE EventNodes DROP COLUMN {column}")
+            except Exception as exc:
+                # DROP COLUMN needs SQLite 3.35+. On older builds the column
+                # lingers unused — every read path selects explicitly.
+                print(f"NOTE: left legacy EventNodes.{column} in place ({exc}).")
+        # The override's two Settings rows have no reader left.
+        cursor.execute(
+            "DELETE FROM Settings WHERE key IN ('OVERRIDE', 'EVENT_OVERRIDE_NODES')"
+        )
 
 
 def init_db():
@@ -394,9 +419,9 @@ def init_db():
             delay_days INTEGER NOT NULL DEFAULT 0,
             activation_date TEXT,
             activated INTEGER NOT NULL DEFAULT 0,
-            -- Override intent applied to the node when the event triggers.
-            override_on_trigger INTEGER NOT NULL DEFAULT 0,
-            override_mode TEXT,
+            -- Add the node to the Now list when the event triggers, subject
+            -- to the Now cap.
+            now_on_trigger INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (event_name, node_name),
             FOREIGN KEY (event_name) REFERENCES Events(name) ON DELETE CASCADE,
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE

@@ -167,7 +167,7 @@ def test_subtasks_table_waits_for_current_layout(monkeypatch):
     }
     callback = _raw_callback(spec)
     args = [
-        "Current", "", 0, 0, None,
+        "Current", "", 0, 0,
         ["include"], [], 6,
         None, None, [], 1, 1, None, "All", [], [], [], False,
     ]
@@ -213,7 +213,7 @@ def test_frozen_selection_renders_without_waiting_for_layout(monkeypatch):
         details_callbacks, "get_trigger_id",
         lambda: "details-selected-node-store")
     result = callback(
-        "Current", "", 0, 0, None,
+        "Current", "", 0, 0,
         ["include"], [], 6,
         None, None, [], 1, 1, None, "All", [], [], [], True,
     )

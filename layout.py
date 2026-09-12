@@ -661,84 +661,6 @@ group_delete_confirm_modal = dbc.Modal([
 ], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)
 
 
-override_conflict_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Override Conflict")),
-    dbc.ModalBody([
-        html.Div(id="override-conflict-body"),
-        html.Div(id="override-conflict-mode-wrapper", children=[
-            html.Hr(className="my-2"),
-            dbc.RadioItems(
-                id="override-conflict-mode-radio",
-                options=[
-                    {"label": "Node Only", "value": "node_only"},
-                    {"label": "Node + Hard Dependencies", "value": "hard"},
-                    {"label": "Node + Soft Dependencies", "value": "soft"},
-                    {"label": "Node + All Dependencies", "value": "all"},
-                ],
-                value="hard",
-            ),
-        ]),
-    ]),
-    dbc.ModalFooter([
-        dbc.Button("Keep Current", id="btn-override-keep", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Apply to New", id="btn-override-replace", color="primary", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-override-conflict", is_open=False, centered=True)
-
-
-override_untoggle_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Override Active")),
-    dbc.ModalBody(id="override-untoggle-body"),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-override-untoggle-cancel", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Untoggle All", id="btn-override-untoggle-all", color="danger", className="flex-fill me-2",
-                   style={"backgroundColor": ConfigManager.get_danger_color(),
-                          "borderColor": ConfigManager.get_danger_color()}),
-        dbc.Button("Hard Only", id="btn-override-untoggle-hard", color="primary", className="flex-fill me-2"),
-        dbc.Button("Soft Only", id="btn-override-untoggle-soft", color="info", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-override-untoggle", size="md", is_open=False, centered=True)
-
-
-# The shared node context menu can be opened without the editor being visible,
-# so its priority-override command needs a self-contained scope chooser rather
-# than the editor-anchored popover. Applying here replaces any other active
-# override only after the user sees that consequence in the modal body.
-context_override_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Priority Override")),
-    dbc.ModalBody([
-        html.Div(id="context-override-body", className="mb-2"),
-        dbc.RadioItems(
-            id="context-override-mode-radio",
-            options=[
-                {"label": "Node Only", "value": "node_only"},
-                {"label": "Node + Hard Dependencies", "value": "hard"},
-                {"label": "Node + Soft Dependencies", "value": "soft"},
-                {"label": "Node + All Dependencies", "value": "all"},
-            ],
-            value="hard",
-        ),
-    ]),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-context-override-cancel",
-                   color="secondary", className="flex-fill me-2"),
-        dbc.Button(
-            "Clear Override",
-            id="btn-context-override-clear",
-            color="danger",
-            className="flex-fill me-2",
-            style={
-                "display": "none",
-                "backgroundColor": ConfigManager.get_danger_color(),
-                "borderColor": ConfigManager.get_danger_color(),
-            },
-        ),
-        dbc.Button("Apply Override", id="btn-context-override-apply",
-                   color="primary", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-context-override", is_open=False, centered=True)
-
-
 # --- Bottom Panel (Relationships + Description) ---
 
 bottom_panel = html.Div([
@@ -1037,7 +959,6 @@ def build_app_layout(initial_elements, env="production"):
             html.Div("Explain Priority", id="ctx-menu-explain", className="ctx-menu-item"),
             html.Hr(style={"margin": "2px"}),
             html.Div("Add to Now", id="ctx-menu-toggle-now", className="ctx-menu-item"),
-            html.Div("Priority Override…", id="ctx-menu-override", className="ctx-menu-item"),
             html.Div("Add to Event…", id="ctx-menu-add-to-event", className="ctx-menu-item"),
             html.Div("Mark Done", id="ctx-menu-toggle-done", className="ctx-menu-item"),
             html.Hr(id="ctx-menu-links-divider", style={"margin": "2px"}),
@@ -1331,8 +1252,6 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='pending-navigation-store', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='details-explain-trigger-input', type='text', value='', style={'display': 'none'}),
-        dcc.Input(id='context-override-trigger-input', type='text', value='', style={'display': 'none'}),
-        dcc.Store(id='context-override-target-store', data=None),
         # Set by context_menu.js when "Add to event…" is clicked. Carries a
         # JSON-encoded list of selected node IDs plus a "|<timestamp>" suffix.
         dcc.Input(id='dormant-existing-trigger-input', type='text', value='', style={'display': 'none'}),
@@ -1357,9 +1276,6 @@ def build_app_layout(initial_elements, env="production"):
         calibration_review_toast,
         build_review_hub_modal(),
         group_delete_confirm_modal,
-        override_conflict_modal,
-        override_untoggle_modal,
-        context_override_modal,
         ratings_editor_modal,
         reflection_ratings_editor_modal,
         dbc.Modal([
@@ -1371,8 +1287,6 @@ def build_app_layout(initial_elements, env="production"):
         build_settings_modal(),
         dcc.Interval(id='app-load-interval', interval=500, n_intervals=0, max_intervals=1),
 
-        dcc.Store(id='override-store', data={"parent": None, "mode": "hard"}),
-        dcc.Store(id='pending-event-override-store', data=None),
         dcc.Store(id='pending-settings-store', data=None),
         dcc.Store(id='migration-mapping-store', data=None),
         dcc.Store(id='freeze-rerender-store', data=False),

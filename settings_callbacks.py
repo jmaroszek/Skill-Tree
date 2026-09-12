@@ -84,7 +84,6 @@ def _build_status_color_rows(colors):
     return [
         _build_color_row(STATUS_DONE, STATUS_DONE, colors),
         _build_color_row(STATUS_BLOCKED, STATUS_BLOCKED, colors),
-        _build_color_row("Override", "Override", colors),
         _build_color_row("Now", "Now", colors),
     ]
 
@@ -303,6 +302,7 @@ def register_settings_callbacks(app):
         Output('setting-monte-carlo-trials', 'value'),
         Output('setting-estimate-correlation', 'value'),
         Output('setting-now-node-cap', 'value'),
+        Output('setting-unblocking-steps', 'value'),
         Output('hp-subcontext-repeat', 'value'),
         Output('hp-future-hours', 'value'),
         Output('hp-future-exponent', 'value'),
@@ -311,7 +311,7 @@ def register_settings_callbacks(app):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 50
+            return (dash.no_update,) * 51
 
         hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
@@ -400,6 +400,7 @@ def register_settings_callbacks(app):
             ConfigManager.get_monte_carlo_trials(),
             ConfigManager.get_estimate_correlation(),
             ConfigManager.get_now_node_cap(),
+            ConfigManager.get_unblocking_steps_per_now(),
             hp['suggestion_subcontext_premium'],
             hp['future_work_half_credit_hours'],
             hp['future_work_exponent'],
@@ -533,6 +534,7 @@ def register_settings_callbacks(app):
         State('setting-monte-carlo-trials', 'value'),
         State('setting-estimate-correlation', 'value'),
         State('setting-now-node-cap', 'value'),
+        State('setting-unblocking-steps', 'value'),
         State('hp-future-hours', 'value'),
         State('hp-future-exponent', 'value'),
         State('hp-subcontext-repeat', 'value'),
@@ -554,6 +556,7 @@ def register_settings_callbacks(app):
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
                       monte_carlo_trials_val, estimate_correlation_val, now_node_cap_val,
+                      unblocking_steps_val=None,
                       future_hours=None, future_exponent=None, subcontext_repeat=None):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
@@ -577,6 +580,9 @@ def register_settings_callbacks(app):
             )
             if now_node_cap_val is not None:
                 ConfigManager.set_now_node_cap(max(1, min(50, int(now_node_cap_val))))
+            if unblocking_steps_val is not None:
+                ConfigManager.set_unblocking_steps_per_now(
+                    max(0, min(10, int(unblocking_steps_val))))
             if subcontext_sort_mode_val:
                 ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
             if context_sort_mode_val:

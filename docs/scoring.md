@@ -165,7 +165,7 @@ Sage uses **5% / 15%**. After three earlier recommendations from one subcontext,
 
 Profiles use context/subcontext premiums: Sage 5/15, Explorer 10/20, Compounder 0/0, Pragmatist 2/5, Creator 5/15, Glider 5/20. The non-Sage defaults are conservative policy choices, not empirically optimized values. Both zero disables the walk and restores merit ordering.
 
-The pool is the whole graph, never the current view. Filters, the requested row count and the Details recommendation list all narrow which nodes are *shown*; none of them changes a divisor. That is what lets one number stand for a node everywhere in the app. The cost is that a filtered list still carries discounts earned against nodes the filter hides. Now nodes are outside the pool entirely: they neither earn a divisor nor spend a repetition. Valid pins bypass filters and lead the list whatever they score. Goal and container ranking remain separate.
+The pool is the whole graph, never the current view. Filters, the requested row count and the Details recommendation list all narrow which nodes are *shown*; none of them changes a divisor. That is what lets one number stand for a node everywhere in the app. The cost is that a filtered list still carries discounts earned against nodes the filter hides. Now nodes are outside the pool entirely: they neither earn a divisor nor spend a repetition. Unblocking steps bypass filters and lead the list whatever they score. Goal and container ranking remain separate.
 
 The walk uses exact merit, then exact merit and name to break adjusted ties. `(context, None)` is a broad-area bucket; identical subcontext labels under different contexts remain distinct. Legacy uncategorized nodes are exempt.
 
@@ -349,7 +349,7 @@ Both scoring algorithms above consult three independent state fields on each nod
 |---|---|---|---|
 | Status | Open, Blocked, Done | The user's Done-flips, plus the graph's structure | Decides which nodes are eligible to be scored, and what counts as remaining work in the Goal ranking. |
 | Dormant | 0 or 1 | User-set, or cleared when an Event triggers | A Dormant node is left out of scoring until its Event fires. |
-| Now | 0 or 1 | User-set | Still scored, so its breakdown shows in Explain. But it doesn't compete for the top $n$ slots in the Next tab. |
+| Now | 0, or a rank | User-set | Positive values double as the card order in the Now section. Still scored, so its breakdown shows in Explain. But it doesn't compete for the top $n$ slots in the Next tab. |
 
 Status is the most algorithmically substantive of the three. The rest of this section concentrates on it: its formal definition, the cascade that maintains it, and the invariants that cascade depends on. Dormant and Now sit outside that machinery, and are covered at the end.
 
@@ -388,6 +388,8 @@ The status function covers the three lifecycle values: Open, Blocked, and Done. 
 **Dormant** nodes are excluded from every read path in the scoring pipeline. When an Event triggers a Dormant node, the flag clears. The status cascade then runs to settle whether the newly-live node is Open or Blocked.
 
 **Now** nodes still cascade and still receive a final score, which the Explain modal uses. But the Next tab keeps them out of the Suggestions ranking, surfacing them in a separate Now panel instead.
+
+A Now node that can't be recommended at all — one carrying a negative score, so Blocked, a Goal, a Milestone, or otherwise ineligible — pins **unblocking steps** above the ranking instead. These are the highest-scoring nodes in its transitive `Needs_Hard` prerequisite subtree that are themselves startable. The steps are a selection over scores already computed, not a scoring rule: no divisor changes, no number moves. They bypass the user's filters, they are never repeated in the ranking below, and they are added above the requested row count rather than taken out of it.
 
 # Symbol Glossary
 

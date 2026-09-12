@@ -111,21 +111,12 @@ The relative weight of each factor isn't fixed. [Scoring profiles](scoring.md#sc
   </tr>
 </table>
 
-### Ratings Toggles
-Above the sliders sit two toggles.
+### Ratings Toggle
+Above the sliders sits one toggle.
 
 **Inherit** turns the node into a container along the ratings-dimension. That means its value, interest, and effort stop being its own, and instead flow up from its children. Reach for it when a node exists primarily to group other work. The [Containers](#containers) section, coming up soon, covers this in depth.
 
-**Override** manually boosts a node's priority, pinning it to the top of the [Next Tab's](#next-tab) recommendations, no matter what the algorithm says. It's the escape hatch for when you know something matters more than the algorithm thinks. I use this when my life circumstances suddenly change, and something demands immediate attention. 
-
-Once you click the toggle, there are additional options for how thorough the override should be.
-
-<p align="center">
-  <img src="../images/override-mode-popup.png" width=400>
-  <br>
-  <em> Override popup -- the other options will make more sense after we cover relationships. </em>
-</p>
-
+Looking for a way to override the algorithm? That is what **Now** is for. Marking a project Now says you have already decided to work on it, whatever the ranking thinks. See [the Now section](#the-now-section).
 
 ### Ratings Table
 In order to standardize the rating process, there is a table that describes what each rating means. Open it by clicking the info icon next to the Ratings header. Every cell is editable, so you can personalize the definitions. 
@@ -233,7 +224,23 @@ This is the tab the app opens on. If you only look at one screen, this is the on
 
 ## The Now Section
 
-If you have any nodes marked "Now," a small *Now* section appears above the suggestions table. Each card shows a type-colored accent bar, name, context, and time estimate. Once a node graduates to the Now section, it no longer competes for a slot in the recommendation table, because you have already committed to it.
+If you have any nodes marked "Now," a small *Now* section appears above the suggestions table. Each card shows a type-colored accent bar, name, context, and time estimate. Drag the cards to reorder them.
+
+Once a node graduates to the Now section, it no longer competes for a slot in the recommendation table, because you have already committed to it. This is also how you overrule the algorithm. There is no separate escape hatch: if you want to work on something the ranking buried, put it in Now.
+
+You can hold five projects in Now at once. The app refuses a sixth and tells you to clear one first. The cap is adjustable under Settings → Misc.
+
+### Working toward something you can't start
+
+Some things you commit to are blocked. A goal is waiting on its subtasks; a project is waiting on a prerequisite. Putting one in Now would normally leave you with a card and nothing to do.
+
+So when a Now node can't be started yet, the app looks through everything standing between you and it, and pins the best few of those to the top of the Next table. Each pinned row is marked with an arrow and the name of what it leads to, so you can see why it is there.
+
+A pinned row also skips the part of its own context you already know. Prerequisites usually sit right beside the thing they unblock, so naming the target has normally told you the context too. What is left is only the part that differs — which means a step drawn from somewhere else in your life announces itself instead of blending in.
+
+Say you put *Publishing* in Now. It is blocked behind two dozen prerequisites. Rather than showing you nothing, the Next tab pins the three highest-scoring ones you could actually start today. Finish one and the list refreshes with whatever is best next. The rest of the ranking is untouched underneath — the pinned rows are added above it, not swapped in for it.
+
+Three is the default. Change it under Settings → Misc, or set it to zero to turn the behavior off.
 
 ## The Next Section
 This is a simple table of the top project recommendations, as judged by the priority scoring algorithm. 
@@ -268,7 +275,6 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | View Details | Jumps to the Details tab pre-loaded with this node. |
 | Explain Priority | Opens the priority-score breakdown. |
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. |
-| Priority Override… | Opens the override scope chooser. |
 | Add to Event… | Adds the node to an Event. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. |
 | Open Website | Opens the linked website. Only shown when the link is set. |
@@ -485,7 +491,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 | Path | How it works |
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
-| Suggestions | When nothing is selected, the left panel shows a suggestion list. There are up to three sections: any manual overrides, your top three priority goals, and the top five time [containers](#containers) with the highest total value. |
+| Suggestions | When nothing is selected, the left panel shows a suggestion list. There are two sections: your top three priority goals, and the top five time [containers](#containers) with the highest total value. |
 | Context Menu | Right-click a node and pick **Details** in the context menu. The app jumps here with the project loaded.|
 
 </td>

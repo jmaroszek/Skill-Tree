@@ -26,11 +26,17 @@ from typing import List, Dict, Optional, Set, Tuple
 # context/subcontext are in the list because they are what a node is
 # discounted against for suggestion variety, and they also pick its context
 # weight and decide which cascade hops count as cross-context.
+# `now` is in the list because Now *membership* changes other nodes' numbers:
+# scoring.variety_divisors builds its pool from the non-Now nodes, so flipping
+# one both drops its own divisor and stops it charging a repetition against its
+# context peers, and get_priority_normalizer takes its max over non-Now nodes.
+# Only membership matters, not rank -- reorder_now_nodes writes the rank in raw
+# SQL and correctly stays scoring=False.
 _SCORING_RELEVANT_FIELDS = frozenset({
     'type', 'value', 'interest', 'difficulty',
     'time_o', 'time_m', 'time_p', 'time_mode',
     'value_mode',
-    'status', 'dormant',
+    'status', 'dormant', 'now',
     'context', 'subcontext',
 })
 
@@ -207,15 +213,13 @@ class GraphManager:
             for f in _SCORING_RELEVANT_FIELDS
         )
         self._bump_version(scoring=scoring_changed)
-        # If this update flipped the node to Done and it was the System A
-        # override parent, clear the override — the boost on its dependents
-        # is no longer meaningful. Done is only ever set here (the cascade
-        # in _update_dependent_nodes_state only flips Blocked/Open).
+        # Done is only ever set here — the cascade in
+        # _update_dependent_nodes_state only flips Blocked/Open — so this is
+        # the one place completion side-effects belong.
         def completed():
             saved = self.get_node(node.name)
             if saved is None or saved.status != STATUS_DONE:
                 return
-            ConfigManager.clear_override_if_parent(node.name)
             # Fire any event whose trigger condition this completion satisfies
             # (OR fires on this node alone; AND needs its whole set Done), but only
             # on a true Open/Blocked → Done transition. Re-saving an already-
@@ -309,8 +313,7 @@ class GraphManager:
             any more, so it demotes to manual-trigger. Both outcomes are
             queued as a one-shot announcement, since a silently narrowed
             AND condition is exactly the kind of change a user needs told.
-          - Config-side references (priority_goals, override.parent,
-            event_override_nodes) — delegated to
+          - Config-side references (priority_goals) — delegated to
             ConfigManager.delete_node_references, mirroring how
             rename_node delegates to rename_node_references.
         """
@@ -1024,6 +1027,56 @@ class GraphManager:
                 self._normalizer_key, self._normalizer = cache_key, base
         return base
 
+    @database.consistent_read
+    def get_unblocking_steps(self, target_names, limit: int = 3,
+                             priority_goals: Optional[List[str]] = None) -> List[Tuple[Node, str]]:
+        """The best actionable work toward each target you cannot start yet.
+
+        A target that can already be recommended needs no steps — its own row
+        is the answer, and on a real graph its hard prerequisites are all Done
+        by definition, so the walk would return nothing anyway. So this only
+        answers for targets carrying a negative score: Blocked nodes, Goals and
+        Milestones (never scorable by type), and anything else `_is_scorable`
+        rejects.
+
+        For those, walk the transitive ``Needs_Hard`` prerequisite subtree and
+        keep the top `limit` by score. Filtering on ``priority_score >= 0``
+        drops prerequisites that are themselves blocked, so what comes back is
+        always startable today.
+
+        Returns ``[(step_node, target_name), ...]``, targets in the order given
+        and steps in descending score within each target. A node already
+        claimed by an earlier target is not repeated.
+        """
+        targets = [t for t in (target_names or []) if t]
+        if not targets or limit <= 0:
+            return []
+
+        if priority_goals is None:
+            priority_goals = ConfigManager.get_priority_goals()
+        # One pass over the whole graph rather than one per target: scoring is
+        # graph-wide anyway (see calculate_priority_scores) and the subtree
+        # lookups below are already cached against the graph version.
+        scored = {n.name: n for n in self.calculate_priority_scores(
+            self.get_all_nodes(), priority_goals=priority_goals)}
+
+        def score_of(name):
+            return getattr(scored.get(name), 'priority_score', -1.0)
+
+        steps: List[Tuple[Node, str]] = []
+        claimed = set(targets)
+        for target in targets:
+            if target not in scored or score_of(target) >= 0:
+                continue
+            subtree = self.get_goal_subtree(target, edge_types=(EDGE_NEEDS_HARD,))
+            actionable = [scored[name] for name in subtree
+                          if name not in claimed and score_of(name) >= 0]
+            actionable.sort(key=lambda n: (-n.priority_score, n.name))
+            for node in actionable[:limit]:
+                claimed.add(node.name)
+                steps.append((node, target))
+        return steps
+
     def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -1532,7 +1585,10 @@ class GraphManager:
                         cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE context=?", (new_val,))
 
             conn.commit()
-        self._bump_version(scoring=field == 'type')
+        # Every field these migrations accept (context / subcontext / type) is
+        # scoring-relevant, so a bulk remap must invalidate the scoring caches.
+        # Keying off the field set keeps this honest if the accepted fields grow.
+        self._bump_version(scoring=field in _SCORING_RELEVANT_FIELDS)
         if field == 'type':
             self.recompute_all_statuses()
 
@@ -1562,7 +1618,10 @@ class GraphManager:
                     cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE name=?", (node_name,))
 
             conn.commit()
-        self._bump_version(scoring=field == 'type')
+        # Every field these migrations accept (context / subcontext / type) is
+        # scoring-relevant, so a bulk remap must invalidate the scoring caches.
+        # Keying off the field set keeps this honest if the accepted fields grow.
+        self._bump_version(scoring=field in _SCORING_RELEVANT_FIELDS)
         if field == 'type':
             self.recompute_all_statuses()
 

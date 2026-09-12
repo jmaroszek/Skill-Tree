@@ -21,7 +21,6 @@
         var editItem = document.getElementById('ctx-menu-edit');
         var detailsItem = document.getElementById('ctx-menu-details');
         var explainItem = document.getElementById('ctx-menu-explain');
-        var overrideItem = document.getElementById('ctx-menu-override');
         var websiteItem = document.getElementById('ctx-menu-website');
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
@@ -395,15 +394,6 @@
                 hideMenu();
                 if (_currentNodeData && _currentNodeData.id) {
                     _setHiddenInput('details-explain-trigger-input', _currentNodeData.id);
-                }
-            });
-        }
-
-        if (overrideItem) {
-            overrideItem.addEventListener('click', function () {
-                hideMenu();
-                if (_currentNodeData && _currentNodeData.id) {
-                    _setHiddenInput('context-override-trigger-input', _currentNodeData.id);
                 }
             });
         }

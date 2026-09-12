@@ -126,7 +126,7 @@ def _build_appearance_tab():
                                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                         ]),
                     ], className="d-flex align-items-center mt-2 mb-1"),
-                    html.Small("Color for Done, Blocked, Override, and Now.", className="text-muted d-block mb-2"),
+                    html.Small("Color for Done, Blocked, and Now.", className="text-muted d-block mb-2"),
                     html.Div(id="setting-node-status-colors-container"),
                 ], width=5),
             ]),
@@ -597,6 +597,16 @@ def _build_misc_tab():
             dbc.Label("Max Now Nodes"),
             dbc.Input(id="setting-now-node-cap", type="number",
                       min=1, max=50, step=1,
+                      style={"width": "128px"}),
+
+            html.Small(
+                "When a Now node can't be started yet, the Next tab pins this "
+                "many of its best available prerequisites above the ranking. "
+                "Set to 0 to turn that off.",
+                className="text-muted d-block mb-2 mt-3"),
+            dbc.Label("Steps Toward a Blocked Now Node"),
+            dbc.Input(id="setting-unblocking-steps", type="number",
+                      min=0, max=10, step=1,
                       style={"width": "128px"}),
 
             # --- Reflection section ---

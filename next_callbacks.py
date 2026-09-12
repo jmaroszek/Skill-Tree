@@ -3,6 +3,7 @@ Callback definitions for the Next tab (priority suggestions).
 """
 
 import database
+from collections import namedtuple
 from copy import deepcopy
 
 from dash import Input, Output, State, ALL, ClientsideFunction
@@ -46,58 +47,60 @@ def _initial_next_view(template, sidebars):
     count = ConfigManager.get_next_table_rows()
     parts['suggestion-count-store'].data = count
     parts['suggestion-count-display'].children = str(count)
+    next_rows = get_suggestions(filters, count=count)
     parts['suggestions-table'].children = format_suggestions_table(
-        get_suggestions(filters, count=count), manager, override_set=get_override_set())
+        next_rows.rows, manager, pinned_steps=next_rows.pinned_steps)
     parts['now-nodes-table'].children = format_now_nodes_section(
         manager.get_now_nodes(), ConfigManager.get_now_node_cap(), manager)
     return view
 
 
+#: What the Next table renders: the ordered rows, plus a map from a pinned
+#: step's name to the Now target it unblocks (empty for an ordinary row).
+NextRows = namedtuple("NextRows", "rows pinned_steps")
+
+
 @database.snapshot_read
 def get_suggestions(filters=None, count=5):
-    """Take the top-N suggestions off the graph-wide priority ranking.
+    """Build the Next table: unblocking steps on top, then the ranking.
 
     Hierarchical variety is already baked into `priority_score` by the
-    scoring module (see scoring.variety_divisors), so this is a slice of an
-    ordered list rather than a second selection pass. That is what lets the
-    Next tab print the number it sorts on.
+    scoring module (see scoring.variety_divisors), so the lower section is a
+    slice of an ordered list rather than a second selection pass. That is what
+    lets the Next tab print the number it sorts on.
 
-    When a manual override is active, uses two-tier sorting:
-    Tier 1 (top): overridden nodes, in score order among themselves.
-    Tier 2 (bottom): filtered candidates, after counting Tier 1.
+    A Now node you cannot start yet — Blocked, or a Goal, or anything else
+    scoring below zero — pins its best actionable prerequisites above that
+    ranking, so the tab answers "what do I do toward this" instead of going
+    quiet. Those steps are **additive**: they do not eat into the row count the
+    user asked for, and they bypass the filter sidebar, because pinning is an
+    explicit intent that supersedes passive scope narrowing. Everything below
+    them is scoped normally, and never repeats a step.
+
+    Now nodes themselves live exclusively in the "Now" section, so they are
+    dropped here and can never come back as one of their own steps.
     """
     if filters is None:
         filters = {}
-    nodes = manager.get_all_nodes()
-    # Now nodes live exclusively in the "Now" section on the Next tab —
-    # exclude them here so they don't duplicate in the Suggestions/Next
-    # table below. Filtering at the top covers both override and normal
-    # tiers without special-casing.
-    nodes = [n for n in nodes if not n.now]
+    nodes = [n for n in manager.get_all_nodes() if not n.now]
     filtered_nodes = manager.filter_nodes(nodes, filters)
     priority_goals = ConfigManager.get_priority_goals()
 
-    override_set = ConfigManager.get_override_node_set(manager)
+    steps = manager.get_unblocking_steps(
+        [n.name for n in manager.get_now_nodes()],
+        limit=ConfigManager.get_unblocking_steps_per_now(),
+        priority_goals=priority_goals,
+    )
+    pinned_steps = {node.name: target for node, target in steps}
 
-    if override_set:
-        # Tier 1 (override) bypasses the user filter: a pin is an explicit
-        # user intent that supersedes passive scope narrowing. Without this,
-        # toggling a context filter can silently drop a pinned node from Next.
-        # Tier 2 still respects the filter — unpinned nodes are scoped normally.
-        tier1_nodes = [n for n in nodes if n.name in override_set]
-        tier2_nodes = [n for n in filtered_nodes if n.name not in override_set]
+    scored = manager.calculate_priority_scores(
+        [n for n in filtered_nodes if n.name not in pinned_steps],
+        priority_goals=priority_goals,
+    )
+    ranked = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
 
-        scored_t1 = manager.calculate_priority_scores(tier1_nodes, priority_goals=priority_goals)
-        scored_t2 = manager.calculate_priority_scores(tier2_nodes, priority_goals=priority_goals)
-
-        valid_t1 = [n for n in scored_t1 if getattr(n, 'priority_score', -1) >= 0]
-        valid_t2 = [n for n in scored_t2 if getattr(n, 'priority_score', -1) >= 0]
-
-        return valid_t1 + valid_t2[:max(0, count - len(valid_t1))]
-    else:
-        scored = manager.calculate_priority_scores(filtered_nodes, priority_goals=priority_goals)
-        valid = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
-        return valid[:max(0, count)]
+    return NextRows([node for node, _ in steps] + ranked[:max(0, count)],
+                    pinned_steps)
 
 
 @database.snapshot_read
@@ -115,7 +118,7 @@ def get_container_suggestions(count=5, exclude_names=None):
 
     Also excludes Done and dormant nodes, plus any names in
     ``exclude_names`` (used by the Details empty state to dedupe
-    against the override and priority-goal sections).
+    against the priority-goal section).
     """
     exclude_names = set(exclude_names or [])
     nodes = manager.get_all_nodes()
@@ -131,11 +134,6 @@ def get_container_suggestions(count=5, exclude_names=None):
     ]
     containers.sort(key=lambda n: getattr(n, 'total_value', 0.0), reverse=True)
     return containers[:count]
-
-
-def get_override_set():
-    """Return the current set of overridden node names."""
-    return ConfigManager.get_override_node_set(manager)
 
 
 def register_next_callbacks(app):
@@ -191,8 +189,9 @@ def register_next_callbacks(app):
         filters = build_filters(context, subcontext, done, value, interest, time,
                                 difficulty, types, f_time_unit=time_unit,
                                 f_show_dormant=dormant)
-        return format_suggestions_table(get_suggestions(filters, count=count or 10),
-                                        manager, override_set=get_override_set())
+        next_rows = get_suggestions(filters, count=count or 10)
+        return format_suggestions_table(next_rows.rows, manager,
+                                        pinned_steps=next_rows.pinned_steps)
 
     # --- Now Section: populate now-nodes-table ---
     # Listens to graph-version-store so the section refreshes whenever any

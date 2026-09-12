@@ -78,15 +78,32 @@ def test_event_delete_cleans_references_and_unblocks_dependents(remove_only):
 
 
 @pytest.mark.parametrize("bulk", [True, False])
-def test_type_migration_invalidates_scores(bulk):
+@pytest.mark.parametrize("field,old_val,new_val", [
+    ("type", "Learn", "Milestone"),
+    ("context", "Mind", "Body"),
+    ("subcontext", "Focus", "Recall"),
+])
+def test_bulk_migration_invalidates_scores(bulk, field, old_val, new_val):
+    """Every field the remappers accept is scoring-relevant.
+
+    Regression: the bump read `scoring=field == 'type'`, so a context or
+    subcontext remap moved every score — both pick the context weight, decide
+    which cascade hops count as cross-context, and group the variety divisors —
+    while leaving _scoring_version untouched.
+    """
     m = graph("A", "B")
     m.add_edge("A", "B", SOFT)
+    if field == "subcontext":
+        for name in ("A", "B"):
+            existing = m.get_node(name)
+            existing.subcontext = old_val
+            m.update_node(existing)
     scores(m)
     before = m._scoring_version
     if bulk:
-        m.apply_migration("type", {"Learn": "Milestone"})
+        m.apply_migration(field, {old_val: new_val})
     else:
-        m.apply_node_migration("B", "type", "Milestone")
+        m.apply_node_migration("B", field, new_val)
     assert m._scoring_version > before
     assert scores(m) == scores(GraphManager())
 

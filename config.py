@@ -141,7 +141,6 @@ DEFAULT_NODE_COLORS = {
     'Learn': '#0d6efd',
     'Resource': '#9047b8',
     'Milestone': '#17a2b8',
-    'Override': '#e83e8c',
     'Now': '#ffd000',
 }
 
@@ -150,6 +149,13 @@ DEFAULT_NODE_COLORS = {
 # once the cap is reached; clearing is always allowed. 5 keeps focus
 # fairly tight without blocking brief overlap during handoffs.
 DEFAULT_NOW_NODE_CAP = 5
+
+# How many actionable prerequisites the Next tab pins above the suggestions for
+# each Now node that can't be started yet (see GraphManager.get_unblocking_steps).
+# Small on purpose: the question is "what's the best next step toward this",
+# not "show me the whole subtree" — a real target can have 17 actionable
+# prerequisites, and pinning all of them buries the ranking underneath.
+DEFAULT_UNBLOCKING_STEPS_PER_NOW = 3
 
 DEFAULT_NODE_SHAPES = {
     'Learn': 'ellipse',
@@ -175,7 +181,7 @@ DEFAULT_NODE_SHAPES = {
 # have to remember the derivation. To change one: edit the literal hex.
 # To re-derive after a canvas-palette swap: `git log -p` this block for
 # the original deltas (Learn -25/-10, Action -30/-10, Resource -10/-4,
-# Goal/Milestone/Override -20/-7).
+# Goal/Milestone/Unblocking -20/-7).
 #
 # STYLE_GUIDE.md is the human-readable source of truth — keep it in sync
 # when changing values here.
@@ -187,7 +193,7 @@ BADGE_PALETTE = {
     'Goal':       ('#cdbe23', '#ffffff'),  # canvas yellow with -5 sat for badge use
     'Priority':   ('#cdbe23', '#ffffff'),  # Priority N suppresses Goal type — share its color
     'Milestone':  ('#2f909d', '#ffffff'),
-    'Override':   ('#c516a5', '#ffffff'),
+    'Unblocking': ('#c516a5', '#ffffff'),  # steps pinned toward a blocked Now node
     # Status badges (Open / Done / Blocked) — tuned independently for the
     # subtasks-table status pills and node-info status indicators.
     STATUS_OPEN:       ('#3e61a0', '#ffffff'),
@@ -559,7 +565,7 @@ class ConfigManager:
             cursor.execute("INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)", (key, value))
             conn.commit()
         if key in {"HYPERPARAMS", "CONTEXT_WEIGHTS", "TIME_SETTINGS", "PRIORITY_GOALS",
-                   "OVERRIDE", "EVENT_OVERRIDE_NODES", "NODE_COLORS", "NODE_SHAPES"}:
+                   "NODE_COLORS", "NODE_SHAPES"}:
             from graph_manager import GraphManager
             GraphManager()._bump_version(scoring=False)
 
@@ -1083,114 +1089,6 @@ class ConfigManager:
         merged.update({k: v for k, v in (filters or {}).items() if k in cls._FILTER_DEFAULTS})
         cls._set_db_value("FILTERS", json.dumps(merged))
 
-    # --- Manual Priority Override ---
-
-    @classmethod
-    def get_override(cls):
-        val = cls._get_db_value("OVERRIDE")
-        return json.loads(val) if val else {"parent": None, "mode": "hard"}
-
-    @classmethod
-    def set_override(cls, override: dict):
-        cls._set_db_value("OVERRIDE", json.dumps(override))
-
-    @classmethod
-    def clear_override(cls):
-        cls.set_override({"parent": None, "mode": "hard"})
-
-    @classmethod
-    def get_override_node_set(cls, manager) -> set:
-        """Compute the full set of overridden node names from override parent + mode,
-        unioned with any event-override nodes pinned by manual-override event triggers."""
-        from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
-        override = cls.get_override()
-        parent = override.get("parent")
-        base: set = set()
-        if parent and manager.get_node(parent):
-            mode = override.get("mode", "hard")
-            if mode == "node_only":
-                base = {parent}
-            elif mode == "hard":
-                base = {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_HARD,))
-            elif mode == "soft":
-                base = {parent} | manager.get_goal_subtree(parent, edge_types=(EDGE_NEEDS_SOFT,))
-            else:  # "all"
-                base = {parent} | manager.get_goal_subtree(parent)
-        event_nodes = cls.get_event_override_nodes()
-        if event_nodes:
-            live = set()
-            stale = False
-            for n_name in event_nodes:
-                node = manager.get_node(n_name)
-                if node and node.status != STATUS_DONE:
-                    live.add(n_name)
-                else:
-                    stale = True
-            if stale:
-                cls.set_event_override_nodes(sorted(live))
-            base = base | live
-        return base
-
-    # --- Event Override Nodes (pinned by manual-override event triggers) ---
-
-    @classmethod
-    def get_event_override_nodes(cls) -> list:
-        val = cls._get_db_value("EVENT_OVERRIDE_NODES")
-        return json.loads(val) if val else []
-
-    @classmethod
-    def set_event_override_nodes(cls, names: list):
-        cls._set_db_value("EVENT_OVERRIDE_NODES", json.dumps(list(names)))
-
-    @classmethod
-    def add_event_override_nodes(cls, names: list):
-        existing = set(cls.get_event_override_nodes())
-        existing.update(names)
-        cls.set_event_override_nodes(sorted(existing))
-
-    @classmethod
-    def clear_event_override_nodes(cls):
-        cls.set_event_override_nodes([])
-
-    @classmethod
-    @database.atomic
-    def atomic_set_event_override(cls, candidates: list, replace: bool = False) -> None:
-        """Atomically clear the parent override and pin event_override_nodes.
-
-        Override parent and event_override_nodes form a single invariant
-        ("what's currently pinned"). Writing them as two separate
-        _set_db_value calls leaves a window where a crash / disk error
-        can produce half-committed state — parent gone but no event pins,
-        or stale pins alongside new ones. This method performs both writes
-        in one DB transaction.
-
-        replace=False: merge candidates with existing pins (union).
-        replace=True: drop existing pins, use only the new candidates.
-        """
-        if replace:
-            new_nodes = sorted(set(candidates))
-        else:
-            existing = set(cls.get_event_override_nodes())
-            existing.update(candidates)
-            new_nodes = sorted(existing)
-
-        cleared_override = json.dumps({"parent": None, "mode": "hard"})
-        new_event_nodes = json.dumps(list(new_nodes))
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)",
-                ("OVERRIDE", cleared_override),
-            )
-            cursor.execute(
-                "INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)",
-                ("EVENT_OVERRIDE_NODES", new_event_nodes),
-            )
-            conn.commit()
-
-        from graph_manager import GraphManager
-        GraphManager()._bump_version(scoring=False)
-
     @classmethod
     def rename_node_references(cls, old_name: str, new_name: str) -> None:
         """Propagate a node rename to every config entry that stores a node name.
@@ -1201,16 +1099,6 @@ class ConfigManager:
         """
         if not old_name or not new_name or old_name == new_name:
             return
-
-        override = cls.get_override()
-        if override.get("parent") == old_name:
-            override["parent"] = new_name
-            cls.set_override(override)
-
-        event_nodes = cls.get_event_override_nodes()
-        if old_name in event_nodes:
-            updated = [new_name if n == old_name else n for n in event_nodes]
-            cls.set_event_override_nodes(updated)
 
         pg = cls.get_priority_goals()
         if old_name in pg:
@@ -1223,8 +1111,8 @@ class ConfigManager:
         Symmetric to `rename_node_references`. Called from
         GraphManager.delete_node so callers don't each have to remember which
         config keys hold names. Without this, deletes leave dangling
-        references that fail silently (priority_goals waste a rank slot,
-        override boost applies to nothing, etc.).
+        references that fail silently (a priority goal wastes a rank slot on a
+        node nobody can reach, etc.).
         """
         if not name:
             return
@@ -1232,39 +1120,6 @@ class ConfigManager:
         pg = cls.get_priority_goals()
         if name in pg:
             cls.set_priority_goals([g for g in pg if g != name])
-
-        if cls.get_override().get("parent") == name:
-            cls.clear_override()
-
-        eon = cls.get_event_override_nodes()
-        if name in eon:
-            cls.set_event_override_nodes([n for n in eon if n != name])
-
-    @classmethod
-    def clear_override_if_parent(cls, name: str) -> bool:
-        """Clear the override iff `name` is the current System A parent.
-
-        Returns True if cleared. Used by GraphManager.update_node when a node
-        flips to Done so the boost stops applying to its (now-irrelevant)
-        dependents.
-        """
-        if not name:
-            return False
-        if cls.get_override().get("parent") == name:
-            cls.clear_override()
-            return True
-        return False
-
-    @classmethod
-    def has_any_override_active(cls) -> bool:
-        """True if System A parent is set OR System B list is non-empty.
-
-        Used to gate conflict prompts: only ONE override set may be active globally,
-        so any code path that would introduce a new set must check this first.
-        """
-        if cls.get_override().get("parent"):
-            return True
-        return bool(cls.get_event_override_nodes())
 
     # --- Pending Event Notifications (shown on next app load) ---
 
@@ -1288,22 +1143,15 @@ class ConfigManager:
         cls._set_db_value("PENDING_EVENT_NOTIFICATIONS", json.dumps(entries))
 
     @classmethod
-    def pop_next_override_conflict(cls) -> Optional[dict]:
-        """Remove and return the first override_conflict entry, if any."""
-        entries = cls.get_pending_event_notifications()
-        for i, e in enumerate(entries):
-            if e.get("kind") == "override_conflict":
-                remaining = entries[:i] + entries[i+1:]
-                cls.set_pending_event_notifications(remaining)
-                return e
-        return None
-
-    @classmethod
     def clear_pending_announcements_only(cls):
-        """Remove every informational pending notification, keeping override_conflict entries."""
-        entries = cls.get_pending_event_notifications()
-        kept = [e for e in entries if e.get("kind") == "override_conflict"]
-        cls.set_pending_event_notifications(kept)
+        """Remove every informational pending notification.
+
+        Kept as its own name rather than folded into clear_pending_event_
+        notifications: it used to spare the override-conflict entries, which
+        needed the user's answer before they could be dropped. Nothing outlives
+        an announcement now, but the dismiss path still reads better this way.
+        """
+        cls.set_pending_event_notifications([])
 
     @classmethod
     def ensure_action_type(cls):
@@ -1378,6 +1226,20 @@ class ConfigManager:
     @classmethod
     def set_now_node_cap(cls, count: int):
         cls._set_db_value("NOW_NODE_CAP", str(count))
+
+    @classmethod
+    def get_unblocking_steps_per_now(cls) -> int:
+        val = cls._get_db_value("UNBLOCKING_STEPS_PER_NOW")
+        if val:
+            try:
+                return max(0, int(val))
+            except ValueError:
+                pass
+        return DEFAULT_UNBLOCKING_STEPS_PER_NOW
+
+    @classmethod
+    def set_unblocking_steps_per_now(cls, count: int):
+        cls._set_db_value("UNBLOCKING_STEPS_PER_NOW", str(count))
 
     @classmethod
     def get_show_scoring_perf(cls) -> bool:

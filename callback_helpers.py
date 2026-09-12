@@ -301,29 +301,28 @@ class CanvasNodeStyles:
     """The lookups a canvas reads once per render to paint its nodes."""
     colors: dict
     shapes: dict
-    override_names: frozenset
     trigger_names: frozenset
 
 
-def canvas_node_styles(manager, events):
+def canvas_node_styles(events):
     """Read every lookup ``build_node_element`` paints from.
 
     They travel as one bundle so no canvas can render without one of them.
-    The Details graph used to skip the override set, so it never showed the
-    Override color.
     """
     return CanvasNodeStyles(
         colors=ConfigManager.get_node_colors(),
         shapes=ConfigManager.get_node_shapes(),
-        override_names=frozenset(ConfigManager.get_override_node_set(manager)),
         trigger_names=frozenset(events.get_trigger_node_names()),
     )
 
 
-def node_fill_color(node, colors, override_names):
-    """The Override color first, then Done or Blocked, then the node's type color."""
-    if node.name in override_names:
-        return colors.get('Override', '#e83e8c')
+def node_fill_color(node, colors):
+    """Done or Blocked first, then the node's type color.
+
+    Now is deliberately absent: it is drawn as the pulsing amber border
+    (the `.now` class plus now_pulse.js), so the fill stays free to carry
+    status and type.
+    """
     if node.status == STATUS_DONE:
         return colors.get(STATUS_DONE, '#198754')
     if node.status == STATUS_BLOCKED:
@@ -344,7 +343,7 @@ def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=
     data = {
         'id': node.name,
         'label': node.name,
-        'color': node_fill_color(node, styles.colors, styles.override_names),
+        'color': node_fill_color(node, styles.colors),
         'shape': styles.shapes.get(node.type, 'rectangle'),
         **node.to_dict(),
     }
@@ -1157,13 +1156,13 @@ def _suggestion_dot(on, label, fill_color):
 
 
 @database.snapshot_read
-def format_suggestions_table(suggs, manager, selected_node_id=None, override_set=None):
+def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps=None):
     """Render the top-scored nodes as bar-chart rows with normalized priority scores (0-100).
 
     Each row encodes:
       - rank (two-digit monospace label, leftmost)
       - name + context line
-      - priority bar (color = type, or override color if pinned; length = priority/maxPriority)
+      - priority bar (color = type, or the Unblocking accent for a step; length = priority/maxPriority)
       - time + V/I/E micro-chart + Obsidian/Drive/Website link dots
 
     The number is the node's own normalized priority, against the same base
@@ -1173,9 +1172,19 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     *length* stays relative to the longest row on screen, so the column still
     fills its width when a filter leaves the top row below 100.
 
-    Pinned rows are the one exception to the descent: a pin sits on top
-    whatever it scores. They keep their true number rather than a flattering
-    one, and the override bar color marks them as their own group.
+    `pinned_steps` maps a node name to the Now target it unblocks. Those rows
+    are the one exception to the descent: they sit on top whatever they score,
+    carry a `↳` in place of a rank so the ranking below still reads 1..N, and
+    name their target in the context line, dropping whichever part of their own
+    context the target has already implied. They keep their true number rather
+    than a flattering one — a step is often worse than what you'd otherwise do,
+    and the honest figure is what makes that visible — and the Unblocking accent
+    marks them as a group.
+
+    Every row — step or not — stays a `suggestion-row` with the
+    `suggestion-bar-row` class. next_selection.js styles them as a positional
+    ALL-list and context_menu.js resolves a right-click through that class, so
+    a step must not be rendered as some other kind of element.
     """
     if not suggs:
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
@@ -1194,16 +1203,24 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
     # user-configurable canvas Type Colors. See the BADGE_PALETTE comment for
     # the rationale — short version: canvas needs vivid hues, bars need a
     # quieter register, and the two are decoupled by design.
-    override_color = BADGE_PALETTE['Override'][0]
+    pinned_steps = pinned_steps or {}
+    step_color = BADGE_PALETTE['Unblocking'][0]
+    # One target per blocked Now node, repeated across its steps — resolve each
+    # once so the context trimming below can compare against it.
+    step_targets = {name: manager.get_node(name)
+                    for name in set(pinned_steps.values())}
 
     # Fixed name column width — long names ellipsize rather than pushing
     # the bar/meta columns around, which keeps the list scan-friendly.
     name_col_width = 250
 
     rows = []
-    for rank, s in enumerate(suggs, start=1):
+    rank = 0
+    for s in suggs:
         is_selected = (s.name == selected_node_id)
-        is_override = bool(override_set and s.name in override_set)
+        step_target = pinned_steps.get(s.name)
+        if step_target is None:
+            rank += 1
 
         eff_time = manager.get_effective_time(s.name)
 
@@ -1212,14 +1229,16 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             bar_width_pct = max(8.0, (priority_int / max_priority) * 100.0)
         else:
             bar_width_pct = 8.0
-        bar_color = override_color if is_override else BADGE_PALETTE.get(s.type, ('#6c757d', '#fff'))[0]
+        bar_color = step_color if step_target else BADGE_PALETTE.get(s.type, ('#6c757d', '#fff'))[0]
 
-        # Column 1 — rank
+        # Column 1 — rank, or a turnstile for a pinned step so the ranking
+        # below still reads 1, 2, 3 rather than starting partway down.
         rank_col = html.Div(
-            str(rank),
+            "↳" if step_target else str(rank),
             style={
                 "fontFamily": _MONO_FONT, "fontSize": "20px",
-                "color": "#6c757d", "textAlign": "center",
+                "color": step_color if step_target else "#6c757d",
+                "textAlign": "center",
                 "lineHeight": "1",
             },
         )
@@ -1235,6 +1254,23 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
             ctx_children = [html.Span(sub_text)]
         else:
             ctx_children = []
+
+        # A step says what it is for before it says where it lives, because the
+        # column ellipsizes and the target is the reason the row is here at all.
+        # Naming the target usually says the context too — a hard prerequisite
+        # normally sits beside the thing it unblocks — so drop whichever half
+        # the target has already given away and let the rest keep its width.
+        if step_target:
+            target = step_targets.get(step_target)
+            if target is not None and target.context == s.context:
+                ctx_children = ([html.Span(sub_text)]
+                                if sub_text and target.subcontext != s.subcontext
+                                else [])
+            lead = [html.Span("toward ", style={"opacity": 0.7}),
+                    html.Span(step_target, style={"fontWeight": 600})]
+            if ctx_children:
+                lead.append(html.Span("·", style={"opacity": 0.5, "padding": "0 4px"}))
+            ctx_children = [html.Span(lead, style={"color": step_color})] + ctx_children
 
         name_col = html.Div([
             html.Div(
@@ -1351,12 +1387,13 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, override_set
 def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     """Render the 'Now' section for the Next tab as a row of rich cards.
 
-    Each Now node gets a wide horizontal card with a left accent bar in
-    the node's type color (or the override color when the node is overridden),
-    the name + context/subcontext, a type badge pill, time estimate,
-    V/I/E micro-chart, and Obsidian/Drive/Website link dots.
-    Cards sit in a responsive flex row (1–3 items). Overridden nodes sort
-    first (leftmost).
+    Each Now node gets a wide horizontal card: a left accent bar in the node's
+    type color, then the name, the expected time, and the context/subcontext
+    line. Cards sit in a flex row and keep the user's drag order.
+
+    A Now node that can't be started yet contributes its next actionable
+    prerequisites to the top of the Next table instead of anything here — see
+    GraphManager.get_unblocking_steps.
 
     When there are no Now nodes the section is suppressed entirely —
     return [] so the Next heading sits at the top of the tab.
@@ -1371,18 +1408,11 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
         html.H6("Now", className="text-muted mb-0", style=SECTION_TITLE_STYLE),
     ], className="d-flex align-items-center", style={"gap": "12px", "marginBottom": "0.75rem"})
 
-    # Overridden nodes sort first (leftmost) and take the override accent
-    # color instead of their type color — matching the table bar and the
-    # settings modal. Stable sort keeps the original order within each tier.
-    override_set = ConfigManager.get_override_node_set(manager)
-    override_color = BADGE_PALETTE['Override'][0]
-
     cards = []
     for n in now_nodes:
         is_selected = (n.name == selected_node_id)
-        is_override = n.name in override_set
         eff_time = manager.get_effective_time(n.name)
-        accent_color = override_color if is_override else BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]
+        accent_color = BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]
 
         # --- Context / subcontext line ---
         ctx_text = str(n.context) if n.context else ""

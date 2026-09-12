@@ -1,15 +1,14 @@
 """
 Tests for the silent-state-drift cleanup landed in v3.0.
 
-Covers three issues that all share a root cause — node references stored
-outside FK-protected tables were not cleaned up on delete or Done-flip:
+Covers two issues that share a root cause — node references stored outside
+FK-protected tables were not cleaned up on delete:
 
   C1. Events.trigger_node referencing a deleted node (now NULLed +
       announcement queued).
   C2. priority_goals containing a deleted Goal name (now pruned).
-  C3. override.parent pointing at a node that gets marked Done (now cleared).
 
-Plus regressions for handle_group_delete and the unaffected rename path.
+Plus a regression for the unaffected rename path.
 """
 
 import sqlite3
@@ -180,86 +179,10 @@ class TestC2PriorityGoalsCleanup:
 
 
 # ============================================================================
-# C3 — override clears when parent flips to Done
-# ============================================================================
-
-class TestC3OverrideClearsOnDone:
-    def test_done_clears_override_via_update_node(self, mgr):
-        mgr.add_node(_make_node("N"))
-        ConfigManager.set_override({"parent": "N", "mode": "hard"})
-
-        n = mgr.get_node("N")
-        n.status = "Done"
-        mgr.update_node(n)
-
-        assert ConfigManager.get_override().get("parent") is None
-
-    def test_done_via_handle_toggle(self, mgr):
-        from callback_helpers import handle_toggle_done
-
-        mgr.add_node(_make_node("N"))
-        ConfigManager.set_override({"parent": "N", "mode": "hard"})
-
-        handle_toggle_done(mgr, {"id": "N"})
-
-        assert ConfigManager.get_override().get("parent") is None
-
-    def test_blocked_does_not_clear_override(self, mgr):
-        # Blocked is recoverable — only Done should clear the override.
-        # Set up: A → B (hard); override on B; mark A not-Done so B is Blocked.
-        mgr.add_node(_make_node("A"))
-        mgr.add_node(_make_node("B"))
-        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)  # B blocked because A isn't Done
-        ConfigManager.set_override({"parent": "B", "mode": "hard"})
-
-        # B should already be Blocked from the cascade triggered by add_edge.
-        assert mgr.get_node("B").status == "Blocked"
-        # Override survives.
-        assert ConfigManager.get_override().get("parent") == "B"
-
-    def test_done_on_unrelated_node_leaves_override_alone(self, mgr):
-        mgr.add_node(_make_node("Override"))
-        mgr.add_node(_make_node("Other"))
-        ConfigManager.set_override({"parent": "Override", "mode": "hard"})
-
-        n = mgr.get_node("Other")
-        n.status = "Done"
-        mgr.update_node(n)
-
-        assert ConfigManager.get_override().get("parent") == "Override"
-
-
-# ============================================================================
-# Regression: handle_group_delete still clears override (now via delete_node)
-# ============================================================================
-
-class TestGroupDeleteRegression:
-    def test_group_delete_clears_override_when_parent_in_set(self, mgr):
-        mgr.add_node(_make_node("A"))
-        mgr.add_node(_make_node("B"))
-        ConfigManager.set_override({"parent": "A", "mode": "hard"})
-
-        # Simulate the JS-side payload: ["A", "B"]|<timestamp>
-        handle_group_delete(mgr, '["A", "B"]|0')
-
-        assert ConfigManager.get_override().get("parent") is None
-        assert mgr.get_node("A") is None
-        assert mgr.get_node("B") is None
-
-
-# ============================================================================
 # Regression: rename path is unaffected by the new delete cleanup
 # ============================================================================
 
 class TestRenameStillWorks:
-    def test_rename_propagates_override_parent(self, mgr):
-        mgr.add_node(_make_node("Old"))
-        ConfigManager.set_override({"parent": "Old", "mode": "hard"})
-
-        mgr.rename_node("Old", "New")
-
-        assert ConfigManager.get_override().get("parent") == "New"
-
     def test_rename_propagates_event_trigger_node(self, mgr, em):
         mgr.add_node(_make_node("Old"))
         em.add_event(Event(name="E", trigger_nodes=["Old"]))

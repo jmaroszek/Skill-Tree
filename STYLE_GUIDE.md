@@ -44,7 +44,7 @@ derivation. **This file is the human-readable source of truth — keep
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Override     | `#c516a5` | `#ffffff` | Manual override; rare but distinct. Always first in stack. |
+| Unblocking   | `#c516a5` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
 | Goal         | `#cdbe23` | `#ffffff` | Type tile. Canvas Goal color with −5 sat (intentional exception to the default −20 muting — yellow goes olive when pushed further). Suppressed when a `Priority N` tile is shown. |
 | Priority     | `#cdbe23` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
 | Action       | `#bb6823` | `#ffffff` | Type tile. More desaturated than the default — orange holds saturation visually. |
@@ -59,22 +59,20 @@ derivation. **This file is the human-readable source of truth — keep
 
 The type-color values were originally derived by HSL-desaturating the
 saturated canvas palette by per-hue amounts (Learn −25 sat / −10 light,
-Action −30/−10, Resource −10/−4, Goal/Milestone/Override −20/−7), then
+Action −30/−10, Resource −10/−4, Goal/Milestone/Unblocking −20/−7), then
 frozen here. To re-derive after a major canvas-palette swap, dig those
 deltas out of the git history for this file or `config.BADGE_PALETTE`.
 Otherwise, just edit the literals to taste.
 
 **Render order** in the Details info pane:
 
-1. Override (always first if active)
-2. Status (always)
-3. Priority (`#N Priority` for priority Goals; suppresses the Goal type tile)
-4. Type (skipped when the node is a priority Goal)
-5. Relationship Priority (`Hard #N` / `Soft #N` for non-Goal nodes in a priority subtree)
+1. Status (always)
+2. Priority (`#N Priority` for priority Goals; suppresses the Goal type tile)
+3. Type (skipped when the node is a priority Goal)
+4. Relationship Priority (`Hard #N` / `Soft #N` for non-Goal nodes in a priority subtree)
 
-**Render order** in the Node Editor priority strip is the same minus
-Status and Type (those are handled by other inputs in the editor):
-Override → Priority/RelPriority.
+The Node Editor priority strip is the same minus Status and Type, which are
+handled by other inputs in the editor: Priority → RelPriority.
 
 ### Subtasks-table edge palette
 
@@ -114,12 +112,25 @@ consistent meaning across the app.
 | selected-node   | `#0dcaf0` |
 | selected-border | `#055160` |
 
+### Redundant context on a derived row
+
+When a row is shown *because of* another node — an unblocking step under its Now
+target — the second line names that node first, then prints only the part of the
+row's own context the target has not already implied. Same context and
+subcontext: the target alone. Same context, different subcontext: the subcontext.
+Different context: both, unabbreviated. Trimming buys back width in a fixed
+250px column, but the real point is signal — a step drawn from elsewhere in the
+graph is worth noticing, and it only reads as unusual if the ordinary case is
+quiet. When the referenced node can't be resolved, print the full context rather
+than guess.
+
 ### Canvas node fill
 Every canvas fills a node by the same precedence, in
-`callback_helpers.node_fill_color`. The Override color comes first. Done and
-Blocked come next. Otherwise the node takes its type color. Settings →
-Appearance sets all of these colors. A dormant node keeps its fill and adds
-the dashed `.dormant` style on top.
+`callback_helpers.node_fill_color`. Done and Blocked come first. Otherwise the
+node takes its type color. Settings → Appearance sets all of these colors. A
+dormant node keeps its fill and adds the dashed `.dormant` style on top; a Now
+node keeps its fill and adds the pulsing amber border. Neither dormant nor Now
+ever changes the fill, so status and type stay readable underneath.
 
 ## Typography
 
@@ -245,8 +256,7 @@ live *inside* the field as a trailing chevron — see *Unified field* below.
 - Context menu: `border-radius: 6px`, `box-shadow: 0 4px 16px rgba(0,0,0,0.4)`
 
 The shared node context menu is grouped by user intent: primary Edit; inspection
-(View Details / Explain Priority); workflow state (Now / Priority Override /
-Event / Done); conditional external links; and an isolated destructive Delete
+(View Details / Explain Priority); workflow state (Now / Event / Done); conditional external links; and an isolated destructive Delete
 row. Toggle labels describe the resulting action (`Add to Now` / `Remove from
 Now`, `Mark Done` / `Reopen`) rather than naming the underlying field. Commands
 that open another choice or confirmation use an ellipsis. When no external link
@@ -315,8 +325,10 @@ editor and both add-node modals).
 
 A mutually-exclusive choice is a `dbc.RadioItems` with `inline=True` when the
 options are short (`event-trigger-type`, `dormant-node-mode`) and stacked when
-the labels run long (`dormant-override-mode`). Use a `dbc.Checklist` only for
-independent toggles — see the pill group below.
+the labels run long. Every radio group in the app is currently inline; the
+stacked variant lost its last example when the priority override was retired,
+so match the inline ones unless your labels genuinely won't fit. Use a
+`dbc.Checklist` only for independent toggles — see the pill group below.
 
 Once a choice grows past two or three options, switch to a `dbc.Select`
 instead of letting radios wrap or crowd a shared row — see the sort-mode
@@ -326,8 +338,8 @@ dropdowns (`details-goal-sort`, `events-sort-mode`), both `size="sm"` with
 Size carries the nesting. A radio that *is* the section's question runs at the
 default size. A radio that refines a choice already made above it drops to
 `style={"fontSize": "0.85rem"}`, so it reads as a detail rather than competing
-with its parent. The Any/All selector inside the Node Completion trigger and
-`dormant-override-mode` are both at this second level.
+with its parent. The Any/All selector inside the Node Completion trigger sits
+at this second level.
 
 Help text under either sits in `html.Small(className="text-muted d-block mb-2",
 style={"fontSize": "0.8rem"})`.
@@ -403,7 +415,7 @@ html.Span(rel, className="badge",
           style=badge_style('HardRelPri', font_size="0.7rem"))
 ```
 
-Valid names: `Override`, `Goal`, `Priority`, `Action`, `Learn`, `Resource`,
+Valid names: `Goal`, `Priority`, `Action`, `Learn`, `Resource`,
 `Open`, `Done`, `Blocked`, `HardRelPri`, `SoftRelPri`, `EventTrigger`,
 `EventTriggered`. Unknown names fall back to a neutral gray.
 

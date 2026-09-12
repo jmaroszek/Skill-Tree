@@ -410,7 +410,7 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
         filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
 
     valid_names = {n.name for n in filtered_nodes}
-    styles = canvas_node_styles(manager, event_manager)
+    styles = canvas_node_styles(event_manager)
 
     elements = [
         build_node_element(
@@ -1555,27 +1555,16 @@ def register_callbacks(app):
         Output('node-priority-badge', 'style'),
         Input('node-name', 'value'),
         Input('node-type', 'value'),
-        Input('override-store', 'data'),
     )
-    def update_node_priority_badge(node_name, node_type, _override_data):
+    def update_node_priority_badge(node_name, node_type):
         hidden = {"display": "none"}
         visible = {"display": "flex", "gap": "4px", "flexWrap": "wrap", "marginBottom": "8px"}
         if not node_name:
             return [], hidden
 
-        # Order: Override → Priority/RelPriority. Status + Type are handled
-        # by other inputs in the editor, so they don't appear in this strip.
+        # Only Priority/RelPriority live here. Status and Type are handled by
+        # other inputs in the editor, so they don't appear in this strip.
         badges = []
-
-        # Override (always first if active)
-        override = ConfigManager.get_override()
-        if override.get("parent"):
-            override_set = ConfigManager.get_override_node_set(manager)
-            if node_name in override_set:
-                is_parent = (node_name == override["parent"])
-                override_label = "Override" if is_parent else "Override (Dependent)"
-                badges.append(html.Span(override_label, className="badge",
-                                        style=badge_style('Override')))
 
         # Priority — Priority N for priority Goals; Hard/Soft N for non-priority nodes in a priority subtree.
         priority_goals = ConfigManager.get_priority_goals()
@@ -3555,275 +3544,6 @@ def register_callbacks(app):
 
     for canvas in CANVASES:
         _register_layout_callback(canvas)
-
-    # =====================================================================
-    # Override callbacks
-    # =====================================================================
-
-    @app.callback(
-        Output('modal-context-override', 'is_open'),
-        Output('context-override-body', 'children'),
-        Output('context-override-mode-radio', 'value'),
-        Output('btn-context-override-clear', 'style'),
-        Output('context-override-target-store', 'data'),
-        Input('context-override-trigger-input', 'value'),
-        prevent_initial_call=True,
-    )
-    def open_context_override(trigger_value):
-        """Open the context-menu override chooser for one explicit node."""
-        if not trigger_value:
-            return no_update, no_update, no_update, no_update, no_update
-        node_name = trigger_value.rsplit('|', 1)[0].strip()
-        if not node_name or not manager.get_node(node_name):
-            return no_update, no_update, no_update, no_update, no_update
-
-        override = ConfigManager.get_override()
-        current_parent = override.get('parent')
-        event_pinned = ConfigManager.get_event_override_nodes()
-        mode = override.get('mode', 'hard') if current_parent == node_name else 'hard'
-        danger_color = ConfigManager.get_danger_color()
-        clear_style = {
-            'display': 'inline-block' if current_parent == node_name else 'none',
-            'backgroundColor': danger_color,
-            'borderColor': danger_color,
-        }
-
-        if current_parent == node_name:
-            body = (f'"{node_name}" currently anchors the active override. '
-                    'Choose a scope to update it, or clear it.')
-        elif current_parent:
-            inherited = node_name in ConfigManager.get_override_node_set(manager)
-            relationship = ' inherits from' if inherited else ' will replace'
-            body = (f'"{node_name}"{relationship} the active override anchored at '
-                    f'"{current_parent}". Applying here will make "{node_name}" '
-                    'the new anchor.')
-        elif event_pinned:
-            body = (f'Applying an override to "{node_name}" will replace the '
-                    f'current event override on {len(event_pinned)} node(s).')
-        else:
-            body = (f'Pin "{node_name}" to the top of Next. Choose which of '
-                    'its dependencies should be included.')
-
-        return True, body, mode, clear_style, node_name
-
-    @app.callback(
-        Output('modal-context-override', 'is_open', allow_duplicate=True),
-        Output('override-store', 'data', allow_duplicate=True),
-        Output('details-refresh-trigger', 'data', allow_duplicate=True),
-        Output('context-override-target-store', 'data', allow_duplicate=True),
-        Input('btn-context-override-cancel', 'n_clicks'),
-        Input('btn-context-override-clear', 'n_clicks'),
-        Input('btn-context-override-apply', 'n_clicks'),
-        State('context-override-mode-radio', 'value'),
-        State('context-override-target-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def resolve_context_override(cancel_clicks, clear_clicks, apply_clicks,
-                                 mode, node_name):
-        """Apply, clear, or cancel the context-menu priority override."""
-        trigger = get_trigger_id()
-        if trigger == 'btn-context-override-cancel':
-            return False, no_update, no_update, None
-        if not node_name or not manager.get_node(node_name):
-            return False, no_update, no_update, None
-
-        import time as _time
-        if trigger == 'btn-context-override-clear':
-            if ConfigManager.get_override().get('parent') != node_name:
-                return False, no_update, no_update, None
-            ConfigManager.clear_override()
-        elif trigger == 'btn-context-override-apply':
-            with database.transaction():
-                ConfigManager.clear_event_override_nodes()
-                ConfigManager.set_override({
-                    'parent': node_name,
-                    'mode': mode or 'hard',
-                })
-        else:
-            return no_update, no_update, no_update, no_update
-
-        return (False, ConfigManager.get_override(),
-                f"override-{_time.time()}", None)
-
-    @app.callback(
-        Output('override-toggle', 'value'),
-        Input('node-original-name', 'data'),
-        Input('override-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def sync_override_toggle(node_name, _override_data):
-        """Sync override toggle state when the edited node or override state changes."""
-        if not node_name:
-            return []
-        override = ConfigManager.get_override()
-        if not override.get("parent"):
-            return []
-        override_set = ConfigManager.get_override_node_set(manager)
-        return ["on"] if node_name in override_set else []
-
-    @app.callback(
-        Output('popover-override-mode', 'is_open'),
-        Output('modal-override-conflict', 'is_open', allow_duplicate=True),
-        Output('override-conflict-body', 'children'),
-        Output('modal-override-untoggle', 'is_open', allow_duplicate=True),
-        Output('override-untoggle-body', 'children'),
-        Output('override-store', 'data', allow_duplicate=True),
-        Output('details-refresh-trigger', 'data', allow_duplicate=True),
-        Output('override-conflict-mode-wrapper', 'style', allow_duplicate=True),
-        Input('override-toggle', 'value'),
-        State('node-original-name', 'data'),
-        prevent_initial_call=True,
-    )
-    def handle_override_toggle(toggle_val, node_name):
-        """Handle override toggle interaction: open popover, show conflicts, or clear."""
-        no_change = (False, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update, dash.no_update)
-        if not node_name:
-            return no_change
-
-        toggle_on = bool(toggle_val and "on" in toggle_val)
-        override = ConfigManager.get_override()
-        current_parent = override.get("parent")
-        event_pinned = ConfigManager.get_event_override_nodes()
-
-        if toggle_on:
-            # Turning ON
-            override_set = ConfigManager.get_override_node_set(manager)
-            if node_name in override_set:
-                # Node is already in the override set (parent or dep) — sync triggered this
-                return no_change
-            if current_parent:
-                # Conflict: different main override already active. Radio is meaningful here.
-                body = f'An override is already active for "{current_parent}". Do you want to keep the current override, or apply it to this new set?'
-                return False, True, body, False, dash.no_update, dash.no_update, dash.no_update, {}
-            if event_pinned:
-                # Conflict: System B is populated from a prior event trigger. Radio is meaningful.
-                body = (f'An override is currently active on {len(event_pinned)} event-pinned '
-                        f'node(s): {", ".join(event_pinned)}. Do you want to keep the current '
-                        f'override, or apply it to this new set?')
-                return False, True, body, False, dash.no_update, dash.no_update, dash.no_update, {}
-            # No existing override: open popover for mode selection
-            return True, False, dash.no_update, False, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        else:
-            # Turning OFF
-            if not current_parent:
-                return no_change
-            if node_name == current_parent:
-                # Direct parent: clear override
-                import time as _time
-                ConfigManager.clear_override()
-                return False, False, dash.no_update, False, dash.no_update, ConfigManager.get_override(), f"override-{_time.time()}", dash.no_update
-            else:
-                # Inherited dep: show untoggle modal
-                override_set = ConfigManager.get_override_node_set(manager)
-                if node_name in override_set:
-                    body = f'This override was inherited from "{current_parent}".'
-                    return False, False, dash.no_update, True, body, dash.no_update, dash.no_update, dash.no_update
-                else:
-                    return no_change
-
-    @app.callback(
-        Output('popover-override-mode', 'is_open', allow_duplicate=True),
-        Output('override-store', 'data', allow_duplicate=True),
-        Output('details-refresh-trigger', 'data', allow_duplicate=True),
-        Input('btn-override-apply', 'n_clicks'),
-        State('override-mode-radio', 'value'),
-        State('node-original-name', 'data'),
-        prevent_initial_call=True,
-    )
-    def apply_override(n_clicks, mode, node_name):
-        """Apply override with selected mode from the popover."""
-        if not n_clicks or not node_name:
-            return dash.no_update, dash.no_update, dash.no_update
-        ConfigManager.set_override({"parent": node_name, "mode": mode or "hard"})
-        import time
-        return False, ConfigManager.get_override(), f"override-{time.time()}"
-
-    @app.callback(
-        Output('modal-override-conflict', 'is_open', allow_duplicate=True),
-        Output('override-store', 'data', allow_duplicate=True),
-        Output('details-refresh-trigger', 'data', allow_duplicate=True),
-        Output('pending-event-override-store', 'data', allow_duplicate=True),
-        Output('override-conflict-body', 'children', allow_duplicate=True),
-        Output('override-conflict-mode-wrapper', 'style', allow_duplicate=True),
-        Input('btn-override-keep', 'n_clicks'),
-        Input('btn-override-replace', 'n_clicks'),
-        State('override-conflict-mode-radio', 'value'),
-        State('node-original-name', 'data'),
-        State('pending-event-override-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def resolve_override_conflict(keep_clicks, replace_clicks, mode, node_name, pending_event):
-        """Resolve conflict when a new override is attempted while one is active.
-
-        Two modes:
-        - Event-batch: pending_event = {"event": ..., "candidates": [...]}. Buttons pin
-          candidates to System B (replace) or leave everything untouched (keep). After
-          resolution, if another override_conflict entry is queued in pending
-          notifications, reopen the modal with its data.
-        - Details-tab (legacy): pending_event is None. Buttons set main override to
-          node_name with chosen mode (replace) or leave untouched (keep).
-        """
-        import time
-        from event_callbacks import _format_override_conflict_body
-        trigger = get_trigger_id()
-        if pending_event:
-            if trigger == 'btn-override-replace':
-                ConfigManager.atomic_set_event_override(
-                    pending_event.get("candidates", []), replace=True
-                )
-            elif trigger != 'btn-override-keep':
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-            # Advance to next queued conflict, if any (also an event-batch entry — keep radio hidden)
-            nxt = ConfigManager.pop_next_override_conflict()
-            if nxt:
-                return (
-                    True,
-                    ConfigManager.get_override(),
-                    f"override-{time.time()}",
-                    {"event": nxt.get("event"), "candidates": nxt.get("candidate_nodes", [])},
-                    _format_override_conflict_body(nxt),
-                    {"display": "none"},
-                )
-            return False, ConfigManager.get_override(), f"override-{time.time()}", None, dash.no_update, dash.no_update
-
-        if trigger == 'btn-override-keep':
-            return False, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        elif trigger == 'btn-override-replace' and node_name:
-            ConfigManager.clear_event_override_nodes()
-            ConfigManager.set_override({"parent": node_name, "mode": mode or "hard"})
-            return False, ConfigManager.get_override(), f"override-{time.time()}", dash.no_update, dash.no_update, dash.no_update
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
-    @app.callback(
-        Output('modal-override-untoggle', 'is_open', allow_duplicate=True),
-        Output('override-store', 'data', allow_duplicate=True),
-        Output('details-refresh-trigger', 'data', allow_duplicate=True),
-        Input('btn-override-untoggle-cancel', 'n_clicks'),
-        Input('btn-override-untoggle-all', 'n_clicks'),
-        Input('btn-override-untoggle-hard', 'n_clicks'),
-        Input('btn-override-untoggle-soft', 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def resolve_override_untoggle(cancel, untoggle_all, hard_only, soft_only):
-        """Resolve untoggling an inherited override dependency."""
-        import time as _time
-        trigger = get_trigger_id()
-        if trigger == 'btn-override-untoggle-cancel':
-            return False, dash.no_update, dash.no_update
-        elif trigger == 'btn-override-untoggle-all':
-            ConfigManager.clear_override()
-            return False, ConfigManager.get_override(), f"override-{_time.time()}"
-        elif trigger == 'btn-override-untoggle-hard':
-            override = ConfigManager.get_override()
-            override["mode"] = "hard"
-            ConfigManager.set_override(override)
-            return False, ConfigManager.get_override(), f"override-{_time.time()}"
-        elif trigger == 'btn-override-untoggle-soft':
-            override = ConfigManager.get_override()
-            override["mode"] = "soft"
-            ConfigManager.set_override(override)
-            return False, ConfigManager.get_override(), f"override-{_time.time()}"
-        return dash.no_update, dash.no_update, dash.no_update
 
     # --- Ratings Editor ---
 

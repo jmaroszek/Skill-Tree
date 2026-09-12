@@ -97,7 +97,7 @@ class Node:
     """A task, goal, or reference in the graph.
 
     `name` is the primary key — renaming a node cascades through edges,
-    overrides, goal orderings, and events (see GraphManager.rename_node).
+    goal orderings, and events (see GraphManager.rename_node).
     `time_mode='inherited'` means a parent node draws its time estimate
     from its hard prerequisites rather than its own time_o/m/p fields.
     `value_mode='inherited'` is the symmetric flag for ratings: when set,

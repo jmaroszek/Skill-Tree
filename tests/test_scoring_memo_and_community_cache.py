@@ -388,6 +388,53 @@ def test_priority_normalizer_tracks_the_top_scorable_node():
     assert mgr.get_priority_normalizer() > top
 
 
+def test_priority_normalizer_invalidated_when_a_node_is_flipped_to_now():
+    """Flipping Now on an existing node must drop the cached 0-100 base.
+
+    Regression: `now` was missing from _SCORING_RELEVANT_FIELDS, so update_node
+    bumped _graph_version but not _scoring_version. get_priority_normalizer
+    excludes Now nodes yet keys its cache on _scoring_version, so the base stayed
+    pinned to the node that had just been hidden and every bar on the Next tab
+    read against a stale scale. The test above misses this because it introduces
+    its Now node with add_node, which always bumps scoring.
+    """
+    mgr = GraphManager()
+    mgr.add_node(_make_node("Low", value=2, interest=2))
+    mgr.add_node(_make_node("Top", value=10, interest=10))
+
+    top = mgr.get_priority_normalizer()
+    assert top > 0
+
+    mgr.update_node(_make_node("Top", value=10, interest=10, now=1))
+
+    after = mgr.get_priority_normalizer()
+    assert after < top
+    # And it agrees with a manager that never saw the pre-flip state.
+    assert after == pytest.approx(GraphManager().get_priority_normalizer())
+
+
+def test_scoring_memo_survives_a_now_reorder():
+    """Reordering Now cards changes rank, not membership, so scores hold.
+
+    reorder_now_nodes writes the rank in raw SQL guarded by `"now" > 0`, which
+    is why it can keep passing scoring=False even though `now` is now a
+    scoring-relevant field.
+    """
+    mgr = GraphManager()
+    mgr.add_node(_make_node("A", value=9, interest=9, now=1))
+    mgr.add_node(_make_node("B", value=8, interest=8, now=2))
+    mgr.add_node(_make_node("C", value=4, interest=4))
+
+    before = GraphManager._scoring_version
+    base = mgr.get_priority_normalizer()
+
+    mgr.reorder_now_nodes(["B", "A"])
+
+    assert GraphManager._scoring_version == before
+    assert mgr.get_priority_normalizer() == pytest.approx(base)
+    assert [n.name for n in mgr.get_now_nodes()] == ["B", "A"]
+
+
 def test_priority_normalizer_cache_invalidated_on_hyperparam_change(monkeypatch):
     from config import ConfigManager
     mgr = GraphManager()
