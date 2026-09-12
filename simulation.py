@@ -79,37 +79,6 @@ def duration_sample(o: float, m: float, p: float, size: int = 10000, rng=None,
     return mean * np.exp(sigma * z - 0.5 * sigma * sigma)
 
 
-def fitted_duration_quantiles(o, m, p):
-    """Exact fitted P10/P50/P90 for a supplied bracket, without sampling."""
-    mean = expected_time_estimate(o, m, p)
-    if not (o > 0 and p > o):
-        return (mean, mean, mean)
-    sigma = math.log(p / o) / (2.0 * Z90)
-    return tuple(mean * math.exp(sigma * z - 0.5 * sigma * sigma)
-                 for z in (-Z90, 0.0, Z90))
-
-
-def bracket_diagnostics(nodes):
-    """Report supplied percentiles displaced by more than 10% by the fit.
-
-    Ten percent is a display threshold, not a statistical calibration claim.
-    Only supplied points are compared; an imputed middle is not user evidence.
-    """
-    rows = []
-    for node in sorted(nodes, key=lambda n: n.name):
-        if node.status == STATUS_DONE or node.time_mode == 'inherited':
-            continue
-        o, m, p = node.time_o, node.time_m, node.time_p
-        if not (o > 0 and p > o):
-            continue
-        fitted = fitted_duration_quantiles(o, m, p)
-        if any(value > 0 and abs(fit / value - 1) > 0.10
-               for value, fit in zip((o, m, p), fitted)):
-            rows.append(dict(name=node.name, supplied=[o, m or None, p],
-                             fitted=list(fitted)))
-    return rows
-
-
 def _sample_node(node, n: int, rng=None, *, correlation: float = 0.0, shared=None) -> np.ndarray:
     """Sample duration for a single node from its time estimates."""
     o, m, p = node.time_o, node.time_m, node.time_p

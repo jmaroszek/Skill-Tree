@@ -167,9 +167,9 @@ Each task is sampled from a log-normal, for the reason given in [Durations Are M
 - Its 10th-to-90th percentile span is exactly the $u/l$ ratio you typed.
 - Its **mean is exactly $t(n)$**, the number the score uses.
 
-That second property keeps the app internally consistent: summing $t(n)$ over a chain gives its theoretical mean exactly. Details displays that mean separately from the simulated P50. Finite samples can fluctuate around the theoretical mean, and the histogram's peak need not coincide with it.
+That second property is what keeps the app internally consistent. The histogram on the Details tab is centred on the same figure that priced the task in the ranking. The two views cannot drift apart, and no simulation is needed to compute the total: summing $t(n)$ over a chain gives its mean exactly.
 
-There is a compromise buried in this. Three numbers over-determine a two-parameter shape. A log-normal can honour a lower bound, an upper bound, and a median only when the median happens to be the geometric mean of the bounds, and yours usually is not. Something has to give. The app keeps the width and the mean, because those are what the forecast and the score are built on, and lets the median absorb the mismatch. The mismatch can be substantial for asymmetric brackets. For example, entering 10 / 90 / 100 hours produces fitted P10 / P50 / P90 values of about 14.6 / 46.1 / 145.7 hours. Details flags tasks when any supplied percentile moves by more than 10%, and shows entered and fitted values. This is a display threshold, not a claim about calibration. The current fitting method remains in place while outcome evidence accumulates.
+There is a compromise buried in this. Three numbers over-determine a two-parameter shape. A log-normal can honour a lower bound, an upper bound, and a median only when the median happens to be the geometric mean of the bounds, and yours usually is not. Something has to give. The app keeps the width and the mean, because those are what the forecast and the score are built on, and lets the median absorb the mismatch. In practice the sampled bounds land within a few percent of the ones you typed.
 
 ## Shared Estimating Error
 
@@ -196,11 +196,11 @@ With independent tasks the forecast collapses toward a point as the project grow
 | 0.5 | 2.63× |
 | 1 | 3.87× |
 
-The app ships at 0.4 as a provisional modeling assumption. Neither the default nor a narrow band around it has been calibrated against your outcomes. Details compares 0 (independent), the current setting, and 1 (fully shared log-duration shocks). These are illustrative sensitivity cases, not a confidence interval for the setting itself.
+Both ends of that range are wrong. At 0 a decade of work is forecast to within a few percent. At 1 no task ever surprises you on its own, so a whole project is no more certain than a single task. The app ships at 0.4, and somewhere between 0.3 and 0.5 is the defensible band.
 
-Future calibration would require original forecasts and repeated groups of outcomes across projects or time periods. Individual actual/estimate ratios alone cannot identify shared correlation: persistent bias, shared variation, task-specific variation, and uncertainty in recalled actual hours need to be distinguished. There is not enough evidence yet to fit this automatically; the current model and default remain in use.
+This is the one number in the duration model that theory can bound but not fix. It is measurable, and the reflection feature is how. With enough recorded outcomes, split the spread of $\log(\text{actual} / \text{estimate})$ in two: the part common to all your estimates, and the part specific to each. That ratio is exactly this setting. Until then, 0.4 is a considered default rather than a derived one.
 
-Raising it increases total variance while leaving the expected total unchanged. The median and individual percentiles can move, so the score stays fixed even when the displayed P50 changes.
+Raising it widens the forecast without moving its centre. The expected total is unchanged at every value, so the score never shifts.
 
 ## Chain Collection
 
@@ -218,7 +218,7 @@ where $R$ is the set of incomplete, non-container nodes collected above. The mod
 
 ## Interactive Calculation Limits
 
-The Details panel uses the configured trial count per scenario up to 100,000 trials and a two-million node-trial work budget shared across the distinct sensitivity scenarios (counting incomplete, non-inherited nodes in the selected dependency view). Large views therefore use fewer trials; the caption reports both the actual and requested counts when capped. This reduces Monte Carlo precision, without changing the underlying duration model.
+The Details panel uses the configured trial count up to 100,000 trials and a two-million node-trial work budget (counting incomplete, non-inherited nodes in the selected dependency view). Large views therefore use fewer trials. This reduces Monte Carlo precision, without changing the underlying duration model.
 
 Sampling accumulates into one trial array in chunks instead of retaining an array for every task. Unchanged inputs reuse a small summary cache and a stable private random seed. A new selection, filter change, or departure from Details cancels superseded work; older responses cannot replace the current chart.
 

@@ -304,6 +304,7 @@ def test_explain_chart_waits_for_the_selected_nodes_contributors():
     assert len(ready[0].data) == 1
     assert ready[1] == {}
     assert ready[2] == {"display": "none"}
+    assert ready[3] == ""
 
 
 def test_refresh_does_not_rewrite_an_unchanged_selection(monkeypatch):

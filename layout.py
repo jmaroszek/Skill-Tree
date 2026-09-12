@@ -1045,6 +1045,7 @@ def build_app_layout(initial_elements, env="production"):
                             html.Div("Set Priority 1", id="goal-ctx-set-1", className="ctx-menu-item"),
                             html.Div("Set Priority 2", id="goal-ctx-set-2", className="ctx-menu-item"),
                             html.Div("Set Priority 3", id="goal-ctx-set-3", className="ctx-menu-item"),
+                            html.Hr(style={"margin": "2px"}),
                             html.Div("Clear Priority", id="goal-ctx-clear", className="ctx-menu-item"),
                         ],
                     ),
