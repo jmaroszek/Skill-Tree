@@ -642,8 +642,28 @@ def build_details_tab_content():
                 ], className="d-flex align-items-center"),
             ], className="d-flex justify-content-between align-items-center"),
             dcc.Store(id="details-explain-contrib-store"),
-            dcc.Graph(id="details-explain-chart",
-                      config={"displayModeBar": False}),
+            # The score callback and chart callback complete in sequence.  Keep
+            # Plotly's unstyled first frame out of sight until both are done;
+            # for the usual sub-second wait, a quiet caption is less visually
+            # noisy than flashing a spinner.
+            dcc.Store(id="details-explain-ready-node"),
+            html.Div([
+                html.Div(
+                    "Preparing explanation…",
+                    id="details-explain-chart-placeholder",
+                    className=(
+                        "text-muted d-flex align-items-center "
+                        "justify-content-center"
+                    ),
+                    style={"minHeight": "260px", "fontSize": "0.85rem"},
+                    **{"role": "status", "aria-live": "polite"},
+                ),
+                dcc.Graph(
+                    id="details-explain-chart",
+                    config={"displayModeBar": False},
+                    style={"display": "none"},
+                ),
+            ]),
             html.Div(explain_legend_items,
                      style={"fontSize": "0.78rem", "textAlign": "right"}),
             html.Hr(className="my-3"),

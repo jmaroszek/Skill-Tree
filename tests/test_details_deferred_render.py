@@ -249,6 +249,63 @@ def test_details_layout_declares_settled_trigger():
         build_details_tab_content())
 
 
+def test_explain_chart_starts_hidden_behind_a_quiet_placeholder():
+    from details_layout import build_details_tab_content
+
+    def by_id(component, component_id):
+        stack = [component]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, (list, tuple)):
+                stack.extend(node)
+                continue
+            if not isinstance(node, Component):
+                continue
+            if getattr(node, "id", None) == component_id:
+                return node
+            children = getattr(node, "children", None)
+            if children is not None:
+                stack.append(children)
+        raise AssertionError(f"Missing component {component_id}")
+
+    content = build_details_tab_content()
+    chart = by_id(content, "details-explain-chart")
+    placeholder = by_id(content, "details-explain-chart-placeholder")
+
+    assert chart.style == {"display": "none"}
+    assert placeholder.children == "Preparing explanation…"
+    assert placeholder.role == "status"
+    assert getattr(placeholder, "aria-live") == "polite"
+
+
+def test_explain_chart_waits_for_the_selected_nodes_contributors():
+    app = _app_with(register_details_callbacks)
+    spec = _spec_for_output(app, "details-explain-chart.figure")
+    callback = _raw_callback(spec)
+    contributor = {
+        "name": "Current",
+        "contribution": 4.0,
+        "via": "Self",
+        "pct_of_tv": 100.0,
+        "depth": 0,
+        "weight": 1.0,
+        "iv": 4.0,
+    }
+
+    waiting = callback(10, [contributor], None, True, "Current")
+    assert waiting[0] is dash.no_update
+    assert waiting[1] == {"display": "none"}
+    assert waiting[3] == "Preparing explanation…"
+
+    stale = callback(10, [contributor], "Previous", True, "Current")
+    assert stale[1] == {"display": "none"}
+
+    ready = callback(10, [contributor], "Current", True, "Current")
+    assert len(ready[0].data) == 1
+    assert ready[1] == {}
+    assert ready[2] == {"display": "none"}
+
+
 def test_refresh_does_not_rewrite_an_unchanged_selection(monkeypatch):
     """A same-value store write would re-fire render_details_subtasks with a
     `details-selected-node-store` trigger, stranding the table on its

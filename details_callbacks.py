@@ -1790,14 +1790,16 @@ def register_details_callbacks(app):
          Output("details-explain-subtitle", "children"),
          Output("details-explain-summary", "children"),
          Output("details-explain-contrib-store", "data"),
-         Output("details-explain-count", "value")],
+         Output("details-explain-count", "value"),
+         Output("details-explain-ready-node", "data")],
         [Input("modal-details-explain", "is_open"),
          Input("details-node-select", "value")],
         prevent_initial_call=True,
     )
     def populate_explain_modal(is_open, node_name):
         if not is_open or not node_name:
-            return no_update, no_update, no_update, no_update, no_update
+            return (no_update, no_update, no_update, no_update, no_update,
+                    no_update)
         all_nodes = graph_manager.get_all_nodes()
         priority_goals = ConfigManager.get_priority_goals()
         hypers = ConfigManager.get_hyperparams()
@@ -1876,20 +1878,38 @@ def register_details_callbacks(app):
         # user selects a different node while it's already open.
         count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
         return (title, subtitle, build_explain_summary(breakdown, normalized),
-                contributors, count_out)
+                contributors, count_out, node_name)
 
     @app.callback(
-        Output("details-explain-chart", "figure"),
+        [Output("details-explain-chart", "figure"),
+         Output("details-explain-chart", "style"),
+         Output("details-explain-chart-placeholder", "style"),
+         Output("details-explain-chart-placeholder", "children")],
         [Input("details-explain-count", "value"),
-         Input("details-explain-contrib-store", "data")],
+         Input("details-explain-contrib-store", "data"),
+         Input("details-explain-ready-node", "data"),
+         Input("modal-details-explain", "is_open"),
+         Input("details-node-select", "value")],
         prevent_initial_call=True,
     )
-    def update_explain_chart(count, contributors):
+    def update_explain_chart(count, contributors, ready_node, is_open,
+                             selected_node):
+        placeholder_style = {
+            "minHeight": "260px",
+            "fontSize": "0.85rem",
+        }
+        if not is_open or not selected_node or ready_node != selected_node:
+            return (no_update, {"display": "none"}, placeholder_style,
+                    "Preparing explanation…")
+        if not contributors:
+            return (no_update, {"display": "none"}, placeholder_style,
+                    "No contributors to display.")
         try:
             n = max(1, int(count)) if count else 10
         except (TypeError, ValueError):
             n = 10
-        return build_explain_chart(contributors or [], top_n=n)
+        return (build_explain_chart(contributors, top_n=n), {},
+                {"display": "none"}, "Preparing explanation…")
 
     @app.callback(
         [Output("details-explain-focus-feedback", "children"),
