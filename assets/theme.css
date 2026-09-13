@@ -150,13 +150,27 @@
 
 .graph-settings-panel .settings-label {
     font-size: 0.82rem;
-    color: #adb5bd;
-    margin-bottom: 4px;
-    margin-top: 12px;
+    color: #ced4da;
+    font-weight: 500;
+    margin-bottom: 6px;
+    margin-top: 18px;
 }
 
 .graph-settings-panel .settings-label:first-child {
     margin-top: 0;
+}
+
+.graph-settings-axis {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    color: #9ca3aa;
+    font-size: 0.7rem;
+    line-height: 1.1;
+}
+
+.graph-settings-axis + .settings-label {
+    margin-top: 32px;
 }
 
 

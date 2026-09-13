@@ -146,25 +146,37 @@ def build_graph_settings_panel(
         dcc.Slider(
             id=f"{p}-edge-length",
             min=50, max=300, step=10, value=gl.get('edge_length', 100),
-            marks={50: "50", 100: "100", 150: "150", 200: "200", 250: "250", 300: "300"},
+            marks=None,
             updatemode="mouseup",
         ),
+        html.Div([
+            html.Span("Short"),
+            html.Span("Long"),
+        ], id=f"{p}-edge-length-axis", className="graph-settings-axis"),
 
         html.Div("Gravity", className="settings-label"),
         dcc.Slider(
             id=f"{p}-gravity",
             min=0, max=5, step=0.25, value=gl.get('gravity', 0.25),
-            marks={0: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"},
+            marks=None,
             updatemode="mouseup",
         ),
+        html.Div([
+            html.Span("Weak"),
+            html.Span("Strong"),
+        ], id=f"{p}-gravity-axis", className="graph-settings-axis"),
 
         html.Div("Repulsion", className="settings-label"),
         dcc.Slider(
             id=f"{p}-repulsion",
             min=500, max=100000, step=500, value=gl.get('repulsion', 4500),
-            marks={500: "500", 25000: "25k", 50000: "50k", 75000: "75k", 100000: "100k"},
+            marks=None,
             updatemode="mouseup",
         ),
+        html.Div([
+            html.Span("Weak"),
+            html.Span("Strong"),
+        ], id=f"{p}-repulsion-axis", className="graph-settings-axis"),
     ]
 
     children += [

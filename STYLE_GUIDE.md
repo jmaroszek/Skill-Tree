@@ -453,6 +453,13 @@ state needs no extra callback. Compare these lists as sets in dirty-checks
 
 ### Details local-view control row
 
+Graph-layout physics sliders use qualitative endpoint rows rather than native
+numeric marks: **Short / Long** for Edge Length and **Weak / Strong** for
+Gravity and Repulsion. Set the slider's `marks=None` and render the endpoints in
+a sibling `.graph-settings-axis` row. This keeps both labels aligned with the
+track edges, makes them visually subordinate to the parameter name, and leaves
+the numeric range, step and stored value strictly as implementation details.
+
 The Details subtree controls are a row of compact switches. Use
 `.details-view-controls` for the wrapping flex row. Both physical copies of
 this row (Milestones/Subtasks) must use the same classes and stay synchronized
