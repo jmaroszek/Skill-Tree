@@ -189,7 +189,7 @@ Every surface that prints a 0–100 priority divides by that same base: the Next
 
 The Next column descends, since the number and the sort key are now the same quantity. Pinned rows are the exception: a pin leads the list whatever it scores, and keeps its true number rather than a rescaled one.
 
-(The Explain feature reports both the raw and normalized score, with the repetition discount listed among the adjustments.)
+(Explain reports this same 0–100 priority, and lists the repetition discount among its adjustments.)
 
 ## Complexity
 

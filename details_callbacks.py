@@ -31,7 +31,7 @@ from callback_helpers import (render_link_rows, render_alias_rows,
                               resolve_time_mode, resolve_value_mode, get_trigger_id,
                               build_node_element, build_edge_element,
                               canvas_node_styles)
-from scoring import explain_score, shortest_paths_focus_data
+from scoring import explain_score, focus_route_data
 
 graph_manager = GraphManager()
 event_manager = EventManager()
@@ -1806,6 +1806,13 @@ def register_details_callbacks(app):
                 subtitle = format_value_rank(tv, peers, "projects")
 
         contributors = breakdown['contributors'] if breakdown else []
+        # The chart's hover restates each contributor's ratings, which the
+        # scorer's contribution rows don't carry.
+        nodes_by_name = {n.name: n for n in all_nodes}
+        for c in contributors:
+            contributor = nodes_by_name.get(c['name'])
+            if contributor is not None:
+                c['value'], c['interest'] = contributor.value, contributor.interest
         # Reset count to default only when the modal opens — not when the
         # user selects a different node while it's already open.
         count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
@@ -1879,30 +1886,21 @@ def register_details_callbacks(app):
             k_int = max(1, min(5, int(k))) if k else 3
         except (TypeError, ValueError):
             k_int = 3
-        # Top-K contributors excluding Self; rank by list position.
-        ranked_targets = []
-        for c in contributors:
-            name = c.get('name')
-            if not name or name == selected_node:
-                continue
-            ranked_targets.append((len(ranked_targets) + 1, name))
-            if len(ranked_targets) >= k_int:
-                break
         all_nodes_fc = graph_manager.get_all_nodes()
         node_fc = next((n for n in all_nodes_fc if n.name == selected_node), None)
         is_goal_fc = node_fc is not None and node_fc.type == 'Goal'
         edges_fc = graph_manager.get_edges()
         if is_goal_fc:
-            # A Goal's contributors are its prerequisites (upstream), so the
-            # paths to them run against the arrows — walk the inverted
-            # Hard/Soft graph. Helps is symmetric and left alone.
+            # A Goal's contributors are its hard prerequisites, found on the
+            # inverted Hard-only graph (see explain_goal). The routes must be
+            # traced on that same graph or they won't match the chart.
             edges_fc = [
                 {'source': e['target'], 'target': e['source'], 'type': e['type']}
-                if e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) else e
-                for e in edges_fc
+                for e in edges_fc if e['type'] == EDGE_NEEDS_HARD
             ]
-        pi = shortest_paths_focus_data(
-            selected_node, ranked_targets, all_nodes_fc, edges_fc,
+        pi = focus_route_data(
+            selected_node, contributors, k_int, all_nodes_fc, edges_fc,
+            ConfigManager.get_hyperparams(),
         )
         edge_rank_items = list(pi['edge_rank'].items())
         if is_goal_fc:

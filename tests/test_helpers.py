@@ -945,13 +945,15 @@ class TestEditorFormValues:
 
 
 # ============================================================================
-# build_explain_summary — Adjustments section rendering
+# build_explain_summary — plain-language calculation details
 # ============================================================================
 
 def _minimal_breakdown(**overrides):
     """Build the minimal dict shape that _explain_summary_table consumes."""
     bd = {
         'node': 'X',
+        'context': 'Mind',
+        'subcontext': None,
         'score': 1.23,
         'raw_score': 1.23,
         'eligible': True,
@@ -966,6 +968,7 @@ def _minimal_breakdown(**overrides):
             'total_value': 12.5,
         },
         'goal_boost': None,
+        'variety': None,
         'context_adjustment': {
             'weight': 1.0, 'n_bucket': 1, 'alpha': 0.0,
             'density_mult': 1.0, 'combined_multiplier': 1.0,
@@ -988,74 +991,101 @@ def _render_text(component):
     return _render_text(children) if children is not None else ""
 
 
-class TestExplainSummaryAdjustments:
-    def test_no_adjustments_section_when_all_trivial(self):
-        """With weight=1, density=1, no goal boost: no Adjustments header."""
-        table = build_explain_summary(_minimal_breakdown(), normalized=80)
-        text = _render_text(table)
-        assert "Adjustments" not in text
-        assert "Density" not in text
-        assert "Context Weight" not in text
+class TestExplainSummary:
+    def test_value_is_shown_as_shares_not_internal_quantities(self):
+        """10 + 2 + 0.5 of 12.5 → 80% / 16% / 4.0%; no raw value or cost."""
+        text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
+        assert "Its own ratings Value 5 · Interest 5 80%" in text
+        assert "What it unlocks 16%" in text
+        assert "What it prepares you for 4.0%" in text
+        for internal in ("10.00", "12.50", "15.50", "1.23", "Raw", "Intrinsic"):
+            assert internal not in text
 
-    def test_density_only_renders_row(self):
-        bd = _minimal_breakdown(context_adjustment={
+    def test_value_sources_with_no_share_are_left_out(self):
+        text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
+        assert "synergy partners" not in text
+
+    def test_cost_is_shown_as_time_and_effort(self):
+        text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
+        assert "Time 2h" in text
+        assert "Effort 5 of 10" in text
+
+    def test_inherited_value_and_time_read_as_none_of_its_own(self):
+        bd = _minimal_breakdown(
+            intrinsic={'value': 7, 'interest': 6, 'iv': 0.0, 'value_overridden': True},
+            cost={'difficulty': 4, 'time': 0.0, 'time_overridden': True,
+                  'effort_overridden': True, 'cost': 1.0},
+        )
+        text = _render_text(build_explain_summary(bd, normalized=None))
+        assert "Value 7" not in text
+        assert "Its own ratings none of its own" in text
+        assert "Time None of its own" in text
+        assert "Effort None of its own" in text
+
+    def test_no_adjustments_section_when_all_trivial(self):
+        """With weight=1, density=1, no goal boost or variety: no Adjustments header."""
+        text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
+        assert "Adjustments" not in text
+        assert "Priority 80 of 100" in text
+
+    def test_density_reads_as_crowding_without_parameters(self):
+        bd = _minimal_breakdown(subcontext='Focus', context_adjustment={
             'weight': 1.0, 'n_bucket': 17, 'alpha': 0.3,
             'density_mult': 0.432, 'combined_multiplier': 0.432,
         })
-        table = build_explain_summary(bd, normalized=50)
-        text = _render_text(table)
-        assert "Adjustments" in text
-        assert "Density" in text
-        assert "n=17" in text
-        assert "\u03b1=0.30" in text
-        assert "Context Weight" not in text
-        assert "Goal Boost" not in text
+        text = _render_text(build_explain_summary(bd, normalized=50))
+        assert "Crowding 17 goals in Mind · Focus −57%" in text
+        assert "α" not in text and "n=17" not in text
+        assert "Together" not in text
 
-    def test_weight_only_renders_row(self):
+    def test_context_weight_reads_as_a_percent_change(self):
         bd = _minimal_breakdown(context_adjustment={
             'weight': 2.0, 'n_bucket': 5, 'alpha': 0.0,
             'density_mult': 1.0, 'combined_multiplier': 2.0,
         })
-        table = build_explain_summary(bd, normalized=50)
-        text = _render_text(table)
-        assert "Context Weight" in text
-        assert "\u00d72.000" in text
-        assert "Density" not in text
+        text = _render_text(build_explain_summary(bd, normalized=50))
+        assert "Context weight Mind +100%" in text
+        assert "×" not in text
 
-    def test_goal_boost_and_context_both_render(self):
+    def test_variety_names_its_place_in_context_and_subcontext(self):
+        bd = _minimal_breakdown(variety={
+            'divisor': 1.25, 'context': 'Mind', 'subcontext': 'Focus',
+            'context_rank': 3, 'subcontext_rank': 2,
+        })
+        text = _render_text(build_explain_summary(bd, normalized=50))
+        assert "Variety 3rd from Mind, 2nd from Focus −20%" in text
+
+    def test_several_adjustments_add_a_together_row(self):
         bd = _minimal_breakdown(
             goal_boost={'multiplier': 1.5, 'goal': 'Health', 'rank': 1},
             context_adjustment={
-                'weight': 2.0, 'n_bucket': 17, 'alpha': 0.3,
-                'density_mult': 0.432, 'combined_multiplier': 1.296,
+                'weight': 2.0, 'n_bucket': 1, 'alpha': 0.0,
+                'density_mult': 1.0, 'combined_multiplier': 2.0,
             },
         )
-        table = build_explain_summary(bd, normalized=50)
-        text = _render_text(table)
-        assert "Goal Boost" in text
-        assert "rank #1" in text
-        assert "Health" in text
-        assert "Context Weight" in text
-        assert "Density" in text
-        assert "Combined" in text
+        text = _render_text(build_explain_summary(bd, normalized=50))
+        assert "Priority goal Health, your #1 +50%" in text
+        assert "Context weight Mind +100%" in text
+        assert "Together +200%" in text
 
-    def test_raw_annotation_updated_when_adjustments_present(self):
-        """When Adjustments section shows, Raw row gets the short summary."""
-        bd = _minimal_breakdown(context_adjustment={
-            'weight': 2.0, 'n_bucket': 1, 'alpha': 0.0,
-            'density_mult': 1.0, 'combined_multiplier': 2.0,
-        })
-        table = build_explain_summary(bd, normalized=50)
-        text = _render_text(table)
-        # Old inline annotation should not appear any more
-        assert "includes goal boost" not in text
-        assert "all adjustments applied" in text
+    def test_goal_breakdown_shows_prerequisites_and_work_left(self):
+        bd = _minimal_breakdown(
+            is_goal=True,
+            cost={'goal': True, 'remaining_time': 6.0, 'cost': 2.0,
+                  'time_overridden': False},
+            goal_boost={'multiplier': 1.5, 'goal': 'X', 'rank': 2},
+        )
+        text = _render_text(build_explain_summary(bd, normalized=40))
+        assert "Its prerequisites 16%" in text
+        assert "Hard prerequisite work left 6h" in text
+        assert "Effort" not in text
+        assert "Priority goal your #2 +50%" in text
 
-    def test_ineligible_still_shows_block_reason(self):
+    def test_ineligible_shows_reason_instead_of_priority(self):
         bd = _minimal_breakdown(eligible=False, block_reason="Blocked")
-        table = build_explain_summary(bd, normalized=None)
-        text = _render_text(table)
-        assert "Blocked" in text
+        text = _render_text(build_explain_summary(bd, normalized=None))
+        assert "Not ranked Blocked" in text
+        assert "of 100" not in text
 
 
 # ============================================================================

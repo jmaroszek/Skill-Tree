@@ -5,6 +5,7 @@ Contains stateless utility functions extracted from callbacks.py to keep
 the callback registration files focused on Dash I/O wiring.
 """
 
+from html import escape as _escape
 import json
 import logging
 from dataclasses import dataclass
@@ -1800,27 +1801,52 @@ def _trunc(name: str, max_len: int = 25) -> str:
     return name if len(name) <= max_len else name[:max_len - 1] + '\u2026'
 
 
-def _explain_summary_table(breakdown: dict, normalized):
-    """Grouped summary table: Value / Cost / Score.
+def _format_share(pct: float) -> str:
+    """A share of total value: whole percents from 10% up, one decimal below."""
+    if pct >= 9.95:
+        return f"{pct:.0f}%"
+    if pct >= 0.05:
+        return f"{pct:.1f}%"
+    return "<0.1%" if pct > 0 else "0%"
 
-    Every row maps to a field in scoring.explain_score's output. Edge
-    cases: ineligible nodes show '—' for Raw and Normalized and annotate
-    with the block reason; leaf nodes show zero-valued downstream rows in
-    muted style; inherited-time nodes annotate the Cost row; `normalized`
-    may be None (displays '—') when the caller could not determine a
-    normalization base.
+
+def _format_effect(multiplier: float) -> str:
+    """The change a score multiplier makes, as a signed percent: 0.487 -> '−51%'."""
+    change = (multiplier - 1.0) * 100.0
+    size = abs(change)
+    text = f"{size:.0f}%" if size >= 9.95 else f"{size:.1f}%"
+    return ("+" if change > 0 else "−") + text
+
+
+def _format_rating(rating) -> str:
+    """A 1-10 rating without a trailing '.0'."""
+    return f"{rating:g}" if isinstance(rating, (int, float)) else str(rating)
+
+
+def _explain_summary_table(breakdown: dict, normalized):
+    """Grouped table: Value / Cost / Adjustments / Score, in the reader's terms.
+
+    The scorer's internal quantities never appear. Intrinsic and total value
+    have no unit, and their size moves with the scoring profile, so a figure
+    like 181 tells the reader nothing. Value is shown as shares of the node's
+    total value instead, which always sum to 100%. Cost is shown as the time
+    and effort it is built from. Each adjustment is shown as the change it
+    makes to the score. The only score printed is the 0-100 priority every
+    other surface shows.
+
+    Rows carry a short muted detail (the ratings, the context, the goal)
+    rather than the parameter values behind them. Value sources with no share
+    are left out, as is the Adjustments section when nothing adjusts the score.
 
     Goal breakdowns (`is_goal`, produced by analyze_callbacks.explain_goal)
-    are scored on the inverted prereq graph: the cascade rows describe the
-    prerequisite subtree rather than what the node unlocks, and the Cost
-    section reports beta-compressed prereq-subtree time.
+    are scored on the inverted Hard graph: the cascade share is the value of
+    the Goal's prerequisites, and cost is the hard prerequisite work left.
     """
     comp = breakdown['composition']
     cost_info = breakdown['cost']
+    intrinsic = breakdown.get('intrinsic') or {}
     boost = breakdown['goal_boost']
-    eligible = breakdown['eligible']
     is_goal = breakdown.get('is_goal', False)
-    downstream = comp['hard_cascade'] + comp['soft_cascade'] + comp['synergy']
 
     header_style = {
         "fontWeight": "700",
@@ -1836,174 +1862,104 @@ def _explain_summary_table(breakdown: dict, normalized):
     total_style = {"fontWeight": "600", "borderTop": "1px solid #495057"}
     num_style = {"textAlign": "right", "fontVariantNumeric": "tabular-nums",
                  "whiteSpace": "nowrap"}
-    muted_style = {"color": "#adb5bd", "fontSize": "0.88rem"}
-    muted_num_style = {**num_style, **muted_style}
-    zero_num_style = {**num_style, "color": "#6c757d"}
-
-    def _fmt(v: float) -> str:
-        return f"{v:.2f}"
-
-    def _num_cell(v: float, style=None):
-        s = dict(style) if style else dict(num_style)
-        if abs(v) < 1e-9 and style is not total_style:
-            s = dict(zero_num_style)
-        return html.Td(_fmt(v), style=s)
+    detail_style = {"color": "#adb5bd", "fontSize": "0.88rem", "marginLeft": "8px"}
 
     rows = []
 
-    # --- Value section ------------------------------------------------
-    rows.append(html.Tr([html.Td("Value", colSpan=2, style=header_style)]))
-    rows.append(html.Tr([html.Td("Intrinsic"), _num_cell(comp['iv'])]))
+    def header(text):
+        rows.append(html.Tr([html.Td(text, colSpan=2, style=header_style)]))
 
-    # Synergy multiplier on intrinsic — kicks in only when at least one
-    # synergy partner is Done. Hidden when inactive (multiplier == 1.0)
-    # to keep the table tight.
-    iv_multiplier = comp.get('iv_multiplier', 1.0)
-    iv_mult_contribution = comp.get('iv_multiplier_contribution', 0.0)
-    if iv_multiplier > 1.0 + 1e-9:
+    def row(label, figure, detail=None, style=None):
+        label_cell = [html.Span(label)]
+        if detail:
+            label_cell.append(html.Span(detail, style=detail_style))
+        rows.append(html.Tr([
+            html.Td(label_cell, style=style),
+            html.Td(figure, style={**num_style, **(style or {})}),
+        ]))
+
+    # --- Value: where the total comes from ------------------------------
+    header("Value")
+    total = comp['total_value']
+
+    def share(amount):
+        return _format_share(100.0 * amount / total) if total > 1e-9 else "—"
+
+    if intrinsic.get('value_overridden'):
+        own_detail = "none of its own"
+    elif intrinsic.get('value') is not None:
+        own_detail = (f"Value {_format_rating(intrinsic['value'])} · "
+                      f"Interest {_format_rating(intrinsic['interest'])}")
+    else:
+        own_detail = None
+    row("Its own ratings", share(comp['iv']), own_detail)
+    boost_from_partners = comp.get('iv_multiplier_contribution', 0.0)
+    if boost_from_partners > 1e-9:
         done_count = comp.get('done_synergy_count', 0)
-        partner_word = "partner" if done_count == 1 else "partners"
-        label = f"Synergy multiplier (×{iv_multiplier:.2f}, {done_count} Done {partner_word})"
-        rows.append(html.Tr([
-            html.Td(label),
-            _num_cell(iv_mult_contribution),
-        ]))
-
-    # For a Goal the cascade walks the *inverted* graph, so these rows are
-    # the value of its prerequisite subtree rather than what it unlocks.
-    cascade_label = "Prerequisite subtree" if is_goal else "Downstream"
-    rows.append(html.Tr([html.Td(cascade_label), _num_cell(downstream)]))
-    for label, value in (
-        ("via Hard", comp['hard_cascade']),
-        ("via Soft", comp['soft_cascade']),
-        ("via Synergy (pair bonus)", comp['synergy']),
+        row("Finished synergy partners", share(boost_from_partners),
+            f"{done_count} finished")
+    for label, amount in (
+        ("Its prerequisites" if is_goal else "What it unlocks", comp['hard_cascade']),
+        ("What it prepares you for", comp['soft_cascade']),
+        ("Its synergy partners", comp['synergy']),
     ):
-        rows.append(html.Tr([
-            html.Td(label, className="ps-4", style=muted_style),
-            html.Td(_fmt(value),
-                    style=muted_num_style if value > 1e-9 else zero_num_style),
-        ]))
-    rows.append(html.Tr([
-        html.Td("Total", style=total_style),
-        html.Td(_fmt(comp['total_value']), style={**num_style, **total_style}),
-    ]))
+        if amount > 1e-9:
+            row(label, share(amount))
 
-    # --- Cost section -------------------------------------------------
-    rows.append(html.Tr([html.Td("Cost", colSpan=2, style=header_style)]))
+    # --- Cost: the time and effort it is built from ---------------------
+    header("Cost")
+
+    def duration(hours):
+        return ConfigManager.format_time_friendly(hours) if hours > 0 else "None"
+
     if is_goal:
-        # A Goal's own perceived cost is meaningless (its time is inherited
-        # from children). Cost is instead the time still owed across its
-        # hard-prerequisite subtree, beta-compressed — see _rank_goals.
-        rows.append(html.Tr([
-            html.Td([html.Span("Remaining hard-prereq time"),
-                     html.Span(" (summed over the prereq subtree)",
-                               style={**muted_style, "marginLeft": "4px"})]),
-            html.Td(_fmt(cost_info.get('remaining_time', 0.0)),
-                    style=muted_num_style),
-        ]))
-        rows.append(html.Tr([
-            html.Td([html.Span("Perceived cost"),
-                     html.Span(" (compressed prereq time)",
-                               style={**muted_style, "marginLeft": "4px"})]),
-            _num_cell(cost_info['cost']),
-        ]))
+        row("Hard prerequisite work left", duration(cost_info.get('remaining_time', 0.0)))
     else:
-        cost_label = [html.Span("Perceived cost")]
-        if cost_info['time_overridden']:
-            cost_label.append(html.Span(" (container — inherited time treated as 0)",
-                                        style={**muted_style, "marginLeft": "4px"}))
-        rows.append(html.Tr([
-            html.Td(cost_label),
-            _num_cell(cost_info['cost']),
-        ]))
+        row("Time", "None of its own" if cost_info['time_overridden']
+            else duration(cost_info['time']))
+        row("Effort", "None of its own" if cost_info.get('effort_overridden')
+            else f"{_format_rating(cost_info['difficulty'])} of 10")
 
-    # --- Adjustments section (shown only if any multiplier is non-trivial) --
+    # --- Adjustments: each as the change it makes to the score ----------
+    adjustments = []
+    if boost is not None:
+        detail = (f"your #{boost['rank']}" if is_goal
+                  else f"{boost['goal']}, your #{boost['rank']}")
+        adjustments.append(("Priority goal", detail, boost['multiplier']))
     ctx_adj = breakdown.get('context_adjustment') or {}
-    ctx_weight = ctx_adj.get('weight', 1.0)
-    density_mult = ctx_adj.get('density_mult', 1.0)
-    n_bucket = ctx_adj.get('n_bucket', 1)
-    alpha_val = ctx_adj.get('alpha', 0.0)
+    context = breakdown.get('context')
+    if abs(ctx_adj.get('weight', 1.0) - 1.0) > 1e-9:
+        adjustments.append(("Context weight", context, ctx_adj['weight']))
+    if abs(ctx_adj.get('density_mult', 1.0) - 1.0) > 1e-9:
+        # Goal-only: unfinished Goals sharing this one's context/subcontext.
+        area = " · ".join(p for p in (context, breakdown.get('subcontext')) if p)
+        count = ctx_adj.get('n_bucket', 1)
+        adjustments.append(("Crowding", f"{count} goals in {area}" if area
+                            else f"{count} goals", ctx_adj['density_mult']))
     variety = breakdown.get('variety') or {}
-    variety_mult = 1.0 / variety['divisor'] if variety.get('divisor') else 1.0
-    has_boost = boost is not None
-    has_weight = abs(ctx_weight - 1.0) > 1e-9
-    has_density = abs(density_mult - 1.0) > 1e-9
-    has_variety = abs(variety_mult - 1.0) > 1e-9
-    has_any_adjustment = has_boost or has_weight or has_density or has_variety
+    if variety.get('divisor') and abs(variety['divisor'] - 1.0) > 1e-9:
+        # What the node gives up for being the nth recommendation from its
+        # context; the scorer divides by it, so it is shown as a reduction.
+        where = [f"{_ordinal(variety['context_rank'])} from {variety['context']}"]
+        if variety.get('subcontext'):
+            where.append(f"{_ordinal(variety['subcontext_rank'])} from {variety['subcontext']}")
+        adjustments.append(("Variety", ", ".join(where), 1.0 / variety['divisor']))
 
-    if has_any_adjustment:
-        rows.append(html.Tr([html.Td("Adjustments", colSpan=2, style=header_style)]))
+    if adjustments:
+        header("Adjustments")
         combined = 1.0
-        if has_boost:
-            rows.append(html.Tr([
-                html.Td([html.Span("Goal Boost"),
-                         html.Span(f" (rank #{boost['rank']} · {boost['goal']})",
-                                   style={**muted_style, "marginLeft": "4px"})]),
-                html.Td(f"\u00d7{boost['multiplier']:.3f}", style=num_style),
-            ]))
-            combined *= boost['multiplier']
-        if has_weight:
-            rows.append(html.Tr([
-                html.Td("Context Weight"),
-                html.Td(f"\u00d7{ctx_weight:.3f}", style=num_style),
-            ]))
-            combined *= ctx_weight
-        if has_density:
-            rows.append(html.Tr([
-                html.Td([html.Span("Density"),
-                         html.Span(f" (n={n_bucket}, \u03b1={alpha_val:.2f})",
-                                   style={**muted_style, "marginLeft": "4px"})]),
-                html.Td(f"\u00d7{density_mult:.3f}", style=num_style),
-            ]))
-            combined *= density_mult
-        if has_variety:
-            # What the node gives up for being the nth recommendation from
-            # its context. Reported as a multiplier like every other row
-            # here, though the scorer applies it as a divisor.
-            where = [f"{_ordinal(variety['context_rank'])} in {variety['context']}"]
-            if variety.get('subcontext'):
-                where.append(f"{_ordinal(variety['subcontext_rank'])} in {variety['subcontext']}")
-            rows.append(html.Tr([
-                html.Td([html.Span("Variety"),
-                         html.Span(f" ({', '.join(where)})",
-                                   style={**muted_style, "marginLeft": "4px"})]),
-                html.Td(f"×{variety_mult:.3f}", style=num_style),
-            ]))
-            combined *= variety_mult
-        rows.append(html.Tr([
-            html.Td("Combined", style=total_style),
-            html.Td(f"\u00d7{combined:.3f}", style={**num_style, **total_style}),
-        ]))
+        for label, detail, multiplier in adjustments:
+            row(label, _format_effect(multiplier), detail)
+            combined *= multiplier
+        if len(adjustments) > 1:
+            row("Together", _format_effect(combined), style=total_style)
 
-    # --- Score section ------------------------------------------------
-    rows.append(html.Tr([html.Td("Score", colSpan=2, style=header_style)]))
-    if eligible:
-        raw_label = [html.Span("Raw")]
-        if has_any_adjustment:
-            raw_label.append(html.Span(
-                " (all adjustments applied)",
-                style={**muted_style, "marginLeft": "4px"},
-            ))
-        rows.append(html.Tr([
-            html.Td(raw_label),
-            _num_cell(breakdown['score']),
-        ]))
-        norm_display = f"{normalized}" if normalized is not None else "—"
-        rows.append(html.Tr([
-            html.Td("Normalized"),
-            html.Td(norm_display, style=num_style),
-        ]))
+    # --- Score: the 0-100 priority shown everywhere else ----------------
+    header("Score")
+    if breakdown['eligible']:
+        row("Priority", f"{normalized} of 100" if normalized is not None else "—")
     else:
-        rows.append(html.Tr([
-            html.Td([html.Span("Raw"),
-                     html.Span(f" (ineligible: {breakdown['block_reason']})",
-                               style={**muted_style, "marginLeft": "4px"})]),
-            html.Td("—", style=num_style),
-        ]))
-        rows.append(html.Tr([
-            html.Td("Normalized"),
-            html.Td("—", style=num_style),
-        ]))
+        row("Not ranked", "—", breakdown['block_reason'])
 
     return dbc.Table(
         [html.Tbody(rows)],
@@ -2013,53 +1969,61 @@ def _explain_summary_table(breakdown: dict, normalized):
     )
 
 
+def _contributor_hover(row: dict, time_settings) -> str:
+    """Plain-language hover text for one bar of the contributors chart."""
+    lines = [f"<b>{_escape(row['name'])}</b>",
+             f"{_format_share(row.get('pct_of_tv', 0.0))} of total value"]
+    via = row.get('via')
+    if via != 'Self':
+        steps = row.get('depth', 0)
+        through = {'Hard': "a hard prerequisite", 'Soft': "a soft prerequisite",
+                   'Synergy': "a synergy partner"}.get(via, "a relationship")
+        lines.append(f"{steps} step{'' if steps == 1 else 's'} away, through {through}")
+        iv = row.get('iv', 0.0)
+        if iv > 1e-9:
+            passed_on = f"Passes on {_format_share(100.0 * row['contribution'] / iv)} of its own value"
+            hours = row.get('remaining_hours', 0.0)
+            if hours > 0 and row.get('future_discount', 1.0) < 1.0 - 1e-9:
+                passed_on += (", allowing for "
+                              f"{ConfigManager.format_time_friendly(hours, time_settings=time_settings)}"
+                              " of work still required")
+            lines.append(passed_on)
+    if row.get('iv', 0.0) > 1e-9 and row.get('value') is not None:
+        lines.append(f"Value {_format_rating(row['value'])} · "
+                     f"Interest {_format_rating(row['interest'])}")
+    return "<br>".join(lines)
+
+
 def _explain_bar_chart(contributors: list, top_n: int):
     """Horizontal Plotly bar of top-N contributors, colored by `via`.
 
-    Long node names are truncated for the y-axis tick labels (full name
-    preserved in hover); `ticksuffix` adds breathing room between labels
-    and bar starts — both patterns lifted from analyze_callbacks._trunc.
+    Bars measure each contributor's share of total value, the unit the Value
+    rows of the calculation details use. Long node names are truncated for
+    the y-axis tick labels (full name preserved in hover); `ticksuffix` adds
+    breathing room between labels and bar starts — both patterns lifted from
+    analyze_callbacks._trunc.
     """
     rows = list(reversed(contributors[:top_n]))  # Plotly stacks bottom-up
-    full_names = [r['name'] for r in rows]
-    display_names = [_trunc(n) for n in full_names]
-    vals = [r['contribution'] for r in rows]
-    colors = [_VIA_COLORS.get(r['via'], '#6c757d') for r in rows]
-    bar_texts = [f"{r['contribution']:.2f}" for r in rows]
-    customdata = [
-        [full_names[i], rows[i]['via'], rows[i]['pct_of_tv'],
-         rows[i]['depth'], rows[i]['weight'], rows[i]['iv'],
-         rows[i].get('remaining_hours', 0.0), rows[i].get('future_discount', 1.0)]
-        for i in range(len(rows))
-    ]
+    time_settings = ConfigManager.get_time_settings()
+    shares = [r.get('pct_of_tv', 0.0) for r in rows]
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=vals, y=display_names,
+        x=shares, y=[_trunc(r['name']) for r in rows],
         orientation='h',
-        marker_color=colors,
-        text=bar_texts,
+        marker_color=[_VIA_COLORS.get(r['via'], '#6c757d') for r in rows],
+        text=[_format_share(s) for s in shares],
         textposition='outside',
         cliponaxis=False,
-        customdata=customdata,
-        hovertemplate=(
-            "<b>%{customdata[0]}</b><br>"
-            "Contribution: %{x:.2f} (%{customdata[2]:.1f}% of total value)<br>"
-            "Via: %{customdata[1]}<br>"
-            "Depth: %{customdata[3]}<br>"
-            "Weight: %{customdata[4]:.3f}<br>"
-            "Intrinsic value: %{customdata[5]:.2f}<br>"
-            "Required hours used for discount: %{customdata[6]:.1f}<br>"
-            "Future credit retained: %{customdata[7]:.1%}"
-            "<extra></extra>"
-        ),
+        customdata=[_contributor_hover(r, time_settings) for r in rows],
+        hovertemplate="%{customdata}<extra></extra>",
     ))
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor='#1a1d21',
         plot_bgcolor='#1a1d21',
         margin=dict(l=10, r=40, t=10, b=40),
-        xaxis_title="Contribution to Total Value",
+        xaxis=dict(title="Share of total value", ticksuffix="%"),
         yaxis=dict(automargin=True, ticksuffix="  "),
         showlegend=False,
         height=max(260, 30 * len(rows) + 80),
