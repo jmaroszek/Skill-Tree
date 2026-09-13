@@ -10,7 +10,7 @@ tuple — see the IDX constants there.
 import json as _json
 import time as _time
 
-from dash import html, Input, Output, State, no_update, ClientsideFunction
+from dash import html, Input, Output, State, ALL, no_update, ClientsideFunction
 
 from graph_manager import GraphManager
 from config import ConfigManager, SIDEBAR_WIDTH_NEG_PX
@@ -243,6 +243,25 @@ def register_sidebars_callbacks(app):
             except (ValueError, TypeError):
                 pass
         return no_update
+
+    # A card click selects its goal in Details. Selection only changes card
+    # decoration, so move the outline here instead of rebuilding the list.
+    # Rebuilt lists already carry it from render_goal_list's State.
+    app.clientside_callback(
+        """function(selected, ids, styles) {
+            return (ids || []).map(function(id, index) {
+                var style = Object.assign({}, (styles || [])[index] || {});
+                var active = id.index === selected;
+                style.border = active ? '2px solid #0d6efd' : '1px solid #495057';
+                style.backgroundColor = active ? '#2b3035' : '#212529';
+                return style;
+            });
+        }""",
+        Output({'type': 'goal-card', 'index': ALL}, 'style'),
+        Input('details-selected-node-store', 'data'),
+        Input({'type': 'goal-card', 'index': ALL}, 'id'),
+        State({'type': 'goal-card', 'index': ALL}, 'style'),
+    )
 
     # --- Filters Sidebar Toggle (CLIENTSIDE) ---
     # Handled entirely in the browser via assets/filters_sidebar.js. Previously

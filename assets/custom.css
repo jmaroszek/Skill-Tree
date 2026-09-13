@@ -257,6 +257,11 @@ select.form-select option {
     overflow-x: hidden;
 }
 
+/* A goal card opens the goal in Details (goals_sidebar.js). */
+.goal-card {
+    cursor: pointer;
+}
+
 /* Goal drag-and-drop styles */
 .goal-sortable-ghost {
     opacity: 0.3;
