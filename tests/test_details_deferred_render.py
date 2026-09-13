@@ -3,9 +3,11 @@
 import inspect
 
 import dash
+from dash import html
 from dash.development.base_component import Component
 
 import details_callbacks
+from config import ConfigManager
 from details_callbacks import register_details_callbacks
 from event_callbacks import register_event_callbacks
 from graph_manager import GraphManager
@@ -62,6 +64,124 @@ def test_empty_suggestions_do_not_rebuild_after_selection():
     app = _app_with(register_details_callbacks)
     spec = _spec_for_output(app, "details-suggestions-container.children")
     assert "details-selected-node-store" not in _input_ids(spec)
+    assert _input_ids(spec) >= {
+        "graph-version-store",
+        "filter-context",
+        "filter-subcontext",
+        "filter-done",
+        "filter-value",
+        "filter-interest",
+        "filter-time",
+        "filter-time-unit",
+        "filter-difficulty",
+        "filter-node-type",
+        "filter-dormant",
+        "settings-save-status",
+    }
+
+
+def test_details_suggestion_is_a_native_button_with_useful_metadata():
+    from details_layout import _build_suggestion_row
+
+    node = Node(
+        name="Sleep", type="Goal", description="",
+        value=8, time_o=1, time_m=2, time_p=3,
+        interest=8, difficulty=4, status="Blocked",
+        context="Self", subcontext="Health",
+    )
+
+    row = _build_suggestion_row(node, remaining_count=7)
+
+    assert type(row).__name__ == "Button"
+    assert row.type == "button"
+    assert row.className == "details-suggestion-row"
+    assert row.id == {"type": "details-suggestion-item", "index": "Sleep"}
+    assert "7 required" in getattr(row, "aria-label")
+    copy, badge = row.children
+    assert copy.children[0].children == "Sleep"
+    assert copy.children[1].children == "Goal · 7 required · Self > Health"
+    assert badge.children == "Blocked"
+
+
+def test_details_suggestions_use_explore_copy_and_filter_aware_empty_state():
+    from details_layout import build_details_suggestions
+
+    row = html.Div("Area")
+    section = build_details_suggestions([], [row])[0]
+    assert section.children[0].children == "Explore"
+    assert build_details_suggestions([], []).children == "No areas to explore yet."
+    assert build_details_suggestions(
+        [], [], filters_active=True
+    ).children == "No areas match the current filters."
+
+    sections = build_details_suggestions([row], [], filters_active=True)
+    assert sections[1].children[0].children == "Explore"
+    assert sections[1].children[1].children[0].children == (
+        "No areas match the current filters."
+    )
+
+
+def test_empty_suggestion_callback_keeps_priorities_pinned_and_filters_explore():
+    manager = details_callbacks.graph_manager
+    for node in (
+        Node(
+            name="Priority", type="Goal", description="", value=8,
+            time_o=1, time_m=2, time_p=3, interest=8, difficulty=5,
+            status="Open", context="Mind",
+        ),
+        Node(
+            name="Priority child", type="Learn", description="", value=8,
+            time_o=1, time_m=2, time_p=3, interest=8, difficulty=5,
+            status="Open", context="Mind",
+        ),
+        Node(
+            name="Explore", type="Goal", description="", value=7,
+            time_o=1, time_m=2, time_p=3, interest=7, difficulty=5,
+            status="Open", context="Body",
+        ),
+        Node(
+            name="Explore child", type="Learn", description="", value=7,
+            time_o=1, time_m=2, time_p=3, interest=7, difficulty=5,
+            status="Open", context="Body",
+        ),
+    ):
+        manager.add_node(node)
+    manager.add_edge("Priority child", "Priority", EDGE_NEEDS_HARD)
+    manager.add_edge("Explore child", "Explore", EDGE_NEEDS_HARD)
+    ConfigManager.set_priority_goals(["Priority"])
+
+    app = _app_with(register_details_callbacks)
+    callback = _raw_callback(_spec_for_output(
+        app, "details-suggestions-container.children"))
+
+    def suggestion_names(component):
+        names = []
+        stack = [component]
+        while stack:
+            current = stack.pop()
+            if isinstance(current, (list, tuple)):
+                stack.extend(current)
+                continue
+            if not isinstance(current, Component):
+                continue
+            component_id = getattr(current, "id", None)
+            if (isinstance(component_id, dict)
+                    and component_id.get("type") == "details-suggestion-item"):
+                names.append(component_id["index"])
+            children = getattr(current, "children", None)
+            if children is not None:
+                stack.append(children)
+        return set(names)
+
+    def render(context):
+        return callback(
+            0, 0, context, [], [], 1, 1, None, "hours", 10, [], [], ""
+        )
+
+    assert suggestion_names(render([])) == {"Priority", "Explore"}
+    filtered = render(["Mind"])
+    assert suggestion_names(filtered) == {"Priority"}
+    assert "No areas match the current filters." in str(filtered)
 
 
 def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):

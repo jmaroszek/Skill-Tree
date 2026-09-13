@@ -1,168 +1,275 @@
-"""Tests for get_container_suggestions — the Details-tab empty-state list.
-
-Containers here means ``Node.is_container`` — any node with at least one
-inherited mode (ratings or time). The helper feeds the Details tab's "Top
-Recommendations" section, which surfaces structurally rich nodes worth
-examining, not leaf actions.
-"""
+"""Behavioral tests for the Details empty-state Explore ranking."""
 
 from typing import Any
+
 import pytest
-import database
-from models import Node, EDGE_NEEDS_HARD
-from graph_manager import GraphManager
-from config import ConfigManager
+
+from callback_helpers import rank_details_suggestions
+from models import (
+    EDGE_NEEDS_HARD,
+    EDGE_NEEDS_SOFT,
+    STATUS_DONE,
+    Node,
+)
 
 
-@pytest.fixture(autouse=True)
-def temp_database(monkeypatch, tmp_path):
-    tmp_db_path = str(tmp_path / "test_skilltree.db")
-    monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
-    yield tmp_db_path
+HYPERPARAMS = {
+    "w_v": 1.0,
+    "w_i": 0.0,
+    "value_exponent": 1.0,
+    "d_H": 1.0,
+    "d_S": 0.4,
+    "cross_context_mult": 1.0,
+    "suggestion_context_premium": 0.0,
+    "suggestion_subcontext_premium": 0.0,
+    "context_weights": {},
+}
 
 
-@pytest.fixture
-def mgr():
-    return GraphManager()
-
-
-def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
-    defaults: dict[str, Any] = dict(
-        name=name, type="Learn", description="A test node",
-        value=5, time_o=1.0, time_m=2.0, time_p=4.0,
-        interest=5, difficulty=5, status="Open", context="Mind",
-    )
+def _node(name: str, **overrides: Any) -> Node:
+    defaults: dict[str, Any] = {
+        "name": name,
+        "type": "Learn",
+        "description": "A test node",
+        "value": 5,
+        "time_o": 1.0,
+        "time_m": 2.0,
+        "time_p": 4.0,
+        "interest": 5,
+        "difficulty": 5,
+        "status": "Open",
+        "context": "Mind",
+    }
     defaults.update(overrides)
     return Node(**defaults)
 
 
-def _build_container_with_children(mgr, container_name="Container", n_children=3,
-                                    container_type="Learn"):
-    """Create a container (time_mode='inherited') with N hard-prereq children."""
-    mgr.add_node(_make_node(container_name, type=container_type,
-                            time_mode='inherited'))
-    for i in range(n_children):
-        child_name = f"{container_name}_Child{i}"
-        mgr.add_node(_make_node(child_name, value=8, interest=8))
-        mgr.add_edge(child_name, container_name, EDGE_NEEDS_HARD)
+def _container(name: str, **overrides: Any) -> Node:
+    overrides.setdefault("time_mode", "inherited")
+    overrides.setdefault("value_mode", "inherited")
+    return _node(name, **overrides)
 
 
-class TestGetContainerSuggestions:
+def _edge(source: str, target: str, edge_type: str = EDGE_NEEDS_HARD):
+    return {"source": source, "target": target, "type": edge_type}
 
-    def test_returns_only_containers(self, mgr):
-        """Only nodes with time_mode='inherited' are returned."""
-        from next_callbacks import get_container_suggestions
-        _build_container_with_children(mgr, "TopGoal")
-        mgr.add_node(_make_node("PlainLeaf", value=9, interest=9))
 
-        results = get_container_suggestions(count=10)
-        names = [n.name for n in results]
-        assert "TopGoal" in names
-        assert "PlainLeaf" not in names
-        for n in results:
-            assert n.time_mode == 'inherited'
+def _rank(nodes, edges, **overrides):
+    return rank_details_suggestions(
+        nodes, edges, HYPERPARAMS, count=overrides.pop("count", 10),
+        **overrides,
+    )
 
-    def test_ranked_by_total_value(self, mgr):
-        """Container with richer descendant cascade ranks higher."""
-        from next_callbacks import get_container_suggestions
-        _build_container_with_children(mgr, "Rich", n_children=4)
-        _build_container_with_children(mgr, "Sparse", n_children=1)
 
-        results = get_container_suggestions(count=10)
-        names = [n.name for n in results]
-        assert names.index("Rich") < names.index("Sparse")
+def test_returns_all_container_modes_but_not_leaf_or_milestone():
+    strict = _container("Strict")
+    value_only = _container("ValueOnly", time_mode="manual")
+    goal = _node("Goal", type="Goal", value_mode="manual")
+    milestone = _node("Checkpoint", type="Milestone")
+    children = [
+        _node("Strict child"),
+        _node("Value child"),
+        _node("Goal child"),
+        _node("Milestone child"),
+        _node("Plain leaf"),
+    ]
+    nodes = [strict, value_only, goal, milestone, *children]
+    edges = [
+        _edge("Strict child", "Strict"),
+        _edge("Value child", "ValueOnly"),
+        _edge("Goal child", "Goal"),
+        _edge("Milestone child", "Checkpoint"),
+    ]
 
-    def test_excludes_done_containers(self, mgr):
-        """Containers with status=Done are filtered out."""
-        from next_callbacks import get_container_suggestions
-        mgr.add_node(_make_node("DoneContainer", time_mode='inherited',
-                                status="Done"))
-        _build_container_with_children(mgr, "OpenContainer")
+    names = [suggestion.node.name for suggestion in _rank(nodes, edges)]
 
-        results = get_container_suggestions(count=10)
-        names = [n.name for n in results]
-        assert "DoneContainer" not in names
-        assert "OpenContainer" in names
+    assert set(names) == {"Strict", "ValueOnly", "Goal"}
+    assert "Checkpoint" not in names
+    assert "Plain leaf" not in names
 
-    def test_excludes_dormant(self, mgr):
-        """Dormant containers are filtered out."""
-        from next_callbacks import get_container_suggestions
-        mgr.add_node(_make_node("Dormant", time_mode='inherited', dormant=1))
-        _build_container_with_children(mgr, "Active")
 
-        results = get_container_suggestions(count=10)
-        names = [n.name for n in results]
-        assert "Dormant" not in names
-        assert "Active" in names
+def test_ranks_by_incoming_required_scope_not_forward_unlocks():
+    """Regression: the old forward scorer tied these and chose alphabetically."""
+    rich = _container("ZRich")
+    sparse = _container("ASparse")
+    rich_children = [_node(f"Rich child {index}", value=8) for index in range(4)]
+    sparse_child = _node("Sparse child", value=8)
+    nodes = [sparse, sparse_child, rich, *rich_children]
+    edges = [
+        *[_edge(child.name, rich.name) for child in rich_children],
+        _edge(sparse_child.name, sparse.name),
+    ]
 
-    def test_respects_exclude_names(self, mgr):
-        """Names in exclude_names are filtered out (for dedup against pinned/priority)."""
-        from next_callbacks import get_container_suggestions
-        _build_container_with_children(mgr, "Pinned")
-        _build_container_with_children(mgr, "Other")
+    results = _rank(nodes, edges)
 
-        results = get_container_suggestions(count=10, exclude_names={"Pinned"})
-        names = [n.name for n in results]
-        assert "Pinned" not in names
-        assert "Other" in names
+    assert [result.node.name for result in results][:2] == ["ZRich", "ASparse"]
+    assert results[0].remaining_count == 4
+    assert results[0].scope_value == pytest.approx(32.0)
+    assert results[0].scope_value > results[1].scope_value
 
-    def test_count_caps_results(self, mgr):
-        """count limits the number of returned containers."""
-        from next_callbacks import get_container_suggestions
-        for i in range(7):
-            _build_container_with_children(mgr, f"C{i}", n_children=2)
 
-        results = get_container_suggestions(count=3)
-        assert len(results) == 3
+def test_uses_only_hard_prerequisites_to_define_scope():
+    hard = _container("Hard scope")
+    soft_only = _container("Soft only")
+    hard_child = _node("Hard child", value=7)
+    soft_child = _node("Soft child", value=10)
+    nodes = [hard, soft_only, hard_child, soft_child]
+    edges = [
+        _edge(hard_child.name, hard.name),
+        _edge(soft_child.name, hard.name, EDGE_NEEDS_SOFT),
+        _edge(soft_child.name, soft_only.name, EDGE_NEEDS_SOFT),
+    ]
 
-    def test_total_value_populated(self, mgr):
-        """Returned containers have a total_value attribute set by scoring."""
-        from next_callbacks import get_container_suggestions
-        _build_container_with_children(mgr, "G")
+    results = _rank(nodes, edges)
 
-        results = get_container_suggestions(count=10)
-        assert len(results) >= 1
-        for n in results:
-            assert hasattr(n, 'total_value')
-            assert n.total_value > 0
+    assert [result.node.name for result in results] == ["Hard scope"]
+    assert results[0].scope_value == pytest.approx(7.0)
+    assert results[0].remaining_count == 1
 
-    def test_strict_container_included(self, mgr):
-        """Pure container (both modes inherited) is surfaced."""
-        from next_callbacks import get_container_suggestions
-        mgr.add_node(_make_node("Strict", time_mode='inherited',
-                                value_mode='inherited'))
-        mgr.add_node(_make_node("Strict_Child", value=8, interest=8))
-        mgr.add_edge("Strict_Child", "Strict", EDGE_NEEDS_HARD)
 
-        results = get_container_suggestions(count=10)
-        names = [n.name for n in results]
-        assert "Strict" in names
+def test_excludes_inactive_roots_and_zeroes_completed_prerequisite_value():
+    active = _container("Active")
+    done_root = _container("Done root", status=STATUS_DONE)
+    dormant_root = _container("Dormant root", dormant=1)
+    done_child = _node("Done child", value=10, status=STATUS_DONE)
+    open_child = _node("Open child", value=4)
+    nodes = [active, done_root, dormant_root, done_child, open_child]
+    edges = [
+        _edge(done_child.name, active.name),
+        _edge(open_child.name, active.name),
+        _edge(open_child.name, done_root.name),
+        _edge(open_child.name, dormant_root.name),
+    ]
 
-    def test_value_only_inherited_container_included(self, mgr):
-        """A node with ONLY ratings inherited (own time) is now a container
-        under the broadened is_container definition, so it surfaces here.
-        The previous time_mode-only filter would have missed it."""
-        from next_callbacks import get_container_suggestions
-        mgr.add_node(_make_node("ValOnly", value_mode='inherited',
-                                time_mode='manual'))
-        mgr.add_node(_make_node("ValOnly_Child", value=8, interest=8))
-        mgr.add_edge("ValOnly_Child", "ValOnly", EDGE_NEEDS_HARD)
+    results = _rank(nodes, edges)
 
-        results = get_container_suggestions(count=10)
-        names = [n.name for n in results]
-        assert "ValOnly" in names
+    assert [result.node.name for result in results] == ["Active"]
+    assert results[0].remaining_count == 1
+    assert results[0].total_count == 2
+    assert results[0].scope_value == pytest.approx(4.0)
 
-    def test_milestones_excluded(self, mgr):
-        """Milestones with time_mode='inherited' are excluded — they are
-        single-event checkpoints, not capacity containers."""
-        from next_callbacks import get_container_suggestions
-        mgr.add_node(_make_node("ChkPoint", type="Milestone",
-                                time_mode='inherited', value=9, interest=9))
-        _build_container_with_children(mgr, "RealGoal", container_type="Goal")
 
-        results = get_container_suggestions(count=10)
-        names = [n.name for n in results]
-        assert "ChkPoint" not in names
-        assert "RealGoal" in names
+def test_respects_filtered_candidates_and_visible_priority_seeds():
+    a = _container("A")
+    b = _container("B")
+    a_child = _node("A child")
+    b_child = _node("B child")
+    nodes = [a, b, a_child, b_child]
+    edges = [_edge(a_child.name, a.name), _edge(b_child.name, b.name)]
+
+    filtered = _rank(nodes, edges, candidate_names={"A"})
+    seeded = _rank(nodes, edges, seed_names=("A",))
+
+    assert [result.node.name for result in filtered] == ["A"]
+    assert [result.node.name for result in seeded] == ["B"]
+
+
+def test_direct_parent_child_repeat_waits_for_independent_branch():
+    parent = _container("Parent")
+    child = _container("Child")
+    independent = _container("Independent")
+    deep_leaf = _node("Deep leaf", value=10)
+    parent_leaf = _node("Parent leaf", value=10)
+    independent_leaf = _node("Independent leaf", value=1)
+    nodes = [
+        parent, child, independent, deep_leaf, parent_leaf, independent_leaf,
+    ]
+    edges = [
+        _edge(deep_leaf.name, child.name),
+        _edge(child.name, parent.name),
+        _edge(parent_leaf.name, parent.name),
+        _edge(independent_leaf.name, independent.name),
+    ]
+
+    names = [
+        result.node.name for result in _rank(nodes, edges, count=2)
+    ]
+
+    assert names == ["Parent", "Independent"]
+
+
+def test_nested_fallback_can_fill_list_when_no_independent_branch_remains():
+    parent = _container("Parent")
+    child = _container("Child")
+    deep_leaf = _node("Deep leaf", value=10)
+    parent_leaf = _node("Parent leaf", value=10)
+    nodes = [parent, child, deep_leaf, parent_leaf]
+    edges = [
+        _edge(deep_leaf.name, child.name),
+        _edge(child.name, parent.name),
+        _edge(parent_leaf.name, parent.name),
+    ]
+
+    names = [result.node.name for result in _rank(nodes, edges, count=2)]
+
+    assert names == ["Parent", "Child"]
+
+
+def test_priority_hierarchy_seed_steers_first_choice_to_another_branch():
+    parent = _container("Priority parent")
+    child = _container("Nested child")
+    independent = _container("Independent")
+    deep_leaf = _node("Deep leaf", value=10)
+    independent_leaf = _node("Independent leaf", value=1)
+    nodes = [parent, child, independent, deep_leaf, independent_leaf]
+    edges = [
+        _edge(deep_leaf.name, child.name),
+        _edge(child.name, parent.name),
+        _edge(independent_leaf.name, independent.name),
+    ]
+
+    results = _rank(
+        nodes, edges, count=1, seed_names=(parent.name,)
+    )
+
+    assert [result.node.name for result in results] == ["Independent"]
+
+
+def test_configured_context_variety_can_beat_a_close_repeat():
+    a_best = _container("A best", context="Mind")
+    a_next = _container("A next", context="Mind")
+    b = _container("B", context="Body")
+    a_best_child = _node("A best child", value=10, context="Mind")
+    a_next_child = _node("A next child", value=9, context="Mind")
+    b_child = _node("B child", value=6, context="Body")
+    nodes = [a_best, a_next, b, a_best_child, a_next_child, b_child]
+    edges = [
+        _edge(a_best_child.name, a_best.name),
+        _edge(a_next_child.name, a_next.name),
+        _edge(b_child.name, b.name),
+    ]
+    hyperparams = {
+        **HYPERPARAMS,
+        "suggestion_context_premium": 100.0,
+        "suggestion_subcontext_premium": 100.0,
+    }
+
+    results = rank_details_suggestions(
+        nodes, edges, hyperparams, count=2
+    )
+
+    assert [result.node.name for result in results] == ["A best", "B"]
+
+
+def test_count_limit_and_ties_are_deterministic():
+    alpha = _container("Alpha")
+    zebra = _container("Zebra")
+    alpha_child = _node("Alpha child", value=5)
+    zebra_child = _node("Zebra child", value=5)
+    edges = [
+        _edge(alpha_child.name, alpha.name),
+        _edge(zebra_child.name, zebra.name),
+    ]
+
+    forward = _rank(
+        [zebra, zebra_child, alpha, alpha_child], edges, count=1
+    )
+    reverse = _rank(
+        [alpha_child, alpha, zebra_child, zebra], edges, count=1
+    )
+
+    assert [result.node.name for result in forward] == ["Alpha"]
+    assert [result.node.name for result in reverse] == ["Alpha"]
+    assert _rank(
+        [alpha, alpha_child], [_edge(alpha_child.name, alpha.name)], count=0
+    ) == []

@@ -765,59 +765,47 @@ def _attribute_row(label, value_id):
     ], className="d-flex align-items-center mb-1")
 
 
-def _build_suggestion_row(node_name, badge_text, badge_color,
-                          badge_id=None, tooltip_text=None):
-    """One clickable suggestion row in the Details empty state.
+def _build_suggestion_row(node, remaining_count=0, priority_rank=None):
+    """One keyboard-accessible starting-point row in the Details empty state."""
+    context = " > ".join(
+        part for part in (node.context, node.subcontext) if part
+    )
+    remaining_text = ("Ready" if remaining_count == 0 else
+                      f"{remaining_count} required")
+    metadata = [node.type]
+    # Explore rows carry a visible status badge; Priority rows use that corner
+    # for their rank, so retain status in the text line instead.
+    if priority_rank is not None:
+        metadata.append(node.status)
+    metadata.append(remaining_text)
+    if context:
+        metadata.append(context)
 
-    Optional badge_id + tooltip_text attach a hover tooltip (0.7s delay) to the
-    badge — used for recommendation score badges.
-    """
-    # Force white text everywhere for visual consistency — overrides
-    # Bootstrap's default dark-on-yellow for warning badges.
-    badge_style = {"fontSize": "0.7rem", "color": "#ffffff"}
-    badge_kwargs = {"id": badge_id} if badge_id else {}
-    if badge_color == "pink":
-        badge_color = "#e83e8c"
-    if badge_color.startswith("#"):
-        badge_style.update({"backgroundColor": badge_color})
-        badge = html.Span(badge_text, className="badge",
-                          style=badge_style, **badge_kwargs)
-    else:
-        badge = dbc.Badge(badge_text, color=badge_color,
-                          style=badge_style, **badge_kwargs)
+    corner_name = "Priority" if priority_rank is not None else node.status
+    corner_text = str(priority_rank) if priority_rank is not None else node.status
+    aria_bits = ([f"Priority {priority_rank}"]
+                 if priority_rank is not None else []) + metadata
+    aria_label = f"View {node.name}. " + ", ".join(aria_bits)
 
-    children = [
-        html.Span(node_name, style={"fontWeight": "500", "fontSize": "0.9rem",
-                                     "overflow": "hidden",
-                                     "textOverflow": "ellipsis",
-                                     "whiteSpace": "nowrap",
-                                     "flex": "1", "minWidth": "0"}),
-        badge,
-    ]
-    if badge_id and tooltip_text:
-        children.append(dbc.Tooltip(
-            tooltip_text, target=badge_id, placement="left",
-            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-        ))
-
-    return html.Div(
-        children,
-        id={"type": "details-suggestion-item", "index": node_name},
-        className="d-flex align-items-center justify-content-between",
-        style={
-            "cursor": "pointer",
-            "border": "1px solid #495057",
-            "backgroundColor": "#212529",
-            "borderRadius": "4px",
-            "padding": "8px 12px",
-            "marginBottom": "6px",
-            "gap": "8px",
-        },
+    return html.Button(
+        [
+            html.Span([
+                html.Span(node.name, className="details-suggestion-name"),
+                html.Small(" · ".join(metadata),
+                           className="details-suggestion-meta"),
+            ], className="details-suggestion-copy"),
+            html.Span(corner_text, className="badge details-suggestion-badge",
+                      style=badge_style(corner_name, font_size="0.68rem")),
+        ],
+        id={"type": "details-suggestion-item", "index": node.name},
+        type="button",
+        className="details-suggestion-row",
+        **{"aria-label": aria_label},
     )
 
 
-def build_details_suggestions(goal_rows, rec_rows):
-    """Assemble the Details empty-state suggestion list from pre-built rows."""
+def build_details_suggestions(goal_rows, explore_rows, filters_active=False):
+    """Assemble the Details empty-state starting points from pre-built rows."""
     sections = []
 
     def _section(title, rows):
@@ -831,11 +819,18 @@ def build_details_suggestions(goal_rows, rec_rows):
 
     if goal_rows:
         sections.append(_section("Priority Goals", goal_rows))
-    if rec_rows:
-        sections.append(_section("Top Recommendations", rec_rows))
+    if explore_rows:
+        sections.append(_section("Explore", explore_rows))
+    elif goal_rows and filters_active:
+        sections.append(_section("Explore", [
+            html.P("No areas match the current filters.",
+                   className="text-muted small mb-0")
+        ]))
 
     if not sections:
-        return html.P("No suggestions yet — add a priority goal to see one here.",
+        message = ("No areas match the current filters."
+                   if filters_active else "No areas to explore yet.")
+        return html.P(message,
                       className="text-muted small text-center mt-3")
     return sections
 

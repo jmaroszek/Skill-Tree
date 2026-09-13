@@ -293,6 +293,13 @@ style={
 }
 ```
 
+Clickable cards must use a native `html.Button(type="button")` when the whole
+surface performs one action. Reset its browser chrome in a scoped class, retain
+the standard card colors above, and provide a visible `:focus-visible` outline.
+The Details empty-state pattern is `.details-suggestion-row`: a compact primary
+label, one muted metadata line, and one semantic corner badge. Do not put an
+unexplained normalized score in the badge.
+
 ## Inputs
 
 - Standard: `dbc.Input(type="text")` — uses Bootstrap DARKLY defaults

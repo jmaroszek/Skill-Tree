@@ -486,13 +486,13 @@ The Details tab is empty by default — since it doesn't know what you want the 
 
 <table>
   <tr>
-    <td valign="top" style="padding-right: 30px;"><img src="../images/details-suggestions.png" alt="The filters sidebar" width="800"></td>
+    <td valign="top" style="padding-right: 30px;"><img src="../images/details-suggestions.png" alt="Details starting-point suggestions" width="800"></td>
     <td valign="top">
 
 | Path | How it works |
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
-| Suggestions | When nothing is selected, the left panel shows a suggestion list. There are two sections: your top three priority goals, and the top five time [containers](#containers) with the highest total value. |
+| Suggestions | When nothing is selected, the left panel shows two kinds of starting point: up to three unfinished **Priority Goals**, followed by **Explore** areas chosen for valuable unfinished required work. Explore favors useful mid-sized scopes, balances contexts, avoids redundant parent/child choices while independent areas are available, and honors the active filters. Each row shows its type, status or priority rank, required-work count, and context instead of an abstract score. |
 | Context Menu | Right-click a node and pick **View Details** in the context menu. The app jumps here with the project loaded.|
 
 </td>

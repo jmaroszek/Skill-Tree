@@ -10,7 +10,6 @@ from dash import Input, Output, State, ALL, ClientsideFunction
 from graph_manager import GraphManager
 from config import ConfigManager
 from callback_helpers import get_trigger_id, format_now_nodes_section, format_suggestions_table, build_filters
-from models import STATUS_DONE
 
 manager = GraphManager()
 
@@ -101,39 +100,6 @@ def get_suggestions(filters=None, count=5):
 
     return NextRows([node for node, _ in steps] + ranked[:max(0, count)],
                     pinned_steps)
-
-
-@database.snapshot_read
-def get_container_suggestions(count=5, exclude_names=None):
-    """Retrieve top-N container nodes ranked by total_value.
-
-    A "container" here is ``Node.is_container`` — any node with at least
-    one inherited mode (ratings or time). The intent is "structurally rich
-    nodes worth examining in the Details tab," not "what to do next."
-
-    Milestones are excluded: per the framework they are single-event
-    checkpoints, not capacity containers — the work happens upstream
-    in their prereq Goals, and Milestones offer no internal structure
-    worth examining.
-
-    Also excludes Done and dormant nodes, plus any names in
-    ``exclude_names`` (used by the Details empty state to dedupe
-    against the priority-goal section).
-    """
-    exclude_names = set(exclude_names or [])
-    nodes = manager.get_all_nodes()
-    scored = manager.calculate_priority_scores(nodes)
-
-    containers = [
-        n for n in scored
-        if n.is_container
-        and n.type != 'Milestone'
-        and n.status != STATUS_DONE
-        and not getattr(n, 'dormant', False)
-        and n.name not in exclude_names
-    ]
-    containers.sort(key=lambda n: getattr(n, 'total_value', 0.0), reverse=True)
-    return containers[:count]
 
 
 def register_next_callbacks(app):

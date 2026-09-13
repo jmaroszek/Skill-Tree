@@ -23,7 +23,7 @@ from callback_helpers import (render_link_rows, render_alias_rows,
                               alias_rows_label, update_alias_rows,
                               strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
-                              is_filters_active,
+                              is_filters_active, rank_details_suggestions,
                               build_explain_summary, build_explain_chart,
                               format_value_rank,
                               habit_to_hours, compute_habit_time_omp,
@@ -927,49 +927,85 @@ def register_details_callbacks(app):
             return no_update
         return triggered["index"]
 
-    # --- Empty-state suggestions: priority goals + top recs ---
+    # --- Empty-state starting points: priority goals + scoped exploration ---
     @app.callback(
         Output("details-suggestions-container", "children"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
+        Input("filter-context", "value"),
+        Input("filter-subcontext", "value"),
+        Input("filter-done", "value"),
+        Input("filter-value", "value"),
+        Input("filter-interest", "value"),
+        Input("filter-time", "value"),
+        Input("filter-time-unit", "value"),
+        Input("filter-difficulty", "value"),
+        Input("filter-node-type", "value"),
+        Input("filter-dormant", "value"),
+        Input("settings-save-status", "children"),
     )
-    def build_empty_state_suggestions(_refresh, _version):
-        from next_callbacks import get_container_suggestions
-
-        seen = set()
-
+    @database.snapshot_read
+    def build_empty_state_suggestions(
+            _refresh, _version, f_context, f_subcontext, f_done,
+            f_value, f_interest, f_time, f_time_unit, f_difficulty,
+            f_node_types, f_show_dormant, _settings):
+        # Priority Goals are explicit pins, so filters do not hide them. The
+        # Explore section below is discovery-oriented and does honor the
+        # active global filters.
+        all_nodes = graph_manager.get_all_nodes()
+        nodes_by_name = {node.name: node for node in all_nodes}
+        priority_names = []
         goal_rows = []
-        for i, goal_name in enumerate(ConfigManager.get_priority_goals()[:3]):
+        seen = set()
+        for rank, goal_name in enumerate(
+                ConfigManager.get_priority_goals()[:3], start=1):
             if goal_name in seen:
                 continue
-            goal_node = graph_manager.get_node(goal_name)
-            if not goal_node or goal_node.dormant:
+            goal_node = nodes_by_name.get(goal_name)
+            if not goal_node or goal_node.status == STATUS_DONE:
                 continue
+            hard_scope = graph_manager.get_goal_subtree(
+                goal_name, edge_types=(EDGE_NEEDS_HARD,))
+            remaining_count = sum(
+                child_name in nodes_by_name
+                and nodes_by_name[child_name].status != STATUS_DONE
+                for child_name in hard_scope
+            )
             goal_rows.append(_build_suggestion_row(
-                goal_name, str(i + 1), "warning"))
+                goal_node, remaining_count=remaining_count,
+                priority_rank=rank))
+            priority_names.append(goal_name)
             seen.add(goal_name)
 
-        rec_nodes = get_container_suggestions(count=5, exclude_names=seen)
-        for n in rec_nodes:
-            seen.add(n.name)
-
-        max_tv = max((getattr(n, "total_value", 0) for n in rec_nodes),
-                     default=0)
-        rec_rows = []
-        tooltip_text = ("Normalized total value (0–100) from the priority "
-                        "scoring algorithm — cascade-driven score for this "
-                        "container.")
-        for i, n in enumerate(rec_nodes):
-            raw = getattr(n, "total_value", 0)
-            normalized = round((raw / max_tv) * 100) if max_tv else 0
-            rec_rows.append(_build_suggestion_row(
-                n.name, str(normalized),
-                badge_style(STATUS_OPEN)["backgroundColor"],
-                badge_id=f"details-sugg-rec-badge-{i}",
-                tooltip_text=tooltip_text,
-            ))
-
-        return build_details_suggestions(goal_rows, rec_rows)
+        global_filters = build_filters(
+            f_context, f_subcontext, f_done, f_value, f_interest, f_time,
+            f_difficulty, f_node_types, f_time_unit=f_time_unit,
+            f_show_dormant=f_show_dormant)
+        eligible_names = {
+            node.name for node in graph_manager.filter_nodes(
+                all_nodes, global_filters)
+        }
+        hyperparams = ConfigManager.get_hyperparams()
+        hyperparams["context_weights"] = ConfigManager.get_context_weights()
+        explore = rank_details_suggestions(
+            all_nodes, graph_manager.get_edges(), hyperparams,
+            count=5, candidate_names=eligible_names,
+            seed_names=priority_names,
+        )
+        explore_rows = [
+            _build_suggestion_row(
+                suggestion.node,
+                remaining_count=suggestion.remaining_count,
+            )
+            for suggestion in explore
+        ]
+        filters_active = is_filters_active(
+            node_type=f_node_types, context=f_context,
+            subcontext=f_subcontext, value=f_value, interest=f_interest,
+            difficulty=f_difficulty, time=f_time, done=f_done,
+        )
+        return build_details_suggestions(
+            goal_rows, explore_rows, filters_active=filters_active)
 
     # --- Suggestion Click → Select that node in Details ---
     @app.callback(

@@ -7,7 +7,9 @@ the callback registration files focused on Dash I/O wiring.
 
 import json
 import logging
-from dataclasses import dataclass
+import math
+from collections import Counter
+from dataclasses import dataclass, replace
 import database
 
 import dash
@@ -18,7 +20,8 @@ import plotly.graph_objects as go
 logger = logging.getLogger(__name__)
 
 from config import BADGE_PALETTE, ConfigManager, badge_style
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from models import (Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS,
+                    STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE)
 
 
 SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -498,6 +501,253 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
         except (ValueError, TypeError) as e:
             logger.warning("Invalid max_difficulty filter (%r): %s", f_difficulty, e)
     return filters
+
+
+# Details is an inspection surface, not another task recommender. These two
+# reference sizes make its empty-state Explore list prefer a useful local view:
+# a one-child header is usually too thin, while an umbrella containing hundreds
+# of required nodes is usually better entered through a more focused child.
+_DETAILS_SCOPE_RAMP_NODES = 3.0
+_DETAILS_SCOPE_SATURATION_NODES = 24.0
+
+
+@dataclass(frozen=True)
+class DetailsSuggestion:
+    """One hierarchy-aware starting point for the Details tab."""
+
+    node: Node
+    remaining_count: int
+    total_count: int
+    scope_value: float
+    exploration_merit: float
+    selection_score: float
+
+
+@dataclass(frozen=True)
+class _DetailsCandidate:
+    node: Node
+    remaining_names: frozenset[str]
+    all_names: frozenset[str]
+    scope_value: float
+    exploration_merit: float
+
+
+def rank_details_suggestions(nodes, edges, hyperparams, count=5,
+                             candidate_names=None, seed_names=()):
+    """Choose focused, diverse containers whose required work is worth viewing.
+
+    The ordinary priority scorer follows prerequisite edges forward because it
+    asks what completing a node unlocks. Details asks the inverse question:
+    which container has a valuable *incoming* Hard-prerequisite scope to
+    inspect? We therefore invert Hard edges before computing value, zero the
+    intrinsic value of completed nodes, and count only unfinished required
+    descendants in the usefulness adjustment.
+
+    Scope gets a short ramp (thin one-child headers are less useful) and a
+    broad-size saturation (huge umbrella Goals do not crowd out focused local
+    views). Selection then reuses the configured context/subcontext premiums,
+    penalizes overlapping scopes, and avoids direct ancestor/descendant repeats
+    while another independent branch is available. ``seed_names`` are visible
+    rows such as Priority Goals; they shape diversity and overlap without being
+    returned again.
+    """
+    if count is None or count <= 0:
+        return []
+
+    from scoring import build_adjacency, total_value, variety_exponents
+
+    node_by_name = {node.name: node for node in nodes}
+    if not node_by_name:
+        return []
+    allowed_names = (set(candidate_names) if candidate_names is not None
+                     else set(node_by_name))
+    seed_names = [name for name in seed_names if name in node_by_name]
+    seed_set = set(seed_names)
+
+    # Reverse only required work. Soft edges are optional side quests and do
+    # not define the scope that a container must complete.
+    inverted_hard_edges = [
+        {"source": edge["target"], "target": edge["source"],
+         "type": EDGE_NEEDS_HARD}
+        for edge in edges
+        if edge.get("type") == EDGE_NEEDS_HARD
+        and edge.get("source") in node_by_name
+        and edge.get("target") in node_by_name
+    ]
+    hard_out, soft_out, synergies, _ = build_adjacency(
+        inverted_hard_edges, set(node_by_name))
+
+    closure_cache = {}
+
+    def hard_scope(root_name):
+        cached = closure_cache.get(root_name)
+        if cached is not None:
+            return cached
+        visited = set()
+        stack = list(hard_out.get(root_name, ()))
+        while stack:
+            name = stack.pop()
+            if name in visited:
+                continue
+            visited.add(name)
+            stack.extend(child for child in hard_out.get(name, ())
+                         if child not in visited)
+        result = frozenset(visited)
+        closure_cache[root_name] = result
+        return result
+
+    # Completed prerequisite value is useful for historical Goal analysis, but
+    # it is not a reason to open a Details view today. Preserve the nodes as
+    # graph conduits while making their intrinsic contribution zero.
+    unfinished_value_nodes = {
+        name: (replace(node, value_mode="inherited")
+               if node.status == STATUS_DONE else node)
+        for name, node in node_by_name.items()
+    }
+    route_memo = {}
+    w_v = hyperparams.get("w_v", 1.0)
+    w_i = hyperparams.get("w_i", 1.0)
+    d_h = hyperparams.get("d_H", 0.6)
+    d_s = hyperparams.get("d_S", 0.4)
+    cross_context_mult = hyperparams.get("cross_context_mult", 1.0)
+    value_exponent = hyperparams.get("value_exponent", 1.0)
+    context_weights = hyperparams.get("context_weights", {}) or {}
+
+    candidates = []
+    for node in nodes:
+        if (node.name not in allowed_names or node.name in seed_set
+                or not node.is_container or node.type == "Milestone"
+                or node.status == STATUS_DONE or getattr(node, "dormant", False)):
+            continue
+
+        all_required = hard_scope(node.name)
+        remaining = frozenset(
+            name for name in all_required
+            if node_by_name[name].status != STATUS_DONE
+        )
+        if not remaining:
+            continue
+
+        scope_value = total_value(
+            node.name, set(), unfinished_value_nodes,
+            hard_out, soft_out, synergies,
+            w_v, w_i, d_h, d_s,
+            0.0, 0.0, route_memo,
+            cross_context_mult=cross_context_mult,
+            value_exponent=value_exponent,
+            future_work_half_credit_hours=0.0,
+        )
+        if scope_value <= 0:
+            continue
+
+        remaining_count = len(remaining)
+        usefulness = (
+            (1.0 - math.exp(-remaining_count / _DETAILS_SCOPE_RAMP_NODES))
+            / (1.0 + remaining_count / _DETAILS_SCOPE_SATURATION_NODES)
+        )
+        context_weight = (context_weights.get(node.context, 1.0)
+                          if node.context else 1.0)
+        merit = scope_value * usefulness * context_weight
+        candidates.append(_DetailsCandidate(
+            node=node,
+            remaining_names=remaining | {node.name},
+            all_names=all_required | {node.name},
+            scope_value=scope_value,
+            exploration_merit=merit,
+        ))
+
+    if not candidates:
+        return []
+
+    def profile_for(name):
+        required = hard_scope(name)
+        remaining = frozenset(
+            child for child in required
+            if node_by_name[child].status != STATUS_DONE
+        )
+        return _DetailsCandidate(
+            node=node_by_name[name],
+            remaining_names=remaining | {name},
+            all_names=required | {name},
+            scope_value=0.0,
+            exploration_merit=0.0,
+        )
+
+    selected_profiles = [profile_for(name) for name in seed_names]
+    context_counts = Counter()
+    pair_counts = Counter()
+    for profile in selected_profiles:
+        context = profile.node.context
+        if context is not None:
+            context_counts[context] += 1
+            pair_counts[context, profile.node.subcontext] += 1
+
+    context_exp, subcontext_exp = variety_exponents(hyperparams)
+
+    def is_nested(candidate, other):
+        return (candidate.node.name in other.all_names
+                or other.node.name in candidate.all_names)
+
+    def overlap_ratio(candidate):
+        ratios = []
+        for other in selected_profiles:
+            smaller = min(len(candidate.remaining_names),
+                          len(other.remaining_names))
+            if smaller:
+                ratios.append(
+                    len(candidate.remaining_names & other.remaining_names)
+                    / smaller
+                )
+        return max(ratios, default=0.0)
+
+    remaining_candidates = list(candidates)
+    selected = []
+    while remaining_candidates and len(selected) < count:
+        independent = [
+            candidate for candidate in remaining_candidates
+            if not any(is_nested(candidate, other)
+                       for other in selected_profiles)
+        ]
+        pool = independent or remaining_candidates
+
+        ranked = []
+        for candidate in pool:
+            context = candidate.node.context
+            subcontext = candidate.node.subcontext
+            if context is None:
+                variety_divisor = 1.0
+            else:
+                variety_divisor = (
+                    (1 + context_counts[context]) ** context_exp
+                    * (1 + pair_counts[context, subcontext]) ** subcontext_exp
+                )
+            # A shared unfinished scope makes two rows less informative as a
+            # pair even when neither root is literally inside the other.
+            score = (candidate.exploration_merit / variety_divisor
+                     / (1.0 + overlap_ratio(candidate)))
+            ranked.append((candidate, score))
+
+        chosen, selection_score = min(
+            ranked,
+            key=lambda item: (-item[1], -item[0].exploration_merit,
+                              item[0].node.name),
+        )
+        selected.append(DetailsSuggestion(
+            node=chosen.node,
+            remaining_count=len(chosen.remaining_names) - 1,
+            total_count=len(chosen.all_names) - 1,
+            scope_value=chosen.scope_value,
+            exploration_merit=chosen.exploration_merit,
+            selection_score=selection_score,
+        ))
+        selected_profiles.append(chosen)
+        remaining_candidates.remove(chosen)
+        context = chosen.node.context
+        if context is not None:
+            context_counts[context] += 1
+            pair_counts[context, chosen.node.subcontext] += 1
+
+    return selected
 
 
 def is_filters_active(*, node_type=None, context=None, subcontext=None,
