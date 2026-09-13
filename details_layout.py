@@ -17,6 +17,7 @@ from config import (
     TOOLTIP_HIDE_DELAY_MS,
     badge_style,
 )
+from context_picker import build_single_context_picker
 from styles import stylesheet
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
@@ -1045,7 +1046,7 @@ def _build_add_node_modal(ted):
                                title="Add alias",
                                style={"fontSize": "1.2rem", "lineHeight": "1"}),
                 ], className="d-flex align-items-center mb-1"),
-                dbc.Input(id="details-add-name", type="text"),
+                dbc.Input(id="details-add-name", type="text", placeholder="Name node..."),
                 dbc.Collapse(
                     html.Div([
                         dbc.Label("Alias", id="details-add-aliases-label",
@@ -1060,16 +1061,17 @@ def _build_add_node_modal(ted):
                 dbc.Select(id="details-add-type", options=[], value="Learn"),
 
                 dbc.Label("Description", className="mt-2"),
-                dbc.Textarea(id="details-add-desc",
+                dbc.Textarea(id="details-add-desc", placeholder="Describe your project...",
                              style={"height": "80px", "resize": "vertical"}),
 
                 dbc.Label("Context", className="mt-2"),
-                dbc.Select(id="details-add-context",
-                           options=[{"label": "None", "value": ""}]),
-
-                dbc.Label("Subcontext", className="mt-2"),
-                dbc.Select(id="details-add-subcontext",
-                           options=[{"label": "None", "value": ""}]),
+                build_single_context_picker(
+                    "details-add-context-picker",
+                    "details-add-context",
+                    "details-add-subcontext",
+                    context_options=[{"label": "None", "value": ""}],
+                    subcontext_options=[{"label": "None", "value": ""}],
+                ),
 
                 html.Hr(className="my-2"),
                 html.Div([

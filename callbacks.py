@@ -3041,33 +3041,10 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
 
-    # Server-side: only update OPTIONS. Dash strips the layout's `value=` for
-    # any prop that has a server-side callback Output, which would nuke the
-    # memory-restored picks. By leaving `value` untouched here, the dropdown's
-    # value comes only from layout init + user interaction + clientside resets
-    # (below), so the persisted value sticks.
-    @app.callback(
-        Output('filter-subcontext', 'options'),
-        Input('filter-context', 'value'),
-    )
-    def update_filter_subcontexts(ctx):
-        if not ctx or ctx == "All" or (isinstance(ctx, list) and not ctx):
-            return []
-        contexts = ctx if isinstance(ctx, list) else [ctx]
-        all_subs = ConfigManager.get_subcontexts()
-        multi_context = len(contexts) > 1
-        opts = []
-        for c in contexts:
-            none_label = f"{c} > None" if multi_context else "None"
-            opts.append({"label": none_label, "value": f"{c}\x1f"})
-            for s in sort_subcontexts(all_subs.get(c, [])):
-                label = f"{c} > {s}" if multi_context else s
-                opts.append({"label": label, "value": f"{c}\x1f{s}"})
-        return opts
-
     # When the user changes context, prune any subcontext picks whose context
-    # is no longer in the selection. Clientside only — see note above on why
-    # filter-subcontext.value has no server-side callback Output.
+    # is no longer in the selection. Clientside only: Dash strips the layout's
+    # `value=` for any prop that has a server-side callback Output, which
+    # would nuke the memory-restored picks.
     app.clientside_callback(
         """
         function(ctx, current_subs) {

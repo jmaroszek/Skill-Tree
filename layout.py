@@ -24,6 +24,7 @@ from settings_layout import build_settings_modal
 from review_hub_layout import build_review_hub_modal
 from analyze_layout import build_analyze_tab_content
 from sidebars_layout import build_all_sidebars
+from context_picker import build_context_picker_support
 from styles import stylesheet
 
 
@@ -1241,6 +1242,7 @@ def build_app_layout(initial_elements, env="production"):
             'data-hide': str(TOOLTIP_HIDE_DELAY_MS),
             'data-node-hide': str(TOOLTIP_NODE_HIDE_DELAY_MS),
         }),
+        *build_context_picker_support(),
         migration_modal,
         error_modal,
         unsaved_changes_modal,

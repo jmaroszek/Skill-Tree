@@ -15,10 +15,10 @@ does not suppress callback exceptions, so any State or Input that references
 them needs the component present from the first paint.
 """
 
-from dash import html, dcc
+from dash import html
 import dash_bootstrap_components as dbc
 
-from config import ConfigManager, sort_contexts
+from context_picker import build_multi_context_picker
 
 
 def _build_pending_tab():
@@ -42,7 +42,6 @@ def _build_pending_tab():
 
 
 def _build_history_tab():
-    contexts = sort_contexts(ConfigManager.get_contexts())
     return dbc.Tab(label="Review History", tab_id="tab-review-history", children=[
         html.Div([
             html.P(
@@ -58,23 +57,12 @@ def _build_history_tab():
                     width=4,
                 ),
                 dbc.Col(
-                    dcc.Dropdown(
-                        id="hub-history-filter-context",
-                        options=[{"label": c, "value": c} for c in contexts],
-                        value=[], multi=True,
-                        placeholder="All contexts",
-                        style={"color": "#212529"},
+                    build_multi_context_picker(
+                        "hub-history-context-picker",
+                        "hub-history-filter-context",
+                        "hub-history-filter-subcontext",
                     ),
-                    width=4,
-                ),
-                dbc.Col(
-                    dcc.Dropdown(
-                        id="hub-history-filter-subcontext",
-                        options=[], value=[], multi=True,
-                        placeholder="All subcontexts",
-                        style={"color": "#212529"},
-                    ),
-                    width=4,
+                    width=8,
                 ),
             ], className="mb-2 g-2"),
             html.Div(id="hub-history-table-container"),

@@ -26,10 +26,10 @@ from config import (
     SIDEBAR_WIDTH_PX,
     SIDEBAR_WIDTH_NEG_PX,
     SIDEBAR_TRANSLATE_CLOSED,
-    sort_subcontexts,
     sort_contexts,
 )
 from events_layout import build_events_sidebar_content
+from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 
 # Only used for the initial render; core_engine refreshes them dynamically.
@@ -82,6 +82,7 @@ node_editor_content = html.Div(
                 id="search-node",
                 options=[],  # Populated dynamically by core_engine callback
                 value=None,
+                placeholder="Search nodes...",
                 searchable=True,
                 clearable=True,
             ), className="text-dark"),
@@ -100,7 +101,7 @@ node_editor_content = html.Div(
                            title="Add alias",
                            style={"fontSize": "1.2rem", "lineHeight": "1"}),
             ], className="d-flex align-items-center mt-2 mb-1"),
-            dbc.Input(id="node-name", type="text"),
+            dbc.Input(id="node-name", type="text", placeholder="Name node..."),
             html.Div(id="node-name-duplicate-warning", children="",
                      style={"display": "none"}, className="mt-1"),
             dbc.Collapse(
@@ -116,16 +117,21 @@ node_editor_content = html.Div(
             dcc.Store(id='editor-pristine-snapshot', data=None),
 
             dbc.Label("Type", className="mt-2"),
-            dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES]),
+            dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES],
+                       placeholder="Choose node type..."),
 
             dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="node-desc", style={"height": "120px", "resize": "vertical"}),
+            dbc.Textarea(id="node-desc", placeholder="Describe your project...",
+                         style={"height": "120px", "resize": "vertical"}),
 
             dbc.Label("Context", className="mt-2"),
-            dbc.Select(id="node-context", options=[{"label": c, "value": c} for c in CONTEXTS], value=""),  # type: ignore[reportArgumentType]
-
-            dbc.Label("Subcontext", className="mt-2"),
-            dbc.Select(id="node-subcontext", options=[]),
+            build_single_context_picker(
+                "node-context-picker",
+                "node-context",
+                "node-subcontext",
+                context_options=[{"label": c, "value": c} for c in CONTEXTS],
+                context_value="",
+            ),
 
             html.Div(id="section-priority-rank", style={"display": "none"}, children=[
                 dbc.Label("Priority Rank", className="mt-2"),
@@ -547,26 +553,18 @@ def build_filters_content():
     else:
         f = ConfigManager._FILTER_DEFAULTS
 
-    # Pre-build subcontext options for the persisted context selection so the
-    # restored value sticks on initial render. The encoding "ctx\x1fsub" uses
-    # ASCII unit-separator instead of "::" because Dash mangles dropdown
-    # values containing "::" (it overlaps with internal dependency notation),
-    # silently dropping them during layout serialization.
-    initial_sub_opts = []
+    # Keep only persisted subcontext picks that still exist under a restored
+    # context. Values are encoded "ctx\x1fsub" (ASCII unit-separator instead
+    # of "::", which Dash mangles during layout serialization); "ctx\x1f" is
+    # that context's No subcontext.
     persisted_contexts = f["context"] if isinstance(f["context"], list) else ([f["context"]] if f["context"] else [])
-    if persisted_contexts:
-        all_subs = ConfigManager.get_subcontexts()
-        multi_context = len(persisted_contexts) > 1
-        for c in persisted_contexts:
-            none_label = f"{c} > None" if multi_context else "None"
-            initial_sub_opts.append({"label": none_label, "value": f"{c}\x1f"})
-            for s in sort_subcontexts(all_subs.get(c, [])):
-                label = f"{c} > {s}" if multi_context else s
-                initial_sub_opts.append({"label": label, "value": f"{c}\x1f{s}"})
+    all_subs = ConfigManager.get_subcontexts() if persisted_contexts else {}
+    valid_subs = {f"{c}\x1f{s}"
+                  for c in persisted_contexts
+                  for s in ["", *all_subs.get(c, [])]}
     # Migrate any legacy "::" values from before the separator change.
     persisted_subs = [v.replace("::", "\x1f", 1) if isinstance(v, str) and "\x1f" not in v else v
                       for v in (f["subcontext"] or [])]
-    valid_subs = {o["value"] for o in initial_sub_opts}
     initial_sub_value = [v for v in persisted_subs if v in valid_subs]
 
     return html.Div([
@@ -577,23 +575,12 @@ def build_filters_content():
 
         html.H5("General", className="mt-2 mb-1"),
         dbc.Label("Context", className="mt-2"),
-        dcc.Dropdown(
-            id="filter-context",
-            options=[{"label": c, "value": c} for c in CONTEXTS],
-            value=f["context"],
-            multi=True,
-            placeholder="All",
-            style={"color": "#212529"},
-        ),
-
-        dbc.Label("Subcontext", className="mt-2"),
-        dcc.Dropdown(
-            id="filter-subcontext",
-            options=initial_sub_opts,
-            value=initial_sub_value,
-            multi=True,
-            placeholder="All",
-            style={"color": "#212529"},
+        build_multi_context_picker(
+            "filter-context-picker",
+            "filter-context",
+            "filter-subcontext",
+            context_value=f["context"],
+            subcontext_value=initial_sub_value,
         ),
 
         dbc.Label("Node Type", className="mt-2"),

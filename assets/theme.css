@@ -294,7 +294,8 @@
 }
 
 /* --- Filter sidebar dropdown placeholder text --- */
-#sidebar-filters-container [class$="-placeholder"] {
+#sidebar-filters-container [class$="-placeholder"],
+#sidebar-filters-container .context-picker-value.is-placeholder {
     color: #212529 !important;
 }
 

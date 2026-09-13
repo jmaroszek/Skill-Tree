@@ -1627,7 +1627,7 @@ def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-
     for i, val in enumerate(alias_list):
         rows.append(html.Div([
             dbc.Input(id={'type': input_type, 'index': i}, type='text',
-                      value=val or '', placeholder=''),
+                      value=val or '', placeholder='Enter alias...'),
             dbc.Button(html.I(className='bi bi-x-lg'),
                        id={'type': remove_type, 'index': i}, title='Remove alias',
                        className='editor-icon-btn editor-icon-btn-danger'),

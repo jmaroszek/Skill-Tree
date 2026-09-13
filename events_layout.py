@@ -11,6 +11,7 @@ from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, 
 from models import STATUS_DONE
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
+from context_picker import build_single_context_picker
 
 
 def build_events_sidebar_content():
@@ -212,7 +213,7 @@ def build_events_tab_content():
                            title="Add alias",
                            style={"fontSize": "1.2rem", "lineHeight": "1"}),
             ], className="d-flex align-items-center mb-1"),
-            dbc.Input(id="dormant-node-name", type="text"),
+            dbc.Input(id="dormant-node-name", type="text", placeholder="Name node..."),
             dbc.Collapse(
                 html.Div([
                     dbc.Label("Alias", id="dormant-aliases-label",
@@ -227,15 +228,16 @@ def build_events_tab_content():
             dbc.Select(id="dormant-node-type", options=[], value="Learn"),
 
             dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="dormant-node-desc",
+            dbc.Textarea(id="dormant-node-desc", placeholder="Describe your project...",
                          style={"height": "80px", "resize": "vertical"}),
 
             dbc.Label("Context", className="mt-2"),
-            dbc.Select(id="dormant-node-context", options=[]),
-
-            dbc.Label("Subcontext", className="mt-2"),
-            dbc.Select(id="dormant-node-subcontext",
-                       options=[{"label": "None", "value": ""}]),
+            build_single_context_picker(
+                "dormant-node-context-picker",
+                "dormant-node-context",
+                "dormant-node-subcontext",
+                subcontext_options=[{"label": "None", "value": ""}],
+            ),
 
             html.Hr(className="my-2"),
             html.H5("Ratings", className="mt-2 mb-1"),

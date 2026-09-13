@@ -298,6 +298,34 @@ style={
 - Standard: `dbc.Input(type="text")` — uses Bootstrap DARKLY defaults
 - Textarea default: `dbc.Textarea(style={"height": "120px", "resize": "vertical"})`
 - Underline-only input: `style={"border": "none", "borderBottom": "1px solid #495057", "borderRadius": "0"}`
+- Hints: give empty editor fields a short placeholder that ends in `...`
+  (`Name node...`, `Choose node type...`). Every light control shows it in
+  `#888`, DARKLY's input placeholder gray. `custom.css` applies that gray to
+  `dcc.Dropdown` and `dbc.Select` placeholders too. The filter sidebar keeps
+  its dark `All` placeholders, since they read as a value there.
+
+### Context / subcontext pickers
+
+Use the shared builders in `context_picker.py`; do not add a new pair of visible
+Context and Subcontext dropdowns.
+
+- Node editing uses the single-path cascading picker. A context opens a
+  subcontext flyout after a 500ms fine-pointer hover or immediately on click.
+- Filtering uses the hierarchical checkbox picker. Only the parent checkbox
+  selects every subcontext; the rest of the parent row expands or collapses.
+  Every context starts collapsed each time the menu opens.
+- `No subcontext` is always the final child, separated from user-defined
+  subcontexts by a horizontal rule.
+- Up/Down moves through choices, Enter/Space activates the focused choice,
+  Right enters/expands, Left returns/collapses, and Tab keeps native order.
+- The closed multi-picker shows at most two configured-order context summaries,
+  followed by `+N` without another separator (for example,
+  `Wisdom · STEM +1`). A bare context implies all of its subcontexts; a count
+  in parentheses is the number of selected subcontexts.
+
+The migration/remapping grid is the deliberate exception. Its paired compact
+selects include `Keep existing` / `Clear` commands and compare many rows at
+once, so they are not ordinary context assignment or filtering controls.
 
 ### Unified field (input + trailing icon)
 

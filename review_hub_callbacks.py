@@ -8,7 +8,7 @@ Review History table + filters + edit hand-off.
 from dash import Input, Output, State, ALL, ctx, no_update, html
 import dash_bootstrap_components as dbc
 
-from config import ConfigManager, sort_subcontexts
+from config import ConfigManager
 from graph_manager import GraphManager
 from callback_helpers import build_calibration_dismissed_view
 from models import STATUS_DONE
@@ -143,7 +143,8 @@ def _filter_history_nodes(nodes, search, ctx_filter, subctx_filter):
     """Apply search + context + subcontext filters (AND across all).
 
     `subctx_filter` values use the same `ctx\x1fsub` encoding as the main
-    filter sidebar so the dropdown options can be reused as-is.
+    filter sidebar. As there, a selected context with no subcontext picks
+    keeps all of its nodes ("all Health, but only STEM › Math").
     """
     if search:
         s = search.strip().lower()
@@ -153,13 +154,14 @@ def _filter_history_nodes(nodes, search, ctx_filter, subctx_filter):
         ctx_set = set(ctx_filter)
         nodes = [n for n in nodes if n.context in ctx_set]
     if subctx_filter:
-        pairs = set()
+        picks = {}
         for v in subctx_filter:
             if isinstance(v, str) and '\x1f' in v:
                 c, s = v.split('\x1f', 1)
-                pairs.add((c, s or None))
+                picks.setdefault(c, set()).add(s or None)
         nodes = [n for n in nodes
-                 if (n.context, n.subcontext or None) in pairs]
+                 if n.context not in picks
+                 or (n.subcontext or None) in picks[n.context]]
     return nodes
 
 
@@ -227,33 +229,6 @@ def register_review_hub_callbacks(app):
             node.calibration_dismissed = 0
             _manager.update_node(node)
         return build_calibration_dismissed_view(_manager)
-
-    # --- History tab: subcontext-filter options track the context filter ---
-    # Mirrors the main filter sidebar's pattern at sidebars_layout.build_filters_content.
-    # Subcontexts are encoded as "ctx\x1fsub" (ASCII unit-separator) because
-    # Dash dropdowns mangle "::" — matches the sidebar's encoding so the same
-    # _filter_history_nodes parsing works.
-    @app.callback(
-        Output('hub-history-filter-subcontext', 'options'),
-        Output('hub-history-filter-subcontext', 'value'),
-        Input('hub-history-filter-context', 'value'),
-        State('hub-history-filter-subcontext', 'value'),
-    )
-    def update_history_subcontext_options(selected_contexts, current_subs):
-        if not selected_contexts:
-            return [], []
-        all_subs = ConfigManager.get_subcontexts()
-        multi = len(selected_contexts) > 1
-        options = []
-        for c in selected_contexts:
-            none_label = f"{c} > None" if multi else "None"
-            options.append({"label": none_label, "value": f"{c}\x1f"})
-            for s in sort_subcontexts(all_subs.get(c, [])):
-                label = f"{c} > {s}" if multi else s
-                options.append({"label": label, "value": f"{c}\x1f{s}"})
-        valid = {o["value"] for o in options}
-        new_value = [v for v in (current_subs or []) if v in valid]
-        return options, new_value
 
     # --- History tab: rebuild the table on open, tab switch, or filter change ---
     @app.callback(

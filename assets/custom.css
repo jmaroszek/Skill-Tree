@@ -152,6 +152,18 @@ input[type=number] {
     min-height: 38px;
 }
 
+/* One placeholder gray for every light form control: DARKLY's input
+   placeholder color. Dash's dropdown ships a blue-tinted gray, and a
+   dbc.Select placeholder is a hidden option that would otherwise render in
+   full text color. The select's open option list keeps the normal color. */
+.dash-dropdown .dash-dropdown-placeholder,
+select.form-select:has(> option[value=""][hidden]:checked) {
+    color: #888;
+}
+select.form-select option {
+    color: #303030;
+}
+
 /* The Details selector places its clear action immediately beside the menu
    chevron. Keep the visible x at its native size, but give the link a larger
    hit target that grows into the unused space on its left. Because the padded
