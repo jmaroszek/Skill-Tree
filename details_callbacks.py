@@ -9,7 +9,6 @@ import logging
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 import dash_bootstrap_components as dbc
 import numpy as np
-import plotly.graph_objects as go
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import ConfigManager, badge_style, sort_subcontexts, sort_contexts
@@ -19,11 +18,12 @@ from details_layout import (build_details_subtasks_table,
                              build_milestone_tile)
 from simulation import SimulationCancelled
 from simulation_service import simulation_service
+from duration_ui import simulation_figure
 from callback_helpers import (render_link_rows, render_alias_rows,
                               alias_rows_label, update_alias_rows,
                               strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
-                              is_filters_active, rank_details_suggestions,
+                              is_filters_active, select_explore_goals,
                               build_explain_summary, build_explain_chart,
                               format_value_rank,
                               habit_to_hours, compute_habit_time_omp,
@@ -132,46 +132,9 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
     result = simulation_service.summarize(
         node_name, nodes_dict, sim_edges, include_soft, include_helps,
         requested_trials, should_cancel=should_cancel)
-    stats = result['stats']
-    counts, centers, width = result['counts'], result['centers'], result['width']
-
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=centers, y=counts, width=width,
-        marker_color='#0d6efd', opacity=0.85,
-        hoverinfo='skip',
-    ))
-
-    for label, val, color in [
-        ('P10', stats['p10'], '#198754'),
-        ('P50', stats['p50'], '#ffc107'),
-        ('P90', stats['p90'], '#dc3545'),
-    ]:
-        fig.add_vline(
-            x=val, line_dash="dash", line_color=color, line_width=2,
-            annotation_text=f"{label}: {ConfigManager.format_time_friendly(val, time_settings=time_settings)}",
-            annotation_position="top",
-            annotation_font_color=color,
-        )
-
-    fig.update_layout(
-        meta={"trials": result['trials'], "requested_trials": requested_trials,
-              "chain_size": result['chain_size']},
-        template="plotly_dark",
-        paper_bgcolor='#1a1d21',
-        plot_bgcolor='#1a1d21',
-        margin=dict(l=40, r=20, t=20, b=40),
-        xaxis_title="Hours",
-        yaxis_title="Frequency",
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=False),
-        showlegend=False,
-        hovermode=False,
-        bargap=0,
-    )
 
     return (
-        fig,
+        simulation_figure(result, time_settings, requested_trials),
         {"display": "flex", "flexDirection": "column", "flex": "1", "minHeight": "0"},
         {"display": "none"},
     )
@@ -426,7 +389,7 @@ def register_details_callbacks(app):
                 node_name, include_soft=False,
                 include_transitive=True, max_depth=max_depth)
             if completion["total"] > 0:
-                show_progress = {"display": "block", "marginBottom": "8px"}
+                show_progress = {"display": "block"}
                 progress_val = completion["pct"]
                 remaining = ConfigManager.format_time_friendly(
                     completion["remaining_time"])
@@ -927,7 +890,7 @@ def register_details_callbacks(app):
             return no_update
         return triggered["index"]
 
-    # --- Empty-state starting points: priority goals + scoped exploration ---
+    # --- Empty-state starting points: priority goals + top-ranked goals ---
     @app.callback(
         Output("details-suggestions-container", "children"),
         Input("details-refresh-trigger", "data"),
@@ -953,27 +916,20 @@ def register_details_callbacks(app):
         # Explore section below is discovery-oriented and does honor the
         # active global filters.
         all_nodes = graph_manager.get_all_nodes()
+        edges = graph_manager.get_edges()
+        priority_goals = ConfigManager.get_priority_goals()
         nodes_by_name = {node.name: node for node in all_nodes}
         priority_names = []
         goal_rows = []
         seen = set()
-        for rank, goal_name in enumerate(
-                ConfigManager.get_priority_goals()[:3], start=1):
+        for rank, goal_name in enumerate(priority_goals[:3], start=1):
             if goal_name in seen:
                 continue
             goal_node = nodes_by_name.get(goal_name)
             if not goal_node or goal_node.status == STATUS_DONE:
                 continue
-            hard_scope = graph_manager.get_goal_subtree(
-                goal_name, edge_types=(EDGE_NEEDS_HARD,))
-            remaining_count = sum(
-                child_name in nodes_by_name
-                and nodes_by_name[child_name].status != STATUS_DONE
-                for child_name in hard_scope
-            )
             goal_rows.append(_build_suggestion_row(
-                goal_node, remaining_count=remaining_count,
-                priority_rank=rank))
+                goal_node, priority_rank=rank))
             priority_names.append(goal_name)
             seen.add(goal_name)
 
@@ -985,19 +941,23 @@ def register_details_callbacks(app):
             node.name for node in graph_manager.filter_nodes(
                 all_nodes, global_filters)
         }
-        hyperparams = ConfigManager.get_hyperparams()
-        hyperparams["context_weights"] = ConfigManager.get_context_weights()
-        explore = rank_details_suggestions(
-            all_nodes, graph_manager.get_edges(), hyperparams,
-            count=5, candidate_names=eligible_names,
+        # Explore follows the Goals sidebar's Priority ranking and shows the
+        # same 0-100 number, so a Goal reads the same on both surfaces. The
+        # number keeps its app-wide base when filters narrow the list.
+        from analyze_callbacks import _rank_goals, normalize_goal_scores
+        ranked = _rank_goals(
+            [node for node in all_nodes if node.type == "Goal"], all_nodes,
+            edges, priority_goals, ConfigManager.get_hyperparams(),
+            with_scores=True)
+        priorities = normalize_goal_scores(ranked, all_nodes, edges)
+        explore = select_explore_goals(
+            [goal for goal, _ in ranked if goal.name in priorities],
+            all_nodes, edges, count=5, candidate_names=eligible_names,
             seed_names=priority_names,
         )
         explore_rows = [
-            _build_suggestion_row(
-                suggestion.node,
-                remaining_count=suggestion.remaining_count,
-            )
-            for suggestion in explore
+            _build_suggestion_row(goal, priority=priorities[goal.name])
+            for goal in explore
         ]
         filters_active = is_filters_active(
             node_type=f_node_types, context=f_context,

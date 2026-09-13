@@ -492,7 +492,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 | Path | How it works |
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
-| Suggestions | When nothing is selected, the left panel shows two kinds of starting point: up to three unfinished **Priority Goals**, followed by **Explore** areas chosen for valuable unfinished required work. Explore favors useful mid-sized scopes, balances contexts, avoids redundant parent/child choices while independent areas are available, and honors the active filters. Each row shows its type, status or priority rank, required-work count, and context instead of an abstract score. |
+| Suggestions | When nothing is selected, the left panel shows two kinds of starting point: up to three unfinished **Priority Goals**, followed by **Explore** Goals. Explore follows the Goals sidebar's Priority sort and shows the same priority number. It honors the active filters, and it skips Goals with no unfinished hard subtasks. It also skips a Goal nested inside one already listed, while an unrelated Goal is still available. Each card looks like a Now card on the Next tab. A colored bar shows the node's type, and the line under the name shows its context. The corner shows a Priority Goal's rank, or another Goal's priority number. |
 | Context Menu | Right-click a node and pick **View Details** in the context menu. The app jumps here with the project loaded.|
 
 </td>
@@ -585,10 +585,11 @@ The feature shines on large, vague, long-horizon Goals. It lets you say with con
 
 | Output | What it tells you |
 |---|---|
-| Histogram | The full distribution of how long the chain might take across all 10,000 runs. |
+| Histogram | The full distribution of how long the chain might take across all 10,000 runs. The axis uses whichever unit suits the median, such as years for a long Goal or hours for a short task. |
 | P10 line | Optimistic case — only 10% of runs finish faster than this. |
 | P50 line | The median — half of runs finish faster, half slower. |
 | P90 line | Pessimistic case — 90% of runs finish faster than this; a sensible "worst realistic" figure. |
+| Bar tooltip | Hover any bar to read your chance of finishing by that bar's right edge. The P lines mark three of those chances. The tooltip fills in the rest. |
 
 In the two screenshots of the Details Tab so far, the simulated distributions looked symmetric. That is because the upper and lower time estimates were close to each other for those particular goals. If they are further apart, the distribution will look different. Here is an example of a project with a long right tail.
 
@@ -614,7 +615,7 @@ The **+** next to "Goals" creates a new one. Search for existing goals in the fi
 
 | Mode | Order |
 |---|---|
-| Priority | Ranks every goal by priority. |
+| Priority | Ranks every goal by priority. The number on each card is that goal's priority, where 100 is your top unfinished goal. The same number appears in the Details suggestions and the Explain window, and a search doesn't change it. |
 | Time | Longest projects first, shortest projects last. Scroll to the top or bottom to see the extremes.|
 | Manual | A custom order you set by dragging the cards. The drag handle appears on each card whenever this mode is active. |
 | Alphabetical | A→Z by name. |

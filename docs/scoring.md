@@ -319,7 +319,7 @@ Goal density has its own exponent, alpha_goal: Sage 0.20, Explorer 0.50, Compoun
 Why count only Goals? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized twice: once for its own subtree size (already inflating $`\text{Cost}'(g)`$), and again for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
 
 > [!NOTE] Note
-> The Goals sidebar and the Analyze tab's Completion chart both rank Goals by the priority ranking explained here.
+> The Goals sidebar, the Analyze tab's Completion chart and the Details suggestions all rank Goals by the priority ranking explained here. Wherever a Goal shows a 0-100 priority, 100 is the top score among unfinished Goals. A Goal is unfinished until it is Done or every hard prerequisite beneath it is. Searches and filters never move that base.
 
 ## Milestone Transparency
 
@@ -339,7 +339,7 @@ Ranking it anyway produces a bad recommendation twice over. Its cost carries no 
 
 The exclusion keys on **time alone**, deliberately. A node with inherited *ratings* but its own hours is a different case: it has real work to do and merely draws its worth from what it unlocks, so it keeps competing normally.
 
-Excluded nodes are left out of the list, not out of the graph. Cascade still flows through them untouched, so they remain connective tissue. The Details tab surfaces containers in its own list, which is where "this umbrella topic matters" belongs.
+Excluded nodes are left out of the list, not out of the graph. Cascade still flows through them untouched, so they remain connective tissue. The Details tab suggests Goals in its own list, ranked by the Goal scoring above.
 
 # Eligibility and the Status Cascade
 

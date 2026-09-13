@@ -668,8 +668,8 @@
 
 /* --- Details empty-state starting points --- */
 /* Native buttons preserve keyboard semantics while visually matching the
-   app's compact cards. The second line carries useful scope/context metadata;
-   the corner badge is status for Explore and rank for Priority Goals. */
+   app's compact cards: the name, the context on a muted mono line, and a
+   corner badge with the Goal's priority rank or score. */
 .details-suggestion-row {
     appearance: none;
     width: 100%;
@@ -723,10 +723,15 @@
     font-weight: 500;
 }
 
+/* Same register as the Now cards' context line. The min-height keeps a
+   context-less card as tall as its neighbours. */
 .details-suggestion-meta {
     margin-top: 2px;
-    color: #adb5bd;
-    font-size: 0.72rem;
+    min-height: 1.35em;
+    color: #6c757d;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.35;
 }
 
 .details-suggestion-badge {

@@ -281,7 +281,7 @@ class Node:
 
         The Next tab answers "what should I work on next", so these are not
         recommended; their prerequisites competed on their own hours, and the
-        Details tab surfaces containers separately. Cascade still flows through
+        Details tab suggests Goals separately. Cascade still flows through
         them, exactly as it does for `is_pure_container`.
 
         Note this deliberately keys on time alone. A node with inherited

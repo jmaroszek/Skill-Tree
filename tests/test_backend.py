@@ -2280,6 +2280,17 @@ class TestFormatTimeFriendly:
         # force_one_decimal path with an int must also not raise.
         assert ConfigManager.format_time_friendly(8, force_one_decimal=True) == "8.0h"
 
+    def test_time_unit_is_the_unit_format_time_friendly_uses(self):
+        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        assert ConfigManager.time_unit(0) == (1.0, "h")
+        assert ConfigManager.time_unit(19.9) == (1.0, "h")
+        assert ConfigManager.time_unit(20) == (20.0, "w")
+        assert ConfigManager.time_unit(80) == (80.0, "m")
+        assert ConfigManager.time_unit(1040) == (1040.0, "y")
+        for hours in (8, 45, 300, 2500):
+            size, suffix = ConfigManager.time_unit(hours)
+            assert ConfigManager.format_time_friendly(hours).endswith(suffix)
+
 
 # ============================================================================
 # ConfigManager — Priority Goals

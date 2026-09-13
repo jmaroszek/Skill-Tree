@@ -507,6 +507,50 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
     return [g for g, _, _ in scored]
 
 
+def normalize_goal_scores(ranked, all_nodes, edges):
+    """Each unfinished Goal's priority as 0-100, on one base for the whole app.
+
+    The Goals sidebar, the Explain modal and the Details suggestions all print
+    this number, so a Goal reads the same wherever it appears. The base is the
+    top score among unfinished Goals, whatever a search or filter hides. A
+    number measured against the visible list would describe the list, not the
+    Goal.
+
+    A finished Goal gets no number and doesn't set the base. It is finished
+    when it is Done or every hard prerequisite beneath it is. With no work
+    left, its cost bottoms out, so its score would dwarf every Goal still in
+    play.
+
+    ``ranked`` holds ``(goal, score)`` pairs from ``_rank_goals``. Returns a
+    name -> int map.
+    """
+    status = {n.name: n.status for n in all_nodes}
+    prereqs = defaultdict(list)
+    for e in edges:
+        if e['type'] == EDGE_NEEDS_HARD:
+            prereqs[e['target']].append(e['source'])
+
+    def is_finished(goal):
+        if goal.status == STATUS_DONE:
+            return True
+        seen, stack = set(), list(prereqs.get(goal.name, ()))
+        while stack:
+            name = stack.pop()
+            if name in seen or name not in status:
+                continue
+            if status[name] != STATUS_DONE:
+                return False
+            seen.add(name)
+            stack.extend(prereqs.get(name, ()))
+        return bool(seen)
+
+    open_scores = {g.name: score for g, score in ranked if not is_finished(g)}
+    top = max(open_scores.values(), default=0.0)
+    if top <= 0:
+        return {}
+    return {name: round(score / top * 100) for name, score in open_scores.items()}
+
+
 def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
     """Explain-modal breakdown for a Goal node.
 
@@ -532,24 +576,24 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
     populated from ``_rank_goals`` (Goal-only bucket count + ``alpha_goal``),
     not from ``score_nodes`` (which excludes Goals from leaf-level buckets).
 
-    Returns ``(breakdown, normalized)``; ``normalized`` is the 0-100 score
-    against the top-ranked Goal. Returns ``None`` if ``goal_name`` is not a
-    Goal in ``all_nodes``.
+    Returns ``(breakdown, normalized)``; ``normalized`` is the Goal's 0-100
+    priority from ``normalize_goal_scores``, or None once it is finished.
+    Returns ``None`` if ``goal_name`` is not a Goal in ``all_nodes``.
     """
     node = next((n for n in all_nodes if n.name == goal_name), None)
     if node is None or node.type != 'Goal':
         return None
 
     goals = [n for n in all_nodes if n.type == 'Goal']
-    comps = {g.name: c for g, c in _rank_goals(
-        goals, all_nodes, edges, priority_goals, hp, with_components=True)}
+    ranked = _rank_goals(goals, all_nodes, edges, priority_goals, hp,
+                         with_components=True)
+    comps = {g.name: c for g, c in ranked}
     me = comps.get(goal_name)
     if me is None:
         return None
 
-    valid = [c['score'] for c in comps.values() if c['score'] >= 0]
-    top = max(valid) if valid else 0.0
-    normalized = round(me['score'] / top * 100) if top > 0 else None
+    normalized = normalize_goal_scores(
+        [(g, c['score']) for g, c in ranked], all_nodes, edges).get(goal_name)
 
     # Use the same Hard-only scope as the Goal ranker.
     inverted = []

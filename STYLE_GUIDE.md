@@ -47,6 +47,7 @@ derivation. **This file is the human-readable source of truth — keep
 | Unblocking   | `#c516a5` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
 | Goal         | `#cdbe23` | `#ffffff` | Type tile. Canvas Goal color with −5 sat (intentional exception to the default −20 muting — yellow goes olive when pushed further). Suppressed when a `Priority N` tile is shown. |
 | Priority     | `#cdbe23` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
+| PriorityRank | `#f39c12` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. Darkly's warning orange, deliberately warmer than the Goal yellow. |
 | Action       | `#bb6823` | `#ffffff` | Type tile. More desaturated than the default — orange holds saturation visually. |
 | Learn        | `#1d5cba` | `#ffffff` | Type tile.                                                |
 | Resource     | `#814d9e` | `#ffffff` | Type tile. Less desaturated than the default — purple turns muddy if pushed too far. |
@@ -302,9 +303,17 @@ style={
 Clickable cards must use a native `html.Button(type="button")` when the whole
 surface performs one action. Reset its browser chrome in a scoped class, retain
 the standard card colors above, and provide a visible `:focus-visible` outline.
-The Details empty-state pattern is `.details-suggestion-row`: a compact primary
-label, one muted metadata line, and one semantic corner badge. Do not put an
-unexplained normalized score in the badge.
+
+The Details empty-state pattern is `.details-suggestion-row`: the name, with
+the context alone on a muted mono line below. Every suggestion is a Goal, so the
+card has no type strip or type label. The subcontext is left out, since a Goal's
+subcontext often repeats its own name. The corner badge matches the Goal's card in the
+Goals sidebar, and both come from `_goal_corner_badge`. Priority Goals show
+their rank in `PriorityRank` orange. Other Goals show their 0-100 priority
+from `analyze_callbacks.normalize_goal_scores`. Leave out metadata that every
+card would repeat, such as a status the type already implies. Never normalize a
+score against the visible list, since the number would then describe the list
+rather than the node.
 
 ## Inputs
 
@@ -482,9 +491,9 @@ html.Span(rel, className="badge",
           style=badge_style('HardRelPri', font_size="0.7rem"))
 ```
 
-Valid names: `Goal`, `Priority`, `Action`, `Learn`, `Resource`,
-`Open`, `Done`, `Blocked`, `HardRelPri`, `SoftRelPri`, `EventTrigger`,
-`EventTriggered`. Unknown names fall back to a neutral gray.
+Valid names: `Goal`, `Priority`, `PriorityRank`, `Action`, `Learn`,
+`Resource`, `Milestone`, `Open`, `Done`, `Blocked`, `HardRelPri`, `SoftRelPri`,
+`EventTrigger`, `EventTriggered`. Unknown names fall back to a neutral gray.
 
 ## Tooltips (hover)
 
@@ -500,6 +509,12 @@ style={
     "borderColor": "#495057",
 }
 ```
+
+Plotly hover labels take the same three colors through `layout.hoverlabel`.
+The Details Time Simulation chart is the example. It is a high-level view read
+by hovering, so it turns off drag-zoom and uses `closest` hover. That hover
+answers only over a bar and adds no exact axis value. Its axis, lines and
+tooltips share one natural time unit rather than raw hours.
 
 ## Scrollbars
 

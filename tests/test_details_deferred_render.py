@@ -80,27 +80,71 @@ def test_empty_suggestions_do_not_rebuild_after_selection():
     }
 
 
-def test_details_suggestion_is_a_native_button_with_useful_metadata():
-    from details_layout import _build_suggestion_row
-
-    node = Node(
+def _suggestion_node(**overrides):
+    fields = dict(
         name="Sleep", type="Goal", description="",
         value=8, time_o=1, time_m=2, time_p=3,
-        interest=8, difficulty=4, status="Blocked",
-        context="Self", subcontext="Health",
+        interest=8, difficulty=4, status="Open",
+        context="Health", subcontext="Sleep",
     )
+    fields.update(overrides)
+    return Node(**fields)
 
-    row = _build_suggestion_row(node, remaining_count=7)
+
+def test_details_suggestion_is_a_native_button_with_name_and_context():
+    from details_layout import _build_suggestion_row
+
+    row = _build_suggestion_row(_suggestion_node())
 
     assert type(row).__name__ == "Button"
     assert row.type == "button"
     assert row.className == "details-suggestion-row"
     assert row.id == {"type": "details-suggestion-item", "index": "Sleep"}
-    assert "7 required" in getattr(row, "aria-label")
-    copy, badge = row.children
+    # Every suggestion is a Goal, so no type strip or label: just the name and
+    # the context alone, with no corner badge when there is no priority.
+    (copy,) = row.children
     assert copy.children[0].children == "Sleep"
-    assert copy.children[1].children == "Goal · 7 required · Self > Health"
-    assert badge.children == "Blocked"
+    assert copy.children[1].children == "Health"
+    assert getattr(row, "aria-label") == "View Sleep. Health"
+
+
+def test_details_suggestion_without_context_keeps_an_empty_second_line():
+    from details_layout import _build_suggestion_row
+
+    row = _build_suggestion_row(_suggestion_node(context=None, subcontext=None),
+                                priority=12)
+
+    copy, badge = row.children
+    assert copy.children[1].children == ""
+    assert getattr(row, "aria-label") == "View Sleep. Priority score 12"
+
+
+def test_priority_rank_badges_share_the_orange_rank_color():
+    """Regression: the Details rank badge once borrowed the Goal yellow."""
+    from details_layout import _build_suggestion_row, build_goal_card
+
+    row = _build_suggestion_row(_suggestion_node(), priority_rank=2)
+    badge = row.children[-1]
+    assert badge.children == "2"
+    assert badge.style["backgroundColor"] == "#f39c12"
+    assert getattr(row, "aria-label") == "View Sleep. Priority 2, Health"
+
+    card = build_goal_card("Sleep", "Open", {"total": 0}, 0, priority_rank=2)
+    rank_trigger = card.children[1].children[1].children[0]
+    assert rank_trigger.children.style["backgroundColor"] == "#f39c12"
+
+
+def test_explore_suggestion_shows_the_goal_score_like_the_sidebar_card():
+    from details_layout import _build_suggestion_row, build_goal_card
+
+    row = _build_suggestion_row(_suggestion_node(), priority=54)
+    badge = row.children[-1]
+    assert badge.children == "54"
+    assert getattr(row, "aria-label") == "View Sleep. Priority score 54, Health"
+
+    card = build_goal_card("Sleep", "Open", {"total": 0}, 0, corner_text="54")
+    sidebar_badge = card.children[1].children[1].children[1]
+    assert badge.style == sidebar_badge.style
 
 
 def test_details_suggestions_use_explore_copy_and_filter_aware_empty_state():

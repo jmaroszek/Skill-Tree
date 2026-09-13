@@ -192,6 +192,9 @@ BADGE_PALETTE = {
     'Resource':   ('#814d9e', '#ffffff'),
     'Goal':       ('#cdbe23', '#ffffff'),  # canvas yellow with -5 sat for badge use
     'Priority':   ('#cdbe23', '#ffffff'),  # Priority N suppresses Goal type — share its color
+    # The bare rank number on Goals-sidebar cards and Details suggestions.
+    # Darkly's warning orange, deliberately warmer than the Goal yellow.
+    'PriorityRank': ('#f39c12', '#ffffff'),
     'Milestone':  ('#2f909d', '#ffffff'),
     'Unblocking': ('#c516a5', '#ffffff'),  # steps pinned toward a blocked Now node
     # Status badges (Open / Done / Blocked) — tuned independently for the
@@ -872,6 +875,28 @@ class ConfigManager:
         return 1.0
 
     @classmethod
+    def time_unit(cls, hours: float | None, *, time_settings=None) -> tuple[float, str]:
+        """The display unit for a duration: (hours in one unit, suffix).
+
+        The largest of year, month and week that the duration reaches, else
+        hours. `format_time_friendly` picks its unit this way. A chart can call
+        it once and draw every value in that one unit.
+        """
+        settings = cls.get_time_settings() if time_settings is None else time_settings
+        hw = settings.get('hours_per_week', 40)
+        hm = settings.get('hours_per_month', 160)
+        hy = cls.HOURS_PER_YEAR_MULT * hm
+        hours = hours or 0.0
+
+        if hy > 0 and hours >= hy:
+            return float(hy), "y"
+        if hm > 0 and hours >= hm:
+            return float(hm), "m"
+        if hw > 0 and hours >= hw:
+            return float(hw), "w"
+        return 1.0, "h"
+
+    @classmethod
     def format_time_friendly(cls, hours: float | None,
                              force_one_decimal: bool = False, *, time_settings=None) -> str:
         """Format an hour based on user configured time bounds.
@@ -890,32 +915,12 @@ class ConfigManager:
         # 3.12+, so on the app's 3.10 runtime the checks would raise
         # AttributeError. float() makes the path version-agnostic.
         hours = float(hours)
+        size, suffix = cls.time_unit(hours, time_settings=time_settings)
 
-        settings = cls.get_time_settings() if time_settings is None else time_settings
-        hw = settings.get('hours_per_week', 40)
-        hm = settings.get('hours_per_month', 160)
-        hy = cls.HOURS_PER_YEAR_MULT * hm
-
-        if hy > 0 and hours >= hy:
-            years = round(hours / hy, 1)
-            if years.is_integer() and not force_one_decimal:
-                years = int(years)
-            return f"{years}y"
-        elif hm > 0 and hours >= hm:
-            months = round(hours / hm, 1)
-            if months.is_integer() and not force_one_decimal:
-                months = int(months)
-            return f"{months}m"
-        elif hw > 0 and hours >= hw:
-            weeks = round(hours / hw, 1)
-            if weeks.is_integer() and not force_one_decimal:
-                weeks = int(weeks)
-            return f"{weeks}w"
-        else:
-            h = round(hours, 1)
-            if h.is_integer() and not force_one_decimal:
-                h = int(h)
-            return f"{h}h"
+        amount = round(hours / size, 1)
+        if amount.is_integer() and not force_one_decimal:
+            amount = int(amount)
+        return f"{amount}{suffix}"
 
     @classmethod
     def hours_to_friendly_unit(cls, hours: float) -> tuple:

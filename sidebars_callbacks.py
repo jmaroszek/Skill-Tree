@@ -139,13 +139,17 @@ def register_sidebars_callbacks(app):
             # Goals are sinks, so the forward priority_score collapses to
             # ~nothing. _rank_goals ranks them by ROI on the inverted prereq
             # graph — subtree value per unit of remaining time, boosted by
-            # priority rank and context weight.
-            from analyze_callbacks import _rank_goals
-            ranked = _rank_goals(goals, all_nodes, graph_manager.get_edges(),
-                                 priority_goals, ConfigManager.get_hyperparams(),
-                                 with_scores=True)
-            goals = [g for g, _ in ranked]
-            score_map = {g.name: sc for g, sc in ranked}
+            # priority rank and context weight. Every Goal is ranked, not just
+            # the ones the search leaves, so the corner numbers keep the same
+            # base as the Explain modal and the Details suggestions.
+            from analyze_callbacks import _rank_goals, normalize_goal_scores
+            edges = graph_manager.get_edges()
+            ranked = _rank_goals([n for n in all_nodes if n.type == "Goal"],
+                                 all_nodes, edges, priority_goals,
+                                 ConfigManager.get_hyperparams(), with_scores=True)
+            rank_order = {g.name: index for index, (g, _) in enumerate(ranked)}
+            goals.sort(key=lambda g: rank_order[g.name])
+            score_map = normalize_goal_scores(ranked, all_nodes, edges)
         elif sort_mode == "alpha-asc":
             goals.sort(key=lambda g: g.name.lower())
         elif sort_mode == "time-desc":
@@ -175,13 +179,9 @@ def register_sidebars_callbacks(app):
         corner_map = {}
         active = pinned + unpinned
         if sort_mode == "priority":
-            scores = [score_map[g.name] for g in active if score_map.get(g.name, -1) >= 0]
-            max_score = max(scores) if scores else 0
-            if max_score > 0:
-                for g in active:
-                    s = score_map.get(g.name, -1)
-                    if s >= 0:
-                        corner_map[g.name] = str(round(s / max_score * 100))
+            for g in active:
+                if g.name in score_map:
+                    corner_map[g.name] = str(score_map[g.name])
         elif is_manual:
             for idx, g in enumerate(active):
                 corner_map[g.name] = str(idx + 1)

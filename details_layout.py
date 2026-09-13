@@ -256,16 +256,23 @@ def build_details_tab_content():
             ], className="ms-2 mt-3 mb-2", style={"flexShrink": "0", "display": "flex",
                                                   "marginRight": "-8px"}),
         ], className="d-flex align-items-center"),
+        # Spacing: the name and badges read as one header. The description,
+        # Goal progress and stats grid are separate blocks, so the gaps between
+        # them are wider than the gaps inside them.
+
         # Badges row: type, status, priority
         html.Div(id="details-node-badges",
-                 className="d-flex gap-1 flex-wrap mb-2"),
+                 className="d-flex gap-1 flex-wrap",
+                 style={"marginBottom": "12px"}),
 
         # Description
         html.Div(id="details-node-description",
-                 className="text-muted mb-2",
-                 style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap"}),
+                 className="text-muted",
+                 style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap",
+                        "marginBottom": "14px"}),
 
-        # Progress bar
+        # Progress bar. It carries no margin of its own: the description above
+        # and the stats grid below supply the gaps on either side.
         html.Div(id="details-progress-section", style={"display": "none"}, children=[
             dbc.Progress(id="details-progress-bar", value=0,
                          className="mb-1", style={"height": "14px"}),
@@ -292,7 +299,7 @@ def build_details_tab_content():
                 id="details-attr-ratings-inherited-wrap",
                 style={"display": "none"},
             ),
-        ], className="mt-2"),
+        ], style={"marginTop": "14px"}),
 
         # Hidden priority container
         html.Div(id="details-priority-section", style={"display": "none"}, children=[
@@ -765,42 +772,58 @@ def _attribute_row(label, value_id):
     ], className="d-flex align-items-center mb-1")
 
 
-def _build_suggestion_row(node, remaining_count=0, priority_rank=None):
-    """One keyboard-accessible starting-point row in the Details empty state."""
-    context = " > ".join(
-        part for part in (node.context, node.subcontext) if part
-    )
-    remaining_text = ("Ready" if remaining_count == 0 else
-                      f"{remaining_count} required")
-    metadata = [node.type]
-    # Explore rows carry a visible status badge; Priority rows use that corner
-    # for their rank, so retain status in the text line instead.
-    if priority_rank is not None:
-        metadata.append(node.status)
-    metadata.append(remaining_text)
-    if context:
-        metadata.append(context)
+def _goal_corner_badge(text, palette_name, class_name="badge"):
+    """The fixed-width badge in a goal card's corner: a priority rank or score.
 
-    corner_name = "Priority" if priority_rank is not None else node.status
-    corner_text = str(priority_rank) if priority_rank is not None else node.status
-    aria_bits = ([f"Priority {priority_rank}"]
-                 if priority_rank is not None else []) + metadata
-    aria_label = f"View {node.name}. " + ", ".join(aria_bits)
+    The Goals sidebar and the Details suggestions share it, so the same number
+    looks the same on both.
+    """
+    return html.Span(text, className=class_name, style={
+        **badge_style(palette_name, font_size="0.7rem"),
+        "minWidth": "34px", "textAlign": "center", "display": "inline-block",
+    })
+
+
+def _build_suggestion_row(node, priority_rank=None, priority=None):
+    """One keyboard-accessible starting-point card in the Details empty state.
+
+    The name, then the context on a muted line. The subcontext is left out,
+    since a Goal's subcontext often just repeats its name. The corner matches
+    the Goal's card in the Goals sidebar: a Priority Goal shows its rank, and
+    another Goal shows its 0-100 ``priority``.
+
+    Every suggestion is a Goal, so anything that only restates that is left
+    out: no type color or label, and no status, since Goals are never Blocked
+    and Done ones are never suggested.
+    """
+    if priority_rank is not None:
+        label_bits = [f"Priority {priority_rank}"]
+        corner = _goal_corner_badge(str(priority_rank), "PriorityRank",
+                                    "badge details-suggestion-badge")
+    elif priority is not None:
+        label_bits = [f"Priority score {priority}"]
+        corner = _goal_corner_badge(str(priority), STATUS_OPEN,
+                                    "badge details-suggestion-badge")
+    else:
+        label_bits, corner = [], None
+    if node.context:
+        label_bits.append(node.context)
+
+    children = [
+        html.Span([
+            html.Span(node.name, className="details-suggestion-name"),
+            html.Small(node.context or "", className="details-suggestion-meta"),
+        ], className="details-suggestion-copy"),
+    ]
+    if corner is not None:
+        children.append(corner)
 
     return html.Button(
-        [
-            html.Span([
-                html.Span(node.name, className="details-suggestion-name"),
-                html.Small(" · ".join(metadata),
-                           className="details-suggestion-meta"),
-            ], className="details-suggestion-copy"),
-            html.Span(corner_text, className="badge details-suggestion-badge",
-                      style=badge_style(corner_name, font_size="0.68rem")),
-        ],
+        children,
         id={"type": "details-suggestion-item", "index": node.name},
         type="button",
         className="details-suggestion-row",
-        **{"aria-label": aria_label},
+        **{"aria-label": f"View {node.name}. " + ", ".join(label_bits)},
     )
 
 
@@ -884,11 +907,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
             style={**badge_style(STATUS_DONE, font_size="0.7rem"),
                    "width": "62px", "textAlign": "center", "display": "inline-block"})
     elif corner_text and priority_rank is None:
-        corner_badge = html.Span(
-            corner_text, className=_badge_cls,
-            style={**badge_style(STATUS_OPEN, font_size="0.7rem"),
-                   "minWidth": "34px", "textAlign": "center",
-                   "display": "inline-block"})
+        corner_badge = _goal_corner_badge(corner_text, STATUS_OPEN, _badge_cls)
     else:
         corner_badge = None
 
@@ -901,10 +920,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
             ], className="d-flex align-items-center"),
             html.Div([
                 html.Span(
-                    dbc.Badge(str(priority_rank), color="warning",
-                              style={"fontSize": "0.7rem", "color": "#ffffff",
-                                     "minWidth": "34px", "textAlign": "center",
-                                     "display": "inline-block"}),
+                    _goal_corner_badge(str(priority_rank), "PriorityRank"),
                     className="goal-rank-trigger",
                     **{"data-goal-name": name},
                 ) if priority_rank is not None else None,
@@ -913,10 +929,11 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
 
-    # Stats line
+    # Stats line. No percentage: the done/total count already shows progress,
+    # and the remaining time carries the sense of size.
     if total > 0:
         _sep = "\u00a0\u00a0\u00b7\u00a0\u00a0"
-        stats_text = f"{done}/{total} hard subtasks{_sep}{pct}%{_sep}{formatted_time}"
+        stats_text = f"{done}/{total} hard subtasks{_sep}{formatted_time}"
     else:
         stats_text = "No subtasks yet"
 

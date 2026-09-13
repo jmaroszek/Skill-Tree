@@ -1,275 +1,206 @@
-"""Behavioral tests for the Details empty-state Explore ranking."""
+"""The Details Explore list and the app's one 0-100 Goal priority.
+
+Explore lists Goals from the Goal ranking the Goals sidebar uses, and shows the
+same number. These tests cover the selection rules and that the number agrees
+across the sidebar, the Explain modal and Details.
+"""
 
 from typing import Any
 
-import pytest
+import dash
+from dash.development.base_component import Component
 
-from callback_helpers import rank_details_suggestions
-from models import (
-    EDGE_NEEDS_HARD,
-    EDGE_NEEDS_SOFT,
-    STATUS_DONE,
-    Node,
-)
-
-
-HYPERPARAMS = {
-    "w_v": 1.0,
-    "w_i": 0.0,
-    "value_exponent": 1.0,
-    "d_H": 1.0,
-    "d_S": 0.4,
-    "cross_context_mult": 1.0,
-    "suggestion_context_premium": 0.0,
-    "suggestion_subcontext_premium": 0.0,
-    "context_weights": {},
-}
+from analyze_callbacks import _rank_goals, explain_goal, normalize_goal_scores
+from callback_helpers import select_explore_goals
+from config import ConfigManager
+from graph_manager import GraphManager
+from models import EDGE_NEEDS_HARD, STATUS_DONE, Node
 
 
 def _node(name: str, **overrides: Any) -> Node:
-    defaults: dict[str, Any] = {
-        "name": name,
-        "type": "Learn",
-        "description": "A test node",
-        "value": 5,
-        "time_o": 1.0,
-        "time_m": 2.0,
-        "time_p": 4.0,
-        "interest": 5,
-        "difficulty": 5,
-        "status": "Open",
-        "context": "Mind",
-    }
+    defaults: dict[str, Any] = dict(
+        name=name, type="Learn", description="", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind",
+    )
     defaults.update(overrides)
     return Node(**defaults)
 
 
-def _container(name: str, **overrides: Any) -> Node:
-    overrides.setdefault("time_mode", "inherited")
-    overrides.setdefault("value_mode", "inherited")
-    return _node(name, **overrides)
+def _goal(name: str, **overrides: Any) -> Node:
+    return _node(name, type="Goal", **overrides)
 
 
-def _edge(source: str, target: str, edge_type: str = EDGE_NEEDS_HARD):
-    return {"source": source, "target": target, "type": edge_type}
+def _edge(source: str, target: str):
+    return {"source": source, "target": target, "type": EDGE_NEEDS_HARD}
 
 
-def _rank(nodes, edges, **overrides):
-    return rank_details_suggestions(
-        nodes, edges, HYPERPARAMS, count=overrides.pop("count", 10),
-        **overrides,
-    )
+def _names(goals):
+    return [goal.name for goal in goals]
 
 
-def test_returns_all_container_modes_but_not_leaf_or_milestone():
-    strict = _container("Strict")
-    value_only = _container("ValueOnly", time_mode="manual")
-    goal = _node("Goal", type="Goal", value_mode="manual")
-    milestone = _node("Checkpoint", type="Milestone")
-    children = [
-        _node("Strict child"),
-        _node("Value child"),
-        _node("Goal child"),
-        _node("Milestone child"),
-        _node("Plain leaf"),
-    ]
-    nodes = [strict, value_only, goal, milestone, *children]
-    edges = [
-        _edge("Strict child", "Strict"),
-        _edge("Value child", "ValueOnly"),
-        _edge("Goal child", "Goal"),
-        _edge("Milestone child", "Checkpoint"),
-    ]
+# ============================================================================
+# select_explore_goals — which ranked Goals Explore lists
+# ============================================================================
 
-    names = [suggestion.node.name for suggestion in _rank(nodes, edges)]
+def test_keeps_rank_order_and_skips_seeds_filtered_and_finished_goals():
+    seed, hidden, finished, empty, kept = (
+        _goal(name) for name in ("Seed", "Hidden", "Finished", "Empty", "Kept"))
+    nodes = [seed, hidden, finished, empty, kept,
+             _node("Seed work"), _node("Hidden work"),
+             _node("Finished work", status=STATUS_DONE), _node("Kept work")]
+    edges = [_edge("Seed work", "Seed"), _edge("Hidden work", "Hidden"),
+             _edge("Finished work", "Finished"), _edge("Kept work", "Kept")]
 
-    assert set(names) == {"Strict", "ValueOnly", "Goal"}
-    assert "Checkpoint" not in names
-    assert "Plain leaf" not in names
+    chosen = select_explore_goals(
+        [seed, hidden, finished, empty, kept], nodes, edges,
+        candidate_names={"Seed", "Finished", "Empty", "Kept"},
+        seed_names=["Seed"])
+
+    assert _names(chosen) == ["Kept"]
 
 
-def test_ranks_by_incoming_required_scope_not_forward_unlocks():
-    """Regression: the old forward scorer tied these and chose alphabetically."""
-    rich = _container("ZRich")
-    sparse = _container("ASparse")
-    rich_children = [_node(f"Rich child {index}", value=8) for index in range(4)]
-    sparse_child = _node("Sparse child", value=8)
-    nodes = [sparse, sparse_child, rich, *rich_children]
-    edges = [
-        *[_edge(child.name, rich.name) for child in rich_children],
-        _edge(sparse_child.name, sparse.name),
-    ]
+def test_a_nested_goal_waits_for_an_unrelated_one():
+    parent, child, other = _goal("Parent"), _goal("Child"), _goal("Other")
+    nodes = [parent, child, other, _node("Deep"), _node("Other work")]
+    edges = [_edge("Deep", "Child"), _edge("Child", "Parent"),
+             _edge("Other work", "Other")]
 
-    results = _rank(nodes, edges)
-
-    assert [result.node.name for result in results][:2] == ["ZRich", "ASparse"]
-    assert results[0].remaining_count == 4
-    assert results[0].scope_value == pytest.approx(32.0)
-    assert results[0].scope_value > results[1].scope_value
+    assert _names(select_explore_goals(
+        [parent, child, other], nodes, edges, count=2)) == ["Parent", "Other"]
+    # With room to spare, the nested Goal fills in, still in rank order.
+    assert _names(select_explore_goals(
+        [parent, child, other], nodes, edges, count=3)) == [
+        "Parent", "Child", "Other"]
 
 
-def test_uses_only_hard_prerequisites_to_define_scope():
-    hard = _container("Hard scope")
-    soft_only = _container("Soft only")
-    hard_child = _node("Hard child", value=7)
-    soft_child = _node("Soft child", value=10)
-    nodes = [hard, soft_only, hard_child, soft_child]
-    edges = [
-        _edge(hard_child.name, hard.name),
-        _edge(soft_child.name, hard.name, EDGE_NEEDS_SOFT),
-        _edge(soft_child.name, soft_only.name, EDGE_NEEDS_SOFT),
-    ]
+def test_a_priority_goal_keeps_its_children_out_of_explore():
+    parent, child, other = _goal("Parent"), _goal("Child"), _goal("Other")
+    nodes = [parent, child, other, _node("Deep"), _node("Other work")]
+    edges = [_edge("Deep", "Child"), _edge("Child", "Parent"),
+             _edge("Other work", "Other")]
 
-    results = _rank(nodes, edges)
+    chosen = select_explore_goals(
+        [parent, child, other], nodes, edges, count=1, seed_names=["Parent"])
 
-    assert [result.node.name for result in results] == ["Hard scope"]
-    assert results[0].scope_value == pytest.approx(7.0)
-    assert results[0].remaining_count == 1
+    assert _names(chosen) == ["Other"]
+    assert select_explore_goals([other], nodes, edges, count=0) == []
 
 
-def test_excludes_inactive_roots_and_zeroes_completed_prerequisite_value():
-    active = _container("Active")
-    done_root = _container("Done root", status=STATUS_DONE)
-    dormant_root = _container("Dormant root", dormant=1)
-    done_child = _node("Done child", value=10, status=STATUS_DONE)
-    open_child = _node("Open child", value=4)
-    nodes = [active, done_root, dormant_root, done_child, open_child]
-    edges = [
-        _edge(done_child.name, active.name),
-        _edge(open_child.name, active.name),
-        _edge(open_child.name, done_root.name),
-        _edge(open_child.name, dormant_root.name),
-    ]
+# ============================================================================
+# One 0-100 Goal priority across the app
+# ============================================================================
 
-    results = _rank(nodes, edges)
-
-    assert [result.node.name for result in results] == ["Active"]
-    assert results[0].remaining_count == 1
-    assert results[0].total_count == 2
-    assert results[0].scope_value == pytest.approx(4.0)
+def _add_graph(manager, nodes, edges):
+    for node in nodes:
+        manager.add_node(node)
+    for source, target in edges:
+        manager.add_edge(source, target, EDGE_NEEDS_HARD)
 
 
-def test_respects_filtered_candidates_and_visible_priority_seeds():
-    a = _container("A")
-    b = _container("B")
-    a_child = _node("A child")
-    b_child = _node("B child")
-    nodes = [a, b, a_child, b_child]
-    edges = [_edge(a_child.name, a.name), _edge(b_child.name, b.name)]
-
-    filtered = _rank(nodes, edges, candidate_names={"A"})
-    seeded = _rank(nodes, edges, seed_names=("A",))
-
-    assert [result.node.name for result in filtered] == ["A"]
-    assert [result.node.name for result in seeded] == ["B"]
+def _ranked(manager):
+    nodes = manager.get_all_nodes()
+    edges = manager.get_edges()
+    ranked = _rank_goals([n for n in nodes if n.type == "Goal"], nodes, edges,
+                         ConfigManager.get_priority_goals(),
+                         ConfigManager.get_hyperparams(), with_scores=True)
+    return ranked, nodes, edges
 
 
-def test_direct_parent_child_repeat_waits_for_independent_branch():
-    parent = _container("Parent")
-    child = _container("Child")
-    independent = _container("Independent")
-    deep_leaf = _node("Deep leaf", value=10)
-    parent_leaf = _node("Parent leaf", value=10)
-    independent_leaf = _node("Independent leaf", value=1)
-    nodes = [
-        parent, child, independent, deep_leaf, parent_leaf, independent_leaf,
-    ]
-    edges = [
-        _edge(deep_leaf.name, child.name),
-        _edge(child.name, parent.name),
-        _edge(parent_leaf.name, parent.name),
-        _edge(independent_leaf.name, independent.name),
-    ]
+def test_finished_goals_get_no_number_and_do_not_set_the_base():
+    """Regression: a Done Goal owes no work, so its score dwarfed every open
+    Goal and shrank the Explain modal's numbers below the sidebar's."""
+    manager = GraphManager()
+    _add_graph(manager, [
+        _goal("Finished", status=STATUS_DONE),
+        _node("F1", value=10, interest=10, status=STATUS_DONE),
+        _node("F2", value=10, interest=10, status=STATUS_DONE),
+        _goal("Ticked"),
+        _node("T1", value=10, interest=10, status=STATUS_DONE),
+        _goal("Open"),
+        _node("O1", value=6, interest=6),
+    ], [("F1", "Finished"), ("F2", "Finished"), ("T1", "Ticked"),
+        ("O1", "Open")])
+    ranked, nodes, edges = _ranked(manager)
+    scores = dict((goal.name, score) for goal, score in ranked)
+    assert scores["Finished"] > scores["Open"]
 
-    names = [
-        result.node.name for result in _rank(nodes, edges, count=2)
-    ]
+    priorities = normalize_goal_scores(ranked, nodes, edges)
 
-    assert names == ["Parent", "Independent"]
-
-
-def test_nested_fallback_can_fill_list_when_no_independent_branch_remains():
-    parent = _container("Parent")
-    child = _container("Child")
-    deep_leaf = _node("Deep leaf", value=10)
-    parent_leaf = _node("Parent leaf", value=10)
-    nodes = [parent, child, deep_leaf, parent_leaf]
-    edges = [
-        _edge(deep_leaf.name, child.name),
-        _edge(child.name, parent.name),
-        _edge(parent_leaf.name, parent.name),
-    ]
-
-    names = [result.node.name for result in _rank(nodes, edges, count=2)]
-
-    assert names == ["Parent", "Child"]
+    assert priorities == {"Open": 100}
+    hp = ConfigManager.get_hyperparams()
+    assert explain_goal("Open", nodes, edges, hp, [])[1] == 100
+    assert explain_goal("Finished", nodes, edges, hp, [])[1] is None
 
 
-def test_priority_hierarchy_seed_steers_first_choice_to_another_branch():
-    parent = _container("Priority parent")
-    child = _container("Nested child")
-    independent = _container("Independent")
-    deep_leaf = _node("Deep leaf", value=10)
-    independent_leaf = _node("Independent leaf", value=1)
-    nodes = [parent, child, independent, deep_leaf, independent_leaf]
-    edges = [
-        _edge(deep_leaf.name, child.name),
-        _edge(child.name, parent.name),
-        _edge(independent_leaf.name, independent.name),
-    ]
-
-    results = _rank(
-        nodes, edges, count=1, seed_names=(parent.name,)
-    )
-
-    assert [result.node.name for result in results] == ["Independent"]
-
-
-def test_configured_context_variety_can_beat_a_close_repeat():
-    a_best = _container("A best", context="Mind")
-    a_next = _container("A next", context="Mind")
-    b = _container("B", context="Body")
-    a_best_child = _node("A best child", value=10, context="Mind")
-    a_next_child = _node("A next child", value=9, context="Mind")
-    b_child = _node("B child", value=6, context="Body")
-    nodes = [a_best, a_next, b, a_best_child, a_next_child, b_child]
-    edges = [
-        _edge(a_best_child.name, a_best.name),
-        _edge(a_next_child.name, a_next.name),
-        _edge(b_child.name, b.name),
-    ]
-    hyperparams = {
-        **HYPERPARAMS,
-        "suggestion_context_premium": 100.0,
-        "suggestion_subcontext_premium": 100.0,
-    }
-
-    results = rank_details_suggestions(
-        nodes, edges, hyperparams, count=2
-    )
-
-    assert [result.node.name for result in results] == ["A best", "B"]
+def _component_ids_and_badges(component):
+    """(id, corner badge text) for each goal or suggestion card in a tree."""
+    found, stack = {}, [component]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, (list, tuple)):
+            stack.extend(current)
+            continue
+        if not isinstance(current, Component):
+            continue
+        card_id = getattr(current, "id", None)
+        if isinstance(card_id, dict) and card_id.get("type") in (
+                "goal-card", "details-suggestion-item"):
+            if card_id["type"] == "goal-card":
+                corner = current.children[1].children[1].children[1]
+            else:
+                corner = current.children[1] if len(current.children) > 1 else None
+            found[card_id["index"]] = corner.children if corner is not None else None
+        children = getattr(current, "children", None)
+        if children is not None:
+            stack.append(children)
+    return found
 
 
-def test_count_limit_and_ties_are_deterministic():
-    alpha = _container("Alpha")
-    zebra = _container("Zebra")
-    alpha_child = _node("Alpha child", value=5)
-    zebra_child = _node("Zebra child", value=5)
-    edges = [
-        _edge(alpha_child.name, alpha.name),
-        _edge(zebra_child.name, zebra.name),
-    ]
+def _callback(app, name):
+    for spec in app.callback_map.values():
+        fn = spec.get("callback")
+        while fn is not None and hasattr(fn, "__wrapped__"):
+            fn = fn.__wrapped__
+        if fn is not None and fn.__name__ == name:
+            return fn
+    raise LookupError(name)
 
-    forward = _rank(
-        [zebra, zebra_child, alpha, alpha_child], edges, count=1
-    )
-    reverse = _rank(
-        [alpha_child, alpha, zebra_child, zebra], edges, count=1
-    )
 
-    assert [result.node.name for result in forward] == ["Alpha"]
-    assert [result.node.name for result in reverse] == ["Alpha"]
-    assert _rank(
-        [alpha, alpha_child], [_edge(alpha_child.name, alpha.name)], count=0
-    ) == []
+def test_sidebar_and_details_show_the_same_number_whatever_is_hidden():
+    import details_callbacks
+    import sidebars_callbacks
+
+    manager = GraphManager()
+    _add_graph(manager, [
+        _goal("Alpha", context="Mind"),
+        _node("A1", value=9, interest=9, context="Mind"),
+        _goal("Beta", context="Body"),
+        _node("B1", value=3, interest=3, context="Body"),
+    ], [("A1", "Alpha"), ("B1", "Beta")])
+
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    sidebars_callbacks.register_sidebars_callbacks(app)
+    details_callbacks.register_details_callbacks(app)
+    render_sidebar = _callback(app, "render_goal_list")
+    render_details = _callback(app, "build_empty_state_suggestions")
+
+    def sidebar(search):
+        return _component_ids_and_badges(render_sidebar(
+            "tab-details", None, None, None, search, "priority", None, None,
+            {"left": "0px"}))
+
+    def details(context):
+        return _component_ids_and_badges(render_details(
+            0, 0, context, [], [], 1, 1, None, "hours", 10, [], [], ""))
+
+    everything = sidebar(None)
+    assert everything["Alpha"] == "100"
+    beta = everything["Beta"]
+    assert beta not in (None, "100")
+
+    # A search in the sidebar and a filter in Details leave the base alone.
+    assert sidebar("Beta") == {"Beta": beta}
+    assert details([]) == {"Alpha": "100", "Beta": beta}
+    assert details(["Body"]) == {"Beta": beta}

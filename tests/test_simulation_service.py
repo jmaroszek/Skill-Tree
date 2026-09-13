@@ -9,6 +9,7 @@ import pytest
 import simulation_service as service_module
 from simulation import simulate_task_chain, SimulationCancelled, _sample_node
 from simulation_service import SimulationService, effective_trials, MAX_SAMPLE_WORK
+from duration_ui import simulation_figure
 from test_atomic_saves import node
 
 
@@ -175,3 +176,66 @@ assert(latest.sequence > old.sequence);
     result = subprocess.run([node_binary, '-e', script, str(asset)],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
+
+
+def _summary(counts, centers, width, p10, p50, p90):
+    stats = dict(p10=p10, p50=p50, p90=p90)
+    return dict(stats=stats, counts=counts, centers=centers, width=width,
+                trials=sum(counts), chain_size=3)
+
+
+HOURS = {'hours_per_week': 20, 'hours_per_month': 80}  # a year is 1,040h
+
+
+def test_chart_hover_gives_only_the_chance_of_finishing_within_each_bar():
+    # 1,000 runs in bars spanning 4-6h, 6-8h, 8-10h and 10-12h.
+    fig = simulation_figure(_summary([2, 0, 500, 498], [5.0, 7.0, 9.0, 11.0], 2.0,
+                                     6.0, 9.0, 11.0), HOURS)
+    assert list(fig.data[0].customdata) == [
+        'Under 1% chance within 6.0h',
+        'Under 1% chance within 8.0h',
+        '50% chance within 10.0h',
+        # The longest run is not a promise, so no bar claims a certain finish.
+        'Over 99% chance within 12.0h',
+    ]
+    assert fig.data[0].hovertemplate == '%{customdata}<extra></extra>'
+
+
+def test_chart_draws_everything_in_the_unit_that_fits_the_median():
+    centers = [2000 + 60 * (i + 0.5) for i in range(20)]
+    fig = simulation_figure(_summary([1] * 20, centers, 60.0, 2080, 2600, 3120), HOURS)
+
+    assert fig.layout.xaxis.title.text == 'Years'
+    assert fig.data[0].x[0] == pytest.approx(2030 / 1040)
+    assert fig.data[0].width == pytest.approx(60 / 1040)
+    assert [a.text for a in fig.layout.annotations] == [
+        'P10: 2.0y', 'P50: 2.5y', 'P90: 3.0y']
+    assert [shape.x0 for shape in fig.layout.shapes] == pytest.approx([2.0, 2.5, 3.0])
+    # A 0.058y bar would repeat labels at one decimal, so it gets two.
+    ends = [text.rsplit(' ', 1)[1] for text in fig.data[0].customdata]
+    assert ends[0] == '1.98y'
+    assert len(set(ends)) == len(ends)
+
+
+def test_short_chains_stay_in_hours():
+    fig = simulation_figure(_summary([5, 5], [10.0, 14.0], 4.0, 9.0, 12.0, 15.0), HOURS)
+    assert fig.layout.xaxis.title.text == 'Hours'
+
+
+def test_details_chart_is_read_by_hovering_a_bar_not_zooming():
+    import details_callbacks
+    manager = details_callbacks.graph_manager
+    manager.add_node(node('Goal', type='Goal'))
+    for name in ('A', 'B'):
+        manager.add_node(node(name))
+        manager.add_edge(name, 'Goal', 'Needs_Hard')
+
+    fig, _, _ = details_callbacks._run_simulation('Goal', ['include'], [])
+
+    bars = fig.data[0]
+    assert len(bars.customdata) == len(bars.y)
+    assert 'chance within' in bars.customdata[-1]
+    # 'closest' hover answers only inside a bar and adds no axis value label.
+    assert fig.layout.hovermode == 'closest'
+    assert fig.layout.dragmode is False
+    assert fig.layout.xaxis.fixedrange and fig.layout.yaxis.fixedrange
