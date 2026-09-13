@@ -159,7 +159,7 @@ The discount comes from a walk over the **pool**: every scorable node in the gra
 
 `divisor(n) = (1+c)^a * (1+s)^b`
 
-Settings use percentages of extra merit required after **one** earlier recommendation: `p_context` and `p_subcontext` (total). Convert with `a = log2(1+p_context/100)` and `b = log2((1+p_subcontext/100)/(1+p_context/100))`. The subcontext premium includes the context premium; it is not an additional penalty. It must be at least as large as the context premium.
+Profiles use percentages of extra merit required after **one** earlier recommendation: `p_context` and `p_subcontext` (total). Convert with `a = log2(1+p_context/100)` and `b = log2((1+p_subcontext/100)/(1+p_context/100))`. The subcontext premium includes the context premium; it is not an additional penalty and must be at least as large as the context premium.
 
 Sage uses **5% / 15%**. After three earlier recommendations from one subcontext, another from that subcontext needs 32.25% extra merit; a sibling subcontext needs 10.25%. Accumulation grows gently. These percentages describe extra merit required, not a literal percentage subtraction from the score.
 
@@ -231,8 +231,6 @@ The six built-in profiles are essentially hyperparameter bundles. The first tabl
 | Density exponent (Goals) | $\alpha_g$ | 0.20 | 0.50 | 0.00 | 0.05 | 0.20 | 0.35 |
 
 $w_t$ is read against the 40-hour reference, so Glider's 135 is not a typo. It is the value that produces a very steep time penalty once time is divided by $t_{\text{ref}}$.
-
-A **Custom** profile is also available, exposing every parameter for fine tuning.
 
 ### Two Knobs That Look Like Levers But Are Not
 
@@ -379,7 +377,7 @@ Once a node is Done, the cascade will never silently flip it back to Open. A Don
 
 ## Startup Safety Net
 
-On every app launch, the graph manager walks every non-Goal node. It re-derives each status from the current Hard prereqs, corrects any drift, and logs what it fixed. Drift can only happen if you add nodes directly with SQL, bypassing the app's safety mechanisms. The Appearance tab in Settings also offers a manual status repair, if you'd rather not restart the app.
+On every app launch, the graph manager walks every non-Goal node. It re-derives each status from the current Hard prereqs, corrects any drift, and logs what it fixed. Drift can only happen if you add nodes directly with SQL, bypassing the app's safety mechanisms.
 
 ## Dormant and Now Nodes
 
@@ -447,7 +445,7 @@ Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{
 
 ## Versioned Settings
 
-Schema v4 retires task alpha and adds suggestion premiums. Existing named profiles receive their new defaults; Custom receives Sage defaults unless explicit premiums are stored. Reads do not write settings. Goal density and future-work settings are preserved.
+Schema v4 retires task alpha and adds suggestion premiums. Existing named profiles receive their new defaults; legacy custom bundles receive Sage defaults unless explicit premiums are stored. Reads do not write settings. Goal density and future-work settings are preserved.
 
 Schema v3 intentionally changes cascade and Goal scope and adds future-work controls. V1 bundles without a rating exponent retain 1; v2 bundles without one retain 2. The old task time-cost coefficient is rescaled only for v1, never again for v2/v3. Reads migrate in memory; saving stamps the version.
 

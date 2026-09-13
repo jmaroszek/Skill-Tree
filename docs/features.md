@@ -240,7 +240,7 @@ A pinned row also skips the part of its own context you already know. Prerequisi
 
 Say you put *Publishing* in Now. It is blocked behind two dozen prerequisites. Rather than showing you nothing, the Next tab pins the three highest-scoring ones you could actually start today. Finish one and the list refreshes with whatever is best next. The rest of the ranking is untouched underneath — the pinned rows are added above it, not swapped in for it.
 
-Three is the default. Change it under Settings → Misc, or set it to zero to turn the behavior off.
+The app shows up to three steps toward each blocked Now node.
 
 ## The Next Section
 This is a simple table of the top project recommendations, as judged by the priority scoring algorithm. 
@@ -407,7 +407,7 @@ The gear icon in the bottom right corner of each canvas opens the **Graph Layout
 
 **Freeze** stops the graph from moving until you turn it off. You'll know it's active because a blue outline surrounds the canvas and a snowflake appears in the top right corner. It's invaluable when editing edges, because without it, the graph re-arranges after each change, making it hard to track the nodes you're working on. Nodes can still be dragged manually while Freeze is on.
 
-The **↺** button beside the panel title restores your saved defaults — set per-tab in Settings.
+The **↺** button beside the panel title restores the app's defaults for that canvas.
 
 ### Fullscreen
 
@@ -579,13 +579,13 @@ The controls in the top-right let you dial the local view from a compact list of
 For a sprawling Goal with hundreds of descendants, Max Depth is the difference between an unreadable wall of rows and a clean list of actionable items. A depth of 1 is the old "direct children only" view; **All** preserves the complete subtree. Goal progress follows the same depth limit but remains deliberately Hard-only, because soft prerequisites and synergies do not define whether a Goal is complete.
 
 ## Time Simulation Panel
-Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take using **Monte Carlo Simulation.** Every time you swap nodes or adjust a filter, the app runs 10,000 simulations of you completing every subtask, keeping in mind your uncertainty about each one. The whole thing takes milliseconds, so it feels instantaneous; if you are ever in a rush and need those few milliseconds, you can lower the trial count in [Settings](#settings).
+Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take using **Monte Carlo Simulation.** Every time you swap nodes or adjust a filter, the app targets 10,000 simulations of you completing every subtask, keeping in mind your uncertainty about each one. Large dependency views automatically use fewer runs to stay responsive.
 
 The feature shines on large, vague, long-horizon Goals. It lets you say with confidence "there's a 10% chance I'll finish this in 2 months, 50% in 3, and 90% in 6." 
 
 | Output | What it tells you |
 |---|---|
-| Histogram | The full distribution of how long the chain might take across all 10,000 runs. The axis uses whichever unit suits the median, such as years for a long Goal or hours for a short task. |
+| Histogram | The full distribution of how long the chain might take across the simulation runs. The axis uses whichever unit suits the median, such as years for a long Goal or hours for a short task. |
 | P10 line | Optimistic case — only 10% of runs finish faster than this. |
 | P50 line | The median — half of runs finish faster, half slower. |
 | P90 line | Pessimistic case — 90% of runs finish faster than this; a sensible "worst realistic" figure. |
@@ -837,23 +837,18 @@ Where Bottleneck asks *what unlocks the most?*, Hub asks *what is most central t
 
 # Settings
 
-The Settings modal is where you fine-tune how the app looks and behaves. Open it using the gear icon in the top-right corner. 
+The Settings modal collects the personal choices and machine-specific information the app cannot decide for you. Open it using the gear icon in the top-right corner.
 
 | Tab | What lives here |
 |---|---|
-| **Appearance** | Customize node shapes and colors by type, set status colors, and define default physics parameters for the layout engine. It also houses the **Name Linter** toggle, Next tab table size, and a manual **Repair Graph** utility. |
-| **Contexts** | Define your primary contexts and subcontexts. This tab also lets you choose the sorting behavior (None, Length, or Alphabetical) for your context and subcontext dropdown menus. |
-| **Scoring** | Tune the priority ranking system. Select an [algorithmic profile](scoring.md#scoring-profiles), adjust individual [scoring hyperparameters](scoring.md#profile-hyperparameters) (such as intrinsic value, cascade weights, and synergies), and run performance benchmarks. |
-| **Time** | Set your weekly, monthly, and yearly productive hour budgets. You can also configure default time estimates and units for new nodes, and toggle whether the app prompts you for a reflection immediately when a node is marked Done. |
+| **Appearance** | Customize node shapes and colors by type, set status colors, and configure the **Name Linter**. |
+| **Contexts** | Define contexts and subcontexts, choose their dropdown order, and decide which areas should have more influence over what appears next. |
+| **Scoring** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and optionally show the startup graph summary on the Next tab. |
+| **Time** | Set your weekly, monthly, and yearly productive hour budgets, plus the time estimates and unit pre-filled for new nodes. |
 | **Paths** | Specify local file system paths for Obsidian vault and Google Drive integrations, allowing the app to resolve your external links correctly. |
+| **Misc** | Set the maximum number of Now nodes and choose whether completing a node opens a reflection prompt. |
 
-Feel free to experiment with alternative settings because all the major operations have a "restore to defaults" option. 
-
-<p align="center">
-  <img src="../images/settings-appearance-tab.png" width=400>
-  <br>
-  <em> Settings Appearance Tab. Other tabs have a similar style. </em>
-</p>
+Graph-layout behavior, scoring coefficients, forecast assumptions, and other implementation policy use maintained defaults behind the scenes rather than asking you to tune the model yourself.
 
 # Navigation
 ## Tutorial

@@ -7,8 +7,8 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
-from config import ConfigManager, sort_subcontexts, sort_contexts
-from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from config import ConfigManager, PROFILES, sort_subcontexts, sort_contexts
+from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import get_trigger_id, build_context_weight_rows, detect_context_renames
 
@@ -115,25 +115,6 @@ def _clamp(val, lo, hi, default):
     except (ValueError, TypeError):
         return default
     return max(lo, min(hi, v))
-
-
-def _profile_knob(hp_profile, key):
-    """Carry forward a hyperparameter that has no Settings input of its own.
-
-    The save handler rebuilds the bundle from the visible form fields, so any
-    knob without a field would be dropped and then silently replaced by Sage's
-    default on the next read. That is not a rounding difference: `alpha_goal`
-    ranges 0.00-0.50 across profiles and `value_exponent` 1.00-2.50, so losing
-    either would quietly re-rank a non-Sage profile.
-
-    A named profile supplies its own value. Anything else (Custom, or an
-    unrecognised name) keeps whatever is already stored, so hand tuning done
-    outside the UI survives a Settings save.
-    """
-    from config import PROFILES, DEFAULT_HYPERPARAMS
-    if hp_profile in PROFILES:
-        return PROFILES[hp_profile].get(key, DEFAULT_HYPERPARAMS[key])
-    return ConfigManager.get_hyperparams().get(key, DEFAULT_HYPERPARAMS[key])
 
 
 def _migrate_context_weights(old_weights: dict, pending_weights: dict,
@@ -243,7 +224,7 @@ def register_settings_callbacks(app):
     def toggle_settings_modal(_n_clicks, is_open):
         return not is_open
 
-    # --- Settings: Toggle the Algorithm Profile info popover ---
+    # --- Settings: Toggle the Scoring Profile info popover ---
     @app.callback(
         Output("popover-hp-profile-info", "is_open"),
         Input("btn-hp-profile-info", "n_clicks"),
@@ -255,18 +236,6 @@ def register_settings_callbacks(app):
 
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
-        Output('hp-wv', 'value'),
-        Output('hp-wi', 'value'),
-        Output('hp-dh', 'value'),
-        Output('hp-ds', 'value'),
-        Output('hp-dsyn-pair', 'value'),
-        Output('hp-dsyn-mul', 'value'),
-        Output('hp-cross-context-mult', 'value'),
-        Output('hp-we', 'value'),
-        Output('hp-wt', 'value'),
-        Output('hp-beta', 'value'),
-        Output('hp-goal-boost', 'value'),
-        Output('hp-context-repeat', 'value'),
         Output('setting-node-types', 'value'),
         Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
@@ -285,35 +254,18 @@ def register_settings_callbacks(app):
         Output('setting-default-time-p', 'value'),
         Output('setting-linter-enabled', 'value'),
         Output('setting-linter-exclusions', 'value'),
-        Output('setting-next-table-rows', 'value'),
-        Output('setting-graph-edge-length', 'value'),
-        Output('setting-graph-gravity', 'value'),
-        Output('setting-graph-repulsion', 'value'),
-        Output('setting-details-graph-edge-length', 'value'),
-        Output('setting-details-graph-gravity', 'value'),
-        Output('setting-details-graph-repulsion', 'value'),
-        Output('setting-events-graph-edge-length', 'value'),
-        Output('setting-events-graph-gravity', 'value'),
-        Output('setting-events-graph-repulsion', 'value'),
         Output('setting-show-scoring-perf', 'value'),
         Output('setting-subcontext-sort-mode', 'value'),
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
-        Output('setting-monte-carlo-trials', 'value'),
-        Output('setting-estimate-correlation', 'value'),
         Output('setting-now-node-cap', 'value'),
-        Output('setting-unblocking-steps', 'value'),
-        Output('hp-subcontext-repeat', 'value'),
-        Output('hp-future-hours', 'value'),
-        Output('hp-future-exponent', 'value'),
         Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 51
+            return (dash.no_update,) * 23
 
-        hp = ConfigManager.get_hyperparams()
         node_types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
         subcontexts = ConfigManager.get_subcontexts()
@@ -321,6 +273,8 @@ def register_settings_callbacks(app):
         obs_path = ConfigManager.get_obsidian_vault()
         gdrive_path = ConfigManager.get_gdrive_path()
         profile = ConfigManager.get_hp_profile()
+        if profile not in PROFILES:
+            profile = "Sage"
 
         sub_lines = []
         for ctx_name in contexts:
@@ -352,19 +306,7 @@ def register_settings_callbacks(app):
         linter_enabled_val = ["enabled"] if linter.get('enabled', True) else []
         linter_exclusions_val = ', '.join(linter.get('exclusions', []))
 
-        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
-        gl = ConfigManager.get_graph_layout_defaults()
-        dgl = ConfigManager.get_details_graph_layout_defaults()
-        egl = ConfigManager.get_events_graph_layout_defaults()
-
         return (
-            hp.get('w_v', 1.0), hp.get('w_i', 1.0),
-            hp.get('d_H', 0.6), hp.get('d_S', 0.40),
-            hp.get('d_Syn_pair', 0.10), hp.get('d_Syn_mul', 0.40),
-            hp.get('cross_context_mult', 1.0),
-            hp.get('w_e', 2.5), hp.get('w_t', 1.0), hp.get('beta', 0.85),
-            hp.get('goal_boost', 1.5),
-            hp['suggestion_context_premium'],
             ', '.join(node_types),
             sub_val,
             profile,
@@ -383,60 +325,12 @@ def register_settings_callbacks(app):
             ted.get('pessimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic']),
             linter_enabled_val,
             linter_exclusions_val,
-            ConfigManager.get_next_table_rows(),
-            gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
-            gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
-            gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
-            dgl.get('edge_length', DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length']),
-            dgl.get('gravity', DEFAULT_DETAILS_GRAPH_LAYOUT['gravity']),
-            dgl.get('repulsion', DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion']),
-            egl.get('edge_length', DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length']),
-            egl.get('gravity', DEFAULT_EVENTS_GRAPH_LAYOUT['gravity']),
-            egl.get('repulsion', DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion']),
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
             ConfigManager.get_subcontext_sort_mode(),
             ConfigManager.get_context_sort_mode(),
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
-            ConfigManager.get_monte_carlo_trials(),
-            ConfigManager.get_estimate_correlation(),
             ConfigManager.get_now_node_cap(),
-            ConfigManager.get_unblocking_steps_per_now(),
-            hp['suggestion_subcontext_premium'],
-            hp['future_work_half_credit_hours'],
-            hp['future_work_exponent'],
         )
-
-    # --- Settings: Apply Hyperparameter Profile ---
-    @app.callback(
-        Output('hp-wv', 'value', allow_duplicate=True),
-        Output('hp-wi', 'value', allow_duplicate=True),
-        Output('hp-dh', 'value', allow_duplicate=True),
-        Output('hp-ds', 'value', allow_duplicate=True),
-        Output('hp-dsyn-pair', 'value', allow_duplicate=True),
-        Output('hp-dsyn-mul', 'value', allow_duplicate=True),
-        Output('hp-cross-context-mult', 'value', allow_duplicate=True),
-        Output('hp-we', 'value', allow_duplicate=True),
-        Output('hp-wt', 'value', allow_duplicate=True),
-        Output('hp-beta', 'value', allow_duplicate=True),
-        Output('hp-goal-boost', 'value', allow_duplicate=True),
-        Output('hp-context-repeat', 'value', allow_duplicate=True),
-        Output('hp-subcontext-repeat', 'value', allow_duplicate=True),
-        Output('hp-future-hours', 'value', allow_duplicate=True),
-        Output('hp-future-exponent', 'value', allow_duplicate=True),
-        Input('setting-hp-profile', 'value'),
-        prevent_initial_call=True,
-    )
-    def apply_profile(profile_val):
-        from config import PROFILES
-        if profile_val in PROFILES:
-            p = PROFILES[profile_val]
-            return (p['w_v'], p['w_i'], p['d_H'], p['d_S'],
-                    p['d_Syn_pair'], p['d_Syn_mul'],
-                    p.get('cross_context_mult', 1.0),
-                    p['w_e'], p['w_t'], p['beta'], p.get('goal_boost', 1.5),
-                    p['suggestion_context_premium'], p['suggestion_subcontext_premium'], p['future_work_half_credit_hours'],
-                    p['future_work_exponent'])
-        return (dash.no_update,) * 15
 
     # --- Settings: Sync Time Estimates ---
     # 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see ConfigManager.HOURS_PER_YEAR_MULT).
@@ -467,23 +361,6 @@ def register_settings_callbacks(app):
             pass
         return dash.no_update, dash.no_update, dash.no_update
 
-    @app.callback(
-        Output('hp-goal-boost-description', 'children'),
-        Input('hp-goal-boost', 'value'),
-    )
-    def update_goal_boost_description(boost):
-        try:
-            b = float(boost) if boost is not None else 1.5
-        except (ValueError, TypeError):
-            b = 1.5
-        rank2 = 1 + (b - 1) * 0.66
-        rank3 = 1 + (b - 1) * 0.33
-        return (
-            "Multiplier applied to nodes in a priority goal's subtree. "
-            f"Rank #1 gets the full boost, #2 gets {rank2:.2f} (66%), "
-            f"#3 gets {rank3:.2f} (33%)."
-        )
-
     # --- Settings: Save ---
     @app.callback(
         Output('settings-save-status', 'children'),
@@ -492,13 +369,6 @@ def register_settings_callbacks(app):
         Output('settings-clear-interval', 'n_intervals'),
         Output('setting-context-weights-container', 'children', allow_duplicate=True),
         Input('btn-settings-save', 'n_clicks'),
-        State('hp-wv', 'value'), State('hp-wi', 'value'),
-        State('hp-dh', 'value'), State('hp-ds', 'value'),
-        State('hp-dsyn-pair', 'value'), State('hp-dsyn-mul', 'value'),
-        State('hp-cross-context-mult', 'value'),
-        State('hp-we', 'value'), State('hp-wt', 'value'), State('hp-beta', 'value'),
-        State('hp-goal-boost', 'value'),
-        State('hp-context-repeat', 'value'),
         State('setting-node-types', 'value'),
         State('setting-subcontexts', 'value'),
         State('setting-obsidian-path', 'value'),
@@ -517,56 +387,24 @@ def register_settings_callbacks(app):
         State('setting-hp-profile', 'value'),
         State('setting-linter-enabled', 'value'),
         State('setting-linter-exclusions', 'value'),
-        State('setting-next-table-rows', 'value'),
-        State('setting-graph-edge-length', 'value'),
-        State('setting-graph-gravity', 'value'),
-        State('setting-graph-repulsion', 'value'),
-        State('setting-details-graph-edge-length', 'value'),
-        State('setting-details-graph-gravity', 'value'),
-        State('setting-details-graph-repulsion', 'value'),
-        State('setting-events-graph-edge-length', 'value'),
-        State('setting-events-graph-gravity', 'value'),
-        State('setting-events-graph-repulsion', 'value'),
         State('setting-show-scoring-perf', 'value'),
         State('setting-subcontext-sort-mode', 'value'),
         State('setting-context-sort-mode', 'value'),
         State('setting-time-calibration-enabled', 'value'),
-        State('setting-monte-carlo-trials', 'value'),
-        State('setting-estimate-correlation', 'value'),
         State('setting-now-node-cap', 'value'),
-        State('setting-unblocking-steps', 'value'),
-        State('hp-future-hours', 'value'),
-        State('hp-future-exponent', 'value'),
-        State('hp-subcontext-repeat', 'value'),
         prevent_initial_call=True,
     )
-    def save_settings(n_clicks, wv, wi, dh, ds, dsyn_pair, dsyn_mul,
-                      cross_context_mult,
-                      we, wt, beta, goal_boost,
-                      context_repeat,
-                      n_types_val, subcontexts_val, obs_path, gdrive_path,
+    def save_settings(n_clicks, n_types_val, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
                       ctx_weight_values, ctx_weight_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
-                      linter_enabled_val, linter_exclusions_val, next_table_rows_val,
-                      gl_edge_length, gl_gravity, gl_repulsion,
-                      dgl_edge_length, dgl_gravity, dgl_repulsion,
-                      egl_edge_length, egl_gravity, egl_repulsion,
+                      linter_enabled_val, linter_exclusions_val,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
-                      monte_carlo_trials_val, estimate_correlation_val, now_node_cap_val,
-                      unblocking_steps_val=None,
-                      future_hours=None, future_exponent=None, subcontext_repeat=None):
+                      now_node_cap_val):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
-        context_premium = _clamp(context_repeat, 0.0, 100.0, 5.0)
-        subcontext_premium = _clamp(subcontext_repeat, 0.0, 100.0,
-                                   ConfigManager.get_hyperparams()['suggestion_subcontext_premium'])
-        if subcontext_premium < context_premium:
-            return ("Same-subcontext percentage must be at least the same-context percentage.",
-                    dash.no_update, dash.no_update, dash.no_update, dash.no_update)
 
         try:
             # Perf-toggle is independent of any migrated setting — persist
@@ -580,29 +418,12 @@ def register_settings_callbacks(app):
             )
             if now_node_cap_val is not None:
                 ConfigManager.set_now_node_cap(max(1, min(50, int(now_node_cap_val))))
-            if unblocking_steps_val is not None:
-                ConfigManager.set_unblocking_steps_per_now(
-                    max(0, min(10, int(unblocking_steps_val))))
             if subcontext_sort_mode_val:
                 ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
             if context_sort_mode_val:
                 ConfigManager.set_context_sort_mode(context_sort_mode_val)
-            new_hp = {
-                'w_v': float(wv), 'w_i': float(wi),
-                'd_H': float(dh), 'd_S': float(ds),
-                'd_Syn_pair': float(dsyn_pair), 'd_Syn_mul': float(dsyn_mul),
-                'cross_context_mult': float(cross_context_mult) if cross_context_mult is not None else 1.0,
-                'w_e': float(we), 'w_t': float(wt), 'beta': float(beta),
-                'goal_boost': float(goal_boost) if goal_boost is not None else 1.5,
-                'suggestion_context_premium': context_premium,
-                'suggestion_subcontext_premium': subcontext_premium,
-                'alpha_goal': _profile_knob(hp_profile, 'alpha_goal'),
-                'value_exponent': _profile_knob(hp_profile, 'value_exponent'),
-                'future_work_half_credit_hours': _clamp(future_hours, 0.0, 1000000.0,
-                    ConfigManager.get_hyperparams()['future_work_half_credit_hours']),
-                'future_work_exponent': _clamp(future_exponent, 0.05, 2.0,
-                    ConfigManager.get_hyperparams()['future_work_exponent']),
-            }
+            profile_name = hp_profile if hp_profile in PROFILES else "Sage"
+            new_hp = dict(PROFILES[profile_name])
 
             new_ctx_weights: dict = {}
             if ctx_weight_ids and ctx_weight_values:
@@ -612,18 +433,13 @@ def register_settings_callbacks(app):
                         continue
                     new_ctx_weights[name] = _clamp(wval, 0.0, 10.0, 1.0)
 
-            from config import DEFAULT_MONTE_CARLO_TRIALS, DEFAULT_ESTIMATE_CORRELATION
-            try:
-                mc_trials = int(monte_carlo_trials_val)
-            except (TypeError, ValueError):
-                mc_trials = DEFAULT_MONTE_CARLO_TRIALS
-            new_ts = {
+            # Keep simulation policy values that are no longer exposed in the
+            # modal while updating the two user-supplied capacity values.
+            new_ts = dict(ConfigManager.get_time_settings())
+            new_ts.update({
                 'hours_per_week': float(hpw) if hpw is not None else 40,
                 'hours_per_month': float(hpm) if hpm is not None else 160,
-                'monte_carlo_trials': mc_trials if mc_trials > 0 else DEFAULT_MONTE_CARLO_TRIALS,
-                'estimate_correlation': _clamp(estimate_correlation_val, 0.0, 1.0,
-                                               DEFAULT_ESTIMATE_CORRELATION),
-            }
+            })
 
             from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
             new_ted = {
@@ -718,29 +534,11 @@ def register_settings_callbacks(app):
                     'enabled': bool(linter_enabled_val and "enabled" in linter_enabled_val),
                     'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
                 }
-                from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
-                new_gl = {
-                    'edge_length': _clamp(gl_edge_length, 50, 300, DEFAULT_GRAPH_LAYOUT['edge_length']),
-                    'gravity': _clamp(gl_gravity, 0, 5, DEFAULT_GRAPH_LAYOUT['gravity']),
-                    'repulsion': _clamp(gl_repulsion, 500, 100000, DEFAULT_GRAPH_LAYOUT['repulsion']),
-                }
-                new_dgl = {
-                    'edge_length': _clamp(dgl_edge_length, 50, 300, DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length']),
-                    'gravity': _clamp(dgl_gravity, 0, 5, DEFAULT_DETAILS_GRAPH_LAYOUT['gravity']),
-                    'repulsion': _clamp(dgl_repulsion, 500, 100000, DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion']),
-                }
-                new_egl = {
-                    'edge_length': _clamp(egl_edge_length, 50, 300, DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length']),
-                    'gravity': _clamp(egl_gravity, 0, 5, DEFAULT_EVENTS_GRAPH_LAYOUT['gravity']),
-                    'repulsion': _clamp(egl_repulsion, 500, 100000, DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion']),
-                }
                 pending = {
                     'hp': new_hp,
+                    'hp_profile': profile_name,
                     'ts': new_ts,
                     'ted': new_ted,
-                    'gl': new_gl,
-                    'dgl': new_dgl,
-                    'egl': new_egl,
                     'obs_path': obs_path,
                     'gdrive_path': gdrive_path or "",
                     'types': new_types,
@@ -750,7 +548,6 @@ def register_settings_callbacks(app):
                     'shapes': pending_shapes,
                     'colors': pending_colors,
                     'linter': new_linter,
-                    'next_table_rows': int(next_table_rows_val) if next_table_rows_val is not None else None,
                     'orphans': orphans,
                     'new_values': {
                         'type': new_types,
@@ -764,30 +561,10 @@ def register_settings_callbacks(app):
                 }
                 return "Migration required \u2014 check the migration dialog.", pending, False, 0, dash.no_update
 
-            from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
-            new_gl = {
-                'edge_length': float(gl_edge_length) if gl_edge_length is not None else DEFAULT_GRAPH_LAYOUT['edge_length'],
-                'gravity': float(gl_gravity) if gl_gravity is not None else DEFAULT_GRAPH_LAYOUT['gravity'],
-                'repulsion': float(gl_repulsion) if gl_repulsion is not None else DEFAULT_GRAPH_LAYOUT['repulsion'],
-            }
-            new_dgl = {
-                'edge_length': float(dgl_edge_length) if dgl_edge_length is not None else DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length'],
-                'gravity': float(dgl_gravity) if dgl_gravity is not None else DEFAULT_DETAILS_GRAPH_LAYOUT['gravity'],
-                'repulsion': float(dgl_repulsion) if dgl_repulsion is not None else DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion'],
-            }
-            new_egl = {
-                'edge_length': float(egl_edge_length) if egl_edge_length is not None else DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length'],
-                'gravity': float(egl_gravity) if egl_gravity is not None else DEFAULT_EVENTS_GRAPH_LAYOUT['gravity'],
-                'repulsion': float(egl_repulsion) if egl_repulsion is not None else DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion'],
-            }
-
-            ConfigManager.set_hp_profile(hp_profile or "Custom")
+            ConfigManager.set_hp_profile(profile_name)
             ConfigManager.set_hyperparams(new_hp)
             ConfigManager.set_time_settings(new_ts)
             ConfigManager.set_time_estimate_defaults(new_ted)
-            ConfigManager.set_graph_layout_defaults(new_gl)
-            ConfigManager.set_details_graph_layout_defaults(new_dgl)
-            ConfigManager.set_events_graph_layout_defaults(new_egl)
             ConfigManager.set_obsidian_vault(obs_path)
             ConfigManager.set_gdrive_path(gdrive_path or "")
             if new_types:
@@ -825,9 +602,6 @@ def register_settings_callbacks(app):
             }
             ConfigManager.set_titlecase_linter(new_linter)
 
-            if next_table_rows_val is not None:
-                ConfigManager.set_next_table_rows(int(next_table_rows_val))
-
             saved_contexts = new_contexts if new_contexts else ConfigManager.get_contexts()
             refreshed_weight_rows = build_context_weight_rows(
                 sort_contexts(saved_contexts), ConfigManager.get_context_weights()
@@ -837,79 +611,6 @@ def register_settings_callbacks(app):
         except Exception:
             logger.exception("Failed to save settings")
             return "Error saving settings.", dash.no_update, False, 0, dash.no_update
-
-    # --- Perf profile: on-demand N-run benchmark (always available) ---
-    @app.callback(
-        Output('perf-profile-output', 'children'),
-        Input('btn-run-perf-profile', 'n_clicks'),
-        State('perf-profile-runs', 'value'),
-        prevent_initial_call=True,
-    )
-    def run_perf_profile(n_clicks, n_runs):
-        if not n_clicks:
-            return dash.no_update
-        import statistics
-        import math
-        from scoring import score_nodes
-        N = max(1, int(n_runs or 10))
-        hypers = ConfigManager.get_hyperparams()
-        hypers['context_weights'] = ConfigManager.get_context_weights()
-        priority_goals = ConfigManager.get_priority_goals()
-        all_nodes = manager.get_all_nodes()
-        edges = manager.get_edges()
-        active = [n for n in all_nodes if n.status not in (STATUS_DONE, STATUS_BLOCKED)]
-        runs = []
-        for _ in range(N):
-            _, t = score_nodes(active, all_nodes, edges, hypers,
-                               priority_goals=priority_goals,
-                               external_memo={}, time_phases=True)
-            runs.append(t)
-
-        keys = [("total_ms", "total"), ("adj_ms", "adj"),
-                ("goals_ms", "goals"), ("score_ms", "score"), ("rank_ms", "rank")]
-        header = html.Tr([html.Th(c) for c in
-                          ["phase", "median", "mean", "SD", "95% CI (mean)"]])
-        rows = [header]
-        for k, label in keys:
-            vals = [r[k] for r in runs]
-            med = statistics.median(vals)
-            mean = statistics.fmean(vals)
-            sd = statistics.stdev(vals) if N >= 2 else 0.0
-            half = 1.96 * sd / math.sqrt(N) if N >= 2 else 0.0
-            rows.append(html.Tr([
-                html.Td(label),
-                html.Td(f"{med:.2f} ms"),
-                html.Td(f"{mean:.2f} ms"),
-                html.Td(f"{sd:.2f} ms"),
-                html.Td(f"[{mean - half:.2f}, {mean + half:.2f}] ms"),
-            ]))
-        header_line = html.Div(
-            f"Profile: N={N}, {runs[-1]['n_nodes']} nodes, "
-            f"{runs[-1]['n_edges']} edges (cold memo per run)",
-            className="text-muted mb-1")
-        return [header_line,
-                html.Table(rows, className="table table-sm table-dark table-borderless")]
-
-    # --- Settings: Repair Graph (manual trigger for recompute_all_statuses) ---
-    @app.callback(
-        Output('repair-graph-status', 'children'),
-        Output('elements-pending-store', 'data', allow_duplicate=True),
-        Input('btn-repair-graph', 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def repair_graph(n_clicks):
-        if not n_clicks:
-            return dash.no_update, dash.no_update
-        try:
-            from callbacks import generate_elements
-            changed = manager.recompute_all_statuses()
-            if changed:
-                noun = "node" if changed == 1 else "nodes"
-                return f"Repaired {changed} {noun}.", generate_elements()
-            return "Graph already consistent.", dash.no_update
-        except Exception:
-            logger.exception("Failed to repair graph")
-            return "Error during repair — see logs.", dash.no_update
 
     # --- Migration Modal ---
     @app.callback(
@@ -978,6 +679,8 @@ def register_settings_callbacks(app):
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             try:
+                ConfigManager.set_hp_profile(
+                    pending_state.get('hp_profile', 'Sage'))
                 ConfigManager.set_hyperparams(pending_state['hp'])
                 if 'ts' in pending_state:
                     ConfigManager.set_time_settings(pending_state['ts'])
@@ -1016,14 +719,6 @@ def register_settings_callbacks(app):
                     ConfigManager.set_node_colors(pending_colors)
                 if 'linter' in pending_state:
                     ConfigManager.set_titlecase_linter(pending_state['linter'])
-                if 'gl' in pending_state:
-                    ConfigManager.set_graph_layout_defaults(pending_state['gl'])
-                if 'dgl' in pending_state:
-                    ConfigManager.set_details_graph_layout_defaults(pending_state['dgl'])
-                if 'egl' in pending_state:
-                    ConfigManager.set_events_graph_layout_defaults(pending_state['egl'])
-                if pending_state.get('next_table_rows') is not None:
-                    ConfigManager.set_next_table_rows(int(pending_state['next_table_rows']))
             except Exception:
                 logger.exception("Failed to save pending settings")
 
@@ -1242,106 +937,6 @@ def register_settings_callbacks(app):
         if n > 0:
             return "", True
         return dash.no_update, dash.no_update
-
-    # --- Settings: Apply saved Next Table default immediately ---
-    @app.callback(
-        Output('suggestion-count-store', 'data', allow_duplicate=True),
-        Output('suggestion-count-display', 'children', allow_duplicate=True),
-        Input('settings-save-status', 'children'),
-        State('setting-next-table-rows', 'value'),
-        prevent_initial_call=True,
-    )
-    def apply_next_table_default(status, next_table_rows_val):
-        if status != "Settings saved" or next_table_rows_val is None:
-            return dash.no_update, dash.no_update
-        try:
-            count = max(1, min(100, int(next_table_rows_val)))
-        except (TypeError, ValueError):
-            return dash.no_update, dash.no_update
-        return count, str(count)
-
-    @app.callback(
-        Output('suggestion-count-store', 'data', allow_duplicate=True),
-        Output('suggestion-count-display', 'children', allow_duplicate=True),
-        Input('btn-migration-apply', 'n_clicks'),
-        Input('btn-migration-skip', 'n_clicks'),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def apply_pending_next_table_default(_apply_clicks, _skip_clicks, pending_state):
-        if get_trigger_id() not in ('btn-migration-apply', 'btn-migration-skip'):
-            return dash.no_update, dash.no_update
-        count_val = (pending_state or {}).get('next_table_rows')
-        if count_val is None:
-            return dash.no_update, dash.no_update
-        try:
-            count = max(1, min(100, int(count_val)))
-        except (TypeError, ValueError):
-            return dash.no_update, dash.no_update
-        return count, str(count)
-
-    # --- Settings: Restore Default Graph Layout ---
-    @app.callback(
-        Output('setting-graph-edge-length', 'value', allow_duplicate=True),
-        Output('setting-graph-gravity', 'value', allow_duplicate=True),
-        Output('setting-graph-repulsion', 'value', allow_duplicate=True),
-        Output('setting-details-graph-edge-length', 'value', allow_duplicate=True),
-        Output('setting-details-graph-gravity', 'value', allow_duplicate=True),
-        Output('setting-details-graph-repulsion', 'value', allow_duplicate=True),
-        Output('setting-events-graph-edge-length', 'value', allow_duplicate=True),
-        Output('setting-events-graph-gravity', 'value', allow_duplicate=True),
-        Output('setting-events-graph-repulsion', 'value', allow_duplicate=True),
-        Input('btn-restore-graph-layout', 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def restore_default_graph_layout(n_clicks):
-        if not n_clicks:
-            return (dash.no_update,) * 9
-        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
-        return (
-            DEFAULT_GRAPH_LAYOUT['edge_length'],
-            DEFAULT_GRAPH_LAYOUT['gravity'],
-            DEFAULT_GRAPH_LAYOUT['repulsion'],
-            DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length'],
-            DEFAULT_DETAILS_GRAPH_LAYOUT['gravity'],
-            DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion'],
-            DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length'],
-            DEFAULT_EVENTS_GRAPH_LAYOUT['gravity'],
-            DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion'],
-        )
-
-    # --- Settings: Apply graph layout defaults to canvas sliders ---
-    @app.callback(
-        Output('graph-settings-edge-length', 'value', allow_duplicate=True),
-        Output('graph-settings-gravity', 'value', allow_duplicate=True),
-        Output('graph-settings-repulsion', 'value', allow_duplicate=True),
-        Output('details-graph-settings-edge-length', 'value', allow_duplicate=True),
-        Output('details-graph-settings-gravity', 'value', allow_duplicate=True),
-        Output('details-graph-settings-repulsion', 'value', allow_duplicate=True),
-        Output('events-graph-settings-edge-length', 'value', allow_duplicate=True),
-        Output('events-graph-settings-gravity', 'value', allow_duplicate=True),
-        Output('events-graph-settings-repulsion', 'value', allow_duplicate=True),
-        Input('btn-settings-save', 'n_clicks'),
-        prevent_initial_call=True,
-    )
-    def apply_graph_defaults_to_sliders(n_clicks):
-        if not n_clicks:
-            return (dash.no_update,) * 9
-        from config import DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT, DEFAULT_EVENTS_GRAPH_LAYOUT
-        gl = ConfigManager.get_graph_layout_defaults()
-        dgl = ConfigManager.get_details_graph_layout_defaults()
-        egl = ConfigManager.get_events_graph_layout_defaults()
-        return (
-            gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
-            gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
-            gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
-            dgl.get('edge_length', DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length']),
-            dgl.get('gravity', DEFAULT_DETAILS_GRAPH_LAYOUT['gravity']),
-            dgl.get('repulsion', DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion']),
-            egl.get('edge_length', DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length']),
-            egl.get('gravity', DEFAULT_EVENTS_GRAPH_LAYOUT['gravity']),
-            egl.get('repulsion', DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion']),
-        )
 
     # --- Settings: Restore Default Shapes ---
     @app.callback(

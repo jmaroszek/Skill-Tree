@@ -216,33 +216,10 @@ class TestProfileTable:
 
 
 # ============================================================================
-# alpha_goal survives a Settings save
+# Profile definitions preserve their distinct Goal-density behavior
 # ============================================================================
 
-class TestKnobsSurviveSave:
-    """The Settings form has no input for alpha_goal.
-
-    Before this guard the saved bundle simply omitted the key, and
-    get_hyperparams merged Sage's default back in — quietly resetting the Goal
-    ranker for every other profile. Explorer wants 0.50 and Compounder 0.00,
-    so the reset was a real behaviour change, not a rounding difference.
-    """
-
-    def test_named_profiles_resolve_to_their_own_value(self):
-        from settings_callbacks import _profile_knob
-        for name, hp in PROFILES.items():
-            assert _profile_knob(name, 'alpha_goal') == hp['alpha_goal'], name
-
-    def test_custom_keeps_the_stored_value(self):
-        from settings_callbacks import _profile_knob
-        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, 'alpha_goal': 0.42})
-        assert _profile_knob('Custom', 'alpha_goal') == 0.42
-
-    def test_unknown_profile_falls_back_to_the_stored_value(self):
-        from settings_callbacks import _profile_knob
-        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, 'alpha_goal': 0.11})
-        assert _profile_knob('NoSuchProfile', 'alpha_goal') == 0.11
-
+class TestProfileGoalDensity:
     def test_profiles_do_not_all_share_one_alpha_goal(self):
         """Guards against a retune that flattens the knob into irrelevance."""
         assert len({hp['alpha_goal'] for hp in PROFILES.values()}) >= 4

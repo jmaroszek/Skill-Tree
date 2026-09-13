@@ -57,7 +57,7 @@ _CONTEXT_WEIGHTS_PER_COLUMN = 3
 
 
 def build_context_weight_rows(contexts, ctx_weights):
-    """Build the per-context weight input rows for the Scoring settings tab.
+    """Build the per-context priority rows for the Contexts settings tab.
 
     Rows are chunked into fixed-height columns (``_CONTEXT_WEIGHTS_PER_COLUMN``
     each) laid out left-to-right, so the inputs fill the horizontal dead space

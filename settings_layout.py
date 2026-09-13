@@ -6,7 +6,6 @@ from duration_ui import bracket_label
 from dash import html
 import dash_bootstrap_components as dbc
 from config import (
-    ConfigManager,
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     SUBCONTEXT_SORT_DEFINITION,
@@ -15,63 +14,9 @@ from config import (
     CONTEXT_SORT_DEFINITION,
     CONTEXT_SORT_LENGTH,
     CONTEXT_SORT_ALPHABETICAL,
-    DEFAULT_GRAPH_LAYOUT,
-    DEFAULT_DETAILS_GRAPH_LAYOUT,
-    DEFAULT_EVENTS_GRAPH_LAYOUT,
 )
 
 _RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
-
-
-def _build_graph_layout_defaults_row():
-    gl = ConfigManager.get_graph_layout_defaults()
-    dgl = ConfigManager.get_details_graph_layout_defaults()
-    egl = ConfigManager.get_events_graph_layout_defaults()
-
-    _label_w = "76px"
-    _col_w = "116px"
-
-    def _cell(child, width):
-        return html.Div(child, style={"width": width, "flex": "0 0 auto"})
-
-    def _data_row(label, ids, vals, last=False):
-        return html.Div([
-            _cell(dbc.Label(label, className="mb-0 fw-bold"), _label_w),
-            _cell(dbc.Input(id=ids[0], type="number", min=50, max=300, step=10,
-                            value=vals[0], placeholder="50 – 300"), _col_w),
-            _cell(dbc.Input(id=ids[1], type="number", min=0, max=5, step=0.25,
-                            value=vals[1], placeholder="0 – 5"), _col_w),
-            _cell(dbc.Input(id=ids[2], type="number", min=500, max=100000, step=500,
-                            value=vals[2], placeholder="500 – 100,000"), _col_w),
-        ], className="d-flex align-items-center gap-4 " + ("mb-1" if last else "mb-2"))
-
-    return html.Div([
-        # Header row with column labels
-        html.Div([
-            _cell(None, _label_w),
-            _cell(dbc.Label("Edge Length", className="mb-1"), _col_w),
-            _cell(dbc.Label("Gravity", className="mb-1"), _col_w),
-            _cell(dbc.Label("Repulsion", className="mb-1"), _col_w),
-        ], className="d-flex gap-4 mb-1"),
-        _data_row("Nodes",
-                  ["setting-graph-edge-length", "setting-graph-gravity",
-                   "setting-graph-repulsion"],
-                  [gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
-                   gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
-                   gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion'])]),
-        _data_row("Details",
-                  ["setting-details-graph-edge-length", "setting-details-graph-gravity",
-                   "setting-details-graph-repulsion"],
-                  [dgl.get('edge_length', DEFAULT_DETAILS_GRAPH_LAYOUT['edge_length']),
-                   dgl.get('gravity', DEFAULT_DETAILS_GRAPH_LAYOUT['gravity']),
-                   dgl.get('repulsion', DEFAULT_DETAILS_GRAPH_LAYOUT['repulsion'])]),
-        _data_row("Events",
-                  ["setting-events-graph-edge-length", "setting-events-graph-gravity",
-                   "setting-events-graph-repulsion"],
-                  [egl.get('edge_length', DEFAULT_EVENTS_GRAPH_LAYOUT['edge_length']),
-                   egl.get('gravity', DEFAULT_EVENTS_GRAPH_LAYOUT['gravity']),
-                   egl.get('repulsion', DEFAULT_EVENTS_GRAPH_LAYOUT['repulsion'])], last=True),
-    ])
 
 
 def _build_appearance_tab():
@@ -131,22 +76,6 @@ def _build_appearance_tab():
                 ], width=5),
             ]),
 
-            # --- Graph Layout Defaults group ---
-            html.Hr(className="my-3"),
-            html.Div([
-                html.H5("Graph Layout Defaults", className="mb-0"),
-                html.Span([
-                    dbc.Button(_RESTORE_ICON, id="btn-restore-graph-layout",
-                               color="link", size="sm",
-                               className="ms-1 p-0",
-                               style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px", "textDecoration": "none"}),
-                    dbc.Tooltip("Restore defaults", target="btn-restore-graph-layout", placement="top",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                ]),
-            ], className="d-flex align-items-center mt-2 mb-1"),
-            html.Small("Default parameters for the fcose layout algorithm.", className="text-muted d-block mb-2"),
-            _build_graph_layout_defaults_row(),
-
             # --- Name Linter group ---
             html.Hr(className="my-3"),
             html.H5("Name Linter", className="mt-2 mb-1"),
@@ -161,23 +90,6 @@ def _build_appearance_tab():
             dbc.Textarea(id="setting-linter-exclusions", rows=2,
                          placeholder="e.g. a, an, the, and, or, of"),
             html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
-
-            # --- Repair Graph group ---
-            html.Hr(className="my-2"),
-            html.H5("Repair Graph", className="mt-2 mb-1"),
-            html.Small(
-                "Re-derives Open/Blocked status for every non-Goal node. Runs automatically at startup; trigger manually after programmatic edits that bypassed the cascade.",
-                className="text-muted d-block mb-2",
-            ),
-            dbc.Row([
-                dbc.Col(dbc.Button("Repair Graph", id="btn-repair-graph",
-                                   color="secondary", size="sm"),
-                        width="auto", className="pe-2"),
-                dbc.Col(html.Span(id="repair-graph-status",
-                                  className="text-muted",
-                                  style={"fontSize": "0.85rem"}),
-                        className="d-flex align-items-center"),
-            ], className="g-1 align-items-center mb-2"),
 
         ], className="p-2")
     ])
@@ -227,6 +139,17 @@ def _build_contexts_tab():
             html.Small(
                 "None keeps the order defined above. Length sorts shortest first. Alphabetical sorts A–Z.",
                 className="text-muted d-block mb-1"),
+
+            # --- Context priorities ---
+            html.Hr(className="my-3"),
+            html.H5("Context Priorities", className="mt-2 mb-1"),
+            html.Small(
+                "Choose how strongly each area should influence what appears next. "
+                "1 is the normal priority; higher numbers bring an area forward, "
+                "while lower numbers let it recede. Subcontexts share their "
+                "parent context's priority.",
+                className="text-muted d-block mb-2"),
+            html.Div(id="setting-context-weights-container"),
         ], className="p-2")
     ])
 
@@ -239,7 +162,7 @@ def _build_scoring_tab():
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        dbc.Label("Algorithm Profile", className="mb-0"),
+                        dbc.Label("Scoring Profile", className="mb-0"),
                         html.Button(
                             html.I(className="bi bi-info-circle"),
                             id="btn-hp-profile-info",
@@ -318,159 +241,13 @@ def _build_scoring_tab():
                         {"label": "Pragmatist", "value": "Pragmatist"},
                         {"label": "Creator", "value": "Creator"},
                         {"label": "Glider", "value": "Glider"},
-                        {"label": "Custom", "value": "Custom"}
                     ], value="Sage"),
                 ], width=4),
             ], className="mt-1"),
 
             html.Hr(className="my-3"),
-
-            # --- Four-column layout: IV | Cascade | Synergy | PC (subsections of Priorities) ---
-            # Headings row — H6 so they read as subsections of the Priorities H5
-            dbc.Row([
-                dbc.Col(html.H6("Intrinsic Value", className="mt-2 mb-1")),
-                dbc.Col(html.H6("Cascade", className="mt-2 mb-1")),
-                dbc.Col(html.H6("Synergy", className="mt-2 mb-1")),
-                dbc.Col(html.H6("Perceived Cost", className="mt-2 mb-1")),
-            ], className="mt-2"),
-            # Descriptions row — Bootstrap flex makes all cols equal height
-            dbc.Row([
-                dbc.Col(html.Small(
-                    "The node's worth on its own, before any cascade or synergy.",
-                    className="text-muted")),
-                dbc.Col(html.Small(
-                    "Fraction of value kept per cascade hop along prerequisite edges. Hard edges propagate more strongly than Soft.",
-                    className="text-muted")),
-                dbc.Col(html.Small(
-                    "Pending Bonus: additive boost each partner gets before either is done. Done Multiplier: multiplicative boost the other gets when one is done.",
-                    className="text-muted")),
-                dbc.Col(html.Small(
-                    "Effort and time weights are linear. The time dampener (β) is exponential; a lower β softens the penalty for long tasks.",
-                    className="text-muted")),
-            ], className="mb-2"),
-            # Row 1
-            dbc.Row([
-                dbc.Col([dbc.Label("Value Weight", className="mt-2"), dbc.Input(id="hp-wv", type="number", step="any")]),
-                dbc.Col([dbc.Label("Hard Need", className="mt-2"), dbc.Input(id="hp-dh", type="number", step="any")]),
-                dbc.Col([dbc.Label("Pending Bonus", className="mt-2"), dbc.Input(id="hp-dsyn-pair", type="number", step="any")]),
-                dbc.Col([dbc.Label("Effort Weight", className="mt-2"), dbc.Input(id="hp-we", type="number", step="any")]),
-            ]),
-            # Row 2
-            dbc.Row([
-                dbc.Col([dbc.Label("Interest Weight", className="mt-2"), dbc.Input(id="hp-wi", type="number", step="any")]),
-                dbc.Col([dbc.Label("Soft Need", className="mt-2"), dbc.Input(id="hp-ds", type="number", step="any")]),
-                dbc.Col([dbc.Label("Done Multiplier", className="mt-2"), dbc.Input(id="hp-dsyn-mul", type="number", step="any")]),
-                dbc.Col([
-                    dbc.Label("Time Weight", className="mt-2"),
-                    dbc.Input(id="hp-wt", type="number", step="any"),
-                    html.Small("cost of a 40-hour project", className="text-muted d-block"),
-                ]),
-            ]),
-            # Row 3 (only Perceived Cost carries a third param)
-            dbc.Row([
-                dbc.Col([]),
-                dbc.Col([]),
-                dbc.Col([]),
-                dbc.Col([
-                    dbc.Label("Time Dampener", className="mt-2"),
-                    dbc.Input(id="hp-beta", type="number", step="any"),
-                    html.Small("lower values soften the penalty for long projects",
-                               className="text-muted d-block"),
-                ]),
-            ], className="mb-2"),
-
-            html.H6("Future Work", className="mt-3 mb-1"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Half-Credit Hours"),
-                    dbc.Input(id="hp-future-hours", type="number", min=0, max=1000000, step="any"),
-                    html.Small("Remaining required hours that halve a downstream benefit's credit. 0 disables.", className="text-muted d-block"),
-                ]),
-                dbc.Col([
-                    dbc.Label("Discount Exponent"),
-                    dbc.Input(id="hp-future-exponent", type="number", min=0.05, max=2, step="any"),
-                    html.Small("Shapes the future-work discount independently of today's time cost.", className="text-muted d-block"),
-                ]),
-            ], className="mb-2"),
-
-            # --- Multipliers section ---
-            html.Hr(className="my-3"),
-            html.H5("Multipliers", className="mt-2 mb-1"),
-
-            html.H6("Goal Boost", className="mt-2 mb-1"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Input(id="hp-goal-boost", type="number", step="any"),
-                ], width=3),
-                dbc.Col([
-                    html.Small(
-                        id="hp-goal-boost-description",
-                        className="text-muted d-block"),
-                ], width=9),
-            ], className="mb-2"),
-
-            html.H6("Cross-Context Boost", className="mt-3 mb-1"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Input(id="hp-cross-context-mult", type="number", step="any"),
-                ], width=3),
-                dbc.Col([
-                    html.Small(
-                        "Scales the synergy Pending Bonus when partners live in "
-                        "different contexts. 1.0 = off; higher rewards "
-                        "cross-domain synergies.",
-                        className="text-muted d-block"),
-                ], width=9),
-            ], className="mb-2"),
-
-            html.H6("Suggestion Variety", className="mt-3 mb-1"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Same context (%)", html_for="hp-context-repeat"),
-                    dbc.Input(id="hp-context-repeat", type="number", min=0, max=100, step="any"),
-                ], width=6),
-                dbc.Col([
-                    dbc.Label("Same subcontext, total (%)", html_for="hp-subcontext-repeat"),
-                    dbc.Input(id="hp-subcontext-repeat", type="number", min=0, max=100, step="any"),
-                ], width=6),
-            ], className="mb-2"),
-            html.Small(
-                "Extra priority needed after one recommendation from the same area. "
-                "The subcontext percentage includes the context percentage and must be at least as large. "
-                "Repetition accumulates gently as the list fills. Zero for both disables variety. "
-                "These settings change recommendation order, not scores or Goal rankings.",
-                className="text-muted d-block mb-2"),
-
-            # --- Context Priority Weights ---
-            html.H6("Context Priority Weights", className="mt-3 mb-1"),
-            html.Small(
-                "Relative importance per context. 1.0 = baseline. "
-                "Doubling a weight doubles that context's priority scores relative to others. "
-                "Applies at the parent-context level — subcontexts inherit their parent's weight. "
-                "Contexts are defined in the Contexts tab.",
-                className="text-muted d-block mb-2"),
-            html.Div(id="setting-context-weights-container"),
-
-            # --- Next Table group ---
-            html.Hr(className="my-3"),
-            html.H5("Next Table", className="mt-2 mb-1"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Default Rows", className="mb-0 mt-1"),
-                ], width="auto", className="pe-1"),
-                dbc.Col([
-                    dbc.Input(id="setting-next-table-rows", type="number", min=1, max=100, step=1,
-                              style={"width": "80px"}, size="sm"),
-                ], width="auto"),
-            ], className="g-1 align-items-center mb-1"),
-            html.Small("Number of suggestion rows to display in the Next tab by default.", className="text-muted d-block mb-1"),
-
-            # --- Performance group ---
-            html.Hr(className="my-3"),
-            html.H5("Performance", className="mt-2 mb-1"),
-
             # Startup analysis: timing + log on the first scoring run only
-            html.H6("Startup Analysis", className="mt-2 mb-1"),
+            html.H5("Startup Analysis", className="mt-2 mb-1"),
             dbc.Checklist(
                 id="setting-show-scoring-perf",
                 options=[{"label": "Run on startup", "value": "enabled"}],
@@ -480,31 +257,10 @@ def _build_scoring_tab():
                 labelStyle={"fontWeight": "normal", "fontSize": "0.9rem"},
             ),
             html.Small(
-                "Analyzes the entire graph upon initialization.",
-                className="text-muted d-block mb-3",
+                "Shows node, edge, and scoring-time totals on the Next tab and "
+                "records the first scoring run after launch.",
+                className="text-muted d-block mb-1",
             ),
-
-            # Manual benchmark: always available
-            html.H6("Manual Benchmark", className="mt-2 mb-1"),
-            html.Small(
-                ["Runs scoring ", html.I("n"), " times with a cold memo and "
-                 "reports statistics. Does not append to log."],
-                className="text-muted d-block mb-2",
-            ),
-            dbc.Row([
-                dbc.Col(dbc.Button("Run Benchmark", id="btn-run-perf-profile",
-                                   color="secondary", size="sm"),
-                        width="auto", className="pe-2"),
-                dbc.Col(dbc.Label("Runs:", html_for="perf-profile-runs",
-                                  className="mb-0 mt-1"),
-                        width="auto", className="pe-1"),
-                dbc.Col(dbc.Input(id="perf-profile-runs", type="number",
-                                  min=1, max=10000, step=1, value=100,
-                                  size="sm", style={"width": "68px"}),
-                        width="auto"),
-            ], className="g-1 align-items-center mb-2"),
-            html.Div(id="perf-profile-output", className="small mb-2",
-                     style={"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace"}),
         ], className="p-2")
     ])
 
@@ -556,28 +312,6 @@ def _build_time_tab():
                 ], width=True),
             ], className="mt-1"),
 
-            # --- Simulation section ---
-            html.Hr(className="my-2"),
-            html.H5("Time Simulation", className="mt-2 mb-1"),
-            html.Small(
-                "Number of Monte Carlo trials run when simulating a node's "
-                "completion time. Higher is smoother but slower.",
-                className="text-muted d-block mb-2"),
-            dbc.Label("Trials"),
-            dbc.Input(id="setting-monte-carlo-trials", type="number",
-                      min=100, max=1000000, step=100,
-                      style={"width": "128px"}),
-            html.Small(
-                "How much of your estimating error is systematic rather than "
-                "task-specific. At 0 every task surprises you independently, so "
-                "a long project's uncertainty cancels away to almost nothing. "
-                "At 1 a whole project is as uncertain as a single task. Raising "
-                "this widens the forecast without changing its average.",
-                className="text-muted d-block mt-3 mb-2"),
-            dbc.Label("Shared estimate error"),
-            dbc.Input(id="setting-estimate-correlation", type="number",
-                      min=0, max=1, step=0.05,
-                      style={"width": "128px"}),
         ], className="p-2")
     ])
 
@@ -593,16 +327,6 @@ def _build_misc_tab():
             dbc.Label("Max Now Nodes"),
             dbc.Input(id="setting-now-node-cap", type="number",
                       min=1, max=50, step=1,
-                      style={"width": "128px"}),
-
-            html.Small(
-                "When a Now node can't be started yet, the Next tab pins this "
-                "many of its best available prerequisites above the ranking. "
-                "Set to 0 to turn that off.",
-                className="text-muted d-block mb-2 mt-3"),
-            dbc.Label("Steps Toward a Blocked Now Node"),
-            dbc.Input(id="setting-unblocking-steps", type="number",
-                      min=0, max=10, step=1,
                       style={"width": "128px"}),
 
             # --- Reflection section ---

@@ -179,7 +179,7 @@ The effect is not subtle. Sample 116 independent tasks, each carrying a bracket 
 
 The flaw is the independence, not the tasks. Estimating errors are not independent. If you are running long on one task this year, you are probably running long on the next one too. Optimism is a property of the estimator, not of the task.
 
-So the simulator splits each task's uncertainty in two. One part is specific to the task. The other is shared with every other task in the chain. A single setting, **Shared estimate error**, sets the fraction that is common:
+So the simulator splits each task's uncertainty in two. One part is specific to the task. The other is shared with every other task in the chain. The model's shared-error assumption sets the fraction that is common:
 
 $$ \log T_n = \log(\text{median}_n) + \sigma_n\left(\sqrt{\rho}\,Z_{\text{shared}} + \sqrt{1-\rho}\,Z_n\right) $$
 
@@ -198,7 +198,7 @@ With independent tasks the forecast collapses toward a point as the project grow
 
 Both ends of that range are wrong. At 0 a decade of work is forecast to within a few percent. At 1 no task ever surprises you on its own, so a whole project is no more certain than a single task. The app ships at 0.4, and somewhere between 0.3 and 0.5 is the defensible band.
 
-This is the one number in the duration model that theory can bound but not fix. It is measurable, and the reflection feature is how. With enough recorded outcomes, split the spread of $\log(\text{actual} / \text{estimate})$ in two: the part common to all your estimates, and the part specific to each. That ratio is exactly this setting. Until then, 0.4 is a considered default rather than a derived one.
+This is the one number in the duration model that theory can bound but not fix. It is measurable, and the reflection feature is how. With enough recorded outcomes, split the spread of $\log(\text{actual} / \text{estimate})$ in two: the part common to all your estimates, and the part specific to each. That ratio is exactly the model parameter. Until then, 0.4 is a considered default rather than a derived one.
 
 Raising it widens the forecast without moving its centre. The expected total is unchanged at every value, so the score never shifts.
 
@@ -218,7 +218,7 @@ where $R$ is the set of incomplete, non-container nodes collected above. The mod
 
 ## Interactive Calculation Limits
 
-The Details panel uses the configured trial count up to 100,000 trials and a two-million node-trial work budget (counting incomplete, non-inherited nodes in the selected dependency view). Large views therefore use fewer trials. This reduces Monte Carlo precision, without changing the underlying duration model.
+The Details panel targets 10,000 trials under a two-million node-trial work budget (counting incomplete, non-inherited nodes in the selected dependency view). Large views therefore use fewer trials. This reduces Monte Carlo precision, without changing the underlying duration model.
 
 Sampling accumulates into one trial array in chunks instead of retaining an array for every task. Unchanged inputs reuse a small summary cache and a stable private random seed. A new selection, filter change, or departure from Details cancels superseded work; older responses cannot replace the current chart.
 

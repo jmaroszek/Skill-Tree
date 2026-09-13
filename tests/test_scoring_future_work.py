@@ -6,7 +6,7 @@ import random
 import networkx as nx
 import pytest
 
-from config import ConfigManager, PROFILES
+from config import ConfigManager, HYPERPARAMS_SCHEMA_VERSION, PROFILES
 from models import Node
 from scoring import explain_score, score_nodes
 
@@ -145,7 +145,7 @@ def test_cached_required_work_updates_after_remote_prerequisite_edit():
     assert after == fresh
 
 
-def test_future_settings_callback_arity_and_profile_load():
+def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_policy():
     import inspect
     from dash import Input, State, Output
     from settings_callbacks import register_settings_callbacks
@@ -161,34 +161,37 @@ def test_future_settings_callback_arity_and_profile_load():
 
     registry = Registry()
     register_settings_callbacks(registry)
-    for name in ['load_settings', 'apply_profile', 'save_settings']:
+    for name in ['load_settings', 'save_settings']:
         fn, deps = registry.callbacks[name]
         assert len(inspect.signature(fn).parameters) == sum(isinstance(d, (Input, State)) for d in deps)
     load, deps = registry.callbacks['load_settings']
     assert len(load(False)) == sum(isinstance(d, Output) for d in deps)
-    ConfigManager.set_hyperparams(dict(PROFILES['Sage'], future_work_half_credit_hours=400,
-                                      future_work_exponent=.8))
+    ConfigManager.set_hp_profile('Compounder')
     loaded = load(True)
     outputs = [d for d in deps if isinstance(d, Output)]
     assert len(loaded) == len(outputs)
     values = {d.component_id: value for d, value in zip(outputs, loaded)}
-    assert values['hp-context-repeat'] == 5
-    assert values['hp-subcontext-repeat'] == 15
-    assert loaded[-2:] == (400, .8)
-    apply, deps = registry.callbacks['apply_profile']
-    assert len(apply('Custom')) == sum(isinstance(d, Output) for d in deps)
-    assert apply('Compounder')[-2:] == (1300, .5)
-    outputs = [d for d in deps if isinstance(d, Output)]
-    for name, hp in PROFILES.items():
-        loaded = apply(name)
-        assert len(loaded) == len(outputs)
-        values = {d.component_id: value for d, value in zip(outputs, loaded)}
-        assert values['hp-context-repeat'] == hp['suggestion_context_premium']
-        assert values['hp-subcontext-repeat'] == hp['suggestion_subcontext_premium']
+    assert values['setting-hp-profile'] == 'Compounder'
 
     save, _ = registry.callbacks['save_settings']
     args = {key: None for key in inspect.signature(save).parameters}
-    args.update(n_clicks=1, context_repeat=20, subcontext_repeat=10)
-    before = ConfigManager._get_db_value('HYPERPARAMS')
-    assert 'at least' in save(**args)[0]
-    assert ConfigManager._get_db_value('HYPERPARAMS') == before
+    ConfigManager.set_time_settings({
+        'hours_per_week': 20,
+        'hours_per_month': 80,
+        'monte_carlo_trials': 4321,
+        'estimate_correlation': .25,
+    })
+    args.update(n_clicks=1, hp_profile='Explorer', hpw=25, hpm=100,
+                obs_path='', gdrive_path='')
+    assert save(**args)[0] == 'Settings saved'
+    assert ConfigManager.get_hp_profile() == 'Explorer'
+    assert ConfigManager.get_hyperparams() == {
+        **PROFILES['Explorer'],
+        '_schema': HYPERPARAMS_SCHEMA_VERSION,
+    }
+    assert ConfigManager.get_time_settings() == {
+        'hours_per_week': 25,
+        'hours_per_month': 100,
+        'monte_carlo_trials': 4321,
+        'estimate_correlation': .25,
+    }
