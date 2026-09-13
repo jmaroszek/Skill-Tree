@@ -25,6 +25,7 @@ from review_hub_layout import build_review_hub_modal
 from analyze_layout import build_analyze_tab_content
 from sidebars_layout import build_all_sidebars
 from context_picker import build_context_picker_support
+from list_toolbar import SORT_MENUS, sort_menu_items
 from styles import stylesheet
 
 
@@ -1036,6 +1037,17 @@ def build_app_layout(initial_elements, env="production"):
         _menu_item("Delete…", "event-ctx-delete", danger=True),
     ])
 
+    # --- Goals / Events sidebars: sort menus (the ⇅ button beside search) ---
+    # sort_menu.js opens each under its button and writes the choice to the
+    # hidden input; list_toolbar.py moves it into the sort store.
+    sort_menus = []
+    for sort in SORT_MENUS:
+        sort_menus.append(_floating_menu(sort.menu_id, [
+            _menu_item(label, item_id) for label, item_id in sort_menu_items(sort)
+        ]))
+        sort_menus.append(dcc.Input(id=sort.input_id, type='text', value='',
+                                    style={'display': 'none'}))
+
     # --- Tab Navigation (toolbar: left buttons | centered tabs | right buttons) ---
     main_tabs = html.Div([
         # LEFT: Node Editor + Goals + Events (open left-side sidebars)
@@ -1182,6 +1194,7 @@ def build_app_layout(initial_elements, env="production"):
         context_menu,
         goal_rank_popover,
         event_context_menu,
+        *sort_menus,
         dcc.Input(id='event-ctx-action-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='ctx-obsidian-path-store', data=None),
         dcc.Store(id='ctx-drive-path-store', data=None),

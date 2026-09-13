@@ -91,7 +91,7 @@ All three canvases build their elements with `build_node_element` and `build_edg
 3. It pokes that hidden Dash input via the **value-setter bridge**: the native `HTMLInputElement` value setter plus a synthetic `input` event. A plain `el.value = x` is silently ignored because the input is React-controlled. The value is suffixed with `'|' + Date.now()` so that re-editing the *same* node still changes the value and re-fires the callback.
 4. The Dash callback bound to that input opens and populates the editor sidebar.
 
-This bridge pattern recurs across `assets/` (sortables, the event menu, the goal rank popover) — same setter + `input`-event trick everywhere a server value must land in a controlled component.
+This bridge pattern recurs across `assets/` (sortables, the event menu, the goal rank popover, the sidebar sort menus) — same setter + `input`-event trick everywhere a server value must land in a controlled component.
 
 ### 4. Status cascade
 

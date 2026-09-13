@@ -436,6 +436,55 @@
     color: #e08585;
 }
 
+/* A choice menu (the sidebar sort menus) checks its current item. Every row
+   keeps the glyph's space so the labels stay aligned. */
+.ctx-menu-check {
+    visibility: hidden;
+    margin: 0 8px 0 -6px;
+}
+
+.ctx-menu-item-checked .ctx-menu-check {
+    visibility: visible;
+}
+
+/* --- Goals / Events sidebars: list toolbar and triggered divider --- */
+/* The sort button is a .details-header-btn ghost icon; it just needs to sit
+   level with the search field it follows. */
+.sort-menu-button {
+    height: 31px;
+    flex: 0 0 auto;
+}
+
+/* The rule after the active events: "2 triggered events hidden · Show". */
+.events-triggered-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0 8px;
+    font-size: 0.8rem;
+    color: #888;
+    white-space: nowrap;
+}
+
+.events-triggered-rule {
+    flex: 1;
+    height: 1px;
+    background-color: #495057;
+}
+
+.events-triggered-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: #adb5bd;
+    cursor: pointer;
+}
+
+.events-triggered-toggle:hover {
+    color: #f1f3f5;
+}
+
 /* --- Submenu (flyout) on a context-menu item -------------------------- */
 /* The parent row anchors the submenu; the caret hints that hovering will
    reveal more. menus.js flips left/right via a class when the submenu would

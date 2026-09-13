@@ -2,7 +2,7 @@
  * Drag-and-drop reordering for event cards using SortableJS.
  *
  * Watches #events-list-container for mutations (Dash re-renders), then
- * (re-)initialises a Sortable instance.  On drag-end the new order is
+ * (re-)initialises a Sortable instance per card group.  On drag-end the new order is
  * written to the hidden #event-drag-order-input so Dash can pick it up.
  */
 
@@ -24,19 +24,41 @@ function _setNativeValueEvent(el, val) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-/* ---------- Init / re-init Sortable on the container ---------- */
-var _eventSortableInstance = null;
+/* ---------- Init / re-init Sortable on each card group ---------- */
+// The list holds up to two groups: active events and, when shown, triggered
+// events below their divider. Each group is its own Sortable so a card can't
+// be dragged across the divider. The saved order still reads every card in
+// the container, top to bottom.
+var _eventSortableInstances = [];
 var _eventIsDragging = false;
+
+function _onEventDragEnd(container) {
+    _eventIsDragging = false;
+
+    // Read the new order from DOM data attributes
+    var cards = container.querySelectorAll('[data-event-name]');
+    var order = [];
+    cards.forEach(function (c) {
+        var name = c.getAttribute('data-event-name');
+        if (name) order.push(name);
+    });
+
+    // Write to hidden input so Dash picks it up
+    var input = document.getElementById('event-drag-order-input');
+    if (input) {
+        _setNativeValueEvent(input, JSON.stringify(order));
+    }
+}
 
 function _initEventSortable() {
     var container = document.getElementById('events-list-container');
     if (!container) return;
 
-    // Destroy previous instance if Dash re-rendered the container
-    if (_eventSortableInstance) {
-        try { _eventSortableInstance.destroy(); } catch (_) {}
-        _eventSortableInstance = null;
-    }
+    // Destroy previous instances if Dash re-rendered the container
+    _eventSortableInstances.forEach(function (instance) {
+        try { instance.destroy(); } catch (_) {}
+    });
+    _eventSortableInstances = [];
 
     // Only enable if SortableJS is loaded
     if (!window.Sortable) {
@@ -44,32 +66,20 @@ function _initEventSortable() {
         return;
     }
 
-    _eventSortableInstance = new Sortable(container, {
-        animation: 150,
-        handle: '.event-drag-handle',       // only drag via the handle
-        ghostClass: 'event-sortable-ghost',
-        chosenClass: 'event-sortable-chosen',
-        dragClass: 'event-sortable-drag',
-        onStart: function () {
-            _eventIsDragging = true;
-        },
-        onEnd: function () {
-            _eventIsDragging = false;
-
-            // Read the new order from DOM data attributes
-            var cards = container.querySelectorAll('[data-event-name]');
-            var order = [];
-            cards.forEach(function (c) {
-                var name = c.getAttribute('data-event-name');
-                if (name) order.push(name);
-            });
-
-            // Write to hidden input so Dash picks it up
-            var input = document.getElementById('event-drag-order-input');
-            if (input) {
-                _setNativeValueEvent(input, JSON.stringify(order));
+    container.querySelectorAll('.events-sort-group').forEach(function (group) {
+        _eventSortableInstances.push(new Sortable(group, {
+            animation: 150,
+            handle: '.event-drag-handle',       // only drag via the handle
+            ghostClass: 'event-sortable-ghost',
+            chosenClass: 'event-sortable-chosen',
+            dragClass: 'event-sortable-drag',
+            onStart: function () {
+                _eventIsDragging = true;
+            },
+            onEnd: function () {
+                _onEventDragEnd(container);
             }
-        }
+        }));
     });
 }
 
