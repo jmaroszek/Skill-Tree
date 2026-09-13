@@ -10,7 +10,7 @@ import pytest
 
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from scoring import (explain_score, total_value, build_adjacency,
-                     shortest_paths_focus_data)
+                     focus_route_data)
 
 
 def _node(name, **kw):
@@ -210,7 +210,7 @@ def test_container_node_reports_reason():
     nodes = [_node("C", value_mode="inherited", time_mode="inherited")]
     breakdown = explain_score("C", nodes, [], HYPERS)
     assert breakdown['eligible'] is False
-    assert breakdown['block_reason'] == "Container — children are recommended instead"
+    assert breakdown['block_reason'] == "Its children are recommended instead"
     assert breakdown['score'] == -1.0
 
 
@@ -226,7 +226,7 @@ def test_missing_hard_prereqs_are_listed():
     ]
     breakdown = explain_score("S", nodes, edges, HYPERS)
     assert breakdown['eligible'] is False
-    assert breakdown['block_reason'] == "Missing prereqs: P1"
+    assert breakdown['block_reason'] == "Waiting on P1"
 
 
 def test_all_prereqs_done_is_eligible():
@@ -290,113 +290,118 @@ def test_inherited_time_cost_uses_zero_override():
 
 
 # ---------------------------------------------------------------------------
-# shortest_paths_focus_data — path reconstruction for canvas highlighting
+# focus_route_data — distinct value routes for canvas highlighting
 # ---------------------------------------------------------------------------
 
-def test_paths_simple_hard_chain():
-    """S → A → B via Hard. Rank-1 target B. All nodes/edges take rank 1."""
+def _row(name, contribution=1.0, via='Hard'):
+    """A contributor row with just the fields focus_route_data reads."""
+    return {'name': name, 'contribution': contribution, 'via': via}
+
+
+def _hard(source, target):
+    return {"source": source, "target": target, "type": EDGE_NEEDS_HARD}
+
+
+def test_focus_contributor_past_a_route_end_extends_that_route():
+    """S → A → B. B lies past A, so tracing both draws one route, not two."""
     nodes = [_node("S"), _node("A"), _node("B")]
-    edges = [
-        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
-        {"source": "A", "target": "B", "type": EDGE_NEEDS_HARD},
-    ]
-    pi = shortest_paths_focus_data("S", [(1, "B")], nodes, edges)
-    assert set(pi['subtree']) == {"S", "A", "B"}
+    edges = [_hard("S", "A"), _hard("A", "B")]
+    pi = focus_route_data("S", [_row("A", 3.0), _row("B", 2.0)], 3,
+                          nodes, edges, HYPERS)
     assert pi['node_rank'] == {"S": 1, "A": 1, "B": 1}
-    assert pi['edge_rank'] == {
-        ("S", "A", EDGE_NEEDS_HARD): 1,
-        ("A", "B", EDGE_NEEDS_HARD): 1,
-    }
-    assert pi['target_labels'] == {"B": "#1"}
+    assert pi['edge_rank'] == {("S", "A", EDGE_NEEDS_HARD): 1,
+                               ("A", "B", EDGE_NEEDS_HARD): 1}
+    assert pi['target_labels'] == {"A": "#1"}
 
 
-def test_paths_diamond_picks_one_representative():
-    """S→A→D and S→B→D — BFS picks the first-enqueued path."""
-    nodes = [_node("S"), _node("A"), _node("B"), _node("D")]
+def test_focus_contributor_already_on_a_route_adds_nothing():
+    """B ranks above A but A sits on B's route, so A is already drawn."""
+    nodes = [_node("S"), _node("A"), _node("B"), _node("C")]
+    edges = [_hard("S", "A"), _hard("A", "B"), _hard("S", "C")]
+    pi = focus_route_data("S", [_row("B", 3.0), _row("A", 2.0), _row("C", 1.0)], 2,
+                          nodes, edges, HYPERS)
+    assert pi['target_labels'] == {"B": "#1", "C": "#2"}
+    assert pi['node_rank'] == {"S": 1, "A": 1, "B": 1, "C": 2}
+
+
+def test_focus_branch_off_a_route_middle_starts_a_new_route():
+    """S → A → B and A → C. C leaves route 1 at A, which isn't its end."""
+    nodes = [_node("S"), _node("A"), _node("B"), _node("C")]
+    edges = [_hard("S", "A"), _hard("A", "B"), _hard("A", "C")]
+    contributors = [_row("A", 3.0), _row("B", 2.0), _row("C", 1.0)]
+    pi = focus_route_data("S", contributors, 2, nodes, edges, HYPERS)
+    assert pi['node_rank'] == {"S": 1, "A": 1, "B": 1, "C": 2}
+    assert pi['edge_rank'] == {("S", "A", EDGE_NEEDS_HARD): 1,
+                               ("A", "B", EDGE_NEEDS_HARD): 1,
+                               ("A", "C", EDGE_NEEDS_HARD): 2}
+    assert pi['target_labels'] == {"A": "#1", "C": "#2"}
+
+
+def test_focus_stops_once_k_routes_are_drawn():
+    """Three separate branches, two routes asked for: the third is left out."""
+    nodes = [_node("S"), _node("A"), _node("B"), _node("C")]
+    edges = [_hard("S", "A"), _hard("S", "B"), _hard("S", "C")]
+    contributors = [_row("A", 3.0), _row("B", 2.0), _row("C", 1.0)]
+    pi = focus_route_data("S", contributors, 2, nodes, edges, HYPERS)
+    assert pi['target_labels'] == {"A": "#1", "B": "#2"}
+    assert "C" not in pi['node_rank']
+
+
+def test_focus_follows_the_strongest_route_not_the_fewest_hops():
+    """Three Hard hops (0.6³ = 0.216) outweigh two Soft hops (0.25² = 0.0625).
+
+    The score credits T through P and Q, so that is the route drawn, even
+    though the Soft route through Y is shorter.
+    """
+    nodes = [_node(n) for n in ("S", "Y", "P", "Q", "T")]
     edges = [
-        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
-        {"source": "S", "target": "B", "type": EDGE_NEEDS_HARD},
-        {"source": "A", "target": "D", "type": EDGE_NEEDS_HARD},
-        {"source": "B", "target": "D", "type": EDGE_NEEDS_HARD},
+        {"source": "S", "target": "Y", "type": EDGE_NEEDS_SOFT},
+        {"source": "Y", "target": "T", "type": EDGE_NEEDS_SOFT},
+        _hard("S", "P"), _hard("P", "Q"), _hard("Q", "T"),
     ]
-    pi = shortest_paths_focus_data("S", [(1, "D")], nodes, edges)
-    assert len(pi['subtree']) == 3
-    assert {"S", "D"}.issubset(set(pi['subtree']))
-    intermediate = (set(pi['subtree']) - {"S", "D"}).pop()
-    assert intermediate in {"A", "B"}
-    assert pi['target_labels'] == {"D": "#1"}
+    pi = focus_route_data("S", [_row("T")], 1, nodes, edges, HYPERS)
+    assert set(pi['node_rank']) == {"S", "P", "Q", "T"}
+    assert set(pi['edge_rank']) == {("S", "P", EDGE_NEEDS_HARD),
+                                    ("P", "Q", EDGE_NEEDS_HARD),
+                                    ("Q", "T", EDGE_NEEDS_HARD)}
 
 
-def test_paths_synergy_seeded():
-    """S syn→Z, Z→T hard. Path uses the synergy edge from S to Z."""
+def test_focus_synergy_route_uses_the_stored_helps_edge():
+    """Z helps S (stored Z → S) and unlocks T. T's credit arrives through Z."""
     nodes = [_node("S"), _node("Z"), _node("T")]
     edges = [
-        {"source": "S", "target": "Z", "type": EDGE_HELPS},
-        {"source": "Z", "target": "T", "type": EDGE_NEEDS_HARD},
+        {"source": "Z", "target": "S", "type": EDGE_HELPS},
+        _hard("Z", "T"),
     ]
-    pi = shortest_paths_focus_data("S", [(1, "T")], nodes, edges)
-    assert set(pi['subtree']) == {"S", "Z", "T"}
-    assert pi['edge_rank'] == {
-        ("S", "Z", EDGE_HELPS): 1,
-        ("Z", "T", EDGE_NEEDS_HARD): 1,
-    }
+    contributors = explain_score("S", nodes, edges, HYPERS)['contributors']
+    pi = focus_route_data("S", contributors, 3, nodes, edges, HYPERS)
+    assert pi['edge_rank'] == {("Z", "S", EDGE_HELPS): 1,
+                               ("Z", "T", EDGE_NEEDS_HARD): 1}
+    assert pi['target_labels'] == {"Z": "#1"}
 
 
-def test_paths_min_rank_wins_on_shared_prefix():
-    """S→A→B and A→C. Rank 1 = B, rank 2 = C. Shared S, A stay rank 1."""
-    nodes = [_node("S"), _node("A"), _node("B"), _node("C")]
-    edges = [
-        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
-        {"source": "A", "target": "B", "type": EDGE_NEEDS_HARD},
-        {"source": "A", "target": "C", "type": EDGE_NEEDS_HARD},
-    ]
-    pi = shortest_paths_focus_data(
-        "S", [(1, "B"), (2, "C")], nodes, edges,
-    )
-    assert pi['node_rank'] == {"S": 1, "A": 1, "B": 1, "C": 2}
-    assert pi['edge_rank'] == {
-        ("S", "A", EDGE_NEEDS_HARD): 1,
-        ("A", "B", EDGE_NEEDS_HARD): 1,
-        ("A", "C", EDGE_NEEDS_HARD): 2,
-    }
-    assert pi['target_labels'] == {"B": "#1", "C": "#2"}
-
-
-def test_paths_unreachable_target_skipped():
-    """If a target has no path from source, it's silently dropped."""
-    nodes = [_node("S"), _node("A"), _node("X")]
-    edges = [{"source": "S", "target": "A", "type": EDGE_NEEDS_HARD}]
-    pi = shortest_paths_focus_data(
-        "S", [(1, "A"), (2, "X")], nodes, edges,
-    )
-    assert "X" not in pi['target_labels']
-    assert "X" not in pi['node_rank']
+def test_focus_skips_contributors_that_contribute_nothing():
+    """A zero-value node (a Milestone, say) isn't a contributor worth tracing."""
+    nodes = [_node("S"), _node("M"), _node("A")]
+    edges = [_hard("S", "M"), _hard("S", "A")]
+    pi = focus_route_data("S", [_row("A", 1.0), _row("M", 0.0)], 3,
+                          nodes, edges, HYPERS)
+    assert "M" not in pi['node_rank']
     assert pi['target_labels'] == {"A": "#1"}
-    assert set(pi['subtree']) == {"S", "A"}
 
 
-def test_paths_target_equals_source():
-    """Asking for the source as a target returns the source alone."""
-    nodes = [_node("S")]
-    pi = shortest_paths_focus_data("S", [(1, "S")], nodes, [])
-    assert pi['subtree'] == ["S"]
-    assert pi['node_rank'] == {"S": 1}
-    assert pi['edge_rank'] == {}
-    assert pi['target_labels'] == {"S": "#1"}
-
-
-def test_paths_no_targets_still_lights_source():
-    """Empty targets list → source lit, nothing else."""
+def test_focus_source_alone_and_self_row_ignored():
+    """Only the node itself contributes: the source is lit, nothing else."""
     nodes = [_node("S"), _node("A")]
-    edges = [{"source": "S", "target": "A", "type": EDGE_NEEDS_HARD}]
-    pi = shortest_paths_focus_data("S", [], nodes, edges)
-    assert pi['subtree'] == ["S"]
-    assert pi['target_labels'] == {}
+    pi = focus_route_data("S", [_row("S", 10.0, via='Self')], 3,
+                          nodes, [_hard("S", "A")], HYPERS)
+    assert pi == {'subtree': ["S"], 'node_rank': {"S": 1},
+                  'edge_rank': {}, 'target_labels': {}}
 
 
-def test_paths_missing_source_returns_empty():
+def test_focus_missing_source_returns_empty():
     """Source not in all_nodes → empty return, no crash."""
-    pi = shortest_paths_focus_data("ghost", [(1, "anything")], [], [])
+    pi = focus_route_data("ghost", [_row("anything")], 3, [], [], HYPERS)
     assert pi == {'subtree': [], 'node_rank': {},
                   'edge_rank': {}, 'target_labels': {}}
 

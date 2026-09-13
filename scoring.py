@@ -140,20 +140,25 @@ def _strongest_routes(start, H_out, S_out, d_H, d_S, memo):
 
     Cache route maps separately from value and completion work. Invalid graphs
     fail closed at their cyclic portion rather than enumerating cyclic paths.
+
+    Each entry is (weight, depth, via, step). `step` is the last hop into the
+    beneficiary as (previous node, 'Hard' or 'Soft'), or None for `start`, so
+    Explain's Focus can draw the exact route the score credited rather than
+    re-deriving one.
     """
     key = ('routes', start, d_H, d_S)
     if key in memo:
         return memo[key]
-    routes = {start: (1.0, 0, 'Self')}
+    routes = {start: (1.0, 0, 'Self', None)}
     order = _reachable_topo(start, H_out, S_out, {})
     preference = {'Self': 0, 'Hard': 1, 'Soft': 2}
     for name in order:
         if name not in routes:
             continue
-        weight, depth, via = routes[name]
+        weight, depth, via, _ = routes[name]
         for adjacency, discount, kind in ((H_out, d_H, 'Hard'), (S_out, d_S, 'Soft')):
             for target in adjacency.get(name, []):
-                candidate = (weight * discount, depth + 1, kind if name == start else via)
+                candidate = (weight * discount, depth + 1, kind if name == start else via, (name, kind))
                 old = routes.get(target)
                 if old is None or (-candidate[0], candidate[1], preference[candidate[2]]) < (-old[0], old[1], preference[old[2]]):
                     routes[target] = candidate
@@ -208,7 +213,7 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
             channels.append((partner, d_Syn_pair * cross, True))
     rows = {}
     for seed, coefficient, synergy in channels:
-        for name, (route_weight, depth, via) in _strongest_routes(seed, H_out, S_out, d_H, d_S, memo).items():
+        for name, (route_weight, depth, via, _) in _strongest_routes(seed, H_out, S_out, d_H, d_S, memo).items():
             if name not in all_nodes:
                 continue
             weight = coefficient * route_weight
@@ -238,7 +243,7 @@ def _tv_dag(node_name, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
     if node_name in computing:
         return 0.0
     value = math.fsum(weight * intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
-        for name, (weight, _, _) in _strongest_routes(node_name, H_out, S_out, d_H, d_S, memo).items()
+        for name, (weight, _, _, _) in _strongest_routes(node_name, H_out, S_out, d_H, d_S, memo).items()
         if name in all_nodes)
     return value
 
@@ -850,7 +855,7 @@ def explain_score(
         block_reason = f"{node.type}s are not ranked"
     elif node.has_no_own_work:
         eligible = False
-        block_reason = "Container — children are recommended instead"
+        block_reason = "Its children are recommended instead"
     elif node.status == STATUS_DONE:
         eligible = False
         block_reason = STATUS_DONE
@@ -865,7 +870,7 @@ def explain_score(
         ]
         if missing:
             eligible = False
-            block_reason = "Missing prereqs: " + ", ".join(sorted(missing))
+            block_reason = "Waiting on " + ", ".join(sorted(missing))
 
     raw_score = tv_full / cost if cost > 0 else 0.0
 
@@ -888,6 +893,8 @@ def explain_score(
 
     return {
         'node': node_name,
+        'context': node.context,
+        'subcontext': node.subcontext,
         'score': score,
         'raw_score': raw_score,
         'eligible': eligible,
@@ -907,11 +914,13 @@ def explain_score(
             'value': node.value,
             'interest': node.interest,
             'iv': iv,
+            'value_overridden': value_overridden,
         },
         'cost': {
             'difficulty': node.difficulty,
             'time': 0.0 if time_overridden else node.time,
             'time_overridden': time_overridden,
+            'effort_overridden': value_overridden,
             'cost': cost,
         },
         'composition': {
@@ -937,93 +946,119 @@ def explain_score(
     }
 
 
-def shortest_paths_focus_data(
+def focus_route_data(
     source: str,
-    ranked_targets: List[Tuple[int, str]],
+    contributors: List[Dict],
+    k: int,
     all_nodes: List[Node],
     edges: List[Dict],
+    hyperparams: dict,
 ) -> Dict:
-    """Shortest Hard/Soft paths from `source` to each target, for focus highlighting.
+    """Canvas highlighting for Explain's Focus: up to `k` distinct value routes.
 
-    Mirrors the edge set used by `explain_score`'s contribution graph:
-    BFS over Hard + Soft edges with a depth-1 Synergy seed from source.
+    Each contributor is drawn along the route its credit travelled: its
+    strongest Hard/Soft route from `source`, or, when most of its credit
+    arrives through synergy, the Helps edge to the partner that passes on the
+    most, followed by that partner's strongest route.
 
-    `ranked_targets` is a list of (rank, target_name) in rank-ascending
-    order (smallest rank = most valuable). Paths are reconstructed per
-    target by walking parent pointers; for nodes and edges that lie on
-    multiple paths, the smallest rank wins (so Path 1's color dominates
-    shared segments).
+    `k` counts routes, not contributors. Top contributors often sit on one
+    another's routes. A node's second-largest beneficiary is frequently the
+    Goal just past its largest, and tracing both would draw one line twice.
+    So contributors are walked from the largest down:
+
+      * one already on a drawn route adds nothing;
+      * one whose route runs on past the end of a drawn route extends it;
+      * any other starts a new route, until `k` routes exist.
+
+    `contributors` is explain_score's list (or its dcc.Store copy), sorted by
+    contribution. `edges` and `hyperparams` must be the ones that list came
+    from; for a Goal that means the inverted Hard edges.
 
     Returns a dict with:
-      - 'subtree':       list of node names on any path (sorted for determinism)
-      - 'node_rank':     {name: min_rank}  including source
-      - 'edge_rank':     {(source_name, target_name, edge_type): min_rank}
-      - 'target_labels': {name: '#<rank>'} for each reachable target only
+      - 'subtree':       every node on a route, plus `source`, sorted
+      - 'node_rank':     {name: route number}; `source` is 1
+      - 'edge_rank':     {(source_name, target_name, edge_type): route number}
+      - 'target_labels': {name: '#<n>'} on the contributor that started route n
     """
     all_nodes_dict = {n.name: n for n in all_nodes}
     if source not in all_nodes_dict:
         return {'subtree': [], 'node_rank': {}, 'edge_rank': {},
                 'target_labels': {}}
 
+    d_H = hyperparams.get('d_H', 0.6)
+    d_S = hyperparams.get('d_S', 0.40)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
     H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
+    memo: dict = {}
+    hop_type = {'Hard': EDGE_NEEDS_HARD, 'Soft': EDGE_NEEDS_SOFT}
 
-    # BFS with parent pointers. parent[child] = (parent_name, edge_type).
-    # source has parent=None (sentinel for "stop walking").
-    parent: Dict[str, Optional[Tuple[str, str]]] = {source: None}
-    queue: List[str] = [source]
-    # Depth-1 synergy seeds — matches explain_score's single-hop Syn bonus.
-    for z in Syn.get(source, set()):
-        if z == source or z in parent:
-            continue
-        parent[z] = (source, EDGE_HELPS)
-        queue.append(z)
-    # BFS over H + S.
-    head = 0
-    while head < len(queue):
-        n = queue[head]
-        head += 1
-        for c in H_out.get(n, []):
-            if c in parent:
-                continue
-            parent[c] = (n, EDGE_NEEDS_HARD)
-            queue.append(c)
-        for c in S_out.get(n, []):
-            if c in parent:
-                continue
-            parent[c] = (n, EDGE_NEEDS_SOFT)
-            queue.append(c)
+    # A Helps edge is stored one way round, and the canvas matches that one.
+    helps_edge = {frozenset((e['source'], e['target'])): (e['source'], e['target'], EDGE_HELPS)
+                  for e in edges if e['type'] == EDGE_HELPS}
 
-    node_rank: Dict[str, int] = {}
+    def route_steps(routes, target):
+        """The route to `target` as [(node, edge into it)], seed excluded."""
+        steps = []
+        cur = target
+        while routes[cur][3] is not None:
+            parent, kind = routes[cur][3]
+            steps.append((cur, (parent, cur, hop_type[kind])))
+            cur = parent
+        return steps[::-1]
+
+    # Synergy coefficients, exactly as _value_contributions applies them.
+    context = all_nodes_dict[source].context
+    partners = {}
+    for partner in sorted(Syn.get(source, set()) - {source}):
+        other = all_nodes_dict[partner]
+        cross = (cross_context_mult if context is not None and other.context is not None
+                 and context != other.context else 1.0)
+        if d_Syn_pair * cross:
+            partners[partner] = d_Syn_pair * cross
+
+    def route_to(row):
+        name = row.get('name')
+        if row.get('via') == 'Synergy':
+            best = None
+            for partner, coefficient in partners.items():
+                routes = _strongest_routes(partner, H_out, S_out, d_H, d_S, memo)
+                if name in routes and (best is None or coefficient * routes[name][0] > best[0]):
+                    best = (coefficient * routes[name][0], partner, routes)
+            if best is None:
+                return None
+            _, partner, routes = best
+            return [(partner, helps_edge[frozenset((source, partner))])] + route_steps(routes, name)
+        routes = _strongest_routes(source, H_out, S_out, d_H, d_S, memo)
+        return route_steps(routes, name) if name in routes else None
+
+    node_rank: Dict[str, int] = {source: 1}
     edge_rank: Dict[Tuple[str, str, str], int] = {}
     target_labels: Dict[str, str] = {}
+    ends: Dict[str, int] = {}  # the node each route currently ends at -> route
+    for row in contributors:
+        name = row.get('name')
+        if name == source or name in node_rank or not row.get('contribution', 0) > 0:
+            continue
+        steps = route_to(row)
+        if not steps:
+            continue
+        drawn = [i for i, (node, _) in enumerate(steps) if node in node_rank]
+        last_drawn = steps[drawn[-1]][0] if drawn else None
+        if last_drawn in ends:
+            rank = ends.pop(last_drawn)
+        elif len(target_labels) < k:
+            rank = len(target_labels) + 1
+            target_labels[name] = f"#{rank}"
+        else:
+            break
+        ends[name] = rank
+        for node, edge in steps:
+            node_rank.setdefault(node, rank)
+            edge_rank.setdefault(edge, rank)
 
-    # Reconstruct each path. Iterate rank-ascending so min rank wins on
-    # shared segments (Path 1 claims before Path 2, etc.).
-    for rank, target in ranked_targets:
-        if target not in parent:
-            continue  # unreachable target — silently skipped
-        target_labels[target] = f"#{rank}"
-        cur: Optional[str] = target
-        while cur is not None:
-            if cur not in node_rank or rank < node_rank[cur]:
-                node_rank[cur] = rank
-            step = parent[cur]
-            if step is None:
-                break
-            parent_name, etype = step
-            key = (parent_name, cur, etype)
-            if key not in edge_rank or rank < edge_rank[key]:
-                edge_rank[key] = rank
-            cur = parent_name
-
-    # No targets reachable: still include source so the canvas dims
-    # everything else but leaves the starting node lit.
-    if source not in node_rank:
-        node_rank[source] = 1
-
-    subtree = sorted(node_rank.keys())
     return {
-        'subtree': subtree,
+        'subtree': sorted(node_rank),
         'node_rank': node_rank,
         'edge_rank': edge_rank,
         'target_labels': target_labels,

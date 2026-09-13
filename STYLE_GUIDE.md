@@ -92,6 +92,12 @@ goal via a Hard edge.
 The explain-modal contributors chart and legend use the same edge palette
 plus a `Self` tile (`#685e52` warm sand) for the node itself.
 
+Explain speaks in the reader's units, not the scorer's. Value is a share of
+total value, cost is the time and effort behind it, and an adjustment is the
+percent change it makes to the score. A row's muted detail is a plain fact
+(the ratings, the context, the goal), never a parameter value in parentheses.
+The only score printed is the 0–100 priority.
+
 ### Event-card badge palette
 
 Used on Events-tab event cards. The three trigger-type labels (Manual,
