@@ -1001,7 +1001,7 @@ def _build_filters_sidebar():
 
 def _build_add_node_modal(ted):
     """Builds the Add Node modal — mirrors the Goals tab modal with
-    Relationships and External Resources sections."""
+    Relationships and Resources sections."""
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Add Subtask Node")),
         dbc.ModalBody([
@@ -1038,22 +1038,18 @@ def _build_add_node_modal(ted):
 
             # --- Create New mode ---
             html.Div(id="details-add-create-section", children=[
-                dbc.Label("Name"),
                 html.Div([
-                    dbc.Input(id="details-add-name", type="text"),
-                    dbc.Button(html.Span(id="details-add-aliases-chevron", className="editor-chevron"),
-                               id="btn-details-add-aliases-toggle", title="Aliases",
-                               className="editor-icon-btn editor-disclosure-btn"),
-                ], className="d-flex editor-field-group"),
+                    dbc.Label("Name", className="mb-0"),
+                    dbc.Button("+", id="btn-details-add-alias-add", color="link",
+                               className="p-0 ms-2 text-decoration-none text-muted",
+                               title="Add alias",
+                               style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                ], className="d-flex align-items-center mb-1"),
+                dbc.Input(id="details-add-name", type="text"),
                 dbc.Collapse(
                     html.Div([
-                        html.Div([
-                            dbc.Label("Aliases", className="mb-0"),
-                            dbc.Button("+", id="btn-details-add-alias-add", color="link",
-                                       className="p-0 ms-2 text-decoration-none text-muted",
-                                       title="Add alias",
-                                       style={"fontSize": "1.2rem", "lineHeight": "1"}),
-                        ], className="d-flex align-items-center mt-1 mb-1"),
+                        dbc.Label("Alias", id="details-add-aliases-label",
+                                  className="mt-1 mb-1"),
                         html.Div(id='details-add-aliases-container'),
                     ]),
                     id="collapse-details-add-aliases", is_open=False,
@@ -1236,9 +1232,9 @@ def _build_add_node_modal(ted):
                                        placeholder="Synergistic Nodes..."),
                          className="text-dark"),
 
-                # --- External Resources section (mirrors goals tab) ---
+                # --- Resources section (mirrors goals tab) ---
                 html.Hr(className="my-2"),
-                html.H5("External Resources", className="mt-2 mb-1"),
+                html.H5("Resources", className="mt-2 mb-1"),
                 dcc.Store(id='details-add-obsidian-store', data=['']),
                 dcc.Store(id='details-add-drive-store', data=['']),
                 dcc.Store(id='details-add-website-store', data=['']),

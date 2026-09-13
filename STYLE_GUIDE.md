@@ -205,8 +205,11 @@ heading — not stacked beside the control, which would compete with its native
 chevron. Use the `+`-adder style: `dbc.Button(color="link",
 className="p-0 ms-2 text-decoration-none text-muted")`.
 
-A disclosure toggle on a plain **text input** (e.g. Name → Aliases) may instead
-live *inside* the field as a trailing chevron — see *Unified field* below.
+When an optional repeatable field starts hidden, put its `+` beside the label
+that owns it. In node editors, the `+` beside **Name** reveals the first alias
+row and adds another row on later clicks. Do not use an in-field chevron for
+this action: chevrons communicate disclosure, while `+` communicates adding a
+field.
 
 ### Button sizes
 - `size="sm"` — Toolbar, inline actions
@@ -317,24 +320,12 @@ html.Div([
 ], className="d-flex editor-field-group")
 ```
 
-A single text field can also carry an **in-field disclosure chevron** (Name →
-Aliases): same `.editor-field-group`, with the toggle button styled
-`editor-icon-btn editor-disclosure-btn` wrapping a `html.Span(className=
-"editor-chevron")`. `.editor-chevron` renders the *exact* DARKLY form-select
-chevron (stroke #303030, width 2) so it matches the native Context/Subcontext
-arrows instead of the thinner `bi-chevron-down`; a clientside callback adds
-`.open` to rotate it 180° while the collapse is open.
-
-That stroke only reads against a white field. On a dark panel — the Explain
-modal's "Calculation details" disclosure — add `.on-dark`, which repaints the
-identical glyph in muted panel text. Any callback that rewrites the className
-must carry `on-dark` through alongside `.open`.
-
-Do **not** stack such a chevron beside a `dbc.Select`/`dcc.Dropdown` — it would
-double up with the native one. For those, either move the affordance to the
-heading (Search locate) or promote the hidden control to its own always-visible
-field when it's almost always used (Subcontext is a permanent field in the node
-editor and both add-node modals).
+Keep disclosure chevrons for content that is actually expanded/collapsed, such
+as the Explain modal's "Calculation details" section. Its `.editor-chevron`
+uses `.on-dark` for the muted panel-text stroke and `.open` for rotation. Do
+**not** stack a disclosure chevron beside a `dbc.Select`/`dcc.Dropdown`; either
+move the affordance to the heading or promote the hidden control to its own
+always-visible field when it is commonly used.
 
 ### Radio groups and nesting depth
 

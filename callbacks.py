@@ -30,7 +30,8 @@ from callback_helpers import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     prior_node_for_completion,
     format_traversal_ui,
-    render_link_rows, render_alias_rows, spawn_local_file_picker,
+    render_link_rows, render_alias_rows, alias_rows_label, update_alias_rows,
+    spawn_local_file_picker,
     strip_gdrive_prefix, expand_gdrive_prefix,
     should_open_editor, resolve_active_node_id,
     normalize_name_for_comparison,
@@ -871,7 +872,7 @@ def register_callbacks(app):
             out = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
             if not trigger_id:
                 # Initial page load (no trigger). Seed the stores that drive the
-                # dynamic row-renderers — the External Resources link inputs
+                # dynamic row-renderers — the Resources link inputs
                 # (indices 23/24/25: obsidian/drive/website) and the Aliases
                 # inputs (index 32). Each render callback takes its store as an
                 # input, and since the store is also an output of this callback,
@@ -3095,32 +3096,14 @@ def register_callbacks(app):
 
 
 
-    # --- Aliases Collapse Toggle ---
-    @app.callback(
-        Output("collapse-aliases", "is_open"),
-        Input("btn-aliases-toggle", "n_clicks"),
-        State("collapse-aliases", "is_open"),
-    )
-    def toggle_aliases(n, is_open):
-        if n: return not is_open
-        return is_open
-
-    # Rotate the in-field aliases chevron to match the collapse state. Driven by
-    # collapse-aliases.is_open (not the button's n_clicks) so it stays correct no
-    # matter what opens/closes the collapse (toggle, populate, last-alias-remove).
-    app.clientside_callback(
-        "function(isOpen){ return 'editor-chevron' + (isOpen ? ' open' : ''); }",
-        Output("aliases-chevron", "className"),
-        Input("collapse-aliases", "is_open"),
-    )
-
     # --- Aliases Render ---
     @app.callback(
-        Output('aliases-container', 'children'),
+        [Output('aliases-container', 'children'),
+         Output('aliases-label', 'children')],
         Input('aliases-store', 'data'),
     )
     def render_aliases(aliases):
-        return render_alias_rows(aliases)
+        return render_alias_rows(aliases), alias_rows_label(aliases)
 
     # --- Aliases Add/Remove ---
     @app.callback(
@@ -3129,24 +3112,18 @@ def register_callbacks(app):
         [Input('btn-alias-add', 'n_clicks'),
          Input({'type': 'btn-alias-remove', 'index': ALL}, 'n_clicks')],
         [State({'type': 'alias-input', 'index': ALL}, 'value'),
-         State('aliases-store', 'data')],
+         State('aliases-store', 'data'),
+         State('collapse-aliases', 'is_open')],
         prevent_initial_call=True,
     )
-    def modify_aliases(add_clicks, remove_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        aliases = list(current_values) if current_values else list(store_data or [''])
-        collapse_update = dash.no_update
-        if trigger == 'btn-alias-add':
-            aliases.append('')
-        elif isinstance(trigger, dict) and trigger.get('type') == 'btn-alias-remove':
-            idx = trigger['index']
-            if 0 <= idx < len(aliases):
-                aliases.pop(idx)
-                if not aliases:
-                    collapse_update = False
-        return aliases, collapse_update
+    def modify_aliases(add_clicks, remove_clicks, current_values, store_data,
+                       aliases_open):
+        return update_alias_rows(
+            ctx.triggered_id, current_values, store_data, aliases_open,
+            'btn-alias-add', 'btn-alias-remove',
+        )
 
-    # --- Multi-Link Render Callbacks ---
+    # --- Resource Link Render Callbacks ---
     @app.callback(
         Output('obsidian-links-container', 'children'),
         Input('obsidian-links-store', 'data'),

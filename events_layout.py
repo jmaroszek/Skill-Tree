@@ -203,24 +203,20 @@ def build_events_tab_content():
                 ]),
             ]),
 
-            # New-node mode: full node editor (Name through External Resources).
+            # New-node mode: full node editor (Name through Resources).
             html.Div(id="dormant-mode-new-fields", children=[
-            dbc.Label("Name"),
             html.Div([
-                dbc.Input(id="dormant-node-name", type="text"),
-                dbc.Button(html.Span(id="dormant-aliases-chevron", className="editor-chevron"),
-                           id="btn-dormant-aliases-toggle", title="Aliases",
-                           className="editor-icon-btn editor-disclosure-btn"),
-            ], className="d-flex editor-field-group"),
+                dbc.Label("Name", className="mb-0"),
+                dbc.Button("+", id="btn-dormant-alias-add", color="link",
+                           className="p-0 ms-2 text-decoration-none text-muted",
+                           title="Add alias",
+                           style={"fontSize": "1.2rem", "lineHeight": "1"}),
+            ], className="d-flex align-items-center mb-1"),
+            dbc.Input(id="dormant-node-name", type="text"),
             dbc.Collapse(
                 html.Div([
-                    html.Div([
-                        dbc.Label("Aliases", className="mb-0"),
-                        dbc.Button("+", id="btn-dormant-alias-add", color="link",
-                                   className="p-0 ms-2 text-decoration-none text-muted",
-                                   title="Add alias",
-                                   style={"fontSize": "1.2rem", "lineHeight": "1"}),
-                    ], className="d-flex align-items-center mt-1 mb-1"),
+                    dbc.Label("Alias", id="dormant-aliases-label",
+                              className="mt-1 mb-1"),
                     html.Div(id='dormant-aliases-container'),
                 ]),
                 id="collapse-dormant-aliases", is_open=False,
@@ -383,7 +379,7 @@ def build_events_tab_content():
             html.Div(dcc.Dropdown(id="dormant-node-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
 
             html.Hr(className="my-2"),
-            html.H5("External Resources", className="mt-2 mb-1"),
+            html.H5("Resources", className="mt-2 mb-1"),
             dcc.Store(id='dormant-obsidian-links-store', data=['']),
             dcc.Store(id='dormant-drive-links-store', data=['']),
             dcc.Store(id='dormant-website-links-store', data=['']),

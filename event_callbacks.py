@@ -12,7 +12,9 @@ from graph_manager import GraphManager
 from config import ConfigManager, sort_subcontexts, sort_contexts
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
-from callback_helpers import (render_link_rows, render_alias_rows, serialize_links,
+from callback_helpers import (render_link_rows, render_alias_rows,
+                              alias_rows_label, update_alias_rows,
+                              serialize_links,
                               spawn_local_file_picker,
                               strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp,
                               habit_preview_text, habit_editor_view,
@@ -838,28 +840,18 @@ def register_event_callbacks(app):
 
     # --- Dormant Node Modal: Aliases (mirrors the main node editor) ---
     @app.callback(
-        Output("collapse-dormant-aliases", "is_open"),
-        Input("btn-dormant-aliases-toggle", "n_clicks"),
-        State("collapse-dormant-aliases", "is_open"),
-        prevent_initial_call=True,
-    )
-    def toggle_dormant_aliases(n, is_open):
-        if n:
-            return not is_open
-        return is_open
-
-    app.clientside_callback(
-        "function(isOpen){ return 'editor-chevron' + (isOpen ? ' open' : ''); }",
-        Output("dormant-aliases-chevron", "className"),
-        Input("collapse-dormant-aliases", "is_open"),
-    )
-
-    @app.callback(
-        Output("dormant-aliases-container", "children"),
+        [Output("dormant-aliases-container", "children"),
+         Output("dormant-aliases-label", "children")],
         Input("dormant-aliases-store", "data"),
     )
     def render_dormant_aliases(aliases):
-        return render_alias_rows(aliases, 'dormant-alias-input', 'btn-dormant-alias-remove')
+        return (
+            render_alias_rows(
+                aliases, 'dormant-alias-input',
+                'btn-dormant-alias-remove',
+            ),
+            alias_rows_label(aliases),
+        )
 
     @app.callback(
         [Output("dormant-aliases-store", "data", allow_duplicate=True),
@@ -867,22 +859,16 @@ def register_event_callbacks(app):
         [Input("btn-dormant-alias-add", "n_clicks"),
          Input({"type": "btn-dormant-alias-remove", "index": ALL}, "n_clicks")],
         [State({"type": "dormant-alias-input", "index": ALL}, "value"),
-         State("dormant-aliases-store", "data")],
+         State("dormant-aliases-store", "data"),
+         State("collapse-dormant-aliases", "is_open")],
         prevent_initial_call=True,
     )
-    def modify_dormant_aliases(add_clicks, remove_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        aliases = list(current_values) if current_values else list(store_data or [''])
-        collapse_update = no_update
-        if trigger == "btn-dormant-alias-add":
-            aliases.append('')
-        elif isinstance(trigger, dict) and trigger.get("type") == "btn-dormant-alias-remove":
-            idx = trigger["index"]
-            if 0 <= idx < len(aliases):
-                aliases.pop(idx)
-                if not aliases:
-                    collapse_update = False
-        return aliases, collapse_update
+    def modify_dormant_aliases(add_clicks, remove_clicks, current_values,
+                               store_data, aliases_open):
+        return update_alias_rows(
+            ctx.triggered_id, current_values, store_data, aliases_open,
+            "btn-dormant-alias-add", "btn-dormant-alias-remove",
+        )
 
     # Load aliases when the modal opens: existing node's aliases on edit, a
     # single blank row for a fresh add. Keyed off the editing-store (set by both

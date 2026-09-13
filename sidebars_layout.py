@@ -93,24 +93,20 @@ node_editor_content = html.Div(
             dcc.Store(id='locate-animate-trigger', data=None),
 
             html.H5("General", className="mt-3 mb-1"),
-            dbc.Label("Name", className="mt-2"),
             html.Div([
-                dbc.Input(id="node-name", type="text"),
-                dbc.Button(html.Span(id="aliases-chevron", className="editor-chevron"),
-                           id="btn-aliases-toggle", title="Aliases",
-                           className="editor-icon-btn editor-disclosure-btn"),
-            ], className="d-flex editor-field-group"),
+                dbc.Label("Name", className="mb-0"),
+                dbc.Button("+", id="btn-alias-add", color="link",
+                           className="p-0 ms-2 text-decoration-none text-muted",
+                           title="Add alias",
+                           style={"fontSize": "1.2rem", "lineHeight": "1"}),
+            ], className="d-flex align-items-center mt-2 mb-1"),
+            dbc.Input(id="node-name", type="text"),
             html.Div(id="node-name-duplicate-warning", children="",
                      style={"display": "none"}, className="mt-1"),
             dbc.Collapse(
                 html.Div([
-                    html.Div([
-                        dbc.Label("Aliases", className="mb-0"),
-                        dbc.Button("+", id="btn-alias-add", color="link",
-                                   className="p-0 ms-2 text-decoration-none text-muted",
-                                   title="Add alias",
-                                   style={"fontSize": "1.2rem", "lineHeight": "1"}),
-                    ], className="d-flex align-items-center mt-1 mb-1"),
+                    dbc.Label("Alias", id="aliases-label",
+                              className="mt-1 mb-1"),
                     html.Div(id='aliases-container'),
                 ]),
                 id="collapse-aliases",
@@ -351,7 +347,7 @@ node_editor_content = html.Div(
             dcc.Store(id='edge-resources', data=[]),
 
             html.Hr(className="my-2"),
-            html.H5("External Resources", className="mt-2 mb-1"),
+            html.H5("Resources", className="mt-2 mb-1"),
 
             # Stores hold JSON arrays of links for each resource type
             dcc.Store(id='obsidian-links-store', data=['']),

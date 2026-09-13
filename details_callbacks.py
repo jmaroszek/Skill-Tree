@@ -19,7 +19,9 @@ from details_layout import (build_details_subtasks_table,
                              build_milestone_tile)
 from simulation import SimulationCancelled
 from simulation_service import simulation_service
-from callback_helpers import (render_link_rows, render_alias_rows, strip_gdrive_prefix,
+from callback_helpers import (render_link_rows, render_alias_rows,
+                              alias_rows_label, update_alias_rows,
+                              strip_gdrive_prefix,
                               spawn_local_file_picker, build_filters,
                               is_filters_active,
                               build_explain_summary, build_explain_chart,
@@ -1129,28 +1131,18 @@ def register_details_callbacks(app):
 
     # --- Add Node Modal: Aliases (mirrors the main node editor) ---
     @app.callback(
-        Output("collapse-details-add-aliases", "is_open"),
-        Input("btn-details-add-aliases-toggle", "n_clicks"),
-        State("collapse-details-add-aliases", "is_open"),
-        prevent_initial_call=True,
-    )
-    def toggle_details_add_aliases(n, is_open):
-        if n:
-            return not is_open
-        return is_open
-
-    app.clientside_callback(
-        "function(isOpen){ return 'editor-chevron' + (isOpen ? ' open' : ''); }",
-        Output("details-add-aliases-chevron", "className"),
-        Input("collapse-details-add-aliases", "is_open"),
-    )
-
-    @app.callback(
-        Output("details-add-aliases-container", "children"),
+        [Output("details-add-aliases-container", "children"),
+         Output("details-add-aliases-label", "children")],
         Input("details-add-aliases-store", "data"),
     )
     def render_details_add_aliases(aliases):
-        return render_alias_rows(aliases, 'details-add-alias-input', 'btn-details-add-alias-remove')
+        return (
+            render_alias_rows(
+                aliases, 'details-add-alias-input',
+                'btn-details-add-alias-remove',
+            ),
+            alias_rows_label(aliases),
+        )
 
     @app.callback(
         [Output("details-add-aliases-store", "data", allow_duplicate=True),
@@ -1158,22 +1150,16 @@ def register_details_callbacks(app):
         [Input("btn-details-add-alias-add", "n_clicks"),
          Input({"type": "btn-details-add-alias-remove", "index": ALL}, "n_clicks")],
         [State({"type": "details-add-alias-input", "index": ALL}, "value"),
-         State("details-add-aliases-store", "data")],
+         State("details-add-aliases-store", "data"),
+         State("collapse-details-add-aliases", "is_open")],
         prevent_initial_call=True,
     )
-    def modify_details_add_aliases(add_clicks, remove_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        aliases = list(current_values) if current_values else list(store_data or [''])
-        collapse_update = no_update
-        if trigger == "btn-details-add-alias-add":
-            aliases.append('')
-        elif isinstance(trigger, dict) and trigger.get("type") == "btn-details-add-alias-remove":
-            idx = trigger["index"]
-            if 0 <= idx < len(aliases):
-                aliases.pop(idx)
-                if not aliases:
-                    collapse_update = False
-        return aliases, collapse_update
+    def modify_details_add_aliases(add_clicks, remove_clicks, current_values,
+                                   store_data, aliases_open):
+        return update_alias_rows(
+            ctx.triggered_id, current_values, store_data, aliases_open,
+            "btn-details-add-alias-add", "btn-details-add-alias-remove",
+        )
 
     # Reset the alias rows to a single blank each time the (create-only) modal
     # opens, so a fresh add never inherits the previous node's aliases.
@@ -1304,7 +1290,7 @@ def register_details_callbacks(app):
         Input("details-add-type", "value"),
     )
 
-    # --- Add Node Modal: External Resources Link Renderers ---
+    # --- Add Node Modal: Resource Link Renderers ---
     @app.callback(
         Output('details-add-obsidian-container', 'children'),
         Input('details-add-obsidian-store', 'data'),

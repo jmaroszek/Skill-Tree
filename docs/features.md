@@ -196,14 +196,14 @@ At any moment, a node is in one of four states: open, blocked, done, or dormant.
 
 When you mark a node Done, that change can ripple outward — unblocking its dependents and re-deriving their states in turn. The [status cascade](scoring.md#eligibility-and-the-status-cascade) section of the [scoring](scoring.md) document walks through how that works
 
-## External Resources
+## Resources
 
 When a book, course, or article is substantial enough that you want to track and rate it, give it its own **Resource** node and wire it into the graph like anything else. Just as often, though, you want to staple a lightweight reference to a node. That's what **external resources** are for.
 
 <p align="center">
     <img src="../images/node-editor-external-resources.png" width=400>
     <br>
-    <em> The External Resources section. </em>
+    <em> The Resources section. </em>
 </p>
 
 There are three kinds of links. A **Website** is any URL. You know what a website is, right? The other options are more niche, and probably unique to my workflow. An **Obsidian** link points to a note in your vault. If you don't know, Obsidian is a note-taking app. The next link type is **Google Drive.** This field accepts a website URL or a local path if you mounted Google Drive to your computer.
