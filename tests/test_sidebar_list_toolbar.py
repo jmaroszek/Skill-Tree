@@ -77,6 +77,9 @@ def test_each_sidebar_has_a_sort_button_menu_and_store(layout, sort):
 
     menu = _find(layout, sort.menu_id)
     assert "ctx-menu" in menu.className
+    heading = menu.children[0]
+    assert heading.className == "ctx-menu-heading"
+    assert heading.children == "Sort by"
     items = [child for child in menu.children if "ctx-menu-item" in child.className]
     assert [item.id for item in items] == [sort.item_id(v) for v, _ in sort.options]
     assert [_text(item) for item in items] == [label for _, label in sort.options]

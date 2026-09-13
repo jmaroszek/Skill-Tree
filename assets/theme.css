@@ -436,6 +436,16 @@
     color: #e08585;
 }
 
+/* A muted caption at the top of a menu that isn't obviously about one thing,
+   like the sort menus behind an icon button. Lines up with the check glyphs. */
+.ctx-menu-heading {
+    padding: 4px 16px 2px 10px;
+    color: #888;
+    font-size: 0.75rem;
+    cursor: default;
+    user-select: none;
+}
+
 /* A choice menu (the sidebar sort menus) checks its current item. Every row
    keeps the glyph's space so the labels stay aligned. */
 .ctx-menu-check {

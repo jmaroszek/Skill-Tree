@@ -959,6 +959,11 @@ def _menu_divider(divider_id=None):
     return html.Hr(style={"margin": "2px"})
 
 
+def _menu_heading(text):
+    """A muted, unclickable caption that names what a menu does."""
+    return html.Div(text, className="ctx-menu-heading")
+
+
 def _floating_menu(menu_id, children):
     return html.Div(children, id=menu_id, className="ctx-menu",
                     style={"display": "none"})
@@ -1043,7 +1048,8 @@ def build_app_layout(initial_elements, env="production"):
     sort_menus = []
     for sort in SORT_MENUS:
         sort_menus.append(_floating_menu(sort.menu_id, [
-            _menu_item(label, item_id) for label, item_id in sort_menu_items(sort)
+            _menu_heading("Sort by"),
+            *[_menu_item(label, item_id) for label, item_id in sort_menu_items(sort)],
         ]))
         sort_menus.append(dcc.Input(id=sort.input_id, type='text', value='',
                                     style={'display': 'none'}))

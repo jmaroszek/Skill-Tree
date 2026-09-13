@@ -256,10 +256,14 @@ field.
 
 ## Context Menus
 
-Build every right-click menu and popover from `_floating_menu`, `_menu_item`
-and `_menu_divider` in `layout.py`, and open it through `assets/menus.js`, which
-positions, dismisses and runs submenus for all of them. Don't hand-build a menu
-or give one its own inline panel style.
+Build every right-click menu and popover from `_floating_menu`, `_menu_item`,
+`_menu_divider` and `_menu_heading` in `layout.py`, and open it through
+`assets/menus.js`, which positions, dismisses and runs submenus for all of them.
+Don't hand-build a menu or give one its own inline panel style.
+
+A menu opened from something that doesn't say what it does, like an icon
+button, starts with a `_menu_heading` caption naming its purpose (`Sort by`).
+A right-click menu doesn't need one, since its target is the thing you clicked.
 
 A node has exactly one menu, `#node-context-menu`, wherever it appears:
 canvases, Next rows, Now cards and Goals sidebar cards. Rows and cards opt in
@@ -400,8 +404,8 @@ beside it. Use it for any new sidebar list rather than stacking a search field
 over a sort dropdown.
 
 - The sort button is a flat ghost icon (`bi bi-arrow-down-up`). It opens a
-  floating menu of sort options, right-aligned under the button, with a check
-  on the current one.
+  floating menu of sort options, right-aligned under the button. The menu
+  starts with a `Sort by` heading and checks the current option.
 - The current sort is not written on the toolbar. The list itself should show
   it, as the goal cards' corner badges and the event drag handles do. The
   button's tooltip names it too (`Sort: Priority`).
