@@ -76,3 +76,20 @@ window.dash_clientside.goals = window.dash_clientside.goals || {};
         return [style, nextRefresh, nextEditor, nextEvents];
     };
 })();
+
+/**
+ * Clicking a goal card opens it in the Details tab, the same as View Details
+ * in its right-click menu. The rank badge keeps its own popover
+ * (goal_rank_popover.js, which stops the click) and the drag handle only drags.
+ */
+(function () {
+    document.addEventListener('click', function (evt) {
+        if (evt.button !== 0 || !evt.target.closest) return;
+        var card = evt.target.closest('.goal-card');
+        if (!card || evt.target.closest('.goal-drag-handle, .goal-rank-trigger')) return;
+        var name = card.getAttribute('data-goal-name');
+        var menus = window.SkillTree && window.SkillTree.menus;
+        if (!name || !menus) return;
+        menus.send('details-navigate-trigger-input', name + '|' + Date.now());
+    });
+})();
