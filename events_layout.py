@@ -12,6 +12,7 @@ from models import STATUS_DONE
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
 from context_picker import build_single_context_picker
+from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
 
 
 def build_events_sidebar_content():
@@ -30,52 +31,21 @@ def build_events_sidebar_content():
                        className="fs-3 text-white",
                        style={"cursor": "pointer"}),
         ], className="d-flex justify-content-between align-items-center mb-2 mt-2 px-3"),
-        html.Div([
-            html.Datalist(id="events-search-datalist", children=[]),
+        html.Datalist(id="events-search-datalist", children=[]),
+        build_list_toolbar(
             dbc.Input(
                 id="events-search-input",
                 type="search",
                 placeholder="Search events\u2026",
                 size="sm",
-                className="mb-2",
-                style={"backgroundColor": "#2b3035", "border": "1px solid #495057",
-                       "color": "#dee2e6", "borderRadius": "6px"},
+                style=SEARCH_STYLE,
                 **{"list": "events-search-datalist"},
             ),
-            html.Div([
-                html.Div(
-                    dbc.Select(
-                        id="events-sort-mode",
-                        options=[
-                            {"label": "Manual", "value": "manual"},
-                            {"label": "Alphabetical", "value": "az"},
-                            {"label": "Trigger Type", "value": "type"},
-                            {"label": "Node Count", "value": "impact"},
-                        ],
-                        value="type",
-                        size="sm",
-                        persistence=True, persistence_type="local",
-                        style={"backgroundColor": "#2b3035",
-                               "border": "1px solid #495057",
-                               "color": "#dee2e6", "fontSize": "0.8rem"},
-                    ),
-                    style={"flex": "3"},
-                ),
-                html.Div(
-                    dbc.Switch(
-                        id="events-hide-triggered-toggle",
-                        label="Hide triggered",
-                        value=True,
-                        style={"fontSize": "0.85rem", "color": "#adb5bd", "marginBottom": "0",
-                               "width": "fit-content", "display": "flex", "alignItems": "center",
-                               "gap": "8px"},
-                        label_style={"marginBottom": "0", "position": "relative", "top": "2px"},
-                    ),
-                    style={"flex": "2", "display": "flex", "justifyContent": "center",
-                           "alignItems": "center"},
-                ),
-            ], className="d-flex align-items-center mb-2", style={"gap": "8px"}),
-        ], style={"padding": "0 12px"}),
+            EVENTS_SORT,
+        ),
+        # Triggered events start hidden on every load. The line at the end of
+        # the list shows or hides them.
+        dcc.Store(id="events-show-triggered-store", data=False),
         html.Div(id="events-list-container",
                  style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
     ], style={"display": "flex", "flexDirection": "column", "height": "100%"})
@@ -814,6 +784,33 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
            "transition": "border-color 0.2s, background-color 0.2s",
            "padding": "10px 14px",
        })
+
+
+def triggered_divider_text(count: int, shown: bool) -> str:
+    """"2 triggered events hidden" while hidden, "2 triggered events" once shown."""
+    noun = "event" if count == 1 else "events"
+    return f"{count} triggered {noun}" + ("" if shown else " hidden")
+
+
+def build_triggered_divider(count: int, shown: bool):
+    """The rule at the end of the Events list that shows or hides triggered events.
+
+    While shown, it sits above the triggered cards as their heading.
+    """
+    return html.Div([
+        html.Span(className="events-triggered-rule"),
+        html.Span([
+            triggered_divider_text(count, shown),
+            " · ",
+            html.Button(
+                "Hide" if shown else "Show",
+                id={"type": "events-triggered-toggle", "index": "list"},
+                type="button",
+                className="events-triggered-toggle",
+            ),
+        ]),
+        html.Span(className="events-triggered-rule"),
+    ], className="events-triggered-divider")
 
 
 def _delay_days_to_form(delay_days: int) -> tuple[int, str]:

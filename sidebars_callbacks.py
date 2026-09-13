@@ -90,7 +90,7 @@ def register_sidebars_callbacks(app):
         Input("goals-ui-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
         Input("details-goal-search", "value"),
-        Input("details-goal-sort", "value"),
+        Input("details-goal-sort", "data"),
         Input("details-goal-order-store", "data"),
         State("details-selected-node-store", "data"),
         State("details-goal-sidebar", "style"),

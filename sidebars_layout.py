@@ -29,6 +29,7 @@ from config import (
     sort_contexts,
 )
 from events_layout import build_events_sidebar_content
+from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 
@@ -469,30 +470,11 @@ def build_goals_sidebar():
                            style={"cursor": "pointer"}),
             ], className="d-flex justify-content-between align-items-center mb-2 mt-2 px-3"),
 
-            html.Div(
+            build_list_toolbar(
                 dbc.Input(id="details-goal-search", type="text",
                           placeholder="Search goals...", size="sm",
-                          debounce=False,
-                          style={"backgroundColor": "#2b3035",
-                                 "border": "1px solid #495057",
-                                 "color": "#dee2e6",
-                                 "width": "100%",
-                                 "boxSizing": "border-box"}),
-                style={"padding": "0 12px", "marginBottom": "8px"},
-            ),
-
-            html.Div(
-                dbc.Select(id="details-goal-sort", options=[
-                    {"label": "Priority", "value": "priority"},
-                    {"label": "Time", "value": "time-desc"},
-                    {"label": "Manual", "value": "manual"},
-                    {"label": "Alphabetical", "value": "alpha-asc"},
-                ], value="priority", size="sm",
-                    persistence=True, persistence_type="local",
-                    style={"flex": "1", "backgroundColor": "#2b3035",
-                           "border": "1px solid #495057",
-                           "color": "#dee2e6", "fontSize": "0.8rem"}),
-                style={"padding": "0 12px", "marginBottom": "12px"},
+                          debounce=False, style=SEARCH_STYLE),
+                GOALS_SORT,
             ),
 
             html.Div(id="details-goal-list-container",

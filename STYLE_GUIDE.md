@@ -273,7 +273,9 @@ Event / Done); conditional external links; and an isolated destructive Delete
 row with `_menu_item(..., danger=True)`. An option that fits only some nodes
 gets a section of its own where it can, so hiding it leaves the rest of the
 menu identical for every node. The Events sidebar menu follows the same
-grouping: Edit; Trigger Now…; Delete…. Labels name the command in full rather
+grouping: Edit; Trigger Now…; Delete…. A choice menu, such as a sidebar sort
+menu, gives every row a check glyph and shows only the current row's
+(`.ctx-menu-item-checked`). Labels name the command in full rather
 than a bare noun (`View Details`, not `Details`). Toggle labels describe the
 resulting action (`Add to Now` / `Remove from Now`, `Mark Done` / `Reopen`)
 rather than naming the underlying field. Commands that open another choice or
@@ -372,9 +374,9 @@ so match the inline ones unless your labels genuinely won't fit. Use a
 `dbc.Checklist` only for independent toggles — see the pill group below.
 
 Once a choice grows past two or three options, switch to a `dbc.Select`
-instead of letting radios wrap or crowd a shared row — see the sort-mode
-dropdowns (`details-goal-sort`, `events-sort-mode`), both `size="sm"` with
-`persistence=True, persistence_type="local"` so the choice survives a reload.
+instead of letting radios wrap or crowd a shared row. A choice that only
+changes how a list is viewed, like its sort, goes behind a menu button
+instead. See the sidebar list toolbar below.
 
 Size carries the nesting. A radio that *is* the section's question runs at the
 default size. A radio that refines a choice already made above it drops to
@@ -389,6 +391,26 @@ When the same control exists on two surfaces (the event editor and the
 dormant-node modal both build triggers), drive their help text from **one**
 shared formatting helper rather than duplicating literals — the copies drift
 otherwise. `_trigger_mode_hint` in `event_callbacks.py` feeds both.
+
+### Sidebar list toolbar (search + sort)
+
+The Goals and Events sidebars share one toolbar, built by
+`list_toolbar.build_list_toolbar`. It holds a search field and a sort button
+beside it. Use it for any new sidebar list rather than stacking a search field
+over a sort dropdown.
+
+- The sort button is a flat ghost icon (`bi bi-arrow-down-up`). It opens a
+  floating menu of sort options, right-aligned under the button, with a check
+  on the current one.
+- The current sort is not written on the toolbar. The list itself should show
+  it, as the goal cards' corner badges and the event drag handles do. The
+  button's tooltip names it too (`Sort: Priority`).
+- The choice lives in a local-storage `dcc.Store`, so it survives a reload.
+- Keep filters out of the toolbar. A filter that hides part of a list goes
+  at the end of that list as a divider that counts what it hides:
+  `2 triggered events hidden · Show`. Once shown, the divider reads
+  `2 triggered events · Hide` and heads the revealed cards. The count follows
+  the search. `Show`/`Hide` is a lighter-gray text button with no underline.
 
 ### Toggle-pill group (multi-select day/option picker)
 

@@ -11,7 +11,8 @@ from event_manager import EventManager
 from graph_manager import GraphManager
 from config import ConfigManager, sort_subcontexts, sort_contexts
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from events_layout import build_event_card, build_dormant_nodes_table, _event_trigger_type
+from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
+                           build_triggered_divider)
 from callback_helpers import (render_link_rows, render_alias_rows,
                               alias_rows_label, update_alias_rows,
                               serialize_links,
@@ -187,11 +188,11 @@ def register_event_callbacks(app):
         Input("events-active-store", "data"),
         Input("event-order-store", "data"),
         Input("events-search-input", "value"),
-        Input("events-hide-triggered-toggle", "value"),
-        Input("events-sort-mode", "value"),
+        Input("events-show-triggered-store", "data"),
+        Input("events-sort-mode", "data"),
         State("selected-event-store", "data"),
     )
-    def render_events_list(refresh_trigger, ui_refresh, _arrived, event_order, search_text, hide_triggered, sort_mode, selected_event):
+    def render_events_list(refresh_trigger, ui_refresh, _arrived, event_order, search_text, show_triggered, sort_mode, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
@@ -229,11 +230,8 @@ def register_event_callbacks(app):
                 remaining = [e for e in events if e.name not in set(stored_order)]
                 events = ordered + remaining
 
-        # Filter: hide triggered events
-        if hide_triggered:
-            events = [e for e in events if e.status != "Triggered"]
-
-        # Filter: search text (name or description, case-insensitive)
+        # Filter: search text (name or description, case-insensitive). It runs
+        # before the triggered split so the hidden count only counts matches.
         query = (search_text or "").strip().lower()
         if query:
             events = [
@@ -241,25 +239,61 @@ def register_event_callbacks(app):
                 if query in (e.name or "").lower() or query in (e.description or "").lower()
             ]
 
-        if not events:
+        active = [e for e in events if e.status != "Triggered"]
+        triggered = [e for e in events if e.status == "Triggered"]
+
+        is_manual = sort_mode not in ("az", "type", "impact")
+
+        def _cards(group):
+            cards = []
+            for event in group:
+                counts = event_manager.get_event_node_count(event.name)
+                cards.append(build_event_card(
+                    event.name, event.description, event.status, counts,
+                    is_selected=(event.name == selected_event),
+                    trigger_date=event.trigger_date,
+                    trigger_nodes=event.trigger_nodes,
+                    trigger_mode=event.trigger_mode,
+                    show_drag_handle=is_manual,
+                ))
+            return cards
+
+        if not active and not triggered:
             return html.Div(
                 html.P("No matching events.", className="text-muted"),
                 className="text-center py-5"
             )
 
-        is_manual = sort_mode not in ("az", "type", "impact")
-        cards = []
-        for event in events:
-            counts = event_manager.get_event_node_count(event.name)
-            cards.append(build_event_card(
-                event.name, event.description, event.status, counts,
-                is_selected=(event.name == selected_event),
-                trigger_date=event.trigger_date,
-                trigger_nodes=event.trigger_nodes,
-                trigger_mode=event.trigger_mode,
-                show_drag_handle=is_manual,
-            ))
-        return cards
+        # Each group is its own sortable (event_sortable.js), so a drag can't
+        # carry a card across the triggered divider.
+        if active:
+            children = [html.Div(_cards(active), className="events-sort-group")]
+        else:
+            children = [html.Div(
+                html.P("No matching events." if query else "No events to show.",
+                       className="text-muted"),
+                className="text-center py-4"
+            )]
+        if triggered:
+            children.append(build_triggered_divider(len(triggered), bool(show_triggered)))
+            if show_triggered:
+                children.append(html.Div(_cards(triggered), className="events-sort-group"))
+        return children
+
+    # The divider is rebuilt with the list, so its n_clicks resets to None on
+    # every render; only a real click flips the store.
+    app.clientside_callback(
+        """function(clicks, shown) {
+            if (!(clicks || []).some(Boolean)) {
+                return window.dash_clientside.no_update;
+            }
+            return !shown;
+        }""",
+        Output("events-show-triggered-store", "data"),
+        Input({"type": "events-triggered-toggle", "index": ALL}, "n_clicks"),
+        State("events-show-triggered-store", "data"),
+        prevent_initial_call=True,
+    )
 
     # Selection only changes card decoration; keep the cards and their
     # tooltips mounted while the graph opens. Rebuilt lists already carry

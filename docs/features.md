@@ -610,7 +610,7 @@ For now, we can just focus on using the Goals Sidebar. Open it with the star ico
   <em> Goal Sidebar </em>
 </p>
 
-The **+** next to "Goals" creates a new one; you can search for existing goals under that. You can also sort them by various criteria. Each one gives the cards a unique visual effect.
+The **+** next to "Goals" creates a new one. Search for existing goals in the field under it. The arrows button beside the search field sorts the list. Each sort gives the cards a distinct look, so you can tell which one is active. Hover the button to see its name.
 
 | Mode | Order |
 |---|---|
@@ -680,7 +680,7 @@ The Events tab is where you create, edit, and trigger events. Unlike the other t
 ### Events Sidebar
 Open the sidebar from the calendar icon in the top-left, or via the empty-state button on the Events Tab. 
 
-The sidebar lists every event as a card showing its name, description, trigger, and a node count. Three self-explanatory controls sit at the top. Click any card to load it into the Events Tab. Right-click a card to edit, trigger, or delete that event.
+The sidebar lists every event as a card showing its name, description, trigger, and a node count. Search and sort work the same way as in the Goals sidebar. Triggered events are hidden. A line at the end of the list counts them, and its **Show** button lists them below it. Click any card to load it into the Events Tab. Right-click a card to edit, trigger, or delete that event.
 
 Once an event is loaded, the tab splits in two: the **Event Editor** on the left and the **Event Canvas** on the right.
 
