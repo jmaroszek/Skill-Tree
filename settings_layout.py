@@ -2,7 +2,7 @@
 Layout definitions for the Settings modal.
 """
 
-from duration_ui import estimate_guidance, bracket_label
+from duration_ui import bracket_label
 from dash import html
 import dash_bootstrap_components as dbc
 from config import (
@@ -513,10 +513,7 @@ def _build_time_tab():
     return dbc.Tab(label="Time", tab_id="tab-time", children=[
         html.Div([
             # --- Time Estimates section (merged with defaults) ---
-            html.Div([
-                html.H5("Time Estimates", className="mb-0"),
-                estimate_guidance("setting-default"),
-            ], className="d-flex align-items-center mt-2 mb-1"),
+            html.H5("Time Estimates", className="mt-2 mb-1"),
             dbc.Row([
                 dbc.Col([
                     html.Small("Productive hours available.", className="text-muted d-block mb-2"),
