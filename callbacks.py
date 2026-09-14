@@ -22,7 +22,7 @@ from canvases import CANVASES
 from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
                     SIDEBAR_WIDTH_PX, SIDEBAR_WIDTH_NEG_PX, SIDEBAR_TRANSLATE_CLOSED,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
-                    DEFAULT_EVENTS_GRAPH_LAYOUT)
+                    DEFAULT_EVENTS_GRAPH_LAYOUT, SUPPORTED_NODE_TYPES)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
@@ -2119,7 +2119,7 @@ def register_callbacks(app):
             ctx_list = [{"label": c, "value": c} for c in base_ctx]
             f_ctx_list = [{"label": c, "value": c} for c in base_ctx]
 
-            base_types = ConfigManager.get_node_types()
+            base_types = SUPPORTED_NODE_TYPES
             type_list = [{"label": t, "value": t} for t in base_types]
 
             f_type_list = [{"label": t, "value": t} for t in base_types]

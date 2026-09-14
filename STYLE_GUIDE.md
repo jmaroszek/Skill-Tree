@@ -165,7 +165,7 @@ Expected-only exception, following the same info-icon + tooltip pattern used
 for "Ratings".
 | Context | Pattern | Usage |
 |---------|---------|-------|
-| Top-level settings label | `dbc.Label("Name", className="fw-bold mt-2")` | Section-level fields in Settings Nodes tab (Node Types, Contexts) |
+| Top-level settings label | `dbc.Label("Name", className="fw-bold mt-2")` | Section-level fields in Settings |
 | Standard input label | `dbc.Label("Name", className="mt-2")` | Form fields in sidebars, modals, and under section headers (Name, Type, Hours per Week) |
 | Compact inline label | `dbc.Label("Name", className="small text-muted mb-0")` | Grouped inputs in a Row (Lower, Expected, Upper) |
 | Subsection helper | `html.Small("description", className="text-muted d-block mb-1")` | Under settings section headers |

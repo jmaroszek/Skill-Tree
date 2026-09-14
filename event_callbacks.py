@@ -9,7 +9,7 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
 from graph_manager import GraphManager
-from config import ConfigManager, sort_subcontexts, sort_contexts
+from config import ConfigManager, SUPPORTED_NODE_TYPES, sort_subcontexts, sort_contexts
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
                            build_triggered_divider)
@@ -827,7 +827,7 @@ def register_event_callbacks(app):
         if not n_clicks:
             return (no_update,) * 56
 
-        types = ConfigManager.get_node_types()
+        types = SUPPORTED_NODE_TYPES
         contexts = sort_contexts(ConfigManager.get_contexts())
         _ted = ConfigManager.get_time_estimate_defaults()
         type_opts = [{"label": t, "value": t} for t in types]
@@ -1818,7 +1818,7 @@ def register_event_callbacks(app):
                      if n.name != node_name]
 
         # Type / context / subcontext options
-        types = ConfigManager.get_node_types()
+        types = SUPPORTED_NODE_TYPES
         contexts = sort_contexts(ConfigManager.get_contexts())
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": c, "value": c} for c in contexts]

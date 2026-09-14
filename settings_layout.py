@@ -9,10 +9,8 @@ from config import (
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     SUBCONTEXT_SORT_DEFINITION,
-    SUBCONTEXT_SORT_LENGTH,
     SUBCONTEXT_SORT_ALPHABETICAL,
     CONTEXT_SORT_DEFINITION,
-    CONTEXT_SORT_LENGTH,
     CONTEXT_SORT_ALPHABETICAL,
 )
 
@@ -24,10 +22,6 @@ def _build_appearance_tab():
         html.Div([
             # --- Node Appearance group ---
             html.H5("Node Appearance", className="mt-2 mb-1"),
-            dbc.Label("Types", className="mt-2"),
-            dbc.Textarea(id="setting-node-types", rows=2, placeholder="e.g. Topic, Goal, Skill, Action, Resource"),
-            html.Small("Comma-separated list. Order is preserved in drop-downs.", className="text-muted d-block mb-1"),
-
             dbc.Row([
                 dbc.Col([
                     html.Div([
@@ -113,15 +107,14 @@ def _build_contexts_tab():
             dbc.RadioItems(
                 id="setting-context-sort-mode",
                 options=[
-                    {"label": "None", "value": CONTEXT_SORT_DEFINITION},
-                    {"label": "Length", "value": CONTEXT_SORT_LENGTH},
+                    {"label": "Defined order", "value": CONTEXT_SORT_DEFINITION},
                     {"label": "Alphabetical", "value": CONTEXT_SORT_ALPHABETICAL},
                 ],
                 value=CONTEXT_SORT_DEFINITION,
                 inline=True,
             ),
             html.Small(
-                "None keeps the order defined above. Length sorts shortest first. Alphabetical sorts A–Z.",
+                "Defined order follows the list above. Alphabetical sorts A–Z.",
                 className="text-muted d-block mb-1"),
 
             # --- Subcontext dropdown sort order ---
@@ -129,15 +122,14 @@ def _build_contexts_tab():
             dbc.RadioItems(
                 id="setting-subcontext-sort-mode",
                 options=[
-                    {"label": "None", "value": SUBCONTEXT_SORT_DEFINITION},
-                    {"label": "Length", "value": SUBCONTEXT_SORT_LENGTH},
+                    {"label": "Defined order", "value": SUBCONTEXT_SORT_DEFINITION},
                     {"label": "Alphabetical", "value": SUBCONTEXT_SORT_ALPHABETICAL},
                 ],
                 value=SUBCONTEXT_SORT_DEFINITION,
                 inline=True,
             ),
             html.Small(
-                "None keeps the order defined above. Length sorts shortest first. Alphabetical sorts A–Z.",
+                "Defined order follows the list above. Alphabetical sorts A–Z.",
                 className="text-muted d-block mb-1"),
 
             # --- Context priorities ---
@@ -157,12 +149,11 @@ def _build_contexts_tab():
 def _build_scoring_tab():
     return dbc.Tab(label="Scoring", tab_id="tab-scoring", children=[
         html.Div([
-            # --- Priorities section ---
-            html.H5("Priorities", className="mt-2 mb-1"),
+            # --- Scoring Profile section ---
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        dbc.Label("Scoring Profile", className="mb-0"),
+                        html.H5("Scoring Profile", className="mt-2 mb-1"),
                         html.Button(
                             html.I(className="bi bi-info-circle"),
                             id="btn-hp-profile-info",
@@ -320,11 +311,12 @@ def _build_misc_tab():
     return dbc.Tab(label="Misc", tab_id="tab-misc", children=[
         html.Div([
             # --- Now Cap section ---
-            html.H5("Now Cap", className="mt-2 mb-1"),
+            html.H5("Maximum Now Nodes", className="mt-2 mb-1"),
             html.Small(
                 "Maximum number of nodes that can be flagged Now at once.",
                 className="text-muted d-block mb-2"),
-            dbc.Label("Max Now Nodes"),
+            dbc.Label("Maximum Now Nodes", html_for="setting-now-node-cap",
+                      className="visually-hidden"),
             dbc.Input(id="setting-now-node-cap", type="number",
                       min=1, max=50, step=1,
                       style={"width": "128px"}),
@@ -342,11 +334,7 @@ def _build_misc_tab():
                           "value": "enabled"}],
                 value=["enabled"],
                 switch=True,
-                className="mb-2",
-            ),
-            html.Small(
-                "Manage reflections from the journal icon in the tool bar.",
-                className="text-muted d-block",
+                className="mb-1",
             ),
         ], className="p-2")
     ])
@@ -355,13 +343,13 @@ def _build_misc_tab():
 def _build_paths_tab():
     return dbc.Tab(label="Paths", tab_id="tab-paths", children=[
         html.Div([
-            # --- Paths group ---
-            html.H5("Paths", className="mt-2 mb-1"),
-            dbc.Label("Obsidian Vault Root Path", className="mt-2"),
-            dbc.Input(id="setting-obsidian-path", type="text", className="mb-2"),
+            html.Div([
+                dbc.Label("Obsidian Vault Root Path", className="mt-2"),
+                dbc.Input(id="setting-obsidian-path", type="text", className="mb-2"),
 
-            dbc.Label("Google Drive Root Path"),
-            dbc.Input(id="setting-gdrive-path", type="text"),
+                dbc.Label("Google Drive Root Path"),
+                dbc.Input(id="setting-gdrive-path", type="text"),
+            ], style={"width": "100%", "maxWidth": "640px"}),
         ], className="p-2")
     ])
 

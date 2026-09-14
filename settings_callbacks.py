@@ -7,7 +7,17 @@ import dash
 from dash import html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
-from config import ConfigManager, PROFILES, sort_subcontexts, sort_contexts
+from config import (
+    ConfigManager,
+    PROFILES,
+    CONTEXT_SORT_ALPHABETICAL,
+    CONTEXT_SORT_DEFINITION,
+    SUBCONTEXT_SORT_ALPHABETICAL,
+    SUBCONTEXT_SORT_DEFINITION,
+    SUPPORTED_NODE_TYPES,
+    sort_subcontexts,
+    sort_contexts,
+)
 from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import get_trigger_id, build_context_weight_rows, detect_context_renames
@@ -17,20 +27,8 @@ logger = logging.getLogger(__name__)
 manager = GraphManager()
 
 
-def _display_types_from_config():
-    display_types = ConfigManager.get_node_types().copy()
-    if "Goal" not in display_types:
-        display_types.append("Goal")
-    return display_types
-
-
-def _display_types_from_text(types_text):
-    types = [c.strip() for c in (types_text or "").split(",") if c.strip()]
-    if not types:
-        return _display_types_from_config()
-    if "Goal" not in types:
-        types.append("Goal")
-    return types
+def _display_types():
+    return list(SUPPORTED_NODE_TYPES)
 
 
 def _shape_options():
@@ -236,7 +234,6 @@ def register_settings_callbacks(app):
 
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
-        Output('setting-node-types', 'value'),
         Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
         Output('setting-obsidian-path', 'value'),
@@ -264,9 +261,8 @@ def register_settings_callbacks(app):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 23
+            return (dash.no_update,) * 22
 
-        node_types = ConfigManager.get_node_types()
         contexts = ConfigManager.get_contexts()
         subcontexts = ConfigManager.get_subcontexts()
         ctx_weights = ConfigManager.get_context_weights()
@@ -290,7 +286,7 @@ def register_settings_callbacks(app):
         sub_val = '\n'.join(sub_lines)
 
         shapes = ConfigManager.get_node_shapes()
-        display_types = _display_types_from_config()
+        display_types = _display_types()
         shape_rows = _build_shape_rows(display_types, shapes)
         colors = ConfigManager.get_node_colors()
         status_color_rows = _build_status_color_rows(colors)
@@ -306,8 +302,19 @@ def register_settings_callbacks(app):
         linter_enabled_val = ["enabled"] if linter.get('enabled', True) else []
         linter_exclusions_val = ', '.join(linter.get('exclusions', []))
 
+        # Length sorting remains readable for legacy/programmatic settings, but
+        # is no longer a user-facing choice. Present legacy values as the
+        # defined order so the two-option radio group always has a selection.
+        subcontext_sort_mode = ConfigManager.get_subcontext_sort_mode()
+        if subcontext_sort_mode not in (
+                SUBCONTEXT_SORT_DEFINITION, SUBCONTEXT_SORT_ALPHABETICAL):
+            subcontext_sort_mode = SUBCONTEXT_SORT_DEFINITION
+        context_sort_mode = ConfigManager.get_context_sort_mode()
+        if context_sort_mode not in (
+                CONTEXT_SORT_DEFINITION, CONTEXT_SORT_ALPHABETICAL):
+            context_sort_mode = CONTEXT_SORT_DEFINITION
+
         return (
-            ', '.join(node_types),
             sub_val,
             profile,
             obs_path,
@@ -326,8 +333,8 @@ def register_settings_callbacks(app):
             linter_enabled_val,
             linter_exclusions_val,
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
-            ConfigManager.get_subcontext_sort_mode(),
-            ConfigManager.get_context_sort_mode(),
+            subcontext_sort_mode,
+            context_sort_mode,
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
             ConfigManager.get_now_node_cap(),
         )
@@ -369,7 +376,6 @@ def register_settings_callbacks(app):
         Output('settings-clear-interval', 'n_intervals'),
         Output('setting-context-weights-container', 'children', allow_duplicate=True),
         Input('btn-settings-save', 'n_clicks'),
-        State('setting-node-types', 'value'),
         State('setting-subcontexts', 'value'),
         State('setting-obsidian-path', 'value'),
         State('setting-gdrive-path', 'value'),
@@ -394,7 +400,7 @@ def register_settings_callbacks(app):
         State('setting-now-node-cap', 'value'),
         prevent_initial_call=True,
     )
-    def save_settings(n_clicks, n_types_val, subcontexts_val, obs_path, gdrive_path,
+    def save_settings(n_clicks, subcontexts_val, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
                       ctx_weight_values, ctx_weight_ids,
                       hpw, hpm,
@@ -449,7 +455,6 @@ def register_settings_callbacks(app):
                 'unit': def_time_unit or DEFAULT_TIME_ESTIMATE_DEFAULTS['unit'],
             }
 
-            new_types = [c.strip() for c in (n_types_val or '').split(',') if c.strip()]
             new_contexts = []
             new_subcontexts = {}
             if subcontexts_val is not None:
@@ -474,7 +479,6 @@ def register_settings_callbacks(app):
                         if ctx_name and ctx_name not in new_contexts:
                             new_contexts.append(ctx_name)
 
-            old_types = ConfigManager.get_node_types()
             old_contexts = ConfigManager.get_contexts()
             old_subcontexts = ConfigManager.get_subcontexts()
 
@@ -495,12 +499,6 @@ def register_settings_callbacks(app):
                 return base
 
             orphans = {}
-            type_orphans = manager.find_orphaned_nodes('type', old_types, new_types)
-            if type_orphans:
-                orphans['type'] = {
-                    k: [_annotate(n) for n in v]
-                    for k, v in type_orphans.items()
-                }
             ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
             if ctx_orphans:
                 # Carry each node's current subcontext so the modal can pre-fill
@@ -541,7 +539,6 @@ def register_settings_callbacks(app):
                     'ted': new_ted,
                     'obs_path': obs_path,
                     'gdrive_path': gdrive_path or "",
-                    'types': new_types,
                     'contexts': new_contexts,
                     'subcontexts': new_subcontexts,
                     'context_weights': new_ctx_weights,
@@ -550,7 +547,6 @@ def register_settings_callbacks(app):
                     'linter': new_linter,
                     'orphans': orphans,
                     'new_values': {
-                        'type': new_types,
                         'context': new_contexts,
                         'subcontext': new_sub_flat,
                     },
@@ -567,9 +563,6 @@ def register_settings_callbacks(app):
             ConfigManager.set_time_estimate_defaults(new_ted)
             ConfigManager.set_obsidian_vault(obs_path)
             ConfigManager.set_gdrive_path(gdrive_path or "")
-            if new_types:
-                ConfigManager.set_node_types(new_types)
-                ConfigManager.sync_shapes_to_types(new_types)
             old_weights = ConfigManager.get_context_weights()
             if new_contexts:
                 ConfigManager.set_contexts(new_contexts)
@@ -618,12 +611,10 @@ def register_settings_callbacks(app):
         Output('migration-modal-body', 'children'),
         Output('migration-mapping-store', 'data'),
         Output('setting-subcontexts', 'value', allow_duplicate=True),
-        Output('setting-node-types', 'value', allow_duplicate=True),
         Input('pending-settings-store', 'data'),
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-skip', 'n_clicks'),
         Input('btn-migration-cancel', 'n_clicks'),
-        State({"type": "migration-dropdown", "index": dash.ALL}, "value"),
         State({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
         State({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
         State({"type": "migration-sgc-node", "index": dash.ALL}, "value"),
@@ -633,7 +624,7 @@ def register_settings_callbacks(app):
         prevent_initial_call=True
     )
     def handle_migration(pending_data, apply_clicks, skip_clicks, cancel_clicks,
-                         type_dropdown_values, cgc_node_values, cgs_node_values,
+                         cgc_node_values, cgs_node_values,
                          sgc_node_values, sgs_node_values,
                          mapping_data, pending_state):
         from layout import build_migration_content
@@ -657,10 +648,10 @@ def register_settings_callbacks(app):
                 orphans_for_ui, new_values, subcontexts_by_context,
                 rename_map=rename_map,
             )
-            return True, children, mapping, dash.no_update, dash.no_update
+            return True, children, mapping, dash.no_update
 
         if trigger_id == 'btn-migration-cancel':
-            # Restore context and type fields from the database
+            # Restore the context field from the database.
             old_contexts = ConfigManager.get_contexts()
             old_subcontexts = ConfigManager.get_subcontexts()
             sub_lines = []
@@ -674,8 +665,7 @@ def register_settings_callbacks(app):
                 if ctx_name not in old_contexts:
                     sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
             restored_sub_val = '\n'.join(sub_lines)
-            restored_types_val = ', '.join(ConfigManager.get_node_types())
-            return False, [], None, restored_sub_val, restored_types_val
+            return False, [], None, restored_sub_val
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             try:
@@ -688,10 +678,6 @@ def register_settings_callbacks(app):
                     ConfigManager.set_time_estimate_defaults(pending_state['ted'])
                 ConfigManager.set_obsidian_vault(pending_state['obs_path'])
                 ConfigManager.set_gdrive_path(pending_state.get('gdrive_path', ''))
-                new_types = pending_state.get('types', [])
-                if new_types:
-                    ConfigManager.set_node_types(new_types)
-                    ConfigManager.sync_shapes_to_types(new_types)
                 new_contexts = pending_state.get('contexts', [])
                 # Snapshot persisted weights BEFORE set_contexts/set_context_weights
                 # so weight migration can consult pre-save state for rule-2 (rename).
@@ -725,13 +711,6 @@ def register_settings_callbacks(app):
             if trigger_id == 'btn-migration-apply' and mapping_data:
                 new_subcontexts = pending_state.get('subcontexts', {})
 
-                type_entries = mapping_data.get('type', []) if isinstance(mapping_data, dict) else []
-                for i, entry in enumerate(type_entries):
-                    if i >= len(type_dropdown_values) or not type_dropdown_values[i]:
-                        continue
-                    manager.apply_node_migration(entry['node_name'], entry['field'],
-                                                 type_dropdown_values[i], new_subcontexts)
-
                 ctx_nodes = mapping_data.get('ctx_nodes', []) if isinstance(mapping_data, dict) else []
                 _apply_per_node_migrations(manager, ctx_nodes, cgc_node_values,
                                             cgs_node_values, new_subcontexts)
@@ -740,9 +719,9 @@ def register_settings_callbacks(app):
                 _apply_per_node_migrations(manager, sub_nodes, sgc_node_values,
                                             sgs_node_values, new_subcontexts)
 
-            return False, [], None, dash.no_update, dash.no_update
+            return False, [], None, dash.no_update
 
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
@@ -942,14 +921,13 @@ def register_settings_callbacks(app):
     @app.callback(
         Output('setting-node-shapes-container', 'children', allow_duplicate=True),
         Input('btn-restore-shapes', 'n_clicks'),
-        State('setting-node-types', 'value'),
         prevent_initial_call=True,
     )
-    def restore_default_shapes(n_clicks, types_text):
+    def restore_default_shapes(n_clicks):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_SHAPES
-        return _build_shape_rows(_display_types_from_text(types_text), DEFAULT_NODE_SHAPES)
+        return _build_shape_rows(_display_types(), DEFAULT_NODE_SHAPES)
 
     # --- Settings: Restore Default Status Colors ---
     @app.callback(
@@ -967,12 +945,11 @@ def register_settings_callbacks(app):
     @app.callback(
         Output('setting-node-type-colors-container', 'children', allow_duplicate=True),
         Input('btn-restore-type-colors', 'n_clicks'),
-        State('setting-node-types', 'value'),
         prevent_initial_call=True,
     )
-    def restore_default_type_colors(n_clicks, types_text):
+    def restore_default_type_colors(n_clicks):
         if not n_clicks:
             return dash.no_update
         from config import DEFAULT_NODE_COLORS
-        return _build_type_color_rows(_display_types_from_text(types_text), DEFAULT_NODE_COLORS)
+        return _build_type_color_rows(_display_types(), DEFAULT_NODE_COLORS)
 

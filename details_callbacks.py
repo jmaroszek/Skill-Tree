@@ -11,7 +11,8 @@ import dash_bootstrap_components as dbc
 import numpy as np
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import ConfigManager, badge_style, sort_subcontexts, sort_contexts
+from config import (ConfigManager, SUPPORTED_NODE_TYPES, badge_style,
+                    sort_subcontexts, sort_contexts)
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table,
                              _build_suggestion_row, build_details_suggestions,
@@ -1041,7 +1042,7 @@ def register_details_callbacks(app):
         if not n_clicks:
             return (no_update,) * 42
 
-        types = ConfigManager.get_node_types()
+        types = SUPPORTED_NODE_TYPES
         contexts = sort_contexts(ConfigManager.get_contexts())
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": c, "value": c} for c in contexts]

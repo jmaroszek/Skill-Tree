@@ -842,7 +842,7 @@ The Settings modal collects the personal choices and machine-specific informatio
 | Tab | What lives here |
 |---|---|
 | **Appearance** | Customize node shapes and colors by type, set status colors, and configure the **Name Linter**. |
-| **Contexts** | Define contexts and subcontexts, choose their dropdown order, and decide which areas should have more influence over what appears next. |
+| **Contexts** | Define contexts and subcontexts, keep their defined dropdown order or sort them alphabetically, and decide which areas should have more influence over what appears next. |
 | **Scoring** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and optionally show the startup graph summary on the Next tab. |
 | **Time** | Set your weekly, monthly, and yearly productive hour budgets, plus the time estimates and unit pre-filled for new nodes. |
 | **Paths** | Specify local file system paths for Obsidian vault and Google Drive integrations, allowing the app to resolve your external links correctly. |

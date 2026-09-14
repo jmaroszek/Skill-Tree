@@ -55,6 +55,7 @@ BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
 BACKUP_LOG_FILE = str(Path(__file__).parent / 'data' / 'backup_log.log')
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
+SUPPORTED_NODE_TYPES = ("Learn", "Action", "Resource", "Goal", "Milestone")
 DEFAULT_CONTEXTS = [
     "Mind", "Body", "Social", "Life",
     "STEM", "Humanities", "Creation", "Money",

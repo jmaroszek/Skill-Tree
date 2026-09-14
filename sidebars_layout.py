@@ -26,6 +26,7 @@ from config import (
     SIDEBAR_WIDTH_PX,
     SIDEBAR_WIDTH_NEG_PX,
     SIDEBAR_TRANSLATE_CLOSED,
+    SUPPORTED_NODE_TYPES,
     sort_contexts,
 )
 from events_layout import build_events_sidebar_content
@@ -33,8 +34,8 @@ from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 
-# Only used for the initial render; core_engine refreshes them dynamically.
-NODE_TYPES = ConfigManager.get_node_types()
+# Node types have distinct product behavior and are not user-extensible.
+NODE_TYPES = list(SUPPORTED_NODE_TYPES)
 CONTEXTS = sort_contexts(ConfigManager.get_contexts())
 _TED = ConfigManager.get_time_estimate_defaults()
 

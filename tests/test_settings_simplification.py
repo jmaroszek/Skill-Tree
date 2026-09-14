@@ -62,6 +62,57 @@ def test_context_priorities_live_in_contexts_with_plain_language():
     assert "Doubling a weight" not in copy
 
 
+def test_context_sorting_offers_only_defined_order_or_alphabetical():
+    components = _by_id(build_settings_modal())
+    for component_id in (
+            "setting-context-sort-mode", "setting-subcontext-sort-mode"):
+        assert components[component_id].options == [
+            {"label": "Defined order", "value": "definition"},
+            {"label": "Alphabetical", "value": "alphabetical"},
+        ]
+
+
+def test_single_setting_sections_do_not_repeat_their_labels():
+    modal = build_settings_modal()
+    text = _text(modal)
+
+    assert sum(
+        getattr(component, "children", None) == "Scoring Profile"
+        for component in _walk(modal)
+    ) == 1
+    assert not any(
+        getattr(component, "children", None) == "Priorities"
+        for component in _walk(modal)
+    )
+    assert sum(
+        getattr(component, "children", None) == "Maximum Now Nodes"
+        and getattr(component, "className", None) != "visually-hidden"
+        for component in _walk(modal)
+    ) == 1
+    assert "Max Now Nodes" not in text
+    assert "Manage reflections from the journal icon" not in text
+
+
+def test_path_fields_are_responsive_but_visually_bounded():
+    modal = build_settings_modal()
+    paths_tab = next(
+        component for component in _walk(modal)
+        if getattr(component, "tab_id", None) == "tab-paths"
+    )
+    containers = [
+        component for component in _walk(paths_tab)
+        if getattr(component, "style", None) == {
+            "width": "100%", "maxWidth": "640px"
+        }
+    ]
+
+    assert len(containers) == 1
+    assert "Paths" not in _text(paths_tab)
+    assert {
+        "setting-obsidian-path", "setting-gdrive-path"
+    }.issubset(_by_id(containers[0]))
+
+
 def test_technical_and_maintenance_controls_are_not_user_facing():
     components = _by_id(build_settings_modal())
     removed = {
@@ -74,5 +125,6 @@ def test_technical_and_maintenance_controls_are_not_user_facing():
         "setting-monte-carlo-trials", "setting-estimate-correlation",
         "setting-unblocking-steps", "btn-run-perf-profile",
         "btn-repair-graph", "btn-restore-graph-layout",
+        "setting-node-types",
     }
     assert removed.isdisjoint(components)
