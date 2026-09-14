@@ -997,7 +997,8 @@ class TestContributorHover:
                'value': 9, 'interest': 10, 'pct_of_tv': 14.5, 'contribution': 40.0,
                'remaining_hours': 400.0, 'future_discount': 0.67}
         assert _contributor_hover(row) == (
-            "<b>Health</b><br>2 steps away via hard prerequisite<br>Value 9 · Interest 10")
+            "<b>Health</b><br>2 steps away via hard prerequisite<br>Passes on 22% of its value"
+            "<br>Value 9 · Interest 10")
 
     def test_self_bar_shows_only_name_and_ratings(self):
         row = {'name': 'X', 'via': 'Self', 'depth': 0, 'iv': 10.0,
@@ -1015,14 +1016,24 @@ class TestExplainSummary:
         """10 + 2 + 0.5 of 12.5 → 80% / 16% / 4.0%; no raw value or cost."""
         text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
         assert "Own ratings Value 5 · Interest 5 80%" in text
-        assert "What it unlocks 16%" in text
-        assert "What it prepares you for 4.0%" in text
+        assert "Unlocks 16%" in text
+        assert "Prepares you for 4.0%" in text
         for internal in ("10.00", "12.50", "15.50", "1.23", "Raw", "Intrinsic"):
             assert internal not in text
 
+    def test_synergy_rows_sit_together_at_the_end_of_value(self):
+        bd = _minimal_breakdown(composition={
+            'iv': 10.0, 'hard_cascade': 2.0, 'soft_cascade': 0.5, 'synergy': 1.0,
+            'iv_multiplier': 1.4, 'iv_multiplier_contribution': 4.0,
+            'done_synergy_count': 1, 'total_value': 17.5,
+        })
+        text = _render_text(build_explain_summary(bd, normalized=80))
+        assert ("Prepares you for 2.9% Synergy partners 5.7% "
+                "Finished synergy partners 1 finished 23% Cost") in text
+
     def test_value_sources_with_no_share_are_left_out(self):
         text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
-        assert "synergy partners" not in text
+        assert "ynergy partners" not in text
 
     def test_cost_is_shown_as_time_and_effort(self):
         text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
@@ -1083,7 +1094,7 @@ class TestExplainSummary:
             },
         )
         text = _render_text(build_explain_summary(bd, normalized=50))
-        assert "Priority goal Health, your #1 +50%" in text
+        assert "Priority goal Health (#1) +50%" in text
         assert "Context weight Mind +100%" in text
         assert "Together +200%" in text
 
@@ -1095,10 +1106,10 @@ class TestExplainSummary:
             goal_boost={'multiplier': 1.5, 'goal': 'X', 'rank': 2},
         )
         text = _render_text(build_explain_summary(bd, normalized=40))
-        assert "Its prerequisites 16%" in text
+        assert "Prerequisites 16%" in text
         assert "Hard prerequisite work left 6h" in text
         assert "Effort" not in text
-        assert "Priority goal your #2 +50%" in text
+        assert "Priority goal X (#2) +50%" in text
 
     def test_ineligible_shows_reason_instead_of_priority(self):
         bd = _minimal_breakdown(eligible=False, block_reason="Blocked")

@@ -1893,18 +1893,19 @@ def _explain_summary_table(breakdown: dict, normalized):
     else:
         own_detail = None
     row("Own ratings", share(comp['iv']), own_detail)
+    for label, amount in (
+        ("Prerequisites" if is_goal else "Unlocks", comp['hard_cascade']),
+        ("Prepares you for", comp['soft_cascade']),
+        ("Synergy partners", comp['synergy']),
+    ):
+        if amount > 1e-9:
+            row(label, share(amount))
+    # Kept last, directly under the other synergy row, so both read together.
     boost_from_partners = comp.get('iv_multiplier_contribution', 0.0)
     if boost_from_partners > 1e-9:
         done_count = comp.get('done_synergy_count', 0)
         row("Finished synergy partners", share(boost_from_partners),
             f"{done_count} finished")
-    for label, amount in (
-        ("Its prerequisites" if is_goal else "What it unlocks", comp['hard_cascade']),
-        ("What it prepares you for", comp['soft_cascade']),
-        ("Its synergy partners", comp['synergy']),
-    ):
-        if amount > 1e-9:
-            row(label, share(amount))
 
     # --- Cost: the time and effort it is built from ---------------------
     header("Cost")
@@ -1923,9 +1924,8 @@ def _explain_summary_table(breakdown: dict, normalized):
     # --- Adjustments: each as the change it makes to the score ----------
     adjustments = []
     if boost is not None:
-        detail = (f"your #{boost['rank']}" if is_goal
-                  else f"{boost['goal']}, your #{boost['rank']}")
-        adjustments.append(("Priority goal", detail, boost['multiplier']))
+        adjustments.append(("Priority goal", f"{boost['goal']} (#{boost['rank']})",
+                            boost['multiplier']))
     ctx_adj = breakdown.get('context_adjustment') or {}
     context = breakdown.get('context')
     if abs(ctx_adj.get('weight', 1.0) - 1.0) > 1e-9:
@@ -1972,8 +1972,9 @@ def _explain_summary_table(breakdown: dict, normalized):
 def _contributor_hover(row: dict) -> str:
     """Short hover text for one bar of the contributors chart.
 
-    Kept to the app's tooltip length: the name, how the node is reached, and
-    its ratings. The bar's own label already carries its share.
+    Kept short: the name, how the node is reached, how much of its value
+    reaches the explained node, and its ratings. The bar's own label already
+    carries its share of total value.
     """
     lines = [f"<b>{_escape(row['name'])}</b>"]
     via = row.get('via')
@@ -1982,6 +1983,10 @@ def _contributor_hover(row: dict) -> str:
         through = {'Hard': "hard prerequisite", 'Soft': "soft prerequisite",
                    'Synergy': "synergy partner"}.get(via, "relationship")
         lines.append(f"{steps} step{'' if steps == 1 else 's'} away via {through}")
+        if row.get('iv', 0.0) > 1e-9:
+            # Route discounts and the required-work discount, combined.
+            passed_on = 100.0 * row.get('contribution', 0.0) / row['iv']
+            lines.append(f"Passes on {_format_share(passed_on)} of its value")
     if row.get('iv', 0.0) > 1e-9 and row.get('value') is not None:
         lines.append(f"Value {_format_rating(row['value'])} · "
                      f"Interest {_format_rating(row['interest'])}")
