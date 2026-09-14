@@ -1892,7 +1892,7 @@ def _explain_summary_table(breakdown: dict, normalized):
                       f"Interest {_format_rating(intrinsic['interest'])}")
     else:
         own_detail = None
-    row("Its own ratings", share(comp['iv']), own_detail)
+    row("Own ratings", share(comp['iv']), own_detail)
     boost_from_partners = comp.get('iv_multiplier_contribution', 0.0)
     if boost_from_partners > 1e-9:
         done_count = comp.get('done_synergy_count', 0)
@@ -1969,25 +1969,19 @@ def _explain_summary_table(breakdown: dict, normalized):
     )
 
 
-def _contributor_hover(row: dict, time_settings) -> str:
-    """Plain-language hover text for one bar of the contributors chart."""
-    lines = [f"<b>{_escape(row['name'])}</b>",
-             f"{_format_share(row.get('pct_of_tv', 0.0))} of total value"]
+def _contributor_hover(row: dict) -> str:
+    """Short hover text for one bar of the contributors chart.
+
+    Kept to the app's tooltip length: the name, how the node is reached, and
+    its ratings. The bar's own label already carries its share.
+    """
+    lines = [f"<b>{_escape(row['name'])}</b>"]
     via = row.get('via')
     if via != 'Self':
         steps = row.get('depth', 0)
-        through = {'Hard': "a hard prerequisite", 'Soft': "a soft prerequisite",
-                   'Synergy': "a synergy partner"}.get(via, "a relationship")
-        lines.append(f"{steps} step{'' if steps == 1 else 's'} away, through {through}")
-        iv = row.get('iv', 0.0)
-        if iv > 1e-9:
-            passed_on = f"Passes on {_format_share(100.0 * row['contribution'] / iv)} of its own value"
-            hours = row.get('remaining_hours', 0.0)
-            if hours > 0 and row.get('future_discount', 1.0) < 1.0 - 1e-9:
-                passed_on += (", allowing for "
-                              f"{ConfigManager.format_time_friendly(hours, time_settings=time_settings)}"
-                              " of work still required")
-            lines.append(passed_on)
+        through = {'Hard': "hard prerequisite", 'Soft': "soft prerequisite",
+                   'Synergy': "synergy partner"}.get(via, "relationship")
+        lines.append(f"{steps} step{'' if steps == 1 else 's'} away via {through}")
     if row.get('iv', 0.0) > 1e-9 and row.get('value') is not None:
         lines.append(f"Value {_format_rating(row['value'])} · "
                      f"Interest {_format_rating(row['interest'])}")
@@ -2004,7 +1998,6 @@ def _explain_bar_chart(contributors: list, top_n: int):
     analyze_callbacks._trunc.
     """
     rows = list(reversed(contributors[:top_n]))  # Plotly stacks bottom-up
-    time_settings = ConfigManager.get_time_settings()
     shares = [r.get('pct_of_tv', 0.0) for r in rows]
 
     fig = go.Figure()
@@ -2015,7 +2008,7 @@ def _explain_bar_chart(contributors: list, top_n: int):
         text=[_format_share(s) for s in shares],
         textposition='outside',
         cliponaxis=False,
-        customdata=[_contributor_hover(r, time_settings) for r in rows],
+        customdata=[_contributor_hover(r) for r in rows],
         hovertemplate="%{customdata}<extra></extra>",
     ))
     fig.update_layout(

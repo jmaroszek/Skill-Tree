@@ -15,7 +15,7 @@ from callback_helpers import (
     snapshot_from_form_state, build_explain_summary,
     resolve_time_mode, resolve_value_mode,
     editor_form_values, ALL_WEEKDAYS,
-    format_value_rank, _ordinal,
+    format_value_rank, _ordinal, _contributor_hover,
     alias_rows_label, update_alias_rows,
 )
 from styles import stylesheet, mini_stylesheet
@@ -991,11 +991,30 @@ def _render_text(component):
     return _render_text(children) if children is not None else ""
 
 
+class TestContributorHover:
+    def test_downstream_contributor_is_name_route_and_ratings(self):
+        row = {'name': 'Health', 'via': 'Hard', 'depth': 2, 'iv': 181.0,
+               'value': 9, 'interest': 10, 'pct_of_tv': 14.5, 'contribution': 40.0,
+               'remaining_hours': 400.0, 'future_discount': 0.67}
+        assert _contributor_hover(row) == (
+            "<b>Health</b><br>2 steps away via hard prerequisite<br>Value 9 · Interest 10")
+
+    def test_self_bar_shows_only_name_and_ratings(self):
+        row = {'name': 'X', 'via': 'Self', 'depth': 0, 'iv': 10.0,
+               'value': 5, 'interest': 5}
+        assert _contributor_hover(row) == "<b>X</b><br>Value 5 · Interest 5"
+
+    def test_names_are_escaped(self):
+        row = {'name': 'A <b> B', 'via': 'Synergy', 'depth': 1, 'iv': 0.0}
+        assert _contributor_hover(row) == (
+            "<b>A &lt;b&gt; B</b><br>1 step away via synergy partner")
+
+
 class TestExplainSummary:
     def test_value_is_shown_as_shares_not_internal_quantities(self):
         """10 + 2 + 0.5 of 12.5 → 80% / 16% / 4.0%; no raw value or cost."""
         text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
-        assert "Its own ratings Value 5 · Interest 5 80%" in text
+        assert "Own ratings Value 5 · Interest 5 80%" in text
         assert "What it unlocks 16%" in text
         assert "What it prepares you for 4.0%" in text
         for internal in ("10.00", "12.50", "15.50", "1.23", "Raw", "Intrinsic"):
@@ -1018,7 +1037,7 @@ class TestExplainSummary:
         )
         text = _render_text(build_explain_summary(bd, normalized=None))
         assert "Value 7" not in text
-        assert "Its own ratings none of its own" in text
+        assert "Own ratings none of its own" in text
         assert "Time None of its own" in text
         assert "Effort None of its own" in text
 
