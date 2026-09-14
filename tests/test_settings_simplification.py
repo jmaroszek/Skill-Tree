@@ -120,7 +120,7 @@ def test_single_setting_sections_do_not_repeat_their_labels():
     ) == 1
     assert "Max Now Nodes" not in text
     assert "Maximum number of nodes that can be flagged Now at once" not in text
-    assert "Set the maximum number of active projects you can have at once" in text
+    assert "Set the maximum number of active projects you can have at once." in text
     assert "Manage reflections from the journal icon" not in text
 
 

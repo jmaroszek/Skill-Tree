@@ -352,7 +352,7 @@ def _build_misc_tab():
             # --- Now Cap section ---
             html.H5("Maximum Now Nodes", className="mt-2 mb-1"),
             html.Small(
-                "Set the maximum number of active projects you can have at once",
+                "Set the maximum number of active projects you can have at once.",
                 className="text-muted d-block mb-2",
             ),
             dbc.Label("Maximum Now Nodes", html_for="setting-now-node-cap",
