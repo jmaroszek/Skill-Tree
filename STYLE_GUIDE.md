@@ -92,6 +92,12 @@ goal via a Hard edge.
 The explain-modal contributors chart and legend use the same edge palette
 plus a `Self` tile (`#685e52` warm sand) for the node itself.
 
+Explain speaks in the reader's units, not the scorer's. Value is a share of
+total value, cost is the time and effort behind it, and an adjustment is the
+percent change it makes to the score. A row's muted detail is a plain fact
+(the ratings, the context, the goal), never a parameter value in parentheses.
+The only score printed is the 0–100 priority.
+
 ### Event-card badge palette
 
 Used on Events-tab event cards. The three trigger-type labels (Manual,
@@ -243,6 +249,10 @@ field.
 | Sidebar width (editor / goals / events / filters) | `350px` (`config.SIDEBAR_WIDTH`) |
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
+
+The left sidebars (editor, Goals, Events) slide with `transform: translateX(...)` and `willChange: transform`, not by animating `left`. The browser runs a transform animation off the main thread, so the slide stays smooth while the page is busy. Rebuilding a sidebar's list waits until the slide finishes. On the Events tab, the content glides aside with the sidebar. Its style comes back in the same callback return as the sidebar's, so both animations start on the same frame.
+
+A panel that loads on first view shows the shared loading cover: `dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE)` over a `canvas-cover-label` caption, inside a `loading-cover` div. Analyze and the Goals sidebar use it.
 
 ## Borders & Dividers
 
@@ -452,6 +462,13 @@ state needs no extra callback. Compare these lists as sets in dirty-checks
 (`is_form_dirty_vs_snapshot`) since the order is not significant.
 
 ### Details local-view control row
+
+Graph-layout physics sliders use qualitative endpoint rows rather than native
+numeric marks: **Short / Long** for Edge Length and **Weak / Strong** for
+Gravity and Repulsion. Set the slider's `marks=None` and render the endpoints in
+a sibling `.graph-settings-axis` row. This keeps both labels aligned with the
+track edges, makes them visually subordinate to the parameter name, and leaves
+the numeric range, step and stored value strictly as implementation details.
 
 The Details subtree controls are a row of compact switches. Use
 `.details-view-controls` for the wrapping flex row. Both physical copies of

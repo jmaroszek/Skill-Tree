@@ -10,25 +10,122 @@ tuple — see the IDX constants there.
 import json as _json
 import time as _time
 
-from dash import html, Input, Output, State, ALL, no_update, ClientsideFunction
+from dash import html, ctx, Input, Output, State, ALL, no_update, ClientsideFunction
 
+import database
 from graph_manager import GraphManager
-from config import ConfigManager, SIDEBAR_WIDTH_NEG_PX
+from config import ConfigManager, SIDEBAR_TRANSLATE_CLOSED
 from models import STATUS_DONE
 from details_layout import build_goal_card
-from callback_helpers import node_menu_attributes
+from callback_helpers import node_menu_attributes, left_sidebar_is_open
 
 graph_manager = GraphManager()
 
 
-def _goal_sidebar_is_open(style):
-    """True when the goals overlay is slid into view (left == 0px).
+def _goal_list(search_val, sort_mode, manual_order, selected_node):
+    """The Goals sidebar's cards, or its empty-state message."""
+    all_nodes = graph_manager.get_all_nodes()
+    goals = [n for n in all_nodes if n.type == "Goal"]
 
-    Every writer of `details-goal-sidebar.style` keeps `left` on the dict, and
-    a missing/blank style means the initial closed state, so absence reads as
-    closed.
-    """
-    return bool(style) and style.get("left") == "0px"
+    if not goals:
+        return html.Div(
+            html.P("No goals yet.", className="text-muted"),
+            className="text-center py-5"
+        )
+
+    if search_val and search_val.strip():
+        search_lower = search_val.strip().lower()
+        goals = [g for g in goals if search_lower in g.name.lower()]
+
+    priority_goals = ConfigManager.get_priority_goals()
+    completion_cache = {}
+    for g in goals:
+        completion_cache[g.name] = graph_manager.get_goal_completion(g.name, include_soft=False)
+
+    def _is_done(g):
+        c = completion_cache[g.name]
+        return g.status == STATUS_DONE or (c.get("pct", 0) == 100 and c.get("total", 0) > 0)
+
+    # Done goals are hidden from the sidebar.
+    goals = [g for g in goals if not _is_done(g)]
+
+    if not goals:
+        return html.Div(
+            html.P("No goals to show.", className="text-muted"),
+            className="text-center py-5"
+        )
+
+    sort_mode = sort_mode or "manual"
+    is_manual = sort_mode == "manual"
+
+    score_map = {}
+    if sort_mode == "priority":
+        # Goals are sinks, so the forward priority_score collapses to
+        # ~nothing. _rank_goals ranks them by ROI on the inverted prereq
+        # graph — subtree value per unit of remaining time, boosted by
+        # priority rank and context weight. Every Goal is ranked, not just
+        # the ones the search leaves, so the corner numbers keep the same
+        # base as the Explain modal and the Details suggestions.
+        from analyze_callbacks import _rank_goals, normalize_goal_scores
+        edges = graph_manager.get_edges()
+        ranked = _rank_goals([n for n in all_nodes if n.type == "Goal"],
+                             all_nodes, edges, priority_goals,
+                             ConfigManager.get_hyperparams(), with_scores=True)
+        rank_order = {g.name: index for index, (g, _) in enumerate(ranked)}
+        goals.sort(key=lambda g: rank_order[g.name])
+        score_map = normalize_goal_scores(ranked, all_nodes, edges)
+    elif sort_mode == "alpha-asc":
+        goals.sort(key=lambda g: g.name.lower())
+    elif sort_mode == "time-desc":
+        goals.sort(key=lambda g: completion_cache[g.name].get("remaining_time", 0),
+                   reverse=True)
+    elif is_manual and manual_order:
+        order_map = {name: idx for idx, name in enumerate(manual_order)}
+        goals.sort(key=lambda g: order_map.get(g.name, 999))
+
+    # Pin priority 1-3 at the top; Done goals always sink to the bottom so
+    # they don't compete with active goals for the top slots.
+    pinned, unpinned, done = [], [], []
+    for g in goals:
+        if _is_done(g):
+            done.append(g)
+        elif g.name in priority_goals[:3]:
+            pinned.append(g)
+        else:
+            unpinned.append(g)
+    pinned.sort(key=lambda g: priority_goals.index(g.name))
+    goals = pinned + unpinned + done
+
+    # Sort-dependent top-right corner indicator (open goals only).
+    # Priority -> normalized score 0-100; Manual -> displayed rank.
+    # Time/Alphabetical -> nothing (time is already on the stats line,
+    # alphabetical order carries no rank meaning).
+    corner_map = {}
+    active = pinned + unpinned
+    if sort_mode == "priority":
+        for g in active:
+            if g.name in score_map:
+                corner_map[g.name] = str(score_map[g.name])
+    elif is_manual:
+        for idx, g in enumerate(active):
+            corner_map[g.name] = str(idx + 1)
+
+    cards = []
+    for goal in goals:
+        completion = completion_cache[goal.name]
+        rank = None
+        if goal.name in priority_goals:
+            rank = priority_goals.index(goal.name) + 1
+        cards.append(build_goal_card(
+            goal.name, goal.status, completion,
+            completion.get("total", 0),
+            is_selected=(goal.name == selected_node),
+            priority_rank=rank,
+            show_order_buttons=is_manual,
+            corner_text=corner_map.get(goal.name),
+            menu_attributes=node_menu_attributes(goal),
+        ))
+    return cards
 
 
 def register_sidebars_callbacks(app):
@@ -37,13 +134,13 @@ def register_sidebars_callbacks(app):
 
     # --- Goal Sidebar Toggle (CLIENTSIDE) ---
     # Handled in the browser via assets/goals_sidebar.js to eliminate the
-    # server round-trip on open/close. On open it bumps goals-ui-refresh-trigger
-    # (NOT details-refresh-trigger) so only render_goal_list re-runs — core_engine
-    # stays idle, keeping the animation smooth.
+    # server round-trip on open/close. Once the open slide finishes it bumps
+    # goals-ui-refresh-trigger (NOT details-refresh-trigger) so only
+    # render_goal_list re-runs — core_engine stays idle, and the rebuilt list
+    # doesn't land mid-slide.
     app.clientside_callback(
         ClientsideFunction(namespace='goals', function_name='toggle_sidebar'),
         Output("details-goal-sidebar", "style"),
-        Output("goals-ui-refresh-trigger", "data", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Output("events-sidebar-container", "style", allow_duplicate=True),
         Input("btn-goals-toggle", "n_clicks"),
@@ -69,20 +166,47 @@ def register_sidebars_callbacks(app):
         if not n_clicks:
             return no_update, no_update, no_update
         goal_style = dict(goal_sidebar_style) if goal_sidebar_style else {}
-        goal_style["left"] = SIDEBAR_WIDTH_NEG_PX
+        goal_style["transform"] = SIDEBAR_TRANSLATE_CLOSED
         ed_style = dict(editor_style) if editor_style else {}
         ed_style["transform"] = "translateX(0px)"
         return goal_style, "Goal", ed_style
 
+    # --- Background Goal List Build ---
+    # Once the Nodes canvas payload has landed and the browser goes idle,
+    # build the Goals list once so the first open finds it ready instead of
+    # behind its spinner. Mirrors the Analyze prewarm. Later changes don't
+    # rebuild it in the background; opening the sidebar does that.
+    app.clientside_callback(
+        """
+        function(elements, prewarmed) {
+            if (prewarmed || !elements || !elements.length) {
+                return window.dash_clientside.no_update;
+            }
+            return new Promise(function (resolve) {
+                function go() { resolve(Date.now()); }
+                if (window.requestIdleCallback) {
+                    window.requestIdleCallback(go, {timeout: 5000});
+                } else {
+                    setTimeout(go, 1000);
+                }
+            });
+        }
+        """,
+        Output("goals-prewarm-store", "data"),
+        Input("cytoscape-graph", "elements"),
+        State("goals-prewarm-store", "data"),
+        prevent_initial_call=True,
+    )
+
     # --- Populate Goal Sidebar ---
-    # Only renders while the sidebar is actually open. It is a per-goal
-    # completion walk over the whole graph and the result is ~110 KB of
-    # component JSON, and it used to run on every tab switch and every graph
-    # mutation whether or not anyone could see it. Skipping it while closed is
-    # safe because the only thing that opens the sidebar is
-    # `goals.toggle_sidebar` in assets/goals_sidebar.js, which bumps
-    # goals-ui-refresh-trigger in the same return — so the list is always
-    # rebuilt on the way open. Every other writer of this style only closes it.
+    # Only renders while the sidebar is actually open, plus the one background
+    # build above. The result is ~130 KB of component JSON, and it used to run
+    # on every tab switch and every graph mutation whether or not anyone could
+    # see it. Skipping it while closed is safe because the only thing that
+    # opens the sidebar is `goals.toggle_sidebar` in assets/goals_sidebar.js,
+    # which bumps goals-ui-refresh-trigger once the slide finishes — so the
+    # list is always rebuilt on the way open. Until then the sidebar shows the
+    # list from its last build. Every other writer of this style only closes it.
     @app.callback(
         Output("details-goal-list-container", "children"),
         Input("main-tabs", "active_tab"),
@@ -92,116 +216,19 @@ def register_sidebars_callbacks(app):
         Input("details-goal-search", "value"),
         Input("details-goal-sort", "data"),
         Input("details-goal-order-store", "data"),
+        Input("goals-prewarm-store", "data"),
         State("details-selected-node-store", "data"),
         State("details-goal-sidebar", "style"),
     )
-    def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val, sort_mode, manual_order, selected_node, goal_sidebar_style):
-
-        if not _goal_sidebar_is_open(goal_sidebar_style):
+    def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val, sort_mode, manual_order, _prewarm, selected_node, goal_sidebar_style):
+        if (not left_sidebar_is_open(goal_sidebar_style)
+                and "goals-prewarm-store.data" not in ctx.triggered_prop_ids):
             return no_update
+        # One snapshot for the whole build. Without it, each goal's completion
+        # walk re-reads the database, which was ~90% of the build time.
+        with database.read_snapshot():
+            return _goal_list(search_val, sort_mode, manual_order, selected_node)
 
-        all_nodes = graph_manager.get_all_nodes()
-        goals = [n for n in all_nodes if n.type == "Goal"]
-
-        if not goals:
-            return html.Div(
-                html.P("No goals yet.", className="text-muted"),
-                className="text-center py-5"
-            )
-
-        if search_val and search_val.strip():
-            search_lower = search_val.strip().lower()
-            goals = [g for g in goals if search_lower in g.name.lower()]
-
-        priority_goals = ConfigManager.get_priority_goals()
-        completion_cache = {}
-        for g in goals:
-            completion_cache[g.name] = graph_manager.get_goal_completion(g.name, include_soft=False)
-
-        def _is_done(g):
-            c = completion_cache[g.name]
-            return g.status == STATUS_DONE or (c.get("pct", 0) == 100 and c.get("total", 0) > 0)
-
-        # Done goals are hidden from the sidebar.
-        goals = [g for g in goals if not _is_done(g)]
-
-        if not goals:
-            return html.Div(
-                html.P("No goals to show.", className="text-muted"),
-                className="text-center py-5"
-            )
-
-        sort_mode = sort_mode or "manual"
-        is_manual = sort_mode == "manual"
-
-        score_map = {}
-        if sort_mode == "priority":
-            # Goals are sinks, so the forward priority_score collapses to
-            # ~nothing. _rank_goals ranks them by ROI on the inverted prereq
-            # graph — subtree value per unit of remaining time, boosted by
-            # priority rank and context weight. Every Goal is ranked, not just
-            # the ones the search leaves, so the corner numbers keep the same
-            # base as the Explain modal and the Details suggestions.
-            from analyze_callbacks import _rank_goals, normalize_goal_scores
-            edges = graph_manager.get_edges()
-            ranked = _rank_goals([n for n in all_nodes if n.type == "Goal"],
-                                 all_nodes, edges, priority_goals,
-                                 ConfigManager.get_hyperparams(), with_scores=True)
-            rank_order = {g.name: index for index, (g, _) in enumerate(ranked)}
-            goals.sort(key=lambda g: rank_order[g.name])
-            score_map = normalize_goal_scores(ranked, all_nodes, edges)
-        elif sort_mode == "alpha-asc":
-            goals.sort(key=lambda g: g.name.lower())
-        elif sort_mode == "time-desc":
-            goals.sort(key=lambda g: completion_cache[g.name].get("remaining_time", 0),
-                       reverse=True)
-        elif is_manual and manual_order:
-            order_map = {name: idx for idx, name in enumerate(manual_order)}
-            goals.sort(key=lambda g: order_map.get(g.name, 999))
-
-        # Pin priority 1-3 at the top; Done goals always sink to the bottom so
-        # they don't compete with active goals for the top slots.
-        pinned, unpinned, done = [], [], []
-        for g in goals:
-            if _is_done(g):
-                done.append(g)
-            elif g.name in priority_goals[:3]:
-                pinned.append(g)
-            else:
-                unpinned.append(g)
-        pinned.sort(key=lambda g: priority_goals.index(g.name))
-        goals = pinned + unpinned + done
-
-        # Sort-dependent top-right corner indicator (open goals only).
-        # Priority -> normalized score 0-100; Manual -> displayed rank.
-        # Time/Alphabetical -> nothing (time is already on the stats line,
-        # alphabetical order carries no rank meaning).
-        corner_map = {}
-        active = pinned + unpinned
-        if sort_mode == "priority":
-            for g in active:
-                if g.name in score_map:
-                    corner_map[g.name] = str(score_map[g.name])
-        elif is_manual:
-            for idx, g in enumerate(active):
-                corner_map[g.name] = str(idx + 1)
-
-        cards = []
-        for goal in goals:
-            completion = completion_cache[goal.name]
-            rank = None
-            if goal.name in priority_goals:
-                rank = priority_goals.index(goal.name) + 1
-            cards.append(build_goal_card(
-                goal.name, goal.status, completion,
-                completion.get("total", 0),
-                is_selected=(goal.name == selected_node),
-                priority_rank=rank,
-                show_order_buttons=is_manual,
-                corner_text=corner_map.get(goal.name),
-                menu_attributes=node_menu_attributes(goal),
-            ))
-        return cards
 
     # --- Goal Priority Change (from the rank popover or Set Priority in the node menu) ---
     @app.callback(

@@ -120,6 +120,24 @@ def test_graph_layout_panel_contains_only_layout_controls():
     assert "test-graph-layout-freeze-rerender" in ids
 
 
+def test_graph_layout_sliders_use_qualitative_endpoint_labels():
+    panel = build_graph_settings_panel("test-graph-layout")
+
+    edge_length = _by_id(panel, "test-graph-layout-edge-length")
+    gravity = _by_id(panel, "test-graph-layout-gravity")
+    repulsion = _by_id(panel, "test-graph-layout-repulsion")
+    edge_length_axis = _by_id(panel, "test-graph-layout-edge-length-axis")
+    gravity_axis = _by_id(panel, "test-graph-layout-gravity-axis")
+    repulsion_axis = _by_id(panel, "test-graph-layout-repulsion-axis")
+
+    assert edge_length.marks is None
+    assert gravity.marks is None
+    assert repulsion.marks is None
+    assert _text(edge_length_axis) == "Short Long"
+    assert _text(gravity_axis) == "Weak Strong"
+    assert _text(repulsion_axis) == "Weak Strong"
+
+
 def test_events_layout_panel_has_smooth_and_freeze():
     panel = build_graph_settings_panel(
         "test-events-layout", defaults_getter=ConfigManager.get_events_graph_layout_defaults

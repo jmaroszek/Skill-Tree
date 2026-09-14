@@ -23,6 +23,7 @@ from config import (
     TOOLTIP_HIDE_DELAY_MS,
     TOAST_CLEAR_INTERVAL_MS,
     LOCATE_TOAST_CLEAR_INTERVAL_MS,
+    LOADING_SPINNER_STYLE,
     SIDEBAR_WIDTH_PX,
     SIDEBAR_WIDTH_NEG_PX,
     SIDEBAR_TRANSLATE_CLOSED,
@@ -478,20 +479,32 @@ def build_goals_sidebar():
                 GOALS_SORT,
             ),
 
-            html.Div(id="details-goal-list-container",
-                     style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
+            # The list is first built in the background once the app is idle,
+            # or on the sidebar's first open if that comes sooner. Later opens
+            # show the previous list until the new one arrives, so only this
+            # first wait needs a spinner.
+            html.Div(
+                html.Div([
+                    dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
+                    html.Div("Preparing your goals…", className="canvas-cover-label"),
+                ], className="loading-cover", role="status",
+                    **{"aria-live": "polite"}),  # type: ignore[reportArgumentType]
+                id="details-goal-list-container",
+                style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
         ],
         style={
             "position": "absolute",
             "top": "0",
-            "left": SIDEBAR_WIDTH_NEG_PX,
+            "left": "0",
             "width": SIDEBAR_WIDTH_PX,
             "height": "100%",
             "zIndex": 100,
             "overflowX": "hidden",
             "overflowY": "auto",
             "borderRight": "1px solid #495057",
-            "transition": "left 0.3s ease",
+            "transition": "transform 0.3s ease",
+            "transform": SIDEBAR_TRANSLATE_CLOSED,
+            "willChange": "transform",
             "backgroundColor": "#212529",
             "display": "flex",
             "flexDirection": "column",
@@ -512,14 +525,16 @@ def build_events_sidebar():
         style={
             "position": "absolute",
             "top": "0",
-            "left": SIDEBAR_WIDTH_NEG_PX,
+            "left": "0",
             "width": SIDEBAR_WIDTH_PX,
             "height": "100%",
             "zIndex": 100,
             "overflowX": "hidden",
             "overflowY": "auto",
             "borderRight": "1px solid #495057",
-            "transition": "left 0.3s ease",
+            "transition": "transform 0.3s ease",
+            "transform": SIDEBAR_TRANSLATE_CLOSED,
+            "willChange": "transform",
             "backgroundColor": "#212529",
             "display": "flex",
             "flexDirection": "column",

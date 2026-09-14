@@ -403,19 +403,15 @@ def build_events_tab_content():
 
     # --- Event Detail (left: fixed natural width, right of it goes to the graph) ---
     event_detail_panel = html.Div([
-        # Empty state: shown when no event is selected. Gives the user a clear
-        # path to the events sidebar if they haven't opened it yet.
+        # Empty state: shown alongside the automatically opened Events sidebar
+        # when no event is selected.
         html.Div(
             id="event-detail-empty",
             children=[
                 html.Div([
                     html.H4("No Event Selected", className="text-muted mb-2"),
-                    html.P("Open the Events sidebar to browse or create one.",
-                           className="text-muted mb-3"),
-                    dbc.Button([
-                        html.I(className="bi bi-calendar-event me-2"),
-                        "Open Events Sidebar",
-                    ], id="btn-open-events-sidebar", color="primary"),
+                    html.P("Select an event from the sidebar or create a new one.",
+                           className="text-muted mb-0"),
                 ], style={"textAlign": "center", "marginTop": "20vh",
                           "padding": "0 24px"}),
             ],
@@ -660,8 +656,8 @@ def build_events_tab_content():
         # content listens here instead of to every main-tab switch.
         dcc.Store(id='events-active-store', data=None),
         # UI-only refresh for the events sidebar list. Bumped by events_sidebar.js
-        # on open so render_events_list re-runs — but NOT an input to core_engine,
-        # so opening doesn't block the animation on a graph regen.
+        # once the open slide finishes so render_events_list re-runs — but NOT
+        # an input to core_engine, so opening doesn't wait on a graph regen.
         dcc.Store(id='events-ui-refresh-trigger', data=0),
         dcc.Store(id='event-order-store', data=[], storage_type='local'),
         dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),

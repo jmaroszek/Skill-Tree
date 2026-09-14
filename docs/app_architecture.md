@@ -28,7 +28,7 @@ The one-way rule has a payoff: a tab module sees only `app` and the three manage
 | [config.py](../config.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
 | [graph_manager.py](../graph_manager.py) | **The state gateway.** Node/edge CRUD, alias resolution, `sync_edges`, cycle detection, the status cascade, scoring entry (`calculate_priority_scores`), subtree/completion queries, field migrations, community detection. Holds the class-level version counters and caches. |
 | [event_manager.py](../event_manager.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. |
-| [scoring.py](../scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, focus paths. |
+| [scoring.py](../scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
 | [simulation.py](../simulation.py) | Monte Carlo time simulation. Pure NumPy. |
 | [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, time calibration, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
 | [callback_helpers.py](../callback_helpers.py) | Stateless helpers extracted from the `*_callbacks.py` files (link parsing, filters, form-state diffs). |
@@ -226,7 +226,14 @@ because its graph is already laid out.
 All tab layouts remain mounted. Heavy callbacks therefore do not subscribe
 directly to every `main-tabs.active_tab` change: Analyze and Events use small
 clientside arrival stores that only notify their server callbacks when their
-own tab opens. Details dropdown options are hydrated initially and refreshed
+own tab opens. Analyze also renders ahead of the first visit. Once the Nodes
+canvas payload lands and the browser goes idle, a clientside callback bumps
+`analyze-prewarm-store`, and the hidden tab renders. Each render records a
+signature in `analyze-rendered-store`: the graph version, the context list, and
+the date. An arrival that finds the signature current makes no recompute. Until
+the first render, the sections sit hidden behind a spinner. Its charts are
+responsive graphs with pinned heights, so charts drawn while hidden re-measure
+their width when the tab opens. Details dropdown options are hydrated initially and refreshed
 from graph/version stores, so opening Details does not resend an unchanged
 node list. Empty-state suggestions likewise ignore node selection once hidden.
 

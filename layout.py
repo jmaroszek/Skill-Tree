@@ -14,6 +14,7 @@ from config import (
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     TOOLTIP_NODE_HIDE_DELAY_MS,
+    LOADING_SPINNER_STYLE,
     TOAST_CLEAR_INTERVAL_MS,
     DEFAULT_GRAPH_LAYOUT,
     sort_subcontexts,
@@ -90,8 +91,7 @@ def create_graph_view(initial_elements):
             # framed. Last child so it covers the overlays above it too.
             html.Div(
                 html.Div([
-                    dbc.Spinner(spinner_style={"width": "2rem", "height": "2rem",
-                                               "color": "#1e90ff"}),
+                    dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
                     html.Div("Preparing the graph…", className="canvas-cover-label"),
                 ], className="canvas-cover-inner"),
                 id="canvas-first-paint-cover",
@@ -1328,6 +1328,12 @@ def build_app_layout(initial_elements, env="production"):
         # tab. refresh_analyze_tab listens to this instead of main-tabs
         # directly, so switching to any other tab makes no request at all.
         dcc.Store(id='analyze-active-store', data=None),
+        # Bumped once, when startup work has settled, so the hidden Analyze
+        # tab renders ahead of the first visit instead of on it.
+        dcc.Store(id='analyze-prewarm-store', data=None),
+        # What the rendered Analyze charts were computed from. An arrival that
+        # finds it current skips the recompute. See _analyze_signature.
+        dcc.Store(id='analyze-rendered-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
 
         main_tabs,

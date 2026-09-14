@@ -297,17 +297,26 @@ A score on its own doesn't tell you much. Explain tells you where that score cam
     <em> The score breakdown for a node. </em>
 </p>
 
-The breakdown opens with a summary table, grouped into Value, Cost, and Score. The exact rows that appear in each section depend on the node itself. Some nodes have adjustments to their base ROI score via priority goal multipliers, context weight adjustments, and more. All these nuances are discussed in [scoring](scoring.md).
+The window opens with a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. Each bar is that piece's share of the node's total value. The node's own ratings are one bar. The rest are the nodes whose value flows back to it. The bars are colored by where the value comes from: the node itself, a hard prerequisite, a soft prerequisite, or a synergy link. Hover over a bar to see that node's ratings, how far away it is, and how much of its value it passes on.
 
-At the bottom, the score is listed twice: raw and normalized. The bar on the suggestions table shows the normalized score, where every node is measured against the current #1 priority. The raw score is the underlying value before that rescaling. 
+Below the chart, **Calculation details** breaks the score into four parts:
 
-Below the table is a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. The node's own intrinsic value is one bar; the rest are the downstream nodes whose value cascades back to it. The bars are colored by where the value comes from — the node itself, or a hard prerequisite, soft prerequisite, or synergy link.
+- Value shows where the node's total value comes from, as shares that add up to 100%.
+- Cost shows the time and effort the cost is built from.
+- Adjustments lists anything that raises or lowers the score, such as a priority goal, a context weight, or suggestion variety. Each one is shown as the change it makes. The section only appears when something applies.
+- Score shows the node's priority on the same 0–100 scale as the rest of the app. 100 is your current top suggestion.
+
+Internally, the scoring algorithm works with numbers that have no units. Their size also shifts with the scoring profile. So Explain describes the score in terms you set yourself instead: your ratings, your time estimates, and your settings. The math behind it is in [scoring](scoring.md).
 
 ### Focus Top $n$
 
-The contributors chart tells you *what* is lifting a score. The **Focus Top $n$** button shows you *where* those contributors sit on the graph. Choose how many contributors to trace, then click **Focus**, and the Nodes tab dims the rest of the network while highlighting the paths from the selected node to its top score drivers.
+The contributors chart tells you *what* is lifting a score. The **Focus Top $n$** button shows you *where* that value comes from on the graph. Choose how many routes to trace, then click **Focus**. The Nodes tab dims the rest of the network and highlights each route in its own color.
 
-This is especially useful when a recommendation is valuable because it feeds a long chain. In the example below, the node does not just point vaguely toward "Writing." The focus view shows the whole route: *Plot Structure* supports *Planning*, which leads through the various stages of writing, before reaching its top contributors (Writing, Career, and Literature, in this case). 
+A route follows the path the score actually credits. Top contributors often sit along the same line. A node's biggest contributor might be a Goal just past its second biggest. So Focus counts routes, not contributors. A contributor that already sits on a drawn route doesn't use up a slot. One just past the end of a route extends that route. Only a contributor that branches off somewhere new starts another. Each route is labeled at the contributor that started it.
+
+If all of a node's value flows along one line, Focus shows one route, however many you ask for.
+
+This is especially useful when a recommendation is valuable because it feeds a long chain. In the example below, the node does not just point vaguely toward "Writing." The focus view shows the whole route: *Plot Structure* supports *Planning*, which leads through the various stages of writing to *Writing*, before branching toward *Career* and *Literature*.
 
 <p align="center">
   <img src="../images/explain-focus.png">
