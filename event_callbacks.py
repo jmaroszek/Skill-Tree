@@ -2080,7 +2080,6 @@ def register_event_callbacks(app):
         Output("details-goal-sidebar", "style", allow_duplicate=True),
         Input("btn-events-sidebar-toggle", "n_clicks"),
         Input("btn-events-sidebar-close", "n_clicks"),
-        Input("btn-open-events-sidebar", "n_clicks"),
         Input("main-tabs", "active_tab"),
         State("events-sidebar-container", "style"),
         State("sidebar-editor-container", "style"),

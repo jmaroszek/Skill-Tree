@@ -33,7 +33,7 @@ const trigger = id => {
     window.dash_clientside.callback_context.triggered = [{prop_id: id + '.value'}];
 };
 const call = (activeTab, sidebar, selectedEvent, emptyStyle) =>
-    toggle(0, 0, 0, activeTab, sidebar, editorOpen, goalOpen, 4,
+    toggle(0, 0, activeTab, sidebar, editorOpen, goalOpen, 4,
            selectedEvent, emptyStyle);
 
 trigger('main-tabs');
@@ -60,7 +60,7 @@ assert.deepEqual(call('tab-events', open, null, {display: 'block'}),
 trigger('btn-events-sidebar-close');
 result = call('tab-events', open, null, {display: 'block'});
 assert.equal(result[0].left, '-380px');
-trigger('btn-open-events-sidebar');
+trigger('btn-events-sidebar-toggle');
 result = call('tab-events', closed, null, {display: 'block'});
 assert.equal(result[0].left, '0px');
 '''
@@ -92,7 +92,6 @@ def test_events_sidebar_callback_listens_for_tab_arrival_and_empty_state():
     assert {item["id"] for item in spec["inputs"]} >= {
         "btn-events-sidebar-toggle",
         "btn-events-sidebar-close",
-        "btn-open-events-sidebar",
         "main-tabs",
     }
     assert {item["id"] for item in spec["state"]} >= {

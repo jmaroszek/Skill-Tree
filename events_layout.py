@@ -403,19 +403,15 @@ def build_events_tab_content():
 
     # --- Event Detail (left: fixed natural width, right of it goes to the graph) ---
     event_detail_panel = html.Div([
-        # Empty state: shown when no event is selected. Gives the user a clear
-        # path to the events sidebar if they haven't opened it yet.
+        # Empty state: shown alongside the automatically opened Events sidebar
+        # when no event is selected.
         html.Div(
             id="event-detail-empty",
             children=[
                 html.Div([
                     html.H4("No Event Selected", className="text-muted mb-2"),
-                    html.P("Open the Events sidebar to browse or create one.",
-                           className="text-muted mb-3"),
-                    dbc.Button([
-                        html.I(className="bi bi-calendar-event me-2"),
-                        "Open Events Sidebar",
-                    ], id="btn-open-events-sidebar", color="primary"),
+                    html.P("Select an event from the sidebar or create a new one.",
+                           className="text-muted mb-0"),
                 ], style={"textAlign": "center", "marginTop": "20vh",
                           "padding": "0 24px"}),
             ],

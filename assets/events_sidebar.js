@@ -8,7 +8,7 @@
  * reconciliation of the tab-bar button.
  *
  * Two functions:
- *   - toggle_sidebar: responds to the three events-sidebar buttons and opens
+ *   - toggle_sidebar: responds to the Events sidebar controls and opens
  *     on arrival to the Events tab when its true empty state is visible; also
  *     closes editor/goals sidebars when opening (mutex).
  *   - adjust_tab_inner: reflows the events-tab-inner wrapper so content
@@ -47,7 +47,7 @@ window.dash_clientside.events = window.dash_clientside.events || {};
     }
 
     window.dash_clientside.events.toggle_sidebar = function (
-        _toggleN, _closeN, _openN, activeTab,
+        _toggleN, _closeN, activeTab,
         currentStyle, editorStyle, goalStyle, refresh, selectedEvent, emptyStyle
     ) {
         var NO = window.dash_clientside.no_update;
@@ -78,8 +78,6 @@ window.dash_clientside.events = window.dash_clientside.events || {};
             } else {
                 doOpen();
             }
-        } else if (trigger === "btn-open-events-sidebar") {
-            doOpen();
         } else if (trigger === "btn-events-sidebar-close") {
             style.left = "-380px";
         } else if (trigger === "main-tabs") {
