@@ -95,6 +95,7 @@ def test_name_formatting_offers_only_the_three_supported_modes():
     assert "setting-titlecase-options" in components
     assert "setting-linter-enabled" not in components
     assert "Name Formatting" in _text(modal)
+    assert "Choose how node names and aliases are capitalized when saved." in _text(modal)
     assert "Name Linter" not in _text(modal)
     assert "ignored when checking for duplicate names" not in _text(modal)
 
