@@ -158,6 +158,23 @@ def test_path_fields_are_responsive_but_visually_bounded():
     }.issubset(_by_id(containers[0]))
 
 
+def test_color_rows_show_swatch_without_visible_hex_value():
+    from settings_callbacks import _build_status_color_rows, _build_type_color_rows
+
+    colors = {"Done": "#123456", "Learn": "#abcdef"}
+    rows = [
+        *_build_status_color_rows(colors),
+        *_build_type_color_rows(["Learn"], colors),
+    ]
+    inputs = [
+        component for component in _walk(rows)
+        if getattr(component, "type", None) == "color"
+    ]
+
+    assert {component.value for component in inputs} == {"#123456", "#abcdef", "#6c757d"}
+    assert "#" not in _text(rows)
+
+
 def test_technical_and_maintenance_controls_are_not_user_facing():
     components = _by_id(build_settings_modal())
     removed = {

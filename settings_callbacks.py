@@ -73,11 +73,6 @@ def _build_color_row(label, key, colors):
             value=color_val,
             style={"height": "38px", "width": "52px", "padding": "2px"},
         ),
-        html.Small(
-            color_val,
-            className="text-muted",
-            style={"fontSize": "0.8rem"},
-        ),
     ], className="d-flex align-items-center gap-2 mb-2")
 
 
@@ -99,11 +94,6 @@ def _build_type_color_rows(display_types, colors):
                 type="color",
                 value=color_val,
                 style={"height": "38px", "width": "52px", "padding": "2px"},
-            ),
-            html.Small(
-                color_val,
-                className="text-muted",
-                style={"fontSize": "0.8rem"},
             ),
         ], className="d-flex align-items-center gap-2 mb-2"))
     return rows
