@@ -8,7 +8,8 @@
  * reconciliation of the tab-bar button.
  *
  * Two functions:
- *   - toggle_sidebar: responds to the three events-sidebar buttons; also
+ *   - toggle_sidebar: responds to the three events-sidebar buttons and opens
+ *     on arrival to the Events tab when its true empty state is visible; also
  *     closes editor/goals sidebars when opening (mutex).
  *   - adjust_tab_inner: reflows the events-tab-inner wrapper so content
  *     shifts right when the sidebar is open.
@@ -46,8 +47,8 @@ window.dash_clientside.events = window.dash_clientside.events || {};
     }
 
     window.dash_clientside.events.toggle_sidebar = function (
-        _toggleN, _closeN, _openN,
-        currentStyle, editorStyle, goalStyle, refresh
+        _toggleN, _closeN, _openN, activeTab,
+        currentStyle, editorStyle, goalStyle, refresh, selectedEvent, emptyStyle
     ) {
         var NO = window.dash_clientside.no_update;
         var trigger = triggerId();
@@ -81,6 +82,16 @@ window.dash_clientside.events = window.dash_clientside.events || {};
             doOpen();
         } else if (trigger === "btn-events-sidebar-close") {
             style.left = "-380px";
+        } else if (trigger === "main-tabs") {
+            // selectedEvent is also null while composing a new event, so use
+            // the visible empty state to distinguish that draft from a tab
+            // that genuinely has nothing useful to show yet.
+            var emptyStateVisible = !emptyStyle || emptyStyle.display !== "none";
+            if (activeTab !== "tab-events" || selectedEvent || !emptyStateVisible ||
+                    (style.left || "-380px") === "0px") {
+                return [NO, NO, NO, NO];
+            }
+            doOpen();
         } else {
             return [NO, NO, NO, NO];
         }
