@@ -1043,7 +1043,7 @@ def register_callbacks(app):
                                       cur_habit_int_unit, cur_habit_days):
         if not cur_name or not cur_name.strip():
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        linted = ConfigManager.apply_titlecase_linter(cur_name.strip())
+        linted = ConfigManager.apply_name_formatting(cur_name.strip())
         # core_engine is triggered by the same Save click and runs
         # concurrently with this callback. On a rename (or brand-new node)
         # the node doesn't exist under its linted name until core_engine
@@ -1854,7 +1854,7 @@ def register_callbacks(app):
         # --- Action Routing ---
         if trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save'):
             if name and name.strip():
-                name = ConfigManager.apply_titlecase_linter(name.strip())
+                name = ConfigManager.apply_name_formatting(name.strip())
             if not name or not name.strip():
                 # Only show the error if the user has filled in something meaningful.
                 # If the form is blank (no desc, all ratings at default), they just

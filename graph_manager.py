@@ -402,7 +402,7 @@ class GraphManager:
             cursor.execute("DELETE FROM Aliases WHERE node_name=?", (node_name,))
             for alias in aliases:
                 if alias and alias.strip():
-                    clean = ConfigManager.apply_titlecase_linter(alias.strip())
+                    clean = ConfigManager.apply_name_formatting(alias.strip())
                     owner = cursor.execute("SELECT node_name FROM Aliases WHERE alias=?", (clean,)).fetchone()
                     if owner and owner[0] != node_name:
                         raise ValueError(f"Alias '{clean}' already belongs to '{owner[0]}'.")

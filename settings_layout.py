@@ -12,6 +12,9 @@ from config import (
     SUBCONTEXT_SORT_ALPHABETICAL,
     CONTEXT_SORT_DEFINITION,
     CONTEXT_SORT_ALPHABETICAL,
+    NAME_FORMAT_NONE,
+    NAME_FORMAT_TITLE,
+    NAME_FORMAT_SENTENCE,
 )
 
 _RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
@@ -70,20 +73,29 @@ def _build_appearance_tab():
                 ], width=5),
             ]),
 
-            # --- Name Linter group ---
+            # --- Name Formatting group ---
             html.Hr(className="my-3"),
-            html.H5("Name Linter", className="mt-2 mb-1"),
-            dbc.Checklist(
-                id="setting-linter-enabled",
-                options=[{"label": "Auto-convert node names and aliases to title case on save", "value": "enabled"}],
-                value=["enabled"],
-                switch=True,
+            html.H5("Name Formatting", className="mt-2 mb-1"),
+            dbc.RadioItems(
+                id="setting-name-format-mode",
+                options=[
+                    {"label": "Keep as entered", "value": NAME_FORMAT_NONE},
+                    {"label": "Title Case", "value": NAME_FORMAT_TITLE},
+                    {"label": "Sentence case", "value": NAME_FORMAT_SENTENCE},
+                ],
+                value=NAME_FORMAT_TITLE,
+                inline=True,
                 className="mb-2",
             ),
-            dbc.Label("Lowercase exceptions", className="mt-1"),
-            dbc.Textarea(id="setting-linter-exclusions", rows=2,
-                         placeholder="e.g. a, an, the, and, or, of"),
-            html.Small("Comma-separated words that stay lowercase (except at the start of a name). These words are also ignored when checking for duplicate names while creating or renaming nodes.", className="text-muted d-block mb-1"),
+            dbc.Collapse([
+                dbc.Label("Lowercase exceptions", className="mt-1"),
+                dbc.Textarea(id="setting-linter-exclusions", rows=2,
+                             placeholder="e.g. a, an, the, and, or, of"),
+                html.Small(
+                    "Comma-separated words that stay lowercase unless they begin a name.",
+                    className="text-muted d-block mb-1",
+                ),
+            ], id="setting-titlecase-options", is_open=True),
 
         ], className="p-2")
     ])
@@ -102,35 +114,38 @@ def _build_contexts_tab():
                 style={"resize": "none", "overflow": "hidden"},
             ),
 
-            # --- Context dropdown sort order ---
-            dbc.Label("Context Dropdown Order", className="mt-2"),
-            dbc.RadioItems(
-                id="setting-context-sort-mode",
-                options=[
-                    {"label": "Defined order", "value": CONTEXT_SORT_DEFINITION},
-                    {"label": "Alphabetical", "value": CONTEXT_SORT_ALPHABETICAL},
-                ],
-                value=CONTEXT_SORT_DEFINITION,
-                inline=True,
-            ),
+            # --- Dropdown order ---
+            html.Hr(className="my-3"),
+            html.H5("Dropdown Order", className="mt-2 mb-1"),
             html.Small(
-                "Defined order follows the list above. Alphabetical sorts A–Z.",
-                className="text-muted d-block mb-1"),
-
-            # --- Subcontext dropdown sort order ---
-            dbc.Label("Subcontext Dropdown Order", className="mt-2"),
-            dbc.RadioItems(
-                id="setting-subcontext-sort-mode",
-                options=[
-                    {"label": "Defined order", "value": SUBCONTEXT_SORT_DEFINITION},
-                    {"label": "Alphabetical", "value": SUBCONTEXT_SORT_ALPHABETICAL},
-                ],
-                value=SUBCONTEXT_SORT_DEFINITION,
-                inline=True,
-            ),
-            html.Small(
-                "Defined order follows the list above. Alphabetical sorts A–Z.",
-                className="text-muted d-block mb-1"),
+                "Use the order defined above, or sort alphabetically.",
+                className="text-muted d-block mb-2"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Contexts"),
+                    dbc.RadioItems(
+                        id="setting-context-sort-mode",
+                        options=[
+                            {"label": "Defined order", "value": CONTEXT_SORT_DEFINITION},
+                            {"label": "Alphabetical", "value": CONTEXT_SORT_ALPHABETICAL},
+                        ],
+                        value=CONTEXT_SORT_DEFINITION,
+                        inline=True,
+                    ),
+                ], width=6),
+                dbc.Col([
+                    dbc.Label("Subcontexts"),
+                    dbc.RadioItems(
+                        id="setting-subcontext-sort-mode",
+                        options=[
+                            {"label": "Defined order", "value": SUBCONTEXT_SORT_DEFINITION},
+                            {"label": "Alphabetical", "value": SUBCONTEXT_SORT_ALPHABETICAL},
+                        ],
+                        value=SUBCONTEXT_SORT_DEFINITION,
+                        inline=True,
+                    ),
+                ], width=6),
+            ]),
 
             # --- Context priorities ---
             html.Hr(className="my-3"),
@@ -173,39 +188,59 @@ def _build_scoring_tab():
                                         [
                                             html.Thead(html.Tr([
                                                 html.Th("Profile"),
-                                                html.Th("What it does"),
-                                                html.Th("Use when"),
+                                                html.Th("How it changes your recommendations"),
                                             ])),
                                             html.Tbody([
                                                 html.Tr([
                                                     html.Td(html.Strong("Sage")),
-                                                    html.Td("Balanced across all five factors. The sensible baseline."),
-                                                    html.Td("No strong reason to pick something else."),
+                                                    html.Td(
+                                                        "Balances importance, interest, effort, time, and future benefits "
+                                                        "without strongly favoring any one of them. Choose this when you "
+                                                        "want the graph to speak for itself or do not have a particular "
+                                                        "working mode in mind."
+                                                    ),
                                                 ]),
                                                 html.Tr([
                                                     html.Td(html.Strong("Explorer")),
-                                                    html.Td("Interest weighted over Value. Synergies hit harder. Cross-context links are rewarded. Sparser subcontexts get a fairer shot at surfacing."),
-                                                    html.Td("You want to follow rabbit holes and let enjoyable, exploratory work surface."),
+                                                    html.Td(
+                                                        "Gives curiosity more influence. Interesting work, connections "
+                                                        "between different areas, and parts of your life that have not "
+                                                        "surfaced recently get a better chance—even when they are outside "
+                                                        "your current priority goal."
+                                                    ),
                                                 ]),
                                                 html.Tr([
                                                     html.Td(html.Strong("Compounder")),
-                                                    html.Td("The cascade is amplified; time is less punishing."),
-                                                    html.Td("You're willing to invest now for downstream payoff — sabbatical months, quiet quarters."),
+                                                    html.Td(
+                                                        "Looks for foundational work that will unlock many later steps. "
+                                                        "It is more willing to recommend a substantial investment now "
+                                                        "when the graph suggests it will pay off repeatedly in the future."
+                                                    ),
                                                 ]),
                                                 html.Tr([
                                                     html.Td(html.Strong("Pragmatist")),
-                                                    html.Td("Value beats Interest. Priority-Goal boost is dialed up; synergies and Soft edges are minimized."),
-                                                    html.Td("You have a clear Goal and want the algorithm to drive everything toward it."),
+                                                    html.Td(
+                                                        "Stays closely focused on what you marked as valuable and on your "
+                                                        "priority goal. Interesting detours and loosely related opportunities "
+                                                        "are much less likely to displace the work you have said matters most."
+                                                    ),
                                                 ]),
                                                 html.Tr([
                                                     html.Td(html.Strong("Creator")),
-                                                    html.Td("Synergies are massively amplified, especially across contexts."),
-                                                    html.Td("You're synthesizing across domains — writing, designing, building something new."),
+                                                    html.Td(
+                                                        "Favors work that connects and combines different areas, especially "
+                                                        "when those areas make one another more useful. Choose this when "
+                                                        "writing, designing, or building something that draws from several domains."
+                                                    ),
                                                 ]),
                                                 html.Tr([
                                                     html.Td(html.Strong("Glider")),
-                                                    html.Td("Time and effort weigh more heavily, so short and easy work rises. Cascade, synergies, and the Priority-Goal boost are all dialed back — non-priority work gets a fair chance to surface."),
-                                                    html.Td("Light-effort days — a break from the priority grind, or just a lap through small things."),
+                                                    html.Td(
+                                                        "Brings shorter, easier work forward and gives non-priority tasks "
+                                                        "more room to appear. Choose this for low-energy days, maintenance "
+                                                        "periods, or when you want useful small wins without beginning "
+                                                        "something demanding."
+                                                    ),
                                                 ]),
                                             ]),
                                         ],
@@ -312,9 +347,6 @@ def _build_misc_tab():
         html.Div([
             # --- Now Cap section ---
             html.H5("Maximum Now Nodes", className="mt-2 mb-1"),
-            html.Small(
-                "Maximum number of nodes that can be flagged Now at once.",
-                className="text-muted d-block mb-2"),
             dbc.Label("Maximum Now Nodes", html_for="setting-now-node-cap",
                       className="visually-hidden"),
             dbc.Input(id="setting-now-node-cap", type="number",

@@ -418,12 +418,27 @@ DEFAULT_REFLECTION_RATINGS_DEFINITIONS = [
      "effort": "Herculean: Needed everything I had — and some luck."},
 ]
 
-DEFAULT_TITLECASE_EXCLUSIONS =["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
+DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
+
+NAME_FORMAT_NONE = "none"
+NAME_FORMAT_TITLE = "title"
+NAME_FORMAT_SENTENCE = "sentence"
+NAME_FORMAT_MODES = {
+    NAME_FORMAT_NONE,
+    NAME_FORMAT_TITLE,
+    NAME_FORMAT_SENTENCE,
+}
 
 DEFAULT_TITLECASE_LINTER = {
+    'mode': NAME_FORMAT_TITLE,
     'enabled': True,
     'exclusions': DEFAULT_TITLECASE_EXCLUSIONS,
 }
+
+# Duplicate-name comparison is a separate concern from display formatting.
+# Keep its connector words stable when the user changes capitalization modes or
+# title-case exceptions.
+DEFAULT_DUPLICATE_STOP_WORDS = frozenset(DEFAULT_TITLECASE_EXCLUSIONS)
 
 DEFAULT_NEXT_TABLE_ROWS = 10
 
@@ -1192,18 +1207,57 @@ class ConfigManager:
         return DEFAULT_DANGER_COLOR
 
     @classmethod
-    def get_titlecase_linter(cls) -> dict:
+    def get_name_formatting(cls) -> dict:
         val = cls._get_db_value("TITLECASE_LINTER")
         if val:
             try:
-                return json.loads(val)
+                saved = json.loads(val)
+                if isinstance(saved, dict):
+                    mode = saved.get('mode')
+                    if mode not in NAME_FORMAT_MODES:
+                        # Migrate the former enabled switch without requiring a
+                        # database rewrite during a read.
+                        mode = (NAME_FORMAT_TITLE if saved.get('enabled', True)
+                                else NAME_FORMAT_NONE)
+                    exclusions = saved.get('exclusions', DEFAULT_TITLECASE_EXCLUSIONS)
+                    if not isinstance(exclusions, list):
+                        exclusions = list(DEFAULT_TITLECASE_EXCLUSIONS)
+                    return {
+                        'mode': mode,
+                        'enabled': mode != NAME_FORMAT_NONE,
+                        'exclusions': list(exclusions),
+                    }
             except (json.JSONDecodeError, TypeError):
                 pass
-        return DEFAULT_TITLECASE_LINTER.copy()
+        return {
+            **DEFAULT_TITLECASE_LINTER,
+            'exclusions': list(DEFAULT_TITLECASE_EXCLUSIONS),
+        }
+
+    @classmethod
+    def get_titlecase_linter(cls) -> dict:
+        """Backward-compatible name for callers using the former UI term."""
+        return cls.get_name_formatting()
+
+    @classmethod
+    def set_name_formatting(cls, settings: dict):
+        mode = settings.get('mode')
+        if mode not in NAME_FORMAT_MODES:
+            mode = (NAME_FORMAT_TITLE if settings.get('enabled', True)
+                    else NAME_FORMAT_NONE)
+        exclusions = settings.get('exclusions', DEFAULT_TITLECASE_EXCLUSIONS)
+        if not isinstance(exclusions, list):
+            exclusions = list(DEFAULT_TITLECASE_EXCLUSIONS)
+        cls._set_db_value("TITLECASE_LINTER", json.dumps({
+            'mode': mode,
+            'enabled': mode != NAME_FORMAT_NONE,
+            'exclusions': exclusions,
+        }))
 
     @classmethod
     def set_titlecase_linter(cls, settings: dict):
-        cls._set_db_value("TITLECASE_LINTER", json.dumps(settings))
+        """Backward-compatible name for callers using the former UI term."""
+        cls.set_name_formatting(settings)
 
     @classmethod
     def get_next_table_rows(cls) -> int:
@@ -1271,11 +1325,21 @@ class ConfigManager:
         cls._set_db_value("TIME_CALIBRATION_ENABLED", "1" if enabled else "0")
 
     @classmethod
-    def apply_titlecase_linter(cls, name: str) -> str:
-        """Apply titlecase linting to a node name if the linter is enabled."""
-        linter = cls.get_titlecase_linter()
-        if not linter.get('enabled', True):
+    def apply_name_formatting(cls, name: str) -> str:
+        """Apply the configured name formatting to a node name or alias."""
+        linter = cls.get_name_formatting()
+        mode = linter.get('mode')
+        if mode not in NAME_FORMAT_MODES:
+            mode = (NAME_FORMAT_TITLE if linter.get('enabled', True)
+                    else NAME_FORMAT_NONE)
+        if mode == NAME_FORMAT_NONE:
             return name
+        if mode == NAME_FORMAT_SENTENCE:
+            for index, character in enumerate(name):
+                if character.isalpha():
+                    return name[:index] + character.upper() + name[index + 1:]
+            return name
+
         exclusions = {w.lower() for w in linter.get('exclusions', [])}
         words = name.split()
         result = []
@@ -1287,4 +1351,9 @@ class ConfigManager:
             else:
                 result.append(word[0].upper() + word[1:] if word else word)
         return ' '.join(result)
+
+    @classmethod
+    def apply_titlecase_linter(cls, name: str) -> str:
+        """Backward-compatible name for callers using the former UI term."""
+        return cls.apply_name_formatting(name)
 

@@ -63,13 +63,40 @@ def test_context_priorities_live_in_contexts_with_plain_language():
 
 
 def test_context_sorting_offers_only_defined_order_or_alphabetical():
-    components = _by_id(build_settings_modal())
+    modal = build_settings_modal()
+    components = _by_id(modal)
     for component_id in (
             "setting-context-sort-mode", "setting-subcontext-sort-mode"):
         assert components[component_id].options == [
             {"label": "Defined order", "value": "definition"},
             {"label": "Alphabetical", "value": "alphabetical"},
         ]
+
+    contexts_tab = next(
+        component for component in _walk(modal)
+        if getattr(component, "tab_id", None) == "tab-contexts"
+    )
+    copy = _text(contexts_tab)
+    assert "Dropdown Order" in copy
+    assert copy.count("Use the order defined above, or sort alphabetically.") == 1
+    assert "Context Dropdown Order" not in copy
+    assert "Subcontext Dropdown Order" not in copy
+
+
+def test_name_formatting_offers_only_the_three_supported_modes():
+    modal = build_settings_modal()
+    components = _by_id(modal)
+
+    assert components["setting-name-format-mode"].options == [
+        {"label": "Keep as entered", "value": "none"},
+        {"label": "Title Case", "value": "title"},
+        {"label": "Sentence case", "value": "sentence"},
+    ]
+    assert "setting-titlecase-options" in components
+    assert "setting-linter-enabled" not in components
+    assert "Name Formatting" in _text(modal)
+    assert "Name Linter" not in _text(modal)
+    assert "ignored when checking for duplicate names" not in _text(modal)
 
 
 def test_single_setting_sections_do_not_repeat_their_labels():
@@ -90,7 +117,23 @@ def test_single_setting_sections_do_not_repeat_their_labels():
         for component in _walk(modal)
     ) == 1
     assert "Max Now Nodes" not in text
+    assert "Maximum number of nodes that can be flagged Now at once" not in text
     assert "Manage reflections from the journal icon" not in text
+
+
+def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():
+    modal = build_settings_modal()
+    copy = _text(_by_id(modal)["popover-hp-profile-info"])
+
+    assert "want the graph to speak for itself" in copy
+    assert "curiosity more influence" in copy
+    assert "foundational work that will unlock many later steps" in copy
+    assert "priority goal" in copy
+    assert "connects and combines different areas" in copy
+    assert "shorter, easier work" in copy
+    for technical_phrase in (
+            "cascade", "Synergies", "Priority-Goal boost", "Soft edges"):
+        assert technical_phrase not in copy
 
 
 def test_path_fields_are_responsive_but_visually_bounded():

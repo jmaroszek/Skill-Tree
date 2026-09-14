@@ -15,6 +15,9 @@ from config import (
     SUBCONTEXT_SORT_ALPHABETICAL,
     SUBCONTEXT_SORT_DEFINITION,
     SUPPORTED_NODE_TYPES,
+    NAME_FORMAT_MODES,
+    NAME_FORMAT_NONE,
+    NAME_FORMAT_TITLE,
     sort_subcontexts,
     sort_contexts,
 )
@@ -232,6 +235,14 @@ def register_settings_callbacks(app):
     def toggle_hp_profile_info_popover(_n_clicks, is_open):
         return not is_open
 
+    # --- Settings: Show Title Case options only when they apply ---
+    @app.callback(
+        Output("setting-titlecase-options", "is_open"),
+        Input("setting-name-format-mode", "value"),
+    )
+    def toggle_titlecase_options(format_mode):
+        return format_mode == NAME_FORMAT_TITLE
+
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
         Output('setting-subcontexts', 'value'),
@@ -249,7 +260,7 @@ def register_settings_callbacks(app):
         Output('setting-default-time-o', 'value'),
         Output('setting-default-time-m', 'value'),
         Output('setting-default-time-p', 'value'),
-        Output('setting-linter-enabled', 'value'),
+        Output('setting-name-format-mode', 'value'),
         Output('setting-linter-exclusions', 'value'),
         Output('setting-show-scoring-perf', 'value'),
         Output('setting-subcontext-sort-mode', 'value'),
@@ -298,9 +309,12 @@ def register_settings_callbacks(app):
         from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
         ted = ConfigManager.get_time_estimate_defaults()
 
-        linter = ConfigManager.get_titlecase_linter()
-        linter_enabled_val = ["enabled"] if linter.get('enabled', True) else []
-        linter_exclusions_val = ', '.join(linter.get('exclusions', []))
+        name_formatting = ConfigManager.get_name_formatting()
+        name_format_mode = name_formatting.get('mode', NAME_FORMAT_TITLE)
+        if name_format_mode not in NAME_FORMAT_MODES:
+            name_format_mode = (NAME_FORMAT_TITLE if name_formatting.get('enabled', True)
+                                else NAME_FORMAT_NONE)
+        linter_exclusions_val = ', '.join(name_formatting.get('exclusions', []))
 
         # Length sorting remains readable for legacy/programmatic settings, but
         # is no longer a user-facing choice. Present legacy values as the
@@ -330,7 +344,7 @@ def register_settings_callbacks(app):
             ted.get('optimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic']),
             ted.get('expected', DEFAULT_TIME_ESTIMATE_DEFAULTS['expected']),
             ted.get('pessimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic']),
-            linter_enabled_val,
+            name_format_mode,
             linter_exclusions_val,
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
             subcontext_sort_mode,
@@ -391,7 +405,7 @@ def register_settings_callbacks(app):
         State('setting-default-time-m', 'value'),
         State('setting-default-time-p', 'value'),
         State('setting-hp-profile', 'value'),
-        State('setting-linter-enabled', 'value'),
+        State('setting-name-format-mode', 'value'),
         State('setting-linter-exclusions', 'value'),
         State('setting-show-scoring-perf', 'value'),
         State('setting-subcontext-sort-mode', 'value'),
@@ -405,7 +419,7 @@ def register_settings_callbacks(app):
                       ctx_weight_values, ctx_weight_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
-                      linter_enabled_val, linter_exclusions_val,
+                      name_format_mode, linter_exclusions_val,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
                       now_node_cap_val):
@@ -528,8 +542,9 @@ def register_settings_callbacks(app):
                         if cval:
                             pending_colors[cid["index"]] = cval
 
-                new_linter = {
-                    'enabled': bool(linter_enabled_val and "enabled" in linter_enabled_val),
+                new_name_formatting = {
+                    'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
+                             else NAME_FORMAT_TITLE),
                     'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
                 }
                 pending = {
@@ -544,7 +559,7 @@ def register_settings_callbacks(app):
                     'context_weights': new_ctx_weights,
                     'shapes': pending_shapes,
                     'colors': pending_colors,
-                    'linter': new_linter,
+                    'name_formatting': new_name_formatting,
                     'orphans': orphans,
                     'new_values': {
                         'context': new_contexts,
@@ -589,11 +604,12 @@ def register_settings_callbacks(app):
                 if new_colors:
                     ConfigManager.set_node_colors(new_colors)
 
-            new_linter = {
-                'enabled': bool(linter_enabled_val and "enabled" in linter_enabled_val),
+            new_name_formatting = {
+                'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
+                         else NAME_FORMAT_TITLE),
                 'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
             }
-            ConfigManager.set_titlecase_linter(new_linter)
+            ConfigManager.set_name_formatting(new_name_formatting)
 
             saved_contexts = new_contexts if new_contexts else ConfigManager.get_contexts()
             refreshed_weight_rows = build_context_weight_rows(
@@ -703,8 +719,8 @@ def register_settings_callbacks(app):
                 pending_colors = pending_state.get('colors', {})
                 if pending_colors:
                     ConfigManager.set_node_colors(pending_colors)
-                if 'linter' in pending_state:
-                    ConfigManager.set_titlecase_linter(pending_state['linter'])
+                if 'name_formatting' in pending_state:
+                    ConfigManager.set_name_formatting(pending_state['name_formatting'])
             except Exception:
                 logger.exception("Failed to save pending settings")
 

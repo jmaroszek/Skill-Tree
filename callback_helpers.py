@@ -17,7 +17,12 @@ import plotly.graph_objects as go
 
 logger = logging.getLogger(__name__)
 
-from config import BADGE_PALETTE, ConfigManager, badge_style
+from config import (
+    BADGE_PALETTE,
+    DEFAULT_DUPLICATE_STOP_WORDS,
+    ConfigManager,
+    badge_style,
+)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
 
@@ -138,24 +143,15 @@ def detect_context_renames(old_contexts, new_contexts, old_subcontexts, new_subc
 
 
 def _get_duplicate_stop_words():
-    """Get stop words for duplicate comparison from linter settings."""
-    linter = ConfigManager.get_titlecase_linter()
-    exclusions = linter.get('exclusions', [])
-    if exclusions:
-        return {w.lower() for w in exclusions}
-    # Fallback defaults
-    return {
-        "a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.",
-        "at", "of", "are", "as", "is", "in", "to", "for", "on", "from",
-        "by", "about", "into", "it",
-    }
+    """Return stable connector words ignored during duplicate comparison."""
+    return set(DEFAULT_DUPLICATE_STOP_WORDS)
 
 
 def normalize_name_for_comparison(name):
     """Strip stop/connector words and lowercase for fuzzy duplicate comparison.
 
-    Uses the linter exclusion list from Settings so the user controls which
-    words are ignored during duplicate detection.
+    Duplicate detection deliberately does not depend on the user's display
+    formatting choice or Title Case exceptions.
     """
     if not name:
         return ""
