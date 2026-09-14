@@ -9,8 +9,9 @@
  *
  * Two functions:
  *   - toggle_sidebar: responds to the Events sidebar controls and opens
- *     on arrival to the Events tab when its true empty state is visible; also
- *     closes editor/goals sidebars when opening (mutex).
+ *     on arrival to the Events tab when its true empty state is visible,
+ *     closes on departure from that tab, and closes editor/goals sidebars
+ *     when opening (mutex).
  *   - adjust_tab_inner: reflows the events-tab-inner wrapper so content
  *     shifts right when the sidebar is open.
  *
@@ -45,6 +46,7 @@ window.dash_clientside.events = window.dash_clientside.events || {};
         flexDirection: "column"
     };
     var pendingRefresh = null;
+    var lastActiveTab = null;
 
     function triggerId() {
         // Prefer triggered_id (Dash >= 2.4); fall back to parsing prop_id.
@@ -89,6 +91,13 @@ window.dash_clientside.events = window.dash_clientside.events || {};
         var trigger = triggerId();
         if (!trigger) return [NO, NO, NO, NO];
 
+        // Remember the tab associated with every sidebar interaction. This
+        // lets a main-tabs callback distinguish Events -> another tab from an
+        // unrelated tab change while preserving the sidebar as a global
+        // launcher when the user explicitly opens it elsewhere.
+        var previousActiveTab = lastActiveTab;
+        lastActiveTab = activeTab;
+
         // Merge BASE with currentStyle so the returned dict is never partial.
         // currentStyle wins where present; BASE fills any missing property.
         var style = Object.assign({}, BASE_SIDEBAR_STYLE, currentStyle || {});
@@ -125,6 +134,12 @@ window.dash_clientside.events = window.dash_clientside.events || {};
         } else if (trigger === "btn-events-sidebar-close") {
             doClose();
         } else if (trigger === "main-tabs") {
+            if (previousActiveTab === "tab-events" && activeTab !== "tab-events") {
+                if (!isOpen(style)) return [NO, NO, NO, NO];
+                doClose();
+                return [style, tabInnerStyle(false), nextEditor, nextGoal];
+            }
+
             // selectedEvent is also null while composing a new event, so use
             // the visible empty state to distinguish that draft from a tab
             // that genuinely has nothing useful to show yet.

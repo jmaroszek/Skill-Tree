@@ -73,9 +73,22 @@ assert.deepEqual(call('tab-events', closed, 'Trip', {display: 'none'}),
 // the sidebar from reopening over the active creation workflow.
 assert.deepEqual(call('tab-events', closed, null, {display: 'none'}),
                  ['NO', 'NO', 'NO', 'NO']);
-// Other tabs and an already-open sidebar are left alone.
-assert.deepEqual(call('tab-details', closed, null, {display: 'block'}),
+// Leaving Events closes an open sidebar and restores the full-width content.
+result = call('tab-details', open, null, {display: 'block'});
+assert.equal(result[0].transform, 'translateX(-350px)');
+assert.equal(result[1].marginLeft, '0');
+assert.equal(result[1].width, '100%');
+
+// An explicitly opened sidebar remains available across unrelated tab changes.
+trigger('btn-events-sidebar-toggle');
+result = call('tab-details', closed, null, {display: 'block'});
+assert.equal(result[0].transform, 'translateX(0px)');
+trigger('main-tabs');
+assert.deepEqual(call('tab-canvas', open, null, {display: 'block'}),
                  ['NO', 'NO', 'NO', 'NO']);
+
+// An already-open sidebar is left alone when arriving on Events.
+trigger('main-tabs');
 assert.deepEqual(call('tab-events', open, null, {display: 'block'}),
                  ['NO', 'NO', 'NO', 'NO']);
 
