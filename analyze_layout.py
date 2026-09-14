@@ -9,7 +9,7 @@ popover's click trigger bind reliably.
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from config import ConfigManager
+from config import ConfigManager, LOADING_SPINNER_STYLE
 
 _GEAR_STYLE = {
     "background": "none", "border": "none", "padding": "0",
@@ -64,10 +64,9 @@ def build_analyze_tab_content():
     render callback swaps the two on its first return."""
     return html.Div([
         html.Div([
-            dbc.Spinner(spinner_style={"width": "2rem", "height": "2rem",
-                                       "color": "#1e90ff"}),
+            dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
             html.Div("Preparing the analysis…", className="canvas-cover-label"),
-        ], id="analyze-loading-cover", className="analyze-loading-cover",
+        ], id="analyze-loading-cover", className="loading-cover",
             role="status", **{"aria-live": "polite"}),  # type: ignore[reportArgumentType]
         html.Div(_analyze_sections(), id="analyze-sections", hidden=True),
     ], className="h-100")

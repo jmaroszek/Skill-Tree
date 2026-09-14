@@ -188,8 +188,8 @@ def test_sidebar_and_details_show_the_same_number_whatever_is_hidden():
 
     def sidebar(search):
         return _component_ids_and_badges(render_sidebar(
-            "tab-details", None, None, None, search, "priority", None, None,
-            {"left": "0px"}))
+            "tab-details", None, None, None, search, "priority", None, None, None,
+            {"transform": "translateX(0px)"}))
 
     def details(context):
         return _component_ids_and_badges(render_details(

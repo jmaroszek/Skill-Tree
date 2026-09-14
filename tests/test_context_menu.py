@@ -215,8 +215,8 @@ def test_goal_cards_open_the_shared_node_menu():
     sidebars_callbacks.register_sidebars_callbacks(app)
     render = _callback(app, "render_goal_list")
 
-    cards = render("tab-next", None, None, None, None, "manual", None, None,
-                   {"left": "0px"})
+    cards = render("tab-next", None, None, None, None, "manual", None, None, None,
+                   {"transform": "translateX(0px)"})
     card = _find(cards, {"type": "goal-card", "index": "Fitness"})
     assert getattr(card, "data-node-menu") == "Fitness"
     assert getattr(card, "data-type") == "Goal"

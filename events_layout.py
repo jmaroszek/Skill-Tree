@@ -656,8 +656,8 @@ def build_events_tab_content():
         # content listens here instead of to every main-tab switch.
         dcc.Store(id='events-active-store', data=None),
         # UI-only refresh for the events sidebar list. Bumped by events_sidebar.js
-        # on open so render_events_list re-runs — but NOT an input to core_engine,
-        # so opening doesn't block the animation on a graph regen.
+        # once the open slide finishes so render_events_list re-runs — but NOT
+        # an input to core_engine, so opening doesn't wait on a graph regen.
         dcc.Store(id='events-ui-refresh-trigger', data=0),
         dcc.Store(id='event-order-store', data=[], storage_type='local'),
         dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),

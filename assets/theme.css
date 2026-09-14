@@ -128,9 +128,10 @@
     opacity: 1;
 }
 
-/* Analyze tab before its first render. Unlike the canvas cover it needs no
-   JS to lift: the render callback un-hides the sections and hides this. */
-.analyze-loading-cover {
+/* Analyze tab before its first render, and the Goals sidebar before its first
+   open. Unlike the canvas cover it needs no JS to lift: the render callback
+   replaces or hides it. */
+.loading-cover {
     height: 100%;
     display: flex;
     flex-direction: column;

@@ -250,6 +250,10 @@ field.
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
 
+The left sidebars (editor, Goals, Events) slide with `transform: translateX(...)` and `willChange: transform`, not by animating `left`. The browser runs a transform animation off the main thread, so the slide stays smooth while the page is busy. Rebuilding a sidebar's list waits until the slide finishes. On the Events tab, the content glides aside with the sidebar. Its style comes back in the same callback return as the sidebar's, so both animations start on the same frame.
+
+A panel that loads on first view shows the shared loading cover: `dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE)` over a `canvas-cover-label` caption, inside a `loading-cover` div. Analyze and the Goals sidebar use it.
+
 ## Borders & Dividers
 
 - Panel dividers: `1px solid #495057`

@@ -18,7 +18,8 @@
  * pending nav).
  */
 // NOTE: 350px must match config.SIDEBAR_WIDTH on the Python side. If you
-// change the sidebar width, update both. Same applies to filters_sidebar.js.
+// change the sidebar width, update both. Same applies to filters_sidebar.js,
+// goals_sidebar.js and events_sidebar.js.
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.editor = window.dash_clientside.editor || {};
 
@@ -56,11 +57,11 @@ window.dash_clientside.editor = window.dash_clientside.editor || {};
 
         var nextGoal = NO;
         var nextEvents = NO;
-        if (goalStyle && (goalStyle.left || "-350px") === "0px") {
-            nextGoal = Object.assign({}, goalStyle, { left: "-350px" });
+        if (goalStyle && goalStyle.transform === "translateX(0px)") {
+            nextGoal = Object.assign({}, goalStyle, { transform: "translateX(-350px)" });
         }
-        if (eventsStyle && (eventsStyle.left || "-350px") === "0px") {
-            nextEvents = Object.assign({}, eventsStyle, { left: "-350px" });
+        if (eventsStyle && eventsStyle.transform === "translateX(0px)") {
+            nextEvents = Object.assign({}, eventsStyle, { transform: "translateX(-350px)" });
         }
 
         return [style, nextGoal, nextEvents];

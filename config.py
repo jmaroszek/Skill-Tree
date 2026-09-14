@@ -33,14 +33,22 @@ TOOLTIP_NODE_HIDE_DELAY_MS = 300  # Cytoscape node cursor-tooltip lingers slight
 TOAST_CLEAR_INTERVAL_MS = 3000
 LOCATE_TOAST_CLEAR_INTERVAL_MS = 4000  # Locate-node banner lingers slightly longer
 
+# --- Loading spinner ---
+# The one spinner every loading cover shows (Nodes canvas, Analyze, Goals sidebar).
+LOADING_SPINNER_STYLE = {"width": "2rem", "height": "2rem", "color": "#1e90ff"}
+
 # --- Sidebar geometry ---
 # Shared width for the editor (left), goals (left), events (left), and
 # filters (right) sidebars. Keep them visually consistent with one knob.
-# Anything in JS that closes a sidebar by transform/translate must keep its
-# magic number in sync (see assets/editor_sidebar.js, filters_sidebar.js).
+# Anything in JS that opens or closes a sidebar must keep its magic number in
+# sync (see assets/editor_sidebar.js, goals_sidebar.js, events_sidebar.js,
+# filters_sidebar.js).
 SIDEBAR_WIDTH = 350
 SIDEBAR_WIDTH_PX = f"{SIDEBAR_WIDTH}px"
 SIDEBAR_WIDTH_NEG_PX = f"-{SIDEBAR_WIDTH}px"
+# The left sidebars (editor, goals, events) slide with `transform` rather than
+# `left`. The browser runs a transform animation off the main thread, so the
+# slide stays smooth while the page is busy mounting the sidebar's contents.
 SIDEBAR_TRANSLATE_CLOSED = f"translateX(-{SIDEBAR_WIDTH}px)"
 
 DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"

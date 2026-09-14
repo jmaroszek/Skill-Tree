@@ -20,7 +20,7 @@ from graph_manager import GraphManager
 from event_manager import EventManager
 from canvases import CANVASES
 from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
-                    SIDEBAR_WIDTH_PX, SIDEBAR_WIDTH_NEG_PX, SIDEBAR_TRANSLATE_CLOSED,
+                    SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
                     DEFAULT_EVENTS_GRAPH_LAYOUT)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
@@ -33,7 +33,7 @@ from callback_helpers import (
     render_link_rows, render_alias_rows, alias_rows_label, update_alias_rows,
     spawn_local_file_picker,
     strip_gdrive_prefix, expand_gdrive_prefix,
-    should_open_editor, resolve_active_node_id,
+    should_open_editor, resolve_active_node_id, left_sidebar_is_open,
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, editor_form_values,
@@ -365,12 +365,12 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     next_events_sidebar_style = dash.no_update
     if isinstance(next_ed_style, dict) and next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
         # Editor is opening — ensure goal sidebar is closed
-        if goal_sidebar_style and goal_sidebar_style.get('left', SIDEBAR_WIDTH_NEG_PX) == '0px':
+        if left_sidebar_is_open(goal_sidebar_style):
             next_goal_style = dict(goal_sidebar_style)
-            next_goal_style['left'] = SIDEBAR_WIDTH_NEG_PX
-        if events_sidebar_style and events_sidebar_style.get('left', SIDEBAR_WIDTH_NEG_PX) == '0px':
+            next_goal_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
+        if left_sidebar_is_open(events_sidebar_style):
             next_events_sidebar_style = dict(events_sidebar_style)
-            next_events_sidebar_style['left'] = SIDEBAR_WIDTH_NEG_PX
+            next_events_sidebar_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
     return next_ed_style, next_goal_style, next_events_sidebar_style
 
 

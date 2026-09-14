@@ -2075,7 +2075,7 @@ def register_event_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='events', function_name='toggle_sidebar'),
         Output("events-sidebar-container", "style"),
-        Output("events-ui-refresh-trigger", "data", allow_duplicate=True),
+        Output("events-tab-inner", "style", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Output("details-goal-sidebar", "style", allow_duplicate=True),
         Input("btn-events-sidebar-toggle", "n_clicks"),

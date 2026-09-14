@@ -730,9 +730,12 @@ def build_details_tab_content():
         dcc.Store(id='details-selected-node-store', data=None),
         dcc.Store(id='details-refresh-trigger', data=0),
         # UI-only refresh for the goals sidebar list. Bumped by goals_sidebar.js
-        # on open so render_goal_list re-runs — but NOT an input to core_engine,
-        # so opening doesn't block the animation on a graph regen.
+        # once the open slide finishes so render_goal_list re-runs — but NOT an
+        # input to core_engine, so opening doesn't wait on a graph regen.
         dcc.Store(id='goals-ui-refresh-trigger', data=0),
+        # Set once, when the browser first goes idle after startup, to build
+        # the Goals list in the background (sidebars_callbacks.py).
+        dcc.Store(id='goals-prewarm-store', data=None),
         dcc.Store(id='details-subtask-remove-pending', data=None),
         dcc.Store(id='details-goal-order-store', data=ConfigManager.get_goal_order() or None),
         dcc.Store(id='details-nav-history', data=[]),

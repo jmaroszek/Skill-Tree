@@ -14,6 +14,7 @@ from config import (
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     TOOLTIP_NODE_HIDE_DELAY_MS,
+    LOADING_SPINNER_STYLE,
     TOAST_CLEAR_INTERVAL_MS,
     DEFAULT_GRAPH_LAYOUT,
     sort_subcontexts,
@@ -90,8 +91,7 @@ def create_graph_view(initial_elements):
             # framed. Last child so it covers the overlays above it too.
             html.Div(
                 html.Div([
-                    dbc.Spinner(spinner_style={"width": "2rem", "height": "2rem",
-                                               "color": "#1e90ff"}),
+                    dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
                     html.Div("Preparing the graph…", className="canvas-cover-label"),
                 ], className="canvas-cover-inner"),
                 id="canvas-first-paint-cover",
