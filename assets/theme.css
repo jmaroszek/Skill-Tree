@@ -140,6 +140,15 @@
     gap: 12px;
 }
 
+/* Analyze charts are prewarmed inside a display:none tab, where Plotly uses a
+   700 px fallback width. analyze_first_paint.js adds this class in the same
+   task that reveals the tab, resizes the plots against their real columns,
+   and removes it before showing them. Hide only the drawings: each
+   fixed-height .dash-graph wrapper still holds the finished page layout. */
+#analyze-tab-content.analyze-is-sizing .dash-graph {
+    visibility: hidden;
+}
+
 .canvas-cover-label {
     color: #6c757d;
     font-size: 0.85rem;

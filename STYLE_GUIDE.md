@@ -254,6 +254,8 @@ The left sidebars (editor, Goals, Events) slide with `transform: translateX(...)
 
 A panel that loads on first view shows the shared loading cover: `dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE)` over a `canvas-cover-label` caption, inside a `loading-cover` div. Analyze and the Goals sidebar use it.
 
+Analyze is prewarmed while its tab is hidden. On every reveal, `assets/analyze_first_paint.js` hides only the `.dash-graph` drawings. It resizes their Plotly roots against the visible columns, then reveals them on the next frame. Keep Analyze graphs responsive, and give their wrappers an explicit figure height. That lets the sizing gate hold the finished page layout without exposing Plotly's hidden-tab fallback width.
+
 ## Borders & Dividers
 
 - Panel dividers: `1px solid #495057`
