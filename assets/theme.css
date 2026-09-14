@@ -128,6 +128,17 @@
     opacity: 1;
 }
 
+/* Analyze tab before its first render. Unlike the canvas cover it needs no
+   JS to lift: the render callback un-hides the sections and hides this. */
+.analyze-loading-cover {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
 .canvas-cover-label {
     color: #6c757d;
     font-size: 0.85rem;

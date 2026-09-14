@@ -3,8 +3,11 @@ Callback definitions for the Analyze tab.
 Computes and renders aggregate analytics about the graph.
 """
 
+import logging
 import math
-from dash import html, dcc, Input, Output, State, no_update
+import uuid
+from datetime import date
+from dash import html, dcc, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from collections import defaultdict
@@ -17,6 +20,11 @@ from scoring import (
 )
 
 graph_manager = GraphManager()
+logger = logging.getLogger(__name__)
+
+# Distinguishes this server process from an earlier one, whose version
+# counters restarted from zero, in a signature a page is still holding.
+_PROCESS_EPOCH = uuid.uuid4().hex
 
 
 def _trunc(name, max_len=25):
@@ -818,6 +826,17 @@ _BORDER = '#495057'
 _STATUS_COLORS = {STATUS_OPEN: '#0d6efd', STATUS_BLOCKED: '#dc3545', STATUS_DONE: '#198754'}
 _CHART_CFG = {"displayModeBar": False}
 
+
+def _graph(fig):
+    """A Graph that re-measures its width when the Analyze tab opens.
+
+    The tab usually renders while hidden, where Plotly falls back to a 700 px
+    width, and a non-responsive graph keeps it. A responsive one sizes itself
+    to its container instead, height included, so the container carries the
+    figure's height."""
+    extra = {'style': {'height': f'{fig.layout.height}px'}} if fig.layout.height else {}
+    return dcc.Graph(figure=fig, config=_CHART_CFG, responsive=True, **extra)
+
 # Bar-fill overrides for node types whose BADGE_PALETTE colour is tuned for
 # small badge areas and overpowers when applied to large bar fills. Goal's
 # canvas yellow is engineered to read at a glance on the graph; in a long
@@ -1054,7 +1073,7 @@ def _render_bottleneck_chart(data, height=None):
     fig = _hbar_chart(names, values, colors=colors, hover_texts=hover,
                       x_title="Downstream nodes reached", integer_x=True,
                       height=height)
-    return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
+    return _card([title, _graph(fig)])
 
 
 def _render_hub_chart(data, height=None):
@@ -1092,7 +1111,7 @@ def _render_hub_chart(data, height=None):
 
     fig = _hbar_chart(names, values, colors=colors, hover_texts=hover,
                       x_title="Hub score", height=height)
-    return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
+    return _card([title, _graph(fig)])
 
 
 def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
@@ -1156,7 +1175,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
         className="text-muted d-block mb-2",
         style={"fontSize": "0.75rem"},
     ))
-    sections_left.append(dcc.Graph(figure=fig, config=_CHART_CFG))
+    sections_left.append(_graph(fig))
 
     # --- Shared Prerequisites Heatmap ---
     if overlap_rows and len(goal_names_ordered) > 1:
@@ -1227,7 +1246,7 @@ def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
             className="text-muted d-block mb-2",
             style={"fontSize": "0.75rem"},
         ))
-        sections_right.append(dcc.Graph(figure=hm_fig, config=_CHART_CFG))
+        sections_right.append(_graph(hm_fig))
 
     # If no overlap data, show a message in the right column
     if not sections_right:
@@ -1305,7 +1324,7 @@ def _render_estimation_accuracy(rows):
     ))
     return _card([
         title,
-        dcc.Graph(figure=fig, config=_CHART_CFG),
+        _graph(fig),
     ])
 
 
@@ -1324,7 +1343,6 @@ def _render_context_accuracy_boxplot(rows):
             by_ctx[r['context']].append(r)
     qualifying = {c: v for c, v in by_ctx.items()
                   if len(v) >= _CTX_ACCURACY_MIN_N}
-    hidden = len(by_ctx) - len(qualifying)
     title = html.H6("By Context", className="text-muted mb-1")
     if not qualifying:
         return _card([title, html.P(
@@ -1406,16 +1424,9 @@ def _render_context_accuracy_boxplot(rows):
     ))
     fig.add_vline(x=1, line=dict(color='#6c757d', dash='dash', width=1))
 
-    children = [
-        title,
-        dcc.Graph(figure=fig, config=_CHART_CFG),
-    ]
-    if hidden:
-        children.append(html.P(
-            f"{hidden} context(s) hidden — fewer than "
-            f"{_CTX_ACCURACY_MIN_N} completed nodes.",
-            className="text-muted small mt-1"))
-    return _card(children)
+    # No footnote for contexts below the minimum: it made this card taller
+    # than the scatter beside it.
+    return _card([title, _graph(fig)])
 
 
 def _render_reflection_drift_chart(rows, height=None, context_order=None):
@@ -1493,7 +1504,7 @@ def _render_reflection_drift_chart(rows, height=None, context_order=None):
                    **_label_axis(contexts)),
         xaxis=dict(side='bottom'),
     ))
-    return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
+    return _card([title, _graph(fig)])
 
 
 def _render_throughput_chart(quarter_rows, granularity='quarter'):
@@ -1568,7 +1579,7 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
         yaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
                    automargin=True),
     ))
-    return _card([title, dcc.Graph(figure=fig, config=_CHART_CFG)])
+    return _card([title, _graph(fig)])
 
 
 def _render_ratings_chart(data, height=None, context_order=None):
@@ -1630,7 +1641,7 @@ def _render_ratings_chart(data, height=None, context_order=None):
     ))
     return _card([
         html.H6("Ratings by Context", className="text-muted mb-1"),
-        dcc.Graph(figure=fig, config=_CHART_CFG),
+        _graph(fig),
     ])
 
 
@@ -1643,6 +1654,7 @@ _SUBCONTEXT_PALETTE = [
     '#b0a335', '#a85070', '#4a6480', '#56539c', '#3f8388',
 ]
 _NO_SUBCONTEXT_COLOR = '#495057'
+_SLATE = '#4a6480'  # the palette entry closest to the grey above
 
 
 def _render_hours_by_context(ctx_data, height=None):
@@ -1671,13 +1683,31 @@ def _render_hours_by_context(ctx_data, height=None):
                    key=lambda n: totals[n], reverse=True)
     seg_order = named + (['(No subcontext)'] if '(No subcontext)' in totals else [])
 
+    # Colours are assigned per bar, stepping through the palette in stack
+    # order, so neighbouring segments always differ. A global per-subcontext
+    # colour wrapped past the palette's end and put repeats side by side.
+    seg_color = {}
+    for ctx in ctx_names:
+        shown = [n for n in seg_order
+                 if (seg_by_ctx[ctx].get(n) or {}).get('time', 0) > 0]
+        named_shown = [n for n in shown if n != '(No subcontext)']
+        for k, name in enumerate(named_shown):
+            seg_color[ctx, name] = _SUBCONTEXT_PALETTE[k % len(_SUBCONTEXT_PALETTE)]
+        # The slate entry reads as the neutral grey, so it can't sit last
+        # before a "(No subcontext)" segment. The next entry differs from both
+        # neighbours: the grey, and the entry before slate.
+        if (named_shown and '(No subcontext)' in shown
+                and seg_color[ctx, named_shown[-1]] == _SLATE):
+            seg_color[ctx, named_shown[-1]] = _SUBCONTEXT_PALETTE[
+                (len(named_shown)) % len(_SUBCONTEXT_PALETTE)]
+        seg_color[ctx, '(No subcontext)'] = _NO_SUBCONTEXT_COLOR
+
     fig = go.Figure()
-    for i, seg_name in enumerate(seg_order):
-        color = (_NO_SUBCONTEXT_COLOR if seg_name == '(No subcontext)'
-                 else _SUBCONTEXT_PALETTE[i % len(_SUBCONTEXT_PALETTE)])
-        xs, hovers = [], []
+    for seg_name in seg_order:
+        xs, hovers, colors = [], [], []
         for ctx in ctx_names:
             s = seg_by_ctx[ctx].get(seg_name)
+            colors.append(seg_color.get((ctx, seg_name), _NO_SUBCONTEXT_COLOR))
             if s and s['time'] > 0:
                 xs.append(s['time'])
                 hovers.append(
@@ -1691,7 +1721,7 @@ def _render_hours_by_context(ctx_data, height=None):
                 hovers.append('')
         fig.add_trace(go.Bar(
             y=ctx_names, x=xs, orientation='h',
-            marker_color=color, marker_line=dict(color=_BG, width=1),
+            marker_color=colors, marker_line=dict(color=_BG, width=1),
             opacity=0.9, hovertext=hovers, hoverinfo='text',
         ))
 
@@ -1709,7 +1739,7 @@ def _render_hours_by_context(ctx_data, height=None):
     ))
     return _card([
         html.H6("Hours by Context", className="text-muted mb-1"),
-        dcc.Graph(figure=fig, config=_CHART_CFG),
+        _graph(fig),
     ])
 
 
@@ -1739,6 +1769,32 @@ def register_analyze_callbacks(app):
         prevent_initial_call=True,
     )
 
+    # Background prewarm. Once the Nodes canvas payload has landed and the
+    # browser goes idle, render the hidden Analyze tab so the first visit
+    # finds it ready. Waiting for the payload keeps this ~0.5 s compute from
+    # competing with startup work, on the server and the main thread alike.
+    app.clientside_callback(
+        """
+        function(elements, prewarmed) {
+            if (prewarmed || !elements || !elements.length) {
+                return window.dash_clientside.no_update;
+            }
+            return new Promise(function (resolve) {
+                function go() { resolve(Date.now()); }
+                if (window.requestIdleCallback) {
+                    window.requestIdleCallback(go, {timeout: 5000});
+                } else {
+                    setTimeout(go, 1000);
+                }
+            });
+        }
+        """,
+        Output("analyze-prewarm-store", "data"),
+        Input("cytoscape-graph", "elements"),
+        State("analyze-prewarm-store", "data"),
+        prevent_initial_call=True,
+    )
+
     @app.callback(
         Output("analyze-overview-content", "children"),
         Output("analyze-goals-content", "children"),
@@ -1746,7 +1802,11 @@ def register_analyze_callbacks(app):
         Output("analyze-graph-content", "children"),
         Output("analyze-contexts-content", "children"),
         Output("analyze-throughput-content", "children"),
+        Output("analyze-sections", "hidden"),
+        Output("analyze-loading-cover", "hidden"),
+        Output("analyze-rendered-store", "data"),
         Input("analyze-active-store", "data"),
+        Input("analyze-prewarm-store", "data"),
         Input("setting-analyze-bottlenecks", "value"),
         Input("setting-analyze-goals", "value"),
         Input("setting-analyze-throughput-granularity", "value"),
@@ -1761,133 +1821,167 @@ def register_analyze_callbacks(app):
         # Read as State now that arrival is signalled by analyze-active-store.
         # Still needed: the settings and save-output Inputs fire from any tab.
         State("main-tabs", "active_tab"),
+        State("analyze-rendered-store", "data"),
         prevent_initial_call=True,
     )
-    def refresh_analyze_tab(_arrived, bottlenecks, goals,
+    def refresh_analyze_tab(_arrived, _prewarm, bottlenecks, goals,
                             thru_gran, thru_start, thru_end, _save_output,
-                            active_tab):
-        if active_tab != "tab-analyze":
-            return (no_update,) * 6
+                            active_tab, rendered_signature):
+        skip = (no_update,) * 9
+        signature = _analyze_signature()
+        if ctx.triggered_id in ("analyze-active-store", "analyze-prewarm-store"):
+            # Arrivals and the prewarm render only what's out of date. Every
+            # write the charts depend on bumps the graph version.
+            if rendered_signature == signature:
+                return skip
+        elif active_tab != "tab-analyze":
+            return skip
 
-        # Persist any limit changes made via the gear popovers before rendering.
-        al = ConfigManager.get_analyze_limits()
-        if bottlenecks is not None:
-            al['bottlenecks'] = int(bottlenecks)
-        if goals is not None:
-            al['goals'] = int(goals)
-        if thru_gran in ('month', 'quarter', 'year'):
-            al['throughput_granularity'] = thru_gran
-        # Empty-string date inputs persist as None (auto-extent).
-        al['throughput_start'] = thru_start or None
-        al['throughput_end'] = thru_end or None
-        ConfigManager.set_analyze_limits(al)
+        try:
+            sections = _render_analyze_sections(
+                bottlenecks, goals, thru_gran, thru_start, thru_end)
+        except Exception:
+            # Never strand the tab behind its cover. Leaving the signature
+            # unset retries the render on the next visit.
+            logger.exception("Analyze render failed")
+            error = html.P("The analysis couldn't be computed. "
+                           "See the app log for details.",
+                           className="text-danger small")
+            return error, "", "", "", "", "", False, True, None
+        return (*sections, False, True, signature)
 
-        nodes = graph_manager.get_all_nodes(include_dormant=False)
-        edges = graph_manager.get_edges()
 
-        if not nodes:
-            empty = html.P("No nodes in the graph yet.", className="text-muted small")
-            return empty, "", "", "", "", ""
+def _analyze_signature():
+    """What the Analyze charts are computed from, cheaply. The graph version
+    covers nodes, edges, and the scoring and time settings. Contexts are
+    listed on their own because adding an empty one bumps nothing, and the
+    date because the charts are dated."""
+    return [_PROCESS_EPOCH, GraphManager._graph_version,
+            ConfigManager.get_contexts(), date.today().isoformat()]
 
-        hard_fwd, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
 
-        # Compute all sections
-        limits = _get_limits()
-        overview = _compute_overview(nodes, edges)
-        bottlenecks = _compute_bottlenecks(nodes, hard_fwd, limits)
-        ratings_data = _compute_ratings(nodes)
-        goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits)
-        est_accuracy = _compute_estimation_accuracy(nodes)
-        ctx_coverage = _compute_context_coverage(nodes)
-        drift_rows = _compute_reflection_drift(nodes)
-        throughput_rows = _compute_throughput(
-            nodes,
-            granularity=al.get('throughput_granularity', 'quarter'),
-            start_date=al.get('throughput_start'),
-            end_date=al.get('throughput_end'),
-        )
-        hub_data = _compute_hub_score(nodes, edges, limits)
+def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
+                             thru_end):
+    """The six section bodies of the Analyze tab, in output order."""
+    # Persist any limit changes made via the gear popovers before rendering.
+    al = ConfigManager.get_analyze_limits()
+    if bottlenecks is not None:
+        al['bottlenecks'] = int(bottlenecks)
+    if goals is not None:
+        al['goals'] = int(goals)
+    if thru_gran in ('month', 'quarter', 'year'):
+        al['throughput_granularity'] = thru_gran
+    # Empty-string date inputs persist as None (auto-extent).
+    al['throughput_start'] = thru_start or None
+    al['throughput_end'] = thru_end or None
+    ConfigManager.set_analyze_limits(al)
 
-        # Goal names for heatmap axis ordering
-        goal_names_ordered = [g['name'] for g in goal_rows]
+    nodes = graph_manager.get_all_nodes(include_dormant=False)
+    edges = graph_manager.get_edges()
 
-        overview_content = _render_overview(overview)
+    if not nodes:
+        empty = html.P("No nodes in the graph yet.", className="text-muted small")
+        return empty, "", "", "", "", ""
 
-        goals_content = [
-            html.P(
-                f"Top {len(goal_rows)} of {total_goal_count} goals, ranked by scoring algorithm."
-                if total_goal_count > len(goal_rows)
-                else "Side-by-side progress and overlap for all goals.",
-                className="text-muted small"),
-            _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered),
-        ]
+    hard_fwd, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
 
-        time_content = [
-            html.P(
-                "On the By Node scatter, points above the dashed line took "
-                "longer than estimated; points below were finished faster. "
-                "On the By Context box plots, boxes right of the 1× line ran "
-                "over estimate; left, came in under.",
-                className="text-muted small"),
-            dbc.Row([
-                dbc.Col(_render_estimation_accuracy(est_accuracy), width=6),
-                dbc.Col(_render_context_accuracy_boxplot(est_accuracy), width=6),
-            ], className="g-3"),
-        ]
+    # Compute all sections
+    limits = _get_limits()
+    overview = _compute_overview(nodes, edges)
+    bottlenecks = _compute_bottlenecks(nodes, hard_fwd, limits)
+    ratings_data = _compute_ratings(nodes)
+    goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits)
+    est_accuracy = _compute_estimation_accuracy(nodes)
+    ctx_coverage = _compute_context_coverage(nodes)
+    drift_rows = _compute_reflection_drift(nodes)
+    throughput_rows = _compute_throughput(
+        nodes,
+        granularity=al.get('throughput_granularity', 'quarter'),
+        start_date=al.get('throughput_start'),
+        end_date=al.get('throughput_end'),
+    )
+    hub_data = _compute_hub_score(nodes, edges, limits)
 
-        # Bottleneck and Hub share the gear's "nodes shown" limit and render
-        # at the same height (max of the two list lengths) so the row reads
-        # as a paired comparison.
-        gs_count = max(len(bottlenecks), len(hub_data), 1)
-        gs_height = max(180, gs_count * 28 + 60)
-        graph_content = [
-            html.P("Bottleneck: nodes whose completion would unlock the "
-                   "largest downstream cascade. Hub: nodes most integrated "
-                   "into the graph — traffic flowing in AND out.",
-                   className="text-muted small"),
-            dbc.Row([
-                dbc.Col(_render_bottleneck_chart(bottlenecks,
-                                                 height=gs_height), width=6),
-                dbc.Col(_render_hub_chart(hub_data,
-                                          height=gs_height), width=6),
-            ], className="g-3"),
-        ]
+    # Goal names for heatmap axis ordering
+    goal_names_ordered = [g['name'] for g in goal_rows]
 
-        ctx_height = max(180, len(ctx_coverage) * 28 + 60)
-        # Bar chart: ctx_coverage is ascending by hours; plotly's horizontal
-        # bar default puts the LAST y at the top, so the largest context
-        # renders at the top.
-        # Heatmaps: plotly heatmap default puts the FIRST y at the top, so
-        # we pass the same contexts in reversed (descending) order to land
-        # the largest context at the top — matching the bar chart's order.
-        ctx_order_heatmap = list(reversed([c['context'] for c in ctx_coverage]))
-        contexts_content = [
-            html.P("Where your active time is allocated, the average "
-                   "ratings behind it, and how those ratings have drifted "
-                   "post-reflection.",
-                   className="text-muted small"),
-            dbc.Row([
-                dbc.Col(_render_hours_by_context(ctx_coverage,
-                                                 height=ctx_height), width=6),
-                dbc.Col(_render_ratings_chart(ratings_data,
-                                              height=ctx_height,
-                                              context_order=ctx_order_heatmap), width=3),
-                dbc.Col(_render_reflection_drift_chart(drift_rows,
-                                                       height=ctx_height,
-                                                       context_order=ctx_order_heatmap), width=3),
-            ], className="g-3"),
-        ]
+    overview_content = _render_overview(overview)
 
-        gran = al.get('throughput_granularity', 'quarter')
-        gran_label = {'month': 'month', 'quarter': 'quarter',
-                      'year': 'year'}[gran]
-        throughput_content = [
-            html.P(f"Hours of completed work per calendar {gran_label}, "
-                   "stacked by context. Hover a segment for the node "
-                   "list.",
-                   className="text-muted small"),
-            _render_throughput_chart(throughput_rows, granularity=gran),
-        ]
+    goals_content = [
+        html.P(
+            f"Top {len(goal_rows)} of {total_goal_count} goals, ranked by scoring algorithm."
+            if total_goal_count > len(goal_rows)
+            else "Side-by-side progress and overlap for all goals.",
+            className="text-muted small"),
+        _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered),
+    ]
 
-        return (overview_content, goals_content, time_content, graph_content,
-                contexts_content, throughput_content)
+    time_content = [
+        html.P(
+            "On the By Node scatter, points above the dashed line took "
+            "longer than estimated; points below were finished faster. "
+            "On the By Context box plots, boxes right of the 1× line ran "
+            "over estimate; left, came in under.",
+            className="text-muted small"),
+        dbc.Row([
+            dbc.Col(_render_estimation_accuracy(est_accuracy), width=6),
+            dbc.Col(_render_context_accuracy_boxplot(est_accuracy), width=6),
+        ], className="g-3"),
+    ]
+
+    # Bottleneck and Hub share the gear's "nodes shown" limit and render
+    # at the same height (max of the two list lengths) so the row reads
+    # as a paired comparison.
+    gs_count = max(len(bottlenecks), len(hub_data), 1)
+    gs_height = max(180, gs_count * 28 + 60)
+    graph_content = [
+        html.P("Bottleneck: nodes whose completion would unlock the "
+               "largest downstream cascade. Hub: nodes most integrated "
+               "into the graph — traffic flowing in AND out.",
+               className="text-muted small"),
+        dbc.Row([
+            dbc.Col(_render_bottleneck_chart(bottlenecks,
+                                             height=gs_height), width=6),
+            dbc.Col(_render_hub_chart(hub_data,
+                                      height=gs_height), width=6),
+        ], className="g-3"),
+    ]
+
+    ctx_height = max(180, len(ctx_coverage) * 28 + 60)
+    # Bar chart: ctx_coverage is ascending by hours; plotly's horizontal
+    # bar default puts the LAST y at the top, so the largest context
+    # renders at the top.
+    # Heatmaps: plotly heatmap default puts the FIRST y at the top, so
+    # we pass the same contexts in reversed (descending) order to land
+    # the largest context at the top — matching the bar chart's order.
+    ctx_order_heatmap = list(reversed([c['context'] for c in ctx_coverage]))
+    contexts_content = [
+        html.P("Where your active time is allocated, the average "
+               "ratings behind it, and how those ratings have drifted "
+               "post-reflection.",
+               className="text-muted small"),
+        dbc.Row([
+            dbc.Col(_render_hours_by_context(ctx_coverage,
+                                             height=ctx_height), width=6),
+            dbc.Col(_render_ratings_chart(ratings_data,
+                                          height=ctx_height,
+                                          context_order=ctx_order_heatmap), width=3),
+            dbc.Col(_render_reflection_drift_chart(drift_rows,
+                                                   height=ctx_height,
+                                                   context_order=ctx_order_heatmap), width=3),
+        ], className="g-3"),
+    ]
+
+    gran = al.get('throughput_granularity', 'quarter')
+    gran_label = {'month': 'month', 'quarter': 'quarter',
+                  'year': 'year'}[gran]
+    throughput_content = [
+        html.P(f"Hours of completed work per calendar {gran_label}, "
+               "stacked by context. Hover a segment for the node "
+               "list.",
+               className="text-muted small"),
+        _render_throughput_chart(throughput_rows, granularity=gran),
+    ]
+
+    return (overview_content, goals_content, time_content, graph_content,
+            contexts_content, throughput_content)

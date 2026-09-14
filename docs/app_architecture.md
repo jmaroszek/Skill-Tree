@@ -226,7 +226,14 @@ because its graph is already laid out.
 All tab layouts remain mounted. Heavy callbacks therefore do not subscribe
 directly to every `main-tabs.active_tab` change: Analyze and Events use small
 clientside arrival stores that only notify their server callbacks when their
-own tab opens. Details dropdown options are hydrated initially and refreshed
+own tab opens. Analyze also renders ahead of the first visit. Once the Nodes
+canvas payload lands and the browser goes idle, a clientside callback bumps
+`analyze-prewarm-store`, and the hidden tab renders. Each render records a
+signature in `analyze-rendered-store`: the graph version, the context list, and
+the date. An arrival that finds the signature current makes no recompute. Until
+the first render, the sections sit hidden behind a spinner. Its charts are
+responsive graphs with pinned heights, so charts drawn while hidden re-measure
+their width when the tab opens. Details dropdown options are hydrated initially and refreshed
 from graph/version stores, so opening Details does not resend an unchanged
 node list. Empty-state suggestions likewise ignore node selection once hidden.
 

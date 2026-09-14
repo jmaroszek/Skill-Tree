@@ -57,7 +57,23 @@ def _gear_header_custom(text, gear_id, popover_id, popover_body,
 
 
 def build_analyze_tab_content():
-    """Static shell for the Analyze tab. Chart bodies are injected by callback."""
+    """Static shell for the Analyze tab. Chart bodies are injected by callback.
+
+    The sections start hidden behind a loading cover, so a visit before the
+    first render shows a spinner rather than a column of empty headers. The
+    render callback swaps the two on its first return."""
+    return html.Div([
+        html.Div([
+            dbc.Spinner(spinner_style={"width": "2rem", "height": "2rem",
+                                       "color": "#1e90ff"}),
+            html.Div("Preparing the analysis…", className="canvas-cover-label"),
+        ], id="analyze-loading-cover", className="analyze-loading-cover",
+            role="status", **{"aria-live": "polite"}),  # type: ignore[reportArgumentType]
+        html.Div(_analyze_sections(), id="analyze-sections", hidden=True),
+    ], className="h-100")
+
+
+def _analyze_sections():
     al = ConfigManager.get_analyze_limits()
     return html.Div([
         html.Div(id="analyze-overview-content"),

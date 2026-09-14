@@ -1328,6 +1328,12 @@ def build_app_layout(initial_elements, env="production"):
         # tab. refresh_analyze_tab listens to this instead of main-tabs
         # directly, so switching to any other tab makes no request at all.
         dcc.Store(id='analyze-active-store', data=None),
+        # Bumped once, when startup work has settled, so the hidden Analyze
+        # tab renders ahead of the first visit instead of on it.
+        dcc.Store(id='analyze-prewarm-store', data=None),
+        # What the rendered Analyze charts were computed from. An arrival that
+        # finds it current skips the recompute. See _analyze_signature.
+        dcc.Store(id='analyze-rendered-store', data=None),
         dcc.Interval(id='settings-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
 
         main_tabs,

@@ -772,3 +772,119 @@ class TestReflectionDriftStatusGate:
         ]
         assert all(r["context"] != "Body" for r in _compute_reflection_drift(reverted))
 
+
+
+class TestAnalyzeRefreshGate:
+    """The tab renders in the background, so arrivals and the prewarm must
+    skip a render that is still current, and redo one the graph outran."""
+
+    ARGS = (25, 75, 'quarter', '', '', None)
+
+    @pytest.fixture
+    def refresh(self, monkeypatch):
+        import types
+        import dash
+        import analyze_callbacks
+
+        app = dash.Dash(__name__)
+        app.config.suppress_callback_exceptions = True
+        analyze_callbacks.register_analyze_callbacks(app)
+        spec = app.callback_map[next(k for k in app.callback_map
+                                     if 'analyze-overview-content' in k)]
+        fn = spec['callback']
+        while hasattr(fn, '__wrapped__'):
+            fn = fn.__wrapped__
+
+        def call(trigger, active_tab, rendered):
+            monkeypatch.setattr(analyze_callbacks, 'ctx',
+                                types.SimpleNamespace(triggered_id=trigger))
+            return fn(1, 1, *self.ARGS, active_tab, rendered)
+        return call
+
+    def test_prewarm_renders_while_hidden_and_uncovers(self, refresh):
+        GraphManager().add_node(_make_node("A"))
+        out = refresh('analyze-prewarm-store', 'tab-next', None)
+        assert out[6:8] == (False, True)
+        assert out[8]
+
+    def test_arrival_skips_a_current_render(self, refresh):
+        from dash import no_update
+        GraphManager().add_node(_make_node("A"))
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[8]
+        assert refresh('analyze-active-store', 'tab-analyze',
+                       signature) == (no_update,) * 9
+
+    def test_arrival_rerenders_after_a_graph_change(self, refresh):
+        from dash import no_update
+        GraphManager().add_node(_make_node("A"))
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[8]
+        GraphManager().add_node(_make_node("B"))
+        out = refresh('analyze-active-store', 'tab-analyze', signature)
+        assert out[0] is not no_update
+        assert out[8] != signature
+
+    def test_settings_changes_off_tab_do_nothing(self, refresh):
+        from dash import no_update
+        assert refresh('save-output', 'tab-next', None) == (no_update,) * 9
+
+    def test_failed_render_uncovers_and_retries(self, refresh, monkeypatch):
+        import analyze_callbacks
+        def boom(*_args):
+            raise RuntimeError("boom")
+        monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections', boom)
+        out = refresh('analyze-active-store', 'tab-analyze', None)
+        assert out[6:8] == (False, True)
+        assert out[8] is None
+
+
+class TestHoursByContextColors:
+    """Neighbouring segments in a bar must never share a colour, however many
+    subcontexts the graph holds."""
+
+    @staticmethod
+    def _bar_colors(ctx_data):
+        from dash import dcc
+        from analyze_callbacks import _render_hours_by_context
+
+        card = _render_hours_by_context(ctx_data)
+
+        def find(c):
+            if isinstance(c, dcc.Graph):
+                return c
+            kids = getattr(c, 'children', None)
+            for k in (kids if isinstance(kids, list) else [kids]):
+                if k is not None and hasattr(k, 'to_plotly_json'):
+                    found = find(k)
+                    if found is not None:
+                        return found
+        fig = find(card).figure
+        bars = {}
+        for trace in fig.data:
+            for ctx, x, color in zip(trace.y, trace.x, trace.marker.color):
+                if x > 0:
+                    bars.setdefault(ctx, []).append(color)
+        return bars
+
+    def test_adjacent_segments_differ(self):
+        from analyze_callbacks import _NO_SUBCONTEXT_COLOR, _SLATE
+        # Subcontexts shared across contexts, in different sizes, so the
+        # global stack order leaves gaps in each bar.
+        ctx_data = []
+        for c in range(4):
+            segs = [{'name': f'S{i}', 'time': 100 - i, 'count': 1}
+                    for i in range(25) if (i + c) % (c + 1) == 0]
+            segs.append({'name': '(No subcontext)', 'time': 5, 'count': 1})
+            ctx_data.append({'context': f'C{c}', 'time': sum(s['time'] for s in segs),
+                             'segments': segs})
+        # S0 and S10 sit ten apart in the global order; a colour per
+        # subcontext gave both the first palette entry, side by side here.
+        ctx_data.append({'context': 'Wrap', 'time': 20, 'segments': [
+            {'name': 'S0', 'time': 10, 'count': 1},
+            {'name': 'S10', 'time': 10, 'count': 1}]})
+        ctx_data.append({'context': 'Eight', 'time': 45, 'segments':
+                         [{'name': f'E{i}', 'time': 5, 'count': 1} for i in range(8)]
+                         + [{'name': '(No subcontext)', 'time': 5, 'count': 1}]})
+        for ctx, colors in self._bar_colors(ctx_data).items():
+            for a, b in zip(colors, colors[1:]):
+                assert a != b, ctx
+                assert not (a == _SLATE and b == _NO_SUBCONTEXT_COLOR), ctx
