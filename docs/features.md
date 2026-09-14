@@ -297,7 +297,7 @@ A score on its own doesn't tell you much. Explain tells you where that score cam
     <em> The score breakdown for a node. </em>
 </p>
 
-The window opens with a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. Each bar is that piece's share of the node's total value. The node's own ratings are one bar. The rest are the nodes whose value flows back to it. The bars are colored by where the value comes from: the node itself, a hard prerequisite, a soft prerequisite, or a synergy link. Hover over a bar to see how far away that node is, how much of its value it passes on, and its ratings.
+The window opens with a contributors chart. It ranks the pieces that drive the recommendation, so you can see what is pulling this node up the list. Each bar is that piece's share of the node's total value. The node's own ratings are one bar. The rest are the nodes whose value flows back to it. The bars are colored by where the value comes from: the node itself, a hard prerequisite, a soft prerequisite, or a synergy link. Hover over a bar to see that node's ratings, how far away it is, and how much of its value it passes on.
 
 Below the chart, **Calculation details** breaks the score into four parts:
 

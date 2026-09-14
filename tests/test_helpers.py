@@ -997,8 +997,8 @@ class TestContributorHover:
                'value': 9, 'interest': 10, 'pct_of_tv': 14.5, 'contribution': 40.0,
                'remaining_hours': 400.0, 'future_discount': 0.67}
         assert _contributor_hover(row) == (
-            "<b>Health</b><br>2 steps away via hard prerequisite<br>Passes on 22% of its value"
-            "<br>Value 9 · Interest 10")
+            "<b>Health</b><br>Value 9 · Interest 10<br>2 steps away via hard prerequisite"
+            "<br>Passes on 22% of its value")
 
     def test_self_bar_shows_only_name_and_ratings(self):
         row = {'name': 'X', 'via': 'Self', 'depth': 0, 'iv': 10.0,

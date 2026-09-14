@@ -1972,11 +1972,14 @@ def _explain_summary_table(breakdown: dict, normalized):
 def _contributor_hover(row: dict) -> str:
     """Short hover text for one bar of the contributors chart.
 
-    Kept short: the name, how the node is reached, how much of its value
-    reaches the explained node, and its ratings. The bar's own label already
+    Kept short: the name, its ratings, how the node is reached, and how much
+    of its value reaches the explained node. The bar's own label already
     carries its share of total value.
     """
     lines = [f"<b>{_escape(row['name'])}</b>"]
+    if row.get('iv', 0.0) > 1e-9 and row.get('value') is not None:
+        lines.append(f"Value {_format_rating(row['value'])} · "
+                     f"Interest {_format_rating(row['interest'])}")
     via = row.get('via')
     if via != 'Self':
         steps = row.get('depth', 0)
@@ -1987,9 +1990,6 @@ def _contributor_hover(row: dict) -> str:
             # Route discounts and the required-work discount, combined.
             passed_on = 100.0 * row.get('contribution', 0.0) / row['iv']
             lines.append(f"Passes on {_format_share(passed_on)} of its value")
-    if row.get('iv', 0.0) > 1e-9 and row.get('value') is not None:
-        lines.append(f"Value {_format_rating(row['value'])} · "
-                     f"Interest {_format_rating(row['interest'])}")
     return "<br>".join(lines)
 
 
