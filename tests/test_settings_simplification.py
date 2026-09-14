@@ -120,7 +120,31 @@ def test_single_setting_sections_do_not_repeat_their_labels():
     ) == 1
     assert "Max Now Nodes" not in text
     assert "Maximum number of nodes that can be flagged Now at once" not in text
+    assert "Set the maximum number of active projects you can have at once" in text
     assert "Manage reflections from the journal icon" not in text
+
+
+def test_startup_analysis_uses_concise_user_facing_description():
+    modal = build_settings_modal()
+    scoring_tab = next(
+        component for component in _walk(modal)
+        if getattr(component, "tab_id", None) == "tab-scoring"
+    )
+    copy = _text(scoring_tab)
+    components = list(_walk(scoring_tab))
+    description_index = next(
+        index for index, component in enumerate(components)
+        if getattr(component, "children", None)
+        == "Shows node, edge, and scoring-time totals on the Next tab."
+    )
+    toggle_index = next(
+        index for index, component in enumerate(components)
+        if getattr(component, "id", None) == "setting-show-scoring-perf"
+    )
+
+    assert "Shows node, edge, and scoring-time totals on the Next tab." in copy
+    assert "records the first scoring run after launch" not in copy
+    assert description_index < toggle_index
 
 
 def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():

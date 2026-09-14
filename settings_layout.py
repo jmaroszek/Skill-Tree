@@ -279,6 +279,10 @@ def _build_scoring_tab():
             html.Hr(className="my-3"),
             # Startup analysis: timing + log on the first scoring run only
             html.H5("Startup Analysis", className="mt-2 mb-1"),
+            html.Small(
+                "Shows node, edge, and scoring-time totals on the Next tab.",
+                className="text-muted d-block mb-2",
+            ),
             dbc.Checklist(
                 id="setting-show-scoring-perf",
                 options=[{"label": "Run on startup", "value": "enabled"}],
@@ -286,11 +290,6 @@ def _build_scoring_tab():
                 switch=True,
                 className="mb-1",
                 labelStyle={"fontWeight": "normal", "fontSize": "0.9rem"},
-            ),
-            html.Small(
-                "Shows node, edge, and scoring-time totals on the Next tab and "
-                "records the first scoring run after launch.",
-                className="text-muted d-block mb-1",
             ),
         ], className="p-2")
     ])
@@ -352,6 +351,10 @@ def _build_misc_tab():
         html.Div([
             # --- Now Cap section ---
             html.H5("Maximum Now Nodes", className="mt-2 mb-1"),
+            html.Small(
+                "Set the maximum number of active projects you can have at once",
+                className="text-muted d-block mb-2",
+            ),
             dbc.Label("Maximum Now Nodes", html_for="setting-now-node-cap",
                       className="visually-hidden"),
             dbc.Input(id="setting-now-node-cap", type="number",
