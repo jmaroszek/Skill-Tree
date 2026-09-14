@@ -77,7 +77,8 @@ def _build_appearance_tab():
             html.Hr(className="my-3"),
             html.H5("Name Formatting", className="mt-2 mb-1"),
             html.Small(
-                "Choose how node names and aliases are capitalized when saved.",
+                "Choose how node names and aliases are capitalized when saved. "
+                "Changing this setting will not affect existing nodes.",
                 className="text-muted d-block mb-2",
             ),
             dbc.RadioItems(
