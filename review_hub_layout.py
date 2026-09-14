@@ -1,4 +1,4 @@
-"""Layout for the Reflection Hub modal.
+"""Layout for the Reflection modal.
 
 The hub is the entry point for the Reflection feature. The journal icon in the
 top toolbar opens this modal; the user picks an action (start the focused
@@ -84,9 +84,9 @@ def _build_excluded_tab():
 
 
 def build_review_hub_modal():
-    """The Reflection Hub modal — opened by the journal button in the toolbar."""
+    """The Reflection modal — opened by the journal button in the toolbar."""
     return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Reflection Hub")),
+        dbc.ModalHeader(dbc.ModalTitle("Reflection")),
         dbc.ModalBody(
             dbc.Tabs(id="review-hub-tabs", active_tab="tab-review-pending",
                      children=[

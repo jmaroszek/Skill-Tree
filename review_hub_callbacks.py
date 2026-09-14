@@ -1,4 +1,4 @@
-"""Callbacks for the Reflection Hub modal.
+"""Callbacks for the Reflection modal.
 
 Owns open/close wiring, the Pending tab's live count, the Excluded tab's
 list + restore controls (moved here from settings_callbacks), and the
