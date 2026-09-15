@@ -632,26 +632,21 @@ class TestIsFormDirtyVsSnapshot:
         form = self._form_from_snapshot(snap)
         assert not is_form_dirty_vs_snapshot(snap, form)
 
-    def test_dormant_prereq_does_not_cause_false_positive(self):
-        """Regression: edge dropdowns get options from non-dormant nodes only.
-        dcc.Dropdown silently filters its value to entries in options, so a
-        prereq edge to a dormant node is invisible to the form's State. The
-        snapshot must apply the same filter, otherwise the dirty check fires
-        on every X-close for any node that has a dormant prerequisite."""
+    def test_dormant_prereq_is_included_in_editor_snapshot(self):
+        """The pristine snapshot mirrors dormant relationships shown in the form."""
         from graph_manager import GraphManager
         from models import EDGE_NEEDS_HARD
         mgr = GraphManager()
         target = self._seed(mgr, name='Target Goal', type='Goal')
         # Active prereq — visible in dropdown, will appear in form State.
         active = self._seed(mgr, name='Active Prereq', type='Learn')
-        # Dormant prereq — excluded from dropdown options, dropped from form State.
+        # Dormant prereq — visible in the relationship dropdown alongside active nodes.
         dormant = self._seed(mgr, name='Dormant Prereq', type='Action', dormant=1)
         mgr.add_edge(active.name, target.name, EDGE_NEEDS_HARD)
         mgr.add_edge(dormant.name, target.name, EDGE_NEEDS_HARD)
         snap = build_editor_snapshot(mgr, target.name)
-        # Snapshot must include only the active prereq, mirroring the dropdown.
-        assert snap['e_needs_h'] == ['Active Prereq']
-        # Form State (also missing the dormant prereq) — not dirty.
+        assert snap['e_needs_h'] == ['Active Prereq', 'Dormant Prereq']
+        # Form State includes the same dormant relationship, so it is still pristine.
         form = self._form_from_snapshot(snap)
         assert not is_form_dirty_vs_snapshot(snap, form)
 
@@ -809,13 +804,11 @@ class TestSnapshotFromFormState:
         edited['desc'] = 'now edited'
         assert is_form_dirty_vs_snapshot(snap, edited)
 
-    def test_dormant_prereq_filtering_inherited_from_form(self):
-        """populate_editor filters dormant-endpoint edges out of the form's
-        State values. Since snapshot_from_form_state copies form verbatim,
-        it inherits the dormant-filter for free — no explicit filter needed."""
-        form = self._form(e_needs_h=['Active Prereq'])
+    def test_dormant_prereq_inherited_from_form(self):
+        """Post-save snapshots retain dormant relationships from form State."""
+        form = self._form(e_needs_h=['Active Prereq', 'Dormant Prereq'])
         snap = snapshot_from_form_state(form, form['name'], form['aliases'])
-        assert snap['e_needs_h'] == ['Active Prereq']
+        assert snap['e_needs_h'] == ['Active Prereq', 'Dormant Prereq']
         assert not is_form_dirty_vs_snapshot(snap, form)
 
 

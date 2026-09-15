@@ -775,28 +775,22 @@ class TestStateManagement:
         mgr.delete_node("Prereq")
         assert mgr.get_node("Target").status == "Open"
 
-    def test_sync_edges_preserves_dormant_needs_edges(self, mgr):
-        """Regression: sync_edges replaces only edges whose other endpoint is
-        non-dormant. The editor's edge dropdowns hide dormant nodes, so the
-        form's needs_hard list never includes them — without this filter,
-        every save would silently drop dormant prerequisite edges from the DB."""
+    def test_sync_edges_can_remove_dormant_needs_edges(self, mgr):
+        """Dormant relationships are visible, so sync is a complete replacement."""
         mgr.add_node(_make_node("Target"))
         mgr.add_node(_make_node("ActivePrereq"))
         mgr.add_node(_make_node("DormantPrereq", dormant=1))
         mgr.add_edge("ActivePrereq", "Target", EDGE_NEEDS_HARD)
         mgr.add_edge("DormantPrereq", "Target", EDGE_NEEDS_HARD)
-        # Editor only sees ActivePrereq; sync_edges is called with just that.
         mgr.sync_edges("Target", needs_hard=["ActivePrereq"], needs_soft=[],
                        supports_hard=[], supports_soft=[], helps=[])
         edges = mgr.get_edges()
         incoming = {e['source'] for e in edges
                     if e['target'] == 'Target' and e['type'] == EDGE_NEEDS_HARD}
-        assert incoming == {"ActivePrereq", "DormantPrereq"}
+        assert incoming == {"ActivePrereq"}
 
-    def test_sync_edges_preserves_dormant_helps_edges(self, mgr):
-        """Same regression as above but for the undirected Helps edge type —
-        the OR-clause in the DELETE must filter dormancy on whichever endpoint
-        isn't the saved node."""
+    def test_sync_edges_can_remove_dormant_helps_edges(self, mgr):
+        """Omitting a visible dormant synergy removes it from either orientation."""
         mgr.add_node(_make_node("Target"))
         mgr.add_node(_make_node("ActiveHelper"))
         mgr.add_node(_make_node("DormantHelper", dormant=1))
@@ -809,7 +803,7 @@ class TestStateManagement:
                           if e['source'] == 'Target' and e['type'] == EDGE_HELPS}
         helps_partners |= {e['source'] for e in edges
                            if e['target'] == 'Target' and e['type'] == EDGE_HELPS}
-        assert helps_partners == {"ActiveHelper", "DormantHelper"}
+        assert helps_partners == {"ActiveHelper"}
 
     def test_delete_node_cascades_unblock(self, mgr):
         """Deleting the root of a chain should cascade unblocking through dependents."""

@@ -626,13 +626,8 @@ class GraphManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Clear existing edges whose other endpoint is non-dormant. The
-            # editor's edge dropdowns hide dormant nodes, so callers always
-            # pass `needs_*` / `supports_*` / `helps` lists with dormant
-            # entries already filtered out. Deleting dormant edges here would
-            # silently drop them (the INSERT loop below can't re-add them
-            # because they're not in the input lists), corrupting the graph
-            # on every save of a node that has dormant relationships.
+            # Every relationship picker includes dormant nodes, so the lists
+            # passed here are a complete replacement for all incident edges.
             previous_dependents = [row[0] for row in cursor.execute(
                 "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'", (node_name,)
             ).fetchall()]
@@ -641,21 +636,18 @@ class GraphManager:
                 (node_name, node_name)).fetchall()}
             cursor.execute(
                 """DELETE FROM Edges
-                   WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')
-                     AND source IN (SELECT name FROM Nodes WHERE dormant = 0)""",
+                   WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')""",
                 (node_name,),
             )
             cursor.execute(
                 """DELETE FROM Edges
-                   WHERE source=? AND type IN ('Needs_Hard', 'Needs_Soft')
-                     AND target IN (SELECT name FROM Nodes WHERE dormant = 0)""",
+                   WHERE source=? AND type IN ('Needs_Hard', 'Needs_Soft')""",
                 (node_name,),
             )
             cursor.execute(
                 """DELETE FROM Edges
                    WHERE type = 'Helps'
-                     AND ((target = ? AND source IN (SELECT name FROM Nodes WHERE dormant = 0))
-                       OR (source = ? AND target IN (SELECT name FROM Nodes WHERE dormant = 0)))""",
+                     AND (target = ? OR source = ?)""",
                 (node_name, node_name),
             )
 

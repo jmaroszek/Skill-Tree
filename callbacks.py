@@ -702,7 +702,9 @@ def register_callbacks(app):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
 
-        all_nodes = manager.get_all_nodes()
+        # Relationship pickers must include dormant nodes so active nodes can
+        # be wired to work that has not triggered yet.
+        all_nodes = manager.get_all_nodes(include_dormant=True)
         options = node_options(all_nodes)
 
         def_out = [
@@ -887,35 +889,20 @@ def register_callbacks(app):
 
         edges = manager.get_edges()
 
-        # The edge dropdowns get their options from `all_nodes`, which excludes
-        # dormant nodes. dcc.Dropdown filters its initial value to entries in
-        # `options`, but on subsequent value updates (e.g. re-opening the same
-        # node without a full remount) it does NOT re-filter — so the State
-        # would carry dormant items the user can't actually see. Filter the
-        # value-side here too so the form's State is consistent across opens
-        # and matches build_editor_snapshot's filtered view.
-        non_dormant_names = {n.name for n in all_nodes}
-
         # In/Out Edges mapping
         needs_hard_vals = [e['source'] for e in edges
-                           if e['target'] == name and e['type'] == EDGE_NEEDS_HARD
-                           and e['source'] in non_dormant_names]
+                           if e['target'] == name and e['type'] == EDGE_NEEDS_HARD]
         needs_soft_vals = [e['source'] for e in edges
-                           if e['target'] == name and e['type'] == EDGE_NEEDS_SOFT
-                           and e['source'] in non_dormant_names]
+                           if e['target'] == name and e['type'] == EDGE_NEEDS_SOFT]
         supp_hard_vals = [e['target'] for e in edges
-                          if e['source'] == name and e['type'] == EDGE_NEEDS_HARD
-                          and e['target'] in non_dormant_names]
+                          if e['source'] == name and e['type'] == EDGE_NEEDS_HARD]
         supp_soft_vals = [e['target'] for e in edges
-                          if e['source'] == name and e['type'] == EDGE_NEEDS_SOFT
-                          and e['target'] in non_dormant_names]
+                          if e['source'] == name and e['type'] == EDGE_NEEDS_SOFT]
 
         helps_vals = [e['target'] for e in edges
-                      if e['source'] == name and e['type'] == EDGE_HELPS
-                      and e['target'] in non_dormant_names]
+                      if e['source'] == name and e['type'] == EDGE_HELPS]
         helps_vals += [e['source'] for e in edges
-                       if e['target'] == name and e['type'] == EDGE_HELPS
-                       and e['source'] in non_dormant_names]
+                       if e['target'] == name and e['type'] == EDGE_HELPS]
         helps_vals = list(set(helps_vals))
         filtered_options = node_options(all_nodes, exclude=name)
 

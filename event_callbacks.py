@@ -832,7 +832,8 @@ def register_event_callbacks(app):
         _ted = ConfigManager.get_time_estimate_defaults()
         type_opts = [{"label": t, "value": t} for t in types]
         ctx_opts = [{"label": c, "value": c} for c in contexts]
-        node_opts = [{"label": n.name, "value": n.name} for n in graph_manager.get_all_nodes()]
+        node_opts = [{"label": n.name, "value": n.name}
+                     for n in graph_manager.get_all_nodes(include_dormant=True)]
         existing_picker_opts = [{"label": n.name, "value": n.name}
                                 for n in graph_manager.get_all_nodes() if not n.dormant]
         pending_event_opts = [{"label": e.name, "value": e.name}
@@ -1810,6 +1811,8 @@ def register_event_callbacks(app):
         supp_hard_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_NEEDS_HARD]
         supp_soft_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_NEEDS_SOFT]
         helps_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_HELPS]
+        helps_v += [e['source'] for e in edges if e['target'] == node_name and e['type'] == EDGE_HELPS]
+        helps_v = list(set(helps_v))
 
         # Dropdown options — edit mode includes dormant nodes (excluding self) so
         # dormant→dormant edges round-trip correctly.

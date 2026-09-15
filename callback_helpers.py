@@ -839,30 +839,18 @@ def build_editor_snapshot(manager, node_name):
         return None
 
     edges = manager.get_edges()
-    # The editor's edge dropdowns get their options from manager.get_all_nodes(),
-    # which excludes dormant nodes. A dcc.Dropdown silently filters its `value`
-    # to entries present in `options`, so any edge to/from a dormant node is
-    # invisible to the form's State. The snapshot must mirror this filter, or
-    # the dirty check fires every X-close on nodes with dormant prerequisites.
-    non_dormant_names = {n.name for n in manager.get_all_nodes()}
     needs_h = sorted({e['source'] for e in edges
-                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_HARD
-                      and e['source'] in non_dormant_names})
+                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_HARD})
     needs_s = sorted({e['source'] for e in edges
-                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_SOFT
-                      and e['source'] in non_dormant_names})
+                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_SOFT})
     supp_h = sorted({e['target'] for e in edges
-                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_HARD
-                     and e['target'] in non_dormant_names})
+                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_HARD})
     supp_s = sorted({e['target'] for e in edges
-                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_SOFT
-                     and e['target'] in non_dormant_names})
+                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_SOFT})
     helps_set = {e['target'] for e in edges
-                 if e['source'] == node_name and e['type'] == EDGE_HELPS
-                 and e['target'] in non_dormant_names}
+                 if e['source'] == node_name and e['type'] == EDGE_HELPS}
     helps_set |= {e['source'] for e in edges
-                  if e['target'] == node_name and e['type'] == EDGE_HELPS
-                  and e['source'] in non_dormant_names}
+                  if e['target'] == node_name and e['type'] == EDGE_HELPS}
     helps = sorted(helps_set)
 
     priority_goals = ConfigManager.get_priority_goals()

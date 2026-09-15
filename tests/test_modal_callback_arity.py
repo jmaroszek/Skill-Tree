@@ -10,6 +10,8 @@ import dash
 
 import details_callbacks
 import event_callbacks
+from graph_manager import GraphManager
+from models import Node
 
 
 def _callbacks(register):
@@ -39,3 +41,35 @@ def test_event_modal_openers_do_nothing_with_the_right_arity():
 def test_details_add_node_opener_does_nothing_with_the_right_arity():
     fn, outputs = _callbacks(details_callbacks.register_details_callbacks)["open_add_node_modal"]
     assert len(fn(None, None)) == outputs
+
+
+def _node(name, *, dormant=0):
+    return Node(
+        name=name, type="Goal", description="", value=5,
+        time_o=1, time_m=2, time_p=3, interest=5, difficulty=5,
+        status="Open", context="Mind", dormant=dormant,
+    )
+
+
+def test_details_add_relationship_search_includes_dormant_nodes():
+    manager = GraphManager()
+    manager.add_node(_node("Voice"))
+    manager.add_node(_node("Music", dormant=1))
+    fn, _ = _callbacks(details_callbacks.register_details_callbacks)["open_add_node_modal"]
+
+    result = fn(1, "Voice")
+
+    for options in result[19:24]:
+        assert "Music" in {option["value"] for option in options}
+
+
+def test_dormant_editor_relationship_search_includes_other_dormant_nodes():
+    manager = GraphManager()
+    manager.add_node(_node("Voice"))
+    manager.add_node(_node("Music", dormant=1))
+    fn, _ = _callbacks(event_callbacks.register_event_callbacks)["open_dormant_node_modal"]
+
+    result = fn(1)
+
+    for options in result[8:13]:
+        assert {option["value"] for option in options} == {"Voice", "Music"}

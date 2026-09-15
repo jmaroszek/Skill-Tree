@@ -106,13 +106,8 @@ def test_populate_editor_successful_lookup_returns_44_items(monkeypatch):
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
 
 
-def test_populate_editor_filters_dormant_prereqs_from_edge_values(monkeypatch):
-    """Regression: dcc.Dropdown silently filters its initial value to entries
-    in `options` (which exclude dormant nodes), but on subsequent value updates
-    it does NOT re-filter — so re-opening the same node would inflate the form
-    State to include dormant items, breaking the X-close dirty check.
-    populate_editor must write the already-filtered value to keep State stable
-    across opens."""
+def test_populate_editor_includes_dormant_nodes_in_relationship_fields(monkeypatch):
+    """Dormant nodes remain selectable and existing dormant edges round-trip."""
     from models import EDGE_NEEDS_HARD
     mgr = GraphManager()
     mgr.add_node(Node(
@@ -139,9 +134,12 @@ def test_populate_editor_filters_dormant_prereqs_from_edge_values(monkeypatch):
     # Output index 13 is `edge-needs-hard.value` (see Output declaration order).
     needs_hard_value = result[13]
     assert "ActivePrereq" in needs_hard_value
-    assert "DormantPrereq" not in needs_hard_value, (
-        f"populate_editor leaked a dormant prereq into the dropdown value: {needs_hard_value}"
-    )
+    assert "DormantPrereq" in needs_hard_value
+    # Output indices 18-22 are the five relationship dropdown option lists.
+    for options in result[18:23]:
+        assert {option["value"] for option in options} == {
+            "ActivePrereq", "DormantPrereq"
+        }
 
 
 def test_populate_editor_all_return_paths_use_22_not_21(monkeypatch):
