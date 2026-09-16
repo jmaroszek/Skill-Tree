@@ -306,8 +306,8 @@ class TestLifecycleDates:
 
     def test_off_then_done_still_records_start(self, mgr, monkeypatch):
         """The accidental-toggle safety case: turning Now off and immediately
-        marking Done must keep the start anchor and stamp a done_date so the
-        time estimate is recoverable."""
+        marking Done keeps both latest-state snapshots available to existing
+        reports even though the append-only event log is authoritative."""
         self._pin_today(monkeypatch, "2026-04-01")
         mgr.add_node(_make_node("A"))
         mgr.update_node(_make_node("A", now=1))
@@ -346,6 +346,116 @@ class TestLifecycleDates:
         self._pin_today(monkeypatch, "2026-06-20")
         mgr.update_node(_make_node("A", status=STATUS_DONE))
         assert mgr.get_node("A").done_date == "2026-06-20"
+
+
+class TestLifecycleEvents:
+    @staticmethod
+    def _pin_times(monkeypatch, *timestamps):
+        import graph_manager
+        remaining = iter(timestamps)
+        monkeypatch.setattr(graph_manager, "_utc_now_ts", lambda: next(remaining))
+
+    def test_repeated_now_cycles_and_completion_are_lossless(self, mgr, monkeypatch):
+        self._pin_times(monkeypatch, 100, 200, 300, 400)
+        mgr.add_node(_make_node("A"))
+
+        node = mgr.get_node("A")
+        node.now = 1
+        mgr.update_node(node)
+
+        # Positive-to-positive is a card reorder, not a lifecycle boundary.
+        node = mgr.get_node("A")
+        node.now = 2
+        mgr.update_node(node)
+
+        node = mgr.get_node("A")
+        node.now = 0
+        mgr.update_node(node)
+
+        node = mgr.get_node("A")
+        node.now = 1
+        mgr.update_node(node)
+
+        node = mgr.get_node("A")
+        node.status = STATUS_DONE
+        mgr.update_node(node)
+
+        events = mgr.get_node_lifecycle_events("A")
+        assert [(e["event_type"], e["occurred_at"]) for e in events] == [
+            ("now_started", 100),
+            ("now_stopped", 200),
+            ("now_started", 300),
+            ("now_stopped", 400),
+            ("completed", 400),
+        ]
+        assert {e["source"] for e in events} == {"live"}
+
+    def test_completion_reopen_and_recompletion_are_all_retained(self, mgr, monkeypatch):
+        self._pin_times(monkeypatch, 100, 200, 300)
+        mgr.add_node(_make_node("A"))
+
+        node = mgr.get_node("A")
+        node.status = STATUS_DONE
+        mgr.update_node(node)
+        node = mgr.get_node("A")
+        node.status = STATUS_OPEN
+        mgr.update_node(node)
+        node = mgr.get_node("A")
+        node.status = STATUS_DONE
+        mgr.update_node(node)
+
+        assert [e["event_type"] for e in mgr.get_node_lifecycle_events("A")] == [
+            "completed", "reopened", "completed",
+        ]
+
+    def test_rename_preserves_history_and_delete_cascades_it(self, mgr, monkeypatch):
+        self._pin_times(monkeypatch, 100)
+        mgr.add_node(_make_node("Old"))
+        node = mgr.get_node("Old")
+        node.now = 1
+        mgr.update_node(node)
+
+        mgr.rename_node("Old", "New")
+        assert mgr.get_node_lifecycle_events("Old") == []
+        renamed = mgr.get_node_lifecycle_events("New")
+        assert [(e["node_name"], e["event_type"]) for e in renamed] == [
+            ("New", "now_started"),
+        ]
+
+        mgr.delete_node("New")
+        assert mgr.get_node_lifecycle_events("New") == []
+
+    def test_v6_migration_marks_coverage_and_current_now_as_partial(
+            self, mgr, monkeypatch):
+        mgr.add_node(_make_node("Already Active"))
+        with database.get_connection() as conn:
+            conn.execute('UPDATE Nodes SET "now"=1 WHERE name=?', ("Already Active",))
+            conn.execute("DROP TABLE NodeLifecycleEvents")
+            conn.execute(
+                "DELETE FROM Settings WHERE key='lifecycle_history_started_at'"
+            )
+            conn.execute("PRAGMA user_version = 6")
+            conn.commit()
+
+        monkeypatch.setattr(database, "_utc_now_ts", lambda: 123456)
+        database._initialized = False
+        database.init_db()
+
+        with database.get_connection() as conn:
+            marker = conn.execute(
+                "SELECT value FROM Settings "
+                "WHERE key='lifecycle_history_started_at'"
+            ).fetchone()[0]
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        assert marker == "123456"
+        assert version == database.SCHEMA_VERSION
+        assert mgr.get_node_lifecycle_events("Already Active") == [{
+            "id": 1,
+            "node_name": "Already Active",
+            "event_type": "now_started",
+            "occurred_at": 123456,
+            "source": "migration_snapshot",
+        }]
 
 
 # ============================================================================

@@ -16,6 +16,7 @@ from graph_manager import GraphManager
 from callback_helpers import handle_save, prior_node_for_completion
 from config import ConfigManager
 from callbacks import (
+    _calibration_prepop,
     _calibration_review_queue,
     _calibration_unit_for,
     _calibration_modal_text,
@@ -278,6 +279,27 @@ class TestCalibrationModalText:
         node = _make_node("Container", type="Goal", time_mode="inherited")
         _, prompt = _calibration_modal_text(node)
         assert prompt == "How long did it actually take?"
+
+
+class TestCalibrationPrepopulation:
+    def test_lifecycle_dates_do_not_create_an_actual_time_suggestion(self):
+        node = _make_node(
+            "Completed",
+            status=STATUS_DONE,
+            time_o=0,
+            time_m=80,
+            time_p=0,
+            start_date="2026-01-01",
+            done_date="2026-02-01",
+        )
+
+        lower, point, upper, unit, value, interest, difficulty = (
+            _calibration_prepop(node)
+        )
+
+        assert (lower, point, upper) == (None, None, None)
+        assert unit == _calibration_unit_for(node.time)
+        assert (value, interest, difficulty) == (5, 5, 5)
 
 
 # ============================================================================

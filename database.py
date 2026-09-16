@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -211,7 +212,12 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
+
+
+def _utc_now_ts() -> int:
+    """Current UTC instant as Unix seconds, shared by schema-history markers."""
+    return int(time.time())
 
 
 def _has_column(cursor, table: str, column: str) -> bool:
@@ -281,6 +287,30 @@ def _migrate(cursor, from_version: int) -> None:
         cursor.execute(
             "DELETE FROM Settings WHERE key IN ('OVERRIDE', 'EVENT_OVERRIDE_NODES')"
         )
+
+    # --- v7: preserve every future Now/Done boundary instead of relying on the
+    # Nodes table's deliberately lossy latest-date snapshots. Existing dates
+    # cannot reconstruct prior cycles. The marker makes that coverage boundary
+    # explicit, and a node already in Now gets a migration-snapshot start so a
+    # later stop is recognizable as a partial interval rather than an orphan.
+    if from_version < 7:
+        started_at = _utc_now_ts()
+        cursor.execute(
+            "INSERT OR IGNORE INTO Settings (key, value) VALUES (?, ?)",
+            ("lifecycle_history_started_at", str(started_at)),
+        )
+        cursor.execute('''
+            INSERT INTO NodeLifecycleEvents
+                (node_name, event_type, occurred_at, source)
+            SELECT n.name, 'now_started', ?, 'migration_snapshot'
+            FROM Nodes n
+            WHERE n."now" > 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM NodeLifecycleEvents h
+                  WHERE h.node_name = n.name
+                    AND h.event_type = 'now_started'
+              )
+        ''', (started_at,))
 
 
 def init_db():
@@ -353,8 +383,9 @@ def init_db():
             -- 'now' is an orthogonal integer (separate from status) marking the
             -- node as currently-being-worked. 0 = not Now; positive integers
             -- encode display order (1 = leftmost card). start_date/done_date
-            -- auto-stamp on first activation / first Done. reflect_* are
-            -- retrospective ratings.
+            -- retain the latest activation/completion snapshots; the append-
+            -- only NodeLifecycleEvents table retains repeated transitions.
+            -- reflect_* are retrospective ratings.
             now INTEGER NOT NULL DEFAULT 0,
             start_date TEXT,
             done_date TEXT,
@@ -427,6 +458,26 @@ def init_db():
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
+    # Append-only user lifecycle boundaries. start_date/done_date on Nodes stay
+    # as convenient latest-state snapshots; this table is the prospective,
+    # lossless history for repeated Now and Done cycles.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS NodeLifecycleEvents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_name TEXT NOT NULL,
+            event_type TEXT NOT NULL CHECK(event_type IN (
+                'now_started', 'now_stopped', 'completed', 'reopened'
+            )),
+            occurred_at INTEGER NOT NULL,
+            source TEXT NOT NULL DEFAULT 'live'
+                CHECK(source IN ('live', 'migration_snapshot')),
+            FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_node_lifecycle_events_node_time "
+        "ON NodeLifecycleEvents(node_name, occurred_at, id)"
+    )
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Aliases (
             alias TEXT PRIMARY KEY,

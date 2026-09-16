@@ -154,11 +154,11 @@ class Node:
     # Now flag: 1 when the user is currently working on this node.
     # Orthogonal to status — an Open or Blocked node can be Now. The flag
     # also drives the "Now" section on the Next tab and the amber border
-    # encoding on every canvas. start_date/done_date are auto-stamped by
-    # GraphManager.update_node: start_date on the first 0→1 now flip,
-    # done_date on the first transition to Done. Re-flipping Now does not
-    # touch dates. reflect_value/interest/difficulty are nullable mirror
-    # columns for retrospective re-rating (schema only; UI lands later).
+    # encoding on every canvas. start_date/done_date are lossy latest-state
+    # snapshots maintained by GraphManager.update_node; the append-only
+    # NodeLifecycleEvents table preserves every future Now/Done boundary.
+    # reflect_value/interest/difficulty are nullable mirror columns for
+    # retrospective re-rating.
     now: int = 0
     start_date: Optional[str] = None
     done_date: Optional[str] = None

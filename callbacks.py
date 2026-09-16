@@ -8,7 +8,6 @@ import database
 import os
 import subprocess
 import urllib.parse
-from datetime import date
 
 from typing import List, Set
 
@@ -189,39 +188,19 @@ def _calibration_prepop(node):
     in `time_unit`, NOT canonical hours; Submit converts on the way to the
     DB).
 
-    Time point comes from `done_date - start_date` × productive
-    hours_per_week (Settings → Time). Using `done_date` rather than `today`
-    keeps the estimate accurate for nodes completed weeks ago. The display
-    unit is chosen to match the magnitude (e.g. 140 elapsed hours → "1
-    weeks"; 6 elapsed hours → "6 hours"). Lower/upper bounds stay blank —
-    the user widens them only if they want to express uncertainty.
+    Actual-time fields deliberately start blank. Lifecycle dates measure how
+    long a node remained selected, not how many hours the user worked on it;
+    turning that span into an hours estimate creates a misleading anchor. The
+    unit still follows the original estimate's scale as an entry convenience.
 
     V/I/E sliders default to the node's own estimates so the user's
     starting point is "same as I thought" and they only have to move
     sliders that actually diverged.
     """
     time_lower = None
+    time_point = None
     time_upper = None
-
-    point_hours = None
-    if node and node.start_date and node.done_date:
-        try:
-            start = date.fromisoformat(node.start_date)
-            end = date.fromisoformat(node.done_date)
-            delta_days = (end - start).days
-        except (ValueError, TypeError):
-            delta_days = None
-        if delta_days is not None and delta_days >= 0:
-            hpw = ConfigManager.get_time_settings().get('hours_per_week', 20)
-            point_hours = max(0.0, delta_days / 7.0 * hpw)
-
-    if point_hours is None:
-        time_point = None
-        time_unit = 'hours'
-    else:
-        time_unit = _calibration_unit_for(point_hours)
-        mult = ConfigManager.get_time_multiplier(time_unit)
-        time_point = round(point_hours / mult, 2) if mult > 0 else point_hours
+    time_unit = _calibration_unit_for(node.time if node else 0)
 
     val = getattr(node, 'value', None) if node else None
     interest = getattr(node, 'interest', None) if node else None

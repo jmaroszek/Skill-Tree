@@ -10,6 +10,7 @@ counters that let the higher-level callback caches know when to rebuild.
 import json
 import sqlite3
 import threading
+import time
 from collections import deque, OrderedDict
 from datetime import date
 import database
@@ -39,6 +40,11 @@ _SCORING_RELEVANT_FIELDS = frozenset({
     'status', 'dormant', 'now',
     'context', 'subcontext',
 })
+
+
+def _utc_now_ts() -> int:
+    """Current UTC instant as Unix seconds for append-only lifecycle history."""
+    return int(time.time())
 
 
 class GraphManager:
@@ -153,18 +159,13 @@ class GraphManager:
                 "Uncategorized nodes are no longer permitted."
             )
         prior = self.get_node(node.name)
-        # --- Auto-stamp lifecycle dates and clear Now on completion ---
+        # --- Auto-stamp lifecycle snapshots and clear Now on completion ---
         # start_date is refreshed to today on every fresh off→on Now flip, so
-        # re-engaging a node after a gap anchors the time estimate to the most
-        # recent work session rather than a stale first-ever flip. Turning Now
-        # *off* deliberately leaves start_date intact — otherwise toggling off
-        # and immediately marking Done would lose the anchor and record no
-        # elapsed time. done_date is stamped on each fresh Open/Blocked→Done
-        # transition. When the user marks the node Done while it is currently
-        # flagged Now, we clear the flag automatically (the user's mental
-        # model: Now until Done). Reverting Done→Open/Blocked clears done_date
-        # so the next completion re-stamps with the real date rather than
-        # keeping the first one.
+        # it remains the convenient latest-start snapshot used by existing UI.
+        # Turning Now *off* deliberately leaves it intact. done_date is likewise
+        # the latest completion snapshot and is cleared on reopen. The lossless
+        # record of every boundary is NodeLifecycleEvents below.
+        lifecycle_event_types = []
         if prior is not None:
             today_iso = date.today().isoformat()
             if node.now > 0 and prior.now == 0:
@@ -178,6 +179,17 @@ class GraphManager:
             elif (node.status != STATUS_DONE
                     and prior.status == STATUS_DONE):
                 node.done_date = None
+            # Compare the stored state with the final state after completion's
+            # automatic Now-clear. Positive Now ranks all mean the same active
+            # membership, so drag reordering never creates history noise.
+            if prior.now > 0 and node.now == 0:
+                lifecycle_event_types.append('now_stopped')
+            if prior.status == STATUS_DONE and node.status != STATUS_DONE:
+                lifecycle_event_types.append('reopened')
+            if prior.status != STATUS_DONE and node.status == STATUS_DONE:
+                lifecycle_event_types.append('completed')
+            if prior.now == 0 and node.now > 0:
+                lifecycle_event_types.append('now_started')
         with self.get_connection() as conn:
             cursor = conn.cursor()
             data = node.to_dict()
@@ -203,6 +215,15 @@ class GraphManager:
                     reflect_difficulty=:reflect_difficulty
                 WHERE name=:name
             ''', data)
+            if lifecycle_event_types:
+                occurred_at = _utc_now_ts()
+                cursor.executemany(
+                    "INSERT INTO NodeLifecycleEvents "
+                    "(node_name, event_type, occurred_at, source) "
+                    "VALUES (?, ?, ?, 'live')",
+                    [(node.name, event_type, occurred_at)
+                     for event_type in lifecycle_event_types],
+                )
             conn.commit()
             self._update_dependent_nodes_state(node.name)
         # Skip scoring-cache invalidation if only cosmetic fields changed.
@@ -306,6 +327,7 @@ class GraphManager:
         """Deletes a node by name.
 
         Cleans up references that aren't FK-cascaded:
+          - `NodeLifecycleEvents` rows ARE FK-cascaded with their node.
           - `EventTriggerNodes` rows ARE FK-cascaded, so deleting a node
             narrows every trigger set that watched it. An event that still
             has other triggers keeps working with one fewer condition; an
@@ -367,6 +389,7 @@ class GraphManager:
             cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
             cursor.execute("UPDATE EventTriggerNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
+            cursor.execute("UPDATE NodeLifecycleEvents SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
         ConfigManager.rename_node_references(old_name, new_name)
         self._bump_version()
@@ -385,6 +408,18 @@ class GraphManager:
             if row:
                 return Node(**dict(row))
             return None
+
+    def get_node_lifecycle_events(self, node_name: str) -> List[dict]:
+        """Return one node's lifecycle boundaries in stable occurrence order."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT id, node_name, event_type, occurred_at, source "
+                "FROM NodeLifecycleEvents WHERE node_name=? "
+                "ORDER BY occurred_at, id",
+                (node_name,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_aliases(self, node_name: str) -> list:
         """Return all aliases for a node."""
