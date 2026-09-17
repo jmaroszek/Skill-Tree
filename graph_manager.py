@@ -18,6 +18,7 @@ import graph_queries
 import graph_scoring
 import graph_rules
 from graph_repository import GraphRepository
+from graph_state import GraphCaches, CacheValue, RevisionValue, revisions
 import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
@@ -64,8 +65,8 @@ class GraphManager:
     # versions would diverge when instance A mutates the DB but instance B's
     # cache only checks its own unchanged counter. Versions only ever advance,
     # so the monotonic contract still holds for cache invalidation.
-    _graph_version: int = 0
-    _scoring_version: int = 0
+    _graph_version = RevisionValue("graph")
+    _scoring_version = RevisionValue("scoring")
     # Class-level queue of Goal/Milestone names whose hard prereqs just became
     # all Done as a side-effect of an update_node call. Drained by the UI to
     # surface a "Mark Done?" suggestion modal. Class-level (not instance) for
@@ -82,33 +83,33 @@ class GraphManager:
     # is on. Reset across test boundaries by the tmp_perf_log fixture.
     _startup_perf_recorded: bool = False
 
+    _community_cache = CacheValue('communities')
+    _scoring_memo = CacheValue('scoring_memo')
+    _scoring_memo_key = CacheValue('scoring_key')
+    _normalizer = CacheValue('normalizer')
+    _normalizer_key = CacheValue('normalizer_key')
+    _goal_subtree_cache = CacheValue('subtrees')
+    _read_cache_epoch = CacheValue('read_epoch')
+    _cache_lock = CacheValue('lock')
+
     def __init__(self):
         self._repository = GraphRepository(lambda: self.get_connection())
-        self._community_cache: Dict[tuple, List[Set[str]]] = OrderedDict()
-        self._scoring_memo: dict = {}
-        self._scoring_memo_key: Optional[tuple] = None
-        # The 0-100 display base — see get_priority_normalizer.
-        self._normalizer: float = 0.0
-        self._normalizer_key: Optional[tuple] = None
-        # (goal_name, sorted_edge_types_tuple) -> (graph_version, frozenset of reachable nodes)
-        self._goal_subtree_cache: Dict[tuple, tuple] = {}
-        self._cache_lock = threading.Lock()
-        self._read_cache_epoch = None
+        self.caches = GraphCaches()
 
     def _prepare_read_caches(self):
         epoch = (database.get_db_path(), self._graph_version)
-        if epoch != self._read_cache_epoch:
-            self._community_cache.clear()
-            self._goal_subtree_cache.clear()
-            self._read_cache_epoch = epoch
+        if epoch != self.caches.read_epoch:
+            self.caches.communities.clear()
+            self.caches.subtrees.clear()
+            self.caches.read_epoch = epoch
 
     def _cache_communities(self, key, communities):
         if database.in_transaction():
             return
-        with self._cache_lock:
-            self._community_cache[key] = communities
-            while len(self._community_cache) > 32:
-                self._community_cache.popitem(last=False)
+        with self.caches.lock:
+            self.caches.communities[key] = communities
+            while len(self.caches.communities) > 32:
+                self.caches.communities.popitem(last=False)
 
     def _bump_version(self, scoring: bool = True) -> None:
         """Invalidate memoization caches. Called by every node/edge mutator.
@@ -117,13 +118,7 @@ class GraphManager:
         tags, paths) — graph_version still bumps so UI re-renders, but the
         scoring memo stays valid and the next get_suggestions() is near-free.
         """
-        def bump_graph():
-            GraphManager._graph_version += 1
-        def bump_scoring():
-            GraphManager._scoring_version += 1
-        database.on_commit(bump_graph, key="graph_version")
-        if scoring:
-            database.on_commit(bump_scoring, key="scoring_version")
+        revisions.changed(scoring=scoring)
 
     def get_connection(self) -> sqlite3.Connection:
         """Returns a new database connection with foreign keys enabled."""

@@ -113,9 +113,9 @@ def get_goal_subtree(manager, goal_name: str, edge_types=None) -> Set[str]:
     # with overlapping (goal, edge_types) combinations. Without caching
     # each call re-runs the BFS + DB queries against an unchanged graph.
     cache_key = (goal_name, tuple(sorted(edge_types)))
-    with manager._cache_lock:
+    with manager.caches.lock:
         manager._prepare_read_caches()
-        cached = manager._goal_subtree_cache.get(cache_key)
+        cached = manager.caches.subtrees.get(cache_key)
         if not database.in_transaction() and cached is not None and cached[0] == manager._graph_version:
             return set(cached[1])
 
@@ -144,10 +144,10 @@ def get_goal_subtree(manager, goal_name: str, edge_types=None) -> Set[str]:
         queue.extend(n for n in incoming.get(name, ()) if n not in visited)
 
     if not database.in_transaction():
-        with manager._cache_lock:
-            if len(manager._goal_subtree_cache) >= 128:
-                manager._goal_subtree_cache.pop(next(iter(manager._goal_subtree_cache)))
-            manager._goal_subtree_cache[cache_key] = (manager._graph_version, frozenset(visited))
+        with manager.caches.lock:
+            if len(manager.caches.subtrees) >= 128:
+                manager.caches.subtrees.pop(next(iter(manager.caches.subtrees)))
+            manager.caches.subtrees[cache_key] = (manager._graph_version, frozenset(visited))
     return visited
 
 
@@ -559,11 +559,11 @@ def detect_communities(manager, method: str = "components", filters: Optional[Di
     # version, so subsequent calls miss and recompute.
     allowed_key = tuple(sorted(allowed_names)) if allowed_names is not None else None
     cache_key = (method, allowed_key, manager._graph_version)
-    with manager._cache_lock:
+    with manager.caches.lock:
         manager._prepare_read_caches()
-        cached = manager._community_cache.get(cache_key)
+        cached = manager.caches.communities.get(cache_key)
         if cached is not None:
-            manager._community_cache.move_to_end(cache_key)
+            manager.caches.communities.move_to_end(cache_key)
     if cached is not None and not database.in_transaction():
         return [set(c) for c in cached]
 

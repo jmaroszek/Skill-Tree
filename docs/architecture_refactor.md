@@ -65,3 +65,15 @@ Repository writes join the same connection lease, including lifecycle-history wr
 
 Validation: 541 backend, transaction, consistency, snapshot, scoring, Details graph,
 and habit tests passed.
+
+## Stage 5
+
+`graph_state.revisions` owns process-wide graph/scoring revisions, publishing them
+through the existing deduplicated commit callbacks. Each manager owns one
+`GraphCaches` object. Query/scoring code uses these named caches; former private
+attributes remain inspection aliases. Scoring and normalization keys now include
+database identity, matching the existing read-cache isolation.
+
+Synchronization, bounded cache sizes, cosmetic-edit reuse, rollback behavior, and
+the single-database-per-process runtime remain unchanged. No lock narrowing was
+attempted without a measured need. Validation: 128 focused tests passed.

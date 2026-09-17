@@ -27,12 +27,12 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
                          'd_Syn_pair', 'd_Syn_mul', 'cross_context_mult',
                          'future_work_half_credit_hours', 'future_work_exponent')
     hypers_key = tuple((k, hypers.get(k)) for k in TV_AFFECTING_KEYS)
-    cache_key = (manager._scoring_version, hypers_key)
-    with manager._cache_lock:
-        if cache_key != manager._scoring_memo_key:
-            manager._scoring_memo = {}
-            manager._scoring_memo_key = cache_key
-        memo = manager._scoring_memo
+    cache_key = (database.get_db_path(), manager._scoring_version, hypers_key)
+    with manager.caches.lock:
+        if cache_key != manager.caches.scoring_key:
+            manager.caches.scoring_memo = {}
+            manager.caches.scoring_key = cache_key
+        memo = manager.caches.scoring_memo
     if database.in_transaction():
         memo = {}  # Never read/publish committed caches for pending writes.
 
@@ -81,12 +81,12 @@ def get_priority_normalizer(manager) -> float:
     hypers = ConfigManager.get_hyperparams()
     hypers['context_weights'] = ConfigManager.get_context_weights()
     priority_goals = ConfigManager.get_priority_goals()
-    cache_key = (manager._scoring_version,
+    cache_key = (database.get_db_path(), manager._scoring_version,
                  json.dumps(hypers, sort_keys=True, default=str),
                  tuple(priority_goals or ()))
-    with manager._cache_lock:
-        if cache_key == manager._normalizer_key:
-            return manager._normalizer
+    with manager.caches.lock:
+        if cache_key == manager.caches.normalizer_key:
+            return manager.caches.normalizer
 
     scored = manager.calculate_priority_scores(
         manager.get_all_nodes(), priority_goals=priority_goals,
@@ -97,6 +97,6 @@ def get_priority_normalizer(manager) -> float:
     base = max(eligible) if eligible else 0.0
 
     if not database.in_transaction():
-        with manager._cache_lock:
-            manager._normalizer_key, manager._normalizer = cache_key, base
+        with manager.caches.lock:
+            manager.caches.normalizer_key, manager.caches.normalizer = cache_key, base
     return base
