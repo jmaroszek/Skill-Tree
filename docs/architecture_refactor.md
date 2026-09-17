@@ -53,3 +53,15 @@ responses and the final response use named fields; compatibility indices are der
 from that contract instead of being independently maintained magic numbers.
 
 Validation: 150 focused callback, editor, calibration, atomic-save, and Next tests passed.
+
+## Stage 4
+
+`GraphManager` remains the public gateway and transaction owner. It delegates row
+reads and node insert/update/rename persistence to `GraphRepository`, traversal and
+view queries to `graph_queries.py`, scoring orchestration to `graph_scoring.py`, and
+pure endpoint/prerequisite rules to `graph_rules.py`. Mutations, status cascades,
+completion notifications, and transaction decorators remain together in the gateway.
+Repository writes join the same connection lease, including lifecycle-history writes.
+
+Validation: 541 backend, transaction, consistency, snapshot, scoring, Details graph,
+and habit tests passed.

@@ -10,6 +10,7 @@ import pytest
 @pytest.mark.parametrize('module', [
     'goal_ranking', 'graph_analytics', 'context_rules', 'node_commands',
     'editor_values', 'next_view', 'graph_manager', 'canvas_view', 'sidebar_state',
+    'graph_repository', 'graph_queries', 'graph_scoring', 'graph_rules',
 ])
 def test_shared_modules_do_not_import_callback_modules(module):
     source = Path(__file__).resolve().parents[1] / f'{module}.py'

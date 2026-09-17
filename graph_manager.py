@@ -14,6 +14,10 @@ import time
 from collections import deque, OrderedDict
 from datetime import date
 import database
+import graph_queries
+import graph_scoring
+import graph_rules
+from graph_repository import GraphRepository
 import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
@@ -79,6 +83,7 @@ class GraphManager:
     _startup_perf_recorded: bool = False
 
     def __init__(self):
+        self._repository = GraphRepository(lambda: self.get_connection())
         self._community_cache: Dict[tuple, List[Set[str]]] = OrderedDict()
         self._scoring_memo: dict = {}
         self._scoring_memo_key: Optional[tuple] = None
@@ -134,19 +139,7 @@ class GraphManager:
                 f"Node '{node.name}' must have a context. "
                 "Uncategorized nodes are no longer permitted."
             )
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                data = node.to_dict()
-                data.pop('priority_score', None)
-                data.pop('time', None)  # time is a computed property
-                cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, habit_days, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
-                ''', data)
-                conn.commit()
-            except sqlite3.IntegrityError:
-                raise ValueError(f"Node with name '{node.name}' already exists.")
+        self._repository.insert_node(node)
         self._bump_version()
 
     @database.atomic
@@ -189,42 +182,8 @@ class GraphManager:
                 lifecycle_event_types.append('completed')
             if prior.now == 0 and node.now > 0:
                 lifecycle_event_types.append('now_started')
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            data = node.to_dict()
-            data.pop('priority_score', None)
-            data.pop('time', None)
-            cursor.execute('''
-                UPDATE Nodes
-                SET type=:type, description=:description, value=:value, time_o=:time_o, time_m=:time_m, time_p=:time_p,
-                    interest=:interest, difficulty=:difficulty,
-                    context=:context, subcontext=:subcontext, status=:status,
-                    obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
-                    website=:website,
-                    dormant=:dormant, time_mode=:time_mode, value_mode=:value_mode,
-                    habit_duration=:habit_duration, habit_duration_unit=:habit_duration_unit,
-                    habit_intensity_o=:habit_intensity_o, habit_intensity_m=:habit_intensity_m,
-                    habit_intensity_p=:habit_intensity_p, habit_intensity_unit=:habit_intensity_unit,
-                    habit_days=:habit_days,
-                    actual_time_lower=:actual_time_lower, actual_time_upper=:actual_time_upper,
-                    actual_time_point=:actual_time_point, actual_time_unit=:actual_time_unit,
-                    calibration_dismissed=:calibration_dismissed,
-                    "now"=:now, start_date=:start_date, done_date=:done_date,
-                    reflect_value=:reflect_value, reflect_interest=:reflect_interest,
-                    reflect_difficulty=:reflect_difficulty
-                WHERE name=:name
-            ''', data)
-            if lifecycle_event_types:
-                occurred_at = _utc_now_ts()
-                cursor.executemany(
-                    "INSERT INTO NodeLifecycleEvents "
-                    "(node_name, event_type, occurred_at, source) "
-                    "VALUES (?, ?, ?, 'live')",
-                    [(node.name, event_type, occurred_at)
-                     for event_type in lifecycle_event_types],
-                )
-            conn.commit()
-            self._update_dependent_nodes_state(node.name)
+        self._repository.write_node(node, lifecycle_event_types, _utc_now_ts)
+        self._update_dependent_nodes_state(node.name)
         # Skip scoring-cache invalidation if only cosmetic fields changed.
         # _update_dependent_nodes_state may have touched other nodes' status
         # (a scoring-relevant field), so it sets _scoring_version directly.
@@ -381,51 +340,21 @@ class GraphManager:
     @database.atomic
     def rename_node(self, old_name: str, new_name: str):
         """Rename a node and its SQL/settings references in one transaction."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
-            cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
-            cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
-            cursor.execute("UPDATE EventTriggerNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
-            cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
-            cursor.execute("UPDATE NodeLifecycleEvents SET node_name=? WHERE node_name=?", (new_name, old_name))
-            cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
+        self._repository.rename_node(old_name, new_name)
         ConfigManager.rename_node_references(old_name, new_name)
         self._bump_version()
 
     def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
-        snapshot = database.current_snapshot()
-        if snapshot is not None:
-            row = snapshot.nodes.get(name)
-            return Node(**row) if row is not None else None
-        with self.get_connection() as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM Nodes WHERE name=?", (name,))
-            row = cursor.fetchone()
-            if row:
-                return Node(**dict(row))
-            return None
+        return self._repository.get_node(name)
 
     def get_node_lifecycle_events(self, node_name: str) -> List[dict]:
         """Return one node's lifecycle boundaries in stable occurrence order."""
-        with self.get_connection() as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                "SELECT id, node_name, event_type, occurred_at, source "
-                "FROM NodeLifecycleEvents WHERE node_name=? "
-                "ORDER BY occurred_at, id",
-                (node_name,),
-            ).fetchall()
-        return [dict(row) for row in rows]
+        return self._repository.get_node_lifecycle_events(node_name)
 
     def get_aliases(self, node_name: str) -> list:
         """Return all aliases for a node."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT alias FROM Aliases WHERE node_name=?", (node_name,))
-            return [row[0] for row in cursor.fetchall()]
+        return self._repository.get_aliases(node_name)
 
     @database.atomic
     def set_aliases(self, node_name: str, aliases: list):
@@ -452,10 +381,7 @@ class GraphManager:
         Keys are the stored (titlecase-linted) form. For case-insensitive
         lookups use :py:meth:`resolve_alias`.
         """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT alias, node_name FROM Aliases")
-            return {row[0]: row[1] for row in cursor.fetchall()}
+        return self._repository.get_all_aliases()
 
     def resolve_alias(self, alias_input: str) -> Optional[str]:
         """Look up the node name for an alias, case-insensitively.
@@ -464,34 +390,11 @@ class GraphManager:
         (e.g. ``alias:mathnotes`` matches a stored ``MathNotes``). Returns
         the node name on hit, or ``None`` on miss.
         """
-        if not alias_input:
-            return None
-        target = alias_input.strip().casefold()
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            # SQLite's LOWER is ASCII-only but our aliases are user-controlled
-            # text — fall back to a Python loop so casefold (which handles
-            # full Unicode) is the source of truth.
-            cursor.execute("SELECT alias, node_name FROM Aliases")
-            for alias, node_name in cursor.fetchall():
-                if alias.casefold() == target:
-                    return node_name
-        return None
+        return self._repository.resolve_alias(alias_input)
 
     def get_all_nodes(self, include_dormant: bool = False) -> List[Node]:
         """Retrieves all nodes. Excludes dormant nodes by default."""
-        snapshot = database.current_snapshot()
-        if snapshot is not None:
-            return [Node(**row) for row in snapshot.nodes.values()
-                    if include_dormant or not row['dormant']]
-        with self.get_connection() as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            if include_dormant:
-                cursor.execute("SELECT * FROM Nodes")
-            else:
-                cursor.execute("SELECT * FROM Nodes WHERE dormant = 0")
-            return [Node(**dict(row)) for row in cursor.fetchall()]
+        return self._repository.get_all_nodes(include_dormant)
 
     def get_now_nodes(self) -> List[Node]:
         """Return all nodes flagged Now (currently being worked on).
@@ -500,14 +403,7 @@ class GraphManager:
         "currently being worked on", and the Now section should never
         surface one.
         """
-        if database.current_snapshot() is not None:
-            return sorted((n for n in self.get_all_nodes() if n.now > 0),
-                          key=lambda n: (n.now, n.name))
-        with self.get_connection() as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM Nodes WHERE "now" > 0 AND dormant = 0 ORDER BY "now" ASC, name ASC')
-            return [Node(**dict(row)) for row in cursor.fetchall()]
+        return self._repository.get_now_nodes()
 
     @database.atomic
     def reorder_now_nodes(self, ordered_names: List[str]):
@@ -537,9 +433,7 @@ class GraphManager:
         sorting endpoints lexically. Hard/Soft direction is meaningful and
         kept as-is.
         """
-        if edge_type == EDGE_HELPS and source > target:
-            return target, source
-        return source, target
+        return graph_rules._canonicalize_edge(source, target, edge_type)
 
     def _check_pair_conflict(self, cursor, source: str, target: str, edge_type: str) -> None:
         """Raise if a CONFLICTING edge already exists between this pair.
@@ -606,14 +500,7 @@ class GraphManager:
 
     def get_edges(self) -> List[Dict[str, str]]:
         """Retrieves all edges."""
-        snapshot = database.current_snapshot()
-        if snapshot is not None:
-            return [dict(edge) for edge in snapshot.edges]
-        with self.get_connection() as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM Edges")
-            return [dict(row) for row in cursor.fetchall()]
+        return self._repository.get_edges()
 
     @database.atomic
     def sync_edges(self, node_name: str, needs_hard: list, needs_soft: list, supports_hard: list, supports_soft: list, helps: list):
@@ -741,9 +628,7 @@ class GraphManager:
     @staticmethod
     def _is_prereq_satisfied(p_node) -> bool:
         """Check if a prerequisite node is satisfied (Done)."""
-        if not p_node:
-            return False
-        return p_node.status == STATUS_DONE
+        return graph_rules._is_prereq_satisfied(p_node)
 
     @database.atomic
     def _update_node_state(self, node_name: str):
@@ -973,41 +858,7 @@ class GraphManager:
         context-adjustment params (alpha, context_weights) don't affect the
         cached structural maps, so they are excluded from the key.
         """
-        hypers = ConfigManager.get_hyperparams()
-        hypers['context_weights'] = ConfigManager.get_context_weights()
-        TV_AFFECTING_KEYS = ('w_v', 'w_i', 'value_exponent', 'd_H', 'd_S',
-                             'd_Syn_pair', 'd_Syn_mul', 'cross_context_mult',
-                             'future_work_half_credit_hours', 'future_work_exponent')
-        hypers_key = tuple((k, hypers.get(k)) for k in TV_AFFECTING_KEYS)
-        cache_key = (self._scoring_version, hypers_key)
-        with self._cache_lock:
-            if cache_key != self._scoring_memo_key:
-                self._scoring_memo = {}
-                self._scoring_memo_key = cache_key
-            memo = self._scoring_memo
-        if database.in_transaction():
-            memo = {}  # Never read/publish committed caches for pending writes.
-
-        if ConfigManager.get_show_scoring_perf() and not GraphManager._startup_perf_recorded:
-            from perf import append_perf_log
-            scored, timings = score_nodes(
-                now_nodes, self.get_all_nodes(),
-                self.get_edges(), hypers,
-                priority_goals=priority_goals,
-                external_memo=memo,
-                time_phases=True,
-            )
-            GraphManager._last_perf_timings = timings
-            GraphManager._startup_perf_recorded = True
-            append_perf_log(timings)
-            return scored
-
-        return score_nodes(
-            now_nodes, self.get_all_nodes(),
-            self.get_edges(), hypers,
-            priority_goals=priority_goals,
-            external_memo=memo,
-        )
+        return graph_scoring.calculate_priority_scores(self, now_nodes, priority_goals)
 
     @database.consistent_read
     def get_priority_normalizer(self) -> float:
@@ -1030,28 +881,7 @@ class GraphManager:
         this number alongside a ranking they already paid for, and a
         second full scoring pass per render is worth avoiding.
         """
-        hypers = ConfigManager.get_hyperparams()
-        hypers['context_weights'] = ConfigManager.get_context_weights()
-        priority_goals = ConfigManager.get_priority_goals()
-        cache_key = (self._scoring_version,
-                     json.dumps(hypers, sort_keys=True, default=str),
-                     tuple(priority_goals or ()))
-        with self._cache_lock:
-            if cache_key == self._normalizer_key:
-                return self._normalizer
-
-        scored = self.calculate_priority_scores(
-            self.get_all_nodes(), priority_goals=priority_goals,
-        )
-        eligible = [n.priority_score for n in scored
-                    if getattr(n, 'priority_score', -1) > 0
-                    and not getattr(n, 'now', 0)]
-        base = max(eligible) if eligible else 0.0
-
-        if not database.in_transaction():
-            with self._cache_lock:
-                self._normalizer_key, self._normalizer = cache_key, base
-        return base
+        return graph_scoring.get_priority_normalizer(self)
 
     @database.consistent_read
     def get_unblocking_steps(self, target_names, limit: int = 3,
@@ -1074,62 +904,14 @@ class GraphManager:
         and steps in descending score within each target. A node already
         claimed by an earlier target is not repeated.
         """
-        targets = [t for t in (target_names or []) if t]
-        if not targets or limit <= 0:
-            return []
-
-        if priority_goals is None:
-            priority_goals = ConfigManager.get_priority_goals()
-        # One pass over the whole graph rather than one per target: scoring is
-        # graph-wide anyway (see calculate_priority_scores) and the subtree
-        # lookups below are already cached against the graph version.
-        scored = {n.name: n for n in self.calculate_priority_scores(
-            self.get_all_nodes(), priority_goals=priority_goals)}
-
-        def score_of(name):
-            return getattr(scored.get(name), 'priority_score', -1.0)
-
-        steps: List[Tuple[Node, str]] = []
-        claimed = set(targets)
-        for target in targets:
-            if target not in scored or score_of(target) >= 0:
-                continue
-            subtree = self.get_goal_subtree(target, edge_types=(EDGE_NEEDS_HARD,))
-            actionable = [scored[name] for name in subtree
-                          if name not in claimed and score_of(name) >= 0]
-            actionable.sort(key=lambda n: (-n.priority_score, n.name))
-            for node in actionable[:limit]:
-                claimed.add(node.name)
-                steps.append((node, target))
-        return steps
+        return graph_queries.get_unblocking_steps(self, target_names, limit, priority_goals)
 
     def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT target FROM Edges
-                JOIN Nodes ON Edges.target = Nodes.name
-                WHERE source=? AND Edges.type='Needs_Hard' AND Nodes.status=?
-            ''', (node_name, STATUS_BLOCKED))
-            return [row[0] for row in cursor.fetchall()]
+        return graph_queries.get_directly_unlocked_nodes(self, node_name)
 
     def get_directly_unlocked_nodes_by_type(self, node_name: str) -> Dict[str, List[str]]:
         """Returns nodes directly unlocked by completing this node, separated by edge type."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT target, Edges.type FROM Edges
-                JOIN Nodes ON Edges.target = Nodes.name
-                WHERE source=? AND Edges.type IN ('Needs_Hard', 'Needs_Soft')
-                AND Nodes.status IN (?, ?)
-            ''', (node_name, STATUS_BLOCKED, STATUS_OPEN))
-            hard, soft = [], []
-            for row in cursor.fetchall():
-                if row[1] == 'Needs_Hard':
-                    hard.append(row[0])
-                else:
-                    soft.append(row[0])
-            return {'hard': hard, 'soft': soft}
+        return graph_queries.get_directly_unlocked_nodes_by_type(self, node_name)
 
     @database.consistent_read
     def get_goal_subtree(self, goal_name: str, edge_types=None) -> Set[str]:
@@ -1150,49 +932,7 @@ class GraphManager:
             goal_name: The goal node to start from.
             edge_types: Tuple of edge types to traverse. Defaults to (Needs_Hard, Needs_Soft).
         """
-        if edge_types is None:
-            edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
-
-        # Cache lookup: select_detail_node alone calls this 4x per invocation
-        # with overlapping (goal, edge_types) combinations. Without caching
-        # each call re-runs the BFS + DB queries against an unchanged graph.
-        cache_key = (goal_name, tuple(sorted(edge_types)))
-        with self._cache_lock:
-            self._prepare_read_caches()
-            cached = self._goal_subtree_cache.get(cache_key)
-            if not database.in_transaction() and cached is not None and cached[0] == self._graph_version:
-                return set(cached[1])
-
-        # Separate directed and bidirectional edge types
-        directed_types = tuple(t for t in edge_types if t != EDGE_HELPS)
-        include_helps = EDGE_HELPS in edge_types
-
-        incoming = {}
-        queue = []
-        for edge in self.get_edges():
-            source, target, kind = edge['source'], edge['target'], edge['type']
-            if kind in directed_types:
-                incoming.setdefault(target, []).append(source)
-            elif include_helps and kind == EDGE_HELPS:
-                if source == goal_name:
-                    queue.append(target)
-                elif target == goal_name:
-                    queue.append(source)
-        queue.extend(incoming.get(goal_name, ()))
-        visited = set()
-        while queue:
-            name = queue.pop()
-            if name in visited:
-                continue
-            visited.add(name)
-            queue.extend(n for n in incoming.get(name, ()) if n not in visited)
-
-        if not database.in_transaction():
-            with self._cache_lock:
-                if len(self._goal_subtree_cache) >= 128:
-                    self._goal_subtree_cache.pop(next(iter(self._goal_subtree_cache)))
-                self._goal_subtree_cache[cache_key] = (self._graph_version, frozenset(visited))
-        return visited
+        return graph_queries.get_goal_subtree(self, goal_name, edge_types)
 
     @database.snapshot_read
     def get_dependency_view(self, root_name: str, *, include_soft: bool = True,
@@ -1211,95 +951,7 @@ class GraphManager:
         tuples. Discovery edges form the stable spanning tree used when the
         Details graph hides cross-links.
         """
-        root = self.get_node(root_name)
-        if root is None:
-            return {
-                "node_names": set(),
-                "depth_by_name": {},
-                "discovery_edges": set(),
-            }
-
-        depth_limit = None if not max_depth or max_depth <= 0 else int(max_depth)
-        allowed_need_types = {EDGE_NEEDS_HARD}
-        if include_soft:
-            allowed_need_types.add(EDGE_NEEDS_SOFT)
-
-        edges = sorted(
-            self.get_edges(),
-            key=lambda e: (e['target'], e['source'], e['type']),
-        )
-        incoming = {}
-        root_synergies = []
-        for edge in edges:
-            edge_type = edge['type']
-            if edge_type in allowed_need_types:
-                incoming.setdefault(edge['target'], []).append(edge)
-            elif include_synergies and edge_type == EDGE_HELPS:
-                if edge['target'] == root_name:
-                    root_synergies.append((edge['source'], edge))
-                elif edge['source'] == root_name:
-                    root_synergies.append((edge['target'], edge))
-        root_synergies.sort(key=lambda pair: (pair[0], pair[1]['source'], pair[1]['target']))
-
-        def traverse(allowed_names=None):
-            visited = {root_name}
-            depth_by_name = {root_name: 0}
-            discovery_edges = set()
-            queue = [root_name]
-            cursor = 0
-
-            while cursor < len(queue):
-                current = queue[cursor]
-                cursor += 1
-                current_depth = depth_by_name[current]
-                if depth_limit is not None and current_depth >= depth_limit:
-                    continue
-
-                candidates = [
-                    (edge['source'], edge)
-                    for edge in incoming.get(current, ())
-                ]
-                if current == root_name:
-                    candidates.extend(root_synergies)
-                candidates.sort(
-                    key=lambda pair: (pair[0], pair[1]['type'],
-                                      pair[1]['source'], pair[1]['target'])
-                )
-
-                for neighbor, edge in candidates:
-                    if allowed_names is not None and neighbor not in allowed_names:
-                        continue
-                    if neighbor in visited:
-                        continue
-                    visited.add(neighbor)
-                    depth_by_name[neighbor] = current_depth + 1
-                    discovery_edges.add(
-                        (edge['source'], edge['target'], edge['type'])
-                    )
-                    queue.append(neighbor)
-
-            return visited, depth_by_name, discovery_edges
-
-        candidate_names, _, _ = traverse()
-        if filters is not None:
-            candidate_nodes = [
-                self.get_node(name) for name in candidate_names
-                if name != root_name
-            ]
-            candidate_nodes = [node for node in candidate_nodes if node is not None]
-            filtered_names = {
-                node.name for node in self.filter_nodes(candidate_nodes, filters)
-            }
-            allowed_names = filtered_names | {root_name}
-            node_names, depth_by_name, discovery_edges = traverse(allowed_names)
-        else:
-            node_names, depth_by_name, discovery_edges = traverse()
-
-        return {
-            "node_names": node_names,
-            "depth_by_name": depth_by_name,
-            "discovery_edges": discovery_edges,
-        }
+        return graph_queries.get_dependency_view(self, root_name, include_soft=include_soft, include_synergies=include_synergies, max_depth=max_depth, filters=filters)
 
     @database.snapshot_read
     def get_goal_completion(self, goal_name: str, include_soft: bool = True,
@@ -1313,36 +965,7 @@ class GraphManager:
 
         Returns dict with: total, done, pct, remaining_time
         """
-        edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) if include_soft else (EDGE_NEEDS_HARD,)
-        if max_depth and max_depth > 0:
-            view = self.get_dependency_view(
-                goal_name,
-                include_soft=include_soft,
-                include_synergies=False,
-                max_depth=max_depth,
-            )
-            subtree = set(view["node_names"]) - {goal_name}
-        else:
-            subtree = self.get_goal_subtree(goal_name, edge_types=edge_types)
-        if include_transitive is False and not max_depth:
-            direct = {e['source'] for e in self.get_edges()
-                      if e['target'] == goal_name and e['type'] in edge_types}
-            subtree = subtree & direct
-        if not subtree:
-            return {"total": 0, "done": 0, "pct": 0, "remaining_time": 0.0}
-
-        nodes = [self.get_node(name) for name in subtree]
-        nodes = [n for n in nodes if n is not None]
-        total = len(nodes)
-        done = sum(1 for n in nodes if n.status == STATUS_DONE)
-        blocked = sum(1 for n in nodes if n.status == STATUS_BLOCKED)
-        remaining_time = sum(n.time for n in nodes if n.status != STATUS_DONE)
-        pct = round(done / total * 100) if total > 0 else 0
-        
-        # A goal is considered blocked if ALL of its remaining subtasks are blocked
-        is_blocked = (done + blocked == total) and (blocked > 0)
-
-        return {"total": total, "done": done, "pct": pct, "remaining_time": round(remaining_time, 1), "is_blocked": is_blocked}
+        return graph_queries.get_goal_completion(self, goal_name, include_soft, include_transitive, max_depth)
 
     @database.snapshot_read
     def get_effective_time(self, node_name: str) -> float:
@@ -1358,116 +981,13 @@ class GraphManager:
         Returns:
             Time in hours.
         """
-        node = self.get_node(node_name)
-        if not node:
-            return 0.0
-
-        if node.time_mode != 'inherited':
-            return node.time
-
-        # Inherited mode: sum subtree times
-        subtree = self.get_goal_subtree(node_name)
-        total = 0.0
-        for name in subtree:
-            child = self.get_node(name)
-            if child and child.status != STATUS_DONE:
-                total += child.time
-        return round(total, 2)
+        return graph_queries.get_effective_time(self, node_name)
 
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
-        result = nodes
-
-        # Dormant gate: hide dormant nodes unless the show_dormant filter is on.
-        # Single point of dormant inclusion/exclusion for the whole filter
-        # pipeline — generate_elements always fetches with include_dormant=True
-        # and lets this gate decide.
-        if not filters.get('show_dormant'):
-            result = [n for n in result if not n.dormant]
-
-        if 'context_subcontext_union' in filters:
-            # Selective union: each pair is (context, subcontexts_or_None).
-            # None means no subcontext restriction for that context.
-            allowed: Set[str] = set()
-            for ctx, subs in filters['context_subcontext_union']:
-                if subs is None:
-                    allowed.update(n.name for n in result if n.context == ctx)
-                else:
-                    allowed.update(n.name for n in result if n.context == ctx and n.subcontext in subs)
-            result = [n for n in result if n.name in allowed]
-        else:
-            if 'context' in filters:
-                ctx = filters['context']
-                if isinstance(ctx, list):
-                    result = [n for n in result if n.context in ctx]
-                else:
-                    result = [n for n in result if n.context == ctx]
-
-            if 'subcontext' in filters:
-                sub = filters['subcontext']
-                if isinstance(sub, list):
-                    result = [n for n in result if n.subcontext in sub]
-                else:
-                    result = [n for n in result if n.subcontext == sub]
-
-        if 'min_value' in filters:
-            result = [n for n in result if n.value >= int(filters['min_value'])]
-
-        if 'min_interest' in filters:
-            result = [n for n in result if n.interest >= int(filters['min_interest'])]
-
-        if 'max_time' in filters:
-            result = [n for n in result if getattr(n, 'time', 1.0) <= float(filters['max_time'])]
-
-        if 'max_difficulty' in filters:
-            result = [n for n in result if n.difficulty <= int(filters['max_difficulty'])]
-
-        if 'node_types' in filters:
-            result = [n for n in result if n.type in filters['node_types']]
-
-        if 'hide_done' in filters and filters['hide_done']:
-            result = [n for n in result if n.status != STATUS_DONE]
-
-        if 'hide_blocked' in filters and filters['hide_blocked']:
-            result = [n for n in result if n.status != STATUS_BLOCKED]
-
-        if 'search' in filters and filters['search']:
-            search_val = filters['search'].lower()
-            result = [n for n in result if search_val in n.name.lower()]
-
-        return result
+        return graph_queries.filter_nodes(self, nodes, filters)
 
     def get_prerequisite_chains(self, target_name: str) -> List[List[str]]:
-        target_node = self.get_node(target_name)
-        if not target_node:
-            return []
-
-        chains = []
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name, status FROM Nodes")
-            status_lookup = {row[0]: row[1] for row in cursor.fetchall()}
-
-            def dfs(current_path):
-                curr_node = current_path[-1]
-                cursor.execute("SELECT source FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')", (curr_node,))
-                prereqs = [row[0] for row in cursor.fetchall()]
-
-                if not prereqs:
-                    has_incomplete = any(
-                        status_lookup.get(p, STATUS_OPEN) != STATUS_DONE
-                        for p in current_path
-                    )
-                    if has_incomplete:
-                        chains.append(list(reversed(current_path)))
-                    return
-
-                for prereq in prereqs:
-                    if prereq not in current_path:
-                        dfs(current_path + [prereq])
-
-            dfs([target_name])
-
-        return chains
+        return graph_queries.get_prerequisite_chains(self, target_name)
 
     def get_prerequisite_chains_typed(self, target_name: str) -> List[tuple]:
         """Returns prerequisite chains classified as 'Hard' or 'Soft'.
@@ -1475,53 +995,10 @@ class GraphManager:
         Each result is (chain, type_str) where type_str is 'Hard' if all edges
         in the chain are Needs_Hard, else 'Soft'.
         """
-        target_node = self.get_node(target_name)
-        if not target_node:
-            return []
-
-        typed_chains = []
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name, status FROM Nodes")
-            status_lookup = {row[0]: row[1] for row in cursor.fetchall()}
-
-            def dfs(current_path, has_soft):
-                curr_node = current_path[-1]
-                cursor.execute(
-                    "SELECT source, type FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')",
-                    (curr_node,))
-                prereqs = cursor.fetchall()
-
-                if not prereqs:
-                    has_incomplete = any(
-                        status_lookup.get(p, STATUS_OPEN) != STATUS_DONE
-                        for p in current_path
-                    )
-                    if has_incomplete:
-                        chain = list(reversed(current_path))
-                        typed_chains.append((chain, "Soft" if has_soft else "Hard"))
-                    return
-
-                for prereq_name, edge_type in prereqs:
-                    if prereq_name not in current_path:
-                        dfs(current_path + [prereq_name],
-                            has_soft or edge_type == 'Needs_Soft')
-
-            dfs([target_name], False)
-
-        return typed_chains
+        return graph_queries.get_prerequisite_chains_typed(self, target_name)
 
     def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> nx.Graph:
-        G = nx.Graph()
-        nodes = self.get_all_nodes()
-        edges = self.get_edges()
-        for n in nodes:
-            if allowed_names is None or n.name in allowed_names:
-                G.add_node(n.name)
-        for e in edges:
-            if e['source'] in G.nodes and e['target'] in G.nodes:
-                G.add_edge(e['source'], e['target'])
-        return G
+        return graph_queries._build_nx_graph(self, allowed_names)
 
     # --- Migration ---
 
@@ -1660,104 +1137,8 @@ class GraphManager:
         2. Otherwise, if a dominant node type covers >=60%, use it as the label.
         3. Otherwise, find the most frequent meaningful word across node names.
         """
-        if not community:
-            return "Empty"
-
-        nodes = [self.get_node(name) for name in community]
-        nodes = [n for n in nodes if n is not None]
-        if not nodes:
-            return "Unknown"
-
-        from collections import Counter
-
-        # --- Strategy 1: Dominant context ---
-        contexts = [n.context for n in nodes if n.context]
-        if contexts:
-            ctx_counts = Counter(contexts)
-            top_ctx, top_count = ctx_counts.most_common(1)[0]
-            if top_count / len(nodes) >= 0.5:
-                # Check for dominant subcontext within this context
-                subcontexts = [n.subcontext for n in nodes if n.context == top_ctx and n.subcontext]
-                if subcontexts:
-                    sub_counts = Counter(subcontexts)
-                    top_sub, sub_count = sub_counts.most_common(1)[0]
-                    if sub_count / top_count >= 0.5:
-                        return f"{top_ctx} > {top_sub}"
-                return top_ctx
-
-        # --- Strategy 2: Dominant type ---
-        types = [n.type for n in nodes if n.type]
-        if types:
-            type_counts = Counter(types)
-            top_type, type_count = type_counts.most_common(1)[0]
-            if type_count / len(nodes) >= 0.6:
-                return f"{top_type}s"
-
-        # --- Strategy 3: Common words in node names ---
-        stop_words = {
-            'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'for', 'with',
-            'on', 'at', 'by', 'is', 'it', 'as', 'be', 'do', 'how', 'my',
-            'i', 'me', 'up', 'so', 'no', 'not', 'but', 'get', 'set', '&',
-            '-', '1', '2', '3', '4', '5',
-        }
-        all_words: list[str] = []
-        for n in nodes:
-            words = n.name.lower().replace('-', ' ').replace('_', ' ').split()
-            all_words.extend(w for w in words if len(w) > 2 and w not in stop_words)
-        if all_words:
-            word_counts = Counter(all_words)
-            top_word, _ = word_counts.most_common(1)[0]
-            return top_word.title()
-
-        # Final fallback
-        return "Mixed"
+        return graph_queries.name_community(self, community)
 
     @database.consistent_read
     def detect_communities(self, method: str = "components", filters: Optional[Dict] = None) -> List[Set[str]]:
-        if filters:
-            all_nodes = self.get_all_nodes()
-            filtered_nodes = self.filter_nodes(all_nodes, filters)
-            allowed_names = {n.name for n in filtered_nodes}
-        else:
-            allowed_names = None
-
-        # Cache keyed by (method, sorted allowed names, graph_version). The
-        # version key makes invalidation automatic: any mutator bumps the
-        # version, so subsequent calls miss and recompute.
-        allowed_key = tuple(sorted(allowed_names)) if allowed_names is not None else None
-        cache_key = (method, allowed_key, self._graph_version)
-        with self._cache_lock:
-            self._prepare_read_caches()
-            cached = self._community_cache.get(cache_key)
-            if cached is not None:
-                self._community_cache.move_to_end(cache_key)
-        if cached is not None and not database.in_transaction():
-            return [set(c) for c in cached]
-
-        G = self._build_nx_graph(allowed_names=allowed_names)
-        if len(G.nodes) == 0:
-            result: List[Set[str]] = []
-            self._cache_communities(cache_key, result)
-            return result
-
-        if method == "orphans":
-            # Each isolated node (degree 0 in the filtered graph) is its own "community"
-            result = [{node} for node in G.nodes if G.degree(node) == 0]
-            self._cache_communities(cache_key, result)
-            return [set(c) for c in result]
-
-        if method == "louvain":
-            communities = []
-            for component in nx.connected_components(G):
-                subgraph = G.subgraph(component)
-                if len(subgraph.nodes) <= 2 or len(subgraph.edges) == 0:
-                    communities.append(set(subgraph.nodes))
-                else:
-                    sub_communities = nx.community.louvain_communities(subgraph, seed=42)
-                    communities.extend(sub_communities)
-            communities = sorted(communities, key=len, reverse=True)
-        else:
-            communities = sorted(nx.connected_components(G), key=len, reverse=True)
-
-        self._cache_communities(cache_key, communities)
-        return [set(c) for c in communities]
+        return graph_queries.detect_communities(self, method, filters)
