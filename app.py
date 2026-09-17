@@ -1,21 +1,31 @@
+"""Explicit application construction and the desktop/browser launch entry point."""
 import logging
 import sys
 import os
 import ctypes
 import uuid
+import webbrowser
+import threading
+import socket
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-# Set environment before importing modules that read config.ENVIRONMENT (e.g. database.py)
 import config
 import database
 
-if "--sandbox" in sys.argv:
-    config.ENVIRONMENT = "sandbox"
-ENVIRONMENT = config.ENVIRONMENT
+_logger = logging.getLogger(__name__)
 
 
-def _configure_logging() -> None:
+@dataclass(frozen=True)
+class AppSettings:
+    environment: str = "production"
+    configure_logging: bool = True
+
+
+def _configure_logging(environment) -> None:
     """Send INFO+ logs to stderr AND a rotating file in data/.
 
     Sandbox and production write to separate log files so the two never
@@ -27,7 +37,7 @@ def _configure_logging() -> None:
 
     log_dir = Path(__file__).parent / 'data'
     log_dir.mkdir(exist_ok=True)
-    log_name = 'sandbox_app.log' if ENVIRONMENT == 'sandbox' else 'app.log'
+    log_name = 'sandbox_app.log' if environment == 'sandbox' else 'app.log'
 
     file_handler = RotatingFileHandler(
         log_dir / log_name,
@@ -52,73 +62,75 @@ def _configure_logging() -> None:
         root.addHandler(stream_handler)
 
 
-_configure_logging()
+def create_app(settings=None, services=None):
+    """Build one app after selecting its database and running startup repairs.
 
-import dash
-import dash_cytoscape as cyto
-import webbrowser
-import threading
-import socket
-import urllib.error
-import urllib.request
-import dash_bootstrap_components as dbc
-from layout import build_app_layout
-from canvases import install_client_registry
+    Like the desktop launcher, this process owns one database. Tests may
+    replace database.get_db_path before construction to use disposable data.
+    """
+    settings = settings or AppSettings()
+    if settings.environment not in {"production", "sandbox"}:
+        raise ValueError("Unknown application environment")
+    if database._db_path_cache is not None and config.ENVIRONMENT != settings.environment:
+        raise RuntimeError("A process cannot switch databases after startup")
+    config.ENVIRONMENT = settings.environment
+    if settings.configure_logging:
+        _configure_logging(settings.environment)
 
-cyto.load_extra_layouts()
-from callbacks import generate_elements, register_callbacks
-from event_callbacks import register_event_callbacks
-from details_callbacks import register_details_callbacks
-from next_callbacks import register_next_callbacks
-from settings_callbacks import register_settings_callbacks
-from review_hub_callbacks import register_review_hub_callbacks
-from analyze_callbacks import register_analyze_callbacks
-from sidebars_callbacks import register_sidebars_callbacks
-from context_picker import register_context_picker_callbacks
-from list_toolbar import register_list_toolbar_callbacks
-from config import ConfigManager
+    from config import ConfigManager
+    from app_services import AppServices
+    database.init_db()
+    services = services or AppServices()
+    ConfigManager.ensure_action_type()
+    ConfigManager.ensure_goal_type()
+    ConfigManager.ensure_milestone_type()
+    repaired = services.graph.recompute_all_statuses()
+    if repaired:
+        _logger.info("Startup safety-net repaired %d node status(es).", repaired)
 
-# Fix blurry file explorer on high-DPI Windows displays.
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
-    pass
+    import dash
+    import dash_cytoscape as cyto
+    import dash_bootstrap_components as dbc
+    from layout import build_app_layout
+    from canvases import install_client_registry
+    from callbacks import register_callbacks
+    from event_callbacks import register_event_callbacks
+    from details_callbacks import register_details_callbacks
+    from next_callbacks import register_next_callbacks
+    from settings_callbacks import register_settings_callbacks
+    from review_hub_callbacks import register_review_hub_callbacks
+    from analyze_callbacks import register_analyze_callbacks
+    from sidebars_callbacks import register_sidebars_callbacks
+    from context_picker import register_context_picker_callbacks
+    from list_toolbar import register_list_toolbar_callbacks
 
-ConfigManager.ensure_action_type()
-ConfigManager.ensure_goal_type()
-ConfigManager.ensure_milestone_type()
+    cyto.load_extra_layouts()
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
+    app = dash.Dash(__name__, external_stylesheets=[
+        dbc.themes.DARKLY,
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
+    ])
+    app.title = "Skill Tree (Sandbox)" if settings.environment == "sandbox" else "Skill Tree"
+    app.skill_tree_services = services
+    install_client_registry(app)
+    app.layout = database.snapshot_read(
+        lambda: build_app_layout(initial_elements=[], env=settings.environment))
+    for register in (register_callbacks, register_event_callbacks,
+                     register_details_callbacks, register_next_callbacks,
+                     register_settings_callbacks, register_review_hub_callbacks,
+                     register_analyze_callbacks, register_sidebars_callbacks):
+        register(app, services)
+    register_context_picker_callbacks(app)
+    register_list_toolbar_callbacks(app)
+    app.server.add_url_rule('/open-obsidian', view_func=open_obsidian_route)
+    boot_id = uuid.uuid4().hex
+    app.server.add_url_rule('/_server_boot_id', view_func=lambda: boot_id)
+    return app
 
-# Safety-net: repair any drift between stored node.status and what the cascade
-# would derive from current Needs_Hard edges. Covers cases where a mutation
-# path bypassed _update_node_state (e.g. add_edge IntegrityError, direct SQL).
-from graph_manager import GraphManager
-_logger = logging.getLogger(__name__)
-_repaired = GraphManager().recompute_all_statuses()
-if _repaired:
-    _logger.info("Startup safety-net repaired %d node status(es).", _repaired)
 
-app = dash.Dash(__name__, external_stylesheets=[
-    dbc.themes.DARKLY,
-    "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
-])
-app.title = "Skill Tree (Sandbox)" if ENVIRONMENT == "sandbox" else "Skill Tree"
-install_client_registry(app)
-app.layout = database.snapshot_read(
-    # The initial core callback fills the canvas. Avoid generating the same
-    # hidden graph twice before the default Next tab becomes usable.
-    lambda: build_app_layout(initial_elements=[], env=ENVIRONMENT))
-register_callbacks(app)
-register_event_callbacks(app)
-register_details_callbacks(app)
-register_next_callbacks(app)
-register_settings_callbacks(app)
-register_review_hub_callbacks(app)
-register_analyze_callbacks(app)
-register_sidebars_callbacks(app)
-register_context_picker_callbacks(app)
-register_list_toolbar_callbacks(app)
-
-@app.server.route('/open-obsidian')
 def open_obsidian_route():
     from flask import request, jsonify
     import os
@@ -140,12 +152,6 @@ def open_obsidian_route():
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
-
-SERVER_BOOT_ID = uuid.uuid4().hex
-
-@app.server.route('/_server_boot_id')
-def _server_boot_id():
-    return SERVER_BOOT_ID
 
 
 def _parse_port(argv) -> int:
@@ -213,13 +219,16 @@ def _existing_instance_running(port: int) -> bool:
     return _existing_skill_tree_server(port)
 
 
-if __name__ == '__main__':
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    environment = "sandbox" if "--sandbox" in argv else "production"
+    app = create_app(AppSettings(environment=environment))
     # Optional --port flag so a sandbox instance can run alongside production
     # without colliding on 8050.
-    _port = _parse_port(sys.argv)
+    _port = _parse_port(argv)
     # --no-browser: just run the server, don't auto-open a browser. Used when the
     # Electron desktop shell hosts the page and loads the URL itself.
-    _no_browser = "--no-browser" in sys.argv
+    _no_browser = "--no-browser" in argv
 
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and _existing_instance_running(_port):
         _logger.info("Skill Tree is already running on port %d; exiting duplicate launch.", _port)
@@ -243,6 +252,10 @@ if __name__ == '__main__':
         # parent (WERKZEUG_RUN_MAIN unset) and is skipped in the child the
         # reloader spawns (WERKZEUG_RUN_MAIN=="true"). debug=True also keeps the
         # in-browser error pages.
-        _hot_reload = (ENVIRONMENT == "sandbox")
+        _hot_reload = (environment == "sandbox")
         app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=_hot_reload,
                 use_reloader=_hot_reload, port=_port)
+
+
+if __name__ == "__main__":
+    main()

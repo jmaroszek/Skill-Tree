@@ -25,3 +25,19 @@ payloads, and interaction behavior. Database schema fixes are separate work.
 
 Former locations re-export extracted functions to preserve existing Python callers.
 Boundary tests prevent shared modules from depending on callback registration again.
+
+Validation: 1,451 regression tests passed (the two optional real-database copy
+tests were excluded); eight dependency-boundary checks passed.
+
+## Stage 2
+
+`create_app(AppSettings(...))` now selects the environment, initializes the schema,
+seeds required configuration, repairs status drift, constructs the layout, and
+registers callbacks. `main()` retains browser/Electron launch behavior. Importing
+application modules no longer initializes SQLite or installs logging handlers.
+
+`AppServices` owns the graph/event managers captured by registered callbacks.
+Standalone helper APIs retain inert default managers for compatibility; the process
+still owns one database, as before. Layout component factories replace templates
+that previously queried settings at import time. Former template names remain
+available to Python callers through lazy construction.

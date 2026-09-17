@@ -27,12 +27,9 @@ class EventManager:
     """Gateway for the Events and EventNodes tables.
 
     Mirrors the shape of GraphManager but scoped to event-related state.
-    Construction runs database.init_db() defensively so the schema exists
-    regardless of which module is imported first.
+    Application startup initializes the schema before managers are used.
     """
 
-    def __init__(self):
-        database.init_db()
 
     @staticmethod
     def _graph_changed(scoring=True):

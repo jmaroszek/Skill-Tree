@@ -132,7 +132,9 @@ def _format_node_counts(activated, scheduled, now_pinned=(), now_skipped=()):
     return " — ".join(parts) if parts else "No nodes"
 
 
-def register_event_callbacks(app):
+def register_event_callbacks(app, services=None):
+    event_manager = services.events if services is not None else globals()['event_manager']
+    graph_manager = services.graph if services is not None else globals()['graph_manager']
 
     # Events arrival gate. The three data-heavy Events callbacks below still
     # refresh when the user opens Events, but switching between any other tabs

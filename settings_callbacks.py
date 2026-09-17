@@ -188,7 +188,8 @@ def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals:
                                          sub_val, new_subcontexts)
 
 
-def register_settings_callbacks(app):
+def register_settings_callbacks(app, services=None):
+    manager = services.graph if services is not None else globals()['manager']
 
     # --- Settings: Auto-resize the Definitions textarea to fit its line count ---
     # Bounds [3, 10] rows. Fires on every keystroke; runs in the browser so

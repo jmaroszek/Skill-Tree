@@ -311,7 +311,9 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
     return elements
 
 
-def register_callbacks(app):
+def register_callbacks(app, services=None):
+    manager = services.graph if services is not None else globals()['manager']
+    event_manager = services.events if services is not None else globals()['event_manager']
     """Register all Dash callbacks for the application."""
 
     # --- Graph Version Bridge ---

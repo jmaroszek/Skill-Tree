@@ -128,7 +128,8 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
     return cards
 
 
-def register_sidebars_callbacks(app):
+def register_sidebars_callbacks(app, services=None):
+    graph_manager = services.graph if services is not None else globals()['graph_manager']
     """Register the cross-tab sidebar callbacks: goals (toggle, new, render,
     priority, drag-reorder), filters toggle, editor fast-path."""
 

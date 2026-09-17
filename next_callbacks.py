@@ -29,7 +29,8 @@ def get_suggestions(filters=None, count=5):
     return _get_suggestions(filters, count, manager=manager)
 
 
-def register_next_callbacks(app):
+def register_next_callbacks(app, services=None):
+    manager = services.graph if services is not None else globals()['manager']
 
     # --- Suggestion Count +/- ---
     @app.callback(

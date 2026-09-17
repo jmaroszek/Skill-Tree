@@ -1014,7 +1014,8 @@ def _render_hours_by_context(ctx_data, height=None):
 # Callback registration
 # ---------------------------------------------------------------------------
 
-def register_analyze_callbacks(app):
+def register_analyze_callbacks(app, services=None):
+    graph_manager = services.graph if services is not None else globals()['graph_manager']
 
     # Arrival gate. Listening to `main-tabs.active_tab` directly meant every
     # tab switch anywhere in the app posted a request to the server just to

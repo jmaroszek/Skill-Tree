@@ -165,7 +165,8 @@ def _filter_history_nodes(nodes, search, ctx_filter, subctx_filter):
     return nodes
 
 
-def register_review_hub_callbacks(app):
+def register_review_hub_callbacks(app, services=None):
+    _manager = services.graph if services is not None else globals()['_manager']
     # --- Toggle the hub modal from the toolbar's clock-history icon ---
     # The button used to launch the focused-review queue directly; that
     # behavior now lives behind the hub's "Start review" button. Clicking the

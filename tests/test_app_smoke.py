@@ -27,6 +27,8 @@ def isolated_app_import(monkeypatch):
 
     import app as app_module
     importlib.reload(app_module)
+    app_module.app = app_module.create_app(
+        app_module.AppSettings(environment="sandbox", configure_logging=False))
     return app_module
 
 

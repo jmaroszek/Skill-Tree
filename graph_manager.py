@@ -79,7 +79,6 @@ class GraphManager:
     _startup_perf_recorded: bool = False
 
     def __init__(self):
-        database.init_db()
         self._community_cache: Dict[tuple, List[Set[str]]] = OrderedDict()
         self._scoring_memo: dict = {}
         self._scoring_memo_key: Optional[tuple] = None

@@ -107,73 +107,76 @@ _formula_hint_style = {"fontSize": "0.8rem", "fontFamily": "monospace", "color":
 
 # --- Info Panels ---
 
-relationships_view = html.Div([
-    html.H6("Relationships", className="text-muted mb-2", style=_section_title_style),
-    html.Div([
+def build_relationships_view():
+    return html.Div([
+        html.H6("Relationships", className="text-muted mb-2", style=_section_title_style),
         html.Div([
-            html.H6("Hard Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
-            html.Div(id="traversal-chains-hard")
-        ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
-        html.Div([
-            html.H6("Soft Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
-            html.Div(id="traversal-chains-soft")
-        ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
-        html.Div([
-            html.H6("Synergies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
-            html.Div(id="synergies-list")
-        ], style={"flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
-    ], style={"display": "flex", "alignItems": "flex-start"})
-], style={"flex": "0 0 auto", "maxWidth": "80%", "minWidth": 0})
+            html.Div([
+                html.H6("Hard Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+                html.Div(id="traversal-chains-hard")
+            ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
+            html.Div([
+                html.H6("Soft Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+                html.Div(id="traversal-chains-soft")
+            ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
+            html.Div([
+                html.H6("Synergies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+                html.Div(id="synergies-list")
+            ], style={"flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
+        ], style={"display": "flex", "alignItems": "flex-start"})
+    ], style={"flex": "0 0 auto", "maxWidth": "80%", "minWidth": 0})
 
-description_view = html.Div([
-    html.H6("Description", className="text-muted mb-2", style=_section_title_style),
-    html.Div(id="node-info-description", style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
-], style={"flex": "1", "marginLeft": "3rem", "minWidth": 0})
+def build_description_view():
+    return html.Div([
+        html.H6("Description", className="text-muted mb-2", style=_section_title_style),
+        html.Div(id="node-info-description", style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
+    ], style={"flex": "1", "marginLeft": "3rem", "minWidth": 0})
 
 # --- Next View ---
 
-next_view = html.Div([
-    dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
+def build_next_view():
+    return html.Div([
+        dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
     
-    # "Now" section — currently-Now nodes (cap = ConfigManager.get_now_node_cap()).
-    # Heading + rows are emitted together by populate_now_section. The
-    # section collapses to zero height when there are no Now nodes, so
-    # the Next heading floats to the top of the tab.
-    html.Div(id="now-nodes-table"),
+        # "Now" section — currently-Now nodes (cap = ConfigManager.get_now_node_cap()).
+        # Heading + rows are emitted together by populate_now_section. The
+        # section collapses to zero height when there are no Now nodes, so
+        # the Next heading floats to the top of the tab.
+        html.Div(id="now-nodes-table"),
     
-    html.Div([
-        html.H6("Next", className="text-muted mb-0", style=_section_title_style),
-        dbc.ButtonGroup([
-            dbc.Button("−", id="btn-sugg-minus", color="link", size="sm",
-                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 2px",
-                              "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
-            html.Span(id="suggestion-count-display", children=str(ConfigManager.get_next_table_rows()),
-                       className="align-self-center mx-1",
-                       style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
-                              "textAlign": "center"}),
-            dbc.Button("+", id="btn-sugg-plus", color="link", size="sm",
-                       style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 2px",
-                              "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
-        ], className="align-middle"),
-    ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
+        html.Div([
+            html.H6("Next", className="text-muted mb-0", style=_section_title_style),
+            dbc.ButtonGroup([
+                dbc.Button("−", id="btn-sugg-minus", color="link", size="sm",
+                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 2px",
+                                  "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
+                html.Span(id="suggestion-count-display", children=str(ConfigManager.get_next_table_rows()),
+                           className="align-self-center mx-1",
+                           style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
+                                  "textAlign": "center"}),
+                dbc.Button("+", id="btn-sugg-plus", color="link", size="sm",
+                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 2px",
+                                  "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
+            ], className="align-middle"),
+        ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     
-    dcc.Store(id='selected-suggestion-store', data=None),
-    dcc.Store(id='focus-goal-store', data=None),
+        dcc.Store(id='selected-suggestion-store', data=None),
+        dcc.Store(id='focus-goal-store', data=None),
     
-    # Next Table and Description side-by-side
-    html.Div([
-        html.Div(id="suggestions-table", children=[
-            html.P("Loading suggestions...", className="text-muted mt-3")
-        ], style={"flex": "4 1 0", "minWidth": 0}),
+        # Next Table and Description side-by-side
+        html.Div([
+            html.Div(id="suggestions-table", children=[
+                html.P("Loading suggestions...", className="text-muted mt-3")
+            ], style={"flex": "4 1 0", "minWidth": 0}),
         
-        # Description area — populated when clicking a Now card or Next row.
-        html.Div(id="next-description-area", children=[
-            html.H6("Description", className="text-muted mb-2", style=_section_title_style),
-            html.Div("Click a card or row to see its description", id="next-description-text",
-                     style={"color": "#6c757d", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
-        ], style={"flex": "1 1 0", "maxWidth": "800px"}),
-    ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
-])
+            # Description area — populated when clicking a Now card or Next row.
+            html.Div(id="next-description-area", children=[
+                html.H6("Description", className="text-muted mb-2", style=_section_title_style),
+                html.Div("Click a card or row to see its description", id="next-description-text",
+                         style={"color": "#6c757d", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
+            ], style={"flex": "1 1 0", "maxWidth": "800px"}),
+        ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
+    ])
 
 
 # --- Migration Modal ---
@@ -446,91 +449,98 @@ def build_migration_content(orphans_by_field, new_values_by_field,
     }
 
 
-migration_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Migration Required")),
-    dbc.ModalBody(id="migration-modal-body"),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-migration-cancel", color="secondary", className="me-auto"),
-        dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
-        dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
-    ])
-], id="modal-migration", size="xl", is_open=False, centered=True, backdrop="static")
+def build_migration_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Migration Required")),
+        dbc.ModalBody(id="migration-modal-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-migration-cancel", color="secondary", className="me-auto"),
+            dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
+            dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
+        ])
+    ], id="modal-migration", size="xl", is_open=False, centered=True, backdrop="static")
 
 
-error_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Validation Error", className="text-danger")),
-    dbc.ModalBody(id="error-modal-body", style={"color": "#dee2e6"}),
-    dbc.ModalFooter(dbc.Button("Close", id="btn-close-error", color="secondary"))
-], id="modal-error", size="sm", is_open=False, centered=True)
+def build_error_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Validation Error", className="text-danger")),
+        dbc.ModalBody(id="error-modal-body", style={"color": "#dee2e6"}),
+        dbc.ModalFooter(dbc.Button("Close", id="btn-close-error", color="secondary"))
+    ], id="modal-error", size="sm", is_open=False, centered=True)
 
 
-unsaved_changes_modal = dbc.Modal([
-    # close_button=False removes the header X so the modal can only be resolved
-    # via one of the three footer actions. backdrop="static" + keyboard=False
-    # block backdrop-click and Esc dismissals; Bootstrap auto-plays its built-in
-    # "shake" animation on the modal when the static backdrop is clicked.
-    dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes"), close_button=False),
-    dbc.ModalBody("You have unsaved changes. Please choose an action to continue."),
-    dbc.ModalFooter([
-        dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="flex-fill me-2"),
-        dbc.Button("Edit", id="btn-unsaved-cancel", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Save", id="btn-unsaved-save", color="success", className="flex-fill"),
-    ], className="d-flex flex-nowrap"),
-], id="modal-unsaved-changes", size="sm", is_open=False, centered=True,
-   backdrop="static", keyboard=False)
+def build_unsaved_changes_modal():
+    return dbc.Modal([
+        # close_button=False removes the header X so the modal can only be resolved
+        # via one of the three footer actions. backdrop="static" + keyboard=False
+        # block backdrop-click and Esc dismissals; Bootstrap auto-plays its built-in
+        # "shake" animation on the modal when the static backdrop is clicked.
+        dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes"), close_button=False),
+        dbc.ModalBody("You have unsaved changes. Please choose an action to continue."),
+        dbc.ModalFooter([
+            dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="flex-fill me-2"),
+            dbc.Button("Edit", id="btn-unsaved-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Save", id="btn-unsaved-save", color="success", className="flex-fill"),
+        ], className="d-flex flex-nowrap"),
+    ], id="modal-unsaved-changes", size="sm", is_open=False, centered=True,
+       backdrop="static", keyboard=False)
 
 
-delete_confirm_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
-    dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone."),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-node-delete-cancel", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill",
-                   style={"backgroundColor": ConfigManager.get_danger_color(),
-                          "borderColor": ConfigManager.get_danger_color()}),
-    ], className="d-flex"),
-], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
+def build_delete_confirm_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
+        dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone."),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-node-delete-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill",
+                       style={"backgroundColor": ConfigManager.get_danger_color(),
+                              "borderColor": ConfigManager.get_danger_color()}),
+        ], className="d-flex"),
+    ], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
 
 
 # Confirmation modal for un-marking a Done node when downstream Done nodes
 # would be re-blocked by the cascade. Lists the affected nodes and waits for
 # explicit confirmation so the user knows their previously-Done dependents
 # will flip to Blocked.
-undo_done_confirm_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Un-mark as Done?")),
-    dbc.ModalBody(id="undo-done-confirm-body"),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-undo-done-cancel", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-undo-done-confirm", size="md", is_open=False, centered=True)
+def build_undo_done_confirm_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Un-mark as Done?")),
+        dbc.ModalBody(id="undo-done-confirm-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-undo-done-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
+        ], className="d-flex"),
+    ], id="modal-undo-done-confirm", size="md", is_open=False, centered=True)
 
 
 # Confirms detaching a dormant node from its event(s) and waking it back into
 # the live graph. Triggered by toggling the editor's Dormant switch off.
 # Distinct from the events-tab "Delete event" flow — this preserves the node,
 # only severs the event association and clears dormant=1.
-dormant_deactivate_confirm_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Wake node?")),
-    dbc.ModalBody(id="dormant-deactivate-confirm-body"),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-dormant-deactivate-cancel", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Wake", id="btn-dormant-deactivate-confirm", color="primary", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-dormant-deactivate-confirm", size="md", is_open=False, centered=True)
+def build_dormant_deactivate_confirm_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Wake node?")),
+        dbc.ModalBody(id="dormant-deactivate-confirm-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-dormant-deactivate-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Wake", id="btn-dormant-deactivate-confirm", color="primary", className="flex-fill"),
+        ], className="d-flex"),
+    ], id="modal-dormant-deactivate-confirm", size="md", is_open=False, centered=True)
 
 
 # Suggestion modal that fires when the last hard prerequisite of a Goal or
 # Milestone becomes Done. Offers a one-click "Mark Done" without forcing it —
 # matches the user's preference that container completion remain explicit.
-auto_done_suggestion_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Mark Done?")),
-    dbc.ModalBody(id="auto-done-suggestion-body"),
-    dbc.ModalFooter([
-        dbc.Button("Dismiss", id="btn-auto-done-dismiss", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Mark Done", id="btn-auto-done-confirm", color="primary", className="flex-fill"),
-    ], className="d-flex"),
-], id="modal-auto-done-suggestion", size="sm", is_open=False, centered=True)
+def build_auto_done_suggestion_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Mark Done?")),
+        dbc.ModalBody(id="auto-done-suggestion-body"),
+        dbc.ModalFooter([
+            dbc.Button("Dismiss", id="btn-auto-done-dismiss", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Mark Done", id="btn-auto-done-confirm", color="primary", className="flex-fill"),
+        ], className="d-flex"),
+    ], id="modal-auto-done-suggestion", size="sm", is_open=False, centered=True)
 
 
 # Time-calibration modal: pops after an explicit single-node completion to
@@ -539,153 +549,158 @@ auto_done_suggestion_modal = dbc.Modal([
 # by core_engine with the node name and its original estimate. Input fields are
 # static (the app doesn't suppress callback exceptions, so State-referenced IDs
 # must exist in the initial layout); they are reset on close.
-time_calibration_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Reflection", id="time-calibration-title")),
-    dbc.ModalBody([
-        # Progress bar — shown in review + completion (chrome callback toggles).
-        html.Div(id="calibration-review-progress-wrap", style={"display": "none"},
-                 className="mb-3", children=[
-            dbc.Progress(id="calibration-review-progress", value=0, label="",
-                         style={"height": "20px"}),
-        ]),
-        # Active rating form — hidden on the completion screen.
-        html.Div(id="time-calibration-active", children=[
-            html.Div(id="time-calibration-reference", className="text-muted small mb-3"),
-            html.H6("How long did it actually take?", className="mb-2"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Lower Bound"),
-                    dbc.Input(id="time-calibration-lower", type="number", min=0),
-                ], width=4),
-                dbc.Col([
-                    dbc.Label("Best Estimate"),
-                    dbc.Input(id="time-calibration-point", type="number", min=0),
-                ], width=4),
-                dbc.Col([
-                    dbc.Label("Upper Bound"),
-                    dbc.Input(id="time-calibration-upper", type="number", min=0),
-                ], width=4),
+def build_time_calibration_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Reflection", id="time-calibration-title")),
+        dbc.ModalBody([
+            # Progress bar — shown in review + completion (chrome callback toggles).
+            html.Div(id="calibration-review-progress-wrap", style={"display": "none"},
+                     className="mb-3", children=[
+                dbc.Progress(id="calibration-review-progress", value=0, label="",
+                             style={"height": "20px"}),
             ]),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Unit", className="mt-2"),
-                    dbc.Select(id="time-calibration-unit", value="hours", options=[
-                        {"label": "Hours", "value": "hours"},
-                        {"label": "Weeks", "value": "weeks"},
-                        {"label": "Months", "value": "months"},
-                    ]),
-                ], width=4),
-            ], className="mt-1"),
-            # V/I/E sliders — capture how the node *actually* felt now that
-            # the work is done. Stored as reflect_value/interest/difficulty
-            # (separate from the estimate columns value/interest/difficulty).
-            html.Div(id="calibration-vie-section", children=[
-                html.Hr(className="my-3"),
-                html.Div([
-                    html.H6("How was it actually?", className="mb-0"),
-                    html.Button(
-                        html.I(className="bi bi-info-circle"),
-                        id="btn-reflection-ratings-info",
-                        style={
-                            "background": "none", "border": "none", "padding": "0 0 0 6px",
-                            "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
-                            "lineHeight": "1", "position": "relative", "top": "0px"
-                        }
-                    ),
-                    dbc.Tooltip("Ratings reference", target="btn-reflection-ratings-info", placement="right",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                ], className="d-flex align-items-center mb-2"),
-                dbc.Label("Actual Value", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5,
-                           id="calibration-value",
-                           marks={i: str(i) for i in range(1, 11)}),
-                dbc.Label("Actual Interest", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5,
-                           id="calibration-interest",
-                           marks={i: str(i) for i in range(1, 11)}),
-                dbc.Label("Actual Effort", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5,
-                           id="calibration-difficulty",
-                           marks={i: str(i) for i in range(1, 11)}),
+            # Active rating form — hidden on the completion screen.
+            html.Div(id="time-calibration-active", children=[
+                html.Div(id="time-calibration-reference", className="text-muted small mb-3"),
+                html.H6("How long did it actually take?", className="mb-2"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Label("Lower Bound"),
+                        dbc.Input(id="time-calibration-lower", type="number", min=0),
+                    ], width=4),
+                    dbc.Col([
+                        dbc.Label("Best Estimate"),
+                        dbc.Input(id="time-calibration-point", type="number", min=0),
+                    ], width=4),
+                    dbc.Col([
+                        dbc.Label("Upper Bound"),
+                        dbc.Input(id="time-calibration-upper", type="number", min=0),
+                    ], width=4),
+                ]),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Label("Unit", className="mt-2"),
+                        dbc.Select(id="time-calibration-unit", value="hours", options=[
+                            {"label": "Hours", "value": "hours"},
+                            {"label": "Weeks", "value": "weeks"},
+                            {"label": "Months", "value": "months"},
+                        ]),
+                    ], width=4),
+                ], className="mt-1"),
+                # V/I/E sliders — capture how the node *actually* felt now that
+                # the work is done. Stored as reflect_value/interest/difficulty
+                # (separate from the estimate columns value/interest/difficulty).
+                html.Div(id="calibration-vie-section", children=[
+                    html.Hr(className="my-3"),
+                    html.Div([
+                        html.H6("How was it actually?", className="mb-0"),
+                        html.Button(
+                            html.I(className="bi bi-info-circle"),
+                            id="btn-reflection-ratings-info",
+                            style={
+                                "background": "none", "border": "none", "padding": "0 0 0 6px",
+                                "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
+                                "lineHeight": "1", "position": "relative", "top": "0px"
+                            }
+                        ),
+                        dbc.Tooltip("Ratings reference", target="btn-reflection-ratings-info", placement="right",
+                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                    ], className="d-flex align-items-center mb-2"),
+                    dbc.Label("Actual Value", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-value",
+                               marks={i: str(i) for i in range(1, 11)}),
+                    dbc.Label("Actual Interest", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-interest",
+                               marks={i: str(i) for i in range(1, 11)}),
+                    dbc.Label("Actual Effort", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-difficulty",
+                               marks={i: str(i) for i in range(1, 11)}),
+                ]),
             ]),
+            # Completion screen — shown only after the last node of a review cycle.
+            html.Div(id="time-calibration-complete", style={"display": "none"},
+                     className="text-center py-3"),
         ]),
-        # Completion screen — shown only after the last node of a review cycle.
-        html.Div(id="time-calibration-complete", style={"display": "none"},
-                 className="text-center py-3"),
-    ]),
-    dbc.ModalFooter([
-        # Dismiss / Done are shown contextually by the chrome callback.
-        dbc.Button("Don't ask again", id="btn-time-calibration-dismiss",
-                   color="secondary", className="flex-fill me-2",
-                   style={"display": "none"}),
-        dbc.Button("Skip", id="btn-time-calibration-skip",
-                   color="secondary", className="flex-fill me-2"),
-        dbc.Button("Submit", id="btn-time-calibration-submit",
-                   color="primary", className="flex-fill"),
-        dbc.Button("Done", id="btn-time-calibration-done",
-                   color="primary", className="flex-fill",
-                   style={"display": "none"}),
-    ], className="d-flex"),
-], id="modal-time-calibration", size="lg", is_open=False, centered=True)
+        dbc.ModalFooter([
+            # Dismiss / Done are shown contextually by the chrome callback.
+            dbc.Button("Don't ask again", id="btn-time-calibration-dismiss",
+                       color="secondary", className="flex-fill me-2",
+                       style={"display": "none"}),
+            dbc.Button("Skip", id="btn-time-calibration-skip",
+                       color="secondary", className="flex-fill me-2"),
+            dbc.Button("Submit", id="btn-time-calibration-submit",
+                       color="primary", className="flex-fill"),
+            dbc.Button("Done", id="btn-time-calibration-done",
+                       color="primary", className="flex-fill",
+                       style={"display": "none"}),
+        ], className="d-flex"),
+    ], id="modal-time-calibration", size="lg", is_open=False, centered=True)
 
 
 # Brief notification shown when calibration review is launched but every
 # completed node is already rated or dismissed.
-calibration_review_toast = dbc.Toast(
-    id="calibration-review-toast",
-    header="Reflection",
-    is_open=False,
-    dismissable=True,
-    duration=4000,
-    icon="info",
-    style={"position": "fixed", "top": 66, "right": 12,
-           "width": 340, "zIndex": 1100},
-)
+def build_calibration_review_toast():
+    return dbc.Toast(
+        id="calibration-review-toast",
+        header="Reflection",
+        is_open=False,
+        dismissable=True,
+        duration=4000,
+        icon="info",
+        style={"position": "fixed", "top": 66, "right": 12,
+               "width": 340, "zIndex": 1100},
+    )
 
 
 # Used by the canvas context menu and Delete-key hotkey — handles one or many
 # nodes. Distinct from the node-editor delete flow above, which always targets
 # the single node currently open in the editor.
-group_delete_confirm_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
-    dbc.ModalBody(id="group-delete-confirm-body"),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-group-delete-cancel", color="secondary", className="flex-fill me-2"),
-        dbc.Button("Delete", id="btn-group-delete-confirm", color="danger", className="flex-fill",
-                   style={"backgroundColor": ConfigManager.get_danger_color(),
-                          "borderColor": ConfigManager.get_danger_color()}),
-    ], className="d-flex"),
-], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)
+def build_group_delete_confirm_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
+        dbc.ModalBody(id="group-delete-confirm-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-group-delete-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Delete", id="btn-group-delete-confirm", color="danger", className="flex-fill",
+                       style={"backgroundColor": ConfigManager.get_danger_color(),
+                              "borderColor": ConfigManager.get_danger_color()}),
+        ], className="d-flex"),
+    ], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)
 
 
 # --- Bottom Panel (Relationships + Description) ---
 
-bottom_panel = html.Div([
-    html.Div([
-        relationships_view,
-        description_view
-    ], className="d-flex")
-], className="p-3")
+def build_bottom_panel():
+    return html.Div([
+        html.Div([
+            build_relationships_view(),
+            build_description_view()
+        ], className="d-flex")
+    ], className="p-3")
 
 
 # --- Floating Tooltip ---
 
-hover_tooltip = html.Div(
-    id="hover-tooltip",
-    className="border rounded shadow p-2",
-    style={
-        "position": "fixed",
-        "zIndex": 9999,
-        "display": "none",
-        "pointerEvents": "none",
-        "maxWidth": "280px",
-        "fontSize": "0.85rem",
-        "lineHeight": "1.5",
-        "backgroundColor": "#2b3035",
-        "color": "#dee2e6",
-        "borderColor": "#495057"
-    }
-)
+def build_hover_tooltip():
+    return html.Div(
+        id="hover-tooltip",
+        className="border rounded shadow p-2",
+        style={
+            "position": "fixed",
+            "zIndex": 9999,
+            "display": "none",
+            "pointerEvents": "none",
+            "maxWidth": "280px",
+            "fontSize": "0.85rem",
+            "lineHeight": "1.5",
+            "backgroundColor": "#2b3035",
+            "color": "#dee2e6",
+            "borderColor": "#495057"
+        }
+    )
 
 
 _cell_style = {
@@ -791,150 +806,154 @@ def build_editor_rows(defs, id_prefix="ratings-edit"):
     return rows
 
 
-ratings_popup = html.Div([
-    # Draggable header
-    html.Div([
-        html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
-        html.Button(html.I(className="bi bi-pencil"), id="btn-ratings-edit", style={
-            "background": "none", "border": "none", "color": "#adb5bd",
-            "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
-            "padding": "0 6px", "marginLeft": "8px",
-        }, title="Edit definitions"),
-        html.Button("×", id="btn-ratings-close", style={
-            "background": "none", "border": "none", "color": "#adb5bd",
-            "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
-            "padding": "0", "marginLeft": "auto",
+def build_ratings_popup():
+    return html.Div([
+        # Draggable header
+        html.Div([
+            html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
+            html.Button(html.I(className="bi bi-pencil"), id="btn-ratings-edit", style={
+                "background": "none", "border": "none", "color": "#adb5bd",
+                "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
+                "padding": "0 6px", "marginLeft": "8px",
+            }, title="Edit definitions"),
+            html.Button("×", id="btn-ratings-close", style={
+                "background": "none", "border": "none", "color": "#adb5bd",
+                "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
+                "padding": "0", "marginLeft": "auto",
+            }),
+        ], id="ratings-popup-header", className="d-flex align-items-center", style={
+            "cursor": "move",
+            "padding": "8px 10px",
+            "backgroundColor": "#2b3035",
+            "borderBottom": "1px solid #495057",
+            "borderRadius": "6px 6px 0 0",
+            "flexShrink": "0",
+            "userSelect": "none",
         }),
-    ], id="ratings-popup-header", className="d-flex align-items-center", style={
-        "cursor": "move",
-        "padding": "8px 10px",
-        "backgroundColor": "#2b3035",
-        "borderBottom": "1px solid #495057",
-        "borderRadius": "6px 6px 0 0",
-        "flexShrink": "0",
-        "userSelect": "none",
-    }),
-    # Scrollable body
-    html.Div([
-        html.Table([
-            html.Thead(html.Tr([
-                html.Th("#", style={**_header_cell_style, "width": "36px"}),
-                html.Th("Value", style=_header_cell_style),
-                html.Th("Interest", style=_header_cell_style),
-                html.Th("Effort", style=_header_cell_style),
-            ])),
-            html.Tbody(
-                id="ratings-popup-table-body",
-                children=build_popup_table_rows(ConfigManager.get_ratings_definitions()),
-            ),
-        ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
-    ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
-], id="ratings-popup", style={
-    "display": "none",
-    "flexDirection": "column",
-    "position": "fixed",
-    "top": "120px",
-    "left": "420px",
-    "width": "960px",
-    "height": "auto",
-    "maxHeight": "calc(100vh - 160px)",
-    "minWidth": "400px",
-    "minHeight": "200px",
-    "zIndex": 9998,
-    "backgroundColor": "#212529",
-    "border": "1px solid #495057",
-    "borderRadius": "6px",
-    "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
-    "resize": "both",
-    "overflow": "hidden",
-})
+        # Scrollable body
+        html.Div([
+            html.Table([
+                html.Thead(html.Tr([
+                    html.Th("#", style={**_header_cell_style, "width": "36px"}),
+                    html.Th("Value", style=_header_cell_style),
+                    html.Th("Interest", style=_header_cell_style),
+                    html.Th("Effort", style=_header_cell_style),
+                ])),
+                html.Tbody(
+                    id="ratings-popup-table-body",
+                    children=build_popup_table_rows(ConfigManager.get_ratings_definitions()),
+                ),
+            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
+        ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
+    ], id="ratings-popup", style={
+        "display": "none",
+        "flexDirection": "column",
+        "position": "fixed",
+        "top": "120px",
+        "left": "420px",
+        "width": "960px",
+        "height": "auto",
+        "maxHeight": "calc(100vh - 160px)",
+        "minWidth": "400px",
+        "minHeight": "200px",
+        "zIndex": 9998,
+        "backgroundColor": "#212529",
+        "border": "1px solid #495057",
+        "borderRadius": "6px",
+        "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
+        "resize": "both",
+        "overflow": "hidden",
+    })
 
 
-ratings_editor_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Edit Ratings Definitions")),
-    dbc.ModalBody(
-        html.Div(id="ratings-editor-body"),
-        style={"maxHeight": "70vh", "overflowY": "auto"},
-    ),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-ratings-editor-cancel", color="secondary", className="me-auto"),
-        dbc.Button("Save", id="btn-ratings-editor-save", color="primary"),
-    ]),
-], id="modal-ratings-editor", size="xl", is_open=False, scrollable=True)
+def build_ratings_editor_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Edit Ratings Definitions")),
+        dbc.ModalBody(
+            html.Div(id="ratings-editor-body"),
+            style={"maxHeight": "70vh", "overflowY": "auto"},
+        ),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-ratings-editor-cancel", color="secondary", className="me-auto"),
+            dbc.Button("Save", id="btn-ratings-editor-save", color="primary"),
+        ]),
+    ], id="modal-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
 # Retrospective sibling of `ratings_popup`, opened only from the Reflection
 # modal's info icon. It reads its own REFLECTION_RATINGS_DEFINITIONS so the
 # wording can stay decoupled from the estimation rubric. The JS in
 # assets/ratings_popup.js wires btn-reflection-ratings-info to this popup.
-reflection_ratings_popup = html.Div([
-    html.Div([
-        html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
-        html.Button(html.I(className="bi bi-pencil"), id="btn-reflection-ratings-edit", style={
-            "background": "none", "border": "none", "color": "#adb5bd",
-            "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
-            "padding": "0 6px", "marginLeft": "8px",
-        }, title="Edit definitions"),
-        html.Button("×", id="btn-reflection-ratings-close", style={
-            "background": "none", "border": "none", "color": "#adb5bd",
-            "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
-            "padding": "0", "marginLeft": "auto",
+def build_reflection_ratings_popup():
+    return html.Div([
+        html.Div([
+            html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
+            html.Button(html.I(className="bi bi-pencil"), id="btn-reflection-ratings-edit", style={
+                "background": "none", "border": "none", "color": "#adb5bd",
+                "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
+                "padding": "0 6px", "marginLeft": "8px",
+            }, title="Edit definitions"),
+            html.Button("×", id="btn-reflection-ratings-close", style={
+                "background": "none", "border": "none", "color": "#adb5bd",
+                "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
+                "padding": "0", "marginLeft": "auto",
+            }),
+        ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
+            "cursor": "move",
+            "padding": "8px 10px",
+            "backgroundColor": "#2b3035",
+            "borderBottom": "1px solid #495057",
+            "borderRadius": "6px 6px 0 0",
+            "flexShrink": "0",
+            "userSelect": "none",
         }),
-    ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
-        "cursor": "move",
-        "padding": "8px 10px",
-        "backgroundColor": "#2b3035",
-        "borderBottom": "1px solid #495057",
-        "borderRadius": "6px 6px 0 0",
-        "flexShrink": "0",
-        "userSelect": "none",
-    }),
-    html.Div([
-        html.Table([
-            html.Thead(html.Tr([
-                html.Th("#", style={**_header_cell_style, "width": "36px"}),
-                html.Th("Value", style=_header_cell_style),
-                html.Th("Interest", style=_header_cell_style),
-                html.Th("Effort", style=_header_cell_style),
-            ])),
-            html.Tbody(
-                id="reflection-ratings-popup-table-body",
-                children=build_popup_table_rows(ConfigManager.get_reflection_ratings_definitions()),
-            ),
-        ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
-    ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
-], id="reflection-ratings-popup", style={
-    "display": "none",
-    "flexDirection": "column",
-    "position": "fixed",
-    "top": "120px",
-    "left": "420px",
-    "width": "960px",
-    "height": "auto",
-    "maxHeight": "calc(100vh - 160px)",
-    "minWidth": "400px",
-    "minHeight": "200px",
-    "zIndex": 9998,
-    "backgroundColor": "#212529",
-    "border": "1px solid #495057",
-    "borderRadius": "6px",
-    "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
-    "resize": "both",
-    "overflow": "hidden",
-})
+        html.Div([
+            html.Table([
+                html.Thead(html.Tr([
+                    html.Th("#", style={**_header_cell_style, "width": "36px"}),
+                    html.Th("Value", style=_header_cell_style),
+                    html.Th("Interest", style=_header_cell_style),
+                    html.Th("Effort", style=_header_cell_style),
+                ])),
+                html.Tbody(
+                    id="reflection-ratings-popup-table-body",
+                    children=build_popup_table_rows(ConfigManager.get_reflection_ratings_definitions()),
+                ),
+            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
+        ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
+    ], id="reflection-ratings-popup", style={
+        "display": "none",
+        "flexDirection": "column",
+        "position": "fixed",
+        "top": "120px",
+        "left": "420px",
+        "width": "960px",
+        "height": "auto",
+        "maxHeight": "calc(100vh - 160px)",
+        "minWidth": "400px",
+        "minHeight": "200px",
+        "zIndex": 9998,
+        "backgroundColor": "#212529",
+        "border": "1px solid #495057",
+        "borderRadius": "6px",
+        "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
+        "resize": "both",
+        "overflow": "hidden",
+    })
 
 
-reflection_ratings_editor_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("Edit Reflection Ratings Definitions")),
-    dbc.ModalBody(
-        html.Div(id="reflection-ratings-editor-body"),
-        style={"maxHeight": "70vh", "overflowY": "auto"},
-    ),
-    dbc.ModalFooter([
-        dbc.Button("Cancel", id="btn-reflection-ratings-editor-cancel", color="secondary", className="me-auto"),
-        dbc.Button("Save", id="btn-reflection-ratings-editor-save", color="primary"),
-    ]),
-], id="modal-reflection-ratings-editor", size="xl", is_open=False, scrollable=True)
+def build_reflection_ratings_editor_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Edit Reflection Ratings Definitions")),
+        dbc.ModalBody(
+            html.Div(id="reflection-ratings-editor-body"),
+            style={"maxHeight": "70vh", "overflowY": "auto"},
+        ),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-reflection-ratings-editor-cancel", color="secondary", className="me-auto"),
+            dbc.Button("Save", id="btn-reflection-ratings-editor-save", color="primary"),
+        ]),
+    ], id="modal-reflection-ratings-editor", size="xl", is_open=False, scrollable=True)
 
 
 # --- Floating menus ---
@@ -992,7 +1011,7 @@ def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
     from next_view import _initial_next_view
     sidebars = build_all_sidebars()
-    initial_next = _initial_next_view(next_view, sidebars)
+    initial_next = _initial_next_view(build_next_view(), sidebars)
     
     edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
@@ -1197,9 +1216,9 @@ def build_app_layout(initial_elements, env="production"):
     )
 
     return html.Div([
-        hover_tooltip,
-        ratings_popup,
-        reflection_ratings_popup,
+        build_hover_tooltip(),
+        build_ratings_popup(),
+        build_reflection_ratings_popup(),
         edit_trigger,
         toggle_trigger,
         context_menu,
@@ -1267,19 +1286,19 @@ def build_app_layout(initial_elements, env="production"):
             'data-node-hide': str(TOOLTIP_NODE_HIDE_DELAY_MS),
         }),
         *build_context_picker_support(),
-        migration_modal,
-        error_modal,
-        unsaved_changes_modal,
-        delete_confirm_modal,
-        undo_done_confirm_modal,
-        dormant_deactivate_confirm_modal,
-        auto_done_suggestion_modal,
-        time_calibration_modal,
-        calibration_review_toast,
+        build_migration_modal(),
+        build_error_modal(),
+        build_unsaved_changes_modal(),
+        build_delete_confirm_modal(),
+        build_undo_done_confirm_modal(),
+        build_dormant_deactivate_confirm_modal(),
+        build_auto_done_suggestion_modal(),
+        build_time_calibration_modal(),
+        build_calibration_review_toast(),
         build_review_hub_modal(),
-        group_delete_confirm_modal,
-        ratings_editor_modal,
-        reflection_ratings_editor_modal,
+        build_group_delete_confirm_modal(),
+        build_ratings_editor_modal(),
+        build_reflection_ratings_editor_modal(),
         dbc.Modal([
             dbc.ModalHeader(dbc.ModalTitle("Events Triggered Since Last Launch")),
             dbc.ModalBody(id="event-announcements-body"),
@@ -1354,3 +1373,33 @@ def build_app_layout(initial_elements, env="production"):
         ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),
     ], style={"width": "100vw", "height": "100vh", "overflow": "hidden",
               "display": "flex", "flexDirection": "column"})
+
+
+# Compatibility for Python callers that previously imported component templates.
+_TEMPLATE_BUILDERS = {
+    'auto_done_suggestion_modal': build_auto_done_suggestion_modal,
+    'bottom_panel': build_bottom_panel,
+    'calibration_review_toast': build_calibration_review_toast,
+    'delete_confirm_modal': build_delete_confirm_modal,
+    'description_view': build_description_view,
+    'dormant_deactivate_confirm_modal': build_dormant_deactivate_confirm_modal,
+    'error_modal': build_error_modal,
+    'group_delete_confirm_modal': build_group_delete_confirm_modal,
+    'hover_tooltip': build_hover_tooltip,
+    'migration_modal': build_migration_modal,
+    'next_view': build_next_view,
+    'ratings_editor_modal': build_ratings_editor_modal,
+    'ratings_popup': build_ratings_popup,
+    'reflection_ratings_editor_modal': build_reflection_ratings_editor_modal,
+    'reflection_ratings_popup': build_reflection_ratings_popup,
+    'relationships_view': build_relationships_view,
+    'time_calibration_modal': build_time_calibration_modal,
+    'undo_done_confirm_modal': build_undo_done_confirm_modal,
+    'unsaved_changes_modal': build_unsaved_changes_modal,
+}
+
+
+def __getattr__(name):
+    if name in _TEMPLATE_BUILDERS:
+        return _TEMPLATE_BUILDERS[name]()
+    raise AttributeError(name)

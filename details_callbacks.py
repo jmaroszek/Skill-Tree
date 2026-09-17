@@ -141,7 +141,9 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
     )
 
 
-def register_details_callbacks(app):
+def register_details_callbacks(app, services=None):
+    graph_manager = services.graph if services is not None else globals()['graph_manager']
+    event_manager = services.events if services is not None else globals()['event_manager']
 
     # --- Populate node dropdown when its underlying data changes ---
     # All tab contents stay mounted, so the initial call hydrates this once;

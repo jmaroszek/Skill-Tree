@@ -37,12 +37,9 @@ from models import STATUS_DONE
 
 # Node types have distinct product behavior and are not user-extensible.
 NODE_TYPES = list(SUPPORTED_NODE_TYPES)
-CONTEXTS = sort_contexts(ConfigManager.get_contexts())
-_TED = ConfigManager.get_time_estimate_defaults()
 
 # Save & Close reuses the canvas "Done" node color (same as the Events tab's
 # Trigger button) — a save-and-close is the editor's "done" moment.
-_DONE_COLOR = ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")
 
 # Weekday toggle-pill options for the habit per-session scheduler. Values are
 # weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
@@ -56,382 +53,386 @@ WEEKDAY_OPTIONS = [
 
 
 # --- Node Editor sidebar (left) ---
-node_editor_content = html.Div(
-    [
-        html.Div([
+def build_node_editor_content():
+    CONTEXTS = sort_contexts(ConfigManager.get_contexts())
+    _TED = ConfigManager.get_time_estimate_defaults()
+    _DONE_COLOR = ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")
+    return html.Div(
+        [
             html.Div([
-                html.H4("Node Editor", className="mb-0"),
-                dbc.Button("+", id="btn-editor-new",
-                           color="link",
-                           className="p-0 ms-2 text-decoration-none text-muted",
-                           style={"fontSize": "1.4rem", "lineHeight": "1"}),
-                dbc.Tooltip("New node", target="btn-editor-new", placement="right",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            ], className="d-flex align-items-center"),
-            html.Span("×", id="btn-close-editor", className="fs-3 text-white", style={"cursor": "pointer"})
-        ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
-        html.Div([
-            html.Div(id="node-priority-badge", children=[],
-                     className="d-flex gap-1 flex-wrap mb-2",
-                     style={"display": "none"}),
-            html.Div([
-                html.H5("Search", className="mb-0"),
-                dbc.Button(html.I(className="bi bi-crosshair"),
-                           id="btn-locate-node", color="link",
-                           className="p-0 ms-2 text-decoration-none text-muted",
-                           style={"fontSize": "1rem", "lineHeight": "1"}, disabled=True),
-            ], className="d-flex align-items-center mt-0 mb-1"),
-            html.Div(dcc.Dropdown(
-                id="search-node",
-                options=[],  # Populated dynamically by core_engine callback
-                value=None,
-                placeholder="Search nodes...",
-                searchable=True,
-                clearable=True,
-            ), className="text-dark"),
-            dbc.Tooltip("Locate node on graph",
-                        target="btn-locate-node", placement="right",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            html.Div(id="locate-message", className="text-warning small mt-1"),
-            dcc.Interval(id='locate-clear-interval', interval=LOCATE_TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
-            dcc.Store(id='locate-animate-trigger', data=None),
-
-            html.H5("General", className="mt-3 mb-1"),
-            html.Div([
-                dbc.Label("Name", className="mb-0"),
-                dbc.Button("+", id="btn-alias-add", color="link",
-                           className="p-0 ms-2 text-decoration-none text-muted",
-                           title="Add alias",
-                           style={"fontSize": "1.2rem", "lineHeight": "1"}),
-            ], className="d-flex align-items-center mt-2 mb-1"),
-            dbc.Input(id="node-name", type="text", placeholder="Name node..."),
-            html.Div(id="node-name-duplicate-warning", children="",
-                     style={"display": "none"}, className="mt-1"),
-            dbc.Collapse(
                 html.Div([
-                    dbc.Label("Alias", id="aliases-label",
-                              className="mt-1 mb-1"),
-                    html.Div(id='aliases-container'),
-                ]),
-                id="collapse-aliases",
-                is_open=False,
-            ),
-            dcc.Store(id='aliases-store', data=['']),
-            dcc.Store(id='editor-pristine-snapshot', data=None),
-
-            dbc.Label("Type", className="mt-2"),
-            dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES],
-                       placeholder="Choose node type..."),
-
-            dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="node-desc", placeholder="Describe your project...",
-                         style={"height": "120px", "resize": "vertical"}),
-
-            dbc.Label("Context", className="mt-2"),
-            build_single_context_picker(
-                "node-context-picker",
-                "node-context",
-                "node-subcontext",
-                context_options=[{"label": c, "value": c} for c in CONTEXTS],
-                context_value="",
-            ),
-
-            html.Div(id="section-priority-rank", style={"display": "none"}, children=[
-                dbc.Label("Priority Rank", className="mt-2"),
-                dbc.Select(
-                    id="node-priority-rank",
-                    options=[
-                        {"label": "—", "value": "none"},
-                        {"label": "#1 Priority", "value": "1"},
-                        {"label": "#2 Priority", "value": "2"},
-                        {"label": "#3 Priority", "value": "3"},
-                    ],
-                    value="none",
-                ),
-            ]),
-
-            html.Div(id="auto-status-display", className="d-none"),
-
-            # --- Section: Status (Now + Done + Dormant toggles) ---
-            html.Div(id="section-done-time", children=[
-                html.Hr(className="my-2"),
-                html.H5("Status", className="mt-2 mb-2"),
-                html.Div([
-                    dbc.Checklist(
-                        options=[{"label": "Now", "value": "now"}],
-                        value=[],
-                        id="node-now",
-                        switch=True,
-                    ),
-                    dbc.Checklist(
-                        options=[{"label": STATUS_DONE, "value": STATUS_DONE}],
-                        value=[],
-                        id="node-status-done",
-                        switch=True,
-                    ),
-                    dbc.Checklist(
-                        options=[{"label": "Dormant", "value": "dormant"}],
-                        value=[],
-                        id="node-dormant",
-                        switch=True,
-                    ),
-                ], className="d-flex justify-content-start gap-3 mt-3"),
-                html.Div(id="node-dormant-event-info",
-                         className="small text-muted mt-1"),
-                # Read-only badge — shown only when the node was excluded from
-                # the calibration review cycle ("Don't ask again").
-                html.Div(id="node-calibration-dismissed-badge",
-                         className="small text-warning mt-1",
+                    html.H4("Node Editor", className="mb-0"),
+                    dbc.Button("+", id="btn-editor-new",
+                               color="link",
+                               className="p-0 ms-2 text-decoration-none text-muted",
+                               style={"fontSize": "1.4rem", "lineHeight": "1"}),
+                    dbc.Tooltip("New node", target="btn-editor-new", placement="right",
+                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                ], className="d-flex align-items-center"),
+                html.Span("×", id="btn-close-editor", className="fs-3 text-white", style={"cursor": "pointer"})
+            ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
+            html.Div([
+                html.Div(id="node-priority-badge", children=[],
+                         className="d-flex gap-1 flex-wrap mb-2",
                          style={"display": "none"}),
-            ]),
-
-            # Numeric inputs (shared by all types)
-            html.Hr(className="my-2"),
-            html.Div([
-                html.H5("Ratings", className="mb-0"),
-                html.Button(
-                    html.I(className="bi bi-info-circle"),
-                    id="btn-ratings-info",
-                    style={
-                        "background": "none", "border": "none", "padding": "0 0 0 6px",
-                        "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
-                        "lineHeight": "1", "position": "relative", "top": "3px"
-                    }
-                ),
-                dbc.Tooltip("Ratings reference", target="btn-ratings-info", placement="right",
+                html.Div([
+                    html.H5("Search", className="mb-0"),
+                    dbc.Button(html.I(className="bi bi-crosshair"),
+                               id="btn-locate-node", color="link",
+                               className="p-0 ms-2 text-decoration-none text-muted",
+                               style={"fontSize": "1rem", "lineHeight": "1"}, disabled=True),
+                ], className="d-flex align-items-center mt-0 mb-1"),
+                html.Div(dcc.Dropdown(
+                    id="search-node",
+                    options=[],  # Populated dynamically by core_engine callback
+                    value=None,
+                    placeholder="Search nodes...",
+                    searchable=True,
+                    clearable=True,
+                ), className="text-dark"),
+                dbc.Tooltip("Locate node on graph",
+                            target="btn-locate-node", placement="right",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            ], className="d-flex align-items-center mt-2 mb-1"),
-            html.Div([
-                dbc.Checklist(
-                    options=[{"label": "Inherit", "value": "inherited"}],
-                    value=[],
-                    id="node-value-mode",
-                    switch=True,
-                    className="mb-0",
+                html.Div(id="locate-message", className="text-warning small mt-1"),
+                dcc.Interval(id='locate-clear-interval', interval=LOCATE_TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
+                dcc.Store(id='locate-animate-trigger', data=None),
+
+                html.H5("General", className="mt-3 mb-1"),
+                html.Div([
+                    dbc.Label("Name", className="mb-0"),
+                    dbc.Button("+", id="btn-alias-add", color="link",
+                               className="p-0 ms-2 text-decoration-none text-muted",
+                               title="Add alias",
+                               style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                ], className="d-flex align-items-center mt-2 mb-1"),
+                dbc.Input(id="node-name", type="text", placeholder="Name node..."),
+                html.Div(id="node-name-duplicate-warning", children="",
+                         style={"display": "none"}, className="mt-1"),
+                dbc.Collapse(
+                    html.Div([
+                        dbc.Label("Alias", id="aliases-label",
+                                  className="mt-1 mb-1"),
+                        html.Div(id='aliases-container'),
+                    ]),
+                    id="collapse-aliases",
+                    is_open=False,
                 ),
-            ], className="d-flex align-items-center mt-2 mb-2"),
-            dbc.Tooltip(
-                "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
-                target="node-value-mode", placement="left",
-                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-            ),
-            # Locked-on notice for Milestones (mirrors the time-mode warning).
-            html.Div(id="value-mode-warning",
-                     style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
-                     className="mt-1 mb-2", children=""),
+                dcc.Store(id='aliases-store', data=['']),
+                dcc.Store(id='editor-pristine-snapshot', data=None),
 
-            html.Div(id="section-ratings", children=[
-                dbc.Label("Value", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="node-value"),
+                dbc.Label("Type", className="mt-2"),
+                dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES],
+                           placeholder="Choose node type..."),
 
-                dbc.Label("Interest", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
+                dbc.Label("Description", className="mt-2"),
+                dbc.Textarea(id="node-desc", placeholder="Describe your project...",
+                             style={"height": "120px", "resize": "vertical"}),
 
-                html.Div(id="node-effort-row", children=[
-                    dbc.Label("Effort", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
+                dbc.Label("Context", className="mt-2"),
+                build_single_context_picker(
+                    "node-context-picker",
+                    "node-context",
+                    "node-subcontext",
+                    context_options=[{"label": c, "value": c} for c in CONTEXTS],
+                    context_value="",
+                ),
+
+                html.Div(id="section-priority-rank", style={"display": "none"}, children=[
+                    dbc.Label("Priority Rank", className="mt-2"),
+                    dbc.Select(
+                        id="node-priority-rank",
+                        options=[
+                            {"label": "—", "value": "none"},
+                            {"label": "#1 Priority", "value": "1"},
+                            {"label": "#2 Priority", "value": "2"},
+                            {"label": "#3 Priority", "value": "3"},
+                        ],
+                        value="none",
+                    ),
                 ]),
-                html.Div(id="node-effort-caption", style={"display": "none"}, children=[
-                    dbc.Label("Effort", className="mt-2"),
-                    html.Div("Derived from subtasks", className="text-muted small"),
+
+                html.Div(id="auto-status-display", className="d-none"),
+
+                # --- Section: Status (Now + Done + Dormant toggles) ---
+                html.Div(id="section-done-time", children=[
+                    html.Hr(className="my-2"),
+                    html.H5("Status", className="mt-2 mb-2"),
+                    html.Div([
+                        dbc.Checklist(
+                            options=[{"label": "Now", "value": "now"}],
+                            value=[],
+                            id="node-now",
+                            switch=True,
+                        ),
+                        dbc.Checklist(
+                            options=[{"label": STATUS_DONE, "value": STATUS_DONE}],
+                            value=[],
+                            id="node-status-done",
+                            switch=True,
+                        ),
+                        dbc.Checklist(
+                            options=[{"label": "Dormant", "value": "dormant"}],
+                            value=[],
+                            id="node-dormant",
+                            switch=True,
+                        ),
+                    ], className="d-flex justify-content-start gap-3 mt-3"),
+                    html.Div(id="node-dormant-event-info",
+                             className="small text-muted mt-1"),
+                    # Read-only badge — shown only when the node was excluded from
+                    # the calibration review cycle ("Don't ask again").
+                    html.Div(id="node-calibration-dismissed-badge",
+                             className="small text-warning mt-1",
+                             style={"display": "none"}),
                 ]),
-            ]),
-            # --- Section: Time Estimates ---
-            html.Div(id="section-time-estimates", children=[
+
+                # Numeric inputs (shared by all types)
                 html.Hr(className="my-2"),
                 html.Div([
-                    html.H5("Time Estimates", className="mb-0"),
-                    estimate_guidance("node"),
-                ], className="d-flex align-items-center mt-2 mb-2"),
+                    html.H5("Ratings", className="mb-0"),
+                    html.Button(
+                        html.I(className="bi bi-info-circle"),
+                        id="btn-ratings-info",
+                        style={
+                            "background": "none", "border": "none", "padding": "0 0 0 6px",
+                            "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
+                            "lineHeight": "1", "position": "relative", "top": "3px"
+                        }
+                    ),
+                    dbc.Tooltip("Ratings reference", target="btn-ratings-info", placement="right",
+                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                ], className="d-flex align-items-center mt-2 mb-1"),
                 html.Div([
                     dbc.Checklist(
                         options=[{"label": "Inherit", "value": "inherited"}],
                         value=[],
-                        id="node-time-mode",
+                        id="node-value-mode",
                         switch=True,
                         className="mb-0",
                     ),
-                    dbc.Tooltip(
-                        "Treat this node's time as the sum of its children's. Use for containers whose only work is completing the children.",
-                        target="node-time-mode", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-                    ),
+                ], className="d-flex align-items-center mt-2 mb-2"),
+                dbc.Tooltip(
+                    "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
+                    target="node-value-mode", placement="left",
+                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+                ),
+                # Locked-on notice for Milestones (mirrors the time-mode warning).
+                html.Div(id="value-mode-warning",
+                         style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                         className="mt-1 mb-2", children=""),
+
+                html.Div(id="section-ratings", children=[
+                    dbc.Label("Value", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="node-value"),
+
+                    dbc.Label("Interest", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
+
+                    html.Div(id="node-effort-row", children=[
+                        dbc.Label("Effort", className="mt-2"),
+                        dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
+                    ]),
+                    html.Div(id="node-effort-caption", style={"display": "none"}, children=[
+                        dbc.Label("Effort", className="mt-2"),
+                        html.Div("Derived from subtasks", className="text-muted small"),
+                    ]),
+                ]),
+                # --- Section: Time Estimates ---
+                html.Div(id="section-time-estimates", children=[
+                    html.Hr(className="my-2"),
+                    html.Div([
+                        html.H5("Time Estimates", className="mb-0"),
+                        estimate_guidance("node"),
+                    ], className="d-flex align-items-center mt-2 mb-2"),
                     html.Div([
                         dbc.Checklist(
-                            options=[{"label": "Habit", "value": "habit"}],
+                            options=[{"label": "Inherit", "value": "inherited"}],
                             value=[],
-                            id="node-time-habit-mode",
+                            id="node-time-mode",
                             switch=True,
                             className="mb-0",
                         ),
                         dbc.Tooltip(
-                            "Distributed-cadence project (e.g., 30 min/day for 6 weeks). Enter a duration and per-period intensity; total hours are computed and used for scoring.",
-                            target="node-time-habit-mode", placement="left",
+                            "Treat this node's time as the sum of its children's. Use for containers whose only work is completing the children.",
+                            target="node-time-mode", placement="left",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                         ),
-                    ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
-                    dbc.Select(id="node-time-unit", options=[
-                        {"label": "Hours", "value": "hours"},
-                        {"label": "Weeks", "value": "weeks"},
-                        {"label": "Months", "value": "months"},
-                        {"label": "Years", "value": "years"},
-                    ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"}),
-                ], className="d-flex align-items-center mb-2"),
-                html.Div(id="time-mode-warning",
-                         style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
-                         className="mt-1 mb-2",
-                         children=""),
-                html.Div(id="section-time-omp", children=[
-                    dbc.Row([
-                        dbc.Col([*bracket_label("Lower", "node-time-o-label"), dbc.Input(id="node-time-o", type="number", min=0)]),
-                        dbc.Col([*bracket_label("Expected", "node-time-m-label"), dbc.Input(id="node-time-m", type="number", min=0)]),
-                        dbc.Col([*bracket_label("Upper", "node-time-p-label"), dbc.Input(id="node-time-p", type="number", min=0)]),
-                    ]),
-                    html.Div(id="time-validation-error", children="",
+                        html.Div([
+                            dbc.Checklist(
+                                options=[{"label": "Habit", "value": "habit"}],
+                                value=[],
+                                id="node-time-habit-mode",
+                                switch=True,
+                                className="mb-0",
+                            ),
+                            dbc.Tooltip(
+                                "Distributed-cadence project (e.g., 30 min/day for 6 weeks). Enter a duration and per-period intensity; total hours are computed and used for scoring.",
+                                target="node-time-habit-mode", placement="left",
+                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
+                            ),
+                        ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
+                        dbc.Select(id="node-time-unit", options=[
+                            {"label": "Hours", "value": "hours"},
+                            {"label": "Weeks", "value": "weeks"},
+                            {"label": "Months", "value": "months"},
+                            {"label": "Years", "value": "years"},
+                        ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"}),
+                    ], className="d-flex align-items-center mb-2"),
+                    html.Div(id="time-mode-warning",
                              style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
-                             className="mt-1"),
-                ]),
-                html.Div(id="section-time-habit", style={"display": "none"}, children=[
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Duration", className="mb-0"),
-                            dbc.Input(id="node-habit-duration", type="number", min=0),
-                        ], width=7),
-                        dbc.Col([
-                            dbc.Label(" ", className="mb-0"),
-                            dbc.Select(id="node-habit-duration-unit", options=[
-                                {"label": "Days", "value": "days"},
-                                {"label": "Weeks", "value": "weeks"},
-                                {"label": "Months", "value": "months"},
-                                {"label": "Years", "value": "years"},
-                            ], value="weeks"),
-                        ], width=5),
-                    ], className="mb-2"),
-                    dbc.Label("Minutes per Session", className="mb-0 mt-2"),
-                    dbc.Row([
-                        dbc.Col([*bracket_label("Lower", "node-habit-intensity-o-label"),
-                                 dbc.Input(id="node-habit-intensity-o", type="number", min=0)]),
-                        dbc.Col([*bracket_label("Expected", "node-habit-intensity-m-label"),
-                                 dbc.Input(id="node-habit-intensity-m", type="number", min=0)]),
-                        dbc.Col([*bracket_label("Upper", "node-habit-intensity-p-label"),
-                                 dbc.Input(id="node-habit-intensity-p", type="number", min=0)]),
+                             className="mt-1 mb-2",
+                             children=""),
+                    html.Div(id="section-time-omp", children=[
+                        dbc.Row([
+                            dbc.Col([*bracket_label("Lower", "node-time-o-label"), dbc.Input(id="node-time-o", type="number", min=0)]),
+                            dbc.Col([*bracket_label("Expected", "node-time-m-label"), dbc.Input(id="node-time-m", type="number", min=0)]),
+                            dbc.Col([*bracket_label("Upper", "node-time-p-label"), dbc.Input(id="node-time-p", type="number", min=0)]),
+                        ]),
+                        html.Div(id="time-validation-error", children="",
+                                 style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                                 className="mt-1"),
                     ]),
-                    # Cadence is always minutes-per-session; the unit is fixed
-                    # but kept as a hidden field so the save/populate wiring is
-                    # unchanged (and legacy units still round-trip through it).
-                    dcc.Input(id="node-habit-intensity-unit", type="hidden",
-                              value="min_per_session"),
-                    dbc.Label("On these days", className="mb-1 mt-2 d-block"),
-                    dbc.Checklist(
-                        id="node-habit-days",
-                        options=WEEKDAY_OPTIONS,
-                        value=[0, 1, 2, 3, 4, 5, 6],
-                        className="habit-days-picker",
-                        inputClassName="btn-check",
-                        labelClassName="btn btn-outline-light btn-sm",
-                        labelCheckedClassName="active",
-                    ),
-                    html.Div(id="node-habit-total-preview",
-                             className="mt-2 small text-muted"),
+                    html.Div(id="section-time-habit", style={"display": "none"}, children=[
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Duration", className="mb-0"),
+                                dbc.Input(id="node-habit-duration", type="number", min=0),
+                            ], width=7),
+                            dbc.Col([
+                                dbc.Label(" ", className="mb-0"),
+                                dbc.Select(id="node-habit-duration-unit", options=[
+                                    {"label": "Days", "value": "days"},
+                                    {"label": "Weeks", "value": "weeks"},
+                                    {"label": "Months", "value": "months"},
+                                    {"label": "Years", "value": "years"},
+                                ], value="weeks"),
+                            ], width=5),
+                        ], className="mb-2"),
+                        dbc.Label("Minutes per Session", className="mb-0 mt-2"),
+                        dbc.Row([
+                            dbc.Col([*bracket_label("Lower", "node-habit-intensity-o-label"),
+                                     dbc.Input(id="node-habit-intensity-o", type="number", min=0)]),
+                            dbc.Col([*bracket_label("Expected", "node-habit-intensity-m-label"),
+                                     dbc.Input(id="node-habit-intensity-m", type="number", min=0)]),
+                            dbc.Col([*bracket_label("Upper", "node-habit-intensity-p-label"),
+                                     dbc.Input(id="node-habit-intensity-p", type="number", min=0)]),
+                        ]),
+                        # Cadence is always minutes-per-session; the unit is fixed
+                        # but kept as a hidden field so the save/populate wiring is
+                        # unchanged (and legacy units still round-trip through it).
+                        dcc.Input(id="node-habit-intensity-unit", type="hidden",
+                                  value="min_per_session"),
+                        dbc.Label("On these days", className="mb-1 mt-2 d-block"),
+                        dbc.Checklist(
+                            id="node-habit-days",
+                            options=WEEKDAY_OPTIONS,
+                            value=[0, 1, 2, 3, 4, 5, 6],
+                            className="habit-days-picker",
+                            inputClassName="btn-check",
+                            labelClassName="btn btn-outline-light btn-sm",
+                            labelCheckedClassName="active",
+                        ),
+                        html.Div(id="node-habit-total-preview",
+                                 className="mt-2 small text-muted"),
+                    ]),
                 ]),
-            ]),
 
-            html.Hr(className="my-2"),
-            html.H5("Relationships", className="mt-2 mb-1"),
-            dbc.Label("Needs", className="mt-2"),
-            html.Div([
-                dcc.Dropdown(id="edge-needs-hard", multi=True, placeholder="Hard..."),
-                dcc.Dropdown(id="edge-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
-            ], className="text-dark"),
-
-            dbc.Label("Supports", className="mt-2"),
-            html.Div([
-                dcc.Dropdown(id="edge-supports-hard", multi=True, placeholder="Hard..."),
-                dcc.Dropdown(id="edge-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
-            ], className="text-dark"),
-
-            dbc.Label("Helps", className="mt-2"),
-            html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
-
-            dcc.Store(id='edge-resources', data=[]),
-
-            html.Hr(className="my-2"),
-            html.H5("Resources", className="mt-2 mb-1"),
-
-            # Stores hold JSON arrays of links for each resource type
-            dcc.Store(id='obsidian-links-store', data=['']),
-            dcc.Store(id='drive-links-store', data=['']),
-            dcc.Store(id='website-links-store', data=['']),
-
-            html.Div([
-                dbc.Label("Obsidian", className="mb-0"),
-                dbc.Button("+", id="btn-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"})
-            ], className="d-flex align-items-center mt-2 mb-1"),
-            html.Div(id='obsidian-links-container'),
-
-            html.Div([
-                dbc.Label("Google Drive", className="mb-0"),
-                dbc.Button("+", id="btn-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"})
-            ], className="d-flex align-items-center mt-3 mb-1"),
-            html.Div(id='drive-links-container'),
-
-            html.Div([
-                dbc.Label("Website", className="mb-0"),
-                dbc.Button("+", id="btn-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"})
-            ], className="d-flex align-items-center mt-3 mb-1"),
-            html.Div(id='website-links-container'),
-
-            # The five actions stay pinned to the bottom of the panel while the
-            # fields above them scroll. `position: sticky` keeps them in normal
-            # flow, so the panel's full height still scrolls to the very end and
-            # nothing sits permanently behind the bar. The opaque background is
-            # what stops scrolling fields showing through; it matches the
-            # sidebar's own bg-sidebar (see STYLE_GUIDE.md).
-            html.Div([
                 html.Hr(className="my-2"),
+                html.H5("Relationships", className="mt-2 mb-1"),
+                dbc.Label("Needs", className="mt-2"),
                 html.Div([
-                    dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
-                    dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
-                    dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
-                    dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0", "backgroundColor": _DONE_COLOR, "borderColor": _DONE_COLOR})
-                ], className="d-flex mt-4"),
-                dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
-                           style={"padding": "8px 0"}),
-                # Kept inside the bar so a save confirmation is visible from
-                # wherever the user was scrolled when they pressed Save.
-                html.Div(id="save-output", className="text-success fw-bold text-end mt-2"),
-            ], id="node-editor-actions", style={
-                "position": "sticky",
-                "bottom": "0",
-                "zIndex": 3,
-                "backgroundColor": "#212529",
-                "paddingBottom": "10px",
-            }),
-            dbc.Tooltip("Discard unsaved changes and revert this node to its last saved state", target="btn-revert", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Tooltip("Save changes", target="btn-save", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Tooltip("Save changes and close the node editor", target="btn-save-close", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Tooltip("Delete this node", target="btn-delete", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dbc.Tooltip("Create a new node", target="btn-new-node", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            dcc.Interval(id='clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
-            dcc.Store(id='node-time-unit-prev', data='weeks'),
-            dcc.Store(id='node-original-name', data=None)
-        ])
-    ],
-    className="ps-3 pe-4 pb-2 pt-0",
-    style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX}
-)
+                    dcc.Dropdown(id="edge-needs-hard", multi=True, placeholder="Hard..."),
+                    dcc.Dropdown(id="edge-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
+                ], className="text-dark"),
+
+                dbc.Label("Supports", className="mt-2"),
+                html.Div([
+                    dcc.Dropdown(id="edge-supports-hard", multi=True, placeholder="Hard..."),
+                    dcc.Dropdown(id="edge-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
+                ], className="text-dark"),
+
+                dbc.Label("Helps", className="mt-2"),
+                html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
+
+                dcc.Store(id='edge-resources', data=[]),
+
+                html.Hr(className="my-2"),
+                html.H5("Resources", className="mt-2 mb-1"),
+
+                # Stores hold JSON arrays of links for each resource type
+                dcc.Store(id='obsidian-links-store', data=['']),
+                dcc.Store(id='drive-links-store', data=['']),
+                dcc.Store(id='website-links-store', data=['']),
+
+                html.Div([
+                    dbc.Label("Obsidian", className="mb-0"),
+                    dbc.Button("+", id="btn-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+                ], className="d-flex align-items-center mt-2 mb-1"),
+                html.Div(id='obsidian-links-container'),
+
+                html.Div([
+                    dbc.Label("Google Drive", className="mb-0"),
+                    dbc.Button("+", id="btn-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+                ], className="d-flex align-items-center mt-3 mb-1"),
+                html.Div(id='drive-links-container'),
+
+                html.Div([
+                    dbc.Label("Website", className="mb-0"),
+                    dbc.Button("+", id="btn-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+                ], className="d-flex align-items-center mt-3 mb-1"),
+                html.Div(id='website-links-container'),
+
+                # The five actions stay pinned to the bottom of the panel while the
+                # fields above them scroll. `position: sticky` keeps them in normal
+                # flow, so the panel's full height still scrolls to the very end and
+                # nothing sits permanently behind the bar. The opaque background is
+                # what stops scrolling fields showing through; it matches the
+                # sidebar's own bg-sidebar (see STYLE_GUIDE.md).
+                html.Div([
+                    html.Hr(className="my-2"),
+                    html.Div([
+                        dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
+                        dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
+                        dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
+                        dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0", "backgroundColor": _DONE_COLOR, "borderColor": _DONE_COLOR})
+                    ], className="d-flex mt-4"),
+                    dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
+                               style={"padding": "8px 0"}),
+                    # Kept inside the bar so a save confirmation is visible from
+                    # wherever the user was scrolled when they pressed Save.
+                    html.Div(id="save-output", className="text-success fw-bold text-end mt-2"),
+                ], id="node-editor-actions", style={
+                    "position": "sticky",
+                    "bottom": "0",
+                    "zIndex": 3,
+                    "backgroundColor": "#212529",
+                    "paddingBottom": "10px",
+                }),
+                dbc.Tooltip("Discard unsaved changes and revert this node to its last saved state", target="btn-revert", placement="top",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                dbc.Tooltip("Save changes", target="btn-save", placement="top",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                dbc.Tooltip("Save changes and close the node editor", target="btn-save-close", placement="top",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                dbc.Tooltip("Delete this node", target="btn-delete", placement="top",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                dbc.Tooltip("Create a new node", target="btn-new-node", placement="top",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                dcc.Interval(id='clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
+                dcc.Store(id='node-time-unit-prev', data='weeks'),
+                dcc.Store(id='node-original-name', data=None)
+            ])
+        ],
+        className="ps-3 pe-4 pb-2 pt-0",
+        style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX}
+    )
 
 
 def build_node_editor_sidebar():
     """Container Div for the node editor overlay (left, closed initially)."""
     return html.Div(
         id="sidebar-editor-container",
-        children=[node_editor_content],
+        children=[build_node_editor_content()],
         style={
             "position": "absolute",
             "top": "0",
@@ -721,3 +722,15 @@ def build_all_sidebars():
         build_events_sidebar(),
         build_filters_sidebar(),
     ]
+
+
+# Compatibility for Python callers that previously imported component templates.
+_TEMPLATE_BUILDERS = {
+    'node_editor_content': build_node_editor_content,
+}
+
+
+def __getattr__(name):
+    if name in _TEMPLATE_BUILDERS:
+        return _TEMPLATE_BUILDERS[name]()
+    raise AttributeError(name)
