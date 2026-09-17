@@ -193,7 +193,7 @@ def register_review_hub_callbacks(app):
     def refresh_pending_count(is_open):
         if not is_open:
             return no_update
-        from callbacks import _calibration_review_queue
+        from editor_values import _calibration_review_queue
         return str(len(_calibration_review_queue(_manager)))
 
     # --- Excluded tab: populate when the hub opens ---
@@ -292,7 +292,7 @@ def register_review_hub_callbacks(app):
             return (no_update,) * 12
 
         # Modal copy reuses the same helper as the queue / single flows.
-        from callbacks import _calibration_modal_text, _calibration_unit_for
+        from editor_values import _calibration_modal_text, _calibration_unit_for
         title, reference = _calibration_modal_text(node)
 
         # Display unit matches the actuals' magnitude (e.g. "2.8w" instead of

@@ -1561,7 +1561,7 @@ class GraphManager:
         stale (context, subcontext) pair would survive a config delete and only
         manifest as a broken reference at event-trigger time.
         """
-        from callback_helpers import compute_orphaned_subcontext_pairs
+        from context_rules import compute_orphaned_subcontext_pairs
         pairs = compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts)
         if not pairs:
             return {}

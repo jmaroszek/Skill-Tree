@@ -30,7 +30,6 @@ from list_toolbar import SORT_MENUS, sort_menu_items
 from styles import stylesheet
 
 
-
 # --- Graph View (Canvas only) ---
 
 def create_graph_view(initial_elements):
@@ -101,9 +100,6 @@ def create_graph_view(initial_elements):
             ),
         ], id="canvas-container", className="canvas-container h-100", style={"overflow": "hidden", "borderRadius": "8px"}),
     ], className="h-100", style={"overflow": "hidden"})
-
-
-
 
 
 _section_title_style = {"fontSize": "1.3rem", "fontWeight": "600"}
@@ -994,7 +990,7 @@ def _priority_items(prefix):
 @database.snapshot_read
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
-    from next_callbacks import _initial_next_view
+    from next_view import _initial_next_view
     sidebars = build_all_sidebars()
     initial_next = _initial_next_view(next_view, sidebars)
     

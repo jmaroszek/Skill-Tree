@@ -66,7 +66,7 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
         # priority rank and context weight. Every Goal is ranked, not just
         # the ones the search leaves, so the corner numbers keep the same
         # base as the Explain modal and the Details suggestions.
-        from analyze_callbacks import _rank_goals, normalize_goal_scores
+        from goal_ranking import _rank_goals, normalize_goal_scores
         edges = graph_manager.get_edges()
         ranked = _rank_goals([n for n in all_nodes if n.type == "Goal"],
                              all_nodes, edges, priority_goals,

@@ -1803,7 +1803,7 @@ def register_event_callbacks(app):
         # Derive edge buckets for this node (same mapping as callbacks.populate_editor).
         from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
         from callback_helpers import parse_links
-        from callbacks import _friendly_time_estimates
+        from editor_values import _friendly_time_estimates
 
         edges = graph_manager.get_edges()
         needs_hard_v = [e['source'] for e in edges if e['target'] == node_name and e['type'] == EDGE_NEEDS_HARD]

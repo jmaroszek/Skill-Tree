@@ -945,7 +945,7 @@ def register_details_callbacks(app):
         # Explore follows the Goals sidebar's Priority ranking and shows the
         # same 0-100 number, so a Goal reads the same on both surfaces. The
         # number keeps its app-wide base when filters narrow the list.
-        from analyze_callbacks import _rank_goals, normalize_goal_scores
+        from goal_ranking import _rank_goals, normalize_goal_scores
         ranked = _rank_goals(
             [node for node in all_nodes if node.type == "Goal"], all_nodes,
             edges, priority_goals, ConfigManager.get_hyperparams(),
@@ -1752,7 +1752,7 @@ def register_details_callbacks(app):
             # explain_goal recomputes the breakdown on the inverted prereq
             # graph and pulls the headline score from _rank_goals, so the
             # modal matches the Goals-sidebar ranking exactly.
-            from analyze_callbacks import explain_goal
+            from goal_ranking import explain_goal
             result = explain_goal(node_name, all_nodes,
                                   graph_manager.get_edges(),
                                   hypers, priority_goals)
@@ -1789,7 +1789,7 @@ def register_details_callbacks(app):
         tv = breakdown['composition']['total_value'] if breakdown else None
         if tv is not None:
             if is_goal:
-                from analyze_callbacks import _rank_goals
+                from goal_ranking import _rank_goals
                 goals = [n for n in all_nodes if n.type == 'Goal']
                 ranked_goals = _rank_goals(
                     goals, all_nodes, graph_manager.get_edges(),

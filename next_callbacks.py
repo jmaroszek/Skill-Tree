@@ -2,6 +2,13 @@
 Callback definitions for the Next tab (priority suggestions).
 """
 
+from next_view import (
+    _components_by_id,
+    _initial_next_view,
+    NextRows,
+    get_suggestions as _get_suggestions,
+)
+
 import database
 from collections import namedtuple
 from copy import deepcopy
@@ -14,92 +21,12 @@ from callback_helpers import get_trigger_id, format_now_nodes_section, format_su
 manager = GraphManager()
 
 
-def _components_by_id(children):
-    """Index a component tree without modifying shared layout templates."""
-    found = {}
-    def visit(component):
-        if isinstance(component, (list, tuple)):
-            for child in component:
-                visit(child)
-        elif hasattr(component, 'to_plotly_json'):
-            identity = getattr(component, 'id', None)
-            if isinstance(identity, str):
-                found[identity] = component
-            visit(getattr(component, 'children', None))
-    visit(children)
-    return found
-
-
-@database.snapshot_read
-def _initial_next_view(template, sidebars):
-    """Ship usable Next content in the first layout, with the actual UI filters."""
-    view = deepcopy(template)
-    controls = _components_by_id(sidebars)
-    def value(identity):
-        return controls[identity].value
-    filters = build_filters(
-        value('filter-context'), value('filter-subcontext'), value('filter-done'),
-        value('filter-value'), value('filter-interest'), value('filter-time'),
-        value('filter-difficulty'), value('filter-node-type'),
-        f_time_unit=value('filter-time-unit'), f_show_dormant=value('filter-dormant'))
-    parts = _components_by_id(view)
-    count = ConfigManager.get_next_table_rows()
-    parts['suggestion-count-store'].data = count
-    parts['suggestion-count-display'].children = str(count)
-    next_rows = get_suggestions(filters, count=count)
-    parts['suggestions-table'].children = format_suggestions_table(
-        next_rows.rows, manager, pinned_steps=next_rows.pinned_steps)
-    parts['now-nodes-table'].children = format_now_nodes_section(
-        manager.get_now_nodes(), ConfigManager.get_now_node_cap(), manager)
-    return view
-
-
 #: What the Next table renders: the ordered rows, plus a map from a pinned
 #: step's name to the Now target it unblocks (empty for an ordinary row).
-NextRows = namedtuple("NextRows", "rows pinned_steps")
 
 
-@database.snapshot_read
 def get_suggestions(filters=None, count=5):
-    """Build the Next table: unblocking steps on top, then the ranking.
-
-    Hierarchical variety is already baked into `priority_score` by the
-    scoring module (see scoring.variety_divisors), so the lower section is a
-    slice of an ordered list rather than a second selection pass. That is what
-    lets the Next tab print the number it sorts on.
-
-    A Now node you cannot start yet — Blocked, or a Goal, or anything else
-    scoring below zero — pins its best actionable prerequisites above that
-    ranking, so the tab answers "what do I do toward this" instead of going
-    quiet. Those steps are **additive**: they do not eat into the row count the
-    user asked for, and they bypass the filter sidebar, because pinning is an
-    explicit intent that supersedes passive scope narrowing. Everything below
-    them is scoped normally, and never repeats a step.
-
-    Now nodes themselves live exclusively in the "Now" section, so they are
-    dropped here and can never come back as one of their own steps.
-    """
-    if filters is None:
-        filters = {}
-    nodes = [n for n in manager.get_all_nodes() if not n.now]
-    filtered_nodes = manager.filter_nodes(nodes, filters)
-    priority_goals = ConfigManager.get_priority_goals()
-
-    steps = manager.get_unblocking_steps(
-        [n.name for n in manager.get_now_nodes()],
-        limit=ConfigManager.get_unblocking_steps_per_now(),
-        priority_goals=priority_goals,
-    )
-    pinned_steps = {node.name: target for node, target in steps}
-
-    scored = manager.calculate_priority_scores(
-        [n for n in filtered_nodes if n.name not in pinned_steps],
-        priority_goals=priority_goals,
-    )
-    ranked = [n for n in scored if getattr(n, 'priority_score', -1) >= 0]
-
-    return NextRows([node for node, _ in steps] + ranked[:max(0, count)],
-                    pinned_steps)
+    return _get_suggestions(filters, count, manager=manager)
 
 
 def register_next_callbacks(app):

@@ -1,0 +1,27 @@
+# Architecture refactor checkpoints
+
+Branch: `codex/architecture-refactor`.
+
+The goal is clearer ownership with unchanged scoring, persisted data, callback
+payloads, and interaction behavior. Database schema fixes are separate work.
+
+1. Extract shared business logic and view preparation from callback modules.
+2. Make application construction and startup explicit.
+3. Extract core callback responsibilities while preserving its Dash wiring.
+4. Separate graph persistence, rules, and query responsibilities behind the existing gateway.
+5. Make revision and cache ownership explicit; retain synchronization unless measurements justify a change.
+6. Consolidate browser integration behind shared adapters.
+
+## Stage 1
+
+- `goal_ranking.py`: ranking, normalization, and explanations shared by Analyze,
+  Details, and the Goals sidebar.
+- `graph_analytics.py`: analytics data preparation, separate from Dash/Plotly rendering.
+- `node_commands.py`: existing editor save/delete/status operations with unchanged
+  transaction boundaries.
+- `context_rules.py`: pure context migration rules, usable by the state gateway.
+- `editor_values.py`: shared editor and calibration values without callback imports.
+- `next_view.py`: Next queries and initial view hydration, usable by layout and callbacks.
+
+Former locations re-export extracted functions to preserve existing Python callers.
+Boundary tests prevent shared modules from depending on callback registration again.

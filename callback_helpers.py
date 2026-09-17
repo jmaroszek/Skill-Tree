@@ -5,6 +5,19 @@ Contains stateless utility functions extracted from callbacks.py to keep
 the callback registration files focused on Dash I/O wiring.
 """
 
+from node_commands import (
+    handle_save,
+    prior_node_for_completion,
+    handle_delete,
+    handle_toggle_done,
+    handle_group_delete,
+)
+
+from context_rules import (
+    compute_orphaned_subcontext_pairs,
+    detect_context_renames,
+)
+
 from html import escape as _escape
 import json
 import logging
@@ -102,45 +115,6 @@ def build_context_weight_rows(contexts, ctx_weights):
         columns.append(html.Div(cells, style=column_style))
     return [html.Div(columns, className="d-flex flex-wrap align-items-start",
                      style={"columnGap": "3rem", "rowGap": "0.5rem"})]
-
-
-def compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts):
-    """(ctx, sub) pairs present in old but not in new, where ctx still exists in new_contexts.
-
-    Subcontexts are identified by (context, subcontext) tuple — the same name under a
-    different parent is a distinct pair. Pairs whose parent context is being removed
-    are skipped (those nodes are handled by the context-orphan path instead).
-    """
-    new_contexts_set = set(new_contexts)
-    pairs = []
-    for ctx, subs in old_subcontexts.items():
-        if ctx not in new_contexts_set:
-            continue
-        new_subs = set(new_subcontexts.get(ctx, []))
-        for sub in subs:
-            if sub not in new_subs:
-                pairs.append((ctx, sub))
-    return pairs
-
-
-def detect_context_renames(old_contexts, new_contexts, old_subcontexts, new_subcontexts):
-    """Detect 1:1 context renames where the new context preserves all old subcontexts.
-
-    Returns {old_ctx: new_ctx} when exactly one context was removed and exactly one
-    was added, AND the new context's subcontexts are a superset of the old's. This
-    is conservative on purpose — false positives would silently merge unrelated
-    contexts. Anything ambiguous returns {} so the user disambiguates in the modal.
-    """
-    removed = [c for c in old_contexts if c not in set(new_contexts)]
-    added = [c for c in new_contexts if c not in set(old_contexts)]
-    if len(removed) != 1 or len(added) != 1:
-        return {}
-    old_ctx, new_ctx = removed[0], added[0]
-    old_subs = set(old_subcontexts.get(old_ctx, []))
-    new_subs = set(new_subcontexts.get(new_ctx, []))
-    if not old_subs.issubset(new_subs):
-        return {}
-    return {old_ctx: new_ctx}
 
 
 def _get_duplicate_stop_words():
@@ -832,7 +806,7 @@ def build_editor_snapshot(manager, node_name):
     """
     # Local import — _friendly_time_estimates lives in callbacks.py which
     # imports from this module, so we defer to avoid a circular import.
-    from callbacks import _friendly_time_estimates
+    from editor_values import _friendly_time_estimates
 
     node = manager.get_node(node_name) if node_name else None
     if node is None:
@@ -1070,118 +1044,6 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
 
 
 # --- Node CRUD Helpers ---
-
-@database.atomic
-def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
-                status_done, context, subctx, obs_path, drive_path, website_path,
-                e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                time_mode='manual', value_mode='manual',
-                habit_duration=0.0, habit_duration_unit='weeks',
-                habit_intensity_o=0.0, habit_intensity_m=0.0, habit_intensity_p=0.0,
-                habit_intensity_unit='min_per_day', habit_days=None):
-    """Create or update a node and sync its edges. Returns a status message.
-
-    Caller is responsible for converting habit-mode inputs to time_o/m/p
-    before calling — this function just persists what it's given. The
-    habit_* fields are stored alongside time_o/m/p so the editor can
-    repopulate the habit form on re-open.
-    """
-    from models import Node
-
-    target_status = STATUS_DONE if (status_done and STATUS_DONE in status_done) else STATUS_OPEN
-
-    ctx = context or None
-    sub = (subctx or '').strip() or None
-    if ctx is None:
-        sub = None
-    elif sub is not None and sub not in ConfigManager.get_subcontexts().get(ctx, []):
-        sub = None
-
-    node = Node(
-        name=name, type=n_type, description=desc or "",
-        value=val, time_o=time_o or 0, time_m=time_m or 0, time_p=time_p or 0,
-        interest=interest, difficulty=diff,
-        status=target_status, context=ctx, subcontext=sub,
-        obsidian_path=(obs_path or '').strip() or None,
-        google_drive_path=(drive_path or '').strip() or None,
-        website=(website_path or '').strip() or None,
-        time_mode=time_mode,
-        value_mode=value_mode,
-        habit_duration=habit_duration or 0,
-        habit_duration_unit=habit_duration_unit or 'weeks',
-        habit_intensity_o=habit_intensity_o or 0,
-        habit_intensity_m=habit_intensity_m or 0,
-        habit_intensity_p=habit_intensity_p or 0,
-        habit_intensity_unit=habit_intensity_unit or 'min_per_day',
-        **({'habit_days': habit_days} if habit_days is not None else {}),
-    )
-    existing = manager.get_node(name)
-    if existing:
-        # Preserve fields that aren't represented in the editor form, otherwise
-        # update_node would overwrite them with the Node dataclass defaults.
-        node.dormant = existing.dormant
-        node.actual_time_lower = existing.actual_time_lower
-        node.actual_time_upper = existing.actual_time_upper
-        node.actual_time_point = existing.actual_time_point
-        node.actual_time_unit = existing.actual_time_unit
-        node.calibration_dismissed = existing.calibration_dismissed
-        # The Now flag is mutated by dispatch_now_toggle (a direct DB
-        # write outside this form), so preserve the latest DB value. Same
-        # for the lifecycle dates and reflection columns — set elsewhere or
-        # not yet wired into the editor.
-        node.now = existing.now
-        node.start_date = existing.start_date
-        node.done_date = existing.done_date
-        node.reflect_value = existing.reflect_value
-        node.reflect_interest = existing.reflect_interest
-        node.reflect_difficulty = existing.reflect_difficulty
-        manager.update_node(node)
-        msg = f"Updated node '{name}'"
-    else:
-        manager.add_node(node)
-        msg = f"Added node '{name}'"
-    manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps)
-    return msg
-
-
-def prior_node_for_completion(manager, name, original_name):
-    """The DB row a save is about to overwrite, for Done-transition detection.
-
-    During a rename the node still lives in the DB under its pre-save name
-    (core_engine renames after this check), so fall back to original_name —
-    otherwise a re-saved Done node that was just renamed is misread as a
-    brand-new completion and spuriously re-opens the time-calibration modal.
-    """
-    node = manager.get_node(name)
-    if node is None and original_name and original_name.strip():
-        node = manager.get_node(original_name.strip())
-    return node
-
-
-def handle_delete(manager, name):
-    """Delete a single node by name. Returns a status message."""
-    manager.delete_node(name)
-    return f"Deleted node '{name}'"
-
-
-def handle_toggle_done(manager, tapped_node):
-    """Toggle a node's status between Done and Open. Returns a status message."""
-    node = manager.get_node(tapped_node.get('id'))
-    if node:
-        node.status = STATUS_OPEN if node.status == STATUS_DONE else STATUS_DONE
-        manager.update_node(node)
-        return f"Toggled status of '{node.name}' to {node.status}"
-    return ""
-
-
-def handle_group_delete(manager, group_delete_data):
-    """Delete multiple nodes from a JSON-encoded list. Returns a status message."""
-    # JS sends '["name1","name2"]|timestamp' — strip the timestamp suffix
-    raw = group_delete_data.split('|')[0] if isinstance(group_delete_data, str) else ''
-    names = json.loads(raw) if raw else []
-    for node_name in names:
-        manager.delete_node(node_name)
-    return f"Deleted {len(names)} node(s)" if names else ""
 
 
 # --- UI Formatting Helpers ---
