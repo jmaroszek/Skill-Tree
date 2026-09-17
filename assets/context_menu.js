@@ -35,6 +35,12 @@
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
         var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
+        // Keep the leading Bootstrap icons in place when a contextual action
+        // changes its label (including multi-select forms).
+        var toggleNowLabel = toggleNowItem && toggleNowItem.querySelector('.ctx-menu-label');
+        var toggleDoneLabel = toggleDoneItem && toggleDoneItem.querySelector('.ctx-menu-label');
+        var addToEventLabel = addToEventItem && addToEventItem.querySelector('.ctx-menu-label');
+        var deleteLabel = deleteItem && deleteItem.querySelector('.ctx-menu-label');
 
         if (!cyWrapper || !menu || !window.SkillTree.menus) {
             setTimeout(initContextMenu, 300);
@@ -91,16 +97,20 @@
             var allDone = targets.length > 0 && targets.every(function (node) {
                 return node.status === 'Done';
             });
-            toggleNowItem.textContent = targetCount > 1
+            toggleNowLabel.textContent = targetCount > 1
                 ? (allNow ? 'Remove ' + targetCount + ' from Now' : 'Add ' + targetCount + ' to Now')
                 : (allNow ? 'Remove from Now' : 'Add to Now');
-            toggleDoneItem.textContent = targetCount > 1
+            toggleDoneItem.querySelector('.ctx-menu-icon').className =
+                'bi bi-' + (allDone ? 'arrow-counterclockwise' : 'check-circle') + ' ctx-menu-icon';
+            toggleDoneLabel.textContent = targetCount > 1
                 ? (allDone ? 'Reopen ' + targetCount : 'Mark ' + targetCount + ' Done')
                 : (allDone ? 'Reopen' : 'Mark Done');
-            addToEventItem.textContent = targetCount > 1
+            toggleNowItem.querySelector('.ctx-menu-icon').className =
+                'bi bi-' + (allNow ? 'pause-circle' : 'play-circle') + ' ctx-menu-icon';
+            addToEventLabel.textContent = targetCount > 1
                 ? 'Add ' + targetCount + ' to Event…'
                 : 'Add to Event…';
-            deleteItem.textContent = targetCount > 1
+            deleteLabel.textContent = targetCount > 1
                 ? 'Delete ' + targetCount + '…'
                 : 'Delete…';
             // A priority is one Goal's rank, so it has no bulk form. The

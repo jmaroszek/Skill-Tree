@@ -946,10 +946,18 @@ reflection_ratings_editor_modal = dbc.Modal([
 # or destructive item can't look different from one menu to the next.
 # assets/menus.js gives them the same behavior.
 
-def _menu_item(label, item_id, danger=False):
-    """One clickable row. ``danger`` marks a destructive command."""
+def _menu_item(label, item_id, danger=False, icon=None):
+    """One clickable row. ``danger`` marks a destructive command.
+
+    ``icon`` is a Bootstrap Icon name without the ``bi-`` prefix.  Menu
+    commands stay labelled; the icon simply makes their intent scannable.
+    """
     class_name = "ctx-menu-item ctx-menu-item-danger" if danger else "ctx-menu-item"
-    return html.Div(label, id=item_id, className=class_name)
+    children = label if icon is None else [
+        html.I(className=f"bi bi-{icon} ctx-menu-icon", **{"aria-hidden": "true"}),
+        html.Span(label, className="ctx-menu-label"),
+    ]
+    return html.Div(children, id=item_id, className=class_name)
 
 
 def _menu_divider(divider_id=None):
@@ -975,11 +983,11 @@ def _priority_items(prefix):
     Shared by the node menu's Set Priority submenu and the goal rank popover.
     """
     return [
-        _menu_item("Priority 1", f"{prefix}-1"),
-        _menu_item("Priority 2", f"{prefix}-2"),
-        _menu_item("Priority 3", f"{prefix}-3"),
+        _menu_item("Priority 1", f"{prefix}-1", icon="1-circle"),
+        _menu_item("Priority 2", f"{prefix}-2", icon="2-circle"),
+        _menu_item("Priority 3", f"{prefix}-3", icon="3-circle"),
         _menu_divider(),
-        _menu_item("Clear Priority", f"{prefix}-clear"),
+        _menu_item("Clear Priority", f"{prefix}-clear", icon="eraser"),
     ]
 
 
@@ -1000,14 +1008,15 @@ def build_app_layout(initial_elements, env="production"):
     # set, and Set Priority for anything but a single Goal. So a Goal's menu is
     # every other node's menu plus one section.
     context_menu = _floating_menu("node-context-menu", [
-        _menu_item("Edit", "ctx-menu-edit"),
+        _menu_item("Edit", "ctx-menu-edit", icon="pencil"),
         _menu_divider(),
-        _menu_item("View Details", "ctx-menu-details"),
-        _menu_item("Explain Priority", "ctx-menu-explain"),
+        _menu_item("View Details", "ctx-menu-details", icon="file-text"),
+        _menu_item("Explain Priority", "ctx-menu-explain", icon="lightbulb"),
         _menu_divider("ctx-menu-priority-divider"),
         html.Div(
             [
-                html.Span("Set Priority"),
+                html.I(className="bi bi-flag ctx-menu-icon", **{"aria-hidden": "true"}),
+                html.Span("Set Priority", className="ctx-menu-label"),
                 html.Span("▸", className="ctx-menu-caret"),
                 html.Div(_priority_items("ctx-menu-priority"),
                          className="ctx-menu-submenu"),
@@ -1016,15 +1025,15 @@ def build_app_layout(initial_elements, env="production"):
             className="ctx-menu-item ctx-menu-submenu-parent",
         ),
         _menu_divider(),
-        _menu_item("Add to Now", "ctx-menu-toggle-now"),
-        _menu_item("Add to Event…", "ctx-menu-add-to-event"),
-        _menu_item("Mark Done", "ctx-menu-toggle-done"),
+        _menu_item("Add to Now", "ctx-menu-toggle-now", icon="play-circle"),
+        _menu_item("Add to Event…", "ctx-menu-add-to-event", icon="calendar-event"),
+        _menu_item("Mark Done", "ctx-menu-toggle-done", icon="check-circle"),
         _menu_divider("ctx-menu-links-divider"),
-        _menu_item("Open Website", "ctx-menu-website"),
-        _menu_item("Open in Obsidian", "ctx-menu-obsidian"),
-        _menu_item("Open in Drive", "ctx-menu-drive"),
+        _menu_item("Open Website", "ctx-menu-website", icon="globe2"),
+        _menu_item("Open in Obsidian", "ctx-menu-obsidian", icon="journal-text"),
+        _menu_item("Open in Drive", "ctx-menu-drive", icon="folder2-open"),
         _menu_divider(),
-        _menu_item("Delete…", "ctx-menu-delete", danger=True),
+        _menu_item("Delete…", "ctx-menu-delete", danger=True, icon="trash3"),
     ])
 
     # --- Goal sidebar: rank popover (click a priority goal's rank badge) ---
@@ -1035,11 +1044,11 @@ def build_app_layout(initial_elements, env="production"):
     # Same grouping as the node menu. event_context_menu.js hides Trigger Now
     # and its divider for an event that has already triggered.
     event_context_menu = _floating_menu("event-context-menu", [
-        _menu_item("Edit", "event-ctx-edit"),
+        _menu_item("Edit", "event-ctx-edit", icon="pencil"),
         _menu_divider("event-ctx-trigger-divider"),
-        _menu_item("Trigger Now…", "event-ctx-trigger"),
+        _menu_item("Trigger Now…", "event-ctx-trigger", icon="lightning-charge"),
         _menu_divider(),
-        _menu_item("Delete…", "event-ctx-delete", danger=True),
+        _menu_item("Delete…", "event-ctx-delete", danger=True, icon="trash3"),
     ])
 
     # --- Goals / Events sidebars: sort menus (the ⇅ button beside search) ---

@@ -299,6 +299,13 @@ rather than naming the underlying field. Commands that open another choice or
 confirmation use an ellipsis; a submenu row uses a caret instead. When a
 section has nothing to show, hide it along with its leading divider.
 
+Every action row has a compact leading Bootstrap Icon (`.ctx-menu-icon`) plus
+its full text label (`.ctx-menu-label`); the label remains the accessible,
+primary cue. Keep the icon column fixed and use the same icon for a command
+wherever it appears. State toggles swap their glyph with their label: Now uses
+play/pause, and Done/Reopen uses check/undo. Destructive Delete uses `trash3`
+and inherits the danger colour.
+
 ## Cards
 
 ```python

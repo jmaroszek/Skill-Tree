@@ -455,6 +455,21 @@
     font-size: 0.9rem;
     transition: background-color 0.15s ease;
     user-select: none;
+    display: flex;
+    align-items: center;
+}
+
+/* All action rows reserve the same leading column, so labels align whether
+   a command has a concise glyph or a longer translated label. */
+.ctx-menu-icon {
+    width: 1rem;
+    margin-right: 10px;
+    text-align: center;
+    flex: 0 0 1rem;
+}
+
+.ctx-menu-label {
+    min-width: 0;
 }
 
 .ctx-menu-item:hover {
@@ -538,8 +553,6 @@
 
 .ctx-menu-submenu-parent {
     position: relative;
-    display: flex;
-    align-items: center;
     justify-content: space-between;
 }
 

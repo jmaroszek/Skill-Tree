@@ -86,8 +86,14 @@ def _labels(component):
             continue
         if not isinstance(node, Component):
             continue
-        if "ctx-menu-item" in (getattr(node, "className", None) or "").split()                 and isinstance(node.children, str):
-            labels.append(node.children)
+        if "ctx-menu-item" in (getattr(node, "className", None) or "").split():
+            if isinstance(node.children, str):
+                labels.append(node.children)
+            else:
+                for child in node.children:
+                    if getattr(child, "className", None) == "ctx-menu-label":
+                        labels.append(child.children)
+                        break
         children = getattr(node, "children", None)
         if isinstance(children, (list, tuple, Component)):
             stack.insert(0, children)
@@ -111,9 +117,12 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-drive",
         "ctx-menu-delete",
     ]
-    assert _find(menu, "ctx-menu-details").children == "View Details"
-    assert _find(menu, "ctx-menu-explain").children == "Explain Priority"
-    assert _find(menu, "ctx-menu-delete").children == "Delete…"
+    assert _labels(_find(menu, "ctx-menu-details")) == ["View Details"]
+    assert _labels(_find(menu, "ctx-menu-explain")) == ["Explain Priority"]
+    assert _labels(_find(menu, "ctx-menu-delete")) == ["Delete…"]
+    assert "bi-file-text" in _find(menu, "ctx-menu-details").children[0].className
+    assert "bi-calendar-event" in _find(menu, "ctx-menu-add-to-event").children[0].className
+    assert "bi-trash3" in _find(menu, "ctx-menu-delete").children[0].className
     assert "ctx-menu-item-danger" in _find(menu, "ctx-menu-delete").className
 
 
@@ -127,7 +136,7 @@ def test_goals_get_set_priority_in_the_shared_menu():
                            ("ctx-menu-priority-2", "Priority 2"),
                            ("ctx-menu-priority-3", "Priority 3"),
                            ("ctx-menu-priority-clear", "Clear Priority")):
-        assert _find(priority, item_id).children == label
+        assert _labels(_find(priority, item_id)) == [label]
 
 
 def test_no_separate_goal_menu_remains():
@@ -144,7 +153,8 @@ def test_rank_popover_offers_the_same_priority_commands():
     layout = _layout()
     popover = _find(layout, "goal-rank-popover")
     submenu = _find(_find(layout, "node-context-menu"), "ctx-menu-priority")
-    assert _labels(popover) == _labels(submenu)
+    assert _labels(popover) == ["Priority 1", "Priority 2", "Priority 3", "Clear Priority"]
+    assert _labels(submenu)[1:] == _labels(popover)
 
 
 def test_event_menu_follows_the_shared_conventions():
