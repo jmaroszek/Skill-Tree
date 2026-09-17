@@ -13,6 +13,9 @@ from editor_values import (
 import json
 import logging
 import database
+from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
+from core_response import CoreResponse
+from canvas_view import build_canvas_view
 import os
 import subprocess
 import urllib.parse
@@ -58,7 +61,7 @@ event_manager = EventManager()
 # core_engine has 28 outputs; this constant + helper let the tab-gating guard
 # return a no_update tuple of the correct arity. test_core_engine_arity verifies
 # that it stays in sync with the actual callback registration.
-_CORE_ENGINE_NUM_OUTPUTS = 28
+_CORE_ENGINE_NUM_OUTPUTS = len(CoreResponse._fields)
 
 # Tabs whose own callbacks already refresh their content; switching to them
 # should NOT trigger a graph regen via core_engine. That is every tab except
@@ -88,14 +91,14 @@ _EDITOR_UI_ONLY_TRIGGERS = frozenset({
 # editor-only short-circuit can build its partial tuple without repeating
 # magic numbers. Must stay in sync with the Output list at the callback
 # decoration site.
-_SIDEBAR_EDITOR_STYLE_IDX = 11
-_DETAILS_GOAL_SIDEBAR_STYLE_IDX = 18
-_EVENTS_SIDEBAR_STYLE_IDX = 19
+_SIDEBAR_EDITOR_STYLE_IDX = CoreResponse._fields.index('editor_style')
+_DETAILS_GOAL_SIDEBAR_STYLE_IDX = CoreResponse._fields.index('goal_style')
+_EVENTS_SIDEBAR_STYLE_IDX = CoreResponse._fields.index('events_style')
 
 
 def _core_engine_noop_tuple():
     """Return a tuple of dash.no_update matching core_engine's output arity."""
-    return (dash.no_update,) * _CORE_ENGINE_NUM_OUTPUTS
+    return CoreResponse()
 
 
 def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_style):
@@ -103,22 +106,22 @@ def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_s
 
     Used by the editor-UI-only short-circuit in core_engine.
     """
-    out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
-    out[_SIDEBAR_EDITOR_STYLE_IDX] = next_ed_style
-    out[_DETAILS_GOAL_SIDEBAR_STYLE_IDX] = next_goal_style
-    out[_EVENTS_SIDEBAR_STYLE_IDX] = next_events_style
+    out = CoreResponse()
+    out = out._replace(editor_style=next_ed_style)
+    out = out._replace(goal_style=next_goal_style)
+    out = out._replace(events_style=next_events_style)
     return tuple(out)
 
 
 # Output slot indices for the undo-Done modal outputs.
-_UNDO_DONE_MODAL_IDX = 20
-_UNDO_DONE_BODY_IDX = 21
-_PENDING_UNDO_DONE_IDX = 22
+_UNDO_DONE_MODAL_IDX = CoreResponse._fields.index('undo_open')
+_UNDO_DONE_BODY_IDX = CoreResponse._fields.index('undo_body')
+_PENDING_UNDO_DONE_IDX = CoreResponse._fields.index('undo_pending')
 
 # Output slot indices for the time-calibration modal outputs.
-_TIME_CALIB_MODAL_IDX = 23
-_TIME_CALIB_REFERENCE_IDX = 24
-_TIME_CALIB_PENDING_IDX = 25
+_TIME_CALIB_MODAL_IDX = CoreResponse._fields.index('calibration_open')
+_TIME_CALIB_REFERENCE_IDX = CoreResponse._fields.index('calibration_reference')
+_TIME_CALIB_PENDING_IDX = CoreResponse._fields.index('calibration_pending')
 
 
 def _build_undo_done_body(target_names, downstream_done):
@@ -155,132 +158,18 @@ def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_even
     and wants to surface the error without touching graph state, filters,
     or the modal-confirmation flow.
     """
-    out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
-    out[1] = msg                  # save-output.children
-    out[7] = False                # clear-interval.disabled
-    out[8] = 0                    # clear-interval.n_intervals
-    out[_SIDEBAR_EDITOR_STYLE_IDX] = next_ed_style
-    out[_DETAILS_GOAL_SIDEBAR_STYLE_IDX] = next_goal_style
-    out[_EVENTS_SIDEBAR_STYLE_IDX] = next_events_style
+    out = CoreResponse()
+    out = out._replace(message=msg)
+    out = out._replace(clear_disabled=False)
+    out = out._replace(clear_intervals=0)
+    out = out._replace(editor_style=next_ed_style)
+    out = out._replace(goal_style=next_goal_style)
+    out = out._replace(events_style=next_events_style)
     return tuple(out)
 
 
-_DEFAULT_EDITOR_SIDEBAR_STYLE = {
-    "position": "absolute", "top": "0", "left": "0", "width": SIDEBAR_WIDTH_PX,
-    "minWidth": SIDEBAR_WIDTH_PX, "height": "100%", "zIndex": 1000,
-    "overflowX": "hidden", "overflowY": "auto",
-    "borderRight": "1px solid #495057", "transition": "transform 0.3s ease",
-    "transform": SIDEBAR_TRANSLATE_CLOSED, "willChange": "transform",
-    "backgroundColor": "#212529",
-}
 
 
-def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
-                             ed_style, goal_sidebar_style, events_sidebar_style,
-                             pending_nav_store,
-                             form_state):
-    """Determine next sidebar styles based on the triggering Input.
-
-    Returns (next_ed_style, next_goal_style, next_events_sidebar_style). The
-    editor-sidebar logic and the goal/events sidebar mutex both live here so
-    the short-circuit path and the full core_engine path share one
-    implementation.
-
-    `form_state` is a dict carrying the editor-form state used only when
-    trigger_id == 'btn-close-editor' (the unsaved-changes check). For triggers
-    that don't need it, pass an empty dict.
-    """
-    next_ed_style = ed_style or dict(_DEFAULT_EDITOR_SIDEBAR_STYLE)
-    currently_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
-    if trigger_id == 'btn-add' and not currently_open:
-        # Toolbar toggle, opening from closed: reveal the editor and preserve the
-        # loaded node (mirrors the Goals/Events toggles). The close half falls
-        # through to the btn-close-editor branch below.
-        next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id in ('btn-new-node', 'btn-editor-new'):
-        next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id == 'search-node' and not search_val:
-        # Search bar was cleared (e.g. by populate_editor resetting after btn-add) — don't
-        # touch the editor state. Without this guard, a race condition causes core_engine to
-        # read a stale "closed" ed_style and immediately close an editor that btn-add just opened.
-        next_ed_style = dash.no_update
-    elif should_open_editor(all_triggered_ids, trigger_id, search_val):
-        next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id == 'btn-goals-toggle':
-        next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
-    elif trigger_id == 'btn-save':
-        # Save only — keep editor open, don't change transform
-        next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id in ('btn-save-close', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save', 'btn-add'):
-        # btn-save-close and unsaved-save close it after saving.
-        # btn-unsaved-discard closes without saving.
-        # btn-close-editor / btn-add (toggle-close) only silently close if the
-        # form is clean; otherwise toggle_unsaved_modal pops the save/discard modal.
-        if trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store == '__background__':
-            # User dismissed via canvas click — close the editor after save/discard.
-            next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
-        elif trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
-            pass  # Keep editor open — pending navigation will load the next node
-        elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not form_state.get('name') or not form_state.get('n_type')):
-            pass  # Keep sidebar open — validation error shown below
-        elif trigger_id in ('btn-close-editor', 'btn-add'):
-            form_has_content = is_form_dirty_vs_snapshot(
-                form_state.get('pristine_snapshot'),
-                editor_form_values(
-                    name=form_state.get('name'), n_type=form_state.get('n_type'),
-                    desc=form_state.get('desc'),
-                    context=form_state.get('context'), subctx=form_state.get('subctx'),
-                    status_done=form_state.get('status_done'),
-                    val=form_state.get('val'), interest=form_state.get('interest'),
-                    diff=form_state.get('diff'),
-                    time_o=form_state.get('time_o'), time_m=form_state.get('time_m'),
-                    time_p=form_state.get('time_p'), time_unit=form_state.get('time_unit'),
-                    e_needs_h=form_state.get('e_needs_h'), e_needs_s=form_state.get('e_needs_s'),
-                    e_supp_h=form_state.get('e_supp_h'), e_supp_s=form_state.get('e_supp_s'),
-                    e_helps=form_state.get('e_helps'),
-                    obs_links=form_state.get('obs_link_values'),
-                    drive_links=form_state.get('drive_link_values'),
-                    website_links=form_state.get('website_link_values'),
-                    time_mode=form_state.get('time_mode_val'),
-                    time_habit_mode=form_state.get('time_habit_mode_val'),
-                    habit_duration=form_state.get('habit_duration'),
-                    habit_duration_unit=form_state.get('habit_duration_unit'),
-                    habit_intensity_o=form_state.get('habit_int_o'),
-                    habit_intensity_m=form_state.get('habit_int_m'),
-                    habit_intensity_p=form_state.get('habit_int_p'),
-                    habit_intensity_unit=form_state.get('habit_int_unit'),
-                    habit_days=form_state.get('habit_days'),
-                    value_mode=form_state.get('value_mode_val'),
-                    priority_rank=form_state.get('priority_rank_val'),
-                    aliases=form_state.get('alias_values'),
-                ),
-            )
-            if not form_has_content:
-                next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
-        else:
-            next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
-    else:
-        # Race-prevention guard: if the trigger has nothing to do with the
-        # editor (tab switches, refresh triggers, filter changes, etc.),
-        # don't echo ed_style back to the DOM. Otherwise, a late response
-        # from a slow non-editor trigger can clobber an in-flight
-        # edit-trigger response that had opened the sidebar — causing the
-        # intermittent "Edit menu clicked but editor doesn't open" symptom
-        # (especially right after tab switching to Nodes tab).
-        next_ed_style = dash.no_update
-
-    # Goal / Events Sidebar Mutex: close them when editor opens
-    next_goal_style = dash.no_update
-    next_events_sidebar_style = dash.no_update
-    if isinstance(next_ed_style, dict) and next_ed_style.get('transform', '') == 'translateX(0px)' and trigger_id != 'btn-goals-toggle':
-        # Editor is opening — ensure goal sidebar is closed
-        if left_sidebar_is_open(goal_sidebar_style):
-            next_goal_style = dict(goal_sidebar_style)
-            next_goal_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
-        if left_sidebar_is_open(events_sidebar_style):
-            next_events_sidebar_style = dict(events_sidebar_style)
-            next_events_sidebar_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
-    return next_ed_style, next_goal_style, next_events_sidebar_style
 
 
 @database.snapshot_read
@@ -1586,9 +1475,9 @@ def register_callbacks(app, services=None):
                      habit_days):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
-        This is intentionally a single large callback because Dash requires each Output
-        to belong to exactly one callback. Since save/delete/filter operations all need
-        to refresh the graph elements and sidebar state, they must share one callback.
+        The existing Dash wiring preserves mutation and refresh ordering. Sidebar
+        decisions and canvas rendering are delegated; CoreResponse names the stable
+        output contract so partial responses do not depend on numeric slots.
         """
                      
         trigger_id = get_trigger_id()
@@ -1834,10 +1723,10 @@ def register_callbacks(app, services=None):
                 if _pre_node and _pre_node.status == STATUS_DONE:
                     downstream_done = manager.get_downstream_done_dependents(node_id)
                     if downstream_done:
-                        out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
-                        out[_UNDO_DONE_MODAL_IDX] = True
-                        out[_UNDO_DONE_BODY_IDX] = _build_undo_done_body([node_id], downstream_done)
-                        out[_PENDING_UNDO_DONE_IDX] = [node_id]
+                        out = CoreResponse()
+                        out = out._replace(undo_open=True)
+                        out = out._replace(undo_body=_build_undo_done_body([node_id], downstream_done))
+                        out = out._replace(undo_pending=[node_id])
                         return tuple(out)
                 if _pre_node and _pre_node.status != STATUS_DONE:
                     completion_check_node = node_id
@@ -1872,11 +1761,11 @@ def register_callbacks(app, services=None):
                                     seen_downstream.add(d)
                                     affected_downstream.append(d)
                         if affected_downstream:
-                            out = [dash.no_update] * _CORE_ENGINE_NUM_OUTPUTS
+                            out = CoreResponse()
                             target_names = [n.name for n in nodes]
-                            out[_UNDO_DONE_MODAL_IDX] = True
-                            out[_UNDO_DONE_BODY_IDX] = _build_undo_done_body(target_names, affected_downstream)
-                            out[_PENDING_UNDO_DONE_IDX] = target_names
+                            out = out._replace(undo_open=True)
+                            out = out._replace(undo_body=_build_undo_done_body(target_names, affected_downstream))
+                            out = out._replace(undo_pending=target_names)
                             return tuple(out)
 
                     flipped = 0
@@ -1919,211 +1808,8 @@ def register_callbacks(app, services=None):
                 msg = handle_group_delete(manager, group_delete_data)
             except Exception as e:
                 msg = f"Error: {e}"
-        # --- Visual Generation ---
-        ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'btn-editor-new', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
-        if trigger_id in ui_only_triggers:
-            # We bypass full graph recreation and list evaluation
-            elements = dash.no_update
-            community_options = dash.no_update
-            search_options = dash.no_update
-            f_ctx_list = dash.no_update
-            ctx_list = dash.no_update
-            type_list = dash.no_update
-            f_type_list = dash.no_update
-            active_stylesheet = dash.no_update
-            clear_focus_style = dash.no_update
-
-            # Still format sidebar traversal UI
-            sugg_ui = dash.no_update  # Next owns recommendation rendering independently.
-            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
-            hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
-
-        else:
-            community_method = community_method or "louvain"
-            communities = manager.detect_communities(method=community_method, filters=filters)
-            community_options = [{"label": "All", "value": "All"}]
-            name_counts: dict[str, int] = {}
-            for i, comm in enumerate(communities):
-                base_name = manager.name_community(comm)
-                name_counts[base_name] = name_counts.get(base_name, 0) + 1
-                if name_counts[base_name] > 1:
-                    label = f"{base_name} #{name_counts[base_name]} ({len(comm)} nodes)"
-                else:
-                    label = f"{base_name} ({len(comm)} nodes)"
-                community_options.append({"label": label, "value": str(i)})
-            # Fix labels retroactively when the first occurrence also needs a number
-            for key, count in name_counts.items():
-                if count > 1:
-                    for opt in community_options:
-                        if opt["label"].startswith(f"{key} (") and opt["value"] != "All":
-                            opt["label"] = opt["label"].replace(f"{key} (", f"{key} #1 (", 1)
-                            break
-
-            community_names = None
-            if f_community and f_community != "All":
-                try:
-                    idx = int(f_community)
-                    if 0 <= idx < len(communities):
-                        community_names = communities[idx]
-                except (ValueError, IndexError): pass
-            elif community_method == "orphans" and communities:
-                # "All" in orphans mode still means "only orphan nodes", not every node
-                community_names = set().union(*communities)
-
-            elements = generate_elements(filters, active_node_id,
-                                        community_names=community_names)
-
-            sugg_ui = dash.no_update  # Next owns recommendation rendering independently.
-            effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
-            hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
-
-            all_nodes = manager.get_all_nodes()
-            search_options = node_options(manager.get_all_nodes(include_dormant=True))
-
-            # Append alias entries to search options (use alias: prefix for unique values)
-            for alias, node_name in manager.get_all_aliases().items():
-                search_options.append({'label': f"{alias} \u2192 {node_name}", 'value': f"alias:{alias}"})
-
-            # Populate dynamic contexts datalists from DB + Config, sorted per user setting.
-            base_ctx = sort_contexts(ConfigManager.get_contexts())
-
-            ctx_list = [{"label": c, "value": c} for c in base_ctx]
-            f_ctx_list = [{"label": c, "value": c} for c in base_ctx]
-
-            base_types = SUPPORTED_NODE_TYPES
-            type_list = [{"label": t, "value": t} for t in base_types]
-
-            f_type_list = [{"label": t, "value": t} for t in base_types]
-
-            # Focus mode stylesheet: highlight subtree, dim others
-            from layout import stylesheet as base_stylesheet
-            active_stylesheet = list(base_stylesheet)
-            if focus_goal:
-                if focus_subtree_override is not None:
-                    focus_subtree = focus_subtree_override
-                else:
-                    focus_subtree = manager.get_goal_subtree(focus_goal)
-                    focus_subtree.add(focus_goal)
-                active_stylesheet.append({
-                    'selector': 'node',
-                    'style': {'opacity': 0.06, 'z-index': 0}
-                })
-                active_stylesheet.append({
-                    'selector': 'edge',
-                    'style': {'opacity': 0.04, 'z-index': 0}
-                })
-                # Build an attribute-selector with a delimiter that doesn't
-                # clash with quote characters in the id. Cytoscape's selector
-                # parser does NOT honor CSS backslash-escape inside string
-                # values, so a name like Read "Meditations" inside double-quote
-                # delimiters silently matches nothing and leaves the node
-                # dimmed. Swap to single-quote delimiters when the id has a
-                # double-quote (and vice versa). Names containing both kinds
-                # are rare; we skip the per-node highlight in that case rather
-                # than emit a broken selector.
-                def _attr_selector(prop, value):
-                    has_dq = '"' in value
-                    has_sq = "'" in value
-                    if has_dq and has_sq:
-                        return None
-                    quote = "'" if has_dq else '"'
-                    return f'[{prop} = {quote}{value}{quote}]'
-
-                for node_name in focus_subtree:
-                    sel_tail = _attr_selector('id', node_name)
-                    if sel_tail is None:
-                        continue
-                    # Pin every opacity sub-channel so nothing downstream
-                    # (node/border/label/background) inherits the dim; z-index
-                    # raises focus nodes above the dimmed layer so overlapping
-                    # neighbors don't peek through concave shapes (stars).
-                    active_stylesheet.append({
-                        'selector': f'node{sel_tail}',
-                        'style': {
-                            'opacity': 1,
-                            'background-opacity': 1,
-                            'border-opacity': 1,
-                            'text-opacity': 1,
-                            'z-index': 10,
-                        },
-                    })
-                # Highlight edges between focus subtree nodes
-                edges = manager.get_edges()
-                for e in edges:
-                    if e['source'] in focus_subtree and e['target'] in focus_subtree:
-                        eid = f"{e['source']}_{e['target']}_{e['type']}"
-                        sel_tail = _attr_selector('id', eid)
-                        if sel_tail is None:
-                            continue
-                        active_stylesheet.append({
-                            'selector': f'edge{sel_tail}',
-                            'style': {
-                                'opacity': 1,
-                                'line-opacity': 1,
-                                'text-opacity': 1,
-                                'z-index': 5,
-                            },
-                        })
-
-                # Per-path coloring (new focus-paths feature).
-                # Populated only when focus_goal_store carries path_info;
-                # the existing mini-graph Focus button leaves it None.
-                if focus_path_info:
-                    # Saturated hues (Material Design A-accent shades) so
-                    # paths stay punchy against the dimmed background.
-                    PATH_COLORS = {
-                        1: '#ff1744',  # vivid red
-                        2: '#1de9b6',  # bright teal
-                        3: '#d500f9',  # electric purple
-                        4: '#ff6d00',  # deep orange
-                        5: '#f50057',  # hot pink
-                    }
-                    for name, rank in (focus_path_info.get('node_rank') or {}).items():
-                        color = PATH_COLORS.get(int(rank))
-                        if color is None:
-                            continue
-                        sel_tail = _attr_selector('id', name)
-                        if sel_tail is None:
-                            continue
-                        active_stylesheet.append({
-                            'selector': f'node{sel_tail}',
-                            'style': {'border-color': color,
-                                      'border-width': 4},
-                        })
-                    for edge_key, rank in (focus_path_info.get('edge_rank') or {}).items():
-                        parts = edge_key.split('|')
-                        if len(parts) != 3:
-                            continue
-                        src, tgt, etype = parts
-                        color = PATH_COLORS.get(int(rank))
-                        if color is None:
-                            continue
-                        eid = f"{src}_{tgt}_{etype}"
-                        sel_tail = _attr_selector('id', eid)
-                        if sel_tail is None:
-                            continue
-                        active_stylesheet.append({
-                            'selector': f'edge{sel_tail}',
-                            'style': {'line-color': color,
-                                      'target-arrow-color': color,
-                                      'width': 3},
-                        })
-                    for name, badge in (focus_path_info.get('target_labels') or {}).items():
-                        sel_tail = _attr_selector('id', name)
-                        if sel_tail is None:
-                            continue
-                        active_stylesheet.append({
-                            'selector': f'node{sel_tail}',
-                            'style': {'label': f'{badge} {name}'},
-                        })
-
-            clear_focus_style = {"display": "inline-block"} if focus_goal else {"display": "none"}
-
-            # Node-completion events are now fired from GraphManager.update_node
-            # whenever a node transitions to Done — no per-callback hook needed.
-            # The time-based sweeps (check_pending_activations / check_scheduled_triggers)
-            # still run at the top of core_engine because they're polling and
-            # don't have a single transition point to hook into.
+        view = build_canvas_view(
+            manager, generate_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
 
         # Time-calibration: when an explicit single-node completion just
         # happened and the feature is enabled, open the modal to capture how
@@ -2147,7 +1833,22 @@ def register_callbacks(app, services=None):
         # time-calibration modal trio. The undo-Done path either opens its
         # modal earlier (return short-circuit in the toggle branch) or, as
         # here, leaves it closed with the pending store cleared.
-        return (elements, msg, sugg_ui, hard_chains_ui, soft_chains_ui, synergies_ui, description_ui, False if msg else True, 0, community_options, search_options, next_ed_style, f_ctx_list, ctx_list, type_list, f_type_list, active_stylesheet, clear_focus_style, next_goal_style, next_events_sidebar_style, False, "", None, tc_modal_open, tc_reference, tc_pending, tc_unit, tc_title)
+        return view._replace(
+            message=msg,
+            clear_disabled=False if msg else True,
+            clear_intervals=0,
+            editor_style=next_ed_style,
+            goal_style=next_goal_style,
+            events_style=next_events_sidebar_style,
+            undo_open=False,
+            undo_body='',
+            undo_pending=None,
+            calibration_open=tc_modal_open,
+            calibration_reference=tc_reference,
+            calibration_pending=tc_pending,
+            calibration_unit=tc_unit,
+            calibration_title=tc_title,
+        )
 
     # The filters-sidebar toggle and editor-sidebar fast-path clientside
     # callbacks live in sidebars_callbacks.register_sidebars_callbacks.

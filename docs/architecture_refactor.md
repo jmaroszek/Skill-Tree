@@ -41,3 +41,15 @@ Standalone helper APIs retain inert default managers for compatibility; the proc
 still owns one database, as before. Layout component factories replace templates
 that previously queried settings at import time. Former template names remain
 available to Python callers through lazy construction.
+
+Validation: 1,460 tests passed, excluding the two optional real-database copy tests.
+
+## Stage 3
+
+The core callback retains its existing Inputs, Outputs, trigger gates, mutation
+order, and modal flow. `canvas_view.py` owns visual preparation, `sidebar_state.py`
+owns sidebar/draft decisions, and `CoreResponse` names the 28 output fields. Partial
+responses and the final response use named fields; compatibility indices are derived
+from that contract instead of being independently maintained magic numbers.
+
+Validation: 150 focused callback, editor, calibration, atomic-save, and Next tests passed.
