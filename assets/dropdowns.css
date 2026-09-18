@@ -182,9 +182,14 @@ select::picker(select) {
        - `display: flex` + centering. In base-select the trigger lays out
          <selectedcontent> and ::picker-icon as real boxes; left in block flow
          they stack, and the control grows from 38px to 62px.
-       - `background-image: none`. Bootstrap draws its chevron as a background
-         image. base-select supplies a real ::picker-icon, so without this the
-         control shows two chevrons.
+       - The chevron. base-select adds its own ::picker-icon, a filled
+         triangle, which is NOT the thin stroked V that Bootstrap draws as a
+         background image and that the context picker and dcc.Dropdown both
+         match. Keeping Bootstrap's and hiding base-select's is what keeps a
+         Type select and the Context picker beside it identical when closed --
+         which they always were, and which is the whole point. Removing
+         Bootstrap's instead leaves one control with a different glyph from
+         every other control in the app.
 
        Everything else about the closed control stays exactly as DARKLY drew
        it — only the open state changes. */
@@ -192,15 +197,10 @@ select::picker(select) {
         appearance: base-select;
         display: flex;
         align-items: center;
-        background-image: none;
     }
 
     select.form-select::picker-icon {
-        color: var(--st-field-fg);
-        transition: transform var(--st-transition);
-    }
-    select.form-select:open::picker-icon {
-        transform: rotate(180deg);
+        display: none;
     }
 
     select::picker(select) {
