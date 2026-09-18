@@ -32,6 +32,7 @@ from scoring import (
     build_adjacency as _scoring_build_adjacency, total_value, explain_score,
     time_cost_term, GOAL_TIME_REF_HOURS,
 )
+import style_tokens as tokens
 
 graph_manager = GraphManager()
 logger = logging.getLogger(__name__)
@@ -288,12 +289,16 @@ def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None,
 # ---------------------------------------------------------------------------
 
 def _render_overview(metrics):
+    # Tile colors come from BADGE_PALETTE so an Analyze headline and the badge
+    # for the same concept elsewhere in the app are the same color. These were
+    # stock Bootstrap hues, which made Done and Blocked here visibly different
+    # from Done and Blocked on every node.
     cards = [
-        ('Goals', str(metrics['goal_count']), '#ffc107'),
-        ('Milestones', str(metrics['milestone_count']), '#0dcaf0'),
-        ('Active Nodes', str(metrics['active_count']), '#0d6efd'),
-        (STATUS_DONE, str(metrics['done_count']), '#198754'),
-        (STATUS_BLOCKED, f"{metrics['blocked_pct']}%", '#dc3545'),
+        ('Goals', str(metrics['goal_count']), BADGE_PALETTE['Goal'][0]),
+        ('Milestones', str(metrics['milestone_count']), BADGE_PALETTE['Milestone'][0]),
+        ('Active Nodes', str(metrics['active_count']), BADGE_PALETTE[STATUS_OPEN][0]),
+        (STATUS_DONE, str(metrics['done_count']), BADGE_PALETTE[STATUS_DONE][0]),
+        (STATUS_BLOCKED, f"{metrics['blocked_pct']}%", BADGE_PALETTE[STATUS_BLOCKED][0]),
     ]
     cols = []
     for label, value, color in cards:

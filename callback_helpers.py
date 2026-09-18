@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 from config import (
     BADGE_PALETTE,
+    DEFAULT_NODE_COLORS,
     DEFAULT_DUPLICATE_STOP_WORDS,
     ConfigManager,
     badge_style,
@@ -55,7 +56,7 @@ def build_calibration_dismissed_view(manager):
                        color="link", size="sm",
                        className="p-0 ms-2 text-decoration-none",
                        style={"fontSize": "1.1rem", "lineHeight": "1",
-                              "color": "#adb5bd"}),
+                              "color": tokens.TEXT_SOFT}),
             dbc.Tooltip("Restore", target={'type': 'calibration-restore', 'index': name},
                         placement="right"),
         ], className="d-flex align-items-center mb-1"))
@@ -294,10 +295,11 @@ def node_fill_color(node, colors):
     status and type.
     """
     if node.status == STATUS_DONE:
-        return colors.get(STATUS_DONE, '#198754')
+        return colors.get(STATUS_DONE, DEFAULT_NODE_COLORS[STATUS_DONE])
     if node.status == STATUS_BLOCKED:
-        return colors.get(STATUS_BLOCKED, '#dc3545')
-    return colors.get(node.type, colors.get(STATUS_OPEN, '#0d6efd'))
+        return colors.get(STATUS_BLOCKED, DEFAULT_NODE_COLORS[STATUS_BLOCKED])
+    return colors.get(node.type, colors.get(STATUS_OPEN,
+                                            DEFAULT_NODE_COLORS[STATUS_OPEN]))
 
 
 def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=None):
@@ -1060,7 +1062,7 @@ def _suggestion_micro_bar(val, label):
     return html.Span(
         html.Span(style={
             "position": "absolute", "left": 0, "right": 0, "bottom": 0,
-            "height": f"{pct}%", "background": "#adb5bd", "borderRadius": "1px",
+            "height": f"{pct}%", "background": tokens.TEXT_SOFT, "borderRadius": "1px",
         }),
         title=f"{label}: {display_val}",
         style={
@@ -1166,7 +1168,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         rank_col = html.Div(
             "↳" if step_target else str(rank),
             style={
-                "fontFamily": _MONO_FONT, "fontSize": "20px",
+                "fontFamily": _MONO_FONT, "fontSize": tokens.FS_XL,
                 "color": step_color if step_target else "#6c757d",
                 "textAlign": "center",
                 "lineHeight": "1",
@@ -1207,7 +1209,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
                 html.Span(
                     s.name,
                     style={
-                        "fontSize": "14.5px", "color": "#dee2e6",
+                        "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY,
                         "lineHeight": "1.35",
                     },
                 ),
@@ -1216,7 +1218,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
                        "lineHeight": "1.35", "marginBottom": "1px"},
             ),
             html.Div(ctx_children, style={
-                "fontSize": "12px", "color": "#6c757d",
+                "fontSize": tokens.FS_XS, "color": tokens.TEXT_DIM,
                 "fontFamily": _MONO_FONT,
                 "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
                 "lineHeight": "1.35",
@@ -1228,7 +1230,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             html.Span(
                 str(priority_int),
                 style={
-                    "fontFamily": _MONO_FONT, "fontSize": "14px",
+                    "fontFamily": _MONO_FONT, "fontSize": tokens.FS_CAP,
                     "fontWeight": 600, "color": "#fff",
                     "textShadow": "0 1px 1px rgba(0,0,0,0.5)",
                 },
@@ -1254,8 +1256,8 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         # all render with the same decimal width).
         time_label = html.Span(
             ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
-            style={"color": "#adb5bd", "minWidth": "52px", "textAlign": "right",
-                   "fontSize": "15px"},
+            style={"color": tokens.TEXT_SOFT, "minWidth": "52px", "textAlign": "right",
+                   "fontSize": tokens.FS_BASE},
         )
 
         v_val = s.value if s.value is not None else 0
@@ -1279,7 +1281,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
             "display": "flex", "alignItems": "center", "gap": "32px",
-            "fontFamily": _MONO_FONT, "fontSize": "11px",
+            "fontFamily": _MONO_FONT, "fontSize": tokens.FS_XS,
         })
 
         row_style = {
@@ -1359,7 +1361,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
         # --- Time estimate ---
         time_label = html.Span(
             ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
-            style={"color": "#adb5bd", "fontSize": "17px",
+            style={"color": tokens.TEXT_SOFT, "fontSize": tokens.FS_MD,
                    "fontFamily": _MONO_FONT, "fontWeight": "500",
                    "flexShrink": "0"},
         )
@@ -1369,7 +1371,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             html.Div(
                 html.Span(
                     n.name,
-                    style={"fontSize": "18px", "color": "#dee2e6",
+                    style={"fontSize": tokens.FS_LG, "color": tokens.TEXT_PRIMARY,
                            "fontWeight": "700", "lineHeight": "1.3"},
                 ),
                 style={"minWidth": 0, "overflow": "hidden", "whiteSpace": "nowrap",
@@ -1383,7 +1385,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
 
         # --- Context subtitle ---
         ctx_line = html.Div(ctx_children, style={
-            "fontSize": "12.5px", "color": "#6c757d", "fontFamily": _MONO_FONT,
+            "fontSize": tokens.FS_SM, "color": tokens.TEXT_DIM, "fontFamily": _MONO_FONT,
             "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
             "lineHeight": "1.35",
             "minHeight": "17px",
@@ -1700,9 +1702,9 @@ def _explain_summary_table(breakdown: dict, normalized):
         "fontWeight": "700",
         "letterSpacing": "0.06em",
         "textTransform": "uppercase",
-        "fontSize": "1.05rem",
+        "fontSize": tokens.FS_LG,
         "color": "#ffffff",
-        "backgroundColor": "#212529",
+        "backgroundColor": tokens.BG_PANEL,
         "borderTop": "1px solid #495057",
         "paddingTop": "10px",
         "paddingBottom": "8px",
@@ -1710,7 +1712,7 @@ def _explain_summary_table(breakdown: dict, normalized):
     total_style = {"fontWeight": "600", "borderTop": "1px solid #495057"}
     num_style = {"textAlign": "right", "fontVariantNumeric": "tabular-nums",
                  "whiteSpace": "nowrap"}
-    detail_style = {"color": "#adb5bd", "fontSize": "0.88rem", "marginLeft": "8px"}
+    detail_style = {"color": tokens.TEXT_SOFT, "fontSize": tokens.FS_MD, "marginLeft": "8px"}
 
     rows = []
 
@@ -1813,7 +1815,7 @@ def _explain_summary_table(breakdown: dict, normalized):
         [html.Tbody(rows)],
         borderless=True, size="sm",
         className="mb-0",
-        style={"color": "#dee2e6", "marginTop": "4px"},
+        style={"color": tokens.TEXT_PRIMARY, "marginTop": "4px"},
     )
 
 

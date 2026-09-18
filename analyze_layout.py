@@ -10,11 +10,12 @@ popover's click trigger bind reliably.
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 from config import ConfigManager, LOADING_SPINNER_STYLE
+import style_tokens as tokens
 
 _GEAR_STYLE = {
     "background": "none", "border": "none", "padding": "0",
-    "color": "#6c757d", "cursor": "pointer",
-    "fontSize": "0.8rem", "lineHeight": "1",
+    "color": tokens.TEXT_DIM, "cursor": "pointer",
+    "fontSize": tokens.FS_CAP, "lineHeight": "1",
     "position": "relative", "top": "2px",
 }
 

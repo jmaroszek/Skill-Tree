@@ -16,6 +16,7 @@ from config import (
     NAME_FORMAT_TITLE,
     NAME_FORMAT_SENTENCE,
 )
+import style_tokens as tokens
 
 _RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
 
@@ -33,7 +34,7 @@ def _build_appearance_tab():
                             dbc.Button(_RESTORE_ICON, id="btn-restore-shapes",
                                        color="link", size="sm",
                                        className="ms-1 p-0",
-                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
+                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": tokens.TEXT_SOFT, "position": "relative", "top": "-2px"}),
                             dbc.Tooltip("Restore defaults", target="btn-restore-shapes", placement="top",
                                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                         ]),
@@ -48,7 +49,7 @@ def _build_appearance_tab():
                             dbc.Button(_RESTORE_ICON, id="btn-restore-type-colors",
                                        color="link", size="sm",
                                        className="ms-1 p-0",
-                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
+                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": tokens.TEXT_SOFT, "position": "relative", "top": "-2px"}),
                             dbc.Tooltip("Restore defaults", target="btn-restore-type-colors", placement="top",
                                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                         ]),
@@ -63,7 +64,7 @@ def _build_appearance_tab():
                             dbc.Button(_RESTORE_ICON, id="btn-restore-status-colors",
                                        color="link", size="sm",
                                        className="ms-1 p-0",
-                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": "#adb5bd", "position": "relative", "top": "-2px"}),
+                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": tokens.TEXT_SOFT, "position": "relative", "top": "-2px"}),
                             dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top",
                                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                         ]),
@@ -180,8 +181,8 @@ def _build_scoring_tab():
                             style={
                                 "background": "none", "border": "none",
                                 "padding": "0 0 0 6px",
-                                "color": "#6c757d", "cursor": "pointer",
-                                "fontSize": "0.95rem", "lineHeight": "1",
+                                "color": tokens.TEXT_DIM, "cursor": "pointer",
+                                "fontSize": tokens.FS_LG, "lineHeight": "1",
                                 "position": "relative", "top": "1px",
                             },
                         ),
@@ -289,7 +290,7 @@ def _build_scoring_tab():
                 value=[],
                 switch=True,
                 className="mb-1",
-                labelStyle={"fontWeight": "normal", "fontSize": "0.9rem"},
+                labelStyle={"fontWeight": "normal", "fontSize": tokens.FS_MD},
             ),
         ], className="p-2")
     ])
@@ -394,9 +395,9 @@ def build_settings_modal():
     save_group = html.Div([
         dbc.Button(html.I(className="bi bi-floppy2-fill"), id="btn-settings-save",
                    color="primary", size="sm",
-                   style={"fontSize": "0.95rem", "lineHeight": "1", "padding": "4px 7px"}),
+                   style={"fontSize": tokens.FS_LG, "lineHeight": "1", "padding": "4px 7px"}),
         html.Span(id="settings-save-status", className="text-success ms-2",
-                  style={"fontSize": "0.85rem"}),
+                  style={"fontSize": tokens.FS_BASE}),
         dbc.Tooltip("Save settings", target="btn-settings-save", placement="bottom",
                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
     ], className="ms-3 d-flex align-items-center")

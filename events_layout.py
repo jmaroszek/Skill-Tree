@@ -2,6 +2,7 @@
 Layout definitions for the Events tab.
 """
 
+import style_tokens as tokens
 from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
@@ -23,7 +24,7 @@ def build_events_sidebar_content():
                 html.H4("Events", className="mb-0"),
                 dbc.Button("+", id="btn-new-event", color="link",
                            className="p-0 ms-2 text-decoration-none text-muted",
-                           style={"fontSize": "1.4rem", "lineHeight": "1"}),
+                           style={"fontSize": tokens.FS_2XL, "lineHeight": "1"}),
                 dbc.Tooltip("New event", target="btn-new-event", placement="right",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="d-flex align-items-center"),
@@ -129,7 +130,7 @@ def build_events_tab_content():
                                           style={"maxWidth": "200px"}),
                                 html.Small("Auto-triggers on or after this date.",
                                            className="text-muted ms-2 align-self-center",
-                                           style={"fontSize": "0.8rem"}),
+                                           style={"fontSize": tokens.FS_CAP}),
                             ], className="d-flex align-items-center mb-2"),
                         ]),
                         html.Div(id="dormant-new-event-node-section",
@@ -153,11 +154,11 @@ def build_events_tab_content():
                                 value="any",
                                 inline=True,
                                 className="mb-1",
-                                style={"fontSize": "0.85rem"},
+                                style={"fontSize": tokens.FS_BASE},
                             ),
                             html.Small(id="dormant-new-event-trigger-mode-hint",
                                        className="text-muted d-block mb-2",
-                                       style={"fontSize": "0.8rem"}),
+                                       style={"fontSize": tokens.FS_CAP}),
                         ]),
                     ]),
                     html.Div(id="dormant-existing-event-section", style={"display": "none"}, children=[
@@ -181,7 +182,7 @@ def build_events_tab_content():
                 dbc.Button("+", id="btn-dormant-alias-add", color="link",
                            className="p-0 ms-2 text-decoration-none text-muted",
                            title="Add alias",
-                           style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                           style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
             ], className="d-flex align-items-center mb-1"),
             dbc.Input(id="dormant-node-name", type="text", placeholder="Name node..."),
             dbc.Collapse(
@@ -242,7 +243,7 @@ def build_events_tab_content():
             ),
             # Locked-on notice for Milestones (mirrors the time-mode warning).
             html.Div(id="dormant-value-mode-warning",
-                     style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                     style=tokens.ERROR_TEXT_HIDDEN,
                      className="mt-1 mb-2", children=""),
             html.Div(id="section-dormant-ratings", children=[
                 dbc.Label("Value", className="mt-2"),
@@ -350,17 +351,17 @@ def build_events_tab_content():
             dcc.Store(id='dormant-website-links-store', data=['']),
             html.Div([
                 dbc.Label("Obsidian", className="mb-0"),
-                dbc.Button("+", id="btn-dormant-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                dbc.Button("+", id="btn-dormant-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
             ], className="d-flex align-items-center mt-2 mb-1"),
             html.Div(id='dormant-obsidian-links-container'),
             html.Div([
                 dbc.Label("Google Drive", className="mb-0"),
-                dbc.Button("+", id="btn-dormant-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                dbc.Button("+", id="btn-dormant-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
             ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='dormant-drive-links-container'),
             html.Div([
                 dbc.Label("Website", className="mb-0"),
-                dbc.Button("+", id="btn-dormant-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                dbc.Button("+", id="btn-dormant-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
             ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='dormant-website-links-container'),
             ]),  # end dormant-mode-new-fields
@@ -423,8 +424,8 @@ def build_events_tab_content():
                 html.Div([
                     dbc.Input(id="event-name", type="text", placeholder="Name event...",
                               className="flex-grow-1",
-                              style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
-                                     "border": "none", "color": "#dee2e6",
+                              style={"fontSize": tokens.FS_2XL, "fontWeight": "300", "backgroundColor": "transparent",
+                                     "border": "none", "color": tokens.TEXT_PRIMARY,
                                      "borderRadius": "0", "paddingLeft": "0"}),
                     html.Div([
                         dbc.Button("Close", id="btn-event-close", color="secondary", size="sm",
@@ -447,7 +448,7 @@ def build_events_tab_content():
                    style={"borderBottom": "1px solid #495057"}),
 
                 html.Div(id="event-save-status", className="text-success mb-2",
-                         style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
+                         style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
 
                 # --- Description ---
                 dbc.Label("Description", className="mb-1"),
@@ -475,7 +476,7 @@ def build_events_tab_content():
                                   style={"maxWidth": "200px"}),
                         html.Small("Auto-triggers on or after this date.",
                                    className="text-muted ms-2 align-self-center",
-                                   style={"fontSize": "0.8rem"}),
+                                   style={"fontSize": tokens.FS_CAP}),
                     ], className="d-flex align-items-center mb-2"),
                 ]),
 
@@ -502,11 +503,11 @@ def build_events_tab_content():
                         value="any",
                         inline=True,
                         className="mb-1",
-                        style={"fontSize": "0.85rem"},
+                        style={"fontSize": tokens.FS_BASE},
                     ),
                     html.Small(id="event-trigger-mode-hint",
                                className="text-muted d-block mb-2",
-                               style={"fontSize": "0.8rem"}),
+                               style={"fontSize": tokens.FS_CAP}),
                 ]),
 
                 html.Hr(className="my-3"),
@@ -517,7 +518,7 @@ def build_events_tab_content():
                         html.H5("Dormant Nodes", className="mb-0"),
                         dbc.Button("+", id="btn-add-dormant-node", color="link",
                                    className="p-0 ms-2 text-decoration-none text-muted",
-                                   style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                                   style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
                         dbc.Tooltip("Add a dormant node to this event", target="btn-add-dormant-node", placement="right",
                                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                     ], className="d-flex align-items-center"),
@@ -586,7 +587,7 @@ def build_events_tab_content():
                 },
                 stylesheet=events_graph_stylesheet,
                 style={"width": "100%", "height": "100%",
-                       "backgroundColor": "#1a1d21"},
+                       "backgroundColor": tokens.BG_CANVAS},
                 userZoomingEnabled=False,
                 userPanningEnabled=False,
                 boxSelectionEnabled=True,
@@ -720,7 +721,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
 
     drag_handle = html.Span(
         "\u2630", className="event-drag-handle",
-        style={"cursor": "grab", "color": "#6c757d", "fontSize": "0.9rem",
+        style={"cursor": "grab", "color": tokens.TEXT_DIM, "fontSize": tokens.FS_MD,
                "marginRight": "8px", "userSelect": "none"},
     ) if show_drag_handle else None
 
@@ -731,7 +732,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
                 html.H6(event_name, className="mb-0", style={"fontWeight": "500"}),
             ], className="d-flex align-items-center"),
             html.Span(badge_text, className="badge ms-2",
-                      style=badge_style(badge_name, font_size="0.7rem")),
+                      style=badge_style(badge_name, font_size=tokens.FS_XS)),
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
     if description:
@@ -744,19 +745,19 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
         children.append(html.Small(
             f"Date: {trigger_date}",
             className="text-muted d-block",
-            style={"fontSize": "0.75rem"}
+            style={"fontSize": tokens.FS_SM}
         ))
     if trigger_summary and status != "Triggered":
         children.append(html.Small(
             f"Trigger: {trigger_summary}",
             className="text-muted d-block",
-            style={"fontSize": "0.75rem"}
+            style={"fontSize": tokens.FS_SM}
         ))
     children.append(html.Small(
         f"{node_count['total']} node{'s' if node_count['total'] != 1 else ''}"
         + (f" ({node_count['activated']} activated)" if node_count['activated'] > 0 else ""),
         className="text-muted",
-        style={"fontSize": "0.75rem"}
+        style={"fontSize": tokens.FS_SM}
     ))
 
     return html.Div(children, id={"type": "event-card", "index": event_name},
@@ -866,11 +867,11 @@ def build_dormant_nodes_table(event_nodes, event_status):
                 delay_cell.append(html.Small(
                     f"Scheduled: {en['activation_date']}",
                     className="text-muted d-block",
-                    style={"fontSize": "0.7rem"}
+                    style={"fontSize": tokens.FS_XS}
                 ))
 
         if activated:
-            status_cell = dbc.Badge("Awake", color="success", style={"fontSize": "0.7rem"})
+            status_cell = dbc.Badge("Awake", color="success", style={"fontSize": tokens.FS_XS})
         else:
             status_cell = html.Span("Dormant", className="text-muted")
 
@@ -916,13 +917,13 @@ def build_dormant_nodes_table(event_nodes, event_status):
 
         rows.append(html.Tr([
             html.Td(trigger_checkbox, className="dormant-node-select-cell",
-                    style={"verticalAlign": "middle"}),
+                    style=tokens.CELL_PRIMARY),
             # title= keeps the full name reachable once the cell ellipsizes it.
             html.Td(node.name, className="dormant-node-name-cell", title=node.name,
-                    style={"verticalAlign": "middle"}),
-            html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(delay_cell, style={"verticalAlign": "middle"}),
-            html.Td(status_cell, style={"verticalAlign": "middle"}),
+                    style=tokens.CELL_PRIMARY),
+            html.Td(node.type, style=tokens.CELL_MUTED),
+            html.Td(delay_cell, style=tokens.CELL_PRIMARY),
+            html.Td(status_cell, style=tokens.CELL_PRIMARY),
             html.Td(action_btns, style={"verticalAlign": "middle", "textAlign": "right"}),
         ], className="dormant-node-row"))
 
@@ -939,6 +940,6 @@ def build_dormant_nodes_table(event_nodes, event_status):
     return dbc.Table([
         html.Thead(html.Tr(headers)),
         html.Tbody(rows),
-    ], bordered=False, hover=True, responsive=True, size="sm",
-       className="dormant-nodes-table text-light",
-       style={"fontSize": "0.85rem", "tableLayout": "fixed"})
+    ], **tokens.TABLE_PROPS,
+       className=f"dormant-nodes-table {tokens.TABLE_CLASS}",
+       style={**tokens.TABLE_STYLE, "tableLayout": "fixed"})

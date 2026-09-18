@@ -3,6 +3,7 @@ import dash
 from config import SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED
 from callback_helpers import (should_open_editor, left_sidebar_is_open,
                               is_form_dirty_vs_snapshot, editor_form_values)
+import style_tokens as tokens
 
 _DEFAULT_EDITOR_SIDEBAR_STYLE = {
     "position": "absolute", "top": "0", "left": "0", "width": SIDEBAR_WIDTH_PX,
@@ -10,7 +11,7 @@ _DEFAULT_EDITOR_SIDEBAR_STYLE = {
     "overflowX": "hidden", "overflowY": "auto",
     "borderRight": "1px solid #495057", "transition": "transform 0.3s ease",
     "transform": SIDEBAR_TRANSLATE_CLOSED, "willChange": "transform",
-    "backgroundColor": "#212529",
+    "backgroundColor": tokens.BG_PANEL,
 }
 
 

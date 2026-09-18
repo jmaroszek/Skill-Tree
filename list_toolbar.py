@@ -20,6 +20,7 @@ from dash import Input, Output, dcc, html
 import dash_bootstrap_components as dbc
 
 from config import TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+import style_tokens as tokens
 
 
 class SortMenu(NamedTuple):
@@ -78,9 +79,9 @@ EVENTS_SORT = SortMenu(
 SORT_MENUS = (GOALS_SORT, EVENTS_SORT)
 
 SEARCH_STYLE = {
-    "backgroundColor": "#2b3035",
+    "backgroundColor": tokens.BG_RAISED,
     "border": "1px solid #495057",
-    "color": "#dee2e6",
+    "color": tokens.TEXT_PRIMARY,
     "borderRadius": "6px",
     "flex": "1",
     "minWidth": "0",

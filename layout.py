@@ -117,15 +117,15 @@ def build_relationships_view():
         html.H6("Relationships", className="text-muted mb-2", style=_section_title_style),
         html.Div([
             html.Div([
-                html.H6("Hard Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+                html.H6("Hard Dependencies", className="text-muted mb-2", style={"fontSize": tokens.FS_LG}),
                 html.Div(id="traversal-chains-hard")
             ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
             html.Div([
-                html.H6("Soft Dependencies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+                html.H6("Soft Dependencies", className="text-muted mb-2", style={"fontSize": tokens.FS_LG}),
                 html.Div(id="traversal-chains-soft")
             ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
             html.Div([
-                html.H6("Synergies", className="text-muted mb-2", style={"fontSize": "0.95rem"}),
+                html.H6("Synergies", className="text-muted mb-2", style={"fontSize": tokens.FS_LG}),
                 html.Div(id="synergies-list")
             ], style={"flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
         ], style={"display": "flex", "alignItems": "flex-start"})
@@ -134,7 +134,7 @@ def build_relationships_view():
 def build_description_view():
     return html.Div([
         html.H6("Description", className="text-muted mb-2", style=_section_title_style),
-        html.Div(id="node-info-description", style={"color": "#dee2e6", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
+        html.Div(id="node-info-description", style={"color": tokens.TEXT_PRIMARY, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG})
     ], style={"flex": "1", "marginLeft": "3rem", "minWidth": 0})
 
 # --- Next View ---
@@ -153,15 +153,15 @@ def build_next_view():
             html.H6("Next", className="text-muted mb-0", style=_section_title_style),
             dbc.ButtonGroup([
                 dbc.Button("−", id="btn-sugg-minus", color="link", size="sm",
-                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 2px",
-                                  "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
+                           style={"fontSize": tokens.FS_LG, "lineHeight": "1", "padding": "2px 2px",
+                                  "color": tokens.TEXT_DIM, "textDecoration": "none", "boxShadow": "none"}),
                 html.Span(id="suggestion-count-display", children=str(ConfigManager.get_next_table_rows()),
                            className="align-self-center mx-1",
-                           style={"fontSize": "0.95rem", "fontWeight": "bold", "minWidth": "18px",
+                           style={"fontSize": tokens.FS_LG, "fontWeight": "bold", "minWidth": "18px",
                                   "textAlign": "center"}),
                 dbc.Button("+", id="btn-sugg-plus", color="link", size="sm",
-                           style={"fontSize": "1rem", "lineHeight": "1", "padding": "2px 2px",
-                                  "color": "#6c757d", "textDecoration": "none", "boxShadow": "none"}),
+                           style={"fontSize": tokens.FS_LG, "lineHeight": "1", "padding": "2px 2px",
+                                  "color": tokens.TEXT_DIM, "textDecoration": "none", "boxShadow": "none"}),
             ], className="align-middle"),
         ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     
@@ -178,7 +178,7 @@ def build_next_view():
             html.Div(id="next-description-area", children=[
                 html.H6("Description", className="text-muted mb-2", style=_section_title_style),
                 html.Div("Click a card or row to see its description", id="next-description-text",
-                         style={"color": "#6c757d", "whiteSpace": "pre-wrap", "fontSize": "0.95rem"})
+                         style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG})
             ], style={"flex": "1 1 0", "maxWidth": "800px"}),
         ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
     ])
@@ -469,7 +469,7 @@ def build_migration_modal():
 def build_error_modal():
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Validation Error", className="text-danger")),
-        dbc.ModalBody(id="error-modal-body", style={"color": "#dee2e6"}),
+        dbc.ModalBody(id="error-modal-body", style={"color": tokens.TEXT_PRIMARY}),
         dbc.ModalFooter(dbc.Button("Close", id="btn-close-error", color="secondary"))
     ], id="modal-error", size="sm", is_open=False, centered=True)
 
@@ -600,7 +600,7 @@ def build_time_calibration_modal():
                             id="btn-reflection-ratings-info",
                             style={
                                 "background": "none", "border": "none", "padding": "0 0 0 6px",
-                                "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
+                                "color": tokens.TEXT_DIM, "cursor": "pointer", "fontSize": tokens.FS_LG,
                                 "lineHeight": "1", "position": "relative", "top": "0px"
                             }
                         ),
@@ -695,11 +695,11 @@ def build_hover_tooltip():
             "display": "none",
             "pointerEvents": "none",
             "maxWidth": "280px",
-            "fontSize": "0.85rem",
+            "fontSize": tokens.FS_BASE,
             "lineHeight": "1.5",
-            "backgroundColor": "#2b3035",
-            "color": "#dee2e6",
-            "borderColor": "#495057"
+            "backgroundColor": tokens.BG_RAISED,
+            "color": tokens.TEXT_PRIMARY,
+            "borderColor": tokens.BORDER_PANEL
         }
     )
 
@@ -713,7 +713,7 @@ _cell_style = {
 _header_cell_style = {
     **_cell_style,
     "fontWeight": "700",
-    "backgroundColor": "#2b3035",
+    "backgroundColor": tokens.BG_RAISED,
     "borderBottom": "2px solid #495057",
     "position": "sticky",
     "top": "0",
@@ -734,7 +734,7 @@ def build_popup_table_rows(defs):
     return [
         html.Tr([
             html.Td(str(d['rating']), style={
-                **_cell_style, "fontWeight": "700", "color": "#adb5bd",
+                **_cell_style, "fontWeight": "700", "color": tokens.TEXT_SOFT,
                 "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
             }),
             html.Td(_ratings_cell_children(d['value']), style={
@@ -765,7 +765,7 @@ def build_editor_table(defs, id_prefix="ratings-edit"):
             html.Th("Effort", style=_header_cell_style),
         ])),
         html.Tbody(build_editor_rows(defs, id_prefix)),
-    ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"})
+    ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY})
 
 
 def build_editor_rows(defs, id_prefix="ratings-edit"):
@@ -776,32 +776,32 @@ def build_editor_rows(defs, id_prefix="ratings-edit"):
         i = d['rating'] - 1
         rows.append(html.Tr([
             html.Td(str(d['rating']), style={
-                **_cell_style, "fontWeight": "700", "color": "#adb5bd",
+                **_cell_style, "fontWeight": "700", "color": tokens.TEXT_SOFT,
                 "width": "36px", "textAlign": "center",
             }),
             html.Td(dcc.Textarea(
                 id={"type": f"{id_prefix}-value", "index": i},
                 value=d['value'],
                 style={"width": "100%", "height": "72px", "resize": "vertical",
-                       "backgroundColor": "#2b3035", "color": "#dee2e6",
+                       "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
                        "border": "1px solid #495057", "borderRadius": "4px",
-                       "padding": "4px", "fontSize": "0.8rem"},
+                       "padding": "4px", "fontSize": tokens.FS_CAP},
             ), style=_cell_style),
             html.Td(dcc.Textarea(
                 id={"type": f"{id_prefix}-interest", "index": i},
                 value=d['interest'],
                 style={"width": "100%", "height": "72px", "resize": "vertical",
-                       "backgroundColor": "#2b3035", "color": "#dee2e6",
+                       "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
                        "border": "1px solid #495057", "borderRadius": "4px",
-                       "padding": "4px", "fontSize": "0.8rem"},
+                       "padding": "4px", "fontSize": tokens.FS_CAP},
             ), style=_cell_style),
             html.Td(dcc.Textarea(
                 id={"type": f"{id_prefix}-effort", "index": i},
                 value=d['effort'],
                 style={"width": "100%", "height": "72px", "resize": "vertical",
-                       "backgroundColor": "#2b3035", "color": "#dee2e6",
+                       "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
                        "border": "1px solid #495057", "borderRadius": "4px",
-                       "padding": "4px", "fontSize": "0.8rem"},
+                       "padding": "4px", "fontSize": tokens.FS_CAP},
             ), style=_cell_style),
         ]))
     return rows
@@ -811,21 +811,21 @@ def build_ratings_popup():
     return html.Div([
         # Draggable header
         html.Div([
-            html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
+            html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": tokens.FS_MD}),
             html.Button(html.I(className="bi bi-pencil"), id="btn-ratings-edit", style={
-                "background": "none", "border": "none", "color": "#adb5bd",
-                "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
+                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
+                "fontSize": tokens.FS_BASE, "lineHeight": "1", "cursor": "pointer",
                 "padding": "0 6px", "marginLeft": "8px",
             }, title="Edit definitions"),
             html.Button("×", id="btn-ratings-close", style={
-                "background": "none", "border": "none", "color": "#adb5bd",
-                "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
+                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
+                "fontSize": tokens.FS_XL, "lineHeight": "1", "cursor": "pointer",
                 "padding": "0", "marginLeft": "auto",
             }),
         ], id="ratings-popup-header", className="d-flex align-items-center", style={
             "cursor": "move",
             "padding": "8px 10px",
-            "backgroundColor": "#2b3035",
+            "backgroundColor": tokens.BG_RAISED,
             "borderBottom": "1px solid #495057",
             "borderRadius": "6px 6px 0 0",
             "flexShrink": "0",
@@ -844,7 +844,7 @@ def build_ratings_popup():
                     id="ratings-popup-table-body",
                     children=build_popup_table_rows(ConfigManager.get_ratings_definitions()),
                 ),
-            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
+            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
         ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
     ], id="ratings-popup", style={
         "display": "none",
@@ -858,7 +858,7 @@ def build_ratings_popup():
         "minWidth": "400px",
         "minHeight": "200px",
         "zIndex": 9998,
-        "backgroundColor": "#212529",
+        "backgroundColor": tokens.BG_PANEL,
         "border": "1px solid #495057",
         "borderRadius": "6px",
         "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
@@ -888,21 +888,21 @@ def build_ratings_editor_modal():
 def build_reflection_ratings_popup():
     return html.Div([
         html.Div([
-            html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": "0.9rem"}),
+            html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": tokens.FS_MD}),
             html.Button(html.I(className="bi bi-pencil"), id="btn-reflection-ratings-edit", style={
-                "background": "none", "border": "none", "color": "#adb5bd",
-                "fontSize": "0.85rem", "lineHeight": "1", "cursor": "pointer",
+                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
+                "fontSize": tokens.FS_BASE, "lineHeight": "1", "cursor": "pointer",
                 "padding": "0 6px", "marginLeft": "8px",
             }, title="Edit definitions"),
             html.Button("×", id="btn-reflection-ratings-close", style={
-                "background": "none", "border": "none", "color": "#adb5bd",
-                "fontSize": "1.2rem", "lineHeight": "1", "cursor": "pointer",
+                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
+                "fontSize": tokens.FS_XL, "lineHeight": "1", "cursor": "pointer",
                 "padding": "0", "marginLeft": "auto",
             }),
         ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
             "cursor": "move",
             "padding": "8px 10px",
-            "backgroundColor": "#2b3035",
+            "backgroundColor": tokens.BG_RAISED,
             "borderBottom": "1px solid #495057",
             "borderRadius": "6px 6px 0 0",
             "flexShrink": "0",
@@ -920,7 +920,7 @@ def build_reflection_ratings_popup():
                     id="reflection-ratings-popup-table-body",
                     children=build_popup_table_rows(ConfigManager.get_reflection_ratings_definitions()),
                 ),
-            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": "0.8rem", "color": "#dee2e6"}),
+            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
         ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
     ], id="reflection-ratings-popup", style={
         "display": "none",
@@ -934,7 +934,7 @@ def build_reflection_ratings_popup():
         "minWidth": "400px",
         "minHeight": "200px",
         "zIndex": 9998,
-        "backgroundColor": "#212529",
+        "backgroundColor": tokens.BG_PANEL,
         "border": "1px solid #495057",
         "borderRadius": "6px",
         "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
@@ -1107,7 +1107,7 @@ def build_app_layout(initial_elements, env="production"):
                 dbc.Tab(label="Analyze", tab_id="tab-analyze"),
             ],
             className="px-3 pt-1 justify-content-center",
-            style={"flex": "1", "backgroundColor": "#1a1d21", "borderBottom": "none"}
+            style={"flex": "1", "backgroundColor": tokens.BG_CANVAS, "borderBottom": "none"}
         ),
 
         # RIGHT: Clear Focus + Filters (open right-side sidebar)
@@ -1130,7 +1130,7 @@ def build_app_layout(initial_elements, env="production"):
         ], className="main-toolbar-actions d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
     ], id="main-toolbar", className="d-flex align-items-center",
-       style={"borderBottom": "1px solid #495057", "backgroundColor": "#1a1d21"})
+       style={"borderBottom": "1px solid #495057", "backgroundColor": tokens.BG_CANVAS})
 
     # --- Canvas Tab Content (existing layout, unchanged) ---
     canvas_tab_content = html.Div(

@@ -11,6 +11,7 @@ import dash_bootstrap_components as dbc
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from graph_manager import GraphManager
 from callback_helpers import build_calibration_dismissed_view
+import style_tokens as tokens
 from models import STATUS_DONE
 
 
@@ -69,10 +70,11 @@ def _node_has_actuals(node):
             or node.reflect_difficulty is not None)
 
 
-# Cell styles reused across rows. Muted-grey is the Subtasks-table convention
-# for non-name secondary text; full-light is for the Name column.
-_CELL_PRIMARY = {"verticalAlign": "middle"}
-_CELL_MUTED = {"verticalAlign": "middle", "color": "#6c757d"}
+# These were the app's only named cell-style constants, but being
+# module-local they could not stop the Details and Events tables from
+# re-inlining their own copies. Now shared; see style_tokens.
+_CELL_PRIMARY = tokens.CELL_PRIMARY
+_CELL_MUTED = tokens.CELL_MUTED
 
 
 def _build_history_table(nodes):
@@ -148,9 +150,9 @@ def _build_history_table(nodes):
             ])),
             html.Tbody(rows),
         ],
-        bordered=False, hover=True, responsive=True, size="sm",
-        className="review-history-table text-light",
-        style={"fontSize": "0.82rem", "--bs-table-bg": "transparent"},
+        **tokens.TABLE_PROPS,
+        className=f"review-history-table {tokens.TABLE_CLASS}",
+        style=tokens.TABLE_STYLE,
     )
 
 

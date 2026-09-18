@@ -34,6 +34,7 @@ from events_layout import build_events_sidebar_content
 from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
+import style_tokens as tokens
 
 # Node types have distinct product behavior and are not user-extensible.
 NODE_TYPES = list(SUPPORTED_NODE_TYPES)
@@ -65,7 +66,7 @@ def build_node_editor_content():
                     dbc.Button("+", id="btn-editor-new",
                                color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
-                               style={"fontSize": "1.4rem", "lineHeight": "1"}),
+                               style={"fontSize": tokens.FS_2XL, "lineHeight": "1"}),
                     dbc.Tooltip("New node", target="btn-editor-new", placement="right",
                                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                 ], className="d-flex align-items-center"),
@@ -80,7 +81,7 @@ def build_node_editor_content():
                     dbc.Button(html.I(className="bi bi-crosshair"),
                                id="btn-locate-node", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
-                               style={"fontSize": "1rem", "lineHeight": "1"}, disabled=True),
+                               style={"fontSize": tokens.FS_LG, "lineHeight": "1"}, disabled=True),
                 ], className="d-flex align-items-center mt-0 mb-1"),
                 html.Div(dcc.Dropdown(
                     id="search-node",
@@ -117,7 +118,7 @@ def build_node_editor_content():
                     dbc.Button("+", id="btn-alias-add", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
                                title="Add alias",
-                               style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 dbc.Input(id="node-name", type="text", placeholder="Name node..."),
                 html.Div(id="node-name-duplicate-warning", children="",
@@ -209,7 +210,7 @@ def build_node_editor_content():
                         id="btn-ratings-info",
                         style={
                             "background": "none", "border": "none", "padding": "0 0 0 6px",
-                            "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
+                            "color": tokens.TEXT_DIM, "cursor": "pointer", "fontSize": tokens.FS_LG,
                             "lineHeight": "1", "position": "relative", "top": "3px"
                         }
                     ),
@@ -232,7 +233,7 @@ def build_node_editor_content():
                 ),
                 # Locked-on notice for Milestones (mirrors the time-mode warning).
                 html.Div(id="value-mode-warning",
-                         style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                         style=tokens.ERROR_TEXT_HIDDEN,
                          className="mt-1 mb-2", children=""),
 
                 html.Div(id="section-ratings", children=[
@@ -289,7 +290,7 @@ def build_node_editor_content():
                                     compact=True),
                     ], className="d-flex align-items-center mb-2"),
                     html.Div(id="time-mode-warning",
-                             style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                             style=tokens.ERROR_TEXT_HIDDEN,
                              className="mt-1 mb-2",
                              children=""),
                     html.Div(id="section-time-omp", children=[
@@ -299,7 +300,7 @@ def build_node_editor_content():
                             dbc.Col([*bracket_label("Upper", "node-time-p-label"), dbc.Input(id="node-time-p", type="number", min=0)]),
                         ]),
                         html.Div(id="time-validation-error", children="",
-                                 style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                                 style=tokens.ERROR_TEXT_HIDDEN,
                                  className="mt-1"),
                     ]),
                     html.Div(id="section-time-habit", style={"display": "none"}, children=[
@@ -372,19 +373,19 @@ def build_node_editor_content():
 
                 html.Div([
                     dbc.Label("Obsidian", className="mb-0"),
-                    dbc.Button("+", id="btn-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+                    dbc.Button("+", id="btn-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"})
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 html.Div(id='obsidian-links-container'),
 
                 html.Div([
                     dbc.Label("Google Drive", className="mb-0"),
-                    dbc.Button("+", id="btn-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+                    dbc.Button("+", id="btn-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"})
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='drive-links-container'),
 
                 html.Div([
                     dbc.Label("Website", className="mb-0"),
-                    dbc.Button("+", id="btn-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": "1.2rem", "lineHeight": "1"})
+                    dbc.Button("+", id="btn-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"})
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='website-links-container'),
 
@@ -398,7 +399,7 @@ def build_node_editor_content():
                     html.Hr(className="my-2"),
                     html.Div([
                         dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
-                        dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": "#6c757d", "borderColor": "#6c757d", "color": "#fff"}),
+                        dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": tokens.TEXT_DIM, "borderColor": tokens.TEXT_DIM, "color": "#fff"}),
                         dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
                         dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0", "backgroundColor": _DONE_COLOR, "borderColor": _DONE_COLOR})
                     ], className="d-flex mt-4"),
@@ -411,7 +412,7 @@ def build_node_editor_content():
                     "position": "sticky",
                     "bottom": "0",
                     "zIndex": 3,
-                    "backgroundColor": "#212529",
+                    "backgroundColor": tokens.BG_PANEL,
                     "paddingBottom": "10px",
                 }),
                 dbc.Tooltip("Discard unsaved changes and revert this node to its last saved state", target="btn-revert", placement="top",
@@ -453,7 +454,7 @@ def build_node_editor_sidebar():
             "transition": "transform 0.3s ease",
             "transform": SIDEBAR_TRANSLATE_CLOSED,
             "willChange": "transform",
-            "backgroundColor": "#212529"
+            "backgroundColor": tokens.BG_PANEL
         }
     )
 
@@ -470,7 +471,7 @@ def build_goals_sidebar():
                     dbc.Button("+", id="btn-goals-sidebar-new",
                                color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
-                               style={"fontSize": "1.4rem", "lineHeight": "1"}),
+                               style={"fontSize": tokens.FS_2XL, "lineHeight": "1"}),
                     dbc.Tooltip("New goal", target="btn-goals-sidebar-new", placement="right",
                                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                 ], className="d-flex align-items-center"),
@@ -512,7 +513,7 @@ def build_goals_sidebar():
             "transition": "transform 0.3s ease",
             "transform": SIDEBAR_TRANSLATE_CLOSED,
             "willChange": "transform",
-            "backgroundColor": "#212529",
+            "backgroundColor": tokens.BG_PANEL,
             "display": "flex",
             "flexDirection": "column",
         }
@@ -542,7 +543,7 @@ def build_events_sidebar():
             "transition": "transform 0.3s ease",
             "transform": SIDEBAR_TRANSLATE_CLOSED,
             "willChange": "transform",
-            "backgroundColor": "#212529",
+            "backgroundColor": tokens.BG_PANEL,
             "display": "flex",
             "flexDirection": "column",
         }
@@ -676,7 +677,7 @@ def build_filters_sidebar():
             "overflowY": "auto",
             "borderLeft": "1px solid #495057",
             "transition": "right 0.3s ease",
-            "backgroundColor": "#212529"
+            "backgroundColor": tokens.BG_PANEL
         }
     )
 

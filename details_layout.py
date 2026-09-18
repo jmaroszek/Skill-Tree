@@ -6,6 +6,7 @@ subtasks, and time simulation — merging the best parts of the Goals
 and Simulation tabs.
 """
 
+import style_tokens as tokens
 from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
@@ -88,11 +89,11 @@ def build_graph_settings_panel(
     children = [
         html.Div([
             html.Div([
-                html.Span("Graph Layout", style={"fontWeight": "300", "fontSize": "1.05rem"}),
+                html.Span("Graph Layout", style={"fontWeight": "300", "fontSize": tokens.FS_LG}),
                 dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
                            className="ms-2 p-0",
                            style={"fontSize": "1.1rem", "lineHeight": "1",
-                                  "color": "#adb5bd", "position": "relative",
+                                  "color": tokens.TEXT_SOFT, "position": "relative",
                                   "top": "0px", "textDecoration": "none"}),
                 dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
@@ -111,20 +112,20 @@ def build_graph_settings_panel(
                     id=f"{p}-animate",
                     label="Smooth",
                     value=True,
-                    style={"fontSize": "0.82rem"},
+                    style={"fontSize": tokens.FS_BASE},
                 ),
             ] if include_animate else []),
             dbc.Switch(
                 id=f"{p}-freeze-rerender",
                 label="Freeze",
                 value=False,
-                style={"fontSize": "0.82rem"},
+                style={"fontSize": tokens.FS_BASE},
             ),
         ], className="d-flex gap-2"),
         dbc.Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
                     target=f"{p}-freeze-rerender", placement="left",
                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+        html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
     ]
 
     # Scope, not physics — so it leads the panel and gets its own divider
@@ -138,7 +139,7 @@ def build_graph_settings_panel(
                 marks={1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "All"},
                 updatemode="mouseup",
             ),
-            html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+            html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
         ]
 
     children += [
@@ -180,7 +181,7 @@ def build_graph_settings_panel(
     ]
 
     children += [
-        html.Hr(style={"borderColor": "#495057", "margin": "12px 0"}),
+        html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
 
         dbc.Button("Settle", id=f"{p}-relayout",
                    color="secondary", size="sm", className="w-100 mt-2"),
@@ -281,7 +282,7 @@ def build_details_tab_content():
         # Description
         html.Div(id="details-node-description",
                  className="text-muted",
-                 style={"fontSize": "0.9rem", "whiteSpace": "pre-wrap",
+                 style={"fontSize": tokens.FS_MD, "whiteSpace": "pre-wrap",
                         "marginBottom": "14px"}),
 
         # Progress bar. It carries no margin of its own: the description above
@@ -290,7 +291,7 @@ def build_details_tab_content():
             dbc.Progress(id="details-progress-bar", value=0,
                          className="mb-1", style={"height": "14px"}),
             html.Small(id="details-progress-text", className="text-muted",
-                       style={"fontSize": "0.78rem"}),
+                       style={"fontSize": tokens.FS_CAP}),
         ]),
 
         # Stats grid
@@ -484,35 +485,35 @@ def build_details_tab_content():
                 options=[{"label": "Soft Needs", "value": "include"}],
                 value=["include"],
                 switch=True,
-                style={"fontSize": "0.82rem"},
+                style={"fontSize": tokens.FS_BASE},
             ),
             dbc.Checklist(
                 id=f"details-show-cross-links{suffix}",
                 options=[{"label": "Show Cross-Links", "value": "show"}],
                 value=["show"],
                 switch=True,
-                style={"fontSize": "0.82rem"},
+                style={"fontSize": tokens.FS_BASE},
             ),
             dbc.Checklist(
                 id=f"details-include-synergies{suffix}",
                 options=[{"label": "Synergies", "value": "include"}],
                 value=[],
                 switch=True,
-                style={"fontSize": "0.82rem"},
+                style={"fontSize": tokens.FS_BASE},
             ),
             dbc.Checklist(
                 id=f"details-hide-done{suffix}",
                 options=[{"label": "Show Done", "value": "show_done"}],
                 value=[],
                 switch=True,
-                style={"fontSize": "0.82rem"},
+                style={"fontSize": tokens.FS_BASE},
             ),
             dbc.Checklist(
                 id=f"details-hide-blocked{suffix}",
                 options=[{"label": "Hide Blocked", "value": "hide_blocked"}],
                 value=[],
                 switch=True,
-                style={"fontSize": "0.82rem", "marginRight": "12px"},
+                style={"fontSize": tokens.FS_BASE, "marginRight": "12px"},
             ),
         ], className="details-view-controls d-flex align-items-center gap-3")
 
@@ -537,7 +538,7 @@ def build_details_tab_content():
                 html.H5("Subtasks", className="mb-0"),
                 dbc.Button("+", id="btn-details-add-node", color="link",
                            className="p-0 ms-2 text-decoration-none text-muted",
-                           style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                           style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
                 dbc.Tooltip("Add subtask node", target="btn-details-add-node", placement="right",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="d-flex align-items-center"),
@@ -566,7 +567,7 @@ def build_details_tab_content():
         dcc.Store(id="details-sim-request"),
         dcc.Store(id="details-sim-result"),
         html.Small(id="details-sim-status", className="text-muted d-block mb-1",
-                   style={"fontSize": "0.85rem"}, **{"aria-live": "polite"}),
+                   style={"fontSize": tokens.FS_BASE}, **{"aria-live": "polite"}),
         html.Div(id="details-sim-empty", children=[
             html.Div([
                 html.P("Select a node to see the time distribution.",
@@ -617,7 +618,7 @@ def build_details_tab_content():
                          ('Soft', '#576068'), ('Synergy', '#466a78')):
         explain_legend_items.append(html.Span([
             html.Span("\u25A0 ", style={"color": color}),
-            html.Span(label, style={"color": "#adb5bd"}),
+            html.Span(label, style={"color": tokens.TEXT_SOFT}),
         ], className="me-3"))
 
     explain_modal = dbc.Modal([
@@ -626,7 +627,7 @@ def build_details_tab_content():
             # Total value means little on its own, so the header states where
             # this node lands among comparable ones.
             html.Div(id="details-explain-subtitle", className="text-muted",
-                     style={"fontSize": "0.82rem", "marginTop": "2px"}),
+                     style={"fontSize": tokens.FS_BASE, "marginTop": "2px"}),
         ])),
         dbc.ModalBody([
             # Contributors lead: "which work is driving this score" is the
@@ -636,8 +637,8 @@ def build_details_tab_content():
             html.Div([
                 html.H5("Top Contributors", className="mt-2 mb-1"),
                 html.Div([
-                    html.Span("Show", style={"color": "#adb5bd",
-                                              "fontSize": "0.85rem",
+                    html.Span("Show", style={"color": tokens.TEXT_SOFT,
+                                              "fontSize": tokens.FS_BASE,
                                               "marginRight": "6px"}),
                     dbc.Input(id="details-explain-count",
                               type="number", min=1, max=100, step=1, value=10,
@@ -645,7 +646,7 @@ def build_details_tab_content():
                               style={"width": "42px",
                                      "height": "22px",
                                      "padding": "0 4px",
-                                     "fontSize": "0.8rem",
+                                     "fontSize": tokens.FS_CAP,
                                      "lineHeight": "1",
                                      "textAlign": "center"}),
                 ], className="d-flex align-items-center"),
@@ -664,7 +665,7 @@ def build_details_tab_content():
                         "text-muted d-flex align-items-center "
                         "justify-content-center"
                     ),
-                    style={"minHeight": "260px", "fontSize": "0.85rem"},
+                    style={"minHeight": "260px", "fontSize": tokens.FS_BASE},
                     **{"role": "status", "aria-live": "polite"},
                 ),
                 dcc.Graph(
@@ -674,7 +675,7 @@ def build_details_tab_content():
                 ),
             ]),
             html.Div(explain_legend_items,
-                     style={"fontSize": "0.78rem", "textAlign": "right"}),
+                     style={"fontSize": tokens.FS_CAP, "textAlign": "right"}),
             html.Hr(className="my-3"),
             dbc.Button([
                 html.Span(id="details-explain-summary-chevron",
@@ -699,13 +700,13 @@ def build_details_tab_content():
                           style={"width": "52px",
                                  "height": "31px",
                                  "textAlign": "center",
-                                 "fontSize": "0.85rem",
+                                 "fontSize": tokens.FS_BASE,
                                  "padding": "0",
                                  "border": "1px solid #495057"}),
             ], style={"width": "auto"}),
             html.Span(id="details-explain-focus-feedback",
-                      style={"color": "#dc3545",
-                             "fontSize": "0.8rem",
+                      style={"color": tokens.DANGER_TEXT,
+                             "fontSize": tokens.FS_CAP,
                              "marginLeft": "10px",
                              "alignSelf": "center"}),
             dbc.Button("Close", id="btn-details-explain-close",
@@ -768,8 +769,8 @@ def _attribute_row(label, value_id):
     """Creates a compact attribute display row."""
     return html.Div([
         html.Span(f"{label}:", className="text-muted",
-                  style={"width": "70px", "fontSize": "0.82rem"}),
-        html.Span(id=value_id, style={"fontSize": "0.85rem", "fontWeight": "500"}),
+                  style={"width": "70px", "fontSize": tokens.FS_BASE}),
+        html.Span(id=value_id, style={"fontSize": tokens.FS_BASE, "fontWeight": "500"}),
     ], className="d-flex align-items-center mb-1")
 
 
@@ -780,7 +781,7 @@ def _goal_corner_badge(text, palette_name, class_name="badge"):
     looks the same on both.
     """
     return html.Span(text, className=class_name, style={
-        **badge_style(palette_name, font_size="0.7rem"),
+        **badge_style(palette_name, font_size=tokens.FS_XS),
         "minWidth": "34px", "textAlign": "center", "display": "inline-block",
     })
 
@@ -835,7 +836,7 @@ def build_details_suggestions(goal_rows, explore_rows, filters_active=False):
     def _section(title, rows):
         return html.Div([
             html.H6(title, className="text-muted mb-2",
-                    style={"fontSize": "0.78rem", "fontWeight": "500",
+                    style={"fontSize": tokens.FS_CAP, "fontWeight": "500",
                            "letterSpacing": "1px", "textTransform": "uppercase",
                            "marginTop": "12px"}),
             html.Div(rows),
@@ -894,7 +895,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     # Drag handle (visible only for non-priority, manual-sort goals)
     drag_handle = html.Span(
         "\u2630", className="goal-drag-handle",
-        style={"cursor": "grab", "color": "#6c757d", "fontSize": "0.9rem",
+        style={"cursor": "grab", "color": tokens.TEXT_DIM, "fontSize": tokens.FS_MD,
                "marginRight": "8px", "userSelect": "none"},
     ) if show_order_buttons else None
 
@@ -905,7 +906,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     if effective_status == STATUS_DONE:
         corner_badge = html.Span(
             STATUS_DONE, className=_badge_cls,
-            style={**badge_style(STATUS_DONE, font_size="0.7rem"),
+            style={**badge_style(STATUS_DONE, font_size=tokens.FS_XS),
                    "width": "62px", "textAlign": "center", "display": "inline-block"})
     elif corner_text and priority_rank is None:
         corner_badge = _goal_corner_badge(corner_text, STATUS_OPEN, _badge_cls)
@@ -938,7 +939,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     else:
         stats_text = "No subtasks yet"
 
-    children.append(html.Small(stats_text, className="text-muted", style={"fontSize": "0.75rem"}))
+    children.append(html.Small(stats_text, className="text-muted", style={"fontSize": tokens.FS_SM}))
 
     return html.Div(children, id={"type": "goal-card", "index": name},
        className="mb-2 goal-card rounded",
@@ -975,7 +976,7 @@ def _build_filters_sidebar():
                     ],
                     value=["Learn", "Goal", "Action", "Resource"],
                     className="mb-3",
-                    style={"fontSize": "0.85rem"},
+                    style={"fontSize": tokens.FS_BASE},
                 ),
 
                 dbc.Label("Status", className="text-muted small mb-1"),
@@ -988,7 +989,7 @@ def _build_filters_sidebar():
                     ],
                     value=[STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE],
                     className="mb-3",
-                    style={"fontSize": "0.85rem"},
+                    style={"fontSize": tokens.FS_BASE},
                 ),
 
                 dbc.Button("Reset Filters", id="btn-details-filters-reset",
@@ -1006,7 +1007,7 @@ def _build_filters_sidebar():
             "overflowY": "auto",
             "borderLeft": "1px solid #495057",
             "transition": "right 0.3s ease",
-            "backgroundColor": "#212529",
+            "backgroundColor": tokens.BG_PANEL,
             "display": "flex",
             "flexDirection": "column",
         }
@@ -1056,7 +1057,7 @@ def _build_add_node_modal(ted):
                     dbc.Button("+", id="btn-details-add-alias-add", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
                                title="Add alias",
-                               style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
                 ], className="d-flex align-items-center mb-1"),
                 dbc.Input(id="details-add-name", type="text", placeholder="Name node..."),
                 dbc.Collapse(
@@ -1093,7 +1094,7 @@ def _build_add_node_modal(ted):
                         id="btn-details-ratings-info",
                         style={
                             "background": "none", "border": "none", "padding": "0 0 0 6px",
-                            "color": "#6c757d", "cursor": "pointer", "fontSize": "0.95rem",
+                            "color": tokens.TEXT_DIM, "cursor": "pointer", "fontSize": tokens.FS_LG,
                             "lineHeight": "1", "position": "relative", "top": "3px"
                         }
                     ),
@@ -1116,7 +1117,7 @@ def _build_add_node_modal(ted):
                 ),
                 # Locked-on notice for Milestones (mirrors the main editor).
                 html.Div(id="details-add-value-mode-warning",
-                         style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
+                         style=tokens.ERROR_TEXT_HIDDEN,
                          className="mt-1 mb-2", children=""),
 
                 html.Div(id="details-add-ratings", children=[
@@ -1249,7 +1250,7 @@ def _build_add_node_modal(ted):
                     dbc.Button("+", id="btn-details-add-obsidian-add", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
                                title="Add Obsidian link",
-                               style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 html.Div(id='details-add-obsidian-container'),
 
@@ -1258,7 +1259,7 @@ def _build_add_node_modal(ted):
                     dbc.Button("+", id="btn-details-add-drive-add", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
                                title="Add Google Drive link",
-                               style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='details-add-drive-container'),
 
@@ -1267,13 +1268,13 @@ def _build_add_node_modal(ted):
                     dbc.Button("+", id="btn-details-add-website-add", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
                                title="Add Website link",
-                               style={"fontSize": "1.2rem", "lineHeight": "1"}),
+                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='details-add-website-container'),
             ]),
 
             html.Div(id="details-add-save-status", className="text-danger mt-2",
-                     style={"fontSize": "0.85rem", "minHeight": "1.2em"}),
+                     style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
         ]),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-details-add-cancel",
@@ -1429,30 +1430,30 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                 html.Span(node.name, title="Open in Details tab",
                           style={"cursor": "pointer"}),
                 id={"type": "details-subtask-name", "index": node.name},
-                style={"verticalAlign": "middle"},
+                style=tokens.CELL_PRIMARY,
             ),
             html.Td(html.Span(node.status, className="badge",
-                              style=badge_style(node.status, font_size="0.7rem")),
-                    style={"verticalAlign": "middle"}),
+                              style=badge_style(node.status, font_size=tokens.FS_XS)),
+                    style=tokens.CELL_PRIMARY),
             html.Td(html.Span(rel, className="badge",
-                              style={**rel_style, "fontSize": "0.7rem",
+                              style={**rel_style, "fontSize": tokens.FS_XS,
                                      "padding": "4px 8px", "borderRadius": "4px"}),
-                    style={"verticalAlign": "middle"}),
-            html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
+                    style=tokens.CELL_PRIMARY),
+            html.Td(node.type, style=tokens.CELL_MUTED),
             html.Td(str(node.context) if node.context else "—",
-                    style={"verticalAlign": "middle", "color": "#6c757d"}),
+                    style=tokens.CELL_MUTED),
             html.Td(str(node.subcontext) if node.subcontext else "—",
-                    style={"verticalAlign": "middle", "color": "#6c757d"}),
+                    style=tokens.CELL_MUTED),
             html.Td(priority_scores.get(node.name, "—"),
-                    style={"verticalAlign": "middle", "color": "#6c757d"}),
+                    style=tokens.CELL_MUTED),
             html.Td(str(node.value),
-                    style={"verticalAlign": "middle", "color": "#6c757d"}),
+                    style=tokens.CELL_MUTED),
             html.Td(str(node.interest),
-                    style={"verticalAlign": "middle", "color": "#6c757d"}),
+                    style=tokens.CELL_MUTED),
             html.Td(str(node.difficulty),
-                    style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(_time_cell, style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(edit_btn, style={"verticalAlign": "middle"}),
+                    style=tokens.CELL_MUTED),
+            html.Td(_time_cell, style=tokens.CELL_MUTED),
+            html.Td(edit_btn, style=tokens.CELL_PRIMARY),
         ], className="details-subtask-row"))
 
     return dbc.Table([
@@ -1471,9 +1472,9 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.Th(""),
         ])),
         html.Tbody(rows),
-    ], bordered=False, hover=True, responsive=True, size="sm",
-       className="details-subtasks-table text-light",
-       style={"fontSize": "0.82rem"})
+    ], **tokens.TABLE_PROPS,
+       className=f"details-subtasks-table {tokens.TABLE_CLASS}",
+       style=tokens.TABLE_STYLE)
 
 
 def build_milestone_tile(milestone_node, completion: dict):
@@ -1503,7 +1504,7 @@ def build_milestone_tile(milestone_node, completion: dict):
                 "overflow": "hidden",
                 "textOverflow": "ellipsis",
                 "whiteSpace": "nowrap",
-                "fontSize": "0.85rem",
+                "fontSize": tokens.FS_BASE,
                 "fontWeight": "500",
             },
             title=milestone_node.name,
@@ -1511,7 +1512,7 @@ def build_milestone_tile(milestone_node, completion: dict):
         html.Span(
             milestone_node.status,
             className="badge",
-            style={**badge_style(milestone_node.status, font_size="0.65rem"),
+            style={**badge_style(milestone_node.status, font_size=tokens.FS_XS),
                    "marginLeft": "6px"},
         ),
     ], className="d-flex align-items-center")
@@ -1529,14 +1530,14 @@ def build_milestone_tile(milestone_node, completion: dict):
                     "backgroundColor": bar_color, "borderRadius": "3px",
                     "transition": "width 0.3s ease"
                 }),
-                style={"backgroundColor": "#495057", "borderRadius": "3px",
+                style={"backgroundColor": tokens.BORDER_PANEL, "borderRadius": "3px",
                        "marginTop": "10px", "marginBottom": "5px",
                        "overflow": "hidden"},
             ),
             html.Div(
                 f"{pct}% · {ConfigManager.format_time_friendly(remaining)}",
                 className="text-muted",
-                style={"fontSize": "0.72rem"},
+                style={"fontSize": tokens.FS_XS},
             ),
         ]
 
@@ -1551,7 +1552,7 @@ def build_milestone_tile(milestone_node, completion: dict):
         style={
             "flex": "0 0 280px",
             "padding": "10px 12px",
-            "backgroundColor": "#2b3035",
+            "backgroundColor": tokens.BG_RAISED,
             "border": "1px solid #495057",
             "borderRadius": "6px",
             "cursor": "pointer",

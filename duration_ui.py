@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+import style_tokens as tokens
 
 _BRACKET_HINTS = {
     "Lower": "10% chance of finishing sooner than this.",
@@ -26,7 +27,7 @@ def estimate_guidance(id_prefix):
     info_id = f"{id_prefix}-time-info"
     return html.Span([
         html.I(className="bi bi-info-circle", id=info_id,
-               style={"color": "#6c757d", "cursor": "pointer", "fontSize": "0.9rem"}),
+               style={"color": "#6c757d", "cursor": "pointer", "fontSize": tokens.FS_MD}),
         dbc.Tooltip(
             "With only Expected filled in, that number is used directly as the mean. "
             "With a bracket, the mean work hours are calculated from all supplied values.",

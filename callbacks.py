@@ -54,6 +54,7 @@ from callback_helpers import (
     habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
 )
+import style_tokens as tokens
 
 logger = logging.getLogger(__name__)
 
@@ -308,7 +309,7 @@ def register_callbacks(app, services=None):
 
         header = html.Div(
             html.Strong(data.get('label', node_id)),
-            style={"fontSize": "0.95rem", "marginBottom": "4px",
+            style={"fontSize": tokens.FS_LG, "marginBottom": "4px",
                    "borderBottom": "1px solid #495057", "paddingBottom": "4px"}
         )
 
@@ -324,7 +325,7 @@ def register_callbacks(app, services=None):
             if total > 0:
                 bar_color = "#198754" if pct == 100 else "#0d6efd"
                 lines += [
-                    html.Hr(style={"margin": "6px 0", "borderColor": "#495057"}),
+                    html.Hr(style={"margin": "6px 0", "borderColor": tokens.BORDER_PANEL}),
                     html.Div([html.Strong("Progress: "), f"{done}/{total} hard subtasks ({pct}%)"]),
                     html.Div(
                         html.Div(style={
@@ -332,20 +333,20 @@ def register_callbacks(app, services=None):
                             "backgroundColor": bar_color, "borderRadius": "3px",
                             "transition": "width 0.3s ease"
                         }),
-                        style={"backgroundColor": "#495057", "borderRadius": "3px",
+                        style={"backgroundColor": tokens.BORDER_PANEL, "borderRadius": "3px",
                                "margin": "4px 0", "overflow": "hidden"}
                     ),
                     html.Div([html.Strong("Remaining: "),
                               ConfigManager.format_time_friendly(remaining)]),
                 ]
             else:
-                lines.append(html.Div("No subtasks yet", style={"color": "#6c757d", "fontStyle": "italic"}))
+                lines.append(html.Div("No subtasks yet", style={"color": tokens.TEXT_DIM, "fontStyle": "italic"}))
 
             ctx_val = data.get('context', '')
             sub_val = data.get('subcontext', '')
             if ctx_val or sub_val:
                 subctx_str = f"{ctx_val} > {sub_val}" if ctx_val and sub_val else ctx_val or sub_val
-                lines.append(html.Div(subctx_str, style={"color": "#adb5bd"}))
+                lines.append(html.Div(subctx_str, style={"color": tokens.TEXT_SOFT}))
 
         else:
             ratings_inherited = data.get('value_mode') == 'inherited'
@@ -354,7 +355,7 @@ def register_callbacks(app, services=None):
             lines = [marker, header]
 
             if ratings_inherited and time_inherited:
-                lines.append(html.Div("Container", style={"color": "#adb5bd"}))
+                lines.append(html.Div("Container", style={"color": tokens.TEXT_SOFT}))
             else:
                 if ratings_inherited:
                     lines.append(html.Div([html.Strong("Ratings: "), "inherited"]))
@@ -375,7 +376,7 @@ def register_callbacks(app, services=None):
             sub_val = data.get('subcontext', '')
             if ctx_val or sub_val:
                 subctx_str = f"{ctx_val} > {sub_val}" if ctx_val and sub_val else ctx_val or sub_val
-                lines.append(html.Div(subctx_str, style={"color": "#adb5bd"}))
+                lines.append(html.Div(subctx_str, style={"color": tokens.TEXT_SOFT}))
 
         return lines
 
@@ -948,7 +949,7 @@ def register_callbacks(app, services=None):
         function(time_mode_val, node_type) {
             var no_update = window.dash_clientside.no_update;
             var hidden = {display: "none"};
-            var visible = {display: "block", color: "#dc3545", fontSize: "0.85rem"};
+            var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
             var ctx = window.dash_clientside.callback_context;
             var triggered = (ctx && ctx.triggered) || [];
             var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
@@ -1016,7 +1017,7 @@ def register_callbacks(app, services=None):
         function(value_mode_val, node_type) {
             var no_update = window.dash_clientside.no_update;
             var hidden = {display: "none"};
-            var visible = {display: "block", color: "#dc3545", fontSize: "0.85rem"};
+            var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
             var ctx = window.dash_clientside.callback_context;
             var triggered = (ctx && ctx.triggered) || [];
             var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
@@ -1117,8 +1118,8 @@ def register_callbacks(app, services=None):
         Validation is skipped when the node uses inherited time (container
         draws from children) or habit mode (separate input section).
         """
-        hidden = {"display": "none", "color": "#dc3545", "fontSize": "0.85rem"}
-        visible = {"display": "block", "color": "#dc3545", "fontSize": "0.85rem"}
+        hidden = tokens.ERROR_TEXT_HIDDEN
+        visible = tokens.ERROR_TEXT_VISIBLE
 
         if (time_mode_val and 'inherited' in time_mode_val) or \
            (habit_mode_val and 'habit' in habit_mode_val):
@@ -1199,7 +1200,7 @@ def register_callbacks(app, services=None):
         if matches:
             names_str = ", ".join(matches)
             warning = html.Div(f"Possible duplicate: {names_str}",
-                               style={"color": "#dc3545", "fontSize": "0.85rem"})
+                               style=tokens.ERROR_TEXT_VISIBLE)
             return warning, {"display": "block"}
 
         return "", hidden

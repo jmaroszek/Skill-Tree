@@ -22,11 +22,12 @@ from callback_helpers import (render_link_rows, render_alias_rows,
                               resolve_time_mode, resolve_value_mode,
                               build_node_element, build_edge_element,
                               canvas_node_styles)
+import style_tokens as tokens
 
 event_manager = EventManager()
 graph_manager = GraphManager()
 
-_badge_hidden = {"fontSize": "0.85rem", "display": "none"}
+_badge_hidden = {"fontSize": tokens.FS_BASE, "display": "none"}
 
 
 def _normalize_trigger_nodes(value):
@@ -999,7 +1000,7 @@ def register_event_callbacks(app, services=None):
         function(value_mode_val, node_type) {
             var no_update = window.dash_clientside.no_update;
             var hidden = {display: "none"};
-            var visible = {display: "block", color: "#dc3545", fontSize: "0.85rem"};
+            var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
             var ctx = window.dash_clientside.callback_context;
             var triggered = (ctx && ctx.triggered) || [];
             var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });

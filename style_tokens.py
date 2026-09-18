@@ -67,6 +67,28 @@ RADIUS_SM = "var(--st-radius-sm)"
 RADIUS = "var(--st-radius)"
 SHADOW_PANEL = "var(--st-shadow-panel)"
 
+# --- Inline validation messages ---------------------------------------------
+# A field-level error under an input. This exact dict was written out at ten
+# call sites (including inside clientside-callback JavaScript strings) with
+# stock Bootstrap red, #dc3545 -- brighter than the tamed #c94c4c the app uses
+# for every danger button and badge, and than the #ee6666 its own .text-danger
+# class defines. Error text now speaks the same red as everything else.
+ERROR_TEXT_HIDDEN = {"display": "none", "color": DANGER_TEXT, "fontSize": FS_BASE}
+ERROR_TEXT_VISIBLE = {"display": "block", "color": DANGER_TEXT, "fontSize": FS_BASE}
+
+#: The same pair for clientside callbacks, which build style objects in JS.
+#: CSS variables resolve in JS-assigned inline styles exactly as they do in a
+#: stylesheet, so the JS and Python paths cannot drift.
+ERROR_TEXT_JS_HIDDEN = (
+    '{display: "none", color: "var(--st-danger-text)", '
+    'fontSize: "var(--st-fs-base)"}'
+)
+ERROR_TEXT_JS_VISIBLE = (
+    '{display: "block", color: "var(--st-danger-text)", '
+    'fontSize: "var(--st-fs-base)"}'
+)
+
+
 # --- Shared composite styles ------------------------------------------------
 # These were module-local constants that each surface re-declared. Promoted so
 # the tables/headings that are meant to match actually do.
