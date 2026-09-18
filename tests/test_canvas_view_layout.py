@@ -1,5 +1,7 @@
 """Regression coverage for Details local-view controls and layout-only gears."""
 
+from pathlib import Path
+
 from config import ConfigManager
 from details_layout import build_graph_settings_panel, build_details_tab_content
 from layout import build_app_layout
@@ -118,6 +120,17 @@ def test_graph_layout_panel_contains_only_layout_controls():
     assert "test-graph-layout-neighbor-links" not in ids
     assert "test-graph-layout-animate" in ids
     assert "test-graph-layout-freeze-rerender" in ids
+
+
+def test_graph_layout_panel_scrolls_within_a_short_canvas():
+    """A shared panel must not lose controls when its canvas is short."""
+    css = (Path(__file__).resolve().parents[1] / "assets" / "theme.css").read_text()
+    rule_start = css.index(".graph-settings-panel {")
+    rule = css[rule_start:css.index("}\n", rule_start) + 1]
+
+    assert "box-sizing: border-box" in rule
+    assert "max-height: calc(100% - 72px)" in rule
+    assert "overflow-y: auto" in rule
 
 
 def test_graph_layout_sliders_use_qualitative_endpoint_labels():
