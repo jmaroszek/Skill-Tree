@@ -883,7 +883,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
                     html.I(className="bi bi-pencil", **{"aria-hidden": "true"}),
                     html.Span(f"Edit dormant node {node.name}", className="visually-hidden"),
                 ],
-                id=edit_id, color="link", title="Edit dormant node",
+                id=edit_id, color="link",
                 className="dormant-node-action-btn",
             )
             remove_btn = dbc.Button(
@@ -891,7 +891,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
                     html.I(className="bi bi-x-lg", **{"aria-hidden": "true"}),
                     html.Span(f"Remove dormant node {node.name}", className="visually-hidden"),
                 ],
-                id=remove_id, color="link", title="Remove dormant node",
+                id=remove_id, color="link",
                 className="dormant-node-action-btn dormant-node-action-btn-danger",
             )
             action_btns = html.Div([

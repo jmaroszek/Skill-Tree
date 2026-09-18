@@ -38,6 +38,8 @@ def test_dormant_node_table_uses_progressively_disclosed_direct_actions():
     assert remove_button.children[0].className == "bi bi-x-lg"
     assert edit_button.children[1].children == "Edit dormant node Audio Engineering"
     assert remove_button.children[1].children == "Remove dormant node Audio Engineering"
+    assert not hasattr(edit_button, "title")
+    assert not hasattr(remove_button, "title")
 
 
 def test_triggered_dormant_node_table_has_no_row_actions():
