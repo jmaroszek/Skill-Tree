@@ -10,6 +10,7 @@ from editor_values import (
     _friendly_time_estimates,
 )
 
+import functools
 import json
 import logging
 import database
@@ -34,11 +35,13 @@ from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
                     DEFAULT_EVENTS_GRAPH_LAYOUT, SUPPORTED_NODE_TYPES)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from node_commands import (
+    handle_save, handle_delete, handle_toggle_done, handle_group_delete,
+    prior_node_for_completion,
+)
 from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
     node_options, build_filters, is_filters_active,
-    handle_save, handle_delete, handle_toggle_done, handle_group_delete,
-    prior_node_for_completion,
     format_traversal_ui,
     render_link_rows, render_alias_rows, alias_rows_label, update_alias_rows,
     spawn_local_file_picker,
@@ -173,20 +176,29 @@ def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_even
 
 
 @database.snapshot_read
-def generate_elements(filters=None, active_node_id=None, community_names=None):
-    """Convert nodes and edges from the database into Cytoscape elements."""
+def generate_elements(filters=None, active_node_id=None, community_names=None,
+                      graph=None, events=None):
+    """Convert nodes and edges from the database into Cytoscape elements.
+
+    `graph`/`events` default to the module-level managers so standalone callers
+    (and tests) can call this with no wiring. `register_callbacks` binds the
+    AppServices instances instead, so the canvas renders through the same
+    managers the callbacks mutate.
+    """
+    graph = manager if graph is None else graph
+    events = event_manager if events is None else events
     if filters is None: filters = {}
     # Always fetch dormant nodes too — filter_nodes decides whether to keep
     # them based on the `show_dormant` filter. Fetching unconditionally keeps
     # the include/exclude decision in one place (the filter pipeline).
-    nodes = manager.get_all_nodes(include_dormant=True)
-    filtered_nodes = manager.filter_nodes(nodes, filters)
+    nodes = graph.get_all_nodes(include_dormant=True)
+    filtered_nodes = graph.filter_nodes(nodes, filters)
 
     if community_names is not None:
         filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
 
     valid_names = {n.name for n in filtered_nodes}
-    styles = canvas_node_styles(event_manager)
+    styles = canvas_node_styles(events)
 
     elements = [
         build_node_element(
@@ -195,15 +207,17 @@ def generate_elements(filters=None, active_node_id=None, community_names=None):
         for node in filtered_nodes
     ]
     elements.extend(
-        build_edge_element(e) for e in manager.get_edges()
+        build_edge_element(e) for e in graph.get_edges()
         if e['source'] in valid_names and e['target'] in valid_names)
     return elements
 
 
 def register_callbacks(app, services=None):
+    """Register all Dash callbacks for the application."""
     manager = services.graph if services is not None else globals()['manager']
     event_manager = services.events if services is not None else globals()['event_manager']
-    """Register all Dash callbacks for the application."""
+    render_elements = functools.partial(
+        generate_elements, graph=manager, events=event_manager)
 
     # --- Graph Version Bridge ---
     # Observes cytoscape element changes and updates graph-version-store only
@@ -1809,7 +1823,7 @@ def register_callbacks(app, services=None):
             except Exception as e:
                 msg = f"Error: {e}"
         view = build_canvas_view(
-            manager, generate_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
+            manager, render_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
 
         # Time-calibration: when an explicit single-node completion just
         # happened and the feature is enabled, open the modal to capture how
@@ -2213,7 +2227,7 @@ def register_callbacks(app, services=None):
                     node.status = STATUS_DONE
                     manager.update_node(node)
                     save_msg_out = f"Marked '{target}' as Done"
-                    elements_out = generate_elements()
+                    elements_out = render_elements()
                 except Exception as exc:
                     save_msg_out = f"Error marking '{target}' Done: {exc}"
                     # Re-prepend so the user can retry from the modal.

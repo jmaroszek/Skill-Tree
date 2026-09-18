@@ -13,9 +13,10 @@ import math
 import pytest
 
 from callback_helpers import (
-    habit_to_hours, compute_habit_time_omp, handle_save,
+    habit_to_hours, compute_habit_time_omp,
     habit_editor_view, habit_preview_text, parse_habit_days,
 )
+from node_commands import handle_save
 from graph_manager import GraphManager
 from models import Node
 

@@ -10,7 +10,7 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_BLOCKED, STATUS_OPEN
 from graph_manager import GraphManager
-from callback_helpers import compute_orphaned_subcontext_pairs, detect_context_renames
+from context_rules import compute_orphaned_subcontext_pairs, detect_context_renames
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
 from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, time_cost_term,

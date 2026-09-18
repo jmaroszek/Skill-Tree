@@ -7,12 +7,21 @@ import sys
 import pytest
 
 
-@pytest.mark.parametrize('module', [
+# Modules that hold graph/business logic. These must stay usable without the
+# Dash UI stack, so callback_helpers (which imports dash, dbc and plotly) is
+# off-limits to them as well as the callback registration modules themselves.
+CORE_MODULES = [
     'goal_ranking', 'graph_analytics', 'context_rules', 'node_commands',
-    'editor_values', 'next_view', 'graph_manager', 'canvas_view', 'sidebar_state',
-    'graph_repository', 'graph_queries', 'graph_scoring', 'graph_rules',
-])
-def test_shared_modules_do_not_import_callback_modules(module):
+    'editor_values', 'graph_manager', 'graph_repository', 'graph_queries',
+    'graph_scoring', 'graph_rules', 'graph_state', 'layout',
+]
+
+# View-preparation modules. They legitimately build Dash components, so they may
+# use callback_helpers — but they still must not import callback registration.
+VIEW_MODULES = ['next_view', 'canvas_view', 'sidebar_state']
+
+
+def _imports_of(module):
     source = Path(__file__).resolve().parents[1] / f'{module}.py'
     tree = ast.parse(source.read_text(encoding='utf-8'))
     imports = []
@@ -21,12 +30,25 @@ def test_shared_modules_do_not_import_callback_modules(module):
             imports.append(node.module or '')
         elif isinstance(node, ast.Import):
             imports.extend(alias.name for alias in node.names)
-    assert not [name for name in imports
-                if name == 'callbacks' or name.endswith('_callbacks')]
+    return imports
 
 
-def test_layout_does_not_import_callback_modules():
-    test_shared_modules_do_not_import_callback_modules('layout')
+@pytest.mark.parametrize('module', CORE_MODULES + VIEW_MODULES)
+def test_shared_modules_do_not_import_callback_modules(module):
+    offenders = [name for name in _imports_of(module)
+                 if name == 'callbacks' or name.endswith('_callbacks')]
+    assert not offenders, f'{module} imports callback modules: {offenders}'
+
+
+@pytest.mark.parametrize('module', CORE_MODULES)
+def test_core_modules_do_not_depend_on_the_dash_ui_helper_layer(module):
+    """Graph/business logic must not reach for the component-building helpers.
+
+    callback_helpers pulls in dash, dash_bootstrap_components and plotly. A core
+    module that imports it can no longer be used (or tested) without the UI stack,
+    which is the coupling this split exists to remove.
+    """
+    assert 'callback_helpers' not in _imports_of(module)
 
 
 def test_importing_application_modules_has_no_database_or_logging_side_effects():

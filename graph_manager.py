@@ -7,11 +7,9 @@ detection, filtering, and priority scoring — and owns the invalidation
 counters that let the higher-level callback caches know when to rebuild.
 """
 
-import json
 import sqlite3
-import threading
 import time
-from collections import deque, OrderedDict
+from collections import deque
 from datetime import date
 import database
 import graph_queries
@@ -22,7 +20,6 @@ from graph_state import GraphCaches, CacheValue, RevisionValue, revisions
 import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
-from scoring import score_nodes
 from typing import List, Dict, Optional, Set, Tuple
 
 

@@ -12,16 +12,9 @@ from graph_analytics import (
     _REFLECTION_MIN_N,
     _compute_reflection_drift,
     _compute_throughput,
-    _MONTH_ABBR,
     _compute_goal_comparison,
     _compute_ratings,
     _compute_context_coverage,
-)
-
-from goal_ranking import (
-    _rank_goals,
-    normalize_goal_scores,
-    explain_goal,
 )
 
 import logging

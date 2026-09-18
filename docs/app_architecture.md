@@ -4,9 +4,10 @@ How the app fits together: the layering, the module map, the `dcc.Store` wiring,
 
 ## The layering
 
-The app separates construction, callback wiring, shared operations, state management,
-computation, and persistence. Compatibility exports remain at former module paths;
-new callers should use the shared modules directly.
+The app is six layers: construction, callbacks, shared operations, the state
+gateway, pure compute, and persistence. Each one only knows about the layer below
+it. Shared operations sit between the callbacks and the gateway so that graph
+logic has a home of its own, rather than living in whichever tab first needed it.
 
 
 - **Construction and layout** (`app.py`, `app_services.py`, `layout.py`, `*_layout.py`) — explicit startup and fresh component factories. Layout construction reads settings and hydrates Next under one read snapshot; the hidden main canvas starts empty and its initial callback populates it. Imports do not open SQLite or configure logging.
@@ -18,10 +19,19 @@ new callers should use the shared modules directly.
 
 Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the Dash callback model can't express (context menus, position-freeze, drag-sortables, the value-setter bridge). It talks to Python only through `dcc.Store` components and hidden inputs. The one exception is the list of canvases, which the page receives from `canvases.py` before any asset runs.
 
-Tabs use shared operations and the graph/event managers captured from `AppServices`,
-plus the classmethod-only `ConfigManager`. They coordinate through database writes
-and revision stores. Standalone helper APIs retain inert default managers for
-compatibility; the runtime still selects one database per process.
+The one-way rule has a payoff: a tab module sees only `app`, the shared operations
+and the managers it is handed — never another tab's internals. Tabs coordinate
+*through the database*, not with each other (a write bumps a version counter; the
+next tab notices on its next callback). `tests/test_architecture_boundaries.py`
+enforces this: no shared module may import a callback module, and no core logic
+module may import `callback_helpers`, which would drag in the whole Dash UI stack.
+
+`register_*_callbacks(app, services)` receives the graph/event managers from
+`AppServices`, and `generate_elements` is bound to those same managers, so the
+canvas renders through the managers the callbacks mutate. Each module keeps a
+module-level manager as the default for standalone callers and tests. Every
+manager reads one database per process, and the revision counters in
+`graph_state.py` are process-wide, so their caches stay coherent with each other.
 
 ## Module map
 

@@ -93,7 +93,7 @@ def test_independent_enumerated_path_and_hard_closure_oracle(profile):
 
 
 def test_goal_scope_and_explanation_exclude_optional_work_and_second_discount():
-    from analyze_callbacks import _rank_goals, explain_goal
+    from goal_ranking import _rank_goals, explain_goal
     ns = [node('A'), node('D', type='Goal'), node('Optional', 10000)]
     es = [edge('A','D')]
     hp = dict(PROFILES['Sage'], future_work_half_credit_hours=1)

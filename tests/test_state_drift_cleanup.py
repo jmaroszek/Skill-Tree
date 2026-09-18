@@ -20,7 +20,7 @@ from models import Node, Event, EDGE_NEEDS_HARD
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import ConfigManager
-from callback_helpers import handle_group_delete
+from node_commands import handle_group_delete
 
 
 @pytest.fixture(autouse=True)

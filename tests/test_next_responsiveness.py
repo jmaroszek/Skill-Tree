@@ -29,8 +29,11 @@ def test_selection_has_no_server_subscribers():
 
 
 def test_initial_next_is_populated_and_respects_remembered_filters():
-    from layout import next_view
+    from layout import build_next_view
     from sidebars_layout import build_all_sidebars
+    # Built once and reused: the assertion below checks that hydration does not
+    # mutate the template it was handed, so both uses must be the same object.
+    next_view = build_next_view()
     manager = graph('Visible', 'Filtered')
     node = manager.get_node('Filtered')
     node.value = 1

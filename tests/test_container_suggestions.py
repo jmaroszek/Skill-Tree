@@ -10,7 +10,7 @@ from typing import Any
 import dash
 from dash.development.base_component import Component
 
-from analyze_callbacks import _rank_goals, explain_goal, normalize_goal_scores
+from goal_ranking import _rank_goals, explain_goal, normalize_goal_scores
 from callback_helpers import select_explore_goals
 from config import ConfigManager
 from graph_manager import GraphManager

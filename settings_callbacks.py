@@ -23,7 +23,8 @@ from config import (
 )
 from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
-from callback_helpers import get_trigger_id, build_context_weight_rows, detect_context_renames
+from callback_helpers import get_trigger_id, build_context_weight_rows
+from context_rules import detect_context_renames
 
 logger = logging.getLogger(__name__)
 

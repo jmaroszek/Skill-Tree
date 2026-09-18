@@ -1,9 +1,8 @@
 """Graph analytics data preparation; rendering belongs to the Analyze view."""
 import math
-from datetime import date
 from collections import defaultdict
 from config import ConfigManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_BLOCKED, STATUS_DONE
 from goal_ranking import _rank_goals
 
 def _build_adjacency(edges):

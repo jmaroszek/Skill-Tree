@@ -2,8 +2,7 @@
 import dash
 from config import SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED
 from callback_helpers import (should_open_editor, left_sidebar_is_open,
-                              is_form_dirty_vs_snapshot, editor_form_values,
-                              NEW_NODE_SNAPSHOT)
+                              is_form_dirty_vs_snapshot, editor_form_values)
 
 _DEFAULT_EDITOR_SIDEBAR_STYLE = {
     "position": "absolute", "top": "0", "left": "0", "width": SIDEBAR_WIDTH_PX,

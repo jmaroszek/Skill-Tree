@@ -64,7 +64,6 @@ def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, activ
         effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
         hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
-        all_nodes = manager.get_all_nodes()
         search_options = node_options(manager.get_all_nodes(include_dormant=True))
 
         # Append alias entries to search options (use alias: prefix for unique values)

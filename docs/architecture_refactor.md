@@ -97,3 +97,31 @@ an exhaustive manual interaction audit. Production data was not used for testing
 The updated `app_architecture.md` describes the resulting ownership boundaries.
 Scoring math, schema, callback wiring, transaction/cascade ordering, and locking
 policy remain unchanged.
+
+## Post-review cleanup
+
+Review of the finished branch found the extraction sound — `GraphManager`'s public
+surface, transaction decorators, `CoreResponse`'s field order and the browser
+bridge's hook composition all match the pre-refactor behavior — with the remaining
+work being compatibility scaffolding that no longer had callers. That scaffolding
+is now gone:
+
+- `generate_elements` takes the graph/event managers it renders with, and
+  `register_callbacks` binds the `AppServices` instances to it. The canvas no
+  longer renders through module globals while the callbacks mutate injected
+  managers. Module-level managers remain as defaults for standalone callers.
+- The re-export shims are removed. `callback_helpers` no longer re-exports
+  `node_commands` and `context_rules`; `analyze_callbacks` no longer re-exports
+  `goal_ranking`. Callers and tests import from the owning module.
+- `layout.py`'s lazy `_TEMPLATE_BUILDERS` shim is deleted. Nothing referenced any
+  of its twenty names, and it also turned former singletons into per-access
+  rebuilds. This removes the `layout.next_view` / `next_view.py` name collision.
+- `register_callbacks` and `register_sidebars_callbacks` got their docstrings
+  back; the injected assignments had been placed above them, demoting each to a
+  dead string expression.
+- Unused imports left behind by the module split are removed, as is a dead
+  `get_all_nodes()` call in `canvas_view.py` that predated the refactor and cost a
+  full node read on every canvas render.
+- `tests/test_architecture_boundaries.py` now enforces a layer rather than a
+  naming convention: core logic modules may not import `callback_helpers`, which
+  pulls in dash, dbc and plotly. View-preparation modules still may.

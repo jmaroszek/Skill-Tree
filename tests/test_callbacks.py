@@ -10,9 +10,9 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD
 from callbacks import generate_elements, manager
-from callback_helpers import (
-    build_filters, is_filters_active, node_options, handle_save, handle_delete,
-    handle_toggle_done, handle_group_delete,
+from callback_helpers import build_filters, is_filters_active, node_options
+from node_commands import (
+    handle_save, handle_delete, handle_toggle_done, handle_group_delete,
 )
 from config import DEFAULT_NODE_COLORS
 

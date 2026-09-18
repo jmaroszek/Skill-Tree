@@ -1,11 +1,9 @@
 """Scoring orchestration and memo use; the scoring mathematics stays in scoring.py."""
-from typing import List, Dict, Optional, Set, Tuple
-from collections import deque
+from typing import List, Optional
 import json
 import database
-import networkx as nx
 from config import ConfigManager
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from models import Node
 from scoring import score_nodes
 
 

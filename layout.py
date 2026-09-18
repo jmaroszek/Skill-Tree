@@ -1373,33 +1373,3 @@ def build_app_layout(initial_elements, env="production"):
         ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),
     ], style={"width": "100vw", "height": "100vh", "overflow": "hidden",
               "display": "flex", "flexDirection": "column"})
-
-
-# Compatibility for Python callers that previously imported component templates.
-_TEMPLATE_BUILDERS = {
-    'auto_done_suggestion_modal': build_auto_done_suggestion_modal,
-    'bottom_panel': build_bottom_panel,
-    'calibration_review_toast': build_calibration_review_toast,
-    'delete_confirm_modal': build_delete_confirm_modal,
-    'description_view': build_description_view,
-    'dormant_deactivate_confirm_modal': build_dormant_deactivate_confirm_modal,
-    'error_modal': build_error_modal,
-    'group_delete_confirm_modal': build_group_delete_confirm_modal,
-    'hover_tooltip': build_hover_tooltip,
-    'migration_modal': build_migration_modal,
-    'next_view': build_next_view,
-    'ratings_editor_modal': build_ratings_editor_modal,
-    'ratings_popup': build_ratings_popup,
-    'reflection_ratings_editor_modal': build_reflection_ratings_editor_modal,
-    'reflection_ratings_popup': build_reflection_ratings_popup,
-    'relationships_view': build_relationships_view,
-    'time_calibration_modal': build_time_calibration_modal,
-    'undo_done_confirm_modal': build_undo_done_confirm_modal,
-    'unsaved_changes_modal': build_unsaved_changes_modal,
-}
-
-
-def __getattr__(name):
-    if name in _TEMPLATE_BUILDERS:
-        return _TEMPLATE_BUILDERS[name]()
-    raise AttributeError(name)

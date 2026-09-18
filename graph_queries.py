@@ -1,7 +1,5 @@
 """Graph traversal and view queries, called through GraphManager."""
 from typing import List, Dict, Optional, Set, Tuple
-from collections import deque
-import json
 import database
 import networkx as nx
 from config import ConfigManager

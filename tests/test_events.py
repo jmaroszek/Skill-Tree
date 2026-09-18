@@ -220,7 +220,7 @@ class TestEventNodeAssociation:
         # Note: after the dormant-modal-edit refactor, the UI no longer routes
         # dormant nodes through handle_save. This test remains as a safety net
         # protecting any other code path that still reaches the helper.
-        from callback_helpers import handle_save
+        from node_commands import handle_save
 
         em.add_event(Event(name="E1"))
         em.create_dormant_node(_make_node("N1", description="orig"), "E1")

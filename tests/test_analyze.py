@@ -325,7 +325,7 @@ class TestComputeGoalComparison:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        from analyze_callbacks import _rank_goals
+        from goal_ranking import _rank_goals
         hp = ConfigManager.get_hyperparams()
         ranked = _rank_goals(
             [n for n in nodes if n.type == 'Goal'],
@@ -359,7 +359,7 @@ class TestComputeGoalComparison:
         edges = mgr.get_edges()
         hp = ConfigManager.get_hyperparams()
 
-        from analyze_callbacks import _rank_goals
+        from goal_ranking import _rank_goals
         ranked = _rank_goals(
             [n for n in nodes if n.type == 'Goal'],
             nodes, edges,
@@ -394,7 +394,7 @@ class TestComputeGoalComparison:
         hp = ConfigManager.get_hyperparams()
         pgoals = ConfigManager.get_priority_goals()
 
-        from analyze_callbacks import _rank_goals, explain_goal
+        from goal_ranking import _rank_goals, explain_goal
         ranked = dict(
             (g.name, c) for g, c in _rank_goals(
                 [n for n in nodes if n.type == 'Goal'],
@@ -416,7 +416,7 @@ class TestComputeGoalComparison:
         """explain_goal returns None for a non-Goal node."""
         _setup_graph(mgr, [_make_node("L", type="Learn")])
         nodes = mgr.get_all_nodes()
-        from analyze_callbacks import explain_goal
+        from goal_ranking import explain_goal
         assert explain_goal("L", nodes, mgr.get_edges(),
                             ConfigManager.get_hyperparams(),
                             ConfigManager.get_priority_goals()) is None
@@ -441,7 +441,7 @@ class TestGoalDensityNormalization:
         hp = ConfigManager.get_hyperparams()
         if hp_overrides:
             hp = {**hp, **hp_overrides}
-        from analyze_callbacks import _rank_goals
+        from goal_ranking import _rank_goals
         return {
             g.name: c for g, c in _rank_goals(
                 [n for n in nodes if n.type == 'Goal'],
@@ -590,7 +590,7 @@ class TestGoalDensityNormalization:
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
         hp = ConfigManager.get_hyperparams()
-        from analyze_callbacks import explain_goal
+        from goal_ranking import explain_goal
         bd, _ = explain_goal("G1", nodes, edges, hp,
                              ConfigManager.get_priority_goals())
         ca = bd['context_adjustment']
