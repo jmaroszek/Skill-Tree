@@ -80,10 +80,20 @@ def _get_limits():
 # Chart helpers
 # ---------------------------------------------------------------------------
 
+# Plotly reads computed values, not CSS variables, so these chart-only
+# constants stay literal. Keep them equal to the matching tokens in
+# assets/tokens.css (--st-bg-canvas, --st-bg-raised, --st-border-panel).
 _BG = '#1a1d21'
 _CARD_BG = '#2b3035'
 _BORDER = '#495057'
-_STATUS_COLORS = {STATUS_OPEN: '#0d6efd', STATUS_BLOCKED: '#dc3545', STATUS_DONE: '#198754'}
+# Was a fourth, independent status palette that painted Blocked in stock
+# Bootstrap red (#dc3545) while the rest of the app used #9e3838. Now sourced
+# from BADGE_PALETTE so a status means one color everywhere.
+_STATUS_COLORS = {
+    STATUS_OPEN:    BADGE_PALETTE[STATUS_OPEN][0],
+    STATUS_BLOCKED: BADGE_PALETTE[STATUS_BLOCKED][0],
+    STATUS_DONE:    BADGE_PALETTE[STATUS_DONE][0],
+}
 _CHART_CFG = {"displayModeBar": False}
 
 

@@ -35,6 +35,39 @@ def estimate_guidance(id_prefix):
     ], className="ms-1")
 
 
+# --- Unit selects -----------------------------------------------------------
+# One builder for every "per what?" select in the app. These used to be typed
+# out by hand at nine call sites, which is how the Reflection modal's copy
+# ended up missing "Years" while ConfigManager.hours_to_friendly_unit could
+# still hand it that value, and how four of them picked up a 100px width the
+# others never got.
+
+#: Elapsed-time units. Anything measuring how long work takes.
+TIME_UNITS = ("hours", "weeks", "months", "years")
+
+#: Calendar-duration units. Habit windows and activation delays, which are
+#: counted in days rather than worked hours.
+DURATION_UNITS = ("days", "weeks", "months", "years")
+
+
+def unit_options(units):
+    """Option dicts for a unit select, labelled in title case."""
+    return [{"label": u.capitalize(), "value": u} for u in units]
+
+
+def unit_select(select_id, units=TIME_UNITS, value=None, compact=False, **kwargs):
+    """A unit select.
+
+    ``compact=True`` gives the narrow inline variant that sits beside a number
+    input on one row; the default fills its column.
+    """
+    if compact:
+        kwargs.setdefault("size", "sm")
+        kwargs.setdefault("style", {"width": "100px"})
+    return dbc.Select(id=select_id, options=unit_options(units), value=value,
+                      **kwargs)
+
+
 _UNIT_TITLES = {"y": "Years", "m": "Months", "w": "Weeks", "h": "Hours"}
 
 _PERCENTILE_LINES = (("P10", "p10", "#198754"),

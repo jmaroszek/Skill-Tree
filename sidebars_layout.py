@@ -14,7 +14,7 @@ Per-tab filter sidebars (e.g. the Details tab's mini-graph filter at
 `details-filters-sidebar`) live with their owning tab module, not here.
 """
 
-from duration_ui import estimate_guidance, bracket_label
+from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 from config import (
@@ -285,12 +285,8 @@ def build_node_editor_content():
                                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                             ),
                         ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
-                        dbc.Select(id="node-time-unit", options=[
-                            {"label": "Hours", "value": "hours"},
-                            {"label": "Weeks", "value": "weeks"},
-                            {"label": "Months", "value": "months"},
-                            {"label": "Years", "value": "years"},
-                        ], value=_TED.get('unit', 'weeks'), size="sm", style={"width": "100px"}),
+                        unit_select("node-time-unit", value=_TED.get('unit', 'weeks'),
+                                    compact=True),
                     ], className="d-flex align-items-center mb-2"),
                     html.Div(id="time-mode-warning",
                              style={"display": "none", "color": "#dc3545", "fontSize": "0.85rem"},
@@ -314,12 +310,8 @@ def build_node_editor_content():
                             ], width=7),
                             dbc.Col([
                                 dbc.Label(" ", className="mb-0"),
-                                dbc.Select(id="node-habit-duration-unit", options=[
-                                    {"label": "Days", "value": "days"},
-                                    {"label": "Weeks", "value": "weeks"},
-                                    {"label": "Months", "value": "months"},
-                                    {"label": "Years", "value": "years"},
-                                ], value="weeks"),
+                                unit_select("node-habit-duration-unit",
+                                            units=DURATION_UNITS, value="weeks"),
                             ], width=5),
                         ], className="mb-2"),
                         dbc.Label("Minutes per Session", className="mb-0 mt-2"),
@@ -587,7 +579,7 @@ def build_filters_content():
             value=[],
             multi=True,
             placeholder="All",
-            style={"color": "#212529"},
+            className="text-dark",
         ),
 
         html.Hr(className="my-3"),
@@ -611,12 +603,7 @@ def build_filters_content():
                       value=None,
                       placeholder="No limit", size="sm",
                       className="flex-grow-1"),
-            dbc.Select(id="filter-time-unit", options=[
-                {"label": "Hours", "value": "hours"},
-                {"label": "Weeks", "value": "weeks"},
-                {"label": "Months", "value": "months"},
-                {"label": "Years", "value": "years"},
-            ], value="hours", size="sm", style={"width": "100px"}),
+            unit_select("filter-time-unit", value="hours", compact=True),
         ], className="d-flex gap-2"),
 
         html.Hr(className="my-3"),

@@ -2,7 +2,7 @@
 Layout definitions for the Settings modal.
 """
 
-from duration_ui import bracket_label
+from duration_ui import bracket_label, unit_select
 from dash import html
 import dash_bootstrap_components as dbc
 from config import (
@@ -316,12 +316,7 @@ def _build_time_tab():
                 dbc.Col(style={"borderLeft": "1px solid #444", "paddingLeft": "1.5rem"}, children=[
                     html.Small("Pre-filled values when creating new nodes.", className="text-muted d-block mb-2"),
                     dbc.Label("Default Unit"),
-                    dbc.Select(id="setting-default-time-unit", className="mb-2", options=[
-                        {"label": "Hours", "value": "hours"},
-                        {"label": "Weeks", "value": "weeks"},
-                        {"label": "Months", "value": "months"},
-                        {"label": "Years", "value": "years"},
-                    ]),
+                    unit_select("setting-default-time-unit", className="mb-2"),
                     html.Div([
                         html.Div([
                             *bracket_label("Lower", "setting-default-time-o-label", className=None),

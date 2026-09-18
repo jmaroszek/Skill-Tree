@@ -1,0 +1,124 @@
+/* Design tokens — the single source of truth for every color, size and
+   geometry value in the app.
+
+   Why this file exists
+   --------------------
+   STYLE_GUIDE.md used to name tokens (`bg-card`, `text-primary`,
+   `border-panel`) that existed nowhere in code, so every call site hand-typed
+   the hex. 361 hex literals and 28 distinct font sizes later, adjacent cells of
+   one table disagreed. These are those names, made real.
+
+   Rules
+   -----
+   1. Tokens are named by ROLE, never by appearance. `--st-field-bg`, not
+      `--st-gray-100`. The app's form layer is currently light (DARKLY renders
+      .form-control white) while its chrome is dark; if that is ever unified,
+      it should be a value edit in this file rather than another sweep.
+   2. Python reads these through style_tokens.py, which exports `var(--...)`
+      reference strings — never copies of the values. Dash passes `var()`
+      through to the DOM unchanged.
+   3. Badge/tile colors are NOT here. They live in config.BADGE_PALETTE, which
+      is user-adjacent (Settings can recolor the canvas) and already correct.
+
+   Custom properties declared on :root resolve regardless of stylesheet order,
+   so this file's position in Dash's alphabetical assets load does not matter. */
+
+:root {
+    /* ---- Surfaces: the dark chrome layer ---------------------------------
+       Panels, cards, canvases, context menus. */
+    --st-bg-canvas: #1a1d21;      /* graph/canvas containers */
+    --st-bg-panel: #212529;       /* sidebars, list panels, unselected cards */
+    --st-bg-raised: #2b3035;      /* cards, tooltips, selected states, menus */
+    --st-bg-sunken: #343a40;      /* pressed states, table rules */
+
+    --st-border-panel: #495057;   /* panel dividers, card borders, hr */
+    --st-border-subtle: #343a40;  /* in-table cell rules */
+
+    /* ---- Surfaces: the light form layer ----------------------------------
+       DARKLY renders .form-control white, so fields and the menus that belong
+       to them are light. Deliberate two-layer system; see rule 1 above. */
+    --st-field-bg: #fff;
+    --st-field-fg: #303030;
+    --st-field-border: #222;           /* mirrors DARKLY .form-control */
+    --st-field-focus-border: #9badbf;
+    --st-field-focus-ring: 0 0 0 0.25rem rgba(55, 90, 127, .25);
+
+    --st-menu-bg: #e9ecef;             /* the context picker panel, which is
+                                          the app's reference "good" menu */
+    --st-menu-fg: #303030;
+    --st-menu-border: #adb5bd;
+    --st-menu-row-hover: #d7dadd;
+    --st-menu-selected: #0a58ca;
+    --st-menu-row-height: 36px;
+
+    /* ---- Text -----------------------------------------------------------
+       NOTE: --st-text-secondary is deliberately pinned to what Bootstrap's
+       .text-muted class actually resolves to under DARKLY
+       (var(--bs-secondary-color) === rgba(255,255,255,.75)), NOT to #6c757d.
+       The old style guide called #6c757d "text-muted", which collided with the
+       framework class of the same name and is why one table rendered its Type
+       column darker than its Delay and Status columns. Use this token or the
+       .text-muted class interchangeably — they are now the same color. */
+    --st-text-primary: #dee2e6;
+    --st-text-secondary: rgba(255, 255, 255, 0.75);
+    --st-text-strong: #f1f3f5;
+    --st-text-soft: #adb5bd;      /* subtle indicators, ghost icon strokes */
+    --st-text-dim: #6c757d;       /* genuinely recessive: captions, rest-state
+                                     icon strokes, disabled affordances */
+    --st-text-faint: #495057;     /* disabled */
+    --st-text-placeholder: #888;  /* every light control's placeholder */
+    --st-text-on-field: #303030;  /* text inside a light field */
+
+    /* ---- Accents --------------------------------------------------------- */
+    --st-accent: #0d6efd;
+    --st-accent-ring: rgba(13, 110, 253, 0.28);
+    --st-danger: #c94c4c;         /* tamed red; see custom.css */
+    --st-danger-text: #ee6666;
+    --st-danger-wash: rgba(201, 76, 76, 0.12);
+    --st-danger-wash-strong: rgba(201, 76, 76, 0.18);
+
+    /* ---- Ghost-button washes --------------------------------------------- */
+    --st-ghost-hover-dark: rgba(255, 255, 255, 0.07);
+    --st-ghost-active-dark: rgba(255, 255, 255, 0.12);
+    --st-ghost-hover-light: rgba(0, 0, 0, 0.06);
+    --st-ghost-active-light: rgba(0, 0, 0, 0.10);
+
+    /* ---- Type scale ------------------------------------------------------
+       Eight steps replacing 28 ad-hoc literals. The old near-duplicates
+       (0.72/0.78/0.82/0.88rem and a px cluster of 11-20px) collapse onto the
+       nearest step; nothing in the app needed 0.03rem of separation. */
+    --st-fs-xs: 0.7rem;      /* badges, tile text */
+    --st-fs-sm: 0.75rem;     /* compact badges, axis labels */
+    --st-fs-cap: 0.8rem;     /* help text, captions, formulas */
+    --st-fs-base: 0.85rem;   /* body, table cells, status messages */
+    --st-fs-md: 0.9rem;      /* menu items, descriptions */
+    --st-fs-lg: 0.95rem;     /* inline headings, icon buttons */
+    --st-fs-xl: 1.2rem;      /* adder "+", close glyphs */
+    --st-fs-2xl: 1.4rem;     /* sidebar-header adders */
+
+    --st-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* ---- Geometry -------------------------------------------------------- */
+    --st-radius-sm: 4px;
+    --st-radius: 6px;
+    --st-radius-field: 0.375rem;   /* Bootstrap's .form-control radius */
+    --st-control-height: 38px;     /* .form-select / .form-control / dropdown */
+
+    --st-shadow-panel: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --st-shadow-canvas: 0 4px 24px rgba(0, 0, 0, 0.4);
+    --st-shadow-canvas-hover: 0 6px 32px rgba(0, 0, 0, 0.55);
+
+    /* ---- Motion ---------------------------------------------------------- */
+    --st-transition-fast: 0.15s ease;
+    --st-transition: 0.2s ease;
+    --st-transition-slow: 0.3s ease;
+
+    /* ---- Z-index scale (documented in STYLE_GUIDE.md) --------------------- */
+    --st-z-canvas-overlay: 10;
+    --st-z-graph-panel: 20;
+    --st-z-canvas-cover: 30;
+    --st-z-filters-overlay: 100;
+    --st-z-tooltip: 9999;
+    --st-z-ctx-menu: 10002;
+    --st-z-picker-panel: 12000;
+}

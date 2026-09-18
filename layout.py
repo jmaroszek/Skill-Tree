@@ -27,7 +27,9 @@ from analyze_layout import build_analyze_tab_content
 from sidebars_layout import build_all_sidebars
 from context_picker import build_context_picker_support
 from list_toolbar import SORT_MENUS, sort_menu_items
+import style_tokens as tokens
 from styles import stylesheet
+from duration_ui import unit_select
 
 
 # --- Graph View (Canvas only) ---
@@ -102,8 +104,11 @@ def create_graph_view(initial_elements):
     ], className="h-100", style={"overflow": "hidden"})
 
 
-_section_title_style = {"fontSize": "1.3rem", "fontWeight": "600"}
-_formula_hint_style = {"fontSize": "0.8rem", "fontFamily": "monospace", "color": "#6c757d", "marginBottom": "0.25rem"}
+# Was a byte-identical copy of callback_helpers.SECTION_TITLE_STYLE; both now
+# resolve to the one definition in style_tokens.
+_section_title_style = tokens.SECTION_TITLE_STYLE
+_formula_hint_style = {"fontSize": tokens.FS_CAP, "fontFamily": tokens.FONT_MONO,
+                       "color": tokens.TEXT_DIM, "marginBottom": "0.25rem"}
 
 # --- Info Panels ---
 
@@ -580,11 +585,7 @@ def build_time_calibration_modal():
                 dbc.Row([
                     dbc.Col([
                         dbc.Label("Unit", className="mt-2"),
-                        dbc.Select(id="time-calibration-unit", value="hours", options=[
-                            {"label": "Hours", "value": "hours"},
-                            {"label": "Weeks", "value": "weeks"},
-                            {"label": "Months", "value": "months"},
-                        ]),
+                        unit_select("time-calibration-unit", value="hours"),
                     ], width=4),
                 ], className="mt-1"),
                 # V/I/E sliders — capture how the node *actually* felt now that

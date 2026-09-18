@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from events_layout import build_dormant_nodes_table
+from events_layout import DORMANT_COL_WIDTHS, build_dormant_nodes_table
 from models import Node
 
 
@@ -99,6 +99,11 @@ def test_dormant_node_table_grid_does_not_move_between_events():
     for table in (plain, varied):
         assert table.style["tableLayout"] == "fixed"
         assert _header_widths(table)[1] is None, "Name absorbs the leftover width"
+
+
+def test_dormant_node_table_balances_metadata_spacing_and_action_room():
+    assert DORMANT_COL_WIDTHS["delay"] == DORMANT_COL_WIDTHS["type"]
+    assert int(DORMANT_COL_WIDTHS["actions"].removesuffix("px")) >= 84
 
 
 def test_dormant_node_name_cell_truncates_but_keeps_the_full_name():

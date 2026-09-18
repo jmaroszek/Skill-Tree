@@ -24,10 +24,13 @@ from config import (
     ConfigManager,
     badge_style,
 )
+import style_tokens as tokens
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
 
-SECTION_TITLE_STYLE = {"fontSize": "1.3rem", "fontWeight": "600"}
+# Re-exported so existing importers keep working; the definition lives in
+# style_tokens alongside the rest of the shared composites.
+SECTION_TITLE_STYLE = tokens.SECTION_TITLE_STYLE
 
 
 RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
@@ -1043,7 +1046,7 @@ def _bool_icon(val):
     return html.Span("\u2717", style={"color": "#dc3545"})
 
 
-_MONO_FONT = "ui-monospace, SFMono-Regular, Menlo, monospace"
+_MONO_FONT = tokens.FONT_MONO
 
 
 def _suggestion_micro_bar(val, label):
@@ -1631,11 +1634,13 @@ if abs_path:
 # neutral slate; Synergy cyan-teal (categorically different — mutual,
 # multiplicative reinforcement, not a weaker prereq). Self is a warm
 # sand off the cool axis entirely so it can't be confused with Soft.
+# Values come from config.BADGE_PALETTE so the chart, the subtasks-table
+# relationship column and the node-info badges cannot drift apart.
 _VIA_COLORS = {
-    'Self':    '#685e52',  # warm sand — the node itself, off the edge axis
-    'Hard':    '#2a4d6e',  # darker rugged blue (must-have)
-    'Soft':    '#576068',  # neutral slate (should-have)
-    'Synergy': '#466a78',  # cyan-teal (mutual, multiplicative — categorically different)
+    'Self':    BADGE_PALETTE['EdgeSelf'][0],     # warm sand — off the edge axis
+    'Hard':    BADGE_PALETTE['EdgeHard'][0],     # darker rugged blue (must-have)
+    'Soft':    BADGE_PALETTE['EdgeSoft'][0],     # neutral slate (should-have)
+    'Synergy': BADGE_PALETTE['EdgeSynergy'][0],  # cyan-teal (mutual, multiplicative)
 }
 
 
@@ -1852,7 +1857,7 @@ def _explain_bar_chart(contributors: list, top_n: int):
     fig.add_trace(go.Bar(
         x=shares, y=[_trunc(r['name']) for r in rows],
         orientation='h',
-        marker_color=[_VIA_COLORS.get(r['via'], '#6c757d') for r in rows],
+        marker_color=[_VIA_COLORS.get(r['via'], BADGE_PALETTE['SoftRelPri'][0]) for r in rows],
         text=[_format_share(s) for s in shares],
         textposition='outside',
         cliponaxis=False,

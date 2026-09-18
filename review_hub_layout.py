@@ -52,7 +52,7 @@ def _build_history_tab():
             dbc.Row([
                 dbc.Col(
                     dbc.Input(id="hub-history-search", type="search",
-                              placeholder="Search by name…",
+                              placeholder="Search by name...",
                               style={"width": "100%"}),
                     width=4,
                 ),

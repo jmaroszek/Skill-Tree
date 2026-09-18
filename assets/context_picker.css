@@ -1,6 +1,8 @@
 /* Combined Context / Subcontext pickers.
-   The closed control intentionally matches Bootstrap's form-select; menus use
-   a light surface with restrained row treatment. */
+   The closed control intentionally matches Bootstrap's form-select. The open
+   panel is the app's reference menu look — assets/dropdowns.css applies these
+   same tokens to the native <select> picker and the Radix dcc.Dropdown menu,
+   so all three dropdown implementations open the same panel. */
 
 .context-picker-root,
 .context-picker-control {
@@ -18,7 +20,7 @@
    reads the same as the neighboring Type select. */
 .context-picker-trigger.form-select {
     width: 100%;
-    min-height: 38px;
+    min-height: var(--st-control-height);
     display: block;
     padding-top: 0.375rem;
     padding-bottom: 0.375rem;
@@ -37,9 +39,9 @@
     white-space: nowrap;
 }
 
-/* Same gray as DARKLY's input placeholders (see STYLE_GUIDE.md). */
+/* Same gray as every other light control's placeholder. */
 .context-picker-value.is-placeholder {
-    color: #888;
+    color: var(--st-text-placeholder);
 }
 
 .context-picker-clear {
@@ -55,12 +57,12 @@
     justify-content: center;
     border: 0;
     background: transparent;
-    color: #6c757d;
+    color: var(--st-text-dim);
     cursor: pointer;
 }
 
 .context-picker-clear:hover {
-    color: #303030;
+    color: var(--st-menu-fg);
 }
 
 .context-picker-panel,
@@ -69,11 +71,11 @@
     z-index: 12000;
     padding: 7px;
     overflow-y: auto;
-    background: #e9ecef;
-    color: #303030;
-    border: 1px solid #adb5bd;
-    border-radius: 6px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    background: var(--st-menu-bg);
+    color: var(--st-menu-fg);
+    border: 1px solid var(--st-menu-border);
+    border-radius: var(--st-radius);
+    box-shadow: var(--st-shadow-panel);
 }
 
 .context-picker-panel {
@@ -90,14 +92,14 @@
     min-height: 36px;
     margin-bottom: 5px;
     padding: 6px 9px;
-    background: #fff;
-    color: #303030;
-    border-color: #adb5bd;
+    background: var(--st-field-bg);
+    color: var(--st-field-fg);
+    border-color: var(--st-menu-border);
 }
 
 .context-picker-menu-row {
     width: 100%;
-    min-height: 36px;
+    min-height: var(--st-menu-row-height);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -106,18 +108,18 @@
     border: 0;
     border-radius: 3px;
     background: transparent;
-    color: #303030;
+    color: var(--st-menu-fg);
     cursor: pointer;
     text-align: left;
 }
 
 .context-picker-menu-row:hover,
 .context-picker-menu-row.is-active {
-    background: #d7dadd;
+    background: var(--st-menu-row-hover);
 }
 
 .context-picker-menu-row.is-selected {
-    color: #0a58ca;
+    color: var(--st-menu-selected);
     font-weight: 500;
 }
 
@@ -132,15 +134,15 @@
     flex: 0 0 auto;
     width: 9px;
     height: 9px;
-    border-right: 2px solid #6c757d;
-    border-bottom: 2px solid #6c757d;
+    border-right: 2px solid var(--st-text-dim);
+    border-bottom: 2px solid var(--st-text-dim);
     transform: rotate(-45deg);
 }
 
 .context-picker-submenu-heading {
     padding: 5px 10px 7px;
-    color: #6c757d;
-    font-size: 0.875rem;
+    color: var(--st-text-dim);
+    font-size: var(--st-fs-md);
     font-weight: 500;
 }
 
@@ -148,14 +150,14 @@
     height: 1px;
     margin: 5px 4px;
     border: 0;
-    background: #adb5bd;
+    background: var(--st-menu-border);
     opacity: 1;
 }
 
 .context-picker-empty {
     padding: 10px;
-    color: #6c757d;
-    font-size: 0.875rem;
+    color: var(--st-text-dim);
+    font-size: var(--st-fs-md);
 }
 
 .context-picker-tree-context {
@@ -171,7 +173,7 @@
 }
 
 .context-picker-tree-parent:hover {
-    background: #d7dadd;
+    background: var(--st-menu-row-hover);
 }
 
 .context-picker-tree-parent-checkbox {
@@ -179,7 +181,7 @@
     width: 16px;
     height: 16px;
     margin: 0 10px;
-    accent-color: #0d6efd;
+    accent-color: var(--st-accent);
     cursor: pointer;
 }
 
@@ -195,7 +197,7 @@
     border: 0;
     border-radius: 3px;
     background: transparent;
-    color: #303030;
+    color: var(--st-menu-fg);
     font-weight: 400;
     text-align: left;
     cursor: pointer;
@@ -208,7 +210,7 @@
 .context-picker-tree-children {
     margin: 0 0 4px 25px;
     padding-left: 9px;
-    border-left: 1px solid #adb5bd;
+    border-left: 1px solid var(--st-menu-border);
 }
 
 .context-picker-tree-child {
@@ -219,25 +221,25 @@
     margin: 0;
     padding: 4px 8px;
     border-radius: 3px;
-    color: #303030;
+    color: var(--st-menu-fg);
     font-weight: 400;
     cursor: pointer;
 }
 
 .context-picker-tree-child:hover {
-    background: #d7dadd;
+    background: var(--st-menu-row-hover);
 }
 
 .context-picker-tree-child input {
     width: 16px;
     height: 16px;
     margin: 0;
-    accent-color: #0d6efd;
+    accent-color: var(--st-accent);
 }
 
 .context-picker-panel :focus-visible,
 .context-picker-submenu :focus-visible,
 .context-picker-clear:focus-visible {
-    outline: 3px solid rgba(13, 110, 253, 0.28);
+    outline: 3px solid var(--st-accent-ring);
     outline-offset: -1px;
 }

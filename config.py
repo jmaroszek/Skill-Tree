@@ -224,6 +224,18 @@ BADGE_PALETTE = {
     # speaks one vocabulary across the app.
     'EventTrigger':   ('#56575a', '#dcdcdd'),
     'EventTriggered': ('#148a68', '#ffffff'),
+    # Edge-relationship tiles — the subtasks-table relationship column and the
+    # explain modal's contributor chart. All three sit at similar lightness and
+    # are told apart by hue alone. EdgeHard shares HardRelPri's value so the
+    # same blue means the same thing app-wide: related to a priority goal via a
+    # Hard edge. 'EdgeSelf' is the node itself, off the edge axis entirely.
+    #
+    # These were previously duplicated as details_layout._REL_BADGE_STYLES and
+    # callback_helpers._VIA_COLORS, kept in sync by comments alone.
+    'EdgeHard':    ('#2a4d6e', '#d6e0ee'),
+    'EdgeSoft':    ('#576068', '#dde0e5'),
+    'EdgeSynergy': ('#466a78', '#d8e6e9'),
+    'EdgeSelf':    ('#685e52', '#e4ddd4'),  # warm sand
 }
 
 

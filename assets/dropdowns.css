@@ -1,0 +1,281 @@
+/* Every dropdown in the app, in one place.
+
+   The app has three dropdown implementations and cannot reasonably have fewer:
+
+     1. dbc.Select        -> a native <select>       (27 instances)
+     2. dcc.Dropdown      -> Dash 4's Radix popover  (23 instances)
+     3. context_picker.py -> a hand-built panel      (5 instances)
+
+   They used to look like three different controls once opened. Closed they
+   already matched — context_picker.css deliberately borrows DARKLY's
+   .form-select for its trigger — but (1) opened the raw OS combobox, (2)
+   opened Radix's stock popover, and (3) opened the themed panel. The themed
+   panel is the reference; this file makes the other two match it.
+
+   The native popup is reachable at all because of `appearance: base-select`,
+   which opts a <select> out of OS rendering into a real, styleable ::picker
+   element while keeping native semantics, keyboard behaviour and form
+   integration. Chromium 135+; this app ships in Electron (Chromium 146+) and
+   is developed in Chrome/Edge. Elsewhere the @supports guard leaves the OS
+   popup alone, which is exactly today's behaviour — a silent, safe fallback
+   rather than a broken control.
+
+   All values come from assets/tokens.css. */
+
+
+/* =====================================================================
+   1. Triggers — the closed control
+   ===================================================================== */
+
+/* Dash 4's Radix trigger ships shorter than Bootstrap's .form-select. Pull it
+   up so a dcc.Dropdown and a dbc.Select in the same form line up. */
+.dash-dropdown {
+    min-height: var(--st-control-height);
+}
+
+/* One placeholder gray for every light control. Dash's dropdown ships a
+   blue-tinted gray; a dbc.Select placeholder is a hidden option that would
+   otherwise render in full text color. */
+.dash-dropdown .dash-dropdown-placeholder,
+select.form-select:has(> option[value=""][hidden]:checked) {
+    color: var(--st-text-placeholder);
+}
+
+/* The trigger chevron. Radix draws a filled curved glyph at 15px; Bootstrap
+   draws a stroked V at 16x12. Match Bootstrap so the two read identically.
+   The CSS `d` property is Chromium-only, which is what this app targets. */
+.dash-dropdown-trigger-icon {
+    width: 16px !important;
+    height: 12px !important;
+}
+.dash-dropdown-trigger-icon path {
+    d: path("M2 5l6 6 6-6") !important;
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 2 !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
+}
+
+/* A dcc.Dropdown renders its value on the light field background, so its text
+   must be dark. This used to be done three different ways across 16 call
+   sites — a `className="text-dark"` wrapper (14x), an inline `color:#212529`,
+   and an inline white-bg-plus-black-text pair — with two id-scoped
+   `!important` patches for the sites that were missed. One rule replaces it. */
+.dash-dropdown .dash-dropdown-value,
+.dash-dropdown .dash-dropdown-input,
+.dash-dropdown input {
+    color: var(--st-field-fg);
+}
+
+/* The Details selector puts its clear action beside the chevron. Keep the
+   visible x at native size but grow its hit target into the dead space on its
+   left, so a click there clears instead of reopening the menu. */
+#details-node-select .dash-dropdown-clear {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+/* Two selects are deliberately narrower than their container. */
+#setting-hp-profile { max-width: 150px; }
+#setting-default-time-unit { max-width: 140px; }
+
+
+/* =====================================================================
+   2. The open menu — one panel, three implementations
+   =====================================================================
+   The shared look, defined once. context_picker.css styles
+   .context-picker-panel from these same tokens. */
+
+.dash-dropdown-content,
+select::picker(select) {
+    background: var(--st-menu-bg);
+    color: var(--st-menu-fg);
+    border: 1px solid var(--st-menu-border);
+    border-radius: var(--st-radius);
+    box-shadow: var(--st-shadow-panel);
+    padding: 7px;
+}
+
+/* --- 2a. Radix menu (dcc.Dropdown) ----------------------------------- */
+
+/* Radix portals the menu to <body>, so no wrapper class on the trigger can
+   reach it — everything below has to be addressed globally.
+
+   Sizing: cap at 320px so ~5 rows plus the search bar are visible, but fall
+   back to Radix's available-height variable so a trigger near the bottom of
+   the window never overflows. Lay out as a flex column so the virtualized
+   options list fills exactly the space left after the search and actions
+   rows; otherwise it sizes itself from a measurement that races first paint,
+   which is why the menu used to look cut off until you typed. */
+.dash-dropdown-content {
+    max-height: min(
+        320px,
+        var(--radix-popover-content-available-height, calc(100vh - 100px))
+    ) !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+.dash-dropdown-content > .dash-dropdown-options,
+.dash-dropdown-content > .dash-options-list {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+}
+
+/* Radix sets `min-width: max-content` on the popper wrapper, which stretches
+   the menu to the longest option. Pin it to the trigger using Radix's own
+   anchor-width variable. */
+[data-radix-popper-content-wrapper]:has(> .dash-dropdown-content) {
+    min-width: var(--radix-popper-anchor-width) !important;
+    max-width: var(--radix-popper-anchor-width) !important;
+}
+.dash-dropdown-content {
+    width: var(--radix-popper-anchor-width) !important;
+    min-width: var(--radix-popper-anchor-width) !important;
+    max-width: var(--radix-popper-anchor-width) !important;
+    box-sizing: border-box !important;
+}
+
+/* Rows, matched to .context-picker-menu-row. */
+.dash-dropdown-content .dash-dropdown-option,
+.dash-dropdown-content [role="option"] {
+    min-height: var(--st-menu-row-height);
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 3px;
+    color: var(--st-menu-fg);
+    cursor: pointer;
+}
+.dash-dropdown-content .dash-dropdown-option:hover,
+.dash-dropdown-content [role="option"]:hover,
+.dash-dropdown-content [role="option"][data-highlighted] {
+    background: var(--st-menu-row-hover);
+}
+.dash-dropdown-content [role="option"][data-state="checked"],
+.dash-dropdown-content [role="option"][aria-selected="true"] {
+    color: var(--st-menu-selected);
+    font-weight: 500;
+}
+
+/* The menu's own search field, matched to .context-picker-search. */
+.dash-dropdown-content input {
+    min-height: var(--st-menu-row-height);
+    margin-bottom: 5px;
+    padding: 6px 9px;
+    background: var(--st-field-bg);
+    color: var(--st-field-fg);
+    border: 1px solid var(--st-menu-border);
+    border-radius: 3px;
+}
+
+/* --- 2b. Native <select> (dbc.Select) -------------------------------- */
+
+@supports (appearance: base-select) {
+    /* Opting in also hands us the trigger's internals, which means restating
+       two things DARKLY assumed it owned:
+
+       - `display: flex` + centering. In base-select the trigger lays out
+         <selectedcontent> and ::picker-icon as real boxes; left in block flow
+         they stack, and the control grows from 38px to 62px.
+       - `background-image: none`. Bootstrap draws its chevron as a background
+         image. base-select supplies a real ::picker-icon, so without this the
+         control shows two chevrons.
+
+       Everything else about the closed control stays exactly as DARKLY drew
+       it — only the open state changes. */
+    select.form-select {
+        appearance: base-select;
+        display: flex;
+        align-items: center;
+        background-image: none;
+    }
+
+    select.form-select::picker-icon {
+        color: var(--st-field-fg);
+        transition: transform var(--st-transition);
+    }
+    select.form-select:open::picker-icon {
+        transform: rotate(180deg);
+    }
+
+    select::picker(select) {
+        /* The shared panel look is applied in the combined rule above; this
+           block adds only what the picker specifically needs. */
+        max-height: min(430px, calc(100vh - 16px));
+        overflow-y: auto;
+        /* Anchor to the trigger and match its width — the same contract the
+           Radix menu gets above. */
+        min-width: anchor-size(width);
+    }
+
+    /* Row treatment.
+
+       Two selector facts, established by probing Chromium rather than by
+       reading the spec optimistically:
+
+       - `::picker(select)` accepts NO descendant selectors. Every form of
+         `select::picker(select) option` is dropped silently by the parser,
+         so the rows have to be addressed as plain `option`.
+       - There is no <selectedcontent> element in this DOM (it is opt-in, and
+         nothing here adds one), so styling `option` does not leak into the
+         closed trigger. The 38px trigger is held by the `display: flex` reset
+         above; without that, these rules did inflate it to 62px. */
+    select.form-select option {
+        min-height: var(--st-menu-row-height);
+        display: flex;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 3px;
+        background: transparent;
+        color: var(--st-menu-fg);
+        cursor: pointer;
+    }
+
+    /* `display: flex` above would otherwise defeat the UA's `display: none`
+       for a hidden option, putting the placeholder back in the open menu. */
+    select.form-select option[hidden] {
+        display: none;
+    }
+
+    select.form-select option:hover,
+    select.form-select option:focus,
+    select.form-select option:active {
+        background: var(--st-menu-row-hover);
+        color: var(--st-menu-fg);
+    }
+
+    select.form-select option:checked {
+        color: var(--st-menu-selected);
+        font-weight: 500;
+    }
+
+    /* base-select draws a checkmark column ahead of the selected option. The
+       context picker marks selection with color and weight alone, so drop the
+       glyph and keep every label flush with the left edge. */
+    select.form-select option::checkmark {
+        display: none;
+    }
+
+    select.form-select option:focus-visible {
+        outline: 3px solid var(--st-accent-ring);
+        outline-offset: -1px;
+    }
+}
+
+
+/* =====================================================================
+   3. Deliberate exceptions
+   ===================================================================== */
+
+/* The filter sidebar keeps dark "All" placeholders, because there they read as
+   a value ("all types") rather than as absent input. */
+#sidebar-filters-container [class$="-placeholder"],
+#sidebar-filters-container .dash-dropdown-placeholder,
+#sidebar-filters-container .context-picker-value.is-placeholder {
+    color: var(--st-bg-panel) !important;
+}

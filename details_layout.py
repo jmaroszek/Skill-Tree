@@ -6,7 +6,7 @@ subtasks, and time simulation — merging the best parts of the Goals
 and Simulation tabs.
 """
 
-from duration_ui import estimate_guidance, bracket_label
+from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -1036,8 +1036,7 @@ def _build_add_node_modal(ted):
                 html.Div(dcc.Dropdown(
                     id="details-add-existing-dropdown",
                     placeholder="Search for a node...",
-                    style={"backgroundColor": "#ffffff", "color": "#000000"},
-                ), className="mb-2"),
+                ), className="text-dark mb-2"),
                 dbc.Label("Edge Type"),
                 dbc.Select(
                     id="details-add-link-edge-type",
@@ -1156,13 +1155,8 @@ def _build_add_node_modal(ted):
                         switch=True,
                         className="mb-0 ms-3 flex-grow-1",
                     ),
-                    dbc.Select(id="details-add-time-unit", options=[
-                        {"label": "Hours", "value": "hours"},
-                        {"label": "Weeks", "value": "weeks"},
-                        {"label": "Months", "value": "months"},
-                        {"label": "Years", "value": "years"},
-                    ], value=ted.get('unit', 'weeks'), size="sm",
-                        style={"width": "100px"})
+                    unit_select("details-add-time-unit",
+                                value=ted.get('unit', 'weeks'), compact=True)
                 ], className="d-flex align-items-center mb-2"),
                 html.Div(id="details-add-time-omp", children=[
                     dbc.Row([
@@ -1187,12 +1181,8 @@ def _build_add_node_modal(ted):
                         ], width=7),
                         dbc.Col([
                             dbc.Label(" ", className="mb-0"),
-                            dbc.Select(id="details-add-habit-duration-unit", options=[
-                                {"label": "Days", "value": "days"},
-                                {"label": "Weeks", "value": "weeks"},
-                                {"label": "Months", "value": "months"},
-                                {"label": "Years", "value": "years"},
-                            ], value="weeks"),
+                            unit_select("details-add-habit-duration-unit",
+                                        units=DURATION_UNITS, value="weeks"),
                         ], width=5),
                     ], className="mb-2"),
                     dbc.Label("Minutes per Session", className="mb-0 mt-2"),

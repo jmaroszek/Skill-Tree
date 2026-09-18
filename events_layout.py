@@ -2,7 +2,7 @@
 Layout definitions for the Events tab.
 """
 
-from duration_ui import estimate_guidance, bracket_label
+from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -36,7 +36,7 @@ def build_events_sidebar_content():
             dbc.Input(
                 id="events-search-input",
                 type="search",
-                placeholder="Search events\u2026",
+                placeholder="Search events...",
                 size="sm",
                 style=SEARCH_STYLE,
                 **{"list": "events-search-datalist"},
@@ -85,7 +85,7 @@ def build_events_tab_content():
                     dcc.Dropdown(
                         id="dormant-existing-picker",
                         multi=True,
-                        placeholder="Select existing nodes…",
+                        placeholder="Select existing nodes...",
                         options=[],
                     ),
                     className="text-dark",
@@ -165,7 +165,7 @@ def build_events_tab_content():
                         html.Div(
                             dcc.Dropdown(
                                 id="dormant-existing-event-picker",
-                                placeholder="Select event…",
+                                placeholder="Select event...",
                                 options=[],
                             ),
                             className="text-dark",
@@ -280,12 +280,8 @@ def build_events_tab_content():
                     switch=True,
                     className="mb-0 ms-3 flex-grow-1",
                 ),
-                dbc.Select(id="dormant-node-time-unit", options=[
-                    {"label": "Hours", "value": "hours"},
-                    {"label": "Weeks", "value": "weeks"},
-                    {"label": "Months", "value": "months"},
-                    {"label": "Years", "value": "years"},
-                ], value=_ted.get('unit', 'weeks'), size="sm", style={"width": "100px"})
+                unit_select("dormant-node-time-unit",
+                            value=_ted.get('unit', 'weeks'), compact=True)
             ], className="d-flex align-items-center mb-2"),
             html.Div(id="dormant-node-time-omp", children=[
                 dbc.Row([
@@ -303,12 +299,8 @@ def build_events_tab_content():
                     ], width=7),
                     dbc.Col([
                         dbc.Label(" ", className="mb-0"),
-                        dbc.Select(id="dormant-node-habit-duration-unit", options=[
-                            {"label": "Days", "value": "days"},
-                            {"label": "Weeks", "value": "weeks"},
-                            {"label": "Months", "value": "months"},
-                            {"label": "Years", "value": "years"},
-                        ], value="weeks"),
+                        unit_select("dormant-node-habit-duration-unit",
+                                    units=DURATION_UNITS, value="weeks"),
                     ], width=5),
                 ], className="mb-2"),
                 dbc.Label("Minutes per Session", className="mb-0 mt-2"),
@@ -383,12 +375,8 @@ def build_events_tab_content():
                     dbc.Input(id="dormant-node-delay-value", type="number", min=0, value=0, placeholder="0"),
                 ], width=6),
                 dbc.Col([
-                    dbc.Select(id="dormant-node-delay-unit", options=[
-                        {"label": "Days", "value": "days"},
-                        {"label": "Weeks", "value": "weeks"},
-                        {"label": "Months", "value": "months"},
-                        {"label": "Years", "value": "years"},
-                    ], value="days"),
+                    unit_select("dormant-node-delay-unit",
+                                units=DURATION_UNITS, value="days"),
                 ], width=6),
             ]),
             html.Small("0 = activates immediately when event is triggered.", className="text-muted"),
@@ -433,7 +421,7 @@ def build_events_tab_content():
                 # (hidden for new + triggered events) and feeds the mirror
                 # callback that shows/hides the relocated Trigger button.
                 html.Div([
-                    dbc.Input(id="event-name", type="text", placeholder="Event Name",
+                    dbc.Input(id="event-name", type="text", placeholder="Name event...",
                               className="flex-grow-1",
                               style={"fontSize": "1.4rem", "fontWeight": "300", "backgroundColor": "transparent",
                                      "border": "none", "color": "#dee2e6",
@@ -833,9 +821,9 @@ def _delay_days_to_form(delay_days: int) -> tuple[int, str]:
 DORMANT_COL_WIDTHS = {
     "select": "32px",
     "type": "110px",
-    "delay": "130px",
+    "delay": "110px",
     "status": "90px",
-    "actions": "64px",
+    "actions": "84px",
 }
 
 
