@@ -8,19 +8,19 @@ from dash import html, Input, Output, State, ALL, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import (
-    ConfigManager,
-    PROFILES,
     CONTEXT_SORT_ALPHABETICAL,
     CONTEXT_SORT_DEFINITION,
-    SUBCONTEXT_SORT_ALPHABETICAL,
-    SUBCONTEXT_SORT_DEFINITION,
-    SUPPORTED_NODE_TYPES,
+    ConfigManager,
+    DEFAULT_NODE_COLORS,
     NAME_FORMAT_MODES,
     NAME_FORMAT_NONE,
     NAME_FORMAT_TITLE,
-    sort_subcontexts,
+    PROFILES,
+    SUBCONTEXT_SORT_ALPHABETICAL,
+    SUBCONTEXT_SORT_DEFINITION,
+    SUPPORTED_NODE_TYPES,
     sort_contexts,
-)
+    sort_subcontexts)
 from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import get_trigger_id, build_context_weight_rows
@@ -63,7 +63,7 @@ def _build_shape_rows(display_types, shapes):
 
 
 def _build_color_row(label, key, colors):
-    color_val = colors.get(key, "#6c757d")
+    color_val = colors.get(key, DEFAULT_NODE_COLORS.get(key, "#6c757d"))  # literal: colour-input value
     return html.Div([
         html.Div(dbc.Label(label, className="mb-0"),
                  className="d-flex align-items-center",
@@ -88,7 +88,7 @@ def _build_status_color_rows(colors):
 def _build_type_color_rows(display_types, colors):
     rows = []
     for t in display_types:
-        color_val = colors.get(t, "#6c757d")
+        color_val = colors.get(t, DEFAULT_NODE_COLORS.get(t, "#6c757d"))  # literal: colour-input value
         rows.append(html.Div([
             dbc.Input(
                 id={"type": "setting-color", "index": t},

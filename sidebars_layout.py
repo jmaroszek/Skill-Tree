@@ -36,8 +36,8 @@ from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 import style_tokens as tokens
-from ui_kit import (add_button, cancel_action, confirm_action,
-                     danger_action, info_button, panel_close_button,
+from ui_kit import (add_button, cancel_action, confirm_action, danger_action,
+                     done_color, info_button, panel_close_button,
                      primary_action)
 
 # Node types have distinct product behavior and are not user-extensible.
@@ -66,8 +66,7 @@ _ACTION_PAD = {"padding": "6px 0"}
 def build_node_editor_content():
     CONTEXTS = sort_contexts(ConfigManager.get_contexts())
     _TED = ConfigManager.get_time_estimate_defaults()
-    _DONE_COLOR = ConfigManager.get_node_colors().get(
-        STATUS_DONE, DEFAULT_NODE_COLORS[STATUS_DONE])
+    _DONE_COLOR = done_color()
     return html.Div(
         [
             html.Div([

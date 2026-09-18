@@ -1,33 +1,63 @@
 # Skill Tree Style Guide
 
-Reference for all UI styling conventions. Use these tokens when adding or modifying UI elements.
+How this app's UI is put together, and why. **Values live in code, not here.**
+
+For years this file named tokens — `bg-card`, `text-primary`, `border-panel` —
+that existed nowhere in the codebase, so every call site hand-typed the hex.
+That is how the app ended up with 361 colour literals, 28 distinct font sizes,
+and one table drawing its Type column in a different grey from the Delay and
+Status columns beside it. The names are real now:
+
+| Layer | Where | What it holds |
+|-------|-------|---------------|
+| CSS | [`assets/tokens.css`](assets/tokens.css) | every colour, size, radius, shadow and motion value, as `--st-*` custom properties on `:root` |
+| Python | [`style_tokens.py`](style_tokens.py) | `var(--st-*)` **references**, never copies, plus shared composites like `CELL_MUTED` and `TABLE_STYLE` |
+| Badges | [`config.py`](config.py) `BADGE_PALETTE` | node type, status, edge and event tiles — user-adjacent, reached through `badge_style()` |
+| Components | [`ui_kit.py`](ui_kit.py) | close, add, info, restore, edit, nav, step, and the semantic action buttons |
+
+Read `assets/tokens.css` for the values. It is commented, and it is the only
+place any of them appear.
+
+**Two rules that keep it working:**
+
+1. **Tokens are named by role, never by appearance** — `--st-field-bg`, not
+   `--st-gray-100`. The app's form layer is light (DARKLY renders
+   `.form-control` white) while its chrome is dark. If those are ever unified,
+   that should be a value edit in one file rather than another sweep.
+2. **Python holds references, not copies.** Dash passes `var()` straight to the
+   DOM, so an inline style dict and a stylesheet rule resolve to the same
+   definition. This works in clientside-callback JavaScript too.
+
+### Enforcement
+
+[`tests/test_style_tokens.py`](tests/test_style_tokens.py) fails on a new raw
+colour or font size in a UI module, on a token defined in only one of the two
+languages, on a badge value this guide documents that `BADGE_PALETTE` disagrees
+with, and on the component shapes that silently render as nothing. A genuine
+exception — Plotly and Cytoscape read computed values and cannot resolve
+`var()` — is marked at the call site with a trailing `# literal:` comment
+naming the reason, so it stays visible rather than hiding in a list.
 
 ## Theme
 
-Bootstrap DARKLY theme via `dash-bootstrap-components`.
+Bootstrap DARKLY (Bootswatch 5.3.6) via `dash-bootstrap-components`.
 
-## Color Palette
+### The one naming trap
 
-### Backgrounds
-| Token              | Hex       | Usage                              |
-|--------------------|-----------|------------------------------------|
-| bg-canvas          | `#1a1d21` | Graph/canvas containers            |
-| bg-sidebar         | `#212529` | Sidebar panels, list panels        |
-| bg-card            | `#2b3035` | Cards, tooltips, selected states   |
-| bg-card-default    | `#212529` | Unselected card background         |
+Bootstrap has a `.text-muted` class. This guide used to define a *token* called
+`text-muted` as `#6c757d`. They are not the same colour: under DARKLY the class
+resolves to `var(--bs-secondary-color)`, i.e. `rgba(255,255,255,.75)`. The app
+used both believing they were interchangeable, which is exactly why adjacent
+cells of one table disagreed.
 
-### Borders
-| Token        | Hex       | Usage                                  |
-|--------------|-----------|----------------------------------------|
-| border-panel | `#495057` | Panel dividers, card borders, hr lines |
+`--st-text-secondary` is now pinned to what the class actually computes to, so
+the token and the class *are* interchangeable. Prefer the class in component
+code; use `tokens.TEXT_SECONDARY` where only an inline dict will do. A test
+holds them together.
 
-### Text
-| Token      | Hex       | Usage                     |
-|------------|-----------|---------------------------|
-| text-primary | `#dee2e6` | Main body text           |
-| text-muted   | `#6c757d` | Helper text, secondary   |
-| text-white   | `#fff`    | Node labels, headings    |
-| text-soft    | `#adb5bd` | Subtle indicators        |
+`--st-text-dim` (`#6c757d`) still exists for things that really are dimmer than
+body text — rest-state icon strokes, captions, disabled affordances. It is not
+a synonym for muted body text.
 
 ### Node-info badge palette (muted)
 
@@ -56,7 +86,7 @@ derivation. **This file is the human-readable source of truth — keep
 | Done         | `#148a68` | `#ffffff` | Status tile.                                              |
 | Blocked      | `#9e3838` | `#ffffff` | Status tile.                                              |
 | HardRelPri   | `#2a4d6e` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches subtasks-table Hard. |
-| SoftRelPri   | `#414f5c` | `#d0d6dc` | `Soft #N`. Matches subtasks-table Soft tile.              |
+| SoftRelPri   | `#414f5c` | `#d0d6dc` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 
 The type-color values were originally derived by HSL-desaturating the
 saturated canvas palette by per-hue amounts (Learn −25 sat / −10 light,
@@ -75,22 +105,18 @@ Otherwise, just edit the literals to taste.
 The Node Editor priority strip is the same minus Status and Type, which are
 handled by other inputs in the editor: Priority → RelPriority.
 
-### Subtasks-table edge palette
+### Edge-relationship tiles
 
-Used by the `_REL_BADGE_STYLES` map for the relationship column. All
-three tiles sit at similar lightness, distinguished only by hue. Hard
-matches the `Hard #N` priority badge (`HardRelPri` above) so the same
-blue means the same thing across the app — a node related to a priority
-goal via a Hard edge.
+`EdgeHard` / `EdgeSoft` / `EdgeSynergy` / `EdgeSelf` in `BADGE_PALETTE`. All sit
+at similar lightness and are told apart by hue alone. `EdgeHard` shares
+`HardRelPri`'s value, so one blue means one thing app-wide: related to a
+priority goal via a Hard edge. `EdgeSelf` is a warm sand, deliberately off the
+cool Hard/Soft/Synergy axis so the node itself cannot be mistaken for an edge.
 
-| Edge type | Background | Text      | Notes                                                     |
-|-----------|-----------|-----------|-----------------------------------------------------------|
-| Hard      | `#2a4d6e` | `#d6e0ee` | Darker rugged blue. Same value as the `HardRelPri` badge. |
-| Soft      | `#576068` | `#dde0e5` | Neutral slate.                                            |
-| Synergy   | `#466a78` | `#d8e6e9` | Cyan-teal — categorically different from Hard/Soft.       |
-
-The explain-modal contributors chart and legend use the same edge palette
-plus a `Self` tile (`#685e52` warm sand) for the node itself.
+These four values previously existed in **three** places — the subtasks table's
+own `_REL_BADGE_STYLES`, the explain modal's `_VIA_COLORS`, and its legend —
+kept in step by comments claiming they matched. They all read from the palette
+now.
 
 Explain speaks in the reader's units, not the scorer's. Value is a share of
 total value, cost is the time and effort behind it, and an adjustment is the
@@ -114,10 +140,11 @@ consistent meaning across the app.
 | EventTriggered | `#148a68` | `#ffffff` | Matches `Done`. Used once the event has fired.                     |
 
 ### Selection (Cytoscape)
-| Token           | Hex       |
-|-----------------|-----------|
-| selected-node   | `#0dcaf0` |
-| selected-border | `#055160` |
+
+A selected node takes a thick **white** border and keeps its own fill. This
+guide used to document a cyan `#0dcaf0` background, which was abandoned because
+it was nearly indistinguishable from the Milestone type colour; a border-only
+indicator works over any fill. See the comment in [`styles.py`](styles.py).
 
 ### Redundant context on a derived row
 
@@ -141,24 +168,41 @@ ever changes the fill, so status and type stay readable underneath.
 
 ## Typography
 
-### Heading Hierarchy
-| Level | Element | Style | Usage |
+### Heading hierarchy
+| Level | Element | Class | Usage |
 |-------|---------|-------|-------|
-| Page title | `html.H4` | `className="mb-3 mt-3"` | Top of each tab ("Settings", "Home") |
-| Section title | `html.H5` | `className="mt-2 mb-1"` | All section headers everywhere: node editor, settings, modals |
-| Inline heading | `html.H6` | `style={"fontWeight": "500"}` | Minor headings in cards |
+| Page title | `html.H4` | `mb-0` | Panel titles in a flex header row (Node Editor, Goals, Events, Filters) |
+| Section title | `html.H5` | `mt-2 mb-1` | Section headers everywhere |
+| Section title in a flex row | `html.H5` | `mb-0` | Where a bottom margin would break the row's centring |
+| Major section in a modal | `html.H5` | `mt-3 mb-2` | The migration modal's blocks |
+| Inline heading | `html.H6` | `style=tokens.SECTION_TITLE_STYLE` | Home-tab section headings |
 
-**Never use `html.Div` with manual fontSize/fontWeight for section headers.** Always use `html.H5` for consistent font rendering.
+**Never use `html.Div` with a manual fontSize/fontWeight for a section header.**
 
-### Body Text
-| Style | Class/Style | Usage |
-|-------|-------------|-------|
+### The type scale
+
+Eight steps in `assets/tokens.css`, from `--st-fs-xs` to `--st-fs-2xl`, plus
+`--st-fs-heading` and `--st-fs-display` for the two one-off display sizes.
+Python reaches them as `tokens.FS_XS` … `tokens.FS_DISPLAY`.
+
+They replaced 28 ad-hoc literals, including a 0.72/0.78/0.82/0.88rem cluster
+whose members differed by less than a pixel, and three data tables that each
+picked a different one. If a new size seems necessary it is almost always one
+of the existing steps; extend the scale in `tokens.css` rather than at a call
+site.
+
+### Body text
+| Style | How | Usage |
+|-------|-----|-------|
 | Default | (none) | Standard body text |
-| Small muted | `className="text-muted small"` | Helper/description text below inputs |
-| Status message | `style={"fontSize": "0.85rem"}` | Save confirmations, errors |
-| Tooltip text | `style={"fontSize": "0.85rem", "lineHeight": "1.5"}` | Hover tooltips |
-| Badge text | `style={"fontSize": "0.7rem"}` | Status badges, type badges |
-| Priority badge | `style={"fontSize": "0.75rem"}` | Editor priority badge |
+| Secondary | `className="text-muted"` | Helper text, table cells, anything recessive |
+| Small secondary | `className="text-muted small"` | Description under an input |
+| Status message | `style={"fontSize": tokens.FS_BASE}` | Save confirmations |
+| Validation error | `style=tokens.ERROR_TEXT_HIDDEN` / `ERROR_TEXT_VISIBLE` | Field-level errors; `ERROR_TEXT_JS_*` for clientside callbacks |
+| Badge text | `badge_style(name, font_size=tokens.FS_XS)` | Status and type tiles |
+
+Prefer the `.text-muted` class over `tokens.TEXT_SECONDARY`; reach for the
+token only inside an inline style dict where a class cannot go.
 
 ### Labels
 
@@ -180,50 +224,83 @@ for "Ratings".
 
 ## Buttons
 
-| Role | `color=` | Usage |
-|------|----------|-------|
-| Primary action | `primary` (blue) | Save |
-| Confirm + close | `success` (green) | Save & Close, New Node |
-| Secondary/reset | `secondary` (gray) | Clear |
-| Destructive | `danger` + custom bg | Delete (uses `ConfigManager.get_danger_color()` = `#c94c4c`) |
-| Icon/link | `link` | +/- buttons, restore defaults |
+Build every action button through [`ui_kit.py`](ui_kit.py), which names the
+**action** rather than the Bootstrap colour:
 
-### Flat ghost icon buttons
+| Helper | Colour | Usage |
+|--------|--------|-------|
+| `primary_action` | `primary` | Commits the form: Save, Apply, View Details |
+| `confirm_action` | `success` | Commits *and* finishes: Save & Close, Trigger, Add |
+| `cancel_action` | `secondary` | Dismisses without committing: Cancel, Revert, Dismiss |
+| `danger_action` | `danger` | Destructive: Delete, Discard |
 
-For icon-only affordances, use the flat "ghost" treatment (transparent fill,
-muted stroke, lightens on hover) rather than a filled `color="light"`/
-`"secondary"` button — filled icon buttons read as chunky and high-contrast on
-the dark theme. Use **one** icon family (Bootstrap Icons, `bi bi-*`) at one
-weight; never mix in Unicode glyphs (`▾`, `×`) or color emoji (📁). The ghost
-classes are background-aware:
+Do **not** hand-paint a button's background. `custom.css` already restyles
+`.btn-danger` to the tamed red app-wide; repeating `get_danger_color()` inline
+only creates a second place for the value to drift, which is what six delete
+buttons used to do — three of them with their own extra padding on top.
 
-| Class | Background | Icon at rest | Used for |
-|-------|-----------|--------------|----------|
-| `.btn.editor-icon-btn` | inside a white field | muted dark `#6c757d` | trailing actions in an `.editor-field-group` (browse, open, remove) |
-| `#main-toolbar .btn-secondary` / `.btn-canvas-overlay.btn-secondary` / `.details-header-btn.btn-secondary` | dark panel/canvas | muted light | toolbar, canvas overlay, details header |
+A "Cancel" that actually reverts should say Revert. The unsaved-changes modal
+calls that choice Discard/Edit/Save; keep those verbs consistent.
 
-Add `.editor-icon-btn-danger` to a remove (`bi bi-x-lg`) button so the red
-(`#c94c4c`) appears only on hover — a multi-row field shouldn't read as a wall
-of danger buttons.
+### Modal footers
 
-Table-row actions that are secondary to scanning the data use progressive
-disclosure: hide the action group until its row is hovered, reveal it when the
-action itself receives keyboard focus, and keep it visible on coarse/non-hover
-devices. Details subtasks, Reflection review history, and Events dormant nodes
-all use this pattern. Their edit action uses the Bootstrap `bi bi-pencil` icon
-with a visually-hidden label and a tooltip; do not substitute a Unicode pencil.
+One structure: actions on the right, the dismissive action first, separated by
+`me-2`. Use `flex-fill` only for a two- or three-way choice with no obvious
+default (the unsaved-changes and delete confirms). Every modal is
+`centered=True`; yes/no confirms are `size="sm"`; a modal with a form is `lg`
+and one with a table is `xl` or a `dialog_style` max-width. Every modal has a
+`ModalHeader` with a `ModalTitle`, including the short confirms.
 
-Disclosure / secondary affordances next to a **dropdown** heading (e.g. the
-Search "locate" crosshair) go as a muted `color="link"` icon next to the section
-heading — not stacked beside the control, which would compete with its native
-chevron. Use the `+`-adder style: `dbc.Button(color="link",
-className="p-0 ms-2 text-decoration-none text-muted")`.
+### Icon affordances
 
-When an optional repeatable field starts hidden, put its `+` beside the label
-that owns it. In node editors, the `+` beside **Name** reveals the first alias
-row and adds another row on later clicks. Do not use an in-field chevron for
-this action: chevrons communicate disclosure, while `+` communicates adding a
-field.
+**One icon family, Bootstrap Icons (`bi bi-*`), at one weight.** Never a Unicode
+glyph (`×`, `←`, `↺`, `☰`, `▸`) and never a colour emoji. The app used to have
+eight close controls written as a Unicode multiplication sign in five style
+variants, several of them `html.Span` and therefore not keyboard-reachable.
+
+Build them through [`ui_kit.py`](ui_kit.py). Each returns a real `<button>` with
+the icon, a visually-hidden label, and a tooltip carrying the shared delay:
+
+| Helper | Icon | Usage |
+|--------|------|-------|
+| `panel_close_button` | `x-lg` | Dismiss a sidebar, panel or popup (`large=True` in a sidebar header) |
+| `add_button` | `plus-lg` | Reveal or append a repeatable field |
+| `info_button` | `info-circle` | Explain the control or section beside it |
+| `restore_button` | `arrow-counterclockwise` | Reset a group of settings |
+| `edit_button` | `pencil` | Open an editor for the thing beside it |
+| `nav_button` | `arrow-left` / `-right` | Back / forward |
+| `step_button` | `dash-lg` / `plus-lg` | A −/+ stepper beside a count |
+
+A `+` means *add a field*; a chevron means *disclose existing content*. Do not
+substitute one for the other, and do not stack a disclosure chevron beside a
+select — move the affordance to the heading instead.
+
+**A helper that returns a list will not render.** Dash does not flatten nested
+lists inside `children`; React rejects them and silently drops the whole
+subtree, and nothing at the Python level notices because the component tree
+looks correct. `ui_kit` wraps a button and its tooltip in a `.ui-affordance`
+span with `display: contents`, which stays out of layout so the button remains
+a direct flex item of its row. A test guards this.
+
+### Flat ghost treatment
+
+Icon-only affordances use a flat ghost look — transparent fill, muted stroke,
+lightens on hover — rather than a filled button, which reads as chunky on the
+dark theme. The classes are background-aware:
+
+| Class | Background | Used for |
+|-------|-----------|----------|
+| `.btn.editor-icon-btn` | inside a white field | trailing actions in an `.editor-field-group` |
+| `.btn.panel-close-btn`, `.adder-btn`, `.info-btn`, `.restore-btn`, `.edit-btn`, `.step-btn` | dark panel | the `ui_kit` affordances above |
+| `#main-toolbar .btn-secondary`, `.btn-canvas-overlay.btn-secondary`, `.details-header-btn.btn-secondary` | dark panel/canvas | toolbar, canvas overlay, details header |
+
+Add `.editor-icon-btn-danger` to a remove button so the red appears only on
+hover — a multi-row field shouldn't read as a wall of danger buttons.
+
+Table-row actions secondary to scanning the data use progressive disclosure:
+hidden until the row is hovered, revealed on keyboard focus, always visible on
+coarse pointers. Details subtasks, Reflection history and Events dormant nodes
+share this.
 
 ### Button sizes
 - `size="sm"` — Toolbar, inline actions
@@ -269,14 +346,14 @@ Analyze is prewarmed while its tab is hidden. On every reveal, `assets/analyze_f
 
 ## Borders & Dividers
 
-- Panel dividers: `1px solid #495057`
-- Selected card: `2px solid #0d6efd`
-- Unselected card: `1px solid #495057`
+- Panel dividers: `1px solid var(--st-border-panel)` (`tokens.BORDER_PANEL`)
+- Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
+- Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars, settings, modals
 - **Standalone section dividers**: `html.Hr(className="my-3")` — more spacious, for filter panels and major sections
 - **Context menu dividers**: `_menu_divider()` in `layout.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
 - Never use bare `html.Hr()` — always specify a margin class
-- Context menu panel: the `.ctx-menu` class in `theme.css` (`border-radius: 6px`, `box-shadow: 0 4px 16px rgba(0,0,0,0.4)`)
+- Context menu panel: the `.ctx-menu` class in `theme.css` (`--st-radius`, `--st-shadow-panel`)
 
 ## Context Menus
 
@@ -320,15 +397,14 @@ and inherits the danger colour.
 ## Cards
 
 ```python
-style={
-    "padding": "10px 14px",
-    "borderRadius": "6px",
-    "border": "1px solid #495057",       # or "2px solid #0d6efd" if selected
-    "backgroundColor": "#212529",         # or "#2b3035" if selected
-    "cursor": "pointer",
-    "transition": "background-color 0.2s",
-}
+import style_tokens as tokens
+
+style = tokens.card_style(selected=False)
 ```
+
+`card_style` returns the standard padding, radius, border, background, cursor
+and transition, swapping to the raised background and the accent border when
+`selected=True`.
 
 Clickable cards must use a native `html.Button(type="button")` when the whole
 surface performs one action. Reset its browser chrome in a scoped class, retain
@@ -352,14 +428,52 @@ keeps enough bottom padding for the final card to finish above that fade.
 
 ## Inputs
 
-- Standard: `dbc.Input(type="text")` — uses Bootstrap DARKLY defaults
-- Textarea default: `dbc.Textarea(style={"height": "120px", "resize": "vertical"})`
-- Underline-only input: `style={"border": "none", "borderBottom": "1px solid #495057", "borderRadius": "0"}`
-- Hints: give empty editor fields a short placeholder that ends in `...`
-  (`Name node...`, `Choose node type...`). Every light control shows it in
-  `#888`, DARKLY's input placeholder gray. `custom.css` applies that gray to
-  `dcc.Dropdown` and `dbc.Select` placeholders too. The filter sidebar keeps
-  its dark `All` placeholders, since they read as a value there.
+- Standard: `dbc.Input(type="text")` — DARKLY defaults
+- Textarea: `dbc.Textarea(style={"height": "120px", "resize": "vertical"})`
+- Placeholders end in `...` (three dots, not the single ellipsis character) and
+  describe the action: `Name node...`, `Choose node type...`. Every light
+  control renders them in `--st-text-placeholder`. The filter sidebar keeps its
+  dark `All` placeholders, since there they read as a value.
+
+### Dropdowns
+
+The app has three dropdown implementations and cannot reasonably have fewer:
+
+| Implementation | Used for |
+|----------------|----------|
+| `dbc.Select` — a native `<select>` | short, fixed choices (type, unit, rank) |
+| `dcc.Dropdown` — Dash 4's Radix popover | long or searchable lists, multi-select |
+| [`context_picker.py`](context_picker.py) | context / subcontext, which cascade |
+
+**They all open the same panel.** [`assets/dropdowns.css`](assets/dropdowns.css)
+owns every rule for all three, built from the tokens. The reference look is the
+context picker's panel — it was the one that already looked right.
+
+The native `<select>` popup is reachable because of `appearance: base-select`,
+which swaps OS rendering for a real, styleable `::picker(select)` while keeping
+native semantics and keyboard behaviour. Chromium 135+; the app ships in
+Electron and is developed in Chrome, and an `@supports` guard leaves the OS
+popup alone elsewhere.
+
+Two things that are easy to get wrong there, both established by probing rather
+than by reading the spec:
+
+- `::picker(select)` accepts **no descendant selectors**. Every form of
+  `select::picker(select) option` is dropped silently by the parser, so rows
+  have to be addressed as plain `option`.
+- The trigger needs `display: flex`, or base-select stacks its parts and the
+  control grows from 38px to 62px. It also needs `background-image: none`, or
+  Bootstrap's chevron and the real `::picker-icon` both draw.
+
+Do not add a new dropdown style. If a control needs a look the shared rules do
+not give it, change the shared rules.
+
+### Unit selects
+
+Use `duration_ui.unit_select(...)` with `TIME_UNITS` or `DURATION_UNITS`. The
+four-unit select was typed out by hand at nine sites, which is how one ended up
+missing `Years` while `hours_to_friendly_unit` could still return it, and how
+four picked up a 100px width the others never got.
 
 ### Context / subcontext pickers
 
@@ -515,6 +629,22 @@ physics sliders to mark it as a different kind of control. Its wider reach is
 documented in `docs/features.md` rather than captioned in the panel — this is
 a single-user app, so in-UI explanation of the author's own model is noise.
 
+## Data tables
+
+Details subtasks, Events dormant nodes and Reflection history are one family.
+Build all three with `tokens.TABLE_PROPS`, `tokens.TABLE_CLASS` and
+`tokens.TABLE_STYLE`, and style cells with `tokens.CELL_PRIMARY` /
+`tokens.CELL_MUTED`.
+
+They used to disagree on font size (0.82 / 0.85 / unset) and on whether to clear
+DARKLY's per-cell background tint (only one did), and the Events table drew its
+Type column from an inline literal while the columns beside it used
+`.text-muted`. A test asserts all three share one definition.
+
+A default value should recede rather than disappear: muted text keeps "None"
+and "Dormant" quiet enough that a real delay or a woken node stands out,
+without the absence of a whole column having to carry that meaning.
+
 ## Badges
 
 Use `config.badge_style(name)` rather than `dbc.Badge(color=...)` so badges
@@ -540,16 +670,9 @@ Valid names: `Goal`, `Priority`, `PriorityRank`, `Action`, `Learn`,
 ## Tooltips (hover)
 
 ```python
-style={
-    "position": "fixed",
-    "zIndex": 9999,
-    "maxWidth": "280px",
-    "fontSize": "0.85rem",
-    "lineHeight": "1.5",
-    "backgroundColor": "#2b3035",
-    "color": "#dee2e6",
-    "borderColor": "#495057",
-}
+import style_tokens as tokens
+
+style = tokens.TOOLTIP_STYLE
 ```
 
 Plotly hover labels take the same three colors through `layout.hoverlabel`.
@@ -591,7 +714,7 @@ that beside the count without adding a modal or interrupting navigation.
 ## Canvas loading cover
 
 A canvas that isn't ready is covered, not shown mid-assembly. The cover is
-opaque in the canvas color (`#1a1d21`), fills the canvas container, and sits
+opaque in the canvas color (`--st-bg-canvas`), fills the canvas container, and sits
 above every canvas overlay, so the wait reads as an empty canvas rather than a
 panel laid over a half-drawn graph.
 

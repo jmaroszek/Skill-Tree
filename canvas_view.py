@@ -158,11 +158,11 @@ def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, activ
                 # Saturated hues (Material Design A-accent shades) so
                 # paths stay punchy against the dimmed background.
                 PATH_COLORS = {
-                    1: '#ff1744',  # vivid red
-                    2: '#1de9b6',  # bright teal
-                    3: '#d500f9',  # electric purple
-                    4: '#ff6d00',  # deep orange
-                    5: '#f50057',  # hot pink
+                    1: '#ff1744',  # vivid red  # literal: Cytoscape
+                    2: '#1de9b6',  # bright teal  # literal: Cytoscape
+                    3: '#d500f9',  # electric purple  # literal: Cytoscape
+                    4: '#ff6d00',  # deep orange  # literal: Cytoscape
+                    5: '#f50057',  # hot pink  # literal: Cytoscape
                 }
                 for name, rank in (focus_path_info.get('node_rank') or {}).items():
                     color = PATH_COLORS.get(int(rank))

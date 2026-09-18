@@ -7,6 +7,14 @@ and Simulation tabs.
 """
 
 import style_tokens as tokens
+from ui_kit import (
+    add_button,
+    done_color,
+    info_button,
+    nav_button,
+    panel_close_button,
+    progress_bar_color,
+    restore_button)
 from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
@@ -17,6 +25,7 @@ from config import (
     TOOLTIP_SHOW_DELAY_MS,
     TOOLTIP_HIDE_DELAY_MS,
     badge_style,
+    BADGE_PALETTE,
 )
 from context_picker import build_single_context_picker
 from styles import stylesheet
@@ -49,8 +58,8 @@ def _freeze_indicator(indicator_id: str):
             "position": "absolute",
             "top": "12px",
             "right": "19px",
-            "fontSize": "1.6rem",
-            "color": "#7ec8e3",
+            "fontSize": tokens.FS_HEADING,
+            "color": tokens.ACCENT_SOFT,
             "textShadow": "0 0 6px rgba(126, 200, 227, 0.5)",
             "pointerEvents": "none",
             "zIndex": 10,
@@ -386,7 +395,7 @@ def build_details_tab_content():
                     'nodeRepulsion': gl.get('repulsion', 4500),
                     'gravity': gl.get('gravity', 0.25),
                 },
-                style={'width': '100%', 'height': '100%', 'backgroundColor': '#1a1d21',
+                style={'width': '100%', 'height': '100%', 'backgroundColor': tokens.BG_CANVAS,
                        'borderRadius': '0'},
                 stylesheet=stylesheet,
                 userZoomingEnabled=False,
@@ -569,7 +578,7 @@ def build_details_tab_content():
             dcc.Loading(
                 id="details-sim-loading",
                 type="circle",
-                color="#1e90ff",
+                color="#1e90ff",  # literal: dbc.Spinner prop, not CSS
                 # No spinner flash on fast machines; only shows once a sim
                 # takes longer than half a second.
                 delay_show=500,
@@ -602,8 +611,9 @@ def build_details_tab_content():
     add_node_modal = _build_add_node_modal(_ted)
 
     explain_legend_items = []
-    for label, color in (('Self', '#685e52'), ('Hard', '#2a4d6e'),
-                         ('Soft', '#576068'), ('Synergy', '#466a78')):
+    # Third copy of the same four values; now the one in the palette.
+    for label in ('Self', 'Hard', 'Soft', 'Synergy'):
+        color = BADGE_PALETTE[f'Edge{label}'][0]
         explain_legend_items.append(html.Span([
             html.Span("\u25A0 ", style={"color": color}),
             html.Span(label, style={"color": tokens.TEXT_SOFT}),
@@ -934,7 +944,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
        **{"data-goal-name": name, **(menu_attributes or {})},
        style={
            "border": border_style,
-           "backgroundColor": "#2b3035" if is_selected else "#212529",
+           "backgroundColor": tokens.BG_RAISED if is_selected else tokens.BG_PANEL,
            "transition": "border-color 0.2s, background-color 0.2s",
            "padding": "10px 14px",
        })
@@ -1244,8 +1254,8 @@ def _build_add_node_modal(ted):
             dbc.Button("Cancel", id="btn-details-add-cancel",
                        color="secondary", className="me-2"),
             dbc.Button("Add", id="btn-details-add-save", color="success",
-                       style={"backgroundColor": ConfigManager.get_node_colors().get(STATUS_DONE, "#198754"),
-                              "borderColor": ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")}),
+                       style={"backgroundColor": done_color(),
+                              "borderColor": done_color()}),
         ]),
     ], id="modal-details-add-node", size="lg", is_open=False, centered=True,
        scrollable=True)
@@ -1349,15 +1359,15 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         ),
     )
 
-    # Cool & quiet palette. Hard is a darker rugged blue (matches the
-    # HardRelPri badge in the node-info stack so the same hue means the
-    # same thing app-wide); Soft a neutral slate; Synergy a cyan-teal
-    # (categorically different from the Hard/Soft necessity axis).
-    # Matches _VIA_COLORS in the explain modal.
+    # Cool & quiet palette: Hard a darker rugged blue (the same value as the
+    # HardRelPri badge, so one hue means one thing app-wide); Soft a neutral
+    # slate; Synergy a cyan-teal, categorically off the Hard/Soft necessity
+    # axis. These used to be written out here AND in callback_helpers as
+    # _VIA_COLORS, kept in step by a comment saying they matched.
     _REL_BADGE_STYLES = {
-        "Hard":    {"backgroundColor": "#2a4d6e", "color": "#d6e0ee"},
-        "Soft":    {"backgroundColor": "#576068", "color": "#dde0e5"},
-        "Synergy": {"backgroundColor": "#466a78", "color": "#d8e6e9"},
+        rel: {"backgroundColor": BADGE_PALETTE[f"Edge{rel}"][0],
+              "color": BADGE_PALETTE[f"Edge{rel}"][1]}
+        for rel in ("Hard", "Soft", "Synergy")
     }
 
     rows = []
@@ -1484,7 +1494,7 @@ def build_milestone_tile(milestone_node, completion: dict):
     children = [header]
 
     if total > 0:
-        bar_color = "#198754" if pct == 100 else "#0d6efd"
+        bar_color = progress_bar_color(pct)
         children += [
             # Progress bar — same style as the canvas hover tooltip so the two
             # surfaces read identically when hovering vs. browsing.

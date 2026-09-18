@@ -14,7 +14,7 @@ from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
 from context_picker import build_single_context_picker
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
-from ui_kit import add_button, panel_close_button
+from ui_kit import (add_button, done_color, panel_close_button)
 
 
 def build_events_sidebar_content():
@@ -53,7 +53,7 @@ def build_events_tab_content():
     _ted = ConfigManager.get_time_estimate_defaults()
     # Triggering an event is its "done" moment — tint the button with the
     # node-status Done color rather than a loud default green.
-    _done_color = ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")
+    _done_color = done_color()
 
     # --- Node Editor Modal for Dormant Nodes ---
     dormant_node_modal = dbc.Modal([
@@ -765,7 +765,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
        style={
            "cursor": "pointer",
            "border": border_style,
-           "backgroundColor": "#2b3035" if is_selected else "#212529",
+           "backgroundColor": tokens.BG_RAISED if is_selected else tokens.BG_PANEL,
            "transition": "border-color 0.2s, background-color 0.2s",
            "padding": "10px 14px",
        })

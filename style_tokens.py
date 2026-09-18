@@ -47,6 +47,7 @@ TEXT_ON_FIELD = "var(--st-text-on-field)"
 
 # --- Accents ----------------------------------------------------------------
 ACCENT = "var(--st-accent)"
+ACCENT_SOFT = "var(--st-accent-soft)"
 DANGER = "var(--st-danger)"
 DANGER_TEXT = "var(--st-danger-text)"
 
@@ -59,6 +60,8 @@ FS_MD = "var(--st-fs-md)"
 FS_LG = "var(--st-fs-lg)"
 FS_XL = "var(--st-fs-xl)"
 FS_2XL = "var(--st-fs-2xl)"
+FS_HEADING = "var(--st-fs-heading)"
+FS_DISPLAY = "var(--st-fs-display)"
 
 FONT_MONO = "var(--st-font-mono)"
 

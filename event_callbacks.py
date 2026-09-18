@@ -307,7 +307,7 @@ def register_event_callbacks(app, services=None):
                 var style = Object.assign({}, (styles || [])[index] || {});
                 var active = id.index === selected;
                 style.border = active ? '2px solid #0d6efd' : '1px solid #495057';
-                style.backgroundColor = active ? '#2b3035' : '#212529';
+                style.backgroundColor = active ? 'var(--st-bg-raised)' : 'var(--st-bg-panel)';
                 return style;
             });
         }""",

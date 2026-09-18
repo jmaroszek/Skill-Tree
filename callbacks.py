@@ -55,6 +55,7 @@ from callback_helpers import (
     build_node_element, build_edge_element, canvas_node_styles,
 )
 import style_tokens as tokens
+from ui_kit import (progress_bar_color)
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +324,7 @@ def register_callbacks(app, services=None):
             lines = [marker, header]
 
             if total > 0:
-                bar_color = "#198754" if pct == 100 else "#0d6efd"
+                bar_color = progress_bar_color(pct)
                 lines += [
                     html.Hr(style={"margin": "6px 0", "borderColor": tokens.BORDER_PANEL}),
                     html.Div([html.Strong("Progress: "), f"{done}/{total} hard subtasks ({pct}%)"]),
@@ -2078,8 +2079,9 @@ def register_callbacks(app, services=None):
                     no_update, no_update)
         # Last node done — switch to the completion screen (stays open).
         complete_msg = html.Div([
-            html.Div("✓", className="text-success",
-                     style={"fontSize": "2.4rem", "lineHeight": "1"}),
+            html.I(className="bi bi-check-circle text-success",
+                   style={"fontSize": tokens.FS_DISPLAY, "lineHeight": "1"},
+                   **{"aria-hidden": "true"}),
             html.H5("All caught up", className="mt-2 mb-1"),
             html.P(f"You reflected on {n} completed node(s).",
                    className="text-muted small mb-0"),
@@ -2989,7 +2991,7 @@ def register_callbacks(app, services=None):
             function(frozen, currentClass) {
                 var baseStyle = {
                     position: "absolute", top: "12px", right: "19px",
-                    fontSize: "1.6rem", color: "#7ec8e3",
+                    fontSize: "1.6rem", color: "var(--st-accent-soft)",
                     textShadow: "0 0 6px rgba(126, 200, 227, 0.5)",
                     pointerEvents: "none", zIndex: 10,
                 };

@@ -1,6 +1,7 @@
 """The Settings modal exposes user decisions, not implementation tuning."""
 
 from settings_layout import build_settings_modal
+from models import STATUS_BLOCKED
 
 
 def _walk(component):
@@ -195,7 +196,16 @@ def test_color_rows_show_swatch_without_visible_hex_value():
         if getattr(component, "type", None) == "color"
     ]
 
-    assert {component.value for component in inputs} == {"#123456", "#abcdef", "#6c757d"}
+    # A colour the user has set shows that colour; one they have not falls back
+    # to that key's shipped default rather than a single generic grey, which is
+    # what every unset swatch used to show regardless of what it was for.
+    from config import DEFAULT_NODE_COLORS
+
+    values = {component.value for component in inputs}
+    assert {"#123456", "#abcdef"} <= values
+    assert DEFAULT_NODE_COLORS[STATUS_BLOCKED] in values
+    assert "#6c757d" not in values, (
+        "An unset swatch is showing the old generic grey instead of its default")
     assert "#" not in _text(rows)
 
 

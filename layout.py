@@ -30,7 +30,7 @@ from list_toolbar import SORT_MENUS, sort_menu_items
 import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select
-from ui_kit import edit_button, info_button, panel_close_button, step_button
+from ui_kit import (edit_button, info_button, panel_close_button, step_button)
 
 
 # --- Graph View (Canvas only) ---
@@ -58,7 +58,7 @@ def create_graph_view(initial_elements):
                     'gravity': gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
                 },
                 style={'width': '100%', 'height': '100%',
-                       'backgroundColor': '#1a1d21', 'borderRadius': '8px'},
+                       'backgroundColor': tokens.BG_CANVAS, 'borderRadius': '8px'},
                 elements=initial_elements,
                 stylesheet=stylesheet,
                 userZoomingEnabled=False,
@@ -728,16 +728,16 @@ def build_popup_table_rows(defs):
         html.Tr([
             html.Td(str(d['rating']), style={
                 **_cell_style, "fontWeight": "700", "color": tokens.TEXT_SOFT,
-                "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+                "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
             }),
             html.Td(_ratings_cell_children(d['value']), style={
-                **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+                **_cell_style, "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
             }),
             html.Td(_ratings_cell_children(d['interest']), style={
-                **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+                **_cell_style, "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
             }),
             html.Td(_ratings_cell_children(d['effort']), style={
-                **_cell_style, "backgroundColor": "#1a1d21" if i % 2 == 0 else "transparent",
+                **_cell_style, "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
             }),
         ])
         for i, d in enumerate(defs)

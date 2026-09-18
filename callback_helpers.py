@@ -325,7 +325,7 @@ def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=
         classes.append('dormant')
     if node.now:
         classes.append('now')
-        data['now_color'] = styles.colors.get('Now', '#ffd000')
+        data['now_color'] = styles.colors.get('Now', '#ffd000')  # literal: Cytoscape element data
 
     element = {'data': data}
     if selected is not None:
@@ -1069,7 +1069,7 @@ def _suggestion_micro_bar(val, label):
 
 def _suggestion_dot(on, label, fill_color):
     """One link-presence indicator dot (filled when a link is set, hollow otherwise)."""
-    border_color = fill_color if on else "#6c757d"
+    border_color = fill_color if on else tokens.TEXT_DIM
     return html.Span(
         title=label,
         style={
@@ -1155,7 +1155,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             bar_width_pct = max(8.0, (priority_int / max_priority) * 100.0)
         else:
             bar_width_pct = 8.0
-        bar_color = step_color if step_target else BADGE_PALETTE.get(s.type, ('#6c757d', '#fff'))[0]
+        bar_color = step_color if step_target else BADGE_PALETTE.get(s.type, ('#6c757d', '#fff'))[0]  # literal: palette fallback
 
         # Column 1 — rank, or a turnstile for a pinned step so the ranking
         # below still reads 1, 2, 3 rather than starting partway down.
@@ -1163,7 +1163,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             "↳" if step_target else str(rank),
             style={
                 "fontFamily": _MONO_FONT, "fontSize": tokens.FS_XL,
-                "color": step_color if step_target else "#6c757d",
+                "color": step_color if step_target else tokens.TEXT_DIM,
                 "textAlign": "center",
                 "lineHeight": "1",
             },
@@ -1225,7 +1225,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
                 str(priority_int),
                 style={
                     "fontFamily": _MONO_FONT, "fontSize": tokens.FS_CAP,
-                    "fontWeight": 600, "color": "#fff",
+                    "fontWeight": "600", "color": "#fff",  # literal: on a coloured tile
                     "textShadow": "0 1px 1px rgba(0,0,0,0.5)",
                 },
             ),
@@ -1268,9 +1268,9 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         })
 
         dots = html.Span([
-            _suggestion_dot(bool(getattr(s, 'obsidian_path', None)), "Obsidian", "#dee2e6"),
-            _suggestion_dot(bool(getattr(s, 'google_drive_path', None)), "Drive", "#dee2e6"),
-            _suggestion_dot(bool(getattr(s, 'website', None)), "Website", "#dee2e6"),
+            _suggestion_dot(bool(getattr(s, 'obsidian_path', None)), "Obsidian", tokens.TEXT_PRIMARY),
+            _suggestion_dot(bool(getattr(s, 'google_drive_path', None)), "Drive", tokens.TEXT_PRIMARY),
+            _suggestion_dot(bool(getattr(s, 'website', None)), "Website", tokens.TEXT_PRIMARY),
         ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
@@ -1287,7 +1287,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             "borderBottom": f"1px solid {tokens.BORDER_SUBTLE}",
         }
         if is_selected:
-            row_style["backgroundColor"] = "#2b3035"
+            row_style["backgroundColor"] = tokens.BG_RAISED
 
         rows.append(html.Div(
             [rank_col, name_col, bar_col, meta_col],
@@ -1334,7 +1334,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     for n in now_nodes:
         is_selected = (n.name == selected_node_id)
         eff_time = manager.get_effective_time(n.name)
-        accent_color = BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]
+        accent_color = BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]  # literal: palette fallback
 
         # --- Context / subcontext line ---
         ctx_text = str(n.context) if n.context else ""
@@ -1406,7 +1406,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             "gap": "14px",
             "padding": "16px 20px",
             "borderRadius": "6px",
-            "backgroundColor": "#2b3035" if is_selected else "#212529",
+            "backgroundColor": tokens.BG_RAISED if is_selected else tokens.BG_PANEL,
             "border": f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}",
             "cursor": "pointer",
             "transition": "background-color 0.2s, border-color 0.2s",
@@ -1697,7 +1697,7 @@ def _explain_summary_table(breakdown: dict, normalized):
         "letterSpacing": "0.06em",
         "textTransform": "uppercase",
         "fontSize": tokens.FS_LG,
-        "color": "#ffffff",
+        "color": "#fff",  # literal: on a coloured tile
         "backgroundColor": tokens.BG_PANEL,
         "borderTop": f"1px solid {tokens.BORDER_PANEL}",
         "paddingTop": "10px",
@@ -1862,8 +1862,8 @@ def _explain_bar_chart(contributors: list, top_n: int):
     ))
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor='#1a1d21',
-        plot_bgcolor='#1a1d21',
+        paper_bgcolor='#1a1d21',  # literal: Plotly cannot resolve var()
+        plot_bgcolor='#1a1d21',  # literal: Plotly cannot resolve var()
         margin=dict(l=10, r=40, t=10, b=40),
         xaxis=dict(title="Share of total value", ticksuffix="%"),
         yaxis=dict(automargin=True, ticksuffix="  "),

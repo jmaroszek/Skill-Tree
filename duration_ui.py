@@ -71,9 +71,10 @@ def unit_select(select_id, units=TIME_UNITS, value=None, compact=False, **kwargs
 
 _UNIT_TITLES = {"y": "Years", "m": "Months", "w": "Weeks", "h": "Hours"}
 
-_PERCENTILE_LINES = (("P10", "p10", "#198754"),
-                     ("P50", "p50", "#ffc107"),
-                     ("P90", "p90", "#dc3545"))
+# literal: Plotly shape colours -- read as computed values, not CSS.
+_PERCENTILE_LINES = (("P10", "p10", "#198754"),  # literal: Plotly
+                     ("P50", "p50", "#ffc107"),  # literal: Plotly
+                     ("P90", "p90", "#dc3545"))  # literal: Plotly
 
 
 def _chance(fraction):
@@ -123,7 +124,7 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
 
     fig = go.Figure(go.Bar(
         x=centers, y=counts, width=width,
-        marker_color="#0d6efd", opacity=0.85,
+        marker_color="#0d6efd", opacity=0.85,  # literal: Plotly
         customdata=hover,
         hovertemplate="%{customdata}<extra></extra>",
     ))
@@ -139,8 +140,8 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
         meta={"trials": summary["trials"], "requested_trials": requested_trials,
               "chain_size": summary["chain_size"]},
         template="plotly_dark",
-        paper_bgcolor="#1a1d21",
-        plot_bgcolor="#1a1d21",
+        paper_bgcolor="#1a1d21",  # literal: Plotly
+        plot_bgcolor="#1a1d21",  # literal: Plotly
         margin=dict(l=40, r=20, t=20, b=40),
         xaxis_title=_UNIT_TITLES[suffix],
         yaxis_title="Frequency",
@@ -151,8 +152,8 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
         # 'closest' answers only with the pointer inside a bar, and unlike 'x'
         # it pins no raw value to the axis.
         hovermode="closest",
-        hoverlabel=dict(bgcolor="#2b3035", bordercolor="#495057",
-                        font=dict(color="#dee2e6", size=13)),
+        hoverlabel=dict(bgcolor="#2b3035", bordercolor="#495057",  # literal: Plotly
+                        font=dict(color="#dee2e6", size=13)),  # literal: Plotly
         bargap=0,
     )
     return fig

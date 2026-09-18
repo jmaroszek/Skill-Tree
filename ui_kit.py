@@ -26,7 +26,9 @@ aspirational.
 from dash import html
 import dash_bootstrap_components as dbc
 
-from config import TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+from config import (DEFAULT_NODE_COLORS, TOOLTIP_SHOW_DELAY_MS,
+                    TOOLTIP_HIDE_DELAY_MS, ConfigManager)
+from models import STATUS_DONE, STATUS_OPEN
 
 _DELAY = {"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}
 
@@ -190,3 +192,24 @@ def danger_action(label, button_id, **kwargs):
     """
     kwargs.setdefault("color", "danger")
     return dbc.Button(label, id=button_id, **kwargs)
+
+
+def done_color():
+    """The user's canvas colour for Done.
+
+    Three surfaces reached for this with their own inline fallback hex; a
+    fallback repeated four times is a value that can drift from its default.
+    """
+    return ConfigManager.get_node_colors().get(
+        STATUS_DONE, DEFAULT_NODE_COLORS[STATUS_DONE])
+
+
+def progress_bar_color(pct):
+    """Fill for a completion bar: the Done green at 100%, the accent below.
+
+    Both the Home tab and the Details goal-progress bar computed this with
+    their own literals.
+    """
+    from config import BADGE_PALETTE
+    return (BADGE_PALETTE[STATUS_DONE][0] if pct == 100
+            else BADGE_PALETTE[STATUS_OPEN][0])
