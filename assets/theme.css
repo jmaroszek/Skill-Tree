@@ -809,14 +809,38 @@
     );
 }
 
-.details-subtask-edit-btn.btn-link {
+.details-subtask-edit-btn.btn-link,
+.review-history-edit-btn.btn-link {
     --bs-btn-color: #6c757d;
     --bs-btn-hover-color: #dee2e6;
     --bs-btn-active-color: #ffffff;
-    padding: 2px 6px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     border: 0;
     line-height: 1;
     text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Details subtasks and Reflection history use the same progressive row
+   actions as Events > Dormant Nodes. Pointer users see the pencil only for
+   the row under attention; keyboard focus and touch keep the action usable. */
+.details-subtasks-table .details-subtask-actions,
+.review-history-table .review-history-actions {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease-in-out;
+}
+
+.details-subtasks-table .details-subtask-row:hover .details-subtask-actions,
+.details-subtasks-table .details-subtask-actions:focus-within,
+.review-history-table .review-history-row:hover .review-history-actions,
+.review-history-table .review-history-actions:focus-within {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 /* --- Node Editor: unified field + ghost icon affordances --- */
@@ -940,7 +964,9 @@
 }
 
 @media (hover: none), (pointer: coarse) {
-    .dormant-nodes-table .dormant-node-actions {
+    .dormant-nodes-table .dormant-node-actions,
+    .details-subtasks-table .details-subtask-actions,
+    .review-history-table .review-history-actions {
         opacity: 1;
         pointer-events: auto;
     }

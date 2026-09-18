@@ -8,7 +8,7 @@ Review History table + filters + edit hand-off.
 from dash import Input, Output, State, ALL, ctx, no_update, html
 import dash_bootstrap_components as dbc
 
-from config import ConfigManager
+from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from graph_manager import GraphManager
 from callback_helpers import build_calibration_dismissed_view
 from models import STATUS_DONE
@@ -77,7 +77,7 @@ _CELL_MUTED = {"verticalAlign": "middle", "color": "#6c757d"}
 
 def _build_history_table(nodes):
     """Render the Review History as a `dbc.Table` matching the Details tab's
-    Subtasks-table style. Edit ✎ buttons carry pattern-matched ids so the
+    Subtasks-table style. Edit buttons carry pattern-matched ids so the
     edit-handoff callback can resolve which row was clicked directly from
     `ctx.triggered_id`."""
     if not nodes:
@@ -92,6 +92,25 @@ def _build_history_table(nodes):
         est_hours = getattr(node, 'time', 0) or 0
         act_hours = node.actual_time_point
         edit_id = {'type': 'hub-history-edit', 'index': node.name}
+        edit_action = html.Div([
+            dbc.Button(
+                [
+                    html.I(className="bi bi-pencil", **{"aria-hidden": "true"}),
+                    html.Span(f"Edit reflection for {node.name}",
+                              className="visually-hidden"),
+                ],
+                id=edit_id,
+                color="link",
+                className="review-history-edit-btn",
+            ),
+            dbc.Tooltip(
+                "Edit reflection",
+                target=edit_id,
+                placement="left",
+                delay={"show": TOOLTIP_SHOW_DELAY_MS,
+                       "hide": TOOLTIP_HIDE_DELAY_MS},
+            ),
+        ], className="review-history-actions")
         rows.append(html.Tr([
             html.Td(node.name, style=_CELL_PRIMARY),
             html.Td(_fmt_hours(est_hours) if est_hours > 0 else _DASH,
@@ -107,13 +126,9 @@ def _build_history_table(nodes):
                                    node.reflect_difficulty,
                                    node.value, node.interest, node.difficulty),
                     style=_CELL_MUTED),
-            html.Td(
-                dbc.Button("✎", id=edit_id, color="link", size="sm",
-                           className="p-0 text-decoration-none text-muted",
-                           style={"fontSize": "1.1rem", "lineHeight": "1"}),
-                style={"verticalAlign": "middle", "width": "32px"},
-            ),
-        ]))
+            html.Td(edit_action,
+                    style={"verticalAlign": "middle", "width": "32px"}),
+        ], className="review-history-row"))
 
     # `--bs-table-bg: transparent` removes the dark grey row tint that
     # Bootstrap's Darkly theme paints on every <td>. Subtasks table reads
@@ -134,7 +149,7 @@ def _build_history_table(nodes):
             html.Tbody(rows),
         ],
         bordered=False, hover=True, responsive=True, size="sm",
-        className="text-light",
+        className="review-history-table text-light",
         style={"fontSize": "0.82rem", "--bs-table-bg": "transparent"},
     )
 

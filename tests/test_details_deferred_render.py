@@ -1,6 +1,7 @@
 """Regression tests for the Details interaction critical path."""
 
 import inspect
+from pathlib import Path
 from types import SimpleNamespace
 
 import dash
@@ -13,6 +14,9 @@ from details_callbacks import register_details_callbacks
 from event_callbacks import register_event_callbacks
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, Node
+
+
+THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
 
 
 def _app_with(*registrars):
@@ -145,6 +149,22 @@ def test_every_subtask_row_has_edit_action_and_no_remove_action():
     assert not any(isinstance(item, dict)
                    and item.get("type") == "details-subtask-remove"
                    for item in ids)
+
+    assert "details-subtasks-table" in table.className
+    for row in table.children[1].children:
+        assert row.className == "details-subtask-row"
+        action_group = row.children[-1].children
+        assert action_group.className == "details-subtask-actions"
+        assert action_group.children[0].children[0].className == "bi bi-pencil"
+
+
+def test_subtask_edit_actions_reveal_on_row_intent_and_remain_available_on_touch():
+    css = THEME_CSS.read_text(encoding="utf-8")
+
+    assert ".details-subtasks-table .details-subtask-actions" in css
+    assert ".details-subtask-row:hover .details-subtask-actions" in css
+    assert ".details-subtask-actions:focus-within" in css
+    assert "@media (hover: none), (pointer: coarse)" in css
 
 
 def test_subtask_pencil_opens_that_node_in_editor(monkeypatch):

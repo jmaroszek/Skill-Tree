@@ -1412,7 +1412,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         rel = relationship_types.get(node.name, "Hard")
         rel_style = _REL_BADGE_STYLES.get(rel, _REL_BADGE_STYLES["Hard"])
         edit_id = {"type": "details-subtask-edit", "index": node.name}
-        edit_btn = [
+        edit_btn = html.Div([
             dbc.Button(
                 [
                     html.I(className="bi bi-pencil", **{"aria-hidden": "true"}),
@@ -1429,7 +1429,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                 delay={"show": TOOLTIP_SHOW_DELAY_MS,
                        "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
-        ]
+        ], className="details-subtask-actions")
 
         _eff = graph_manager.get_effective_time(node.name) if graph_manager else 0.0
         _time_cell = ConfigManager.format_time_friendly(_eff) if _eff > 0 else "—"
@@ -1463,7 +1463,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(_time_cell, style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(edit_btn, style={"verticalAlign": "middle"}),
-        ]))
+        ], className="details-subtask-row"))
 
     return dbc.Table([
         html.Thead(html.Tr([
@@ -1482,7 +1482,8 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         ])),
         html.Tbody(rows),
     ], bordered=False, hover=True, responsive=True, size="sm",
-       className="text-light", style={"fontSize": "0.82rem"})
+       className="details-subtasks-table text-light",
+       style={"fontSize": "0.82rem"})
 
 
 def build_milestone_tile(milestone_node, completion: dict):

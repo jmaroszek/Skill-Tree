@@ -206,6 +206,13 @@ Add `.editor-icon-btn-danger` to a remove (`bi bi-x-lg`) button so the red
 (`#c94c4c`) appears only on hover — a multi-row field shouldn't read as a wall
 of danger buttons.
 
+Table-row actions that are secondary to scanning the data use progressive
+disclosure: hide the action group until its row is hovered, reveal it when the
+action itself receives keyboard focus, and keep it visible on coarse/non-hover
+devices. Details subtasks, Reflection review history, and Events dormant nodes
+all use this pattern. Their edit action uses the Bootstrap `bi bi-pencil` icon
+with a visually-hidden label and a tooltip; do not substitute a Unicode pencil.
+
 Disclosure / secondary affordances next to a **dropdown** heading (e.g. the
 Search "locate" crosshair) go as a muted `color="link"` icon next to the section
 heading — not stacked beside the control, which would compete with its native
