@@ -677,7 +677,6 @@ def build_events_tab_content():
             "height": "100%",
             "width": "100%",
             "marginLeft": "0",
-            "transition": "margin-left 0.3s ease, width 0.3s ease",
         }),
     ], style={
         "display": "flex",

@@ -2076,7 +2076,7 @@ def register_event_callbacks(app, services=None):
     # Registered with every canvas's in callbacks.py; built by
     # assets/layout_requests.js.
 
-    # --- Events Sidebar Toggle + Tab-Arrival Default + Tab-Inner Shift (CLIENTSIDE) ---
+    # --- Events Sidebar Toggle + Tab-Arrival Default (CLIENTSIDE) ---
     # Prior server-side implementations of this toggle exhibited a persistent
     # "sidebar won't reopen after close" bug that resisted multiple fixes. Moving
     # the logic to clientside JS in assets/events_sidebar.js eliminates server-
@@ -2085,7 +2085,6 @@ def register_event_callbacks(app, services=None):
     app.clientside_callback(
         ClientsideFunction(namespace='events', function_name='toggle_sidebar'),
         Output("events-sidebar-container", "style"),
-        Output("events-tab-inner", "style", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Output("details-goal-sidebar", "style", allow_duplicate=True),
         Input("btn-events-sidebar-toggle", "n_clicks"),
@@ -2098,10 +2097,4 @@ def register_event_callbacks(app, services=None):
         State("selected-event-store", "data"),
         State("event-detail-empty", "style"),
         prevent_initial_call=True,
-    )
-
-    app.clientside_callback(
-        ClientsideFunction(namespace='events', function_name='adjust_tab_inner'),
-        Output("events-tab-inner", "style"),
-        Input("events-sidebar-container", "style"),
     )

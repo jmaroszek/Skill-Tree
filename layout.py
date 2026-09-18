@@ -1361,13 +1361,22 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Interval(id='settings-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
 
         main_tabs,
-        # Tab content wrapper — only one tab visible at a time
+        # Left sidebars sit above this shared workspace. Whichever of the
+        # mutually-exclusive editor, Goals, or Events panels is open reserves
+        # its width here, so no tab's content is obscured underneath it.
         html.Div([
-            next_tab_content,
-            canvas_tab_content,
-            details_tab_content,
-            events_tab_content,
-            analyze_tab_content,
+            html.Div([
+                next_tab_content,
+                canvas_tab_content,
+                details_tab_content,
+                events_tab_content,
+                analyze_tab_content,
+            ], id="left-sidebar-workspace", style={
+                "position": "relative", "height": "100%", "width": "100%",
+                "marginLeft": "0", "overflow": "hidden",
+                "transition": "margin-left 0.3s ease, width 0.3s ease",
+                "willChange": "margin-left, width",
+            }),
             # --- Cross-tab sidebar overlays (editor / goals / events / filters) ---
             *sidebars
         ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),

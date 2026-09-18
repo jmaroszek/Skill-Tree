@@ -39,7 +39,6 @@ const finishSlide = () => {
 };
 require(process.argv[1]);
 const toggle = window.dash_clientside.events.toggle_sidebar;
-const adjust = window.dash_clientside.events.adjust_tab_inner;
 const closed = {transform: 'translateX(-350px)'};
 const open = {transform: 'translateX(0px)'};
 const editorOpen = {transform: 'translateX(0px)'};
@@ -54,12 +53,8 @@ const call = (activeTab, sidebar, selectedEvent, emptyStyle) =>
 trigger('main-tabs');
 let result = call('tab-events', closed, null, {display: 'block'});
 assert.equal(result[0].transform, 'translateX(0px)');
-// The tab content glides aside in the same return, so it starts with the slide.
-assert.equal(result[1].marginLeft, '350px');
-assert.equal(result[1].width, 'calc(100% - 350px)');
-assert.match(result[1].transition, /margin-left 0.3s ease/);
+assert.equal(result[1].transform, 'translateX(-350px)');
 assert.equal(result[2].transform, 'translateX(-350px)');
-assert.equal(result[3].transform, 'translateX(-350px)');
 // The list refresh waits for the slide to finish.
 assert.deepEqual(setProps, []);
 finishSlide();
@@ -68,16 +63,14 @@ setProps.length = 0;
 
 // A loaded event does not take space away from its detail workspace.
 assert.deepEqual(call('tab-events', closed, 'Trip', {display: 'none'}),
-                 ['NO', 'NO', 'NO', 'NO']);
+                 ['NO', 'NO', 'NO']);
 // A new-event draft has no selected event, but its hidden empty state keeps
 // the sidebar from reopening over the active creation workflow.
 assert.deepEqual(call('tab-events', closed, null, {display: 'none'}),
-                 ['NO', 'NO', 'NO', 'NO']);
+                 ['NO', 'NO', 'NO']);
 // Leaving Events closes an open sidebar and restores the full-width content.
 result = call('tab-details', open, null, {display: 'block'});
 assert.equal(result[0].transform, 'translateX(-350px)');
-assert.equal(result[1].marginLeft, '0');
-assert.equal(result[1].width, '100%');
 
 // An explicitly opened sidebar remains available across unrelated tab changes.
 trigger('btn-events-sidebar-toggle');
@@ -85,18 +78,17 @@ result = call('tab-details', closed, null, {display: 'block'});
 assert.equal(result[0].transform, 'translateX(0px)');
 trigger('main-tabs');
 assert.deepEqual(call('tab-canvas', open, null, {display: 'block'}),
-                 ['NO', 'NO', 'NO', 'NO']);
+                 ['NO', 'NO', 'NO']);
 
 // An already-open sidebar is left alone when arriving on Events.
 trigger('main-tabs');
 assert.deepEqual(call('tab-events', open, null, {display: 'block'}),
-                 ['NO', 'NO', 'NO', 'NO']);
+                 ['NO', 'NO', 'NO']);
 
 // Existing explicit controls retain their behavior.
 trigger('btn-events-sidebar-close');
 result = call('tab-events', open, null, {display: 'block'});
 assert.equal(result[0].transform, 'translateX(-350px)');
-assert.equal(result[1].marginLeft, '0');
 trigger('btn-events-sidebar-toggle');
 result = call('tab-events', closed, null, {display: 'block'});
 assert.equal(result[0].transform, 'translateX(0px)');
@@ -107,10 +99,6 @@ call('tab-events', open, null, {display: 'block'});
 finishSlide();
 assert.deepEqual(setProps, []);
 
-// Other writers of the sidebar style get the same tab content style.
-trigger('btn-events-sidebar-toggle');
-assert.deepEqual(adjust(open), call('tab-events', closed, null, {display: 'block'})[1]);
-assert.deepEqual(adjust(closed), call('tab-events', open, null, {display: 'block'})[1]);
 '''
     result = subprocess.run(
         [node, "-e", script, str(ASSET)],
