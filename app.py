@@ -11,9 +11,9 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 import config
+from app_paths import get_log_dir
 import database
 
 _logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class AppSettings:
 
 
 def _configure_logging(environment) -> None:
-    """Send INFO+ logs to stderr AND a rotating file in data/.
+    """Send INFO+ logs to stderr and a rotating LocalAppData file.
 
     Sandbox and production write to separate log files so the two never
     interleave. File rotates at 5 MB with 3 backups kept (~20 MB ceiling).
@@ -35,8 +35,8 @@ def _configure_logging(environment) -> None:
     fmt = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     formatter = logging.Formatter(fmt, datefmt='%Y-%m-%d %H:%M:%S')
 
-    log_dir = Path(__file__).parent / 'data'
-    log_dir.mkdir(exist_ok=True)
+    log_dir = get_log_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_name = 'sandbox_app.log' if environment == 'sandbox' else 'app.log'
 
     file_handler = RotatingFileHandler(
@@ -84,6 +84,13 @@ def create_app(settings=None, services=None):
     ConfigManager.ensure_action_type()
     ConfigManager.ensure_goal_type()
     ConfigManager.ensure_milestone_type()
+    with database.get_connection() as conn:
+        node_count = conn.execute("SELECT COUNT(*) FROM Nodes").fetchone()[0]
+        edge_count = conn.execute("SELECT COUNT(*) FROM Edges").fetchone()[0]
+    _logger.info(
+        "Using database %s (%d nodes, %d edges).",
+        database.get_db_path(), node_count, edge_count,
+    )
     repaired = services.graph.recompute_all_statuses()
     if repaired:
         _logger.info("Startup safety-net repaired %d node status(es).", repaired)

@@ -39,7 +39,7 @@ manager reads one database per process, and the revision counters in
 |---|---|
 | [app.py](../app.py) | Entry point. Sets `config.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Also defines the `/open-obsidian` Flask route. |
 | [models.py](../models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
-| [database.py](../database.py) | Thin `sqlite3` wrapper. Path from `config.ENVIRONMENT`; `init_db` on first connection. |
+| [database.py](../database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `config.ENVIRONMENT`, stored under `%LOCALAPPDATA%\Skill Tree\Data`; `init_db` on first connection. |
 | [config.py](../config.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
 | [graph_manager.py](../graph_manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
 | [app_services.py](../app_services.py) | Graph/event manager ownership for callback registration. |

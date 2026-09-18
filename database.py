@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from app_paths import get_data_dir
+
 
 # Snapshot of the resolved DB path on first call. Reading config.ENVIRONMENT
 # on every call risks splitting a single process between sandbox and prod if
@@ -193,7 +195,7 @@ def get_db_path() -> str:
     db_name = DB_FILENAME
     if ENVIRONMENT == "sandbox":
         db_name = "sandbox_" + DB_FILENAME
-    _db_path_cache = str(Path(__file__).parent / "data" / db_name)
+    _db_path_cache = str(get_data_dir() / db_name)
     return _db_path_cache
 
 
@@ -202,7 +204,9 @@ def get_connection() -> sqlite3.Connection:
     session = _session.get()
     if session is not None:
         return _ConnectionLease(session)
-    conn = sqlite3.connect(get_db_path(), factory=_ClosingConnection)
+    db_path = Path(get_db_path())
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, factory=_ClosingConnection)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 

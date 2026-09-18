@@ -15,8 +15,8 @@ so a single import is shared across all callback modules.
 
 import json
 import database
-from pathlib import Path
 from typing import Optional
+from app_paths import get_log_dir
 from database import get_connection
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
@@ -58,9 +58,8 @@ DB_FILENAME = "skilltree.db"
 
 # --- Daily backup script (backup.py, invoked by Windows Task Scheduler) ---
 BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
-# Relative to this file so the path stays valid if the project is moved or
-# the username changes. Resolves to <project>/data/backup_log.log.
-BACKUP_LOG_FILE = str(Path(__file__).parent / 'data' / 'backup_log.log')
+# Stored with the other application logs under LocalAppData.
+BACKUP_LOG_FILE = str(get_log_dir() / 'backup.log')
 # How many backup files to keep. The script skips days where the graph did not
 # change, so this counts distinct states rather than calendar days.
 BACKUP_KEEP = 30

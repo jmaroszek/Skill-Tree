@@ -8,10 +8,11 @@ Format: one pipe-delimited line per run
     ISO_UTC | n_nodes | n_edges | total_ms | adj_ms | goals_ms | score_ms | rank_ms
 """
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Dict
 
-_LOG_PATH = Path(__file__).parent / "data" / "perf.log"
+from app_paths import get_log_dir
+
+_LOG_PATH = get_log_dir() / "perf.log"
 _MAX_LINES = 5000
 
 

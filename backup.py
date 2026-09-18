@@ -4,6 +4,7 @@ import hashlib
 import sqlite3
 import os
 from datetime import datetime
+from pathlib import Path
 
 import database
 from config import BACKUP_DIR, BACKUP_KEEP, BACKUP_LOG_FILE
@@ -11,6 +12,7 @@ from config import BACKUP_DIR, BACKUP_KEEP, BACKUP_LOG_FILE
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    Path(BACKUP_LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
     with open(BACKUP_LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
 

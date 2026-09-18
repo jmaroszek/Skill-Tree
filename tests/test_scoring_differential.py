@@ -30,6 +30,7 @@ from typing import List, Dict, Optional
 import pytest
 
 import database
+from app_paths import get_data_dir
 from config import ConfigManager
 from graph_manager import GraphManager
 from models import (
@@ -413,7 +414,7 @@ def test_score_nodes_active_subset_of_all_nodes():
 # ---------------------------------------------------------------------------
 
 def _real_db_path(name: str) -> Optional[Path]:
-    candidate = Path(__file__).parent.parent / "data" / name
+    candidate = get_data_dir() / name
     return candidate if candidate.exists() else None
 
 
