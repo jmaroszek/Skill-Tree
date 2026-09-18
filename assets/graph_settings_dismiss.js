@@ -1,11 +1,13 @@
-// Close any open graph-settings panel when the user clicks outside of it.
-// Works by simulating a click on the panel's toggle button so Dash's
-// existing toggle callback keeps its State in sync with the DOM.
+// Close any open graph-settings panel, or the scoring profile info popover,
+// when the user clicks outside of it. Works by simulating a click on the
+// panel's toggle button so Dash's existing toggle callback keeps its State
+// in sync with the DOM.
 (function () {
     const PANELS = [
         ['graph-settings-panel', 'btn-graph-settings'],
         ['details-graph-settings-panel', 'btn-details-graph-settings'],
         ['events-graph-settings-panel', 'btn-events-graph-settings'],
+        ['popover-hp-profile-info', 'btn-hp-profile-info'],
     ];
 
     function handleOutsideClick(e) {
