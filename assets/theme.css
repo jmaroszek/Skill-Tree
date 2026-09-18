@@ -160,6 +160,11 @@
     bottom: 56px;
     right: 16px;
     width: 280px;
+    /* Keep every control reachable when a short canvas cannot contain the
+       whole panel. The scrollbar appears only in that constrained case. */
+    box-sizing: border-box;
+    max-height: calc(100% - 72px);
+    overflow-y: auto;
     z-index: 20;
     background-color: #212529;
     border: 1px solid #495057;
