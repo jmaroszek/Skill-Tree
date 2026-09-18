@@ -879,14 +879,20 @@ def build_dormant_nodes_table(event_nodes, event_status):
             edit_id = {"type": "btn-edit-dormant-node", "index": node.name}
             remove_id = {"type": "btn-remove-dormant-node", "index": node.name}
             edit_btn = dbc.Button(
-                "✎", id=edit_id, color="link",
-                className="p-0 text-decoration-none text-muted",
-                style={"fontSize": "1rem", "lineHeight": "1"},
+                [
+                    html.I(className="bi bi-pencil", **{"aria-hidden": "true"}),
+                    html.Span(f"Edit dormant node {node.name}", className="visually-hidden"),
+                ],
+                id=edit_id, color="link", title="Edit dormant node",
+                className="dormant-node-action-btn",
             )
             remove_btn = dbc.Button(
-                "×", id=remove_id, color="link",
-                className="p-0 text-decoration-none text-muted",
-                style={"fontSize": "1.1rem", "lineHeight": "1"},
+                [
+                    html.I(className="bi bi-x-lg", **{"aria-hidden": "true"}),
+                    html.Span(f"Remove dormant node {node.name}", className="visually-hidden"),
+                ],
+                id=remove_id, color="link", title="Remove dormant node",
+                className="dormant-node-action-btn dormant-node-action-btn-danger",
             )
             action_btns = html.Div([
                 edit_btn,
@@ -895,7 +901,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
                 remove_btn,
                 dbc.Tooltip("Remove dormant node", target=remove_id, placement="left",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            ], className="d-flex gap-2 justify-content-end align-items-center")
+            ], className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")
 
         rows.append(html.Tr([
             html.Td(trigger_checkbox, style={"verticalAlign": "middle", "width": "32px"}),
@@ -904,7 +910,7 @@ def build_dormant_nodes_table(event_nodes, event_status):
             html.Td([delay_display, activation_info], style={"verticalAlign": "middle"}),
             html.Td(status_badge, style={"verticalAlign": "middle"}),
             html.Td(action_btns, style={"verticalAlign": "middle", "textAlign": "right"}),
-        ]))
+        ], className="dormant-node-row"))
 
     return dbc.Table([
         html.Thead(html.Tr([
@@ -913,8 +919,8 @@ def build_dormant_nodes_table(event_nodes, event_status):
             html.Th("Type"),
             html.Th("Delay"),
             html.Th("Status"),
-            html.Th("", style={"width": "60px"}),
+            html.Th("Actions", className="dormant-node-actions-heading", style={"width": "64px"}),
         ])),
         html.Tbody(rows),
     ], bordered=False, hover=True, responsive=True, size="sm",
-       className="text-light", style={"fontSize": "0.85rem"})
+       className="dormant-nodes-table text-light", style={"fontSize": "0.85rem"})

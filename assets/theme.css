@@ -833,6 +833,54 @@
     --bs-btn-active-color: #c94c4c;
 }
 
+/* Dormant-node actions are secondary to scanning the event's queued work.
+   On a precise pointer, reveal the two direct actions for the row under
+   attention. They remain in the tab order, and focus-within exposes them for
+   keyboard users. Coarse/non-hover pointers retain visible controls. */
+.dormant-nodes-table .dormant-node-actions {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease-in-out;
+}
+
+.dormant-nodes-table .dormant-node-row:hover .dormant-node-actions,
+.dormant-nodes-table .dormant-node-row:focus-within .dormant-node-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.btn.dormant-node-action-btn {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: #adb5bd;
+    --bs-btn-hover-bg: rgba(255, 255, 255, 0.08);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: #f8f9fa;
+    --bs-btn-active-bg: rgba(255, 255, 255, 0.14);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-focus-shadow-rgb: 173, 181, 189;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn.dormant-node-action-btn-danger {
+    --bs-btn-hover-bg: rgba(201, 76, 76, 0.12);
+    --bs-btn-hover-color: #c94c4c;
+    --bs-btn-active-bg: rgba(201, 76, 76, 0.18);
+    --bs-btn-active-color: #c94c4c;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .dormant-nodes-table .dormant-node-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
 /* The bordered shell that fuses a text field with its trailing icon button(s)
    into one control. Border/bg/radius live on the group so the whole thing
    spans full width and lines up with the standalone Type/Description fields;
