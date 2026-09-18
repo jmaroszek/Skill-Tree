@@ -49,7 +49,6 @@ def test_build_app_layout_has_main_tabs_and_default_next():
     root = build_app_layout(initial_elements=[], env="sandbox")
     ids = _collect_ids(root)
     assert "main-tabs" in ids
-    assert "left-sidebar-workspace" in ids
 
 
 @pytest.mark.parametrize("import_path,func_name", [

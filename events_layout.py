@@ -677,6 +677,7 @@ def build_events_tab_content():
             "height": "100%",
             "width": "100%",
             "marginLeft": "0",
+            "transition": "margin-left 0.3s ease, width 0.3s ease",
         }),
     ], style={
         "display": "flex",
@@ -824,6 +825,20 @@ def _delay_days_to_form(delay_days: int) -> tuple[int, str]:
     return delay_days, "days"
 
 
+# Fixed column widths hold the dormant table's grid still from one event to
+# the next. With `table-layout: fixed` the Name column absorbs whatever is
+# left over, so Type no longer shifts sideways just because one event happens
+# to hold a longer node name. Name truncates with an ellipsis instead; the
+# full text stays available on hover.
+DORMANT_COL_WIDTHS = {
+    "select": "32px",
+    "type": "110px",
+    "delay": "130px",
+    "status": "90px",
+    "actions": "64px",
+}
+
+
 def build_dormant_nodes_table(event_nodes, event_status):
     """Builds the dormant nodes table for an event detail view."""
     if not event_nodes:
@@ -831,12 +846,6 @@ def build_dormant_nodes_table(event_nodes, event_status):
             html.P("No dormant nodes yet. Click 'Add Node' to add one.", className="text-muted"),
             className="text-center py-3"
         )
-
-    # A detail table should surface exceptions, not repeat the event's default
-    # state on every row. Uniform non-zero delays still matter, while Status
-    # matters only when awake and dormant nodes are mixed.
-    show_delay = any(en['delay_days'] != 0 for en in event_nodes)
-    show_status = len({bool(en['activated']) for en in event_nodes}) > 1
 
     rows = []
     for en in event_nodes:
@@ -856,28 +865,34 @@ def build_dormant_nodes_table(event_nodes, event_status):
         else:
             delay_display = f"{delay_days} day{'s' if delay_days != 1 else ''}"
 
-        status_badge = None
-        if show_status:
-            status_badge = dbc.Badge(
-                "Awake" if activated else "Dormant",
-                color="success" if activated else "secondary",
-                style={"fontSize": "0.7rem"}
-            )
+        # Every row carries Delay and Status, so the column grid is identical
+        # for every event. A default value recedes rather than disappearing:
+        # muted text keeps "None" and "Dormant" quiet enough that a real delay
+        # or a woken node still stands out — without the absence of a whole
+        # column having to carry that meaning by itself.
+        if delay_days == 0:
+            delay_cell = html.Span(delay_display, className="text-muted")
+        else:
+            delay_cell = [html.Span(delay_display)]
+            if en.get('activation_date') and not activated:
+                delay_cell.append(html.Small(
+                    f"Scheduled: {en['activation_date']}",
+                    className="text-muted d-block",
+                    style={"fontSize": "0.7rem"}
+                ))
 
-        activation_info = ""
-        if en.get('activation_date') and not activated:
-            activation_info = html.Small(
-                f"Scheduled: {en['activation_date']}",
-                className="text-muted ms-2",
-                style={"fontSize": "0.7rem"}
-            )
+        if activated:
+            status_cell = dbc.Badge("Awake", color="success", style={"fontSize": "0.7rem"})
+        else:
+            status_cell = html.Span("Dormant", className="text-muted")
 
         # Checkbox: only shown for dormant (non-activated) nodes on non-triggered events
         if not activated and event_status != "Triggered":
+            # The whole cell is the click target, not just this 14px box — see
+            # the .dormant-node-select-cell rules in theme.css.
             trigger_checkbox = dbc.Checkbox(
                 id={"type": "dormant-node-select", "index": node.name},
                 value=True,
-                style={"cursor": "pointer"}
             )
         else:
             trigger_checkbox = html.Span()
@@ -911,37 +926,31 @@ def build_dormant_nodes_table(event_nodes, event_status):
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")
 
-        row_cells = [
-            html.Td(trigger_checkbox, style={"verticalAlign": "middle", "width": "32px"}),
-            html.Td(node.name, style={"verticalAlign": "middle"}),
+        rows.append(html.Tr([
+            html.Td(trigger_checkbox, className="dormant-node-select-cell",
+                    style={"verticalAlign": "middle"}),
+            # title= keeps the full name reachable once the cell ellipsizes it.
+            html.Td(node.name, className="dormant-node-name-cell", title=node.name,
+                    style={"verticalAlign": "middle"}),
             html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
-        ]
-        if show_delay:
-            row_cells.append(html.Td(
-                [delay_display, activation_info], style={"verticalAlign": "middle"}
-            ))
-        if show_status:
-            row_cells.append(html.Td(status_badge, style={"verticalAlign": "middle"}))
-        row_cells.append(
+            html.Td(delay_cell, style={"verticalAlign": "middle"}),
+            html.Td(status_cell, style={"verticalAlign": "middle"}),
             html.Td(action_btns, style={"verticalAlign": "middle", "textAlign": "right"}),
-        )
-        rows.append(html.Tr(row_cells, className="dormant-node-row"))
+        ], className="dormant-node-row"))
 
     headers = [
-        html.Th("", style={"width": "32px"}),
+        html.Th("", style={"width": DORMANT_COL_WIDTHS["select"]}),
         html.Th("Name"),
-        html.Th("Type"),
+        html.Th("Type", style={"width": DORMANT_COL_WIDTHS["type"]}),
+        html.Th("Delay", style={"width": DORMANT_COL_WIDTHS["delay"]}),
+        html.Th("Status", style={"width": DORMANT_COL_WIDTHS["status"]}),
+        html.Th(html.Span("Actions", className="visually-hidden"),
+                style={"width": DORMANT_COL_WIDTHS["actions"]}),
     ]
-    if show_delay:
-        headers.append(html.Th("Delay"))
-    if show_status:
-        headers.append(html.Th("Status"))
-    headers.append(html.Th(
-        html.Span("Actions", className="visually-hidden"), style={"width": "64px"}
-    ))
 
     return dbc.Table([
         html.Thead(html.Tr(headers)),
         html.Tbody(rows),
     ], bordered=False, hover=True, responsive=True, size="sm",
-       className="dormant-nodes-table text-light", style={"fontSize": "0.85rem"})
+       className="dormant-nodes-table text-light",
+       style={"fontSize": "0.85rem", "tableLayout": "fixed"})

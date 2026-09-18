@@ -133,18 +133,6 @@ def register_sidebars_callbacks(app, services=None):
     priority, drag-reorder), filters toggle, editor fast-path."""
     graph_manager = services.graph if services is not None else globals()['graph_manager']
 
-    # All substantive left sidebars reserve the same shared tab workspace.
-    # This projection observes the final sidebar styles, including styles
-    # returned by server-side editor close/unsaved-change flows, while the
-    # individual callbacks continue to own their visibility rules.
-    app.clientside_callback(
-        ClientsideFunction(namespace='leftSidebar', function_name='workspace_style'),
-        Output("left-sidebar-workspace", "style"),
-        Input("sidebar-editor-container", "style"),
-        Input("details-goal-sidebar", "style"),
-        Input("events-sidebar-container", "style"),
-    )
-
     # --- Goal Sidebar Toggle (CLIENTSIDE) ---
     # Handled in the browser via assets/goals_sidebar.js to eliminate the
     # server round-trip on open/close. Once the open slide finishes it bumps

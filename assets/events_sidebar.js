@@ -7,13 +7,17 @@
  * bugs caused by state sync between Dash's callback manager and React's
  * reconciliation of the tab-bar button.
  *
- * toggle_sidebar responds to the Events sidebar controls and opens on arrival
- * to the Events tab when its true empty state is visible, closes on departure
- * from that tab, and closes editor/goals sidebars when opening (mutex).
+ * Two functions:
+ *   - toggle_sidebar: responds to the Events sidebar controls and opens
+ *     on arrival to the Events tab when its true empty state is visible,
+ *     closes on departure from that tab, and closes editor/goals sidebars
+ *     when opening (mutex).
+ *   - adjust_tab_inner: reflows the events-tab-inner wrapper so content
+ *     shifts right when the sidebar is open.
  *
  * The sidebar slides with `transform`, which the browser animates off the
  * main thread. The list refresh after opening waits for the slide to finish,
- * so the main thread is free to glide the shared workspace alongside it.
+ * so the main thread is free to glide the Events tab content alongside it.
  */
 // NOTE: 350px must match config.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
 // transition in sidebars_layout.py.
@@ -65,13 +69,27 @@ window.dash_clientside.events = window.dash_clientside.events || {};
         pendingRefresh = null;
     }
 
+    // The Events tab content glides aside in step with the sidebar. The
+    // detail panel has a fixed width, so each frame only re-lays out the
+    // graph panel, which is cheap enough to animate.
+    function tabInnerStyle(open) {
+        return {
+            display: "flex",
+            flexDirection: "row",
+            height: "100%",
+            width: open ? "calc(100% - 350px)" : "100%",
+            marginLeft: open ? "350px" : "0",
+            transition: "margin-left 0.3s ease, width 0.3s ease"
+        };
+    }
+
     window.dash_clientside.events.toggle_sidebar = function (
         _toggleN, _closeN, activeTab,
         currentStyle, editorStyle, goalStyle, refresh, selectedEvent, emptyStyle
     ) {
         var NO = window.dash_clientside.no_update;
         var trigger = triggerId();
-        if (!trigger) return [NO, NO, NO];
+        if (!trigger) return [NO, NO, NO, NO];
 
         // Remember the tab associated with every sidebar interaction. This
         // lets a main-tabs callback distinguish Events -> another tab from an
@@ -117,9 +135,9 @@ window.dash_clientside.events = window.dash_clientside.events || {};
             doClose();
         } else if (trigger === "main-tabs") {
             if (previousActiveTab === "tab-events" && activeTab !== "tab-events") {
-                if (!isOpen(style)) return [NO, NO, NO];
+                if (!isOpen(style)) return [NO, NO, NO, NO];
                 doClose();
-                return [style, nextEditor, nextGoal];
+                return [style, tabInnerStyle(false), nextEditor, nextGoal];
             }
 
             // selectedEvent is also null while composing a new event, so use
@@ -128,13 +146,52 @@ window.dash_clientside.events = window.dash_clientside.events || {};
             var emptyStateVisible = !emptyStyle || emptyStyle.display !== "none";
             if (activeTab !== "tab-events" || selectedEvent || !emptyStateVisible ||
                     isOpen(style)) {
-                return [NO, NO, NO];
+                return [NO, NO, NO, NO];
             }
             doOpen();
         } else {
-            return [NO, NO, NO];
+            return [NO, NO, NO, NO];
         }
 
-        return [style, nextEditor, nextGoal];
+        // The tab content is returned here, not left to adjust_tab_inner, so
+        // both transitions start in the same frame and the content's edge
+        // stays against the sidebar's for the whole glide.
+        return [style, tabInnerStyle(isOpen(style)), nextEditor, nextGoal];
     };
+
+    // Follows every other writer of the sidebar style, like the Goals and
+    // editor toggles closing it. For this file's own toggle it repeats the
+    // style already returned, which changes nothing.
+    window.dash_clientside.events.adjust_tab_inner = function (sidebarStyle) {
+        return tabInnerStyle(isOpen(sidebarStyle));
+    };
+
+    // The graph panel glides with the rest of the tab, but Cytoscape draws
+    // into a fixed-size canvas and nothing watches a container that only
+    // changes width. Left alone it keeps rendering at whatever width it had
+    // when the tab was last laid out. Settle it once the glide is over:
+    // resizing per frame would put a full graph redraw inside the transition,
+    // which is the main-thread work the transform-based slide exists to
+    // avoid. During the glide the canvas is simply clipped.
+    //
+    // Delegated to the document because Dash renders its layout after
+    // DOMContentLoaded, so #events-tab-inner does not exist at load time.
+    // transitionend bubbles, so one listener catches it whenever it appears.
+    function refitEventsCanvas() {
+        (window.SkillTree.canvases || []).forEach(function (canvas) {
+            if (canvas.tabId !== "tab-events") return;
+            var el = document.getElementById(canvas.cytoscapeId);
+            if (!el || !el.offsetParent) return;
+            var cy = window.SkillTree.getCy(el);
+            if (cy) cy.resize();
+        });
+    }
+
+    if (typeof document !== "undefined") {
+        document.addEventListener("transitionend", function (evt) {
+            if (evt.propertyName !== "width") return;
+            if (!evt.target || evt.target.id !== "events-tab-inner") return;
+            refitEventsCanvas();
+        });
+    }
 })();
