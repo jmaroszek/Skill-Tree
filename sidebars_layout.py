@@ -118,7 +118,7 @@ def build_node_editor_content():
                 ], id='modal-locate-missing', size="sm", is_open=False,
                    centered=True),
 
-                html.H5("General", className="mt-3 mb-1"),
+                html.H5("General", className="mt-2 mb-1"),
                 html.Div([
                     dbc.Label("Name", className="mb-0"),
                     add_button("btn-alias-add", "Add alias"),
@@ -174,7 +174,7 @@ def build_node_editor_content():
                 # --- Section: Status (Now + Done + Dormant toggles) ---
                 html.Div(id="section-done-time", children=[
                     html.Hr(className="my-2"),
-                    html.H5("Status", className="mt-2 mb-2"),
+                    html.H5("Status", className="mt-2 mb-1"),
                     html.Div([
                         dbc.Checklist(
                             options=[{"label": "Now", "value": "now"}],
@@ -456,7 +456,7 @@ def build_node_editor_sidebar():
             "zIndex": 1000,
             "overflowX": "hidden",
             "overflowY": "auto",
-            "borderRight": "1px solid #495057",
+            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
             "transition": "transform 0.3s ease",
             "transform": SIDEBAR_TRANSLATE_CLOSED,
             "willChange": "transform",
@@ -509,7 +509,7 @@ def build_goals_sidebar():
             "zIndex": 100,
             "overflowX": "hidden",
             "overflowY": "auto",
-            "borderRight": "1px solid #495057",
+            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
             "transition": "transform 0.3s ease",
             "transform": SIDEBAR_TRANSLATE_CLOSED,
             "willChange": "transform",
@@ -539,7 +539,7 @@ def build_events_sidebar():
             "zIndex": 100,
             "overflowX": "hidden",
             "overflowY": "auto",
-            "borderRight": "1px solid #495057",
+            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
             "transition": "transform 0.3s ease",
             "transform": SIDEBAR_TRANSLATE_CLOSED,
             "willChange": "transform",
@@ -559,7 +559,7 @@ def build_filters_content():
     # to give. Values here must stay in step with the clear_filters() callback.
     return html.Div([
         html.Div([
-            html.H4("Filters"),
+            html.H4("Filters", className="mb-0"),
             panel_close_button("btn-close-filters", "Close filters", large=True,
                                className_extra="float-end")
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
@@ -676,7 +676,7 @@ def build_filters_sidebar():
             "zIndex": 100,
             "overflowX": "hidden",
             "overflowY": "auto",
-            "borderLeft": "1px solid #495057",
+            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
             "transition": "right 0.3s ease",
             "backgroundColor": tokens.BG_PANEL
         }

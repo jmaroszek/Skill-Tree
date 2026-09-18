@@ -1284,7 +1284,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             "alignItems": "center",
             "gap": "14px",
             "padding": "9px 12px",
-            "borderBottom": "1px solid #343a40",
+            "borderBottom": f"1px solid {tokens.BORDER_SUBTLE}",
         }
         if is_selected:
             row_style["backgroundColor"] = "#2b3035"
@@ -1328,7 +1328,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
 
     heading = html.Div([
         html.H6("Now", className="text-muted mb-0", style=SECTION_TITLE_STYLE),
-    ], className="d-flex align-items-center", style={"gap": "12px", "marginBottom": "0.75rem"})
+    ], className="d-flex align-items-center", style={"gap": tokens.SPACE_BLOCK, "marginBottom": "0.75rem"})
 
     cards = []
     for n in now_nodes:
@@ -1373,7 +1373,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             ),
             time_label,
         ], style={
-            "display": "flex", "alignItems": "baseline", "gap": "12px",
+            "display": "flex", "alignItems": "baseline", "gap": tokens.SPACE_BLOCK,
             "marginBottom": "4px",
         })
 
@@ -1407,7 +1407,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             "padding": "16px 20px",
             "borderRadius": "6px",
             "backgroundColor": "#2b3035" if is_selected else "#212529",
-            "border": f"2px solid #0d6efd" if is_selected else "1px solid #495057",
+            "border": f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}",
             "cursor": "pointer",
             "transition": "background-color 0.2s, border-color 0.2s",
             "flex": "0 0 310px",
@@ -1699,11 +1699,11 @@ def _explain_summary_table(breakdown: dict, normalized):
         "fontSize": tokens.FS_LG,
         "color": "#ffffff",
         "backgroundColor": tokens.BG_PANEL,
-        "borderTop": "1px solid #495057",
+        "borderTop": f"1px solid {tokens.BORDER_PANEL}",
         "paddingTop": "10px",
         "paddingBottom": "8px",
     }
-    total_style = {"fontWeight": "600", "borderTop": "1px solid #495057"}
+    total_style = {"fontWeight": "600", "borderTop": f"1px solid {tokens.BORDER_PANEL}"}
     num_style = {"textAlign": "right", "fontVariantNumeric": "tabular-nums",
                  "whiteSpace": "nowrap"}
     detail_style = {"color": tokens.TEXT_SOFT, "fontSize": tokens.FS_MD, "marginLeft": "8px"}

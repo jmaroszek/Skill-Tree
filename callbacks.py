@@ -310,7 +310,7 @@ def register_callbacks(app, services=None):
         header = html.Div(
             html.Strong(data.get('label', node_id)),
             style={"fontSize": tokens.FS_LG, "marginBottom": "4px",
-                   "borderBottom": "1px solid #495057", "paddingBottom": "4px"}
+                   "borderBottom": f"1px solid {tokens.BORDER_PANEL}", "paddingBottom": "4px"}
         )
 
         if node_type in ('Goal', 'Milestone'):

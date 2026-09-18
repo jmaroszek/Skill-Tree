@@ -21,7 +21,7 @@ _GEAR_STYLE = {
 
 
 def _plain_header(text):
-    return html.H5(text, className="mb-1")
+    return html.H5(text, className="mt-2 mb-1")
 
 
 def _gear_header(text, gear_id, popover_id, label, input_id, lo, hi, value):

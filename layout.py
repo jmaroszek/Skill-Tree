@@ -107,6 +107,16 @@ def create_graph_view(initial_elements):
 
 # Was a byte-identical copy of callback_helpers.SECTION_TITLE_STYLE; both now
 # resolve to the one definition in style_tokens.
+# The three ratings-editor textareas hand-painted a DARKLY imitation,
+# written out verbatim three times. One definition instead.
+_RATING_TEXTAREA_STYLE = {
+    "width": "100%", "height": "72px", "resize": "vertical",
+    "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
+    "border": f"1px solid {tokens.BORDER_PANEL}",
+    "borderRadius": tokens.RADIUS_SM, "padding": "4px",
+    "fontSize": tokens.FS_CAP,
+}
+
 _section_title_style = tokens.SECTION_TITLE_STYLE
 _formula_hint_style = {"fontSize": tokens.FS_CAP, "fontFamily": tokens.FONT_MONO,
                        "color": tokens.TEXT_DIM, "marginBottom": "0.25rem"}
@@ -160,7 +170,7 @@ def build_next_view():
                                   "textAlign": "center"}),
                 step_button("btn-sugg-plus", "plus-lg", "Show more suggestions"),
             ], className="align-middle"),
-        ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
+        ], className="d-flex align-items-center mb-2", style={"gap": tokens.SPACE_BLOCK}),
     
         dcc.Store(id='selected-suggestion-store', data=None),
         dcc.Store(id='focus-goal-store', data=None),
@@ -690,14 +700,14 @@ def build_hover_tooltip():
 _cell_style = {
     "padding": "6px 8px",
     "verticalAlign": "top",
-    "borderBottom": "1px solid #343a40",
+    "borderBottom": f"1px solid {tokens.BORDER_SUBTLE}",
     "lineHeight": "1.4",
 }
 _header_cell_style = {
     **_cell_style,
     "fontWeight": "700",
     "backgroundColor": tokens.BG_RAISED,
-    "borderBottom": "2px solid #495057",
+    "borderBottom": f"2px solid {tokens.BORDER_PANEL}",
     "position": "sticky",
     "top": "0",
 }
@@ -765,26 +775,17 @@ def build_editor_rows(defs, id_prefix="ratings-edit"):
             html.Td(dcc.Textarea(
                 id={"type": f"{id_prefix}-value", "index": i},
                 value=d['value'],
-                style={"width": "100%", "height": "72px", "resize": "vertical",
-                       "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
-                       "border": "1px solid #495057", "borderRadius": "4px",
-                       "padding": "4px", "fontSize": tokens.FS_CAP},
+                style=_RATING_TEXTAREA_STYLE,
             ), style=_cell_style),
             html.Td(dcc.Textarea(
                 id={"type": f"{id_prefix}-interest", "index": i},
                 value=d['interest'],
-                style={"width": "100%", "height": "72px", "resize": "vertical",
-                       "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
-                       "border": "1px solid #495057", "borderRadius": "4px",
-                       "padding": "4px", "fontSize": tokens.FS_CAP},
+                style=_RATING_TEXTAREA_STYLE,
             ), style=_cell_style),
             html.Td(dcc.Textarea(
                 id={"type": f"{id_prefix}-effort", "index": i},
                 value=d['effort'],
-                style={"width": "100%", "height": "72px", "resize": "vertical",
-                       "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
-                       "border": "1px solid #495057", "borderRadius": "4px",
-                       "padding": "4px", "fontSize": tokens.FS_CAP},
+                style=_RATING_TEXTAREA_STYLE,
             ), style=_cell_style),
         ]))
     return rows
@@ -803,7 +804,7 @@ def build_ratings_popup():
             "cursor": "move",
             "padding": "8px 10px",
             "backgroundColor": tokens.BG_RAISED,
-            "borderBottom": "1px solid #495057",
+            "borderBottom": f"1px solid {tokens.BORDER_PANEL}",
             "borderRadius": "6px 6px 0 0",
             "flexShrink": "0",
             "userSelect": "none",
@@ -836,7 +837,7 @@ def build_ratings_popup():
         "minHeight": "200px",
         "zIndex": 9998,
         "backgroundColor": tokens.BG_PANEL,
-        "border": "1px solid #495057",
+        "border": f"1px solid {tokens.BORDER_PANEL}",
         "borderRadius": "6px",
         "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
         "resize": "both",
@@ -876,7 +877,7 @@ def build_reflection_ratings_popup():
             "cursor": "move",
             "padding": "8px 10px",
             "backgroundColor": tokens.BG_RAISED,
-            "borderBottom": "1px solid #495057",
+            "borderBottom": f"1px solid {tokens.BORDER_PANEL}",
             "borderRadius": "6px 6px 0 0",
             "flexShrink": "0",
             "userSelect": "none",
@@ -908,7 +909,7 @@ def build_reflection_ratings_popup():
         "minHeight": "200px",
         "zIndex": 9998,
         "backgroundColor": tokens.BG_PANEL,
-        "border": "1px solid #495057",
+        "border": f"1px solid {tokens.BORDER_PANEL}",
         "borderRadius": "6px",
         "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
         "resize": "both",
@@ -1104,7 +1105,7 @@ def build_app_layout(initial_elements, env="production"):
         ], className="main-toolbar-actions d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
     ], id="main-toolbar", className="d-flex align-items-center",
-       style={"borderBottom": "1px solid #495057", "backgroundColor": tokens.BG_CANVAS})
+       style={"borderBottom": f"1px solid {tokens.BORDER_PANEL}", "backgroundColor": tokens.BG_CANVAS})
 
     # --- Canvas Tab Content (existing layout, unchanged) ---
     canvas_tab_content = html.Div(

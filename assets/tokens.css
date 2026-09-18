@@ -108,6 +108,16 @@
     --st-shadow-canvas: 0 4px 24px rgba(0, 0, 0, 0.4);
     --st-shadow-canvas-hover: 0 6px 32px rgba(0, 0, 0, 0.55);
 
+    /* ---- Spacing --------------------------------------------------------
+       Bootstrap's utility classes (mb-1..mb-4) carry almost all spacing and
+       should keep doing so. These two exist because the Details header
+       deliberately sits between Bootstrap's steps -- the gaps between its
+       blocks are wider than the gaps inside them, and 8px/16px is too coarse
+       to say that. They were inline 12px/14px literals repeated across six
+       sites; naming them keeps the intent legible and adjustable in one go. */
+    --st-space-block: 12px;        /* between related blocks in a header */
+    --st-space-section: 14px;      /* between a header and the next section */
+
     /* ---- Motion ---------------------------------------------------------- */
     --st-transition-fast: 0.15s ease;
     --st-transition: 0.2s ease;

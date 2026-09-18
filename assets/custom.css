@@ -62,7 +62,7 @@ input[type=number] {
     /* Gap between the bottom of the tiles and the scrollbar. */
     padding-bottom: 10px;
     scrollbar-width: thin;             /* Firefox */
-    scrollbar-color: #495057 transparent;  /* thumb / track — Firefox */
+    scrollbar-color: var(--st-border-panel) transparent;  /* thumb / track — Firefox */
 }
 .milestone-tiles-scroll::-webkit-scrollbar {
     display: block;                    /* override the global hide */
@@ -72,11 +72,11 @@ input[type=number] {
     background: transparent;
 }
 .milestone-tiles-scroll::-webkit-scrollbar-thumb {
-    background: #495057;
+    background: var(--st-border-panel);
     border-radius: 3px;
 }
 .milestone-tiles-scroll::-webkit-scrollbar-thumb:hover {
-    background: #6c757d;
+    background: var(--st-text-dim);
 }
 
 /* Resize handle between canvas and bottom panel */
@@ -85,11 +85,11 @@ input[type=number] {
     cursor: ns-resize;
     background: transparent;
     margin: 0 25px;
-    border-top: 1px solid #495057;
+    border-top: 1px solid var(--st-border-panel);
     transition: background 0.15s;
 }
 #resize-handle:hover {
-    background: #495057;
+    background: var(--st-border-panel);
 }
 
 /* Cytoscape box-selection rectangle */
@@ -99,19 +99,19 @@ input[type=number] {
 
 /* Tame red/danger buttons and text for a calmer dark mode */
 .btn-danger, .badge.bg-danger {
-    background-color: #c94c4c !important;
-    border-color: #c94c4c !important;
+    background-color: var(--st-danger) !important;
+    border-color: var(--st-danger) !important;
 }
 .btn-outline-danger {
-    color: #c94c4c !important;
-    border-color: #c94c4c !important;
+    color: var(--st-danger) !important;
+    border-color: var(--st-danger) !important;
 }
 .btn-outline-danger:hover {
-    background-color: #c94c4c !important;
+    background-color: var(--st-danger) !important;
     color: white !important;
 }
 .text-danger {
-    color: #ee6666 !important; /* Slightly brighter but still muted red for text */
+    color: var(--st-danger-text) !important;
 }
 
 /* Dropdown styling lives in assets/dropdowns.css — all three
@@ -163,11 +163,11 @@ input[type=number] {
     opacity: 0.3;
 }
 .goal-sortable-chosen {
-    border-color: #0d6efd !important;
-    background-color: #2b3035 !important;
+    border-color: var(--st-accent) !important;
+    background-color: var(--st-bg-raised) !important;
 }
 .goal-drag-handle:hover {
-    color: #dee2e6 !important;
+    color: var(--st-text-primary) !important;
 }
 
 /* Settings modal: width (between Bootstrap's lg 800px and xl 1140px) is set
@@ -181,11 +181,11 @@ input[type=number] {
     opacity: 0.3;
 }
 .event-sortable-chosen {
-    border-color: #0d6efd !important;
-    background-color: #2b3035 !important;
+    border-color: var(--st-accent) !important;
+    background-color: var(--st-bg-raised) !important;
 }
 .event-drag-handle:hover {
-    color: #dee2e6 !important;
+    color: var(--st-text-primary) !important;
 }
 
 /* Now drag-and-drop styles */
@@ -193,10 +193,10 @@ input[type=number] {
     opacity: 0.3;
 }
 .now-sortable-chosen {
-    border-color: #0d6efd !important;
-    background-color: #2b3035 !important;
+    border-color: var(--st-accent) !important;
+    background-color: var(--st-bg-raised) !important;
 }
 .now-sortable-fallback {
     opacity: 0.9;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--st-shadow-panel);
 }

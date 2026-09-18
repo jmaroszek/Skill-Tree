@@ -62,6 +62,13 @@ FS_2XL = "var(--st-fs-2xl)"
 
 FONT_MONO = "var(--st-font-mono)"
 
+# --- Spacing ----------------------------------------------------------------
+# Bootstrap utility classes carry almost all spacing. These two name the
+# deliberate off-grid gaps in the Details header; see assets/tokens.css.
+SPACE_BLOCK = "var(--st-space-block)"
+SPACE_SECTION = "var(--st-space-section)"
+
+
 # --- Geometry ---------------------------------------------------------------
 RADIUS_SM = "var(--st-radius-sm)"
 RADIUS = "var(--st-radius)"

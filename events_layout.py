@@ -441,7 +441,7 @@ def build_events_tab_content():
                         ]),
                     ], className="d-flex align-items-center ms-3"),
                 ], className="d-flex align-items-center mt-3 mb-1",
-                   style={"borderBottom": "1px solid #495057"}),
+                   style={"borderBottom": f"1px solid {tokens.BORDER_PANEL}"}),
 
                 html.Div(id="event-save-status", className="text-success mb-2",
                          style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
@@ -631,7 +631,7 @@ def build_events_tab_content():
             "width": "6px",
             "cursor": "col-resize",
             "backgroundColor": "transparent",
-            "borderLeft": "1px solid #495057",
+            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
             "flexShrink": "0",
             "transition": "background-color 0.15s",
         },
@@ -716,7 +716,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
     """Builds a single event card for the list."""
     badge_text, badge_name = _event_badge(status, trigger_date, trigger_nodes)
     trigger_summary = format_trigger_summary(trigger_nodes, trigger_mode)
-    border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
+    border_style = f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}"
 
     drag_handle = html.Span(
         html.I(className="bi bi-grip-horizontal"), className="event-drag-handle",

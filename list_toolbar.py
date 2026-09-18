@@ -80,7 +80,7 @@ SORT_MENUS = (GOALS_SORT, EVENTS_SORT)
 
 SEARCH_STYLE = {
     "backgroundColor": tokens.BG_RAISED,
-    "border": "1px solid #495057",
+    "border": f"1px solid {tokens.BORDER_PANEL}",
     "color": tokens.TEXT_PRIMARY,
     "borderRadius": "6px",
     "flex": "1",
@@ -116,7 +116,7 @@ def build_list_toolbar(search_input, sort: SortMenu):
         ),
         dcc.Store(id=sort.store_id, storage_type="local", data=sort.default),
     ], className="d-flex align-items-center",
-       style={"gap": "4px", "padding": "0 12px", "marginBottom": "12px"})
+       style={"gap": "4px", "padding": "0 12px", "marginBottom": tokens.SPACE_BLOCK})
 
 
 def sort_menu_items(sort: SortMenu):

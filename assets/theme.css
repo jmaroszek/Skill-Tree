@@ -19,13 +19,13 @@
 .btn-canvas-overlay.btn-secondary {
     --bs-btn-bg: transparent;
     --bs-btn-border-color: transparent;
-    --bs-btn-color: #6c757d;
-    --bs-btn-hover-bg: rgba(255, 255, 255, 0.07);
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
     --bs-btn-hover-border-color: transparent;
-    --bs-btn-hover-color: #dee2e6;
-    --bs-btn-active-bg: rgba(255, 255, 255, 0.12);
+    --bs-btn-hover-color: var(--st-text-primary);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
     --bs-btn-active-border-color: transparent;
-    --bs-btn-active-color: #f1f3f5;
+    --bs-btn-active-color: var(--st-text-strong);
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
     box-shadow: none;
 }
@@ -63,7 +63,7 @@
     z-index: 10;
     font-size: 0.78rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: #6c757d;
+    color: var(--st-text-dim);
     pointer-events: none;
     user-select: none;
     opacity: 0.9;
@@ -76,7 +76,7 @@
     z-index: 10;
     font-size: 0.78rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: #6c757d;
+    color: var(--st-text-dim);
     pointer-events: none;
     user-select: none;
     opacity: 0.9;
@@ -96,7 +96,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #1a1d21;
+    background-color: var(--st-bg-canvas);
     border-radius: 8px;
 }
 
@@ -150,7 +150,7 @@
 }
 
 .canvas-cover-label {
-    color: #6c757d;
+    color: var(--st-text-dim);
     font-size: 0.85rem;
 }
 
@@ -166,17 +166,17 @@
     max-height: calc(100% - 72px);
     overflow-y: auto;
     z-index: 20;
-    background-color: #212529;
-    border: 1px solid #495057;
+    background-color: var(--st-bg-panel);
+    border: 1px solid var(--st-border-panel);
     border-radius: 8px;
     padding: 16px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    color: #dee2e6;
+    color: var(--st-text-primary);
 }
 
 .graph-settings-panel .settings-label {
     font-size: 0.82rem;
-    color: #ced4da;
+    color: var(--st-text-soft);
     font-weight: 500;
     margin-bottom: 6px;
     margin-top: 18px;
@@ -208,7 +208,7 @@
     width: 100vw !important;
     height: 100vh !important;
     z-index: 10000;
-    background-color: #1a1d21;
+    background-color: var(--st-bg-canvas);
     padding: 0;
     margin: 0;
 }
@@ -234,32 +234,32 @@
 /* --- Dark Theme Canvas Enhancements --- */
 
 .canvas-container #cytoscape-graph {
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--st-shadow-canvas);
     border: 1px solid #2c3034;
     transition: box-shadow 0.3s ease;
 }
 
 .canvas-container:hover #cytoscape-graph {
-    box-shadow: 0 6px 32px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--st-shadow-canvas-hover);
 }
 
 .canvas-container.cyto-frozen #cytoscape-graph,
 .cyto-frozen #details-mini-graph,
 .cyto-frozen #events-detail-graph {
     box-shadow: inset 0 0 0 2px rgba(126, 200, 227, 0.6),
-                0 4px 24px rgba(0, 0, 0, 0.4);
+                var(--st-shadow-canvas);
     transition: box-shadow 200ms ease;
 }
 
 /* --- Tab Styling --- */
 
 .nav-tabs {
-    background-color: #1a1d21;
+    background-color: var(--st-bg-canvas);
 }
 
 .nav-tabs .nav-link {
     transition: color 0.2s ease, border-color 0.2s ease;
-    color: #6c757d;
+    color: var(--st-text-dim);
     border: none;
     padding: 8px 20px;
     font-size: 0.9rem;
@@ -267,15 +267,15 @@
 }
 
 .nav-tabs .nav-link:hover {
-    color: #dee2e6;
+    color: var(--st-text-primary);
     border-color: transparent;
 }
 
 .nav-tabs .nav-link.active {
-    color: #dee2e6;
+    color: var(--st-text-primary);
     background-color: transparent;
     border: none;
-    border-bottom: 2px solid #0d6efd;
+    border-bottom: 2px solid var(--st-accent);
 }
 
 /* The .dark-dropdown block that used to live here was dead: the class was
@@ -287,18 +287,18 @@
 
 .modal .nav-tabs {
     background-color: transparent;
-    border-bottom: 1px solid #495057;
+    border-bottom: 1px solid var(--st-border-panel);
 }
 .modal .nav-tabs .nav-link {
-    color: #adb5bd;
+    color: var(--st-text-soft);
 }
 .modal .nav-tabs .nav-link:hover {
-    color: #dee2e6;
+    color: var(--st-text-primary);
 }
 .modal .nav-tabs .nav-link.active {
-    color: #dee2e6;
+    color: var(--st-text-primary);
     background-color: transparent;
-    border-bottom: 2px solid #0d6efd;
+    border-bottom: 2px solid var(--st-accent);
 }
 
 /* --- Events Tab --- */
@@ -308,8 +308,8 @@
 }
 
 .event-card:hover {
-    border-color: #0d6efd !important;
-    background-color: #2b3035 !important;
+    border-color: var(--st-accent) !important;
+    background-color: var(--st-bg-raised) !important;
 }
 
 /* --- Offcanvas Transitions --- */
@@ -323,7 +323,7 @@
     bottom: auto !important;
     height: calc(100vh - 260px) !important;
     border-bottom-right-radius: 8px;
-    border-bottom: 1px solid #495057;
+    border-bottom: 1px solid var(--st-border-panel);
     overflow-y: auto;
 }
 
@@ -338,27 +338,27 @@
 /* Value input box next to slider */
 .dash-range-slider-input,
 .dash-input-container input[type="number"] {
-    color: #f8f9fa !important;
-    background-color: #2b3035 !important;
-    border: 1px solid #495057 !important;
+    color: var(--st-text-strong) !important;
+    background-color: var(--st-bg-raised) !important;
+    border: 1px solid var(--st-border-panel) !important;
 }
 
 /* Mark labels (1–10 numbers below slider) */
 .dash-slider-root [data-radix-collection-item],
 .dash-slider-root [role="slider"],
 .dash-slider-root span:not([class]) {
-    color: #dee2e6 !important;
+    color: var(--st-text-primary) !important;
 }
 
 /* Catch-all: any text inside the slider wrapper */
 .dash-slider-wrapper span,
 .dash-slider-wrapper div {
-    color: #dee2e6 !important;
+    color: var(--st-text-primary) !important;
 }
 
 /* Slider container text */
 .dash-slider-container {
-    color: #dee2e6 !important;
+    color: var(--st-text-primary) !important;
 }
 
 /* --- Right-click Context Menu --- */
@@ -367,12 +367,12 @@
 
 .ctx-menu,
 .ctx-menu-submenu {
-    background-color: #2b3035;
-    border: 1px solid #495057;
+    background-color: var(--st-bg-raised);
+    border: 1px solid var(--st-border-panel);
     border-radius: 6px;
     padding: 4px 0;
     min-width: 160px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--st-shadow-panel);
 }
 
 .ctx-menu {
@@ -383,7 +383,7 @@
 
 .ctx-menu-item {
     padding: 6px 16px;
-    color: #dee2e6;
+    color: var(--st-text-primary);
     cursor: pointer;
     font-size: 0.9rem;
     transition: background-color 0.15s ease;
@@ -406,12 +406,12 @@
 }
 
 .ctx-menu-item:hover {
-    background-color: #495057;
+    background-color: var(--st-border-panel);
     color: #fff;
 }
 
 .ctx-menu-item-danger {
-    color: #c94c4c;
+    color: var(--st-danger);
 }
 
 .ctx-menu-item-danger:hover {
@@ -462,7 +462,7 @@
 .events-triggered-rule {
     flex: 1;
     height: 1px;
-    background-color: #495057;
+    background-color: var(--st-border-panel);
 }
 
 .events-triggered-toggle {
@@ -470,12 +470,12 @@
     border: none;
     padding: 0;
     font: inherit;
-    color: #adb5bd;
+    color: var(--st-text-soft);
     cursor: pointer;
 }
 
 .events-triggered-toggle:hover {
-    color: #f1f3f5;
+    color: var(--st-text-strong);
 }
 
 /* --- Submenu (flyout) on a context-menu item -------------------------- */
@@ -522,7 +522,7 @@
 /* Keep the parent row visually "active" while its submenu is open, so the
    user doesn't see the highlight drop the moment they cross into the submenu. */
 .ctx-menu-submenu-parent.ctx-menu-submenu-open {
-    background-color: #495057;
+    background-color: var(--st-border-panel);
     color: #fff;
 }
 
@@ -553,8 +553,8 @@
 /* --- Home tab — Now section cards --- */
 
 .now-card:hover {
-    background-color: #2b3035 !important;
-    border-color: #6c757d !important;
+    background-color: var(--st-bg-raised) !important;
+    border-color: var(--st-text-dim) !important;
 }
 
 /* --- Type-adaptive editor section transitions --- */
@@ -612,13 +612,13 @@
 #main-toolbar .btn-secondary {
     --bs-btn-bg: transparent;
     --bs-btn-border-color: transparent;
-    --bs-btn-color: #adb5bd;
-    --bs-btn-hover-bg: rgba(255, 255, 255, 0.07);
+    --bs-btn-color: var(--st-text-soft);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
     --bs-btn-hover-border-color: transparent;
-    --bs-btn-hover-color: #f1f3f5;
-    --bs-btn-active-bg: rgba(255, 255, 255, 0.12);
+    --bs-btn-hover-color: var(--st-text-strong);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
     --bs-btn-active-border-color: transparent;
-    --bs-btn-active-color: #ffffff;
+    --bs-btn-active-color: #fff;
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
     box-shadow: none;
     font-size: 1rem;
@@ -631,16 +631,16 @@
 .details-header-btn.btn-secondary {
     --bs-btn-bg: transparent;
     --bs-btn-border-color: transparent;
-    --bs-btn-color: #adb5bd;
-    --bs-btn-hover-bg: rgba(255, 255, 255, 0.07);
+    --bs-btn-color: var(--st-text-soft);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
     --bs-btn-hover-border-color: transparent;
-    --bs-btn-hover-color: #f1f3f5;
-    --bs-btn-active-bg: rgba(255, 255, 255, 0.12);
+    --bs-btn-hover-color: var(--st-text-strong);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
     --bs-btn-active-border-color: transparent;
-    --bs-btn-active-color: #ffffff;
+    --bs-btn-active-color: #fff;
     --bs-btn-disabled-bg: transparent;
     --bs-btn-disabled-border-color: transparent;
-    --bs-btn-disabled-color: #495057;
+    --bs-btn-disabled-color: var(--st-border-panel);
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
     box-shadow: none;
     opacity: 1;
@@ -662,10 +662,10 @@
     gap: 10px;
     padding: 9px 12px;
     margin: 0 0 6px;
-    border: 1px solid #495057;
+    border: 1px solid var(--st-border-panel);
     border-radius: 6px;
-    background-color: #212529;
-    color: #dee2e6;
+    background-color: var(--st-bg-panel);
+    color: var(--st-text-primary);
     font: inherit;
     text-align: left;
     cursor: pointer;
@@ -673,17 +673,17 @@
 }
 
 .details-suggestion-row:hover {
-    border-color: #6c757d;
-    background-color: #2b3035;
-    color: #f1f3f5;
+    border-color: var(--st-text-dim);
+    background-color: var(--st-bg-raised);
+    color: var(--st-text-strong);
 }
 
 .details-suggestion-row:active {
-    background-color: #343a40;
+    background-color: var(--st-bg-sunken);
 }
 
 .details-suggestion-row:focus-visible {
-    outline: 2px solid #0d6efd;
+    outline: 2px solid var(--st-accent);
     outline-offset: 2px;
 }
 
@@ -711,7 +711,7 @@
 .details-suggestion-meta {
     margin-top: 2px;
     min-height: 1.35em;
-    color: #6c757d;
+    color: var(--st-text-dim);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px;
     line-height: 1.35;
@@ -741,9 +741,9 @@
 
 .details-subtask-edit-btn.btn-link,
 .review-history-edit-btn.btn-link {
-    --bs-btn-color: #6c757d;
-    --bs-btn-hover-color: #dee2e6;
-    --bs-btn-active-color: #ffffff;
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-color: var(--st-text-primary);
+    --bs-btn-active-color: #fff;
     width: 28px;
     height: 28px;
     padding: 0;
@@ -785,11 +785,11 @@
 .btn.editor-icon-btn {
     --bs-btn-bg: transparent;
     --bs-btn-border-color: transparent;
-    --bs-btn-color: #6c757d;
-    --bs-btn-hover-bg: rgba(0, 0, 0, 0.06);
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-light);
     --bs-btn-hover-border-color: transparent;
-    --bs-btn-hover-color: #303030;
-    --bs-btn-active-bg: rgba(0, 0, 0, 0.10);
+    --bs-btn-hover-color: var(--st-field-fg);
+    --bs-btn-active-bg: var(--st-ghost-active-light);
     --bs-btn-active-border-color: transparent;
     --bs-btn-active-color: #1a1a1a;
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
@@ -805,14 +805,14 @@
     font-size: 0.95rem;
 }
 
-/* Per-row remove (×): neutral at rest, the tamed danger red (#c94c4c, from
+/* Per-row remove (×): neutral at rest, the tamed danger red (var(--st-danger), from
    custom.css) only on hover/intent so a multi-row field doesn't read as a
    wall of danger buttons. After the base rule so its vars win at equal spec. */
 .btn.editor-icon-btn-danger {
-    --bs-btn-hover-bg: rgba(201, 76, 76, 0.12);
-    --bs-btn-hover-color: #c94c4c;
-    --bs-btn-active-bg: rgba(201, 76, 76, 0.18);
-    --bs-btn-active-color: #c94c4c;
+    --bs-btn-hover-bg: var(--st-danger-wash);
+    --bs-btn-hover-color: var(--st-danger);
+    --bs-btn-active-bg: var(--st-danger-wash-strong);
+    --bs-btn-active-color: var(--st-danger);
 }
 
 /* The dormant table runs `table-layout: fixed` so its columns land in the
@@ -871,10 +871,10 @@
 .btn.dormant-node-action-btn {
     --bs-btn-bg: transparent;
     --bs-btn-border-color: transparent;
-    --bs-btn-color: #adb5bd;
+    --bs-btn-color: var(--st-text-soft);
     --bs-btn-hover-bg: rgba(255, 255, 255, 0.08);
     --bs-btn-hover-border-color: transparent;
-    --bs-btn-hover-color: #f8f9fa;
+    --bs-btn-hover-color: var(--st-text-strong);
     --bs-btn-active-bg: rgba(255, 255, 255, 0.14);
     --bs-btn-active-border-color: transparent;
     --bs-btn-focus-shadow-rgb: 173, 181, 189;
@@ -887,10 +887,10 @@
 }
 
 .btn.dormant-node-action-btn-danger {
-    --bs-btn-hover-bg: rgba(201, 76, 76, 0.12);
-    --bs-btn-hover-color: #c94c4c;
-    --bs-btn-active-bg: rgba(201, 76, 76, 0.18);
-    --bs-btn-active-color: #c94c4c;
+    --bs-btn-hover-bg: var(--st-danger-wash);
+    --bs-btn-hover-color: var(--st-danger);
+    --bs-btn-active-bg: var(--st-danger-wash-strong);
+    --bs-btn-active-color: var(--st-danger);
 }
 
 @media (hover: none), (pointer: coarse) {
@@ -906,7 +906,7 @@
    into one control. Border/bg/radius live on the group so the whole thing
    spans full width and lines up with the standalone Type/Description fields;
    the inner input drops its own chrome. Values mirror DARKLY's .form-control
-   (bg #fff, border #222, focus ring #9badbf). overflow:hidden clips the
+   (bg #fff, border #222, focus ring var(--st-field-focus-border)). overflow:hidden clips the
    buttons' hover fill to the rounded corners (it does not clip the focus
    box-shadow, which sits outside the border box). */
 .editor-field-group {
@@ -918,7 +918,7 @@
     overflow: hidden;
 }
 .editor-field-group:focus-within {
-    border-color: #9badbf;
+    border-color: var(--st-field-focus-border);
     box-shadow: 0 0 0 0.25rem rgba(55, 90, 127, .25);
 }
 .editor-field-group .form-control {

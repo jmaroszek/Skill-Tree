@@ -95,7 +95,7 @@ def build_graph_settings_panel(
             ], className="d-flex align-items-center"),
             panel_close_button(close_btn_id, "Close graph layout panel"),
         ], className="d-flex justify-content-between align-items-center",
-           style={"marginBottom": "12px"}),
+           style={"marginBottom": tokens.SPACE_BLOCK}),
     ]
 
     children += [
@@ -219,7 +219,7 @@ def build_details_tab_content():
             style={"minWidth": "100px"},
         ), className="text-dark", style={"flex": "1", "minWidth": "0"}),
     ], className="d-flex align-items-center py-2",
-       style={"borderBottom": "1px solid #495057", "flexShrink": "0",
+       style={"borderBottom": f"1px solid {tokens.BORDER_PANEL}", "flexShrink": "0",
               "paddingBottom": "8px", "paddingLeft": "18px", "paddingRight": "18px"})
 
     # ------------------------------------------------------------------ #
@@ -235,7 +235,7 @@ def build_details_tab_content():
                 html.P("Click one, or search above.",
                        className="text-muted small"),
             ], style={"textAlign": "center", "marginTop": "24px",
-                      "marginBottom": "12px"}),
+                      "marginBottom": tokens.SPACE_BLOCK}),
             html.Div(id="details-suggestions-container",
                      style={"padding": "0 12px 24px"}),
         ],
@@ -269,13 +269,13 @@ def build_details_tab_content():
         # Badges row: type, status, priority
         html.Div(id="details-node-badges",
                  className="d-flex gap-1 flex-wrap",
-                 style={"marginBottom": "12px"}),
+                 style={"marginBottom": tokens.SPACE_BLOCK}),
 
         # Description
         html.Div(id="details-node-description",
                  className="text-muted",
                  style={"fontSize": tokens.FS_MD, "whiteSpace": "pre-wrap",
-                        "marginBottom": "14px"}),
+                        "marginBottom": tokens.SPACE_SECTION}),
 
         # Progress bar. It carries no margin of its own: the description above
         # and the stats grid below supply the gaps on either side.
@@ -305,7 +305,7 @@ def build_details_tab_content():
                 id="details-attr-ratings-inherited-wrap",
                 style={"display": "none"},
             ),
-        ], style={"marginTop": "14px"}),
+        ], style={"marginTop": tokens.SPACE_SECTION}),
 
         # Hidden priority container
         html.Div(id="details-priority-section", style={"display": "none"}, children=[
@@ -349,7 +349,7 @@ def build_details_tab_content():
         "minWidth": "260px",
         "display": "flex",
         "flexDirection": "column",
-        "borderRight": "1px solid #495057",
+        "borderRight": f"1px solid {tokens.BORDER_PANEL}",
         "flexShrink": "0",
         "overflow": "hidden",
     })
@@ -363,7 +363,7 @@ def build_details_tab_content():
             "width": "6px",
             "cursor": "col-resize",
             "backgroundColor": "transparent",
-            "borderLeft": "1px solid #495057",
+            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
             "flexShrink": "0",
             "transition": "background-color 0.15s",
         },
@@ -451,7 +451,7 @@ def build_details_tab_content():
             "height": "6px",
             "cursor": "ns-resize",
             "backgroundColor": "transparent",
-            "borderTop": "1px solid #495057",
+            "borderTop": f"1px solid {tokens.BORDER_PANEL}",
             "flexShrink": "0",
             "transition": "background-color 0.15s",
         },
@@ -545,7 +545,7 @@ def build_details_tab_content():
             "width": "6px",
             "cursor": "col-resize",
             "backgroundColor": "transparent",
-            "borderLeft": "1px solid #495057",
+            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
             "flexShrink": "0",
             "transition": "background-color 0.15s",
         },
@@ -690,7 +690,7 @@ def build_details_tab_content():
                                  "textAlign": "center",
                                  "fontSize": tokens.FS_BASE,
                                  "padding": "0",
-                                 "border": "1px solid #495057"}),
+                                 "border": f"1px solid {tokens.BORDER_PANEL}"}),
             ], style={"width": "auto"}),
             html.Span(id="details-explain-focus-feedback",
                       style={"color": tokens.DANGER_TEXT,
@@ -856,7 +856,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     ``menu_attributes`` are the goal's ``node_menu_attributes``, which give the
     card the shared node context menu on right-click.
     """
-    border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
+    border_style = f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}"
 
     pct = completion.get("pct", 0)
     done = completion.get("done", 0)
@@ -991,7 +991,7 @@ def _build_filters_sidebar():
             "zIndex": 100,
             "overflowX": "hidden",
             "overflowY": "auto",
-            "borderLeft": "1px solid #495057",
+            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
             "transition": "right 0.3s ease",
             "backgroundColor": tokens.BG_PANEL,
             "display": "flex",
@@ -1517,7 +1517,7 @@ def build_milestone_tile(milestone_node, completion: dict):
             "flex": "0 0 280px",
             "padding": "10px 12px",
             "backgroundColor": tokens.BG_RAISED,
-            "border": "1px solid #495057",
+            "border": f"1px solid {tokens.BORDER_PANEL}",
             "borderRadius": "6px",
             "cursor": "pointer",
             "minWidth": "0",

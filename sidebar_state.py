@@ -9,7 +9,7 @@ _DEFAULT_EDITOR_SIDEBAR_STYLE = {
     "position": "absolute", "top": "0", "left": "0", "width": SIDEBAR_WIDTH_PX,
     "minWidth": SIDEBAR_WIDTH_PX, "height": "100%", "zIndex": 1000,
     "overflowX": "hidden", "overflowY": "auto",
-    "borderRight": "1px solid #495057", "transition": "transform 0.3s ease",
+    "borderRight": f"1px solid {tokens.BORDER_PANEL}", "transition": "transform 0.3s ease",
     "transform": SIDEBAR_TRANSLATE_CLOSED, "willChange": "transform",
     "backgroundColor": tokens.BG_PANEL,
 }
