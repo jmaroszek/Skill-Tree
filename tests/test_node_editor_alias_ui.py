@@ -29,6 +29,24 @@ def _find(component, component_id):
     raise AssertionError(f"{component_id!r} is missing from the layout")
 
 
+def _parent_of(root, target):
+    for child, parent in _walk(root):
+        if child is target:
+            return parent
+    return None
+
+
+def _row_children(row):
+    """A row's children, flattened through any `display: contents` wrapper."""
+    out = []
+    for child in getattr(row, "children", None) or []:
+        if (getattr(child, "className", "") or "") == "ui-affordance":
+            out.extend(getattr(child, "children", None) or [])
+        else:
+            out.append(child)
+    return out
+
+
 def _ids(component):
     return {
         getattr(child, "id", None)
@@ -63,12 +81,24 @@ def test_alias_add_button_sits_beside_name_label(surface_index):
     _name_input, input_parent = _find(surface, name_id)
     aliases_label, _label_parent = _find(surface, aliases_label_id)
 
-    assert button.children == "+"
-    assert button.title == "Add alias"
+    # The adder is a Bootstrap Icon with a visually-hidden label, not a "+"
+    # text glyph; see ui_kit.add_button. A "+" still means "add a field" and a
+    # chevron still means "disclose" -- only the rendering changed.
+    icon, hidden_label = button.children
+    assert icon.className == "bi bi-plus-lg"
+    assert hidden_label.children == "Add alias"
+    assert "visually-hidden" in hidden_label.className
     assert button_parent is not None
+
+    # ui_kit wraps the button with its tooltip in a `display: contents` span,
+    # so the row that owns the label is one level above that wrapper. The
+    # contract is unchanged: the "+" sits in the same row as "Name".
+    row = button_parent
+    if (getattr(row, "className", "") or "") == "ui-affordance":
+        row = _parent_of(surface, row)
     assert "Name" in {
         _text(child)
-        for child in button_parent.children
+        for child in _row_children(row)
         if isinstance(child, Component)
     }
     assert "editor-field-group" not in (getattr(input_parent, "className", "") or "")

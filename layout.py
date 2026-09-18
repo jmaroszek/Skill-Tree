@@ -30,6 +30,7 @@ from list_toolbar import SORT_MENUS, sort_menu_items
 import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select
+from ui_kit import edit_button, info_button, panel_close_button, step_button
 
 
 # --- Graph View (Canvas only) ---
@@ -152,16 +153,12 @@ def build_next_view():
         html.Div([
             html.H6("Next", className="text-muted mb-0", style=_section_title_style),
             dbc.ButtonGroup([
-                dbc.Button("−", id="btn-sugg-minus", color="link", size="sm",
-                           style={"fontSize": tokens.FS_LG, "lineHeight": "1", "padding": "2px 2px",
-                                  "color": tokens.TEXT_DIM, "textDecoration": "none", "boxShadow": "none"}),
+                step_button("btn-sugg-minus", "dash-lg", "Show fewer suggestions"),
                 html.Span(id="suggestion-count-display", children=str(ConfigManager.get_next_table_rows()),
                            className="align-self-center mx-1",
                            style={"fontSize": tokens.FS_LG, "fontWeight": "bold", "minWidth": "18px",
                                   "textAlign": "center"}),
-                dbc.Button("+", id="btn-sugg-plus", color="link", size="sm",
-                           style={"fontSize": tokens.FS_LG, "lineHeight": "1", "padding": "2px 2px",
-                                  "color": tokens.TEXT_DIM, "textDecoration": "none", "boxShadow": "none"}),
+                step_button("btn-sugg-plus", "plus-lg", "Show more suggestions"),
             ], className="align-middle"),
         ], className="d-flex align-items-center mb-2", style={"gap": "12px"}),
     
@@ -595,17 +592,7 @@ def build_time_calibration_modal():
                     html.Hr(className="my-3"),
                     html.Div([
                         html.H6("How was it actually?", className="mb-0"),
-                        html.Button(
-                            html.I(className="bi bi-info-circle"),
-                            id="btn-reflection-ratings-info",
-                            style={
-                                "background": "none", "border": "none", "padding": "0 0 0 6px",
-                                "color": tokens.TEXT_DIM, "cursor": "pointer", "fontSize": tokens.FS_LG,
-                                "lineHeight": "1", "position": "relative", "top": "0px"
-                            }
-                        ),
-                        dbc.Tooltip("Ratings reference", target="btn-reflection-ratings-info", placement="right",
-                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                        info_button("btn-reflection-ratings-info", "Ratings reference", placement="right"),
                     ], className="d-flex align-items-center mb-2"),
                     dbc.Label("Actual Value", className="mt-2"),
                     dcc.Slider(min=1, max=10, step=1, value=5,
@@ -812,16 +799,10 @@ def build_ratings_popup():
         # Draggable header
         html.Div([
             html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": tokens.FS_MD}),
-            html.Button(html.I(className="bi bi-pencil"), id="btn-ratings-edit", style={
-                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
-                "fontSize": tokens.FS_BASE, "lineHeight": "1", "cursor": "pointer",
-                "padding": "0 6px", "marginLeft": "8px",
-            }, title="Edit definitions"),
-            html.Button("×", id="btn-ratings-close", style={
-                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
-                "fontSize": tokens.FS_XL, "lineHeight": "1", "cursor": "pointer",
-                "padding": "0", "marginLeft": "auto",
-            }),
+            edit_button("btn-ratings-edit", "Edit definitions",
+                        className_extra="ms-2"),
+            panel_close_button("btn-ratings-close", "Close ratings reference",
+                               style={"marginLeft": "auto"}),
         ], id="ratings-popup-header", className="d-flex align-items-center", style={
             "cursor": "move",
             "padding": "8px 10px",
@@ -889,16 +870,11 @@ def build_reflection_ratings_popup():
     return html.Div([
         html.Div([
             html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": tokens.FS_MD}),
-            html.Button(html.I(className="bi bi-pencil"), id="btn-reflection-ratings-edit", style={
-                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
-                "fontSize": tokens.FS_BASE, "lineHeight": "1", "cursor": "pointer",
-                "padding": "0 6px", "marginLeft": "8px",
-            }, title="Edit definitions"),
-            html.Button("×", id="btn-reflection-ratings-close", style={
-                "background": "none", "border": "none", "color": tokens.TEXT_SOFT,
-                "fontSize": tokens.FS_XL, "lineHeight": "1", "cursor": "pointer",
-                "padding": "0", "marginLeft": "auto",
-            }),
+            edit_button("btn-reflection-ratings-edit", "Edit definitions",
+                        className_extra="ms-2"),
+            panel_close_button("btn-reflection-ratings-close",
+                               "Close reflection ratings reference",
+                               style={"marginLeft": "auto"}),
         ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
             "cursor": "move",
             "padding": "8px 10px",
@@ -1033,7 +1009,7 @@ def build_app_layout(initial_elements, env="production"):
             [
                 html.I(className="bi bi-flag ctx-menu-icon", **{"aria-hidden": "true"}),
                 html.Span("Set Priority", className="ctx-menu-label"),
-                html.Span("▸", className="ctx-menu-caret"),
+                html.I(className="bi bi-chevron-right ctx-menu-caret"),
                 html.Div(_priority_items("ctx-menu-priority"),
                          className="ctx-menu-submenu"),
             ],

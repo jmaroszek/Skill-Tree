@@ -21,6 +21,7 @@ from config import (
 from context_picker import build_single_context_picker
 from styles import stylesheet
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from ui_kit import add_button, info_button, nav_button, panel_close_button, restore_button
 
 # Weekday toggle-pill options for the habit per-session scheduler. Values are
 # weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
@@ -90,17 +91,9 @@ def build_graph_settings_panel(
         html.Div([
             html.Div([
                 html.Span("Graph Layout", style={"fontWeight": "300", "fontSize": tokens.FS_LG}),
-                dbc.Button("\u21ba", id=reset_btn_id, color="link", size="sm",
-                           className="ms-2 p-0",
-                           style={"fontSize": "1.1rem", "lineHeight": "1",
-                                  "color": tokens.TEXT_SOFT, "position": "relative",
-                                  "top": "0px", "textDecoration": "none"}),
-                dbc.Tooltip("Restore defaults", target=reset_btn_id, placement="top",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                restore_button(reset_btn_id),
             ], className="d-flex align-items-center"),
-            html.Span("\u00d7", id=close_btn_id,
-                      className="fs-4 text-white",
-                      style={"cursor": "pointer", "lineHeight": "1"}),
+            panel_close_button(close_btn_id, "Close graph layout panel"),
         ], className="d-flex justify-content-between align-items-center",
            style={"marginBottom": "12px"}),
     ]
@@ -261,12 +254,11 @@ def build_details_tab_content():
                            "overflow": "hidden", "textOverflow": "ellipsis",
                            "whiteSpace": "nowrap", "flex": "1", "minWidth": "0"}),
             html.Div([
-                dbc.Button("←", id="btn-details-nav-back", color="secondary",
+                nav_button("btn-details-nav-back", "left", "Back",
+                           size="sm", disabled=True),
+                nav_button("btn-details-nav-forward", "right", "Forward",
                            size="sm", disabled=True,
-                           className="details-header-btn"),
-                dbc.Button("→", id="btn-details-nav-forward", color="secondary",
-                           size="sm", disabled=True,
-                           className="details-header-btn ms-1"),
+                           className_extra="ms-1"),
             ], className="ms-2 mt-3 mb-2", style={"flexShrink": "0", "display": "flex",
                                                   "marginRight": "-8px"}),
         ], className="d-flex align-items-center"),
@@ -536,11 +528,7 @@ def build_details_tab_content():
         html.Div([
             html.Div([
                 html.H5("Subtasks", className="mb-0"),
-                dbc.Button("+", id="btn-details-add-node", color="link",
-                           className="p-0 ms-2 text-decoration-none text-muted",
-                           style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
-                dbc.Tooltip("Add subtask node", target="btn-details-add-node", placement="right",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                add_button("btn-details-add-node", "Add subtask node"),
             ], className="d-flex align-items-center"),
             html.Div(_build_toggles(), id="details-subtask-toggles-bottom"),
         ], className="d-flex align-items-center justify-content-between mb-2"),
@@ -894,7 +882,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     # Drag handle (visible only for non-priority, manual-sort goals)
     drag_handle = html.Span(
-        "\u2630", className="goal-drag-handle",
+        html.I(className="bi bi-grip-horizontal"), className="goal-drag-handle",
         style={"cursor": "grab", "color": tokens.TEXT_DIM, "fontSize": tokens.FS_MD,
                "marginRight": "8px", "userSelect": "none"},
     ) if show_order_buttons else None
@@ -959,9 +947,7 @@ def _build_filters_sidebar():
         children=[
             html.Div([
                 html.H5("Graph Filters", className="mb-0"),
-                html.Span("×", id="btn-details-filters-close",
-                           className="fs-4 text-white",
-                           style={"cursor": "pointer"}),
+                panel_close_button("btn-details-filters-close", "Close graph filters"),
             ], className="d-flex justify-content-between align-items-center mb-3 mt-3 px-3"),
 
             html.Div([
@@ -1054,10 +1040,7 @@ def _build_add_node_modal(ted):
             html.Div(id="details-add-create-section", children=[
                 html.Div([
                     dbc.Label("Name", className="mb-0"),
-                    dbc.Button("+", id="btn-details-add-alias-add", color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               title="Add alias",
-                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                    add_button("btn-details-add-alias-add", "Add alias"),
                 ], className="d-flex align-items-center mb-1"),
                 dbc.Input(id="details-add-name", type="text", placeholder="Name node..."),
                 dbc.Collapse(
@@ -1089,17 +1072,7 @@ def _build_add_node_modal(ted):
                 html.Hr(className="my-2"),
                 html.Div([
                     html.H5("Ratings", className="mb-0"),
-                    html.Button(
-                        html.I(className="bi bi-info-circle"),
-                        id="btn-details-ratings-info",
-                        style={
-                            "background": "none", "border": "none", "padding": "0 0 0 6px",
-                            "color": tokens.TEXT_DIM, "cursor": "pointer", "fontSize": tokens.FS_LG,
-                            "lineHeight": "1", "position": "relative", "top": "3px"
-                        }
-                    ),
-                    dbc.Tooltip("Ratings reference", target="btn-details-ratings-info", placement="right",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                    info_button("btn-details-ratings-info", "Ratings reference", placement="right"),
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 html.Div([
                     dbc.Checklist(
@@ -1247,28 +1220,19 @@ def _build_add_node_modal(ted):
 
                 html.Div([
                     dbc.Label("Obsidian", className="mb-0"),
-                    dbc.Button("+", id="btn-details-add-obsidian-add", color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               title="Add Obsidian link",
-                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                    add_button("btn-details-add-obsidian-add", "Add Obsidian link"),
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 html.Div(id='details-add-obsidian-container'),
 
                 html.Div([
                     dbc.Label("Google Drive", className="mb-0"),
-                    dbc.Button("+", id="btn-details-add-drive-add", color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               title="Add Google Drive link",
-                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                    add_button("btn-details-add-drive-add", "Add Google Drive link"),
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='details-add-drive-container'),
 
                 html.Div([
                     dbc.Label("Website", className="mb-0"),
-                    dbc.Button("+", id="btn-details-add-website-add", color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               title="Add Website link",
-                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                    add_button("btn-details-add-website-add", "Add Website link"),
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='details-add-website-container'),
             ]),

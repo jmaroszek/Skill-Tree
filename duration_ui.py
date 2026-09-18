@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+from ui_kit import info_button
 import style_tokens as tokens
 
 _BRACKET_HINTS = {
@@ -25,15 +26,14 @@ def bracket_label(kind, label_id, className="small text-muted mb-0"):
 def estimate_guidance(id_prefix):
     """Info icon explaining how a bracket (or a lone Expected value) becomes a mean."""
     info_id = f"{id_prefix}-time-info"
-    return html.Span([
-        html.I(className="bi bi-info-circle", id=info_id,
-               style={"color": "#6c757d", "cursor": "pointer", "fontSize": tokens.FS_MD}),
-        dbc.Tooltip(
-            "With only Expected filled in, that number is used directly as the mean. "
-            "With a bracket, the mean work hours are calculated from all supplied values.",
-            target=info_id, placement="right",
-            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-    ], className="ms-1")
+    # A bare <i> is not focusable, so this one help affordance was unreachable
+    # by keyboard while the other four were buttons. ui_kit.info_button gives
+    # them all the same element and the same hit target.
+    return info_button(
+        info_id,
+        "With only Expected filled in, that number is used directly as the mean. "
+        "With a bracket, the mean work hours are calculated from all supplied values.",
+        placement="right")
 
 
 # --- Unit selects -----------------------------------------------------------

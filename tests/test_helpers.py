@@ -7,6 +7,8 @@ Tests pure functions that don't require a database.
 import json
 from dash import html
 import dash
+from config import BADGE_PALETTE
+from models import STATUS_DONE, STATUS_BLOCKED
 from callback_helpers import (
     parse_links, serialize_links,
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
@@ -432,31 +434,41 @@ class TestResolveActiveNodeId:
 # ============================================================================
 
 class TestBoolIcon:
-    """Tests for the boolean checkmark/cross icon helper."""
+    """Tests for the boolean check/cross icon helper.
 
-    def test_truthy_returns_checkmark(self):
+    These used to assert the Unicode glyphs U+2713 and U+2717 in stock
+    Bootstrap green and red. The app is on one icon family (Bootstrap Icons)
+    and one status palette, so the assertions name those instead.
+    """
+
+    def test_truthy_returns_check(self):
         result = _bool_icon(True)
-        assert isinstance(result, html.Span)
-        assert result.children == "\u2713"
-        assert result.style["color"] == "#198754"
+        assert isinstance(result, html.I)
+        assert result.className == "bi bi-check-lg"
+        assert result.style["color"] == BADGE_PALETTE[STATUS_DONE][0]
+        assert result.title == "Yes"
 
     def test_falsy_returns_cross(self):
         result = _bool_icon(False)
-        assert isinstance(result, html.Span)
-        assert result.children == "\u2717"
-        assert result.style["color"] == "#dc3545"
+        assert isinstance(result, html.I)
+        assert result.className == "bi bi-x-lg"
+        assert result.style["color"] == BADGE_PALETTE[STATUS_BLOCKED][0]
+        assert result.title == "No"
 
     def test_none_returns_cross(self):
-        result = _bool_icon(None)
-        assert result.children == "\u2717"
+        assert _bool_icon(None).className == "bi bi-x-lg"
 
-    def test_nonempty_string_returns_checkmark(self):
-        result = _bool_icon("some/path.md")
-        assert result.children == "\u2713"
+    def test_nonempty_string_returns_check(self):
+        assert _bool_icon("some/path.md").className == "bi bi-check-lg"
 
     def test_empty_string_returns_cross(self):
-        result = _bool_icon("")
-        assert result.children == "\u2717"
+        assert _bool_icon("").className == "bi bi-x-lg"
+
+    def test_uses_the_shared_palette_not_bootstrap_defaults(self):
+        """Regression: stock #198754 / #dc3545 made a "yes" here a different
+        green from a Done node one panel over."""
+        assert _bool_icon(True).style["color"] != "#198754"
+        assert _bool_icon(False).style["color"] != "#dc3545"
 
 
 # ============================================================================

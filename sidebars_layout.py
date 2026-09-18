@@ -35,6 +35,7 @@ from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 import style_tokens as tokens
+from ui_kit import add_button, info_button, panel_close_button
 
 # Node types have distinct product behavior and are not user-extensible.
 NODE_TYPES = list(SUPPORTED_NODE_TYPES)
@@ -63,14 +64,9 @@ def build_node_editor_content():
             html.Div([
                 html.Div([
                     html.H4("Node Editor", className="mb-0"),
-                    dbc.Button("+", id="btn-editor-new",
-                               color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               style={"fontSize": tokens.FS_2XL, "lineHeight": "1"}),
-                    dbc.Tooltip("New node", target="btn-editor-new", placement="right",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                    add_button("btn-editor-new", "New node", large=True),
                 ], className="d-flex align-items-center"),
-                html.Span("×", id="btn-close-editor", className="fs-3 text-white", style={"cursor": "pointer"})
+                panel_close_button("btn-close-editor", "Close node editor", large=True)
             ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
             html.Div([
                 html.Div(id="node-priority-badge", children=[],
@@ -115,10 +111,7 @@ def build_node_editor_content():
                 html.H5("General", className="mt-3 mb-1"),
                 html.Div([
                     dbc.Label("Name", className="mb-0"),
-                    dbc.Button("+", id="btn-alias-add", color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               title="Add alias",
-                               style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                    add_button("btn-alias-add", "Add alias"),
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 dbc.Input(id="node-name", type="text", placeholder="Name node..."),
                 html.Div(id="node-name-duplicate-warning", children="",
@@ -205,17 +198,7 @@ def build_node_editor_content():
                 html.Hr(className="my-2"),
                 html.Div([
                     html.H5("Ratings", className="mb-0"),
-                    html.Button(
-                        html.I(className="bi bi-info-circle"),
-                        id="btn-ratings-info",
-                        style={
-                            "background": "none", "border": "none", "padding": "0 0 0 6px",
-                            "color": tokens.TEXT_DIM, "cursor": "pointer", "fontSize": tokens.FS_LG,
-                            "lineHeight": "1", "position": "relative", "top": "3px"
-                        }
-                    ),
-                    dbc.Tooltip("Ratings reference", target="btn-ratings-info", placement="right",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                    info_button("btn-ratings-info", "Ratings reference", placement="right"),
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 html.Div([
                     dbc.Checklist(
@@ -373,19 +356,19 @@ def build_node_editor_content():
 
                 html.Div([
                     dbc.Label("Obsidian", className="mb-0"),
-                    dbc.Button("+", id="btn-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"})
+                    add_button("btn-obsidian-add", "Add Obsidian link")
                 ], className="d-flex align-items-center mt-2 mb-1"),
                 html.Div(id='obsidian-links-container'),
 
                 html.Div([
                     dbc.Label("Google Drive", className="mb-0"),
-                    dbc.Button("+", id="btn-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"})
+                    add_button("btn-drive-add", "Add Google Drive link")
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='drive-links-container'),
 
                 html.Div([
                     dbc.Label("Website", className="mb-0"),
-                    dbc.Button("+", id="btn-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"})
+                    add_button("btn-website-add", "Add Website link")
                 ], className="d-flex align-items-center mt-3 mb-1"),
                 html.Div(id='website-links-container'),
 
@@ -468,16 +451,10 @@ def build_goals_sidebar():
             html.Div([
                 html.Div([
                     html.H4("Goals", className="mb-0"),
-                    dbc.Button("+", id="btn-goals-sidebar-new",
-                               color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               style={"fontSize": tokens.FS_2XL, "lineHeight": "1"}),
-                    dbc.Tooltip("New goal", target="btn-goals-sidebar-new", placement="right",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                    add_button("btn-goals-sidebar-new", "New goal", large=True),
                 ], className="d-flex align-items-center"),
-                html.Span("×", id="btn-details-goals-close",
-                           className="fs-3 text-white",
-                           style={"cursor": "pointer"}),
+                panel_close_button("btn-details-goals-close", "Close goals sidebar",
+                                   large=True),
             ], className="d-flex justify-content-between align-items-center mb-2 mt-2 px-3"),
 
             build_list_toolbar(
@@ -560,7 +537,8 @@ def build_filters_content():
     return html.Div([
         html.Div([
             html.H4("Filters"),
-            html.Span("×", id="btn-close-filters", className="fs-3 text-white float-end", style={"cursor": "pointer"})
+            panel_close_button("btn-close-filters", "Close filters", large=True,
+                               className_extra="float-end")
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
 
         html.H5("General", className="mt-2 mb-1"),

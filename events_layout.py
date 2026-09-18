@@ -14,6 +14,7 @@ from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
 from context_picker import build_single_context_picker
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
+from ui_kit import add_button, panel_close_button
 
 
 def build_events_sidebar_content():
@@ -22,15 +23,10 @@ def build_events_sidebar_content():
         html.Div([
             html.Div([
                 html.H4("Events", className="mb-0"),
-                dbc.Button("+", id="btn-new-event", color="link",
-                           className="p-0 ms-2 text-decoration-none text-muted",
-                           style={"fontSize": tokens.FS_2XL, "lineHeight": "1"}),
-                dbc.Tooltip("New event", target="btn-new-event", placement="right",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                add_button("btn-new-event", "New event", large=True),
             ], className="d-flex align-items-center"),
-            html.Span("\u00d7", id="btn-events-sidebar-close",
-                       className="fs-3 text-white",
-                       style={"cursor": "pointer"}),
+            panel_close_button("btn-events-sidebar-close", "Close events sidebar",
+                               large=True),
         ], className="d-flex justify-content-between align-items-center mb-2 mt-2 px-3"),
         html.Datalist(id="events-search-datalist", children=[]),
         build_list_toolbar(
@@ -179,10 +175,7 @@ def build_events_tab_content():
             html.Div(id="dormant-mode-new-fields", children=[
             html.Div([
                 dbc.Label("Name", className="mb-0"),
-                dbc.Button("+", id="btn-dormant-alias-add", color="link",
-                           className="p-0 ms-2 text-decoration-none text-muted",
-                           title="Add alias",
-                           style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                add_button("btn-dormant-alias-add", "Add alias"),
             ], className="d-flex align-items-center mb-1"),
             dbc.Input(id="dormant-node-name", type="text", placeholder="Name node..."),
             dbc.Collapse(
@@ -351,17 +344,17 @@ def build_events_tab_content():
             dcc.Store(id='dormant-website-links-store', data=['']),
             html.Div([
                 dbc.Label("Obsidian", className="mb-0"),
-                dbc.Button("+", id="btn-dormant-obsidian-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Obsidian link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                add_button("btn-dormant-obsidian-add", "Add Obsidian link"),
             ], className="d-flex align-items-center mt-2 mb-1"),
             html.Div(id='dormant-obsidian-links-container'),
             html.Div([
                 dbc.Label("Google Drive", className="mb-0"),
-                dbc.Button("+", id="btn-dormant-drive-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Google Drive link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                add_button("btn-dormant-drive-add", "Add Google Drive link"),
             ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='dormant-drive-links-container'),
             html.Div([
                 dbc.Label("Website", className="mb-0"),
-                dbc.Button("+", id="btn-dormant-website-add", color="link", className="p-0 ms-2 text-decoration-none text-muted", title="Add Website link", style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
+                add_button("btn-dormant-website-add", "Add Website link"),
             ], className="d-flex align-items-center mt-3 mb-1"),
             html.Div(id='dormant-website-links-container'),
             ]),  # end dormant-mode-new-fields
@@ -516,11 +509,7 @@ def build_events_tab_content():
                 html.Div([
                     html.Div([
                         html.H5("Dormant Nodes", className="mb-0"),
-                        dbc.Button("+", id="btn-add-dormant-node", color="link",
-                                   className="p-0 ms-2 text-decoration-none text-muted",
-                                   style={"fontSize": tokens.FS_XL, "lineHeight": "1"}),
-                        dbc.Tooltip("Add a dormant node to this event", target="btn-add-dormant-node", placement="right",
-                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                        add_button("btn-add-dormant-node", "Add a dormant node to this event"),
                     ], className="d-flex align-items-center"),
                     # Trigger acts on the dormant nodes — placed here, not with
                     # Save/Delete. Visibility mirrors event-trigger-section.
@@ -720,7 +709,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
     border_style = "2px solid #0d6efd" if is_selected else "1px solid #495057"
 
     drag_handle = html.Span(
-        "\u2630", className="event-drag-handle",
+        html.I(className="bi bi-grip-horizontal"), className="event-drag-handle",
         style={"cursor": "grab", "color": tokens.TEXT_DIM, "fontSize": tokens.FS_MD,
                "marginRight": "8px", "userSelect": "none"},
     ) if show_drag_handle else None

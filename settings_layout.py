@@ -17,8 +17,8 @@ from config import (
     NAME_FORMAT_SENTENCE,
 )
 import style_tokens as tokens
+from ui_kit import info_button, restore_button
 
-_RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
 
 
 def _build_appearance_tab():
@@ -30,14 +30,7 @@ def _build_appearance_tab():
                 dbc.Col([
                     html.Div([
                         dbc.Label("Shapes", className="mb-0"),
-                        html.Span([
-                            dbc.Button(_RESTORE_ICON, id="btn-restore-shapes",
-                                       color="link", size="sm",
-                                       className="ms-1 p-0",
-                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": tokens.TEXT_SOFT, "position": "relative", "top": "-2px"}),
-                            dbc.Tooltip("Restore defaults", target="btn-restore-shapes", placement="top",
-                                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                        ]),
+                        restore_button("btn-restore-shapes"),
                     ], className="d-flex align-items-center mt-2 mb-1"),
                     html.Small("Shape for each node type.", className="text-muted d-block mb-2"),
                     html.Div(id="setting-node-shapes-container"),
@@ -45,14 +38,7 @@ def _build_appearance_tab():
                 dbc.Col([
                     html.Div([
                         dbc.Label("Type Colors", className="mb-0"),
-                        html.Span([
-                            dbc.Button(_RESTORE_ICON, id="btn-restore-type-colors",
-                                       color="link", size="sm",
-                                       className="ms-1 p-0",
-                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": tokens.TEXT_SOFT, "position": "relative", "top": "-2px"}),
-                            dbc.Tooltip("Restore defaults", target="btn-restore-type-colors", placement="top",
-                                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                        ]),
+                        restore_button("btn-restore-type-colors"),
                     ], className="d-flex align-items-center mt-2 mb-1"),
                     html.Small("Open color for each node type.", className="text-muted d-block mb-2"),
                     html.Div(id="setting-node-type-colors-container"),
@@ -60,14 +46,7 @@ def _build_appearance_tab():
                 dbc.Col([
                     html.Div([
                         dbc.Label("Status Colors", className="mb-0"),
-                        html.Span([
-                            dbc.Button(_RESTORE_ICON, id="btn-restore-status-colors",
-                                       color="link", size="sm",
-                                       className="ms-1 p-0",
-                                       style={"fontSize": "1.1rem", "lineHeight": "1", "color": tokens.TEXT_SOFT, "position": "relative", "top": "-2px"}),
-                            dbc.Tooltip("Restore defaults", target="btn-restore-status-colors", placement="top",
-                                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                        ]),
+                        restore_button("btn-restore-status-colors"),
                     ], className="d-flex align-items-center mt-2 mb-1"),
                     html.Small("Color for Done, Blocked, and Now.", className="text-muted d-block mb-2"),
                     html.Div(id="setting-node-status-colors-container"),
@@ -175,17 +154,7 @@ def _build_scoring_tab():
                 dbc.Col([
                     html.Div([
                         html.H5("Scoring Profile", className="mt-2 mb-1"),
-                        html.Button(
-                            html.I(className="bi bi-info-circle"),
-                            id="btn-hp-profile-info",
-                            style={
-                                "background": "none", "border": "none",
-                                "padding": "0 0 0 6px",
-                                "color": tokens.TEXT_DIM, "cursor": "pointer",
-                                "fontSize": tokens.FS_LG, "lineHeight": "1",
-                                "position": "relative", "top": "1px",
-                            },
-                        ),
+                        info_button("btn-hp-profile-info"),
                         dbc.Popover(
                             [
                                 dbc.PopoverHeader("Scoring Profiles"),

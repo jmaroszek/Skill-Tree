@@ -490,10 +490,12 @@
 }
 
 .ctx-menu-caret {
-    color: #adb5bd;
-    font-size: 1.1rem;
+    color: var(--st-text-soft);
+    font-size: var(--st-fs-cap);
     margin-left: 12px;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
 }
 
 .ctx-menu-submenu {
@@ -977,4 +979,142 @@
    it in muted panel text. Geometry and rotation are unchanged. */
 .editor-chevron.on-dark {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23adb5bd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+/* --- Shared small affordances (ui_kit.py) ------------------------------- */
+/* Close, add, info and restore each existed in several sizes and two element
+   types before ui_kit consolidated them. One ghost treatment, one icon family,
+   one hit target. */
+
+.btn.panel-close-btn,
+.btn.adder-btn,
+.btn.info-btn,
+.btn.restore-btn {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: var(--st-text-soft);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: var(--st-text-strong);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-active-color: #fff;
+    --bs-btn-focus-shadow-rgb: 173, 181, 189;
+    box-shadow: none;
+    border: 0;
+    padding: 0;
+    line-height: 1;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* A panel header's dismiss control. Square hit target so it stays comfortable
+   at the edge of a sidebar. */
+.btn.panel-close-btn {
+    width: 28px;
+    height: 28px;
+    font-size: var(--st-fs-md);
+}
+.btn.panel-close-btn.panel-close-btn-lg {
+    width: 32px;
+    height: 32px;
+    font-size: var(--st-fs-lg);
+}
+
+/* The "+" beside a label that owns a repeatable field. */
+.btn.adder-btn {
+    width: 24px;
+    height: 24px;
+    margin-left: 0.5rem;
+    font-size: var(--st-fs-cap);
+    --bs-btn-color: var(--st-text-dim);
+}
+.btn.adder-btn.adder-btn-lg {
+    width: 28px;
+    height: 28px;
+    font-size: var(--st-fs-md);
+}
+
+/* The (i) beside a heading or control. Sits on the text baseline rather than
+   floating, which is what the four hand-tuned copies were each approximating
+   with their own "top" offset. */
+.btn.info-btn {
+    width: 22px;
+    height: 22px;
+    margin-left: 0.35rem;
+    font-size: var(--st-fs-md);
+    --bs-btn-color: var(--st-text-dim);
+    vertical-align: baseline;
+}
+
+.btn.restore-btn {
+    width: 24px;
+    height: 24px;
+    font-size: var(--st-fs-md);
+    --bs-btn-color: var(--st-text-soft);
+}
+
+/* The tooltip wrapper must not introduce its own baseline shift. */
+.d-inline-flex > .btn.adder-btn,
+.d-inline-flex > .btn.info-btn,
+.d-inline-flex > .btn.restore-btn {
+    flex: 0 0 auto;
+}
+
+/* The -/+ stepper beside a count (Home tab suggestion rows). */
+.btn.step-btn {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: var(--st-text-strong);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-focus-shadow-rgb: 108, 117, 125;
+    box-shadow: none;
+    border: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    line-height: 1;
+    font-size: var(--st-fs-cap);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* The pencil that opens an editor. Same ghost treatment as the row-action
+   pencils in Details subtasks, Reflection history and Events dormant nodes,
+   which .details-subtask-edit-btn / .review-history-edit-btn already carry. */
+.btn.edit-btn {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: var(--st-text-soft);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: var(--st-text-strong);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-focus-shadow-rgb: 173, 181, 189;
+    box-shadow: none;
+    border: 0;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    line-height: 1;
+    font-size: var(--st-fs-cap);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ui_kit wraps an icon button and its tooltip in one element, because Dash
+   cannot take a bare list here. `display: contents` removes the wrapper from
+   layout entirely, so the button remains a direct flex item of whatever row it
+   sits in and the markup change is invisible to CSS. */
+.ui-affordance {
+    display: contents;
 }

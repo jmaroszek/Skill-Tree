@@ -27,14 +27,12 @@ from config import (
 )
 import style_tokens as tokens
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from ui_kit import restore_button
 
 
 # Re-exported so existing importers keep working; the definition lives in
 # style_tokens alongside the rest of the shared composites.
 SECTION_TITLE_STYLE = tokens.SECTION_TITLE_STYLE
-
-
-RESTORE_ICON = "↺"  # ↺ anticlockwise open circle arrow
 
 
 def build_calibration_dismissed_view(manager):
@@ -51,14 +49,8 @@ def build_calibration_dismissed_view(manager):
     for name in dismissed:
         rows.append(html.Div([
             html.Span(name, className="text-truncate"),
-            dbc.Button(RESTORE_ICON,
-                       id={'type': 'calibration-restore', 'index': name},
-                       color="link", size="sm",
-                       className="p-0 ms-2 text-decoration-none",
-                       style={"fontSize": "1.1rem", "lineHeight": "1",
-                              "color": tokens.TEXT_SOFT}),
-            dbc.Tooltip("Restore", target={'type': 'calibration-restore', 'index': name},
-                        placement="right"),
+            restore_button({'type': 'calibration-restore', 'index': name},
+                           tooltip="Restore defaults", placement="right"),
         ], className="d-flex align-items-center mb-1"))
     return html.Div(rows)
 
@@ -1044,8 +1036,10 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
 def _bool_icon(val):
     """Render a boolean as a styled checkmark or cross."""
     if val:
-        return html.Span("\u2713", style={"color": "#198754", "fontWeight": "bold"})
-    return html.Span("\u2717", style={"color": "#dc3545"})
+        return html.I(className="bi bi-check-lg", title="Yes",
+                      style={"color": BADGE_PALETTE[STATUS_DONE][0]})
+    return html.I(className="bi bi-x-lg", title="No",
+                  style={"color": BADGE_PALETTE[STATUS_BLOCKED][0]})
 
 
 _MONO_FONT = tokens.FONT_MONO
