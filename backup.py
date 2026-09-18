@@ -1,17 +1,37 @@
-"""Weekly production-DB backup script invoked by Windows Task Scheduler."""
+"""Daily production-DB backup script invoked by Windows Task Scheduler."""
 
+import hashlib
 import sqlite3
 import os
 from datetime import datetime
 
 import database
-from config import BACKUP_DIR, BACKUP_LOG_FILE
+from config import BACKUP_DIR, BACKUP_KEEP, BACKUP_LOG_FILE
 
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(BACKUP_LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
+
+
+def _digest(path):
+    """SHA-256 of a file, read in chunks so a large DB never lands in memory."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _existing_backups():
+    """Backup filenames, oldest first. YYYY-MM-DD naming sorts chronologically."""
+    names = [
+        f for f in os.listdir(BACKUP_DIR)
+        if f.startswith("skilltree_") and f.endswith(".db")
+    ]
+    names.sort()
+    return names
 
 
 def run_backup():
@@ -41,6 +61,18 @@ def run_backup():
         conn.execute(f"VACUUM INTO '{tmp_path}'")
         conn.close()
 
+        # VACUUM INTO is byte-stable: an unchanged graph vacuums to an
+        # identical file every run. So comparing digests against the newest
+        # backup tells us whether anything actually changed, and idle days
+        # cost no retention slot.
+        backups = _existing_backups()
+        if backups:
+            newest = os.path.join(BACKUP_DIR, backups[-1])
+            if _digest(tmp_path) == _digest(newest):
+                os.remove(tmp_path)
+                log(f"SKIPPED: Database unchanged since {backups[-1]}")
+                return
+
         # Atomic swap: if VACUUM above failed, the previous good backup is
         # still intact at backup_path. os.replace is atomic on the same
         # filesystem on Windows (Python >= 3.3).
@@ -48,12 +80,10 @@ def run_backup():
 
         log(f"SUCCESS: Created backup at {backup_path}")
 
-        # Keep at most 10 backups
-        backups = [f for f in os.listdir(BACKUP_DIR) if f.startswith("skilltree_") and f.endswith(".db")]
-        if len(backups) > 10:
-            backups.sort()  # Sorts chronologically due to YYYY-MM-DD naming
-            backups_to_delete = backups[:-10]
-            for old_backup in backups_to_delete:
+        # Keep at most BACKUP_KEEP backups
+        backups = _existing_backups()
+        if len(backups) > BACKUP_KEEP:
+            for old_backup in backups[:-BACKUP_KEEP]:
                 old_backup_path = os.path.join(BACKUP_DIR, old_backup)
                 try:
                     os.remove(old_backup_path)

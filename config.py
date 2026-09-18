@@ -56,11 +56,14 @@ DEFAULT_OBSIDIAN_VAULT = r"C:\Users\jonah\Documents\Obsidian"
 # Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
 DB_FILENAME = "skilltree.db"
 
-# --- Weekly backup script (backup.py, invoked by Windows Task Scheduler) ---
+# --- Daily backup script (backup.py, invoked by Windows Task Scheduler) ---
 BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
 # Relative to this file so the path stays valid if the project is moved or
 # the username changes. Resolves to <project>/data/backup_log.log.
 BACKUP_LOG_FILE = str(Path(__file__).parent / 'data' / 'backup_log.log')
+# How many backup files to keep. The script skips days where the graph did not
+# change, so this counts distinct states rather than calendar days.
+BACKUP_KEEP = 30
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 SUPPORTED_NODE_TYPES = ("Learn", "Action", "Resource", "Goal", "Milestone")
