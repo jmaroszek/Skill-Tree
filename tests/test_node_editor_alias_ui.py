@@ -88,6 +88,19 @@ def test_alias_disclosure_chevrons_are_gone_from_every_node_editor():
         assert removed_ids.isdisjoint(_ids(surface))
 
 
+def test_dormant_node_type_starts_unselected_like_main_node_editor():
+    from events_layout import build_events_tab_content
+    from sidebars_layout import node_editor_content
+
+    main_type, _main_parent = _find(node_editor_content, "node-type")
+    dormant_type, _dormant_parent = _find(
+        build_events_tab_content(), "dormant-node-type"
+    )
+
+    assert main_type.placeholder == dormant_type.placeholder == "Choose node type..."
+    assert not hasattr(dormant_type, "value")
+
+
 def test_resources_heading_is_short_and_consistent_in_every_node_editor():
     for surface, _name_id, _add_id, _aliases_label_id in _editor_surfaces():
         visible_text = {

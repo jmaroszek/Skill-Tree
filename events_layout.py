@@ -195,7 +195,8 @@ def build_events_tab_content():
             dcc.Store(id='dormant-aliases-store', data=['']),
 
             dbc.Label("Type", className="mt-2"),
-            dbc.Select(id="dormant-node-type", options=[], value="Learn"),
+            dbc.Select(id="dormant-node-type", options=[],
+                       placeholder="Choose node type..."),
 
             dbc.Label("Description", className="mt-2"),
             dbc.Textarea(id="dormant-node-desc", placeholder="Describe your project...",

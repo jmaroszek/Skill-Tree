@@ -822,12 +822,14 @@ def register_event_callbacks(app, services=None):
         Output("dormant-new-event-trigger-node", "options", allow_duplicate=True),
         Output("dormant-new-event-trigger-node", "value", allow_duplicate=True),
         Output("dormant-new-event-trigger-mode", "value", allow_duplicate=True),
+        # Reset a prior selection every time the modal opens for a new node.
+        Output("dormant-node-type", "value", allow_duplicate=True),
         Input("btn-add-dormant-node", "n_clicks"),
         prevent_initial_call=True,
     )
     def open_dormant_node_modal(n_clicks):
         if not n_clicks:
-            return (no_update,) * 56
+            return (no_update,) * 57
 
         types = SUPPORTED_NODE_TYPES
         contexts = sort_contexts(ConfigManager.get_contexts())
@@ -861,7 +863,8 @@ def register_event_callbacks(app, services=None):
                 existing_picker_opts, [], pending_event_opts, None,
                 "", "",
                 # New-event trigger-type resets
-                "manual", None, existing_picker_opts, [], "any")
+                "manual", None, existing_picker_opts, [], "any",
+                None)
 
     # --- Update Dormant Node Subcontexts ---
     @app.callback(
@@ -1477,6 +1480,8 @@ def register_event_callbacks(app, services=None):
         # --- New-node single path (existing behavior) ---
         if not name or not name.strip():
             return no_update, "Node name is required.", no_update, no_update, no_update, no_update, no_update, no_update
+        if not node_type:
+            return no_update, "Node type is required.", no_update, no_update, no_update, no_update, no_update, no_update
 
         event_status_msg = no_update
         event_trigger_style = no_update
@@ -1513,7 +1518,7 @@ def register_event_callbacks(app, services=None):
         multiplier = ConfigManager.get_time_multiplier(time_unit)
         # Resolve time_mode via the shared helper — Goal/Milestone always
         # inherit; otherwise habit > inherited > manual.
-        t_mode = resolve_time_mode(node_type or "Learn", time_mode_val, time_habit_mode_val)
+        t_mode = resolve_time_mode(node_type, time_mode_val, time_habit_mode_val)
         if t_mode == 'habit':
             t_o, t_m, t_p = compute_habit_time_omp(
                 habit_duration or 0, habit_duration_unit or 'weeks',
@@ -1526,11 +1531,11 @@ def register_event_callbacks(app, services=None):
             t_p = float(time_p or 0) * multiplier
         # Mirror time_mode — Milestones always inherit value; Goals keep their
         # own; otherwise the toggle wins.
-        v_mode = resolve_value_mode(node_type or "Learn", value_mode_val)
+        v_mode = resolve_value_mode(node_type, value_mode_val)
 
         node = Node(
             name=name,
-            type=node_type or "Learn",
+            type=node_type,
             description=desc or "",
             value=value or 5,
             time_o=t_o,

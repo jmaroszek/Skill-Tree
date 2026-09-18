@@ -6,6 +6,8 @@ length, so each fired a callback error whenever it had nothing to do, such as
 when an event's dormant-node table rendered its edit buttons.
 """
 
+import inspect
+
 import dash
 
 import details_callbacks
@@ -73,3 +75,14 @@ def test_dormant_editor_relationship_search_includes_other_dormant_nodes():
 
     for options in result[8:13]:
         assert {option["value"] for option in options} == {"Voice", "Music"}
+    assert result[-1] is None
+
+
+def test_new_dormant_node_requires_an_explicit_type():
+    fn, _ = _callbacks(event_callbacks.register_event_callbacks)["save_dormant_node"]
+    args = dict.fromkeys(inspect.signature(fn).parameters, None)
+    args.update(n_clicks=1, selected_event="Event", name="Unclassified")
+
+    result = fn(**args)
+
+    assert result[1] == "Node type is required."
