@@ -90,6 +90,7 @@ global.window = {
 };
 global.attachCy = cy => { cytoHandlers.forEach(fn => fn(cy)); return cy; };
 
+require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
 require(process.argv[1]);
 '''
     result = subprocess.run(

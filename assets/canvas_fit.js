@@ -71,10 +71,9 @@
             }
         }
 
-        var layout = cy.layout;
-        cy.layout = function (options) {
+        window.SkillTree.wrapLayout(cy, 'fit', function (next, options) {
             cy.resize();
-            var run = layout.call(cy, options);
+            var run = next(options);
             if (!options || options.fit === false) return run;
             if (hasSize(cy)) {
                 state.debt = null;
@@ -88,7 +87,7 @@
             });
             watch();
             return run;
-        };
+        });
     }
 
     function watchCanvases() {

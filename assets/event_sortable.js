@@ -17,11 +17,7 @@
 
 /* ---------- Helper: set value via native setter so React/Dash sees it ---------- */
 function _setNativeValueEvent(el, val) {
-    var nativeSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype, 'value'
-    ).set;
-    nativeSetter.call(el, val);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+    window.SkillTree.setInputValue(el, val);
 }
 
 /* ---------- Init / re-init Sortable on each card group ---------- */

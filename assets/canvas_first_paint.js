@@ -57,7 +57,7 @@
     var timers = [];
 
     function cyFor(el) {
-        return (el && el._cyreg && el._cyreg.cy) ? el._cyreg.cy : null;
+        return window.SkillTree.getCy(el);
     }
 
     // Cytoscape stacks every position-less node at (0,0), so anything sitting
@@ -97,14 +97,13 @@
     function guardColdStart(cy) {
         if (cy._skillTreeColdStartGuard) return;
         cy._skillTreeColdStartGuard = true;
-        var layout = cy.layout;
-        cy.layout = function (options) {
+        window.SkillTree.wrapLayout(cy, 'coldStart', function (next, options) {
             if (options && cy.nodes().length && !looksLaidOut(cy)) {
                 options = Object.assign({}, options, { randomize: true });
                 if (!done) options.animate = false;
             }
-            return layout.call(cy, options);
-        };
+            return next(options);
+        });
     }
 
     function showCaption() {

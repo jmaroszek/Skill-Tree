@@ -115,6 +115,7 @@ def test_browser_state_contract_preserves_order_and_summary_format():
     script = r'''
 const assert = require('node:assert/strict');
 global.window = {};
+require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
 require(process.argv[1]);
 const picker = window.SkillTreeContextPicker;
 const taxonomy = [

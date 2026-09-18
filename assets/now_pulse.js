@@ -31,8 +31,7 @@
 
     function getCyInstance(canvasId) {
         var wrapper = document.getElementById(canvasId);
-        if (!wrapper || !wrapper._cyreg || !wrapper._cyreg.cy) return null;
-        return wrapper._cyreg.cy;
+        return window.SkillTree.getCy(wrapper);
     }
 
     // Every canvas stays mounted at once — the inactive tabs are only

@@ -19,7 +19,7 @@
         }
 
         function getCy() {
-            return (cyWrapper._cyreg && cyWrapper._cyreg.cy) ? cyWrapper._cyreg.cy : null;
+            return window.SkillTree.getCy(cyWrapper);
         }
 
         cyWrapper.addEventListener('wheel', function (e) {
@@ -57,7 +57,7 @@
         }
 
         function getCy() {
-            return (cyWrapper._cyreg && cyWrapper._cyreg.cy) ? cyWrapper._cyreg.cy : null;
+            return window.SkillTree.getCy(cyWrapper);
         }
 
         cyWrapper.addEventListener('mousedown', function (e) {
@@ -119,9 +119,10 @@
         function refit() {
             setTimeout(function () {
                 var cy = document.getElementById(cyId);
-                if (cy && cy._cyreg && cy._cyreg.cy) {
-                    cy._cyreg.cy.resize();
-                    cy._cyreg.cy.fit();
+                var instance = window.SkillTree.getCy(cy);
+                if (instance) {
+                    instance.resize();
+                    instance.fit();
                 }
             }, 50);
         }

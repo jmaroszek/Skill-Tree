@@ -63,6 +63,7 @@ Object.defineProperty(window.HTMLInputElement.prototype, 'value', {
     set(v) { this._value = v; written[this.id] = v; }
 });
 
+require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
 require(process.argv[1]);
 const fire = (name, layout) => handlers[name].forEach(fn => fn({layout}));
 const rootOf = key => written[key] ? JSON.parse(written[key]).root : null;

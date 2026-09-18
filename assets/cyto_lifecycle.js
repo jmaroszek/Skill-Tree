@@ -27,7 +27,7 @@
     function findCy(selector) {
         var el = document.querySelector(selector);
         if (!el) return null;
-        return (el._cyreg && el._cyreg.cy) ? el._cyreg.cy : null;
+        return window.SkillTree.getCy(el);
     }
 
     function invokeAll(selector, cy) {

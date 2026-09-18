@@ -246,6 +246,7 @@ global.canvas = canvas;
 global.cover = cover;
 global.pane = pane;
 
+require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
 require(process.argv[1]);
 '''.replace("__USE_OBSERVERS__", "true" if observers else "false").replace("__MOUNTED__", "true" if mounted else "false")
     result = subprocess.run(

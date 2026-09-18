@@ -155,7 +155,7 @@
     function liveCy(canvas) {
         if (typeof document === 'undefined') return null;
         var wrapper = document.getElementById(canvas.cytoscapeId);
-        return wrapper && wrapper._cyreg ? wrapper._cyreg.cy : null;
+        return window.SkillTree.getCy(wrapper);
     }
 
     // The layout on screen, per canvas: the Cytoscape instance it was built
@@ -210,9 +210,8 @@
     function resolveRequestOptions(cy) {
         if (!cy || typeof cy.layout !== 'function' || cy._skillTreeRequestOptions) return;
         cy._skillTreeRequestOptions = true;
-        var layout = cy.layout;
         var randomizedRequest = null;
-        cy.layout = function (options) {
+        window.SkillTree.wrapLayout(cy, 'requestOptions', function (next, options) {
             if (options && options.skillTreeRequestId !== undefined) {
                 options = Object.assign({}, options);
                 if (options.skillTreeTween && options.animate === true) {
@@ -226,8 +225,8 @@
                     }
                 }
             }
-            return layout.call(cy, options);
-        };
+            return next(options);
+        });
     }
 
     function layoutOptions(policy, controls, topology, randomize) {

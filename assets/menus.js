@@ -100,11 +100,7 @@
     function send(inputId, value) {
         var input = document.getElementById(inputId);
         if (!input) return;
-        var setter = Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype, 'value'
-        ).set;
-        setter.call(input, value);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
+        window.SkillTree.setInputValue(input, value);
     }
 
     function insideMenu(target) {

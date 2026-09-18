@@ -294,12 +294,23 @@ class TestValueExponent:
         assert len(vals) >= 3, "the exponent should differentiate profiles"
 
     def test_exponent_is_in_the_tv_cache_key(self):
-        """Omitting it would leave rankings stale after a profile switch.
+        """A profile switch must refresh a previously populated value memo."""
+        from graph_manager import GraphManager
 
-        CLAUDE.md calls this out specifically: a scoring-relevant field that is
-        missing from the invalidation key makes rankings silently go stale.
-        """
-        import inspect
-        import graph_manager
-        src = inspect.getsource(graph_manager.GraphManager.calculate_priority_scores)
-        assert 'value_exponent' in src
+        manager = GraphManager()
+        nodes, edges = self._chain('P', 9)
+        for node in nodes:
+            manager.add_node(node)
+        for edge in edges:
+            manager.add_edge(edge['source'], edge['target'], edge['type'])
+
+        def parent_value(gateway):
+            ranked = gateway.calculate_priority_scores(gateway.get_all_nodes())
+            return next(node.total_value for node in ranked if node.name == 'P')
+
+        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, 'value_exponent': 1.0})
+        linear = parent_value(manager)
+        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, 'value_exponent': 2.0})
+        refreshed = parent_value(manager)
+        assert refreshed > linear
+        assert refreshed == pytest.approx(parent_value(GraphManager()))

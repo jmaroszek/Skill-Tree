@@ -39,7 +39,7 @@
 
     function getCy(state) {
         var el = document.querySelector('#' + state.cytoscapeElementId);
-        return (el && el._cyreg && el._cyreg.cy) ? el._cyreg.cy : null;
+        return window.SkillTree.getCy(el);
     }
 
     function captureAll(state, cy) {

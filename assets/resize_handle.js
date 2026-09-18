@@ -50,8 +50,9 @@
                 onEnd: function () {
                     // Tell Cytoscape to recalculate its viewport
                     var cyEl = document.getElementById('cytoscape-graph');
-                    if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                        cyEl._cyreg.cy.resize();
+                    var instance = window.SkillTree.getCy(cyEl);
+                    if (instance) {
+                        instance.resize();
                     }
                 },
             });

@@ -112,11 +112,7 @@
     if (typeof document === 'undefined') return;
 
     function setNativeValue(input, value) {
-        var setter = Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype, 'value'
-        ).set;
-        setter.call(input, value);
-        input.dispatchEvent(new Event('input', {bubbles: true}));
+        window.SkillTree.setInputValue(input, value);
     }
 
     function dispatchSelection(instance, selection) {

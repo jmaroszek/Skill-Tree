@@ -38,8 +38,9 @@
 
         function refitDetailsMiniGraph() {
             var cyEl = document.getElementById('details-mini-graph');
-            if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                cyEl._cyreg.cy.resize();
+            var instance = window.SkillTree.getCy(cyEl);
+            if (instance) {
+                instance.resize();
             }
         }
 

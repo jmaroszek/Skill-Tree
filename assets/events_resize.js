@@ -26,8 +26,9 @@
 
         function refitGraph() {
             var cyEl = document.getElementById('events-detail-graph');
-            if (cyEl && cyEl._cyreg && cyEl._cyreg.cy) {
-                cyEl._cyreg.cy.resize();
+            var instance = window.SkillTree.getCy(cyEl);
+            if (instance) {
+                instance.resize();
             }
         }
 

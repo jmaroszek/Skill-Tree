@@ -56,6 +56,7 @@ function ringElements(count, prefix = 'r') {
     const ids = Array.from({length: count}, (_, i) => prefix + i);
     return [...nodesOf(ids), ...edgesOf(ids.map((id, i) => [id, ids[(i + 1) % count]]), prefix + '-e')];
 }
+require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
 require(process.argv[1]);
 const api = window.dash_clientside.skillTreeLayout;
 const canvas = key => window.SkillTree.canvases.find(c => c.key === key);

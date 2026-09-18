@@ -49,11 +49,7 @@ function _initDetailsGoalSortable() {
             // Write to hidden input so Dash picks it up
             var input = document.getElementById('details-goal-drag-order-input');
             if (input) {
-                var nativeSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLInputElement.prototype, 'value'
-                ).set;
-                nativeSetter.call(input, JSON.stringify(order));
-                input.dispatchEvent(new Event('input', { bubbles: true }));
+                window.SkillTree.setInputValue(input, JSON.stringify(order));
             }
         }
     });

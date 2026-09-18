@@ -148,6 +148,7 @@ function runTimers(upToMs) {
 const node = makeNode('Target');
 global.window = {SkillTree: {}};
 global.document = {getElementById: () => ({_cyreg: {cy: {getElementById: () => node}}})};
+require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
 require(process.argv[1]);
 
 // now_pulse.js keeps an endless border animation on a Now node. The locate

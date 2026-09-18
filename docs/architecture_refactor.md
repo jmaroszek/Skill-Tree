@@ -77,3 +77,23 @@ database identity, matching the existing read-cache isolation.
 Synchronization, bounded cache sizes, cosmetic-edit reuse, rollback behavior, and
 the single-database-per-process runtime remain unchanged. No lock narrowing was
 attempted without a measured need. Validation: 128 focused tests passed.
+
+## Stage 6
+
+`assets/00_browser_bridge.js` owns native input dispatch, Cytoscape instance access,
+and per-instance layout-hook composition. Feature assets use this boundary while
+retaining their existing timing, registration order, and interaction policies.
+The adapter preserves repeated input events, nested hook order, duplicate-hook
+protection, and isolation when a canvas instance is replaced.
+
+Validation: 72 focused browser contracts passed. Final regression run: 1,469 passed,
+two optional real-database copy tests deselected. The old scoring-cache source-text
+assertion now tests actual score refresh after changing the value exponent.
+Sandbox browser checks covered Next, the Nodes canvas, context-menu editing and
+an unchanged save, Details graph/subtasks/time simulation, and Events and Analyze.
+No browser errors were reported during those checks. These are smoke checks, not
+an exhaustive manual interaction audit. Production data was not used for testing.
+
+The updated `app_architecture.md` describes the resulting ownership boundaries.
+Scoring math, schema, callback wiring, transaction/cascade ordering, and locking
+policy remain unchanged.

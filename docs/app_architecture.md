@@ -4,19 +4,24 @@ How the app fits together: the layering, the module map, the `dcc.Store` wiring,
 
 ## The layering
 
-The app is six layers. Each one only knows about the layer below it.
+The app separates construction, callback wiring, shared operations, state management,
+computation, and persistence. Compatibility exports remain at former module paths;
+new callers should use the shared modules directly.
 
 
-- **Layout** (`layout.py`, `*_layout.py`) — pure structure. Builds the component tree and declares every `dcc.Store`. No callbacks, no behavior. `app.layout` is a *function* (`lambda: build_app_layout(generate_elements(), ...)`) so each page load gets fresh elements.
-- **Callbacks** (`callbacks.py`, `*_callbacks.py`) — all behavior. Each tab module attaches its callbacks in one `register_*_callbacks(app)` pass. [`callbacks.py`](../callbacks.py) is *not* a tab — it's the shared core engine (the main canvas, cross-cutting callbacks, and `generate_elements`).
-- **State gateway** (`graph_manager.py`, `event_manager.py`) — the only way a callback touches graph/event state. Owns CRUD, the status cascade, version counters, and caches.
+- **Construction and layout** (`app.py`, `app_services.py`, `layout.py`, `*_layout.py`) — explicit startup and fresh component factories. Layout construction reads settings and hydrates Next under one read snapshot; the hidden main canvas starts empty and its initial callback populates it. Imports do not open SQLite or configure logging.
+- **Callbacks and shared operations** (`callbacks.py`, `*_callbacks.py`) — Dash trigger routing and registration through `register_*_callbacks(app, services=None)`. Shared ranking, analytics, commands, and view preparation live outside tab registration modules. The core delegates canvas preparation to `canvas_view.py` and returns named `CoreResponse` fields in the existing Dash output order.
+- **State gateway** (`graph_manager.py`, `event_manager.py`) — graph/event state access and transaction ownership. `GraphManager` retains CRUD orchestration and status cascades, delegating SQL to `graph_repository.py`, queries to `graph_queries.py`, and scoring orchestration to `graph_scoring.py`. `graph_state.py` owns shared revisions and per-manager caches.
 - **Config** (`config.py` / `ConfigManager`) — a classmethod-only facade over the `Settings` table. No persistent settings cache; operation-scoped snapshots reduce repeated reads (see Versioning below).
 - **Pure compute** (`scoring.py`, `simulation.py`) — data in, rankings/simulations out. No DB access, no globals.
 - **Persistence** (`database.py`) — resolves the DB path from `config.ENVIRONMENT` and runs `init_db` on first connect.
 
 Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the Dash callback model can't express (context menus, position-freeze, drag-sortables, the value-setter bridge). It talks to Python only through `dcc.Store` components and hidden inputs. The one exception is the list of canvases, which the page receives from `canvases.py` before any asset runs.
 
-The one-way rule has a payoff: a tab module sees only `app` and the three managers — never another tab's internals. Tabs coordinate *through the database*, not with each other (a write bumps a version counter; the next tab notices on its next callback).
+Tabs use shared operations and the graph/event managers captured from `AppServices`,
+plus the classmethod-only `ConfigManager`. They coordinate through database writes
+and revision stores. Standalone helper APIs retain inert default managers for
+compatibility; the runtime still selects one database per process.
 
 ## Module map
 
@@ -26,12 +31,19 @@ The one-way rule has a payoff: a tab module sees only `app` and the three manage
 | [models.py](../models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
 | [database.py](../database.py) | Thin `sqlite3` wrapper. Path from `config.ENVIRONMENT`; `init_db` on first connection. |
 | [config.py](../config.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
-| [graph_manager.py](../graph_manager.py) | **The state gateway.** Node/edge CRUD, alias resolution, `sync_edges`, cycle detection, the status cascade, scoring entry (`calculate_priority_scores`), subtree/completion queries, field migrations, community detection. Holds the class-level version counters and caches. |
+| [graph_manager.py](../graph_manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
+| [app_services.py](../app_services.py) | Graph/event manager ownership for callback registration. |
+| [graph_repository.py](../graph_repository.py) | Row reads and node insert/update/rename SQL, including lifecycle history in the same transaction lease. |
+| [graph_queries.py](../graph_queries.py), [graph_scoring.py](../graph_scoring.py), [graph_rules.py](../graph_rules.py) | Graph queries, scoring orchestration, and pure prerequisite/endpoint rules respectively. |
+| [graph_state.py](../graph_state.py) | Shared commit-published graph/scoring revisions and per-manager `GraphCaches`; compatibility aliases for former private attributes. |
 | [event_manager.py](../event_manager.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. |
 | [scoring.py](../scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
 | [simulation.py](../simulation.py) | Monte Carlo time simulation. Pure NumPy. |
 | [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, time calibration, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
-| [callback_helpers.py](../callback_helpers.py) | Stateless helpers extracted from the `*_callbacks.py` files (link parsing, filters, form-state diffs). |
+| [callback_helpers.py](../callback_helpers.py) | Shared component, filter, link, and form-state helpers, plus compatibility exports. |
+| [goal_ranking.py](../goal_ranking.py), [graph_analytics.py](../graph_analytics.py) | Shared goal ranking/explanations and analytics data preparation. |
+| [node_commands.py](../node_commands.py), [context_rules.py](../context_rules.py), [editor_values.py](../editor_values.py), [next_view.py](../next_view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
+| [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named 28-field response contract. |
 | [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. |
 | [styles.py](../styles.py) | Dash component style dicts. |
 | [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
@@ -51,7 +63,13 @@ The one-way rule has a payoff: a tab module sees only `app` and the three manage
 
 ### 1. Startup ([app.py](../app.py))
 
-`--sandbox` sets `config.ENVIRONMENT` **before** any module reads it (the DB path depends on it) → logging configured (separate sandbox/prod log files) → `ConfigManager.ensure_*_type()` seeds type config → `GraphManager().recompute_all_statuses()` repairs any status drift against current `Needs_Hard` edges (catches mutations that bypassed the cascade) → Dash app built → `app.layout` set to a function returning `build_app_layout(generate_elements(), ...)` → `register_callbacks(app)` then the seven `register_*_callbacks(app)`.
+`main()` parses `--sandbox` and calls `create_app(AppSettings(...))`. The factory
+selects `config.ENVIRONMENT` before opening SQLite, configures logging if enabled,
+initializes the schema, seeds required types, and runs the existing status-repair
+safety net. It then constructs Dash, installs the canvas registry, assigns a
+snapshot-wrapped layout factory, and registers callbacks with `AppServices`.
+Importing `app` does none of this. Switching databases after startup is rejected;
+tests replace `database.get_db_path` before constructing an app with disposable data.
 
 ### 2. Graph mutation → render (the central loop)
 
@@ -91,7 +109,12 @@ All three canvases build their elements with `build_node_element` and `build_edg
 3. It pokes that hidden Dash input via the **value-setter bridge**: the native `HTMLInputElement` value setter plus a synthetic `input` event. A plain `el.value = x` is silently ignored because the input is React-controlled. The value is suffixed with `'|' + Date.now()` so that re-editing the *same* node still changes the value and re-fires the callback.
 4. The Dash callback bound to that input opens and populates the editor sidebar.
 
-This bridge pattern recurs across `assets/` (sortables, the event menu, the goal rank popover, the sidebar sort menus) — same setter + `input`-event trick everywhere a server value must land in a controlled component.
+[`00_browser_bridge.js`](../assets/00_browser_bridge.js) loads before feature assets
+and owns `SkillTree.setInputValue`, used by menus, sortables, and context pickers.
+It also owns `SkillTree.getCy`, the single boundary for Cytoscape's private DOM
+registration, and `SkillTree.wrapLayout`, which composes cold-start, fit, and request
+hooks once per live instance. The latest registered hook remains outermost, matching
+the former wrappers; a remounted canvas gets its own hook chain.
 
 ### 4. Status cascade
 
@@ -101,11 +124,20 @@ Marking a node Done (or changing a hard prereq) calls `update_node`, which detec
 
 ### 5. Scoring → Next ranking
 
-[next_callbacks.py](../next_callbacks.py) calls `GraphManager.calculate_priority_scores(now_nodes, priority_goals)`. That checks a cache keyed `(_scoring_version, hyperparams)`; on a miss it calls the pure `scoring.score_nodes(...)` (build adjacency → forward `total_value` walk → cost/eligibility → suggestion-variety walk → ranked list). `score_nodes` scores the whole graph even when the caller passes a subset, because the variety divisor ranks a node against every peer it could be recommended alongside — a filtered call must not change anyone's number. `GraphManager.get_priority_normalizer()` is the single base every 0–100 priority in the UI divides by. The cache survives filter toggles and cosmetic edits and is dropped only when `_scoring_version` advances.
+[next_view.py](../next_view.py), shared by layout and Next callbacks, calls
+`GraphManager.calculate_priority_scores(now_nodes, priority_goals)`. The gateway
+delegates to `graph_scoring.py`, whose memo key includes database identity, scoring
+revision, and hyperparameters. On a miss it calls pure `scoring.score_nodes(...)`
+(adjacency → value propagation → cost/eligibility → variety → ranking).
+`score_nodes` scores the whole graph even for a requested subset so filtering cannot
+change a node's number. `GraphManager.get_priority_normalizer()` supplies the common
+base for UI scores. Cosmetic edits retain these scoring caches.
 
 ## Versioning & caches
 
-`GraphManager` carries two **class-level** counters (class-level so every per-tab instance sees the same value — a mutation in any callback module invalidates everyone's cache):
+`graph_state.revisions` owns two process-wide counters. `GraphManager` exposes the
+former names as compatibility descriptors, so every manager sees the same revisions.
+Changes publish through deduplicated commit callbacks; rollback publishes neither.
 
 - **`_graph_version`** — bumps on any node/edge mutation. Drives UI-level caches: the `graph-version-store` bridge, the goal-subtree cache, and the community-detection cache (all keyed on it).
 - **`_scoring_version`** — bumps **only** when a scoring-relevant field changes: `type`, `value`, `interest`, `difficulty`, `time_o/m/p`, `time_mode`, `value_mode`, `status`, `dormant`, `now`, `context`, `subcontext`. Drives the scoring memo and the `calculate_priority_scores` cache. `now` earns its place because Now membership is what the variety pool and the priority normalizer are built from — flipping one node moves its context peers' numbers too.
@@ -122,7 +154,7 @@ settings getters query SQLite normally. Connection context managers close their
 owned connection on both success and failure; nested write leases stay open until
 the owning transaction ends.
 
-Community caches retain at most 32 filter/method combinations and subtree caches
+Each manager owns one `GraphCaches` object. Community caches retain at most 32 filter/method combinations and subtree caches
 at most 128 entries per manager. Both discard entries from older graph versions.
 Scoring memoization still survives cosmetic edits. See [performance.md](performance.md)
 for the synthetic benchmark and its limits.
@@ -138,7 +170,7 @@ event, Details and settings refreshes, independently of the main canvas.
 ## Next responsiveness
 
 Next and Now content is included in the initial layout, using the same hydrated
-filter controls as the sidebar. The shared layout template is copied for each
+filter controls as the sidebar. Layout factories construct fresh components for each
 request. The hidden main canvas starts empty and is populated by the existing
 initial core callback, avoiding duplicate element generation during layout.
 
