@@ -791,6 +791,34 @@
     flex: 0 0 auto;
 }
 
+/* Preserve the standard suggestion-card density. The lower fade makes
+   hidden-scrollbar overflow intentional; bottom padding on the results list
+   lets the final card finish cleanly above it after scrolling. */
+.details-empty-state {
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        #000 0,
+        #000 calc(100% - 24px),
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        #000 0,
+        #000 calc(100% - 24px),
+        transparent 100%
+    );
+}
+
+.details-subtask-edit-btn.btn-link {
+    --bs-btn-color: #6c757d;
+    --bs-btn-hover-color: #dee2e6;
+    --bs-btn-active-color: #ffffff;
+    padding: 2px 6px;
+    border: 0;
+    line-height: 1;
+    text-decoration: none;
+}
+
 /* --- Node Editor: unified field + ghost icon affordances --- */
 /* .editor-icon-btn lives INSIDE a white .editor-field-group, so its icon is a
    muted DARK stroke that darkens on hover (the light-field counterpart of the

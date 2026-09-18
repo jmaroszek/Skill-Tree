@@ -1,6 +1,7 @@
 """Regression tests for the Details interaction critical path."""
 
 import inspect
+from types import SimpleNamespace
 
 import dash
 from dash import html
@@ -42,6 +43,17 @@ def _raw_callback(spec):
     while hasattr(callback, "__wrapped__"):
         callback = callback.__wrapped__
     return callback
+
+
+def _walk_components(component):
+    if isinstance(component, Component):
+        yield component
+        children = getattr(component, "children", None)
+        if children is not None:
+            yield from _walk_components(children)
+    elif isinstance(component, (list, tuple)):
+        for child in component:
+            yield from _walk_components(child)
 
 
 def test_hidden_heavy_callbacks_do_not_subscribe_to_every_tab_switch():
@@ -106,6 +118,47 @@ def test_details_suggestion_is_a_native_button_with_name_and_context():
     assert copy.children[0].children == "Sleep"
     assert copy.children[1].children == "Health"
     assert getattr(row, "aria-label") == "View Sleep. Health"
+
+
+def test_every_subtask_row_has_edit_action_and_no_remove_action():
+    from details_layout import build_details_subtasks_table
+
+    manager = GraphManager()
+    parent = _suggestion_node(name="Parent")
+    child = _suggestion_node(name="Child", type="Learn")
+    grandchild = _suggestion_node(name="Grandchild", type="Learn")
+    for node in (parent, child, grandchild):
+        manager.add_node(node)
+    manager.add_edge("Child", "Parent", EDGE_NEEDS_HARD)
+    manager.add_edge("Grandchild", "Child", EDGE_NEEDS_HARD)
+
+    table = build_details_subtasks_table(
+        [child, grandchild], manager, manager.get_edges(), "Parent")
+    ids = [getattr(component, "id", None)
+           for component in _walk_components(table)]
+
+    assert {item["index"] for item in ids
+            if isinstance(item, dict)
+            and item.get("type") == "details-subtask-edit"} == {
+                "Child", "Grandchild",
+            }
+    assert not any(isinstance(item, dict)
+                   and item.get("type") == "details-subtask-remove"
+                   for item in ids)
+
+
+def test_subtask_pencil_opens_that_node_in_editor(monkeypatch):
+    app = _app_with(register_details_callbacks)
+    callback = _raw_callback(_spec_for_output(
+        app, "details-edit-trigger-input.value"))
+    monkeypatch.setattr(
+        details_callbacks, "ctx",
+        SimpleNamespace(triggered_id={
+            "type": "details-subtask-edit", "index": "Child",
+        }))
+    monkeypatch.setattr("time.time_ns", lambda: 123)
+
+    assert callback(0, [1], "Parent") == "Child|123"
 
 
 def test_details_suggestion_without_context_keeps_an_empty_second_line():

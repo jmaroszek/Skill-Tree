@@ -233,6 +233,7 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     empty_state = html.Div(
         id="details-empty",
+        className="details-empty-state",
         children=[
             html.Div([
                 html.H6("Suggestions", className="text-muted mb-1",
@@ -242,7 +243,7 @@ def build_details_tab_content():
             ], style={"textAlign": "center", "marginTop": "24px",
                       "marginBottom": "12px"}),
             html.Div(id="details-suggestions-container",
-                     style={"padding": "0 12px"}),
+                     style={"padding": "0 12px 24px"}),
         ],
         style={"flex": "1", "overflowY": "auto"},
     )
@@ -611,19 +612,6 @@ def build_details_tab_content():
     filters_sidebar = _build_filters_sidebar()
     add_node_modal = _build_add_node_modal(_ted)
 
-    subtask_remove_modal = dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Remove Subtask")),
-        dbc.ModalBody(id="details-subtask-remove-modal-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-details-subtask-remove-cancel",
-                       color="secondary", className="me-auto"),
-            dbc.Button("Remove Edge", id="btn-details-subtask-remove-edge",
-                       color="warning", className="me-2"),
-            dbc.Button("Delete Node", id="btn-details-subtask-delete-node",
-                       color="danger"),
-        ]),
-    ], id="modal-details-subtask-remove", is_open=False, centered=True)
-
     explain_legend_items = []
     for label, color in (('Self', '#685e52'), ('Hard', '#2a4d6e'),
                          ('Soft', '#576068'), ('Synergy', '#466a78')):
@@ -736,7 +724,6 @@ def build_details_tab_content():
         # Set once, when the browser first goes idle after startup, to build
         # the Goals list in the background (sidebars_callbacks.py).
         dcc.Store(id='goals-prewarm-store', data=None),
-        dcc.Store(id='details-subtask-remove-pending', data=None),
         dcc.Store(id='details-goal-order-store', data=ConfigManager.get_goal_order() or None),
         dcc.Store(id='details-nav-history', data=[]),
         dcc.Store(id='details-nav-index', data=-1),
@@ -757,7 +744,6 @@ def build_details_tab_content():
                   style={'display': 'none'}),
         dcc.Input(id='goal-priority-trigger-input', type='text', value='',
                   style={'display': 'none'}),
-        subtask_remove_modal,
         add_node_modal,
         explain_modal,
 
@@ -1316,7 +1302,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     """Builds the subtasks table for any node's detail view.
 
     Columns: Name | Status | Relationship | Type | Context | Subcontext |
-             Priority | Value | Interest | Effort | Time | (remove)
+             Priority | Value | Interest | Effort | Time | Edit
 
     Priority is computed via the same ROI scoring algorithm used in the
     Suggestions tab, normalized 0–100.  Ineligible/Done/Goal nodes show '—'.
@@ -1375,19 +1361,6 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             className="text-center py-3"
         )
 
-    # Build set of nodes with a direct edge to the parent (removable)
-    direct_children = set()
-    if parent_name:
-        from models import EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_NEEDS_HARD
-        for e in edges:
-            if e['target'] == parent_name and e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
-                direct_children.add(e['source'])
-            if e['type'] == EDGE_HELPS:
-                if e['target'] == parent_name:
-                    direct_children.add(e['source'])
-                elif e['source'] == parent_name:
-                    direct_children.add(e['target'])
-
     # --- Priority scoring (same ROI algorithm as Suggestions tab, normalized 0–100) ---
     # Nodes receive "—" when: status is Done/Blocked, type is Goal, or any hard
     # prerequisite is not yet Done (ineligible per the scoring algorithm).
@@ -1438,27 +1411,25 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         # Done/Blocked values match the Details info pane.
         rel = relationship_types.get(node.name, "Hard")
         rel_style = _REL_BADGE_STYLES.get(rel, _REL_BADGE_STYLES["Hard"])
-        is_direct = node.name in direct_children
-        if is_direct:
-            btn_id = {"type": "details-subtask-remove", "index": node.name}
-            remove_btn = [
-                dbc.Button(
-                    "×",
-                    id=btn_id,
-                    color="link",
-                    className="p-0 text-decoration-none text-muted",
-                    style={"fontSize": "1.1rem", "lineHeight": "1"},
-                ),
-                dbc.Tooltip(
-                    "Remove edge or delete node",
-                    target=btn_id,
-                    placement="left",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS,
-                           "hide": TOOLTIP_HIDE_DELAY_MS},
-                ),
-            ]
-        else:
-            remove_btn = None
+        edit_id = {"type": "details-subtask-edit", "index": node.name}
+        edit_btn = [
+            dbc.Button(
+                [
+                    html.I(className="bi bi-pencil", **{"aria-hidden": "true"}),
+                    html.Span(f"Edit {node.name}", className="visually-hidden"),
+                ],
+                id=edit_id,
+                color="link",
+                className="details-subtask-edit-btn",
+            ),
+            dbc.Tooltip(
+                "Open the node editor",
+                target=edit_id,
+                placement="left",
+                delay={"show": TOOLTIP_SHOW_DELAY_MS,
+                       "hide": TOOLTIP_HIDE_DELAY_MS},
+            ),
+        ]
 
         _eff = graph_manager.get_effective_time(node.name) if graph_manager else 0.0
         _time_cell = ConfigManager.format_time_friendly(_eff) if _eff > 0 else "—"
@@ -1491,7 +1462,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.Td(str(node.difficulty),
                     style={"verticalAlign": "middle", "color": "#6c757d"}),
             html.Td(_time_cell, style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td(remove_btn, style={"verticalAlign": "middle"}),
+            html.Td(edit_btn, style={"verticalAlign": "middle"}),
         ]))
 
     return dbc.Table([
