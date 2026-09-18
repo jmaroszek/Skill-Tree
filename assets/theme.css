@@ -835,8 +835,9 @@
 
 /* Dormant-node actions are secondary to scanning the event's queued work.
    On a precise pointer, reveal the two direct actions for the row under
-   attention. They remain in the tab order, and focus-within exposes them for
-   keyboard users. Coarse/non-hover pointers retain visible controls. */
+   attention. They remain in the tab order, and their own focus exposes them
+   for keyboard users without revealing actions when a row checkbox is focused.
+   Coarse/non-hover pointers retain visible controls. */
 .dormant-nodes-table .dormant-node-actions {
     opacity: 0;
     pointer-events: none;
@@ -844,7 +845,7 @@
 }
 
 .dormant-nodes-table .dormant-node-row:hover .dormant-node-actions,
-.dormant-nodes-table .dormant-node-row:focus-within .dormant-node-actions {
+.dormant-nodes-table .dormant-node-actions:focus-within {
     opacity: 1;
     pointer-events: auto;
 }

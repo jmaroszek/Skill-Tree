@@ -832,8 +832,14 @@ def build_dormant_nodes_table(event_nodes, event_status):
             className="text-center py-3"
         )
 
+    # A detail table should surface exceptions, not repeat the event's default
+    # state on every row. Uniform non-zero delays still matter, while Status
+    # matters only when awake and dormant nodes are mixed.
+    show_delay = any(en['delay_days'] != 0 for en in event_nodes)
+    show_status = len({bool(en['activated']) for en in event_nodes}) > 1
+
     rows = []
-    for i, en in enumerate(event_nodes):
+    for en in event_nodes:
         node = en['node']
         delay_days = en['delay_days']
         activated = en['activated']
@@ -850,11 +856,13 @@ def build_dormant_nodes_table(event_nodes, event_status):
         else:
             delay_display = f"{delay_days} day{'s' if delay_days != 1 else ''}"
 
-        status_badge = dbc.Badge(
-            "Awake" if activated else "Dormant",
-            color="success" if activated else "secondary",
-            style={"fontSize": "0.7rem"}
-        )
+        status_badge = None
+        if show_status:
+            status_badge = dbc.Badge(
+                "Awake" if activated else "Dormant",
+                color="success" if activated else "secondary",
+                style={"fontSize": "0.7rem"}
+            )
 
         activation_info = ""
         if en.get('activation_date') and not activated:
@@ -903,24 +911,37 @@ def build_dormant_nodes_table(event_nodes, event_status):
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
             ], className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")
 
-        rows.append(html.Tr([
+        row_cells = [
             html.Td(trigger_checkbox, style={"verticalAlign": "middle", "width": "32px"}),
             html.Td(node.name, style={"verticalAlign": "middle"}),
             html.Td(node.type, style={"verticalAlign": "middle", "color": "#6c757d"}),
-            html.Td([delay_display, activation_info], style={"verticalAlign": "middle"}),
-            html.Td(status_badge, style={"verticalAlign": "middle"}),
+        ]
+        if show_delay:
+            row_cells.append(html.Td(
+                [delay_display, activation_info], style={"verticalAlign": "middle"}
+            ))
+        if show_status:
+            row_cells.append(html.Td(status_badge, style={"verticalAlign": "middle"}))
+        row_cells.append(
             html.Td(action_btns, style={"verticalAlign": "middle", "textAlign": "right"}),
-        ], className="dormant-node-row"))
+        )
+        rows.append(html.Tr(row_cells, className="dormant-node-row"))
+
+    headers = [
+        html.Th("", style={"width": "32px"}),
+        html.Th("Name"),
+        html.Th("Type"),
+    ]
+    if show_delay:
+        headers.append(html.Th("Delay"))
+    if show_status:
+        headers.append(html.Th("Status"))
+    headers.append(html.Th(
+        html.Span("Actions", className="visually-hidden"), style={"width": "64px"}
+    ))
 
     return dbc.Table([
-        html.Thead(html.Tr([
-            html.Th("", style={"width": "32px"}),
-            html.Th("Name"),
-            html.Th("Type"),
-            html.Th("Delay"),
-            html.Th("Status"),
-            html.Th("Actions", className="dormant-node-actions-heading", style={"width": "64px"}),
-        ])),
+        html.Thead(html.Tr(headers)),
         html.Tbody(rows),
     ], bordered=False, hover=True, responsive=True, size="sm",
        className="dormant-nodes-table text-light", style={"fontSize": "0.85rem"})
