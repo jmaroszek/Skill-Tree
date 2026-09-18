@@ -29,13 +29,16 @@ from config import (
     SIDEBAR_TRANSLATE_CLOSED,
     SUPPORTED_NODE_TYPES,
     sort_contexts,
+    DEFAULT_NODE_COLORS,
 )
 from events_layout import build_events_sidebar_content
 from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 import style_tokens as tokens
-from ui_kit import add_button, info_button, panel_close_button
+from ui_kit import (add_button, cancel_action, confirm_action,
+                     danger_action, info_button, panel_close_button,
+                     primary_action)
 
 # Node types have distinct product behavior and are not user-extensible.
 NODE_TYPES = list(SUPPORTED_NODE_TYPES)
@@ -54,11 +57,17 @@ WEEKDAY_OPTIONS = [
 ]
 
 
+# The four editor action buttons share one padding; it was written out
+# four times, and one of them differed.
+_ACTION_PAD = {"padding": "6px 0"}
+
+
 # --- Node Editor sidebar (left) ---
 def build_node_editor_content():
     CONTEXTS = sort_contexts(ConfigManager.get_contexts())
     _TED = ConfigManager.get_time_estimate_defaults()
-    _DONE_COLOR = ConfigManager.get_node_colors().get(STATUS_DONE, "#198754")
+    _DONE_COLOR = ConfigManager.get_node_colors().get(
+        STATUS_DONE, DEFAULT_NODE_COLORS[STATUS_DONE])
     return html.Div(
         [
             html.Div([
@@ -101,12 +110,13 @@ def build_node_editor_content():
                                     close_button=False),
                     dbc.ModalBody("What would you like to do?"),
                     dbc.ModalFooter([
-                        dbc.Button("Dismiss", id='btn-locate-dismiss',
-                                   color="secondary"),
-                        dbc.Button("View Details", id='btn-locate-view-details',
-                                   color="primary"),
+                        # The only modal footer with no spacing class at all.
+                        cancel_action("Dismiss", 'btn-locate-dismiss',
+                                      className="me-2"),
+                        primary_action("View Details", 'btn-locate-view-details'),
                     ]),
-                ], id='modal-locate-missing', is_open=False, centered=True),
+                ], id='modal-locate-missing', size="sm", is_open=False,
+                   centered=True),
 
                 html.H5("General", className="mt-3 mb-1"),
                 html.Div([
@@ -381,13 +391,26 @@ def build_node_editor_content():
                 html.Div([
                     html.Hr(className="my-2"),
                     html.Div([
-                        dbc.Button("Delete", id="btn-delete", color="danger", className="flex-fill me-2", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color(), "padding": "6px 0"}),
-                        dbc.Button("Cancel", id="btn-revert", className="flex-fill me-2", style={"padding": "6px 0", "backgroundColor": tokens.TEXT_DIM, "borderColor": tokens.TEXT_DIM, "color": "#fff"}),
-                        dbc.Button("Save", id="btn-save", color="primary", className="flex-fill me-2", style={"padding": "6px 0"}),
-                        dbc.Button("Save & Close", id="btn-save-close", color="success", className="flex-fill", style={"padding": "6px 0", "backgroundColor": _DONE_COLOR, "borderColor": _DONE_COLOR})
+                        # btn-revert was the one button in the app with no
+                        # color prop, hand-painting the exact value that
+                        # color="secondary" already gives it. Its label also
+                        # says Cancel while its tooltip describes a revert;
+                        # Revert is what it does, and what the unsaved-changes
+                        # modal calls the same choice.
+                        danger_action("Delete", "btn-delete",
+                                      className="flex-fill me-2", style=_ACTION_PAD),
+                        cancel_action("Revert", "btn-revert",
+                                      className="flex-fill me-2", style=_ACTION_PAD),
+                        primary_action("Save", "btn-save",
+                                       className="flex-fill me-2", style=_ACTION_PAD),
+                        confirm_action("Save & Close", "btn-save-close",
+                                       className="flex-fill",
+                                       style={**_ACTION_PAD,
+                                              "backgroundColor": _DONE_COLOR,
+                                              "borderColor": _DONE_COLOR})
                     ], className="d-flex mt-4"),
-                    dbc.Button("New Node", id="btn-new-node", color="secondary", className="w-100 mt-2",
-                               style={"padding": "8px 0"}),
+                    cancel_action("New Node", "btn-new-node", className="w-100 mt-2",
+                                  style={"padding": "8px 0"}),
                     # Kept inside the bar so a save confirmation is visible from
                     # wherever the user was scrolled when they pressed Save.
                     html.Div(id="save-output", className="text-success fw-bold text-end mt-2"),

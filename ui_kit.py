@@ -146,3 +146,47 @@ def edit_button(button_id, tooltip="Edit", placement="top", className_extra="",
     classes = " ".join(filter(None, ["edit-btn", className_extra]))
     return _icon_button(button_id, "pencil", tooltip, classes,
                         tooltip=tooltip, placement=placement, **kwargs)
+
+
+# --- Semantic action buttons ------------------------------------------------
+# "Cancel" had four treatments across four modals, including one button that
+# hand-painted #6c757d -- which is exactly `color="secondary"` -- and carried a
+# tooltip describing a revert. "Save" was `primary` in two places, `success` in
+# a third and an icon in a fourth. "Delete" inlined get_danger_color() at six
+# sites although custom.css already restyles .btn-danger globally, and three of
+# the six added their own padding on top.
+#
+# These name the ACTION, not the colour, so the mapping lives in one place and
+# a reader of a call site sees intent rather than a Bootstrap variant.
+
+def primary_action(label, button_id, **kwargs):
+    """The button that commits the modal or form: Save, Apply, Confirm."""
+    kwargs.setdefault("color", "primary")
+    return dbc.Button(label, id=button_id, **kwargs)
+
+
+def confirm_action(label, button_id, **kwargs):
+    """A commit that also closes or completes: Save & Close, Trigger.
+
+    Green is reserved for "this finishes the task", which is why it is a
+    separate helper rather than a flag on primary_action.
+    """
+    kwargs.setdefault("color", "success")
+    return dbc.Button(label, id=button_id, **kwargs)
+
+
+def cancel_action(label, button_id, **kwargs):
+    """Dismiss without committing. Always `secondary`, never hand-painted."""
+    kwargs.setdefault("color", "secondary")
+    return dbc.Button(label, id=button_id, **kwargs)
+
+
+def danger_action(label, button_id, **kwargs):
+    """Destructive: Delete, Discard.
+
+    No inline background. `custom.css` already restyles `.btn-danger` to the
+    tamed red app-wide, so repeating ConfigManager.get_danger_color() here only
+    creates a second place for the value to drift.
+    """
+    kwargs.setdefault("color", "danger")
+    return dbc.Button(label, id=button_id, **kwargs)

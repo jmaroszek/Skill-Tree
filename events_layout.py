@@ -404,7 +404,12 @@ def build_events_tab_content():
         # Event editor (hidden when no event selected)
         html.Div(id="event-detail-content", style={"display": "none"}, children=[
             html.Div([
-                # Hidden status badge — kept in DOM so callbacks don't break
+                # Hidden status badge — kept in the DOM so the three callbacks
+                # that still target its children/color/style Outputs keep
+                # working. It stays a dbc.Badge for the `color` prop those
+                # Outputs write; it is never shown, so that colour is inert.
+                # If it is ever un-hidden, move it to config.badge_style like
+                # every other badge rather than trusting the stock palette.
                 dbc.Badge(id="event-status-badge", children="Pending", color="primary",
                           style={"display": "none"}),
 
@@ -427,9 +432,7 @@ def build_events_tab_content():
                                     delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                         html.Div(id="event-trigger-section", className="d-flex align-items-center", children=[
                             dbc.Button("Delete", id="btn-event-delete", color="danger", size="sm",
-                                       className="me-2",
-                                       style={"backgroundColor": ConfigManager.get_danger_color(),
-                                              "borderColor": ConfigManager.get_danger_color()}),
+                                       className="me-2"),
                             dbc.Tooltip("Delete this event and its dormant nodes", target="btn-event-delete", placement="bottom",
                                         delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                             dbc.Button("Save", id="btn-event-save", color="primary", size="sm"),
@@ -525,6 +528,7 @@ def build_events_tab_content():
                 html.Div(id="dormant-nodes-table-container"),
 
                 dbc.Modal([
+                    dbc.ModalHeader(dbc.ModalTitle("Trigger Event")),
                     dbc.ModalBody([
                         html.P("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
                         dbc.Switch(
@@ -541,14 +545,20 @@ def build_events_tab_content():
                         dbc.Button("Trigger All", id="btn-trigger-all-confirm", color="success",
                                    style={"backgroundColor": _done_color, "borderColor": _done_color}),
                     ]),
-                ], id="modal-confirm-trigger", is_open=False, centered=True),
+                ], id="modal-confirm-trigger", size="md", is_open=False,
+                   centered=True),
                 dbc.Modal([
+                    # Was the only delete confirm in the app opening as a naked
+                    # body; the node-delete confirm in layout.py has carried a
+                    # title all along for identical copy.
+                    dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
                     dbc.ModalBody("Are you sure you want to delete this event? This will also delete all its dormant nodes."),
                     dbc.ModalFooter([
                         dbc.Button("Cancel", id="btn-delete-cancel", color="secondary", className="me-2"),
-                        dbc.Button("Delete", id="btn-delete-confirm", color="danger", style={"backgroundColor": ConfigManager.get_danger_color(), "borderColor": ConfigManager.get_danger_color()}),
+                        dbc.Button("Delete", id="btn-delete-confirm", color="danger"),
                     ]),
-                ], id="modal-confirm-delete", is_open=False, centered=True),
+                ], id="modal-confirm-delete", size="sm", is_open=False,
+                   centered=True),
             ], style={"maxWidth": "650px"}),
         ]),
     ], id="events-detail-panel", style={
@@ -860,7 +870,15 @@ def build_dormant_nodes_table(event_nodes, event_status):
                 ))
 
         if activated:
-            status_cell = dbc.Badge("Awake", color="success", style={"fontSize": tokens.FS_XS})
+            # Was dbc.Badge(color="success"), i.e. stock Bootstrap #198754 --
+            # a visibly different green from the Done badge one table over.
+            # EventTriggered is the palette's name for "the event fired", and
+            # deliberately shares Done's value. Dormant stays muted text: a
+            # default should recede rather than compete, which is the contract
+            # test_events_layout.py pins down.
+            status_cell = html.Span("Awake", className="badge",
+                                    style=badge_style('EventTriggered',
+                                                      font_size=tokens.FS_XS))
         else:
             status_cell = html.Span("Dormant", className="text-muted")
 

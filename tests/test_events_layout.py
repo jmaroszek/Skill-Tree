@@ -4,6 +4,8 @@ from pathlib import Path
 
 from events_layout import DORMANT_COL_WIDTHS, build_dormant_nodes_table
 from models import Node
+from config import BADGE_PALETTE
+from models import STATUS_DONE
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -146,8 +148,14 @@ def test_dormant_node_table_gives_non_default_delay_and_status_full_contrast():
     delay_text, scheduled = delayed_row.children[3].children
     assert delay_text.children == "2 weeks"
     assert scheduled.children == "Scheduled: 2026-10-01"
-    assert awake_row.children[4].children.children == "Awake"
-    assert awake_row.children[4].children.color == "success"
+    awake_badge = awake_row.children[4].children
+    assert awake_badge.children == "Awake"
+    # Was color="success" (stock Bootstrap #198754), which read as a different
+    # green from the Done badge one table over. The palette's EventTriggered
+    # is the shared "this fired" value.
+    assert awake_badge.className == "badge"
+    assert awake_badge.style["backgroundColor"] == BADGE_PALETTE['EventTriggered'][0]
+    assert awake_badge.style["backgroundColor"] == BADGE_PALETTE[STATUS_DONE][0]
 
 
 def test_dormant_node_actions_are_visible_on_intent_and_for_touch():

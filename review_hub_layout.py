@@ -96,4 +96,4 @@ def build_review_hub_modal():
                      ]),
         ),
     ], id="modal-review-hub", dialog_style={"maxWidth": "1100px"},
-       is_open=False, scrollable=True)
+       is_open=False, centered=True, scrollable=True)

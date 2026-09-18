@@ -387,4 +387,4 @@ def build_settings_modal():
             ]),
         ),
     ], id="settings-modal", dialog_style={"maxWidth": "900px"},
-       is_open=False, scrollable=True)
+       is_open=False, centered=True, scrollable=True)

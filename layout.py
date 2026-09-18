@@ -494,9 +494,7 @@ def build_delete_confirm_modal():
         dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone."),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-node-delete-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill",
-                       style={"backgroundColor": ConfigManager.get_danger_color(),
-                              "borderColor": ConfigManager.get_danger_color()}),
+            dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill"),
         ], className="d-flex"),
     ], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
 
@@ -513,7 +511,7 @@ def build_undo_done_confirm_modal():
             dbc.Button("Cancel", id="btn-undo-done-cancel", color="secondary", className="flex-fill me-2"),
             dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
         ], className="d-flex"),
-    ], id="modal-undo-done-confirm", size="md", is_open=False, centered=True)
+    ], id="modal-undo-done-confirm", size="sm", is_open=False, centered=True)
 
 
 # Confirms detaching a dormant node from its event(s) and waking it back into
@@ -528,7 +526,7 @@ def build_dormant_deactivate_confirm_modal():
             dbc.Button("Cancel", id="btn-dormant-deactivate-cancel", color="secondary", className="flex-fill me-2"),
             dbc.Button("Wake", id="btn-dormant-deactivate-confirm", color="primary", className="flex-fill"),
         ], className="d-flex"),
-    ], id="modal-dormant-deactivate-confirm", size="md", is_open=False, centered=True)
+    ], id="modal-dormant-deactivate-confirm", size="sm", is_open=False, centered=True)
 
 
 # Suggestion modal that fires when the last hard prerequisite of a Goal or
@@ -652,9 +650,7 @@ def build_group_delete_confirm_modal():
         dbc.ModalBody(id="group-delete-confirm-body"),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-group-delete-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Delete", id="btn-group-delete-confirm", color="danger", className="flex-fill",
-                       style={"backgroundColor": ConfigManager.get_danger_color(),
-                              "borderColor": ConfigManager.get_danger_color()}),
+            dbc.Button("Delete", id="btn-group-delete-confirm", color="danger", className="flex-fill"),
         ], className="d-flex"),
     ], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)
 
@@ -859,7 +855,8 @@ def build_ratings_editor_modal():
             dbc.Button("Cancel", id="btn-ratings-editor-cancel", color="secondary", className="me-auto"),
             dbc.Button("Save", id="btn-ratings-editor-save", color="primary"),
         ]),
-    ], id="modal-ratings-editor", size="xl", is_open=False, scrollable=True)
+    ], id="modal-ratings-editor", size="xl", is_open=False, centered=True,
+       scrollable=True)
 
 
 # Retrospective sibling of `ratings_popup`, opened only from the Reflection
@@ -930,7 +927,8 @@ def build_reflection_ratings_editor_modal():
             dbc.Button("Cancel", id="btn-reflection-ratings-editor-cancel", color="secondary", className="me-auto"),
             dbc.Button("Save", id="btn-reflection-ratings-editor-save", color="primary"),
         ]),
-    ], id="modal-reflection-ratings-editor", size="xl", is_open=False, scrollable=True)
+    ], id="modal-reflection-ratings-editor", size="xl", is_open=False,
+       centered=True, scrollable=True)
 
 
 # --- Floating menus ---
