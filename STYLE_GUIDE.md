@@ -336,6 +336,11 @@ card would repeat, such as a status the type already implies. Never normalize a
 score against the visible list, since the number would then describe the list
 rather than the node.
 
+Keep these rows at their standard card size even when the panel is short. The
+scrolling `.details-empty-state` uses a subtle lower-edge fade to communicate
+that more results continue below the viewport, and the suggestions container
+keeps enough bottom padding for the final card to finish above that fade.
+
 ## Inputs
 
 - Standard: `dbc.Input(type="text")` — uses Bootstrap DARKLY defaults

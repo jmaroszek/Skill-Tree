@@ -814,14 +814,24 @@ def register_details_callbacks(app, services=None):
     @app.callback(
         Output("details-edit-trigger-input", "value", allow_duplicate=True),
         Input("btn-details-edit", "n_clicks"),
+        Input({"type": "details-subtask-edit", "index": ALL}, "n_clicks"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
-    def details_edit_node(n_clicks, selected_node):
-        if not n_clicks or not selected_node:
+    def details_edit_node(n_clicks, subtask_clicks, selected_node):
+        triggered = ctx.triggered_id
+        if isinstance(triggered, dict):
+            if not any(subtask_clicks or []):
+                return no_update
+            node_name = triggered.get("index")
+        else:
+            if not n_clicks:
+                return no_update
+            node_name = selected_node
+        if not node_name:
             return no_update
         import time
-        return f"{selected_node}|{int(time.time())}"
+        return f"{node_name}|{time.time_ns()}"
 
 
     # --- Context Menu "View Details" → Navigate to Details tab with node selected ---
@@ -1557,80 +1567,6 @@ def register_details_callbacks(app, services=None):
                 return no_update, no_update, str(e)
 
             return False, f"add-{name}", ""
-
-    # --- Subtask Remove: Open Modal ---
-    @app.callback(
-        Output("modal-details-subtask-remove", "is_open", allow_duplicate=True),
-        Output("details-subtask-remove-pending", "data"),
-        Output("details-subtask-remove-modal-body", "children"),
-        Input({"type": "details-subtask-remove", "index": ALL}, "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def open_subtask_remove_modal(n_clicks_list):
-        if not any(n_clicks_list):
-            return no_update, no_update, no_update
-        triggered = ctx.triggered_id
-        if not triggered:
-            return no_update, no_update, no_update
-        node_name = triggered["index"]
-        body = html.Div([
-            html.P([
-                'What would you like to do with node ',
-                html.Strong(node_name), '?',
-            ]),
-            html.Ul([
-                html.Li([html.Strong("Remove Edge"),
-                         " — removes it from this node's dependency list."]),
-                html.Li([html.Strong("Delete Node"),
-                         " — permanently deletes the node."]),
-            ]),
-        ])
-        return True, node_name, body
-
-    # --- Subtask Remove: Cancel ---
-    @app.callback(
-        Output("modal-details-subtask-remove", "is_open", allow_duplicate=True),
-        Input("btn-details-subtask-remove-cancel", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def cancel_subtask_remove(n_clicks):
-        if n_clicks:
-            return False
-        return no_update
-
-    # --- Subtask Remove: Remove Edge ---
-    @app.callback(
-        Output("modal-details-subtask-remove", "is_open", allow_duplicate=True),
-        Output("details-refresh-trigger", "data", allow_duplicate=True),
-        Input("btn-details-subtask-remove-edge", "n_clicks"),
-        State("details-subtask-remove-pending", "data"),
-        State("details-selected-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    def confirm_remove_edge(n_clicks, node_name, selected_node):
-        if not n_clicks or not node_name or not selected_node:
-            return no_update, no_update
-        edges = graph_manager.get_edges()
-        for e in edges:
-            if (e['source'] == node_name and e['target'] == selected_node and
-                    e['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)):
-                graph_manager.remove_edge(node_name, selected_node, e['type'])
-        return False, f"remove-edge-{node_name}"
-
-    # --- Subtask Remove: Delete Node ---
-    @app.callback(
-        Output("modal-details-subtask-remove", "is_open", allow_duplicate=True),
-        Output("details-refresh-trigger", "data", allow_duplicate=True),
-        Input("btn-details-subtask-delete-node", "n_clicks"),
-        State("details-subtask-remove-pending", "data"),
-        State("details-selected-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    def confirm_delete_node(n_clicks, node_name, selected_node):
-        if not n_clicks or not node_name:
-            return no_update, no_update
-        graph_manager.delete_node(node_name)
-        return False, f"delete-{node_name}"
 
     # --- Details Graph Layout: Toggle Panel ---
     @app.callback(
