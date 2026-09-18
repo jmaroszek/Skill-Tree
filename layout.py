@@ -1340,10 +1340,6 @@ def build_app_layout(initial_elements, env="production"):
         # candidates (parent container becoming ready after the child Goal
         # is marked Done) are queued naturally.
         dcc.Store(id='auto-done-candidates-store', data=[]),
-        # Sink for the filter-persistence callback. Filters get written to
-        # ConfigManager whenever any sidebar control changes; this Store
-        # exists only to give that callback a valid Output target.
-        dcc.Store(id='filter-persist-sink', data=None),
         # Sink for the clientside callback that hands each element payload to
         # the Nodes-tab first-paint cover. Same story: the callback only needs
         # somewhere valid to write.

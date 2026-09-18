@@ -535,14 +535,20 @@ def select_explore_goals(ranked_goals, nodes, edges, count=5,
 def is_filters_active(*, node_type=None, context=None, subcontext=None,
                       community=None, community_method=None,
                       value=None, interest=None, difficulty=None,
-                      time=None, done=None):
-    """Returns True if any sidebar filter has a non-default value.
+                      time=None):
+    """Returns True if any sidebar filter is hiding nodes from the user.
 
     Defaults match the "Clear Filters" reset state in
     callbacks.clear_filters. Pass None for filters that don't affect the
     calling canvas (e.g. the Details canvas ignores Community)
     so the indicator only fires on filters that actually narrow what
     the user sees.
+
+    Show Done and Show Dormant are deliberately absent. Both default to off
+    and can only be switched *on*, which reveals nodes rather than hiding
+    them — a canvas showing more than the baseline needs no warning, and the
+    extra nodes are visible on their face anyway. The indicator exists for the
+    narrowing you cannot see.
     """
     if node_type:
         return True
@@ -561,11 +567,6 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
     if difficulty is not None and difficulty < 10:
         return True
     if time:
-        return True
-    # New default for done is empty list ("Show Done" off → done hidden).
-    # Anything non-default — including legacy "hide_done" left over from
-    # before the relabel — is treated as user-touched.
-    if done is not None and list(done) != []:
         return True
     return False
 

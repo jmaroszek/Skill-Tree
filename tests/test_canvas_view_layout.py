@@ -50,12 +50,51 @@ def test_filters_keep_general_order_and_have_no_canvas_view():
     assert "Settle" not in _text(content)
 
 
-def test_obsolete_canvas_view_settings_are_not_filter_defaults():
-    defaults = ConfigManager._FILTER_DEFAULTS
+def test_filters_open_on_the_whole_graph_every_session():
+    """Filters are session state: no Memory switch, no restored values.
 
-    assert "local_view" not in defaults
-    assert "max_depth" not in defaults
-    assert "cross_links" not in defaults
+    A narrowing that outlives a restart silently scopes every ranking the app
+    produces, and the user has no way to tell. Opening on the full graph makes
+    any narrowing a deliberate act taken in view of its effect.
+    """
+    content = build_filters_content()
+    ids = _ids(content)
+
+    assert "filter-remember" not in ids
+    assert "Memory" not in _text(content)
+
+    assert _by_id(content, "filter-node-type").value == []
+    assert _by_id(content, "filter-value").value == 1
+    assert _by_id(content, "filter-interest").value == 1
+    assert _by_id(content, "filter-difficulty").value == 10
+    assert _by_id(content, "filter-time").value is None
+    assert _by_id(content, "filter-time-unit").value == "hours"
+    assert _by_id(content, "filter-done").value == []
+    assert _by_id(content, "filter-dormant").value == []
+    assert _by_id(content, "community-method").value == "louvain"
+    assert _by_id(content, "filter-community").value == "All"
+    assert _by_id(content, "filter-context").value == []
+    assert _by_id(content, "filter-subcontext").value == []
+
+
+def test_filter_defaults_match_the_clear_filters_reset():
+    """The sidebar's opening values and "Clear Filters" must not drift apart.
+
+    clear_filters returns a bare tuple positioned against its Output list, so
+    nothing but this test ties the two together.
+    """
+    content = build_filters_content()
+    # Output order in callbacks.clear_filters, minus filter-subcontext (reset
+    # clientside) — see the note above that callback.
+    reset = dict(zip(
+        ["filter-node-type", "filter-context", "community-method",
+         "filter-community", "filter-value", "filter-interest",
+         "filter-difficulty", "filter-time", "filter-time-unit",
+         "filter-done", "filter-dormant"],
+        ([], [], 'louvain', 'All', 1, 1, 10, None, 'hours', [], []),
+    ))
+    for component_id, cleared in reset.items():
+        assert _by_id(content, component_id).value == cleared, component_id
 
 
 def test_details_controls_replace_transitive_with_cross_links():

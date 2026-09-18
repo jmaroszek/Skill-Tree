@@ -7,7 +7,6 @@ import subprocess
 import dash
 import pytest
 
-from config import ConfigManager
 from next_callbacks import register_next_callbacks, _initial_next_view, _components_by_id
 from test_atomic_saves import graph
 
@@ -28,7 +27,7 @@ def test_selection_has_no_server_subscribers():
     assert any(item['id'] == 'selected-suggestion-store' for item in core['state'])
 
 
-def test_initial_next_is_populated_and_respects_remembered_filters():
+def test_initial_next_is_populated_and_reads_the_sidebar_controls():
     from layout import build_next_view
     from sidebars_layout import build_all_sidebars
     # Built once and reused: the assertion below checks that hydration does not
@@ -38,9 +37,11 @@ def test_initial_next_is_populated_and_respects_remembered_filters():
     node = manager.get_node('Filtered')
     node.value = 1
     manager.update_node(node)
-    ConfigManager.set_remember_filters(True)
-    ConfigManager.set_filters({'value': 4})
-    view = _initial_next_view(next_view, build_all_sidebars())
+    # First paint reads the live sidebar components, not stored filter state —
+    # the sidebar always opens unfiltered, so set the control directly.
+    sidebars = build_all_sidebars()
+    _components_by_id(sidebars)['filter-value'].value = 4
+    view = _initial_next_view(next_view, sidebars)
     table = _components_by_id(view)['suggestions-table']
     from plotly.utils import PlotlyJSONEncoder
     payload = json.dumps(table, cls=PlotlyJSONEncoder)

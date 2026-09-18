@@ -965,7 +965,7 @@ def register_details_callbacks(app, services=None):
         filters_active = is_filters_active(
             node_type=f_node_types, context=f_context,
             subcontext=f_subcontext, value=f_value, interest=f_interest,
-            difficulty=f_difficulty, time=f_time, done=f_done,
+            difficulty=f_difficulty, time=f_time,
         )
         return build_details_suggestions(
             goal_rows, explore_rows, filters_active=filters_active)
@@ -1671,7 +1671,8 @@ def register_details_callbacks(app, services=None):
     # The Details canvas honors the global Context/Subcontext/Type/Done/
     # ratings/time filters but ignores Goal and Community (those only narrow
     # the main canvas), so the indicator only checks the filters that
-    # actually affect the subtree being rendered here.
+    # actually affect the subtree being rendered here. Show Done is not among
+    # them — see is_filters_active on why a reveal is not a filter.
     @app.callback(
         Output('details-canvas-node-count', 'children'),
         Input('details-mini-graph', 'elements'),
@@ -1682,17 +1683,16 @@ def register_details_callbacks(app, services=None):
         Input('filter-interest', 'value'),
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
-        Input('filter-done', 'value'),
         Input('details-max-depth', 'value'),
     )
     def update_details_node_count(elements, f_type, f_ctx, f_sub, f_val,
-                                  f_int, f_diff, f_time, f_done, max_depth_val):
+                                  f_int, f_diff, f_time, max_depth_val):
         n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
         text = f"{n} node{'s' if n != 1 else ''}"
         if _normalize_max_depth(max_depth_val) is not None or is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
                 value=f_val, interest=f_int, difficulty=f_diff,
-                time=f_time, done=f_done):
+                time=f_time):
             return f"{text} · filtered"
         return text
 
