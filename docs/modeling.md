@@ -29,9 +29,9 @@ Both Goals and Learns can act as containers. But they serve different purposes a
 
 **Scope.** A Goal is a broad capacity you want to develop. Strength, Eastern Philosophy, Software Engineering. A Learn is a specific topic within a domain. Functional Mobility, Buddhism, Agentic Coding.
 
-**Cost.** A Learn has a cost of its own: the direct time and effort the task takes. A Goal does not. A Goal's cost comes entirely from its children, and only the remaining time of unfinished subtasks counts. The Goal's own effort is omitted because that effort is already counted per node when subtasks are ranked on the Next tab.
+**Cost.** A Learn has a cost of its own: the direct time and effort the task takes. A Goal does not. A Goal's cost comes entirely from its children, and only the remaining time of unfinished subtasks counts. The Goal's own effort is omitted because that effort is already counted per node when subtasks are ranked on the Home tab.
 
-**Ranking.** Learn nodes compete with Action and Resource nodes for spots on the Next tab. Goals never appear there. Only their subtasks do. Goals are ranked separately, in the goals sidebar, by a different algorithm. To push a Goal's subtasks higher on the Next tab, give the Goal a priority boost.
+**Ranking.** Learn nodes compete with Action and Resource nodes for spots on the Home tab. Goals never appear there. Only their subtasks do. Goals are ranked separately, in the goals sidebar, by a different algorithm. To push a Goal's subtasks higher on the Home tab, give the Goal a priority boost.
 
 ### Goal vs. Milestone
 The difference between a Goal and a Milestone is objectivity. A Goal is subjective. You decide whether you met it. You can mark it done whenever you like — whether you finished everything you planned or simply judge that what you've done is good enough.
@@ -86,7 +86,7 @@ Here are a few principles that can help you find the sweet spot, and build a cle
 When you have a group of related topics or materials you want to track individually, don't chain them together with endless Soft or Hard links. That creates clutter and dilutes priority scores. Use a **container** instead: a single parent that groups them. A container inherits its ratings and time estimate from its children.
 
 # Relationships
-If nodes are the stages of your journey, relationships (edges) are the pathways between them. They determine how value propagates, how status changes, and what the Next tab recommends. Edges come in two categories: **directed prerequisites** (Hard and Soft Needs) and **bidirectional synergies** (Helps).
+If nodes are the stages of your journey, relationships (edges) are the pathways between them. They determine how value propagates, how status changes, and what the Home tab recommends. Edges come in two categories: **directed prerequisites** (Hard and Soft Needs) and **bidirectional synergies** (Helps).
 
 ## Edge Types
 Skill Tree uses three distinct edge types to model your plan:

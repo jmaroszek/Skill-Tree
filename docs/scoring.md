@@ -177,7 +177,7 @@ Putting it all together:
 
 $$ P(n) = \frac{P_{\text{base}}(n) \cdot \rho(n) \cdot w_c(\text{ctx}(n))}{\text{divisor}(n)} $$
 
-A node's final priority is its ROI ratio scaled by the goal-priority boost and context weight, then discounted for repetition. Variety is part of the score rather than a re-ordering applied to a finished list. The Next tab prints the number it sorts on, so anything that moves a row has to move its number too.
+A node's final priority is its ROI ratio scaled by the goal-priority boost and context weight, then discounted for repetition. Variety is part of the score rather than a re-ordering applied to a finished list. The Home tab prints the number it sorts on, so anything that moves a row has to move its number too.
 
 The underlying merit ranking uses the unrounded score, while the figure stored and displayed is rounded to two decimals. Rounding is lossy enough to matter: on a ~450-node graph it collapses about 440 distinct scores into roughly 170, so past about rank 30 most nodes would otherwise tie with a neighbour and fall back on list order, which carries no meaning. Ordering on the exact value keeps the displayed number readable without making the sequence arbitrary.
 
@@ -185,7 +185,7 @@ For display, scores are linearly rescaled against the top node of the pool.
 
 $$ P_{\text{display}}(n) = 100 \cdot \frac{P(n)}{\max_{m \in \text{pool}} P(m)} $$
 
-Every surface that prints a 0–100 priority divides by that same base: the Next tab, the subtask tables, and Explain. A node therefore reads the same wherever it appears. Under a filter the top row can sit below 100, because the node anchoring the scale may not be on screen. Bar *length* stays relative to the longest row shown, so the column still fills its width.
+Every surface that prints a 0–100 priority divides by that same base: the Home tab, the subtask tables, and Explain. A node therefore reads the same wherever it appears. Under a filter the top row can sit below 100, because the node anchoring the scale may not be on screen. Bar *length* stays relative to the longest row shown, so the column still fills its width.
 
 The Next column descends, since the number and the sort key are now the same quantity. Pinned rows are the exception: a pin leads the list whatever it scores, and keeps its true number rather than a rescaled one.
 
@@ -329,7 +329,7 @@ So the app treats every Milestone as transparent: its own value and time are set
 
 # Containers Are Not Recommended
 
-A node with `time_mode = inherited` draws its time estimate from its hard prerequisites rather than holding hours of its own. Such a node is never recommended on the Next tab.
+A node with `time_mode = inherited` draws its time estimate from its hard prerequisites rather than holding hours of its own. Such a node is never recommended on the Home tab.
 
 The reason is that two rules point at the same set of nodes. Time inheritance draws from a node's hard prerequisites. Eligibility requires every hard prerequisite to be Done. So at the exact moment such a node becomes rankable, every hour it inherited has already been spent. There is nothing left to work on, only a box to tick.
 
@@ -347,7 +347,7 @@ Both scoring algorithms above consult three independent state fields on each nod
 |---|---|---|---|
 | Status | Open, Blocked, Done | The user's Done-flips, plus the graph's structure | Decides which nodes are eligible to be scored, and what counts as remaining work in the Goal ranking. |
 | Dormant | 0 or 1 | User-set, or cleared when an Event triggers | A Dormant node is left out of scoring until its Event fires. |
-| Now | 0, or a rank | User-set | Positive values double as the card order in the Now section. Still scored, so its breakdown shows in Explain. But it doesn't compete for the top $n$ slots in the Next tab. |
+| Now | 0, or a rank | User-set | Positive values double as the card order in the Now section. Still scored, so its breakdown shows in Explain. But it doesn't compete for the top $n$ slots in the Home tab. |
 
 Status is the most algorithmically substantive of the three. The rest of this section concentrates on it: its formal definition, the cascade that maintains it, and the invariants that cascade depends on. Dormant and Now sit outside that machinery, and are covered at the end.
 
@@ -385,7 +385,7 @@ The status function covers the three lifecycle values: Open, Blocked, and Done. 
 
 **Dormant** nodes are excluded from every read path in the scoring pipeline. When an Event triggers a Dormant node, the flag clears. The status cascade then runs to settle whether the newly-live node is Open or Blocked.
 
-**Now** nodes still cascade and still receive a final score, which the Explain modal uses. But the Next tab keeps them out of the Suggestions ranking, surfacing them in a separate Now panel instead.
+**Now** nodes still cascade and still receive a final score, which the Explain modal uses. But the Home tab keeps them out of the Suggestions ranking, surfacing them in a separate Now panel instead.
 
 A Now node that can't be recommended at all — one carrying a negative score, so Blocked, a Goal, a Milestone, or otherwise ineligible — pins **unblocking steps** above the ranking instead. These are the highest-scoring nodes in its transitive `Needs_Hard` prerequisite subtree that are themselves startable. The steps are a selection over scores already computed, not a scoring rule: no divisor changes, no number moves. They bypass the user's filters, they are never repeated in the ranking below, and they are added above the requested row count rather than taken out of it.
 

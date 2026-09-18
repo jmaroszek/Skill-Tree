@@ -144,7 +144,7 @@ ever changes the fill, so status and type stay readable underneath.
 ### Heading Hierarchy
 | Level | Element | Style | Usage |
 |-------|---------|-------|-------|
-| Page title | `html.H4` | `className="mb-3 mt-3"` | Top of each tab ("Settings", "Next") |
+| Page title | `html.H4` | `className="mb-3 mt-3"` | Top of each tab ("Settings", "Home") |
 | Section title | `html.H5` | `className="mt-2 mb-1"` | All section headers everywhere: node editor, settings, modals |
 | Inline heading | `html.H6` | `style={"fontWeight": "500"}` | Minor headings in cards |
 

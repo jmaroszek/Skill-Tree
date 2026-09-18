@@ -1396,7 +1396,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     if graph_manager:
         scored = graph_manager.calculate_priority_scores(subtask_nodes)
         # Normalized against the whole graph, not against these few rows: a
-        # child's priority has to read the same here as on the Next tab and
+        # child's priority has to read the same here as on the Home tab and
         # in the Explain modal. A local maximum would print 100 next to the
         # best of a weak set.
         max_score = graph_manager.get_priority_normalizer()

@@ -56,7 +56,7 @@ There are five types of nodes in Skill Tree. Each answers a different question t
 Each type also behaves differently under the hood, so picking the right one matters more than it sounds. The [modeling guide](modeling.md) has the full decision tree for choosing between them. For now, just know that you set the type here, in the node editor.
 
 ### Description
-The description area is a space for notes to your future self. Use it to describe a project's scope, motivation, and anything else worth remembering. Whatever you write will surface in many places throughout the app, such as in the recommendations on the [Next Tab](#next-tab), and in the information panel on the [Details Tab](#details-tab).
+The description area is a space for notes to your future self. Use it to describe a project's scope, motivation, and anything else worth remembering. Whatever you write will surface in many places throughout the app, such as in the recommendations on the [Home Tab](#home-tab), and in the information panel on the [Details Tab](#details-tab).
 
 ### Context
 
@@ -212,14 +212,14 @@ For the path-based links, the file icon beside the field opens a file explorer, 
 
 Also, you aren't limited to one of each type — click the **+** beside a link's title to add as many as you want. Once a link is set, its field gains an open button, so you can jump straight to the resource from the editor. The same links are also reachable from a node's [context menu](#context-menu).
 
-# Next Tab
+# Home Tab
 
 This is the tab the app opens on. If you only look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones. 
 
 <p align="center">
     <img src="../images/next-tab-overview.png" >
     <br>
-    <em> The Next Tab </em>
+    <em> The Home Tab </em>
 </p>
 
 ## The Now Section
@@ -238,7 +238,7 @@ So when a Now node can't be started yet, the app looks through everything standi
 
 A pinned row also skips the part of its own context you already know. Prerequisites usually sit right beside the thing they unblock, so naming the target has normally told you the context too. What is left is only the part that differs — which means a step drawn from somewhere else in your life announces itself instead of blending in.
 
-Say you put *Publishing* in Now. It is blocked behind two dozen prerequisites. Rather than showing you nothing, the Next tab pins the three highest-scoring ones you could actually start today. Finish one and the list refreshes with whatever is best next. The rest of the ranking is untouched underneath — the pinned rows are added above it, not swapped in for it.
+Say you put *Publishing* in Now. It is blocked behind two dozen prerequisites. Rather than showing you nothing, the Home tab pins the three highest-scoring ones you could actually start today. Finish one and the list refreshes with whatever is best next. The rest of the ranking is untouched underneath — the pinned rows are added above it, not swapped in for it.
 
 The app shows up to three steps toward each blocked Now node.
 
@@ -427,7 +427,7 @@ The Nodes tab works fine for small networks — say 250 nodes or fewer. Past tha
 
 # Filters Sidebar
 
-Click the filter icon in the top-right corner to open the filters sidebar. Filters apply to every tab except the [Analyze Tab](#analyze-tab) (which always evaluates the network as a whole). They are especially powerful on the screens we just covered: on the Nodes Tab, filtering reduces visual clutter, so the physics engine can group related ideas more effectively. On the [Next Tab](#next-tab), it restricts recommendations to one or more contexts -- giving you added control over the priority ranking algorithm.
+Click the filter icon in the top-right corner to open the filters sidebar. Filters apply to every tab except the [Analyze Tab](#analyze-tab) (which always evaluates the network as a whole). They are especially powerful on the screens we just covered: on the Nodes Tab, filtering reduces visual clutter, so the physics engine can group related ideas more effectively. On the [Home Tab](#home-tab), it restricts recommendations to one or more contexts -- giving you added control over the priority ranking algorithm.
 
 ## Filter Controls
 
@@ -481,14 +481,14 @@ Here is an example. The algorithm identified a cluster named "STEM > Physics," a
 </p>
 
 ## Filter Reminders
-When filters are active, the app reminds you by adding a small  message to the lower left corner. You can see this message in the last two screenshots. Without these reminders, you could leave the filter Memory feature on, hammer out a context in the [Next Tab](#next-tab) for weeks, and never notice. It happened to someone I know.
+When filters are active, the app reminds you by adding a small  message to the lower left corner. You can see this message in the last two screenshots. Without these reminders, you could leave the filter Memory feature on, hammer out a context in the [Home Tab](#home-tab) for weeks, and never notice. It happened to someone I know.
 
 Me. 
 
 It was me.
 
 # Details Tab
-The Next Tab tells you *what* project to work on. The Details Tab helps you *understand* it.
+The Home Tab tells you *what* project to work on. The Details Tab helps you *understand* it.
 
 ## Populating the Tab
 The Details tab is empty by default — since it doesn't know what you want the details for. There are three ways to load a project:
@@ -501,7 +501,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 | Path | How it works |
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
-| Suggestions | When nothing is selected, the left panel shows two kinds of starting point: up to three unfinished **Priority Goals**, followed by **Explore** Goals. Explore follows the Goals sidebar's Priority sort and shows the same priority number. It honors the active filters, and it skips Goals with no unfinished hard subtasks. It also skips a Goal nested inside one already listed, while an unrelated Goal is still available. Each card looks like a Now card on the Next tab. A colored bar shows the node's type, and the line under the name shows its context. The corner shows a Priority Goal's rank, or another Goal's priority number. |
+| Suggestions | When nothing is selected, the left panel shows two kinds of starting point: up to three unfinished **Priority Goals**, followed by **Explore** Goals. Explore follows the Goals sidebar's Priority sort and shows the same priority number. It honors the active filters, and it skips Goals with no unfinished hard subtasks. It also skips a Goal nested inside one already listed, while an unrelated Goal is still available. Each card looks like a Now card on the Home tab. A colored bar shows the node's type, and the line under the name shows its context. The corner shows a Priority Goal's rank, or another Goal's priority number. |
 | Context Menu | Right-click a node and pick **View Details** in the context menu. The app jumps here with the project loaded.|
 
 </td>
@@ -555,7 +555,7 @@ Hit **Clear Focus** at the top of the canvas to exit.
 ## Subtasks Panel
 The Subtasks table in the lower-left lists every node related to the selected one. 
 
-Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Next tab. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
+Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Home tab. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
 
 <p align="center">
   <img src="../images/details-stoicism.png">
@@ -610,7 +610,7 @@ In the two screenshots of the Details Tab so far, the simulated distributions lo
 
 
 # Goals Sidebar
-Most node types — Learn, Action, and Resource — are ranked by the standard scoring algorithm, and bubble up on the Next tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to influence the priority of other nodes. The mechanics of this are discussed in the next document of the tutorial.
+Most node types — Learn, Action, and Resource — are ranked by the standard scoring algorithm, and bubble up on the Home tab. Goals are different. Because a Goal sits at the top of a subtree rather than being discrete work, the algorithm doesn't recommend Goals directly. Instead, *you* rank them, and the app uses your ranking to influence the priority of other nodes. The mechanics of this are discussed in the next document of the tutorial.
 
 For now, we can just focus on using the Goals Sidebar. Open it with the star icon in the top-left corner. 
 
@@ -831,7 +831,7 @@ Where Hours-by-Context shows your *intent* (active time you plan to spend per co
 
 The Graph Structure section answers two structural questions about your network.
 
-**Bottleneck** ranks nodes by the number of nodes they unlock (through hard edges). The chart distinguishes direct unlocks from the downstream cascade. The colors of the bars show the status, allowing you to separate "high leverage and available" (not red) from "high leverage but waiting on something else" (red). A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole new chains become eligible, and the Next Tab has more candidates to choose from.
+**Bottleneck** ranks nodes by the number of nodes they unlock (through hard edges). The chart distinguishes direct unlocks from the downstream cascade. The colors of the bars show the status, allowing you to separate "high leverage and available" (not red) from "high leverage but waiting on something else" (red). A large bottleneck may not be the highest-ROI item by itself, but clearing it changes the frontier: whole new chains become eligible, and the Home Tab has more candidates to choose from.
 
 **Hub Nodes** ranks nodes by how integrated they are — concepts with prerequisites feeding in *and* dependents flowing out. The score is calculated as the geometric mean of incoming and outgoing prerequisite edge counts (over Hard and Soft needs), plus a half-point bonus for each synergy partner (Helps edges). Because the prerequisite component drops to zero for pure roots (no prerequisites) and pure leaves (no dependents), this chart surfaces the connective concepts that tie the rest of your graph together. 
 
@@ -852,7 +852,7 @@ The Settings modal collects the personal choices and machine-specific informatio
 |---|---|
 | **Appearance** | Customize node shapes and colors by type, set status colors, and choose how node names and aliases are capitalized. |
 | **Contexts** | Define contexts and subcontexts, keep their defined dropdown order or sort them alphabetically, and decide which areas should have more influence over what appears next. |
-| **Scoring** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and optionally show the startup graph summary on the Next tab. |
+| **Scoring** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and optionally show the startup graph summary on the Home tab. |
 | **Time** | Set your weekly, monthly, and yearly productive hour budgets, plus the time estimates and unit pre-filled for new nodes. |
 | **Paths** | Specify local file system paths for Obsidian vault and Google Drive integrations, allowing the app to resolve your external links correctly. |
 | **Misc** | Set the maximum number of Now nodes and choose whether completing a node opens a reflection prompt. |

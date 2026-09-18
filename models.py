@@ -153,7 +153,7 @@ class Node:
     calibration_dismissed: int = 0
     # Now flag: 1 when the user is currently working on this node.
     # Orthogonal to status — an Open or Blocked node can be Now. The flag
-    # also drives the "Now" section on the Next tab and the amber border
+    # also drives the "Now" section on the Home tab and the amber border
     # encoding on every canvas. start_date/done_date are lossy latest-state
     # snapshots maintained by GraphManager.update_node; the append-only
     # NodeLifecycleEvents table preserves every future Now/Done boundary.
@@ -279,7 +279,7 @@ class Node:
         becomes rankable, every hour it inherited has already been spent —
         there is nothing left to work on, only a box to tick.
 
-        The Next tab answers "what should I work on next", so these are not
+        The Home tab answers "what should I work on next", so these are not
         recommended; their prerequisites competed on their own hours, and the
         Details tab suggests Goals separately. Cascade still flows through
         them, exactly as it does for `is_pure_container`.

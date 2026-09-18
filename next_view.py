@@ -58,7 +58,7 @@ def get_suggestions(filters=None, count=5, *, manager=manager):
     Hierarchical variety is already baked into `priority_score` by the
     scoring module (see scoring.variety_divisors), so the lower section is a
     slice of an ordered list rather than a second selection pass. That is what
-    lets the Next tab print the number it sorts on.
+    lets the Home tab print the number it sorts on.
 
     A Now node you cannot start yet — Blocked, or a Goal, or anything else
     scoring below zero — pins its best actionable prerequisites above that

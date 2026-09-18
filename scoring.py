@@ -364,7 +364,7 @@ def variety_divisors(pool: List[Tuple[str, Optional[str], Optional[str], float]]
     """Hierarchical-variety divisors for an entire pool of scorable nodes.
 
     Variety is part of a node's score rather than a re-ordering applied to a
-    finished list: the Next tab prints the number it sorts on, so anything
+    finished list: the Home tab prints the number it sorts on, so anything
     that moves a row has to move its number too. Computing the divisors over
     the whole pool — every scorable non-Now node in the graph — is what makes
     the number a property of the node instead of a property of one list. A

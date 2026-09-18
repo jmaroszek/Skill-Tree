@@ -1,5 +1,5 @@
 /**
- * Drag-and-drop reordering for Now cards in the Next tab.
+ * Drag-and-drop reordering for Now cards in the Home tab.
  *
  * Follows the same pattern as event_sortable.js.  Watches a stable
  * ancestor for mutations (Dash re-renders), then (re-)initialises a
@@ -102,7 +102,7 @@ function _initNowSortable() {
 
 /* ---------- MutationObserver on a stable ancestor ---------- */
 // Observing #now-cards-container directly is fragile: when Dash
-// re-renders the entire Next tab, React replaces the container element
+// re-renders the entire Home tab, React replaces the container element
 // itself — the observer ends up watching a detached node and never
 // fires again.  Instead, observe the Dash app root (which is never
 // replaced) with subtree, and debounce heavily.

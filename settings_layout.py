@@ -280,7 +280,7 @@ def _build_scoring_tab():
             # Startup analysis: timing + log on the first scoring run only
             html.H5("Startup Analysis", className="mt-2 mb-1"),
             html.Small(
-                "Shows node, edge, and scoring-time totals on the Next tab.",
+                "Shows node, edge, and scoring-time totals on the Home tab.",
                 className="text-muted d-block mb-2",
             ),
             dbc.Checklist(

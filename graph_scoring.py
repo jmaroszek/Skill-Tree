@@ -60,7 +60,7 @@ def get_priority_normalizer(manager) -> float:
     """The priority score that displays as 100 everywhere in the app.
 
     Every surface that prints a 0–100 priority divides by this one
-    number, so the same node reads the same on the Next tab, in a
+    number, so the same node reads the same on the Home tab, in a
     subtask table and in the Explain modal. Normalizing against
     whichever nodes happen to be on screen would make the figure a
     property of the current list instead of the node.
@@ -72,7 +72,7 @@ def get_priority_normalizer(manager) -> float:
     tab below it. Returns 0.0 when nothing is scorable.
 
     Cached against the scoring version and every hyperparameter that
-    can move a score: the Next tab and the subtask tables each want
+    can move a score: the Home tab and the subtask tables each want
     this number alongside a ranking they already paid for, and a
     second full scoring pass per render is worth avoiding.
     """

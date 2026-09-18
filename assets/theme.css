@@ -605,7 +605,7 @@
     filter: brightness(1.25);
 }
 
-/* --- Next tab — suggestion bar rows --- */
+/* --- Home tab — suggestion bar rows --- */
 
 .suggestion-bar-row {
     cursor: pointer;
@@ -615,7 +615,7 @@
     background-color: rgba(255, 255, 255, 0.025);
 }
 
-/* --- Next tab — Now section cards --- */
+/* --- Home tab — Now section cards --- */
 
 .now-card:hover {
     background-color: #2b3035 !important;

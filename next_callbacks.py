@@ -1,5 +1,5 @@
 """
-Callback definitions for the Next tab (priority suggestions).
+Callback definitions for the Home tab (priority suggestions).
 """
 
 from next_view import (

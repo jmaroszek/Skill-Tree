@@ -1,4 +1,4 @@
-"""Unblocking steps: the work the Next tab pins toward a Now node you can't start.
+"""Unblocking steps: the work the Home tab pins toward a Now node you can't start.
 
 Replaces the manual-priority-override suite. The override anchored on one node
 and pinned a computed set above the ranking; the only part of that worth

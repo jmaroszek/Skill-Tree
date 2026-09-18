@@ -394,7 +394,7 @@ def test_priority_normalizer_invalidated_when_a_node_is_flipped_to_now():
     Regression: `now` was missing from _SCORING_RELEVANT_FIELDS, so update_node
     bumped _graph_version but not _scoring_version. get_priority_normalizer
     excludes Now nodes yet keys its cache on _scoring_version, so the base stayed
-    pinned to the node that had just been hidden and every bar on the Next tab
+    pinned to the node that had just been hidden and every bar on the Home tab
     read against a stale scale. The test above misses this because it introduces
     its Now node with add_node, which always bumps scoring.
     """

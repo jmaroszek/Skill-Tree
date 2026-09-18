@@ -1099,7 +1099,7 @@ def build_app_layout(initial_elements, env="production"):
             id="main-tabs",
             active_tab="tab-next",
             children=[
-                dbc.Tab(label="Next", tab_id="tab-next"),
+                dbc.Tab(label="Home", tab_id="tab-next"),
                 dbc.Tab(label="Nodes", tab_id="tab-canvas"),
                 dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
@@ -1178,7 +1178,7 @@ def build_app_layout(initial_elements, env="production"):
                "position": "absolute", "top": "0", "left": "0"}
     )
 
-    # --- Next Tab Content (hidden by default) ---
+    # --- Home Tab Content (hidden by default) ---
     # The scrollable content lives in its own flex child (minHeight: 0 lets it
     # shrink and own the scrollbar) so next-tab-content itself never scrolls.
     # That keeps its box the fixed size of the viewport, which is what the

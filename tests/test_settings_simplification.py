@@ -135,14 +135,14 @@ def test_startup_analysis_uses_concise_user_facing_description():
     description_index = next(
         index for index, component in enumerate(components)
         if getattr(component, "children", None)
-        == "Shows node, edge, and scoring-time totals on the Next tab."
+        == "Shows node, edge, and scoring-time totals on the Home tab."
     )
     toggle_index = next(
         index for index, component in enumerate(components)
         if getattr(component, "id", None) == "setting-show-scoring-perf"
     )
 
-    assert "Shows node, edge, and scoring-time totals on the Next tab." in copy
+    assert "Shows node, edge, and scoring-time totals on the Home tab." in copy
     assert "records the first scoring run after launch" not in copy
     assert description_index < toggle_index
 

@@ -1307,7 +1307,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
 @database.snapshot_read
 def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
-    """Render the 'Now' section for the Next tab as a row of rich cards.
+    """Render the 'Now' section for the Home tab as a row of rich cards.
 
     Each Now node gets a wide horizontal card: a left accent bar in the node's
     type color, then the name, the expected time, and the context/subcontext
@@ -1875,7 +1875,7 @@ def build_explain_summary(breakdown: dict, normalized=None):
     """Dash component for the Value/Cost/Score summary table.
 
     `breakdown` is the dict from scoring.explain_score. `normalized` is
-    the integer 0–100 score the Next tab would show, or None to render
+    the integer 0–100 score the Home tab would show, or None to render
     as '—'. Returns a single component; the caller slots it into the
     static modal body in details_layout.
     """

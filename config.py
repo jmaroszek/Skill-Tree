@@ -161,7 +161,7 @@ DEFAULT_NODE_COLORS = {
 # fairly tight without blocking brief overlap during handoffs.
 DEFAULT_NOW_NODE_CAP = 5
 
-# How many actionable prerequisites the Next tab pins above the suggestions for
+# How many actionable prerequisites the Home tab pins above the suggestions for
 # each Now node that can't be started yet (see GraphManager.get_unblocking_steps).
 # Small on purpose: the question is "what's the best next step toward this",
 # not "show me the whole subtree" — a real target can have 17 actionable
