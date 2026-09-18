@@ -152,12 +152,11 @@ class TestBuildFilters:
 
 class TestIsFiltersActive:
     def test_all_defaults_inactive(self):
-        # Mirrors the "Clear Filters" reset state under new "Show Done" semantics.
+        # Mirrors the "Clear Filters" reset state.
         assert is_filters_active(
             node_type=[], context=[], subcontext=[],
             community="All", community_method="components",
             value=1, interest=1, difficulty=10, time=None,
-            done=[],
         ) is False
 
     def test_no_args_inactive(self):
@@ -209,13 +208,19 @@ class TestIsFiltersActive:
     def test_max_time_zero_inactive(self):
         assert is_filters_active(time=0) is False
 
-    def test_done_default_inactive(self):
-        # New default: empty list = "Show Done" off = done hidden = inactive.
-        assert is_filters_active(done=[]) is False
+    def test_reveal_switches_are_not_filters(self):
+        """Show Done and Show Dormant must never set the "filtered" marker.
 
-    def test_done_toggled_on_active(self):
-        # Showing completed tasks is a deviation from the default.
-        assert is_filters_active(done=["show_done"]) is True
+        Both default to off and can only be switched on, which reveals nodes
+        instead of hiding them. The marker warns about a view the user cannot
+        tell is narrowed; a wider-than-default view is not that. The helper
+        takes no argument for either switch, so passing one is a TypeError —
+        that is the guard.
+        """
+        with pytest.raises(TypeError):
+            is_filters_active(done=["show_done"])
+        with pytest.raises(TypeError):
+            is_filters_active(show_dormant=["show_dormant"])
 
 
 # ============================================================================

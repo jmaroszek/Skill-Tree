@@ -559,27 +559,11 @@ def build_events_sidebar():
 
 # --- Filters sidebar (right) ---
 def build_filters_content():
-    # Hydrate from persisted state when remember-filters is enabled; otherwise
-    # fall back to hardcoded defaults so a fresh session looks unchanged.
-    if ConfigManager.get_remember_filters():
-        f = ConfigManager.get_filters()
-    else:
-        f = ConfigManager._FILTER_DEFAULTS
-
-    # Keep only persisted subcontext picks that still exist under a restored
-    # context. Values are encoded "ctx\x1fsub" (ASCII unit-separator instead
-    # of "::", which Dash mangles during layout serialization); "ctx\x1f" is
-    # that context's No subcontext.
-    persisted_contexts = f["context"] if isinstance(f["context"], list) else ([f["context"]] if f["context"] else [])
-    all_subs = ConfigManager.get_subcontexts() if persisted_contexts else {}
-    valid_subs = {f"{c}\x1f{s}"
-                  for c in persisted_contexts
-                  for s in ["", *all_subs.get(c, [])]}
-    # Migrate any legacy "::" values from before the separator change.
-    persisted_subs = [v.replace("::", "\x1f", 1) if isinstance(v, str) and "\x1f" not in v else v
-                      for v in (f["subcontext"] or [])]
-    initial_sub_value = [v for v in persisted_subs if v in valid_subs]
-
+    # Filters are session state, never saved state. Every control below opens
+    # at the value "Clear Filters" resets it to, so a restart always shows the
+    # whole graph. A narrowing the user set weeks ago and forgot would quietly
+    # scope every ranking the app produces, which is the one answer it exists
+    # to give. Values here must stay in step with the clear_filters() callback.
     return html.Div([
         html.Div([
             html.H4("Filters"),
@@ -592,15 +576,15 @@ def build_filters_content():
             "filter-context-picker",
             "filter-context",
             "filter-subcontext",
-            context_value=f["context"],
-            subcontext_value=initial_sub_value,
+            context_value=[],
+            subcontext_value=[],
         ),
 
         dbc.Label("Node Type", className="mt-2"),
         dcc.Dropdown(
             id="filter-node-type",
             options=[{"label": t, "value": t} for t in NODE_TYPES],
-            value=f["node_type"],
+            value=[],
             multi=True,
             placeholder="All",
             style={"color": "#212529"},
@@ -610,21 +594,21 @@ def build_filters_content():
 
         html.H5("Ratings", className="mt-2 mb-1"),
         dbc.Label("Min Value", className="mt-2"),
-        dcc.Slider(min=1, max=10, step=1, value=f["value"], id="filter-value",
+        dcc.Slider(min=1, max=10, step=1, value=1, id="filter-value",
                    marks={i: str(i) for i in range(1, 11)}),
 
         dbc.Label("Min Interest", className="mt-2"),
-        dcc.Slider(min=1, max=10, step=1, value=f["interest"], id="filter-interest",
+        dcc.Slider(min=1, max=10, step=1, value=1, id="filter-interest",
                    marks={i: str(i) for i in range(1, 11)}),
 
         dbc.Label("Max Effort", className="mt-3"),
-        dcc.Slider(min=1, max=10, step=1, value=f["difficulty"], id="filter-difficulty",
+        dcc.Slider(min=1, max=10, step=1, value=10, id="filter-difficulty",
                    marks={i: str(i) for i in range(1, 11)}),
 
         dbc.Label("Max Time", className="mt-2"),
         html.Div([
             dbc.Input(id="filter-time", type="number", min=0.1,
-                      value=f["time"] if f["time"] != "" else None,
+                      value=None,
                       placeholder="No limit", size="sm",
                       className="flex-grow-1"),
             dbc.Select(id="filter-time-unit", options=[
@@ -632,7 +616,7 @@ def build_filters_content():
                 {"label": "Weeks", "value": "weeks"},
                 {"label": "Months", "value": "months"},
                 {"label": "Years", "value": "years"},
-            ], value=f["time_unit"], size="sm", style={"width": "100px"}),
+            ], value="hours", size="sm", style={"width": "100px"}),
         ], className="d-flex gap-2"),
 
         html.Hr(className="my-3"),
@@ -641,13 +625,13 @@ def build_filters_content():
         html.Div([
             dbc.Checklist(
                 options=[{"label": "Show Done", "value": "show_done"}],
-                value=f["done"],
+                value=[],
                 id="filter-done",
                 switch=True,
             ),
             dbc.Checklist(
                 options=[{"label": "Show Dormant", "value": "show_dormant"}],
-                value=f.get("show_dormant", []),
+                value=[],
                 id="filter-dormant",
                 switch=True,
             ),
@@ -661,21 +645,11 @@ def build_filters_content():
             {"label": "Clusters", "value": "louvain"},
             {"label": "Islands", "value": "components"},
             {"label": "Orphans", "value": "orphans"},
-        ], value=f["community_method"]),
+        ], value="louvain"),
 
         dbc.Label("Community", className="mt-3"),
-        dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value=f["community"]),
+        dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
 
-        html.Hr(className="my-3"),
-
-        html.Div([
-            dbc.Checklist(
-                options=[{"label": "Memory", "value": "enabled"}],
-                value=["enabled"] if ConfigManager.get_remember_filters() else [],
-                id="filter-remember",
-                switch=True,
-            ),
-        ], className="d-flex gap-3 flex-wrap"),
         dbc.Tooltip(
             "Show Done nodes on the canvas. Off = hide them.",
             target="filter-done", placement="top",
@@ -685,12 +659,6 @@ def build_filters_content():
             "Show dormant (event-deferred) nodes on the canvas. Off = hide them. "
             "The events tab graph always shows them regardless.",
             target="filter-dormant", placement="top",
-            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-        ),
-        dbc.Tooltip(
-            "Remember main canvas filters across sessions and browser refreshes. "
-            "When off, filters reset to defaults on app start.",
-            target="filter-remember", placement="top",
             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
         ),
 

@@ -453,8 +453,9 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 | Done Toggle | Show or hide complete nodes. Hidden by default. |
 | Dormant Toggle | Show or hide dormant nodes. Hidden by default. |
 | Communities | Narrow the graph to an algorithmically-detected cluster of related nodes. See [Communities](#communities) below. |
-| Memory | When on, your filter selections persist across sessions; when off, they reset on restart. |
 | Clear filters | Reset all filters to their default state |
+
+Filters last as long as the app stays open. They are never saved. Every restart opens on the whole graph, so a narrowing is always something you chose in the current sitting. If you want to steer the app toward an area for longer than that, use [Priority Goals](#setting-priority-goals) or context weights instead. Those change what gets recommended without hiding anything from you.
 
 </td>
   </tr>
@@ -486,11 +487,13 @@ Here is an example. The algorithm identified a cluster named "STEM > Physics," a
 </p>
 
 ## Filter Reminders
-When filters are active, the app reminds you by adding a small  message to the lower left corner. You can see this message in the last two screenshots. Without these reminders, you could leave the filter Memory feature on, hammer out a context in the [Home Tab](#home-tab) for weeks, and never notice. It happened to someone I know.
+When filters are active, the app reminds you by adding a small  message to the lower left corner. You can see this message in the last two screenshots. Without these reminders, you could narrow to one context, hammer away at it in the [Home Tab](#home-tab) for days, and never notice you were working a slice of the graph. It happened to someone I know.
 
 Me. 
 
 It was me.
+
+The reminder only fires for filters that hide nodes. The Done and Dormant toggles are off by default and can only reveal more, so switching one on does not count as filtering.
 
 # Details Tab
 The Home Tab tells you *what* project to work on. The Details Tab helps you *understand* it.
