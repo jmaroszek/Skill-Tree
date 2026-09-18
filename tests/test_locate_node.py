@@ -1,13 +1,4 @@
-"""Regression tests for "Locate on graph".
-
-Two defects motivated these. The button wrote `main-tabs.active_tab` even when
-already on the canvas, and Dash re-fires dependents on any write — so every
-click dragged core_engine's full scoring + generate_elements cycle into the
-middle of the 1.45 s pulse. And the pulse's own animations queued behind
-now_pulse.js's endless border loop on a Now node, where `stop(clearQueue)`
-could discard the contract half along with the callback that cleared the
-inline size, stranding the node at three times its width.
-"""
+"""Regression tests for the view-aware "Locate on graph" flow."""
 
 from pathlib import Path
 import inspect
@@ -16,6 +7,8 @@ import subprocess
 
 import dash
 import pytest
+from dash._callback_context import context_value
+from dash._utils import AttributeDict
 
 import callbacks
 
@@ -25,15 +18,32 @@ def _locate_callback():
     app.config.suppress_callback_exceptions = True
     callbacks.register_callbacks(app)
     key = next(k for k in app.callback_map if "locate-message.children" in k
-               and "locate-animate-trigger.data" in k)
+               and "locate-request-store.data" in k)
     fn = app.callback_map[key]["callback"]
     while hasattr(fn, "__wrapped__"):
         fn = fn.__wrapped__
     return fn
 
 
-_TAB_SLOT = 3
-_TRIGGER_SLOT = 4
+def _locate_result_callback():
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    callbacks.register_callbacks(app)
+    key = next(k for k in app.callback_map if "modal-locate-missing.is_open" in k
+               and "locate-missing-node-store.data" in k)
+    fn = app.callback_map[key]["callback"]
+    while hasattr(fn, "__wrapped__"):
+        fn = fn.__wrapped__
+    return fn
+
+
+def _call_with_trigger(fn, trigger, *args):
+    token = context_value.set(AttributeDict(
+        triggered_inputs=[{"prop_id": trigger, "value": 1}]))
+    try:
+        return fn(*args)
+    finally:
+        context_value.reset(token)
 
 
 @pytest.fixture
@@ -46,34 +56,80 @@ def locate_node(monkeypatch):
     return _Node
 
 
-def test_locate_does_not_rewrite_the_tab_it_is_already_on(locate_node):
+def test_locate_routes_the_active_tab_to_the_live_canvas(locate_node):
     fn = _locate_callback()
     assert len(inspect.signature(fn).parameters) == 3
 
-    result = fn(1, "Some Node", "tab-canvas")
-    assert result[_TAB_SLOT] is dash.no_update
-    # The pulse still has to be told to run.
-    assert result[_TRIGGER_SLOT] == 1
+    message, interval_disabled, interval_count, request = fn(
+        1, "Some Node", "tab-details")
+    assert message == ""
+    assert interval_disabled is True
+    assert interval_count == 0
+    assert request == {
+        "name": "Some Node",
+        "activeTab": "tab-details",
+        "request": 1,
+    }
 
 
-def test_locate_still_switches_from_another_tab(locate_node):
-    fn = _locate_callback()
-    result = fn(1, "Some Node", "tab-details")
-    assert result[_TAB_SLOT] == "tab-canvas"
-    assert result[_TRIGGER_SLOT] == 1
-
-
-def test_dormant_node_reports_instead_of_pulsing(monkeypatch):
+def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatch):
     class _Dormant:
         dormant = True
 
     monkeypatch.setattr(callbacks.manager, "get_node", lambda name: _Dormant())
     fn = _locate_callback()
-    message, interval_disabled, _n, tab, trigger = fn(1, "Asleep", "tab-canvas")
-    assert "dormant" in message
+    _message, _disabled, _count, request = fn(1, "Asleep", "tab-events")
+    assert request["name"] == "Asleep"
+    assert request["activeTab"] == "tab-events"
+
+
+def test_deleted_node_reports_in_editor(monkeypatch):
+    monkeypatch.setattr(callbacks.manager, "get_node", lambda name: None)
+    fn = _locate_callback()
+    message, interval_disabled, _n, request = fn(1, "Gone", "tab-canvas")
+    assert message == "This node no longer exists."
     assert interval_disabled is False
-    assert tab is dash.no_update
-    assert trigger is dash.no_update
+    assert request is dash.no_update
+
+
+def test_missing_node_opens_view_specific_fallback():
+    fn = _locate_result_callback()
+    result = _call_with_trigger(
+        fn, "locate-result-store.data",
+        {"status": "missing", "name": "Target", "view": "events"},
+        None, None, None, "tab-events",
+    )
+    assert result[2] is True
+    assert result[3] == '“Target” is not in the Events view'
+    assert result[4] == {"name": "Target"}
+
+
+def test_no_canvas_tab_navigates_to_nodes_before_pulsing():
+    fn = _locate_result_callback()
+    result = _call_with_trigger(
+        fn, "locate-result-store.data",
+        {"status": "navigate", "name": "Target", "request": 2,
+         "canvasId": "cytoscape-graph", "targetTab": "tab-canvas"},
+        None, None, None, "tab-next",
+    )
+    assert result[0] == "tab-canvas"
+    assert result[1] == {
+        "name": "Target", "canvasId": "cytoscape-graph", "request": 2,
+    }
+
+
+def test_view_details_reroots_details_and_retries_pulse(locate_node):
+    fn = _locate_result_callback()
+    result = _call_with_trigger(
+        fn, "btn-locate-view-details.n_clicks",
+        None, None, 4, {"name": "Target"}, "tab-events",
+    )
+    assert result[0] == "tab-details"
+    assert result[1] == {
+        "name": "Target", "canvasId": "details-mini-graph", "request": 4,
+    }
+    assert result[2] is False
+    assert result[5] == "Target"
 
 
 def test_pulse_survives_a_forced_stop_and_runs_concurrently():
@@ -100,6 +156,7 @@ function makeNode(id) {
         styles: {},
         running: [],
         queued: [],
+        length: 1,
         _w: 30,
         _h: 30,
         id: () => id,
@@ -147,9 +204,19 @@ function runTimers(upToMs) {
 
 const node = makeNode('Target');
 global.window = {SkillTree: {}};
-global.document = {getElementById: () => ({_cyreg: {cy: {getElementById: () => node}}})};
+global.document = {getElementById: () => ({_cyreg: {cy: {
+    getElementById: id => id === 'Target' ? node : {length: 0}
+}}})};
 require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
 require(process.argv[1]);
+
+window.SkillTree.canvases = [
+    {key: 'main', tabId: 'tab-canvas', cytoscapeId: 'cytoscape-graph'},
+    {key: 'details', tabId: 'tab-details', cytoscapeId: 'details-mini-graph'},
+    {key: 'events', tabId: 'tab-events', cytoscapeId: 'events-detail-graph'},
+];
+assert.equal(window.SkillTree.canvasHasNode('details-mini-graph', 'Target'), true);
+assert.equal(window.SkillTree.canvasHasNode('details-mini-graph', 'Missing'), false);
 
 // now_pulse.js keeps an endless border animation on a Now node. The locate
 // pulse has to overlap it rather than wait its turn behind it in the queue.
@@ -176,6 +243,24 @@ assert.equal(node.styles.width, undefined, 'inline width cleared');
 assert.equal(node.styles.height, undefined, 'inline height cleared');
 assert.equal(node.classes.has('locate-pulse'), false);
 assert.equal(window.SkillTree.isLocating('cytoscape-graph', 'Target'), false);
+
+let route = window.SkillTree.resolveLocateRequest({
+    name: 'Target', activeTab: 'tab-details', request: 1
+});
+assert.equal(route.status, 'located');
+assert.equal(route.canvasId, 'details-mini-graph');
+
+route = window.SkillTree.resolveLocateRequest({
+    name: 'Target', activeTab: 'tab-next', request: 2
+});
+assert.equal(route.status, 'navigate');
+assert.equal(route.targetTab, 'tab-canvas');
+
+route = window.SkillTree.resolveLocateRequest({
+    name: 'Missing', activeTab: 'tab-events', request: 3
+});
+assert.equal(route.status, 'missing');
+assert.equal(route.view, 'events');
 '''
     result = subprocess.run(
         [node_binary, "-e", script, str(asset)],

@@ -24,7 +24,12 @@ Access the node editor from anywhere in the app by clicking the icon in the top-
 As you type, an autocomplete feature suggests names in a dropdown menu. Select one, and the editor loads that node.
 
 ### Locate
-Next to the search bar is a crosshair button. It's your bridge from the editor back to the canvas — a quick way to find the node you just pulled up. Clicking this button briefly enlarges and highlights the selected node, making it easy to spot. 
+Next to the search bar is a crosshair button. Clicking it briefly enlarges and
+highlights the selected node on whichever graph is open: Nodes, Details, or
+Events. If the node is outside the visible viewport, the canvas recenters on it.
+If the current graph does not contain that node, Skill Tree offers to open its
+Details view instead. From a tab without a graph, Locate keeps its usual Nodes
+tab fallback.
 
 <p align="center">
   <img src="../images/locate-feature.png" width="400">

@@ -90,12 +90,26 @@ def build_node_editor_content():
                     searchable=True,
                     clearable=True,
                 ), className="text-dark"),
-                dbc.Tooltip("Locate node on graph",
+                dbc.Tooltip("Locate node in current view",
                             target="btn-locate-node", placement="right",
                             delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                 html.Div(id="locate-message", className="text-warning small mt-1"),
                 dcc.Interval(id='locate-clear-interval', interval=LOCATE_TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
                 dcc.Store(id='locate-animate-trigger', data=None),
+                dcc.Store(id='locate-request-store', data=None),
+                dcc.Store(id='locate-result-store', data=None),
+                dcc.Store(id='locate-missing-node-store', data=None),
+                dbc.Modal([
+                    dbc.ModalHeader(dbc.ModalTitle(id='locate-missing-title'),
+                                    close_button=False),
+                    dbc.ModalBody("What would you like to do?"),
+                    dbc.ModalFooter([
+                        dbc.Button("Dismiss", id='btn-locate-dismiss',
+                                   color="secondary"),
+                        dbc.Button("View Details", id='btn-locate-view-details',
+                                   color="primary"),
+                    ]),
+                ], id='modal-locate-missing', is_open=False, centered=True),
 
                 html.H5("General", className="mt-3 mb-1"),
                 html.Div([

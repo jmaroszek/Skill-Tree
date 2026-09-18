@@ -1230,15 +1230,14 @@ def register_callbacks(app, services=None):
         Input('node-original-name', 'data'),
     )
 
-    # --- "Locate on graph": dormant-aware gateway ---
-    # Dormant nodes aren't on the canvas — clicking locate would pulse nothing.
-    # Show an inline message under the search bar instead and skip the tab switch.
+    # --- "Locate on graph": validate the editor target, then let the browser
+    # inspect the live canvas. Freeze mode mutates Cytoscape directly, so Dash's
+    # cached `elements` prop is not authoritative for membership.
     @app.callback(
         Output('locate-message', 'children'),
         Output('locate-clear-interval', 'disabled'),
         Output('locate-clear-interval', 'n_intervals'),
-        Output('main-tabs', 'active_tab', allow_duplicate=True),
-        Output('locate-animate-trigger', 'data'),
+        Output('locate-request-store', 'data'),
         Input('btn-locate-node', 'n_clicks'),
         State('node-original-name', 'data'),
         State('main-tabs', 'active_tab'),
@@ -1246,36 +1245,107 @@ def register_callbacks(app, services=None):
     )
     def handle_locate_click(n_clicks, name, current_tab):
         if not n_clicks or not name:
-            return (dash.no_update,) * 5
+            return (dash.no_update,) * 4
         node = manager.get_node(name)
         if not node:
-            return (dash.no_update,) * 5
-        if node.dormant:
-            msg = f"'{name}' is dormant — its event must be triggered before it appears on the graph."
-            return msg, False, 0, dash.no_update, dash.no_update
-        # The Locate button only exists in the editor sidebar, so the user is
-        # almost always on the canvas already. Writing the same value back
-        # still re-fires every Input on main-tabs.active_tab — core_engine
-        # included, which would push a fresh element list into Cytoscape in the
-        # middle of the pulse and make it stutter. handle_edit_trigger skips
-        # the write for the same reason.
-        next_tab = dash.no_update if current_tab == 'tab-canvas' else 'tab-canvas'
-        return "", True, 0, next_tab, n_clicks
+            return "This node no longer exists.", False, 0, dash.no_update
+        return "", True, 0, {
+            'name': name,
+            'activeTab': current_tab,
+            'request': n_clicks,
+        }
 
-    # Run the pulse animation once the gateway has cleared the dormant check.
-    # The fcose layout may still be running, so locateNodeOnGraph retries
-    # until the node is present on the canvas.
+    # Resolve the active canvas against the live Cytoscape instance. Details
+    # and Events remain in place; tabs without a canvas retain the historical
+    # Nodes fallback. The result callback below owns navigation and dialogs.
     app.clientside_callback(
-        """function(trigger, name) {
-            if (!trigger || !name) return window.dash_clientside.no_update;
+        """function(request) {
+            if (!request || !request.name || !window.SkillTree ||
+                    typeof window.SkillTree.resolveLocateRequest !== 'function') {
+                return window.dash_clientside.no_update;
+            }
+            return window.SkillTree.resolveLocateRequest(request);
+        }""",
+        Output('locate-result-store', 'data'),
+        Input('locate-request-store', 'data'),
+        prevent_initial_call=True,
+    )
+
+    @app.callback(
+        Output('main-tabs', 'active_tab', allow_duplicate=True),
+        Output('locate-animate-trigger', 'data'),
+        Output('modal-locate-missing', 'is_open'),
+        Output('locate-missing-title', 'children'),
+        Output('locate-missing-node-store', 'data'),
+        Output('details-node-select', 'value', allow_duplicate=True),
+        Input('locate-result-store', 'data'),
+        Input('btn-locate-dismiss', 'n_clicks'),
+        Input('btn-locate-view-details', 'n_clicks'),
+        State('locate-missing-node-store', 'data'),
+        State('main-tabs', 'active_tab'),
+        prevent_initial_call=True,
+    )
+    def handle_locate_result(result, _dismiss_clicks, view_details_clicks,
+                             missing_node, current_tab):
+        triggered = ctx.triggered_id
+        unchanged = (dash.no_update,) * 6
+
+        if triggered == 'btn-locate-dismiss':
+            return dash.no_update, dash.no_update, False, dash.no_update, None, dash.no_update
+
+        if triggered == 'btn-locate-view-details':
+            name = (missing_node or {}).get('name')
+            if not name or not manager.get_node(name):
+                return dash.no_update, dash.no_update, False, dash.no_update, None, dash.no_update
+            next_tab = dash.no_update if current_tab == 'tab-details' else 'tab-details'
+            animate = {
+                'name': name,
+                'canvasId': 'details-mini-graph',
+                'request': view_details_clicks,
+            }
+            return next_tab, animate, False, dash.no_update, None, name
+
+        if triggered != 'locate-result-store' or not result:
+            return unchanged
+
+        status = result.get('status')
+        if status == 'located':
+            return dash.no_update, dash.no_update, False, dash.no_update, None, dash.no_update
+        if status == 'navigate':
+            animate = {
+                'name': result.get('name'),
+                'canvasId': result.get('canvasId'),
+                'request': result.get('request'),
+            }
+            return result.get('targetTab'), animate, False, dash.no_update, None, dash.no_update
+        if status == 'missing':
+            view_labels = {
+                'main': 'Nodes',
+                'details': 'Details',
+                'events': 'Events',
+                'canvas': 'current',
+            }
+            name = result.get('name')
+            label = view_labels.get(result.get('view'), 'current')
+            title = f'“{name}” is not in the {label} view'
+            return (dash.no_update, dash.no_update, True, title,
+                    {'name': name}, dash.no_update)
+        return unchanged
+
+    # Run the pulse after a tab switch or Details re-root. The fcose layout may
+    # still be running, so locateNodeOnGraph retries until the node is present.
+    app.clientside_callback(
+        """function(trigger) {
+            if (!trigger || !trigger.name || !trigger.canvasId) {
+                return window.dash_clientside.no_update;
+            }
             if (typeof window.locateNodeOnGraph === 'function') {
-                window.locateNodeOnGraph(name);
+                window.locateNodeOnGraph(trigger.name, trigger.canvasId);
             }
             return window.dash_clientside.no_update;
         }""",
         Output('locate-message', 'title'),  # dummy/no-op output
         Input('locate-animate-trigger', 'data'),
-        State('node-original-name', 'data'),
         prevent_initial_call=True,
     )
 

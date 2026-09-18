@@ -229,6 +229,44 @@
         return state ? state.frozen : false;
     };
 
+    // Recenter one canvas for an explicit user action such as Locate. A frozen
+    // canvas normally rejects programmatic viewport changes; this is the one
+    // deliberate exception, and the resulting viewport becomes the new frozen
+    // position instead of snapping back on the next pan event.
+    window.SkillTree.centerCanvasOnNode = function (cytoscapeElementId, node, duration) {
+        var state = null;
+        Object.keys(registry).some(function (canvasId) {
+            var candidate = registry[canvasId];
+            if (candidate.cytoscapeElementId === cytoscapeElementId) {
+                state = candidate;
+                return true;
+            }
+            return false;
+        });
+
+        var cy = state ? getCy(state) : null;
+        if (!cy || !node) return;
+
+        if (state.frozen) {
+            bindGuards(state, cy);
+            var previousBypass = state.bypassFreeze;
+            state.bypassFreeze = true;
+            withProgrammatic(state, function () {
+                if (state.originals.center) state.originals.center(node);
+                else cy.center(node);
+            });
+            state.bypassFreeze = previousBypass;
+            captureViewport(state, cy);
+            return;
+        }
+
+        if (typeof cy.animate === 'function') {
+            cy.animate({ center: { eles: node } }, { duration: duration || 0 });
+        } else if (typeof cy.center === 'function') {
+            cy.center(node);
+        }
+    };
+
     window.SkillTree.allowOneLayout = function (canvasId) {
         var state = registry[canvasId];
         if (state) state.allowNextLayout = true;

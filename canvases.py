@@ -18,6 +18,9 @@ class Canvas:
     # Short name assets/ uses for the canvas: its freeze state, its layout
     # policy and its context-menu source.
     key: str
+    # The tab that makes this canvas visible. Assets use this to route actions
+    # such as Locate to the canvas the user is actually looking at.
+    tab: str
     cytoscape_id: str
     # The wrapper that goes fullscreen and carries the frozen outline.
     container_id: str
@@ -46,6 +49,7 @@ class Canvas:
 CANVASES = (
     Canvas(
         key='main',
+        tab='tab-canvas',
         cytoscape_id='cytoscape-graph',
         container_id='canvas-container',
         fullscreen_button_id='btn-fullscreen',
@@ -57,6 +61,7 @@ CANVASES = (
     ),
     Canvas(
         key='details',
+        tab='tab-details',
         cytoscape_id='details-mini-graph',
         container_id='details-dep-graph-container',
         fullscreen_button_id='btn-details-graph-fullscreen',
@@ -69,6 +74,7 @@ CANVASES = (
     ),
     Canvas(
         key='events',
+        tab='tab-events',
         cytoscape_id='events-detail-graph',
         container_id='events-detail-graph-container',
         fullscreen_button_id='btn-events-graph-fullscreen',
@@ -87,6 +93,7 @@ def client_registry():
     return [
         {
             'key': canvas.key,
+            'tabId': canvas.tab,
             'cytoscapeId': canvas.cytoscape_id,
             'containerId': canvas.container_id,
             'fullscreenButtonId': canvas.fullscreen_button_id,

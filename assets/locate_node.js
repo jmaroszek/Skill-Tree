@@ -30,7 +30,7 @@
     var PULSE_HOLD_MS = 700;
     var PULSE_CONTRACT_MS = 400;
     var PAN_DURATION_MS = 400;
-    var MIN_ZOOM = 1.5;
+    var VIEWPORT_MARGIN = 24;
     // Comfortably past expand + hold + contract, so the safety net only ever
     // fires for a pulse that was interrupted and never races a healthy one.
     var PULSE_CLEANUP_MS =
@@ -52,6 +52,36 @@
     function getCyInstance(canvasId) {
         var wrapper = document.getElementById(canvasId);
         return window.SkillTree.getCy(wrapper);
+    }
+
+    window.SkillTree.canvasHasNode = function (canvasId, nodeName) {
+        var cy = getCyInstance(canvasId);
+        if (!cy || !nodeName) return false;
+        var node = cy.getElementById(nodeName);
+        return Boolean(node && node.length > 0);
+    };
+
+    function bringIntoViewIfNeeded(cy, node, canvasId) {
+        if (!cy || !node || typeof node.renderedBoundingBox !== 'function' ||
+                typeof cy.width !== 'function' || typeof cy.height !== 'function') {
+            return;
+        }
+        var box = node.renderedBoundingBox();
+        var width = cy.width();
+        var height = cy.height();
+        var visible = box.x1 >= VIEWPORT_MARGIN && box.y1 >= VIEWPORT_MARGIN &&
+            box.x2 <= width - VIEWPORT_MARGIN &&
+            box.y2 <= height - VIEWPORT_MARGIN;
+        if (visible) return;
+
+        if (window.SkillTree &&
+                typeof window.SkillTree.centerCanvasOnNode === 'function') {
+            window.SkillTree.centerCanvasOnNode(canvasId, node, PAN_DURATION_MS);
+        } else if (typeof cy.animate === 'function') {
+            cy.animate({ center: { eles: node } }, { duration: PAN_DURATION_MS });
+        } else if (typeof cy.center === 'function') {
+            cy.center(node);
+        }
     }
 
     function clearTimers(run) {
@@ -134,6 +164,14 @@
             if (attempt < 20) setTimeout(function () { tryLocate(nodeName, canvasId, attempt + 1); }, 100);
             return;
         }
+        // A just-opened tab can have its nodes before Cytoscape has a usable
+        // viewport. Wait for visibility so the pulse and any recentering are
+        // not spent on a zero-sized hidden canvas.
+        if (typeof cy.width === 'function' && typeof cy.height === 'function' &&
+                (cy.width() <= 0 || cy.height() <= 0)) {
+            if (attempt < 20) setTimeout(function () { tryLocate(nodeName, canvasId, attempt + 1); }, 100);
+            return;
+        }
         var node = cy.getElementById(nodeName);
         if (!node || node.length === 0) {
             // Node may not yet be in the stylesheet-rendered elements (tab
@@ -142,6 +180,7 @@
             return;
         }
 
+        bringIntoViewIfNeeded(cy, node, canvasId);
         runPulse(node, canvasId);
     }
 
@@ -150,5 +189,34 @@
         canvasId = canvasId || 'cytoscape-graph';
         // Small delay allows any in-progress tab switch to mount the canvas first.
         setTimeout(function () { tryLocate(nodeName, canvasId, 0); }, 50);
+    };
+
+    window.SkillTree.resolveLocateRequest = function (request) {
+        var registry = window.SkillTree.canvases || [];
+        var canvas = registry.find(function (item) {
+            return item.tabId === request.activeTab;
+        });
+        var needsNavigation = false;
+        if (!canvas) {
+            canvas = registry.find(function (item) { return item.key === 'main'; });
+            needsNavigation = true;
+        }
+        if (!canvas || !window.SkillTree.canvasHasNode(
+                canvas.cytoscapeId, request.name)) {
+            return {
+                status: 'missing', name: request.name, request: request.request,
+                view: canvas ? canvas.key : 'canvas',
+                canvasId: canvas ? canvas.cytoscapeId : null
+            };
+        }
+        if (!needsNavigation) {
+            window.locateNodeOnGraph(request.name, canvas.cytoscapeId);
+        }
+        return {
+            status: needsNavigation ? 'navigate' : 'located',
+            name: request.name, request: request.request,
+            view: canvas.key, canvasId: canvas.cytoscapeId,
+            targetTab: canvas.tabId
+        };
     };
 })();
