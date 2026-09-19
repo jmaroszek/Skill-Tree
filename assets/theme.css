@@ -1123,3 +1123,23 @@
 .ui-affordance {
     display: contents;
 }
+
+
+/* --- Drag handles -------------------------------------------------------- */
+/* These were text glyphs and are Bootstrap Icons now. An <i> carries the icon
+   font's own metrics, which are taller than a text glyph at the same
+   font-size, so the row it sits in grew and pushed the line below it down --
+   visible as extra space between a goal's name and its subtask count.
+   Collapsing the box back to the glyph's own size restores the row height. */
+.goal-drag-handle,
+.event-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    vertical-align: middle;
+}
+.goal-drag-handle > i,
+.event-drag-handle > i {
+    line-height: 1;
+    display: block;
+}

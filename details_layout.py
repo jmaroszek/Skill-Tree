@@ -926,7 +926,10 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
                 ) if priority_rank is not None else None,
                 corner_badge,
             ], className="d-flex align-items-center ms-2 gap-1"),
-        ], className="d-flex align-items-center justify-content-between mb-1"),
+        # mb-0, not mb-1: the name and its stats line are one block, and the
+        # Small below already carries its own leading. The extra 4px read as a
+        # gap between two unrelated things.
+        ], className="d-flex align-items-center justify-content-between mb-0"),
     ]
 
     # Stats line. No percentage: the done/total count already shows progress,

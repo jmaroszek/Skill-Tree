@@ -94,6 +94,8 @@
     --st-fs-base: 0.85rem;   /* body, table cells, status messages */
     --st-fs-md: 0.9rem;      /* menu items, descriptions */
     --st-fs-lg: 0.95rem;     /* inline headings, icon buttons */
+    --st-fs-row-meta: 1.05rem;  /* the time on a Now card */
+    --st-fs-row-title: 1.1rem;  /* a Now card's node name */
     --st-fs-xl: 1.2rem;      /* adder "+", close glyphs */
     --st-fs-2xl: 1.4rem;     /* sidebar-header adders */
     --st-fs-heading: 1.6rem; /* Details empty-state heading */
@@ -105,7 +107,13 @@
     --st-radius-sm: 4px;
     --st-radius: 6px;
     --st-radius-field: 0.375rem;   /* Bootstrap's .form-control radius */
-    --st-control-height: 38px;     /* .form-select / .form-control / dropdown */
+    /* Bootstrap's own .form-control height formula rather than a magic 38px:
+       line-height + vertical padding + borders. A hardcoded value was 0.86px
+       taller than what DARKLY actually renders, which is why the relationship
+       dropdowns sat slightly proud of the resource and time-estimate fields
+       beside them. Using the formula means they track each other whatever the
+       font size resolves to. */
+    --st-control-height: calc(1.5em + 0.75rem + 2px);
 
     --st-shadow-panel: 0 4px 16px rgba(0, 0, 0, 0.4);
     --st-shadow-canvas: 0 4px 24px rgba(0, 0, 0, 0.4);

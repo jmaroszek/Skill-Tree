@@ -463,6 +463,10 @@ def build_events_tab_content():
                     value="manual",
                     inline=True,
                     className="mb-2",
+                    # Options should sit below their section label, not match
+                    # it. Both were at the browser default, which made the
+                    # three choices read louder than the question.
+                    style={"fontSize": tokens.FS_BASE},
                 ),
 
                 # Date trigger section
@@ -735,7 +739,11 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
     if description:
-        description_str = description[:80] + "..." if len(description) > 80 else description
+        # The card is wider than 80 characters fills, so the ellipsis used to
+        # arrive with visible room to spare.
+        _MAX = 140
+        description_str = (description[:_MAX] + "..."
+                           if len(description) > _MAX else description)
         children.append(html.Small(
             description_str,
             className="text-muted d-block mb-1"

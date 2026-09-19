@@ -1203,7 +1203,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
                 html.Span(
                     s.name,
                     style={
-                        "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY,
+                        "fontSize": tokens.FS_MD, "color": tokens.TEXT_PRIMARY,
                         "lineHeight": "1.35",
                     },
                 ),
@@ -1212,7 +1212,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
                        "lineHeight": "1.35", "marginBottom": "1px"},
             ),
             html.Div(ctx_children, style={
-                "fontSize": tokens.FS_XS, "color": tokens.TEXT_DIM,
+                "fontSize": tokens.FS_SM, "color": tokens.TEXT_DIM,
                 "fontFamily": _MONO_FONT,
                 "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
                 "lineHeight": "1.35",
@@ -1224,7 +1224,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             html.Span(
                 str(priority_int),
                 style={
-                    "fontFamily": _MONO_FONT, "fontSize": tokens.FS_CAP,
+                    "fontFamily": _MONO_FONT, "fontSize": tokens.FS_BASE,
                     "fontWeight": "600", "color": "#fff",  # literal: on a coloured tile
                     "textShadow": "0 1px 1px rgba(0,0,0,0.5)",
                 },
@@ -1251,7 +1251,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         time_label = html.Span(
             ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
             style={"color": tokens.TEXT_SOFT, "minWidth": "52px", "textAlign": "right",
-                   "fontSize": tokens.FS_BASE},
+                   "fontSize": tokens.FS_LG},
         )
 
         v_val = s.value if s.value is not None else 0
@@ -1355,7 +1355,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
         # --- Time estimate ---
         time_label = html.Span(
             ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
-            style={"color": tokens.TEXT_SOFT, "fontSize": tokens.FS_MD,
+            style={"color": tokens.TEXT_SOFT, "fontSize": tokens.FS_ROW_META,
                    "fontFamily": _MONO_FONT, "fontWeight": "500",
                    "flexShrink": "0"},
         )
@@ -1365,7 +1365,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             html.Div(
                 html.Span(
                     n.name,
-                    style={"fontSize": tokens.FS_LG, "color": tokens.TEXT_PRIMARY,
+                    style={"fontSize": tokens.FS_ROW_TITLE, "color": tokens.TEXT_PRIMARY,
                            "fontWeight": "700", "lineHeight": "1.3"},
                 ),
                 style={"minWidth": 0, "overflow": "hidden", "whiteSpace": "nowrap",
@@ -1379,7 +1379,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
 
         # --- Context subtitle ---
         ctx_line = html.Div(ctx_children, style={
-            "fontSize": tokens.FS_SM, "color": tokens.TEXT_DIM, "fontFamily": _MONO_FONT,
+            "fontSize": tokens.FS_CAP, "color": tokens.TEXT_DIM, "fontFamily": _MONO_FONT,
             "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
             "lineHeight": "1.35",
             "minHeight": "17px",

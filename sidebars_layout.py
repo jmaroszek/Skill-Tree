@@ -117,7 +117,7 @@ def build_node_editor_content():
                 ], id='modal-locate-missing', size="sm", is_open=False,
                    centered=True),
 
-                html.H5("General", className="mt-2 mb-1"),
+                html.H5("General", className="mt-3 mb-1"),
                 html.Div([
                     dbc.Label("Name", className="mb-0"),
                     add_button("btn-alias-add", "Add alias"),
@@ -183,7 +183,7 @@ def build_node_editor_content():
                 # --- Section: Status (Now + Done + Dormant toggles) ---
                 html.Div(id="section-done-time", children=[
                     html.Hr(className="my-2"),
-                    html.H5("Status", className="mt-2 mb-1"),
+                    html.H5("Status", className="mt-2 mb-2"),
                     html.Div([
                         dbc.Checklist(
                             options=[{"label": "Now", "value": "now"}],

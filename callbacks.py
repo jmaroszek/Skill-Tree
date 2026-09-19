@@ -496,8 +496,12 @@ def register_callbacks(app, services=None):
         all_nodes = manager.get_all_nodes(include_dormant=True)
         options = node_options(all_nodes)
 
+        # node-type starts empty so the "Choose node type..." placeholder
+        # survives until the user picks one. Defaulting it to Learn meant a
+        # new node silently claimed a type nobody chose; saving without one is
+        # already refused below ("Node type is required").
         def_out = [
-            "", "Learn", "", "", "", 5, 5, 5, 2, 4, 6, STATUS_OPEN, [],
+            "", "", "", "", "", 5, 5, 5, 2, 4, 6, STATUS_OPEN, [],
             [], [], [], [], [],
             options, options, options, options, options,
             [''], [''], [''],
