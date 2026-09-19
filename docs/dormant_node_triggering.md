@@ -1,162 +1,206 @@
-# Dormant Node Triggering — Decision Memo
+# Dormant Node Triggering — Design Record
 
-This document captures the current behavior, conceptual tension, and design
-options for triggering dormant nodes. It is a pre-decision design note, not a
-description of settled future behavior.
+This document records how event triggering works and why. It began as a
+pre-decision memo weighing three models. The decision has been taken and
+implemented; the alternatives are kept at the end for the reasoning, not as
+live options.
 
-## The cleanest mental model
+## The model
 
-An Event represents a one-time transition: something happens, the Event fires,
-and its dormant work begins becoming available.
+An Event represents a one-time transition. Something happens, the Event fires,
+and **every node attached to it participates**. There is no way to fire half
+an Event.
 
-Each dormant node may then have an activation delay measured from that single
-firing time:
+Each dormant node may carry an activation delay measured from that single
+firing:
 
 - No delay → wakes immediately.
 - Two weeks → wakes two weeks after the Event fires.
 - Three months → wakes three months after the Event fires.
 
 That gives every node one shared reference point while still supporting
-staggered activation.
+staggered activation. Delays are the staging mechanism.
 
-## What the app currently does
+Manual triggering has one confirmation action: **Trigger Event**. The
+confirmation summarizes what will happen, names the nodes waking now, and
+lists the wake dates of the ones being scheduled. That summary is the last
+place to notice something you did not mean to release.
 
-Automatic Event triggers always process every dormant node.
+## What this replaced
 
-Manual triggering offers:
+Manual triggering used to offer **Trigger All** and **Trigger Checked**, with
+a checkbox on every row.
 
-- **Trigger All**
-- **Trigger Checked**
+Either button marked the entire Event as Triggered. Checked nodes woke or were
+scheduled. Unchecked nodes stayed Dormant with no activation date. Because the
+Event was already Triggered, its Trigger button disappeared, and so did the
+row's own edit and remove controls.
 
-Either button immediately marks the entire Event as **Triggered**. For checked
-nodes:
+Those unchecked nodes could not be released through that Event again. The only
+escape was the node editor's Dormant toggle, which woke the node immediately
+and severed it from the Event — precisely the outcome unchecking it was meant
+to avoid.
 
-- Zero-delay nodes become Awake immediately.
-- Delayed nodes remain Dormant but receive a future activation date.
+So the interface suggested a staged release and delivered a one-shot selective
+release that stranded the remainder.
 
-Unchecked nodes remain Dormant with no activation date. Because the Event is
-already Triggered, its Trigger button disappears. Those unchecked nodes
-therefore cannot be released through that Event later.
+## The awake/dormant rule
 
-This conflicts with the documented rationale that Trigger Checked is useful
-when an Event has “more dormant nodes than you’re ready to release at once.”
-The interface suggests staged releases, but the implementation is a one-shot
-selective release that strands the remainder.
+`Nodes.dormant` is one bit per node. Event membership is a set: a node may
+belong to several Events. Nothing keeps the two agreeing unless every writer
+says so, which makes this a policy the code installs rather than a fact it can
+read:
 
-## Three coherent models
+> A node with at least one `EventNodes` row is awake (`dormant = 0`) exactly
+> when one of those rows has `activated = 1`.
 
-### 1. One-shot Event, all nodes participate — recommended
+`EventManager._sync_dormant_flag` enforces it, and it is deliberately
+asymmetric. Waking is mechanical: an activated row means the node is live.
+Sleeping is a decision, so the sleep half runs only where putting the node
+back under an Event is what the user asked for, and refuses while any row
+still holds it awake. A node with no rows at all is untouched by both halves.
 
-When an Event fires, every attached node is either activated or scheduled
-according to its delay. Manual triggering has one confirmation action:
-**Trigger Event**.
+Every path that writes `EventNodes` goes through it: `add_node_to_event`,
+`update_dormant_node`, `delete_event(delete_nodes=False)`,
+`move_node_to_event`, `trigger_event`, and `check_pending_activations`. The
+one exception is `detach_node_from_all_events`, whose `dormant = 0` is the
+user's explicit instruction.
 
-If a node should not participate yet, the user changes its delay, removes it,
-or moves it to another Event before triggering.
+`reconcile_dormant_flags` runs at startup beside `recompute_all_statuses`. It
+only wakes nodes whose rows say they already woke, because only that direction
+is unambiguous and cannot lose information. It is deliberately not a schema
+migration: a migration runs once at a version bump, while this runs every
+launch and so still catches drift introduced afterwards.
 
-Advantages:
+## Multi-event membership: first fire wins
 
-- Matches the natural meaning of an Event.
-- Every delay has one unambiguous origin.
-- Automatic and manual triggers behave identically.
-- No dormant nodes are accidentally stranded.
-- Event status remains simply Pending or Triggered.
-- The existing delay feature already handles staged releases.
+A dormant node may belong to more than one Event. The first Event to fire
+wakes it. The others still cover the node, so their rows close out too, but
+they report it honestly rather than claiming it is still dormant.
 
-The cost is reduced last-minute flexibility: you cannot fire only half an
-Event without reorganizing it first.
+`get_event_nodes` returns a `woken_by` key naming the Event that got there
+first, ordered by activation date so "first to fire" is literal. The table
+shows `Awake · via Music`, or `Awake · woken outside this event` when no
+sibling row fired.
 
-### 2. One-shot selective Event
+Two consequences worth stating:
 
-Trigger Checked remains, but unchecked nodes must receive an explicit
-disposition because the Event is finished. For example:
+- An already-awake row is closed out with today's date and **no** future
+  activation date. A future date on a live node would send the delayed sweep
+  off to wake it a second time and announce the wake.
+- The trigger confirmation counts these separately. Without that line the
+  summary claims wakes that are not going to happen.
 
-- Move unchecked nodes into a new Event.
-- Return them to a general dormant holding area.
-- Wake them too.
-- Delete them.
+## Moving a node between Events
 
-This preserves selective commitment without pretending the same Event can fire
-again. It is coherent, but the confirmation flow becomes considerably heavier.
+`move_node_to_event` re-homes a dormant node. It is what replaced staged
+release: firing takes everything, so "not this one yet" is said by moving the
+node somewhere that has not fired.
 
-A potentially elegant variation would be:
+The destination row always starts unfired. A delay measures from its own
+Event's firing, which is what keeps one unambiguous origin per delay.
 
-> Trigger checked nodes and move the remainder to a new Event…
+It refuses in five cases: moving to the same Event, a node not in the source
+Event, a destination that does not exist, a destination that has already
+fired, and a node that is already awake. That last one matters — a move that
+re-sleeps a live node is an un-trigger by another name.
 
-That could be introduced later if selective triggering proves genuinely useful.
+If the destination already holds the node, the two rows merge rather than
+colliding on the primary key.
 
-### 3. Multi-release Event
+## Offsets before firing, dates after
 
-An Event becomes a staging container that can be triggered repeatedly. Checked
-nodes use the date of their individual release as the origin for their delays.
+Before an Event fires there is no date to speak of, so a delay is an offset:
+"two weeks after". Once it fires, the wake date is written to
+`EventNodes.activation_date` and the offset has nothing left to measure from,
+because `Events` records no firing time.
 
-This requires more state:
+So the editor changes field with the row. A dormant row edits its offset; a
+scheduled row edits its wake date directly, via `set_node_wake_date`. Moving
+the node to a pending Event clears the date and puts it back on an offset.
 
-- Event: Pending / Partially Triggered / Triggered
-- Node: Dormant / Scheduled / Awake, perhaps Skipped
-- A per-node trigger date in addition to its activation date
-- Rules for what automatic triggering does after a partial manual trigger
-- Rules for editing triggers after part of an Event has fired
-- Clear completion criteria for the Event
+## Row presentation
 
-This is the most flexible model, but it weakens “Event” as a single occurrence.
-It starts behaving more like a project backlog or release queue.
+The table is `Name · Type · Delay · Wakes · Actions`. There is no Status
+column: before an Event fires every row is dormant, so Status carried nothing,
+and the Wakes column answers both "when" and "has it" in one place.
 
-## Recommendation
+| Row state | Wakes column |
+|---|---|
+| Dormant under a Date-triggered Event | the projected date, muted |
+| Dormant under a Manual or Completion Event, no delay | `On trigger`, muted |
+| Dormant under a Manual or Completion Event, with a delay | `2 weeks after`, muted |
+| Scheduled | the committed date, full contrast |
+| Awake | an `Awake` badge, with `via <event>` beneath when another Event woke it |
 
-Use the first model: **an Event fires once, and all attached nodes participate**.
+A projected date is muted because the Event has not fired and the date can
+still move. A date written at firing is full contrast because it is committed.
 
-Delays should provide the staging:
+Actions are gated per row, not per Event. An awake row has none. Under the old
+per-Event gate a pending Event could show actions on an awake row, and a fired
+Event showed none on rows still waiting.
 
-- “Review adoption requirements” — no delay
-- “Buy supplies” — one week
-- “Begin training course” — one month
+## Sidebar
 
-If two groups genuinely become relevant at different real-world moments, they
-are probably two Events. That preserves clarity in both the data and the
-interface.
+An Event leaves the active list when it is *finished*, not merely fired:
+triggered, with every node activated. A fired Event that still holds scheduled
+nodes stays in the list, and its card says `5 nodes · 2 waking later`.
 
-Under this model, remove the row checkboxes and the Trigger Checked / Trigger
-All distinction. The confirmation can instead summarize what will happen:
+The divider below reads "finished events" for the same reason.
 
-> 3 nodes will wake now.  
-> 2 nodes will be scheduled for later.
+## Not doing: un-trigger
 
-## Row presentation under that model
+There is no operation to revert a fired Event to Pending.
 
-“Triggered” should remain an Event-level status. Each node row should use:
+It was considered as the recovery path for "that fired too early". Moving a
+node to another Event covers the same ground one node at a time, without a
+second way for a node's awake state to change underneath the graph. If
+recovery at Event scale turns out to be a recurring need, this is the obvious
+thing to add.
 
-- **Dormant** — Event has not fired.
-- **Scheduled** — Event fired, but the activation date has not arrived.
-- **Awake** — Node has activated.
+## The questions this settled
 
-The Delay column should remain the configured offset:
+1. **Does an Event represent one occurrence or an ongoing container?**
+   One occurrence.
+2. **What happens to nodes not released by a trigger?** The question does not
+   arise. Every attached node participates.
+3. **Should automatic and manual triggering behave identically?** Yes. All
+   four paths — manual, date, node-completion, and delayed wake — go through
+   the same code and queue the same kind of announcement.
+4. **Is changing a delay enough flexibility?** Delays provide the staging, and
+   `move_node_to_event` covers the rest.
+5. **Should a dormant node belong to multiple Events?** Yes, and the first to
+   fire wins. This overrules the original memo's recommended default of one
+   owning Event per dormant node. The production graph already had a node in
+   two Events on purpose, and one ownership rule would have forced a data
+   change to satisfy the code.
 
-- None
-- 2 weeks
-- 3 months
-- 1 year
+## Alternatives considered
 
-For scheduled nodes, the calculated date could appear in a tooltip or compact
-secondary label such as `Wakes Oct 1`. That is clearer and fits the narrower
-column better than `Scheduled: 2026-10-01`.
+### One-shot selective Event
 
-The current duration formatter should also be unified so a one-year delay
-displays as `1 year`, rather than becoming `365 days` in the table.
+Trigger Checked survives, but unchecked nodes need an explicit disposition
+because the Event is finished — moved to a new Event, returned to a holding
+area, woken, or deleted.
 
-## Questions worth settling
+This is coherent, and a variation reading "trigger checked nodes and move the
+remainder to a new Event" would have been elegant. It was rejected because the
+confirmation flow becomes considerably heavier for a need that delays and a
+move operation already cover.
 
-1. Does an Event represent one real-world occurrence or an ongoing release
-   container?
-2. If unchecked nodes survive a trigger, what should the user reasonably
-   expect to happen to them?
-3. Should automatic and manual triggering have identical node-selection
-   semantics?
-4. Is changing a node’s delay enough flexibility, or is selective release a
-   real recurring need?
-5. Should a dormant node belong to multiple Events, and if so, does the first
-   Event to wake it win?
+### Multi-release Event
 
-The recommended default answers are: one occurrence, no unchecked leftovers,
-identical trigger semantics, delays provide staging, and one owning Event per
-dormant node.
+An Event becomes a staging container that can be triggered repeatedly, with
+checked nodes using their individual release date as the origin for their
+delays.
+
+Rejected for the state it requires: Pending / Partially Triggered / Triggered
+on the Event, a per-node trigger date alongside the activation date, rules for
+what automatic triggering does after a partial manual one, rules for editing
+triggers mid-flight, and a definition of completion. It is the most flexible
+model, but it stops an Event being a single occurrence and starts behaving
+like a release queue.
+
+The deeper objection is that it conflicts with how delays work. A delay is an
+offset from *the Event's* firing. Selective release implies a per-node firing.
+Supporting both means storing both.

@@ -69,6 +69,63 @@ def unit_select(select_id, units=TIME_UNITS, value=None, compact=False, **kwargs
                       **kwargs)
 
 
+# --- Calendar-duration formatting -------------------------------------------
+# The output half of the DURATION_UNITS widget above. This arithmetic used to
+# exist as four hand-written copies -- two forward, two inverse -- and the two
+# inverses disagreed. The edit form knew about years and the dormant table did
+# not, so a one-year delay round-tripped as "365 days". Both inverses now share
+# _largest_exact_unit, so the form and the display cannot drift apart again.
+#
+# ConfigManager.format_time_friendly / time_unit are deliberately NOT reused
+# here. Those measure worked hours against the user's hours-per-week setting;
+# a delay is plain calendar days with fixed constants.
+
+#: Largest first. The inverse walks this in order and takes the first exact fit.
+_DURATION_UNIT_DAYS = (("years", 365), ("months", 30), ("weeks", 7), ("days", 1))
+
+
+def duration_to_days(value, unit) -> int:
+    """Convert a (value, unit) duration pair to whole days."""
+    try:
+        count = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    for name, size in _DURATION_UNIT_DAYS:
+        if unit == name:
+            return count * size
+    return count
+
+
+def _largest_exact_unit(days: int) -> tuple[int, str]:
+    """The biggest unit that divides `days` exactly, as (count, unit).
+
+    Exact division only, so 730 reads as "2 years" while 700 stays "100 weeks"
+    rather than becoming an approximate "1 year 4 months". The form holds one
+    number and one select, so a single unit is all it can carry.
+    """
+    for name, size in _DURATION_UNIT_DAYS:
+        if size > 1 and days >= size and days % size == 0:
+            return days // size, name
+    return days, "days"
+
+
+def days_to_duration(days) -> tuple[int, str]:
+    """Invert `duration_to_days` back to the (value, unit) pair a form holds."""
+    days = int(days or 0)
+    if days <= 0:
+        return 0, "days"
+    return _largest_exact_unit(days)
+
+
+def format_duration_days(days, zero="None") -> str:
+    """Render a day count as display text. 0 becomes `zero`, 365 becomes "1 year"."""
+    days = int(days or 0)
+    if days <= 0:
+        return zero
+    count, unit = _largest_exact_unit(days)
+    return f"{count} {unit[:-1] if count == 1 else unit}"
+
+
 _UNIT_TITLES = {"y": "Years", "m": "Months", "w": "Weeks", "h": "Hours"}
 
 # literal: Plotly shape colours -- read as computed values, not CSS.

@@ -854,36 +854,9 @@
     white-space: nowrap;
 }
 
-/* The select checkbox keeps its 14px box but takes the whole cell as its hit
-   target. dbc renders an empty label already carrying `for`, so stretching
-   that label over the cell is a native, JS-free click target. It also puts
-   the pointer cursor exactly where clicking toggles: the gap between the box
-   and the node name used to show a pointer over dead space, because the
-   cursor sat on the .form-check wrapper while the input itself showed the
-   default arrow. */
-.dormant-nodes-table .dormant-node-select-cell {
-    position: relative;
-}
-
-.dormant-nodes-table .dormant-node-select-cell .form-check {
-    margin-bottom: 0;
-    cursor: default;
-}
-
-.dormant-nodes-table .dormant-node-select-cell .form-check-input {
-    cursor: pointer;
-}
-
-.dormant-nodes-table .dormant-node-select-cell .form-check-label {
-    position: absolute;
-    inset: 0;
-    cursor: pointer;
-}
-
 /* Dormant-node actions are secondary to scanning the event's queued work.
-   On a precise pointer, reveal the two direct actions for the row under
-   attention. They remain in the tab order, and their own focus exposes them
-   for keyboard users without revealing actions when a row checkbox is focused.
+   On a precise pointer, reveal the row under attention's actions. They remain
+   in the tab order, and their own focus exposes them for keyboard users.
    Coarse/non-hover pointers retain visible controls. */
 .dormant-nodes-table .dormant-node-actions {
     opacity: 0;

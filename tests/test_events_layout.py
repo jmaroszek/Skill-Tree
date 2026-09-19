@@ -15,12 +15,34 @@ from models import STATUS_DONE
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
 
 
-def _node(name="Audio Engineering"):
+def _node(name="Audio Engineering", dormant=1):
+    """A dormant node by default -- every row in this table has one.
+
+    The Node dataclass defaults `dormant` to 0, and the table now reads that
+    flag to decide what a row says, so a test row that forgets it renders as
+    Awake and quietly loses its actions.
+    """
     return Node(
         name=name, type="Learn", description="", value=5,
         time_o=1, time_m=2, time_p=4, interest=5, difficulty=5,
-        status="Open",
+        status="Open", dormant=dormant,
     )
+
+
+def _row(name="Audio Engineering", *, delay_days=0, activated=False,
+         dormant=1, **extra):
+    row = {"node": _node(name, dormant=dormant), "delay_days": delay_days,
+           "activated": activated}
+    row.update(extra)
+    return row
+
+
+class _Event:
+    """Just enough of an Event for the wake-date projection."""
+
+    def __init__(self, trigger_date=None, trigger_nodes=None):
+        self.trigger_date = trigger_date
+        self.trigger_nodes = trigger_nodes or []
 
 
 def _header_labels(table):
@@ -47,37 +69,47 @@ def _header_widths(table):
 
 
 def test_dormant_node_table_uses_progressively_disclosed_direct_actions():
-    table = build_dormant_nodes_table(
-        [{"node": _node(), "delay_days": 0, "activated": False}],
-        "Pending",
-    )
+    table = build_dormant_nodes_table([_row()])
 
     row = table.children[1].children[0]
     actions = row.children[-1].children
-    edit_button, _edit_tooltip, remove_button, _remove_tooltip = actions.children
+    (edit_button, _edit_tip, move_button, _move_tip,
+     remove_button, _remove_tip) = actions.children
 
     assert table.className.startswith("dormant-nodes-table")
-    assert _header_labels(table) == ["", "Name", "Type", "Delay", "Status", "Actions"]
+    assert _header_labels(table) == ["Name", "Type", "Delay", "Wakes", "Actions"]
     assert table.children[0].children.children[-1].children.className == "visually-hidden"
     assert row.className == "dormant-node-row"
     assert "dormant-node-actions" in actions.className
     assert edit_button.className == "dormant-node-action-btn"
+    assert move_button.className == "dormant-node-action-btn"
     assert "dormant-node-action-btn-danger" in remove_button.className
     assert edit_button.children[0].className == "bi bi-pencil"
+    assert move_button.children[0].className == "bi bi-box-arrow-right"
     assert remove_button.children[0].className == "bi bi-x-lg"
     assert edit_button.children[1].children == "Edit dormant node Audio Engineering"
+    assert move_button.children[1].children == (
+        "Move dormant node Audio Engineering to another event")
     assert remove_button.children[1].children == "Remove dormant node Audio Engineering"
     assert not hasattr(edit_button, "title")
     assert not hasattr(remove_button, "title")
 
 
-def test_triggered_dormant_node_table_has_no_row_actions():
-    table = build_dormant_nodes_table(
-        [{"node": _node(), "delay_days": 0, "activated": True}],
-        "Triggered",
-    )
+def test_an_awake_row_has_no_actions():
+    """Gated per row, not per event. A Pending event can hold an awake node
+    because a different event woke it first."""
+    table = build_dormant_nodes_table([_row(activated=True, dormant=0)])
 
     assert table.children[1].children[0].children[-1].children is None
+
+
+def test_a_dormant_row_on_a_fired_event_keeps_its_actions():
+    """The mirror case: a fired event still holds scheduled nodes, and the
+    old per-event gate left them read-only."""
+    table = build_dormant_nodes_table(
+        [_row(delay_days=14, activation_date="2026-10-01")])
+
+    assert table.children[1].children[0].children[-1].children is not None
 
 
 def test_dormant_node_table_grid_does_not_move_between_events():
@@ -87,79 +119,124 @@ def test_dormant_node_table_grid_does_not_move_between_events():
     event was selected, and on whether that event happened to carry a delay
     or a mix of awake and dormant nodes.
     """
-    plain = build_dormant_nodes_table(
-        [{"node": _node("A"), "delay_days": 0, "activated": False}],
-        "Pending",
-    )
-    varied = build_dormant_nodes_table(
-        [
-            {"node": _node("A rather long dormant node name indeed"),
-             "delay_days": 14, "activated": False},
-            {"node": _node("Awake"), "delay_days": 0, "activated": True},
-        ],
-        "Pending",
-    )
+    plain = build_dormant_nodes_table([_row("A")])
+    varied = build_dormant_nodes_table([
+        _row("A rather long dormant node name indeed", delay_days=14),
+        _row("Awake", activated=True, dormant=0),
+    ])
 
     assert _header_labels(plain) == _header_labels(varied)
     assert _header_widths(plain) == _header_widths(varied)
     for table in (plain, varied):
         assert table.style["tableLayout"] == "fixed"
-        assert _header_widths(table)[1] is None, "Name absorbs the leftover width"
+        assert _header_widths(table)[0] is None, "Name absorbs the leftover width"
 
 
 def test_dormant_node_table_balances_metadata_spacing_and_action_room():
-    assert DORMANT_COL_WIDTHS["delay"] == DORMANT_COL_WIDTHS["type"]
-    assert int(DORMANT_COL_WIDTHS["actions"].removesuffix("px")) >= 84
+    assert set(DORMANT_COL_WIDTHS) == {"type", "delay", "wakes", "actions"}
+    # Wakes holds a date, so it is the widest of the three metadata columns.
+    widths = {k: int(v.removesuffix("px")) for k, v in DORMANT_COL_WIDTHS.items()}
+    assert widths["wakes"] > widths["type"] > widths["delay"]
+    # Three icons now, where there used to be two.
+    assert widths["actions"] >= 84
 
 
 def test_dormant_node_name_cell_truncates_but_keeps_the_full_name():
     long_name = "A rather long dormant node name indeed"
-    table = build_dormant_nodes_table(
-        [{"node": _node(long_name), "delay_days": 0, "activated": False}],
-        "Pending",
-    )
+    table = build_dormant_nodes_table([_row(long_name)])
 
-    name_cell = table.children[1].children[0].children[1]
+    name_cell = table.children[1].children[0].children[0]
     assert name_cell.className == "dormant-node-name-cell"
     assert name_cell.title == long_name
     assert name_cell.children == long_name
 
 
-def test_dormant_node_table_mutes_default_delay_and_status():
-    table = build_dormant_nodes_table(
-        [{"node": _node(), "delay_days": 0, "activated": False}],
-        "Pending",
-    )
+def test_dormant_node_table_mutes_a_default_delay_and_an_unknowable_date():
+    table = build_dormant_nodes_table([_row()])
 
-    _select, _name, _type, delay, status, _actions = table.children[1].children[0].children
+    _name, _type, delay, wakes, _actions = table.children[1].children[0].children
     assert delay.children.children == "None"
     assert delay.children.className == "text-muted"
-    assert status.children.children == "Dormant"
-    assert status.children.className == "text-muted"
+    # A manual event cannot say when it will fire, so the answer is the
+    # condition rather than a date -- and it recedes like any default.
+    assert wakes.children.children == "On trigger"
+    assert wakes.children.className == "text-muted"
 
 
-def test_dormant_node_table_gives_non_default_delay_and_status_full_contrast():
+def test_a_projected_wake_date_is_muted_and_a_committed_one_is_not():
+    """Before an event fires its dates can still move, so they read as
+    projections. A date written at firing is committed."""
+    projected = build_dormant_nodes_table(
+        [_row(delay_days=14)], _Event(trigger_date="2027-06-01"))
+    committed = build_dormant_nodes_table(
+        [_row(delay_days=14, activation_date="2027-10-01")])
+
+    projected_cell = projected.children[1].children[0].children[3].children
+    committed_cell = committed.children[1].children[0].children[3].children
+
+    assert projected_cell.children == "Jun 15 2027"
+    assert projected_cell.className == "text-muted"
+    assert committed_cell.children == "Oct 1 2027"
+    assert getattr(committed_cell, "className", None) is None
+    assert committed_cell.title == "2027-10-01", "the full date stays reachable"
+
+
+def test_a_delay_without_a_knowable_date_reads_as_an_offset():
+    table = build_dormant_nodes_table([_row(delay_days=30)])
+
+    _name, _type, delay, wakes, _actions = table.children[1].children[0].children
+    assert delay.children.children == "1 month"
+    assert wakes.children.children == "1 month after"
+
+
+def test_a_completion_event_cannot_project_a_date():
+    """It fires on a node being Done, and nothing knows when that is."""
     table = build_dormant_nodes_table(
-        [
-            {"node": _node("Delayed"), "delay_days": 14, "activated": False,
-             "activation_date": "2026-10-01"},
-            {"node": _node("Awake"), "delay_days": 0, "activated": True},
-        ],
-        "Pending",
-    )
+        [_row(delay_days=7)], _Event(trigger_nodes=["5k in 25 min"]))
 
-    delayed_row, awake_row = table.children[1].children
-    delay_text, scheduled = delayed_row.children[3].children
-    assert delay_text.children == "2 weeks"
-    assert scheduled.children == "Scheduled: 2026-10-01"
-    awake_badge = awake_row.children[4].children
-    assert awake_badge.children == "Awake"
+    assert table.children[1].children[0].children[3].children.children == "1 week after"
+
+
+def test_an_awake_row_takes_the_badge():
+    table = build_dormant_nodes_table([_row("Awake", activated=True, dormant=0)])
+
+    badge = table.children[1].children[0].children[3].children
+    assert badge.children == "Awake"
     # Was color="success" (stock Bootstrap #198754), which read as a different
     # green from the Done badge one table over. The palette's EventTriggered
     # is the shared "this fired" value.
-    assert awake_badge.className == "badge"
-    assert awake_badge.style["backgroundColor"] == BADGE_PALETTE['EventTriggered'][0]
-    assert awake_badge.style["backgroundColor"] == BADGE_PALETTE[STATUS_DONE][0]
+    assert badge.className == "badge"
+    assert badge.style["backgroundColor"] == BADGE_PALETTE['EventTriggered'][0]
+    assert badge.style["backgroundColor"] == BADGE_PALETTE[STATUS_DONE][0]
+
+
+def test_a_row_woken_by_another_event_reads_awake_and_names_it():
+    """First event to fire wins. The losing event used to call the node
+    Dormant, which was simply untrue."""
+    table = build_dormant_nodes_table(
+        [_row("Audio for Video", activated=False, dormant=0, woken_by="Video")])
+
+    badge, note = table.children[1].children[0].children[3].children
+    assert badge.children == "Awake"
+    assert note.children == "via Video"
+    assert note.className == "text-muted d-block"
+
+
+def test_a_row_woken_outside_any_event_reads_awake_without_naming_one():
+    table = build_dormant_nodes_table(
+        [_row("Find a Piano Teacher", activated=False, dormant=0)])
+
+    badge, note = table.children[1].children[0].children[3].children
+    assert badge.children == "Awake"
+    assert note.children == "woken outside this event"
+
+
+def test_a_one_year_delay_reads_as_one_year():
+    """365 % 30 == 5 and 365 % 7 == 1, so the table's own formatter used to
+    fall through to days while the edit form said "1 year"."""
+    table = build_dormant_nodes_table([_row(delay_days=365)])
+
+    assert table.children[1].children[0].children[2].children.children == "1 year"
 
 
 def test_dormant_node_actions_are_visible_on_intent_and_for_touch():
@@ -170,28 +247,6 @@ def test_dormant_node_actions_are_visible_on_intent_and_for_touch():
     assert ".dormant-node-actions:focus-within" in css
     assert ".dormant-node-row:focus-within .dormant-node-actions" not in css
     assert "@media (hover: none), (pointer: coarse)" in css
-
-
-def test_dormant_select_checkbox_takes_the_whole_cell_as_its_hit_target():
-    """The box stays 14px; the cell around it becomes clickable.
-
-    dbc renders an empty label already carrying `for`, so stretching it over
-    the cell is a native click target. The pointer cursor has to move with it:
-    it used to sit on the .form-check wrapper, showing a pointer over the dead
-    space beside the box while the box itself showed the default arrow.
-    """
-    css = THEME_CSS.read_text(encoding="utf-8")
-    cell = ".dormant-nodes-table .dormant-node-select-cell"
-
-    assert "position: relative;" in _css_rule(css, cell)
-
-    label = _css_rule(css, cell + " .form-check-label")
-    assert "position: absolute;" in label
-    assert "inset: 0;" in label
-    assert "cursor: pointer;" in label
-
-    assert "cursor: pointer;" in _css_rule(css, cell + " .form-check-input")
-    assert "cursor: default;" in _css_rule(css, cell + " .form-check")
 
 
 def test_dormant_node_name_cell_clips_with_an_ellipsis():

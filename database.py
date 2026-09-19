@@ -462,6 +462,12 @@ def init_db():
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
+    # The composite PK indexes event_name first, so every "which events hold
+    # this node?" lookup was a table scan. Multi-event membership makes those
+    # lookups routine: the dormant-flag sync runs one on each EventNodes write.
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_event_nodes_node "
+                   "ON EventNodes(node_name)")
+
     # Append-only user lifecycle boundaries. start_date/done_date on Nodes stay
     # as convenient latest-state snapshots; this table is the prospective,
     # lossless history for repeated Now and Done cycles.

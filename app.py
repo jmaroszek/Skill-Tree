@@ -94,6 +94,10 @@ def create_app(settings=None, services=None):
     repaired = services.graph.recompute_all_statuses()
     if repaired:
         _logger.info("Startup safety-net repaired %d node status(es).", repaired)
+    rewoken = services.events.reconcile_dormant_flags()
+    if rewoken:
+        _logger.info("Startup safety-net rewoke %d node(s) their event had "
+                     "already activated.", rewoken)
 
     import dash
     import dash_cytoscape as cyto

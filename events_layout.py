@@ -3,11 +3,13 @@ Layout definitions for the Events tab.
 """
 
 import style_tokens as tokens
-from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
+from duration_ui import (DURATION_UNITS, bracket_label, estimate_guidance, unit_select,
+                         format_duration_days)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
+from datetime import date, timedelta
 from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOAST_CLEAR_INTERVAL_MS, badge_style
 from models import STATUS_DONE
 from styles import events_graph_stylesheet
@@ -360,20 +362,38 @@ def build_events_tab_content():
             ]),  # end dormant-mode-new-fields
 
             # Activation Delay — common to both new and existing modes.
+            #
+            # Two modes, because the question changes once the event fires.
+            # Before it fires there is no date to speak of, so the answer is an
+            # offset: "two weeks after". After it fires the wake date is fixed
+            # and known, so the offset has nothing left to measure from and the
+            # date itself is the thing to edit.
             html.Hr(className="my-2"),
-            html.H5("Activation Delay", className="mt-2 mb-1"),
-            html.Small("How long after the event triggers before this node wakes up.",
-                       className="text-muted d-block mb-2"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Input(id="dormant-node-delay-value", type="number", min=0, value=0, placeholder="0"),
-                ], width=6),
-                dbc.Col([
-                    unit_select("dormant-node-delay-unit",
-                                units=DURATION_UNITS, value="days"),
-                ], width=6),
+            html.H5("Activation Delay", className="mt-2 mb-1",
+                    id="dormant-delay-heading"),
+            html.Div(id="dormant-delay-offset-mode", children=[
+                html.Small("How long after the event triggers before this node wakes up.",
+                           className="text-muted d-block mb-2"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Input(id="dormant-node-delay-value", type="number", min=0, value=0, placeholder="0"),
+                    ], width=6),
+                    dbc.Col([
+                        unit_select("dormant-node-delay-unit",
+                                    units=DURATION_UNITS, value="days"),
+                    ], width=6),
+                ]),
+                html.Small("0 = activates immediately when event is triggered.", className="text-muted"),
             ]),
-            html.Small("0 = activates immediately when event is triggered.", className="text-muted"),
+            html.Div(id="dormant-delay-date-mode", style={"display": "none"}, children=[
+                html.Small("This event has already fired, so this node has a "
+                           "wake date rather than an offset.",
+                           className="text-muted d-block mb-2"),
+                dbc.Input(id="dormant-node-wake-date", type="date",  # type: ignore[reportArgumentType]
+                          style={"maxWidth": "200px"}),
+                html.Small("Move the node to a pending event to put it back on "
+                           "an offset.", className="text-muted d-block mt-2"),
+            ]),
 
             html.Div(id="dormant-node-save-status", className="text-danger mt-2"),
         ]),
@@ -516,7 +536,11 @@ def build_events_tab_content():
                 html.Div([
                     html.Div([
                         html.H5("Dormant Nodes", className="mb-0"),
-                        add_button("btn-add-dormant-node", "Add a dormant node to this event"),
+                        html.Div(
+                            add_button("btn-add-dormant-node",
+                                       "Add a dormant node to this event"),
+                            id="dormant-add-btn-wrapper",
+                        ),
                     ], className="d-flex align-items-center"),
                     # Trigger acts on the dormant nodes — placed here, not with
                     # Save/Delete. Visibility mirrors event-trigger-section.
@@ -531,26 +555,52 @@ def build_events_tab_content():
 
                 html.Div(id="dormant-nodes-table-container"),
 
+                # One action. "Trigger Checked" and "Trigger All" used to sit
+                # here side by side, but a checked trigger marked the whole
+                # event Triggered anyway, so the unchecked rows were stranded
+                # rather than staged. The body earns the space instead: it is
+                # the last look at what firing will do.
                 dbc.Modal([
                     dbc.ModalHeader(dbc.ModalTitle("Trigger Event")),
                     dbc.ModalBody([
-                        html.P("Choose which nodes to activate. Nodes with a delay will be scheduled for future activation rather than appearing on the canvas right away."),
+                        html.Div(id="trigger-confirm-body"),
                         dbc.Switch(
                             id="manual-now-trigger-toggle",
                             label="Add nodes flagged \"Add to Now\" to the Now list",
                             value=False,
-                            className="mt-2",
+                            className="mt-3",
                         ),
                     ]),
                     dbc.ModalFooter([
                         dbc.Button("Cancel", id="btn-trigger-cancel", color="secondary", className="me-auto"),
-                        dbc.Button("Trigger Checked", id="btn-trigger-confirm", color="success", className="me-2",
-                                   style={"backgroundColor": _done_color, "borderColor": _done_color}),
-                        dbc.Button("Trigger All", id="btn-trigger-all-confirm", color="success",
+                        dbc.Button("Trigger Event", id="btn-trigger-confirm", color="success",
                                    style={"backgroundColor": _done_color, "borderColor": _done_color}),
                     ]),
                 ], id="modal-confirm-trigger", size="md", is_open=False,
                    centered=True),
+                # Moving is what replaced staged release. Firing takes every
+                # node an event holds, so "not this one yet" is said by putting
+                # the node somewhere that has not fired.
+                dbc.Modal([
+                    dbc.ModalHeader(dbc.ModalTitle(id="move-dormant-title")),
+                    dbc.ModalBody([
+                        dbc.Label("Move to", className="mb-1"),
+                        dbc.Select(id="move-dormant-target-event", options=[],
+                                   value=None),
+                        html.Div(id="move-dormant-note",
+                                 className="text-muted mt-2",
+                                 style={"fontSize": tokens.FS_CAP}),
+                        html.Div(id="move-dormant-status", className="text-danger mt-2"),
+                    ]),
+                    dbc.ModalFooter([
+                        dbc.Button("Cancel", id="btn-move-dormant-cancel",
+                                   color="secondary", className="me-2"),
+                        dbc.Button("Move", id="btn-move-dormant-confirm",
+                                   color="primary"),
+                    ]),
+                ], id="modal-move-dormant-node", size="md", is_open=False,
+                   centered=True),
+                dcc.Store(id="move-dormant-node-store", data=None),
                 dbc.Modal([
                     # Was the only delete confirm in the app opening as a naked
                     # body; the node-delete confirm in layout.py has carried a
@@ -689,13 +739,19 @@ def _event_trigger_type(event):
 
 
 def _event_badge(status, trigger_date, trigger_nodes=None):
-    """Returns (badge_text, badge_palette_name) for an event."""
+    """Returns (badge_text, badge_palette_name) for an event.
+
+    The three trigger badges name the *mechanism* — Manual, Date, Completion.
+    The date one read "Scheduled" until the dormant table started using that
+    word for a node whose wake date is set, where it describes a state rather
+    than a mechanism. docs/features.md already called this trigger type Date.
+    """
     if status == "Triggered":
         return "Triggered", "EventTriggered"
     if trigger_nodes:
         return "Completion", "EventTrigger"
     if trigger_date:
-        return "Scheduled", "EventTrigger"
+        return "Date", "EventTrigger"
     return "Manual", "EventTrigger"
 
 
@@ -755,9 +811,21 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
             className="text-muted d-block",
             style={"fontSize": tokens.FS_SM}
         ))
+    # A fired event that is still listed has work outstanding, and the card
+    # should say what, rather than leaving the user to wonder why it is here.
+    waiting = node_count['total'] - node_count['activated']
+    if status == "Triggered" and waiting > 0:
+        count_text = (f"{node_count['total']} node"
+                      f"{'s' if node_count['total'] != 1 else ''}"
+                      f" · {waiting} waking later")
+    else:
+        count_text = (
+            f"{node_count['total']} node{'s' if node_count['total'] != 1 else ''}"
+            + (f" ({node_count['activated']} activated)"
+               if node_count['activated'] > 0 else "")
+        )
     children.append(html.Small(
-        f"{node_count['total']} node{'s' if node_count['total'] != 1 else ''}"
-        + (f" ({node_count['activated']} activated)" if node_count['activated'] > 0 else ""),
+        count_text,
         className="text-muted",
         style={"fontSize": tokens.FS_SM}
     ))
@@ -775,9 +843,14 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
 
 
 def triggered_divider_text(count: int, shown: bool) -> str:
-    """"2 triggered events hidden" while hidden, "2 triggered events" once shown."""
+    """"2 finished events hidden" while hidden, "2 finished events" once shown.
+
+    Said "triggered" until a fired event with nodes still waiting started
+    staying in the list, at which point "triggered" no longer described the
+    ones below the rule. Finished does: fired, with nothing left to wake.
+    """
     noun = "event" if count == 1 else "events"
-    return f"{count} triggered {noun}" + ("" if shown else " hidden")
+    return f"{count} finished {noun}" + ("" if shown else " hidden")
 
 
 def build_triggered_divider(count: int, shown: bool):
@@ -801,37 +874,199 @@ def build_triggered_divider(count: int, shown: bool):
     ], className="events-triggered-divider")
 
 
-def _delay_days_to_form(delay_days: int) -> tuple[int, str]:
-    """Invert a delay_days integer back to the (value, unit) pair used by
-    the Dormant Node modal's delay input. Mirrors save_dormant_node's
-    forward arithmetic: years × 365, months × 30, weeks × 7, else days."""
-    if delay_days == 0:
-        return 0, "days"
-    if delay_days % 365 == 0 and delay_days >= 365:
-        return delay_days // 365, "years"
-    if delay_days % 30 == 0 and delay_days >= 30:
-        return delay_days // 30, "months"
-    if delay_days % 7 == 0 and delay_days >= 7:
-        return delay_days // 7, "weeks"
-    return delay_days, "days"
-
-
 # Fixed column widths hold the dormant table's grid still from one event to
 # the next. With `table-layout: fixed` the Name column absorbs whatever is
 # left over, so Type no longer shifts sideways just because one event happens
 # to hold a longer node name. Name truncates with an ellipsis instead; the
 # full text stays available on hover.
 DORMANT_COL_WIDTHS = {
-    "select": "32px",
-    "type": "110px",
-    "delay": "110px",
-    "status": "90px",
-    "actions": "84px",
+    "type": "100px",
+    "delay": "90px",
+    "wakes": "130px",
+    "actions": "112px",
 }
 
 
-def build_dormant_nodes_table(event_nodes, event_status):
-    """Builds the dormant nodes table for an event detail view."""
+def _format_wake_date(iso_date: str) -> str:
+    """An ISO date as `Oct 1`, or `Oct 1 2027` when it is not this year.
+
+    The year is the part that only sometimes carries information, so it only
+    sometimes appears. The full ISO string stays in the cell's title.
+    """
+    try:
+        when = date.fromisoformat(iso_date)
+    except (TypeError, ValueError):
+        return iso_date or ""
+    stamp = f"{when.strftime('%b')} {when.day}"
+    return stamp if when.year == date.today().year else f"{stamp} {when.year}"
+
+
+def _projected_wake(event, delay_days: int) -> str:
+    """When an unfired row will wake, as far as the event can say.
+
+    A date-triggered event knows: its date plus the row's delay. Manual and
+    completion events do not, so they answer in offsets instead. Naming the
+    offset twice (Delay says "2 weeks", this says "2 weeks after") is mild
+    redundancy in exchange for the Wakes column always answering its own
+    question.
+    """
+    if event is not None and _event_trigger_type(event) == "date":
+        try:
+            when = date.fromisoformat(event.trigger_date) + timedelta(days=delay_days)
+        except (TypeError, ValueError):
+            pass
+        else:
+            return _format_wake_date(when.isoformat())
+    if delay_days == 0:
+        return "On trigger"
+    return f"{format_duration_days(delay_days)} after"
+
+
+def _wakes_cell(en, event):
+    """The Wakes column: when this node wakes, or that it already has.
+
+    It replaced a Status column that could only say "Dormant" before an event
+    fired -- true of every row, so it carried nothing. Status is folded in
+    here: a plain date means still waiting, a badge means already awake.
+
+    Contrast does the rest of the work. A projected date is muted because the
+    event has not fired and the date can still move; a date written at firing
+    is full contrast because it is committed.
+    """
+    node = en['node']
+    activation_date = en.get('activation_date')
+
+    if not node.dormant:
+        badge = html.Span("Awake", className="badge",
+                          style=badge_style('EventTriggered',
+                                            font_size=tokens.FS_XS))
+        if en.get('activated'):
+            return badge
+        # Awake without this row firing: some other event got there first, or
+        # the node was woken outside the event system entirely. Either way the
+        # old table called it Dormant, which was simply untrue.
+        woken_by = en.get('woken_by')
+        note = f"via {woken_by}" if woken_by else "woken outside this event"
+        return [badge, html.Small(note, className="text-muted d-block",
+                                  style={"fontSize": tokens.FS_XS})]
+
+    if activation_date:
+        return html.Span(_format_wake_date(activation_date),
+                         title=activation_date)
+    return html.Span(_projected_wake(event, en['delay_days']),
+                     className="text-muted")
+
+
+def _dormant_row_actions(node_name: str):
+    """Edit / Move / Remove for one row, or None when it has nothing to act on.
+
+    Gated per row rather than per event. A Pending event can hold an awake
+    node (another event woke it) and a fired event can still hold scheduled
+    ones, so the event's own status was never the right question.
+    """
+    ids = {
+        action: {"type": f"btn-{action}-dormant-node", "index": node_name}
+        for action in ("edit", "move", "remove")
+    }
+    specs = [
+        ("edit", "bi bi-pencil", f"Edit dormant node {node_name}",
+         "Edit dormant node", ""),
+        ("move", "bi bi-box-arrow-right",
+         f"Move dormant node {node_name} to another event",
+         "Move to another event", ""),
+        ("remove", "bi bi-x-lg", f"Remove dormant node {node_name}",
+         "Remove dormant node", " dormant-node-action-btn-danger"),
+    ]
+    children = []
+    for action, icon, label, tip, extra_class in specs:
+        children.append(dbc.Button(
+            [
+                html.I(className=icon, **{"aria-hidden": "true"}),
+                html.Span(label, className="visually-hidden"),
+            ],
+            id=ids[action], color="link",
+            className=f"dormant-node-action-btn{extra_class}",
+        ))
+        children.append(dbc.Tooltip(
+            tip, target=ids[action], placement="left",
+            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}))
+    return html.Div(
+        children,
+        className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")
+
+
+#: Above this many scheduled nodes, listing every wake date stops being
+#: scannable and the summary gives a count instead.
+_TRIGGER_SUMMARY_DATE_LIMIT = 5
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def trigger_confirmation_body(event_name, event_nodes):
+    """What firing this event will actually do, for the confirm modal.
+
+    Firing takes every node the event holds, so this summary is the last
+    place to notice one you did not mean to release — which is the job the
+    row checkboxes used to do badly. It names the nodes waking now for that
+    reason, and the wake dates while there are few enough to read.
+    """
+    pending = [en for en in event_nodes if not en['activated']]
+    waking = [en for en in pending if en['node'].dormant and not en['delay_days']]
+    scheduled = [en for en in pending if en['node'].dormant and en['delay_days']]
+    # Some other event got here first. Counting these as woken would claim a
+    # wake that is not going to happen.
+    already = [en for en in pending if not en['node'].dormant]
+
+    lines = [html.P(f'Trigger "{event_name}"?', className="mb-2")]
+
+    if not pending:
+        lines.append(html.P(
+            "This event has no dormant nodes left to wake. Triggering it will "
+            "just mark it Triggered.",
+            className="text-muted mb-0"))
+        return lines
+
+    if waking:
+        names = ", ".join(en['node'].name for en in waking)
+        lines.append(html.P(
+            f"{_plural(len(waking), 'node')} will wake now: {names}.",
+            className="mb-2"))
+
+    if scheduled:
+        lines.append(html.P(
+            f"{len(scheduled)} will be scheduled for later:"
+            if len(scheduled) <= _TRIGGER_SUMMARY_DATE_LIMIT
+            else f"{len(scheduled)} will be scheduled for later.",
+            className="mb-1"))
+        if len(scheduled) <= _TRIGGER_SUMMARY_DATE_LIMIT:
+            lines.append(html.Ul(
+                [html.Li([
+                    en['node'].name,
+                    html.Span(
+                        f" — wakes {_format_wake_date((date.today() + timedelta(days=en['delay_days'])).isoformat())}",
+                        className="text-muted"),
+                ]) for en in scheduled],
+                className="mb-2"))
+
+    if already:
+        names = ", ".join(en['node'].name for en in already)
+        lines.append(html.P(
+            f"{_plural(len(already), 'node')} already awake: {names}.",
+            className="text-muted mb-0"))
+
+    return lines
+
+
+def build_dormant_nodes_table(event_nodes, event=None):
+    """Builds the dormant nodes table for an event detail view.
+
+    `event` is only consulted to project a wake date for rows that have not
+    fired yet; every row's own state comes from the row. It used to be the
+    event's status string, which decided whether a row got actions -- a
+    question the row now answers for itself.
+    """
     if not event_nodes:
         return html.Div(
             html.P("No dormant nodes yet. Click 'Add Node' to add one.", className="text-muted"),
@@ -842,107 +1077,30 @@ def build_dormant_nodes_table(event_nodes, event_status):
     for en in event_nodes:
         node = en['node']
         delay_days = en['delay_days']
-        activated = en['activated']
 
-        # Convert delay_days back to a friendly display
-        if delay_days == 0:
-            delay_display = "None"
-        elif delay_days % 30 == 0 and delay_days >= 30:
-            months = delay_days // 30
-            delay_display = f"{months} month{'s' if months > 1 else ''}"
-        elif delay_days % 7 == 0:
-            weeks = delay_days // 7
-            delay_display = f"{weeks} week{'s' if weeks > 1 else ''}"
-        else:
-            delay_display = f"{delay_days} day{'s' if delay_days != 1 else ''}"
-
-        # Every row carries Delay and Status, so the column grid is identical
-        # for every event. A default value recedes rather than disappearing:
-        # muted text keeps "None" and "Dormant" quiet enough that a real delay
-        # or a woken node still stands out — without the absence of a whole
-        # column having to carry that meaning by itself.
-        if delay_days == 0:
-            delay_cell = html.Span(delay_display, className="text-muted")
-        else:
-            delay_cell = [html.Span(delay_display)]
-            if en.get('activation_date') and not activated:
-                delay_cell.append(html.Small(
-                    f"Scheduled: {en['activation_date']}",
-                    className="text-muted d-block",
-                    style={"fontSize": tokens.FS_XS}
-                ))
-
-        if activated:
-            # Was dbc.Badge(color="success"), i.e. stock Bootstrap #198754 --
-            # a visibly different green from the Done badge one table over.
-            # EventTriggered is the palette's name for "the event fired", and
-            # deliberately shares Done's value. Dormant stays muted text: a
-            # default should recede rather than compete, which is the contract
-            # test_events_layout.py pins down.
-            status_cell = html.Span("Awake", className="badge",
-                                    style=badge_style('EventTriggered',
-                                                      font_size=tokens.FS_XS))
-        else:
-            status_cell = html.Span("Dormant", className="text-muted")
-
-        # Checkbox: only shown for dormant (non-activated) nodes on non-triggered events
-        if not activated and event_status != "Triggered":
-            # The whole cell is the click target, not just this 14px box — see
-            # the .dormant-node-select-cell rules in theme.css.
-            trigger_checkbox = dbc.Checkbox(
-                id={"type": "dormant-node-select", "index": node.name},
-                value=True,
-            )
-        else:
-            trigger_checkbox = html.Span()
-
-        action_btns = None
-        if not activated and event_status != "Triggered":
-            edit_id = {"type": "btn-edit-dormant-node", "index": node.name}
-            remove_id = {"type": "btn-remove-dormant-node", "index": node.name}
-            edit_btn = dbc.Button(
-                [
-                    html.I(className="bi bi-pencil", **{"aria-hidden": "true"}),
-                    html.Span(f"Edit dormant node {node.name}", className="visually-hidden"),
-                ],
-                id=edit_id, color="link",
-                className="dormant-node-action-btn",
-            )
-            remove_btn = dbc.Button(
-                [
-                    html.I(className="bi bi-x-lg", **{"aria-hidden": "true"}),
-                    html.Span(f"Remove dormant node {node.name}", className="visually-hidden"),
-                ],
-                id=remove_id, color="link",
-                className="dormant-node-action-btn dormant-node-action-btn-danger",
-            )
-            action_btns = html.Div([
-                edit_btn,
-                dbc.Tooltip("Edit dormant node", target=edit_id, placement="left",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                remove_btn,
-                dbc.Tooltip("Remove dormant node", target=remove_id, placement="left",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-            ], className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")
+        # A default value recedes rather than disappearing: muted text keeps
+        # "None" quiet enough that a real delay still stands out, without the
+        # absence of a whole column having to carry that meaning by itself.
+        delay_display = format_duration_days(delay_days)
+        delay_cell = (html.Span(delay_display, className="text-muted")
+                      if delay_days == 0 else html.Span(delay_display))
 
         rows.append(html.Tr([
-            html.Td(trigger_checkbox, className="dormant-node-select-cell",
-                    style=tokens.CELL_PRIMARY),
             # title= keeps the full name reachable once the cell ellipsizes it.
             html.Td(node.name, className="dormant-node-name-cell", title=node.name,
                     style=tokens.CELL_PRIMARY),
             html.Td(node.type, style=tokens.CELL_MUTED),
             html.Td(delay_cell, style=tokens.CELL_PRIMARY),
-            html.Td(status_cell, style=tokens.CELL_PRIMARY),
-            html.Td(action_btns, style={"verticalAlign": "middle", "textAlign": "right"}),
+            html.Td(_wakes_cell(en, event), style=tokens.CELL_PRIMARY),
+            html.Td(None if not node.dormant else _dormant_row_actions(node.name),
+                    style={"verticalAlign": "middle", "textAlign": "right"}),
         ], className="dormant-node-row"))
 
     headers = [
-        html.Th("", style={"width": DORMANT_COL_WIDTHS["select"]}),
         html.Th("Name"),
         html.Th("Type", style={"width": DORMANT_COL_WIDTHS["type"]}),
         html.Th("Delay", style={"width": DORMANT_COL_WIDTHS["delay"]}),
-        html.Th("Status", style={"width": DORMANT_COL_WIDTHS["status"]}),
+        html.Th("Wakes", style={"width": DORMANT_COL_WIDTHS["wakes"]}),
         html.Th(html.Span("Actions", className="visually-hidden"),
                 style={"width": DORMANT_COL_WIDTHS["actions"]}),
     ]

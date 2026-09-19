@@ -138,13 +138,13 @@ def _card_names(children):
 def test_triggered_events_hide_behind_a_counted_divider(render):
     children = render()
     assert _card_names(children) == ["Alpha"]
-    assert "2 triggered events hidden · Show" in _text(children)
+    assert "2 finished events hidden · Show" in _text(children)
 
 
 def test_showing_triggered_events_lists_them_under_the_divider(render):
     children = render(shown=True)
     assert _card_names(children) == ["Alpha", "Beta", "Gamma"]
-    assert "2 triggered events · Hide" in _text(children)
+    assert "2 finished events · Hide" in _text(children)
     # Active and triggered cards sort in separate groups.
     groups = [node for node in children if "events-sort-group" in (node.className or "")]
     assert [_card_names(group) for group in groups] == [["Alpha"], ["Beta", "Gamma"]]
@@ -153,7 +153,7 @@ def test_showing_triggered_events_lists_them_under_the_divider(render):
 def test_hidden_count_only_counts_search_matches(render):
     children = render(search="garden")
     assert _card_names(children) == ["Alpha"]
-    assert "1 triggered event hidden · Show" in _text(children)
+    assert "1 finished event hidden · Show" in _text(children)
 
 
 def test_divider_stays_when_search_matches_only_triggered_events(render):
@@ -161,10 +161,54 @@ def test_divider_stays_when_search_matches_only_triggered_events(render):
     assert _card_names(children) == []
     text = _text(children)
     assert "No matching events." in text
-    assert "1 triggered event hidden · Show" in text
+    assert "1 finished event hidden · Show" in text
 
 
 def test_no_divider_without_triggered_events(render):
     children = render(search="plant")
     assert _card_names(children) == ["Alpha"]
     assert not _has_class(children, "events-triggered-divider")
+
+
+def test_a_fired_event_with_nodes_still_waiting_stays_in_the_list():
+    """Status alone used to decide, so an event with three nodes waking in
+    March vanished the moment it triggered. Finished, not merely fired."""
+    from graph_manager import GraphManager
+    from models import Node
+
+    em, gm = EventManager(), GraphManager()
+    em.add_event(Event(name="Staged"))
+    em.add_event(Event(name="Done With"))
+    gm.add_node(Node(name="Soon", type="Learn", description="", value=5,
+                     time_o=1, time_m=2, time_p=4, interest=5, difficulty=5,
+                     status="Open", context="Mind"))
+    gm.add_node(Node(name="Much Later", type="Learn", description="", value=5,
+                     time_o=1, time_m=2, time_p=4, interest=5, difficulty=5,
+                     status="Open", context="Mind"))
+    gm.add_node(Node(name="Finished", type="Learn", description="", value=5,
+                     time_o=1, time_m=2, time_p=4, interest=5, difficulty=5,
+                     status="Open", context="Mind"))
+    em.add_node_to_event("Staged", "Soon")
+    em.add_node_to_event("Staged", "Much Later", delay_days=180)
+    em.add_node_to_event("Done With", "Finished")
+    em.trigger_event("Staged")
+    em.trigger_event("Done With")
+
+    children = _render_events_list()(None, None, None, None, "", False, "az", None)
+
+    assert _card_names(children) == ["Staged"]
+    text = _text(children)
+    assert "2 nodes \u00b7 1 waking later" in text
+    assert "1 finished event hidden" in text
+
+
+def test_an_empty_fired_event_counts_as_finished():
+    """Nothing left to wake, so it leaves the list the moment it fires."""
+    em = EventManager()
+    em.add_event(Event(name="Decided"))
+    em.trigger_event("Decided")
+
+    children = _render_events_list()(None, None, None, None, "", False, "az", None)
+
+    assert _card_names(children) == []
+    assert "1 finished event hidden" in _text(children)

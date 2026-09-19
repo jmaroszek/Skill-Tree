@@ -58,3 +58,29 @@ def test_init_db_is_idempotent_with_indexes():
             ("idx_edges_target_type",),
         )
         assert cursor.fetchone()[0] == 1
+
+
+def test_idx_event_nodes_node_present():
+    with database.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
+            ("idx_event_nodes_node",),
+        )
+        assert cursor.fetchone() is not None
+
+
+def test_event_nodes_by_node_query_uses_new_index():
+    """EventNodes' PK indexes event_name first, so "which events hold this
+    node?" was a table scan until this index existed. The dormant-flag sync
+    runs that lookup on every EventNodes write."""
+    with database.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "EXPLAIN QUERY PLAN SELECT event_name FROM EventNodes WHERE node_name=?",
+            ("A",),
+        )
+        plan_text = " ".join(str(row) for row in cursor.fetchall()).lower()
+        assert "idx_event_nodes_node" in plan_text, (
+            f"node-side query did not use idx_event_nodes_node: {plan_text}"
+        )

@@ -698,7 +698,7 @@ The Events tab is where you create, edit, and trigger events. Unlike the other t
 ### Events Sidebar
 Open the sidebar from the calendar icon in the top-left, or via the empty-state button on the Events Tab. 
 
-The sidebar lists every event as a card showing its name, description, trigger, and a node count. Search and sort work the same way as in the Goals sidebar. Triggered events are hidden. A line at the end of the list counts them, and its **Show** button lists them below it. Click any card to load it into the Events Tab. Right-click a card to edit, trigger, or delete that event.
+The sidebar lists every event as a card showing its name, description, trigger, and a node count. Search and sort work the same way as in the Goals sidebar. An event leaves the list once it is finished, meaning it has fired and has nothing left to wake. An event that fired but still has nodes on a delay stays in the list, and its card says so: *5 nodes · 2 waking later*. A line at the end of the list counts the finished ones, and its **Show** button lists them below it. Click any card to load it into the Events Tab. Right-click a card to edit, trigger, or delete that event.
 
 Once an event is loaded, the tab splits in two: the **Event Editor** on the left and the **Event Canvas** on the right.
 
@@ -710,15 +710,33 @@ Once an event is loaded, the tab splits in two: the **Event Editor** on the left
 
 ### Event Editor
 
-The event editor lets you manage details about an event. The most useful sections are the trigger type selector and dormant nodes table. Use this table to queue tasks for activation, adjust their activation delay (a post-trigger grace period in days), and select specific nodes to wake up during a manual trigger.
+The event editor lets you manage details about an event. The most useful sections are the trigger type selector and the dormant nodes table. Use the table to queue tasks, give them an activation delay, and move them between events.
 
-The **Trigger** button fires the event manually. It opens a confirmation modal with two options: **Trigger Checked** (wake only the checked rows) or **Trigger All** (wake everything). Handy when an event has accumulated more dormant nodes than you're ready to release at once.
+Each row says when its node wakes. For a date event the app can work the date out, so it shows one. For a manual or completion event there is no date to know yet, so the row says *On trigger*, or *2 weeks after* when the node has a delay. Those dates are greyed out because they are projections and can still move. Once the event fires they turn solid, because then they are committed.
+
+A node that has woken shows an **Awake** badge instead. If a different event woke it first, the row says so: *Awake · via Music*. A node can belong to more than one event, and the first one to fire wakes it.
+
+Every row has three actions on hover: edit the node, move it to another event, or remove it.
+
+### Firing an Event
+
+The **Trigger** button fires the event. An event fires once, and everything attached to it takes part. There is no way to fire half an event.
+
+Before it fires, a confirmation tells you exactly what is about to happen: which nodes wake now, which get scheduled and for when, and which are already awake because another event got there first. That summary is your last look, so read it rather than the row list.
+
+If you are not ready to release something, move it to another event first. That is what the move action is for, and it is also how you change a delay you have already committed to: the destination event resets the date.
+
+### Delays
+
+A delay is how you stage a release without splitting it into two events. Give a node two weeks and it waits two weeks after the event fires; give another three months and it waits three months. Everything measures from the one moment the event fired.
+
+Before the event fires you set a delay as an offset, because there is no date yet. Afterwards the editor shows you the wake date itself, since that is the thing that now exists. If two groups of work genuinely become relevant at different real-world moments, they are probably two events rather than one event with delays.
 
 ### Event Canvas
 The right side of the tab shows a mini-graph of the selected event's dormant nodes. It works the same way as other canvases. Use it as a sanity check to make sure the nodes are wired how you want them before they go live.
 
 ## Event Announcements
-When an event triggers — automatically or because you clicked trigger — an announcement message shows up, telling you what nodes just woke up, and which will be waking up soon due to their activation delay.
+When an event triggers — automatically or because you clicked trigger — an announcement shows up telling you what woke, what is scheduled and for when, and what was already awake. Delayed nodes get their own announcement later, on the day they actually wake.
 
 # Reflection
 

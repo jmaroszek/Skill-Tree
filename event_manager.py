@@ -15,7 +15,7 @@ import sqlite3
 from datetime import date, timedelta
 import database
 from models import Node, Event, STATUS_DONE, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
-from typing import List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Optional, Tuple
 
 
 # Columns hydrated onto Event. Listed explicitly rather than via SELECT * so a
@@ -99,6 +99,62 @@ class EventManager:
                 (event_name, node_name),
             )
 
+    # --- The dormant flag ---
+    #
+    # A node with at least one EventNodes row is awake exactly when one of
+    # those rows says activated. That is a policy, not a fact about the data:
+    # `Nodes.dormant` is a single per-node bit while membership is a set, so
+    # nothing keeps them agreeing unless every writer says so.
+    #
+    # The two halves are deliberately asymmetric. Waking is mechanical -- an
+    # activated row means the node is live, full stop. Sleeping is a decision,
+    # so the sleep half only runs where putting the node back under an event
+    # is what the user asked for, and it refuses while any row still holds it
+    # awake. A node with no rows at all is untouched by both: plain non-event
+    # nodes must not be reachable from here.
+
+    @staticmethod
+    def _sync_dormant_flag(cursor, node_name: str) -> None:
+        """Re-derive `Nodes.dormant` for one node from its EventNodes rows."""
+        cursor.execute(
+            "UPDATE Nodes SET dormant=0 WHERE name=? AND dormant=1 AND EXISTS ("
+            "  SELECT 1 FROM EventNodes WHERE node_name=? AND activated=1)",
+            (node_name, node_name),
+        )
+        cursor.execute(
+            "UPDATE Nodes SET dormant=1 WHERE name=? AND dormant=0"
+            "  AND EXISTS (SELECT 1 FROM EventNodes WHERE node_name=?)"
+            "  AND NOT EXISTS ("
+            "    SELECT 1 FROM EventNodes WHERE node_name=? AND activated=1)",
+            (node_name, node_name, node_name),
+        )
+
+    @database.atomic
+    def reconcile_dormant_flags(self) -> int:
+        """Startup safety net: wake any node whose rows say it already woke.
+
+        Only the wake half, because only the wake half is unambiguous -- a row
+        marked activated is a firing that happened, and honouring it cannot
+        lose information. Re-sleeping on the strength of a missing row could
+        pull a node the user is actively working on off the canvas, so that
+        stays out of the automatic path.
+
+        Deliberately not a migration. A schema step runs once at a version
+        bump; this runs every launch, so it still catches drift introduced
+        after the bump. It is a no-op on a database with no EventNodes rows.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE Nodes SET dormant=0 WHERE dormant=1 AND name IN ("
+                "  SELECT node_name FROM EventNodes WHERE activated=1)"
+            )
+            repaired = cursor.rowcount or 0
+            conn.commit()
+        if repaired:
+            self._graph_changed()
+        return repaired
+
     # --- Event CRUD ---
 
     @database.atomic
@@ -150,10 +206,15 @@ class EventManager:
         self._graph_changed(scoring=False)
 
     @database.atomic
-    def delete_event(self, event_name: str, delete_nodes: bool = True):
+    def delete_event(self, event_name: str, delete_nodes: bool = True) -> Dict[str, List[str]]:
         """Deletes an event. If delete_nodes is True, also deletes its dormant nodes.
-        If False, activates them instead."""
+        If False, wakes the ones no other Pending event still claims.
+
+        Returns {'woken': [...], 'still_dormant': [...], 'deleted': [...]} so
+        the caller can say what became of the nodes.
+        """
         activated_names: List[str] = []
+        result: Dict[str, List[str]] = {'woken': [], 'still_dormant': [], 'deleted': []}
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if delete_nodes:
@@ -166,21 +227,37 @@ class EventManager:
                 for name in dormant_names:
                     from graph_manager import GraphManager
                     GraphManager().delete_node(name)
+                result['deleted'] = dormant_names
             else:
-                # Activate all dormant nodes instead of deleting. Capture names
-                # so we can run the cascade after the bulk update — otherwise
-                # an activated node with un-Done prereqs would stay Open in
-                # the DB until the next manual edit.
+                # Wake the event's nodes instead of deleting them -- but only
+                # the ones this event was the last home for. A node also held
+                # by another Pending event is dormant by intent, and waking it
+                # here is what put two sandbox nodes on the canvas while their
+                # Music rows still called them dormant. A row on an already
+                # Triggered event is a dead claim and does not count as a home.
                 cursor.execute(
                     "SELECT node_name FROM EventNodes WHERE event_name=? AND activated=0",
                     (event_name,)
                 )
-                activated_names = [row[0] for row in cursor.fetchall()]
-                cursor.execute(
-                    "UPDATE Nodes SET dormant=0 WHERE name IN "
-                    "(SELECT node_name FROM EventNodes WHERE event_name=? AND activated=0)",
-                    (event_name,)
-                )
+                candidates = [row[0] for row in cursor.fetchall()]
+                for name in candidates:
+                    cursor.execute(
+                        "SELECT 1 FROM EventNodes en JOIN Events e ON e.name = en.event_name "
+                        "WHERE en.node_name=? AND en.event_name<>? AND e.status='Pending' "
+                        "LIMIT 1",
+                        (name, event_name),
+                    )
+                    if cursor.fetchone():
+                        result['still_dormant'].append(name)
+                    else:
+                        activated_names.append(name)
+                if activated_names:
+                    placeholders = ",".join("?" * len(activated_names))
+                    cursor.execute(
+                        f"UPDATE Nodes SET dormant=0 WHERE name IN ({placeholders})",
+                        tuple(activated_names),
+                    )
+                result['woken'] = list(activated_names)
 
             cursor.execute("DELETE FROM Events WHERE name=?", (event_name,))
             conn.commit()
@@ -200,6 +277,8 @@ class EventManager:
                         self.auto_trigger_by_node_completion(name)
                     except Exception:
                         pass
+
+        return result
 
     def get_event(self, name: str) -> Optional[Event]:
         with self.get_connection() as conn:
@@ -228,24 +307,45 @@ class EventManager:
 
         now_on_trigger persists the user's intent to move this node onto the
         Now list when the event later wakes it.
+
+        Refuses a Triggered event. It will not fire again, so a node added to
+        one would sit dormant forever with nothing left to wake it -- the same
+        stranding that selective triggering used to cause. The pickers filter
+        to Pending events, but they are built once and never re-checked, so
+        the rule is enforced here where it cannot be raced.
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE Nodes SET dormant=1 WHERE name=?", (node_name,)
-            )
+            cursor.execute("SELECT status FROM Events WHERE name=?", (event_name,))
+            row = cursor.fetchone()
+            if row and row[0] == "Triggered":
+                raise ValueError(
+                    f"'{event_name}' has already been triggered, so a node "
+                    "added to it would never wake."
+                )
             cursor.execute(
                 "INSERT INTO EventNodes (event_name, node_name, delay_days, "
                 "now_on_trigger) VALUES (?, ?, ?, ?)",
                 (event_name, node_name, delay_days,
                  1 if now_on_trigger else 0)
             )
+            # Was an unconditional `SET dormant=1`. That re-slept a node another
+            # event had already woken, which multi-event membership puts one
+            # click away: adding a live node to a second event would silently
+            # pull it off the canvas.
+            self._sync_dormant_flag(cursor, node_name)
             conn.commit()
         self._graph_changed(scoring=True)
 
     @database.atomic
-    def remove_node_from_event(self, event_name: str, node_name: str):
-        """Removes a dormant node from an event and deletes it."""
+    def delete_dormant_node(self, event_name: str, node_name: str):
+        """Deletes a dormant node outright, and with it every event's row.
+
+        Named `remove_node_from_event` until the move operation arrived, at
+        which point "remove from event" was exactly the thing it does not do.
+        Use `move_node_to_event` to re-home a node and
+        `detach_node_from_all_events` to wake one without losing it.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -260,7 +360,7 @@ class EventManager:
     def detach_node_from_all_events(self, node_name: str):
         """Severs a node's event associations and brings it back into play.
 
-        Distinct from `remove_node_from_event`, which deletes the node entirely
+        Distinct from `delete_dormant_node`, which deletes the node entirely
         — this preserves the node, removes any EventNodes rows, sets
         dormant=0, and re-runs the status cascade so the node's Open/Blocked
         state reflects current edges. Called from the editor's Dormant
@@ -276,15 +376,123 @@ class EventManager:
         self._graph_changed(scoring=True)
         GraphManager()._update_node_state(node_name)
 
+    @database.atomic
+    def move_node_to_event(self, from_event: str, node_name: str, to_event: str,
+                           delay_days: Optional[int] = None,
+                           now_on_trigger: Optional[bool] = None) -> Dict[str, Any]:
+        """Re-homes a dormant node under a different event.
+
+        This is what replaced staged release. Firing an event now takes every
+        node it holds, so "not this one yet" is expressed by moving the node
+        somewhere that has not fired rather than by leaving it behind in one
+        that has.
+
+        `delay_days` and `now_on_trigger` default to carrying the source row's
+        values over. The destination row always starts unfired: a delay
+        measures from its own event's firing, which is the whole point of one
+        unambiguous origin per delay.
+
+        Returns {'merged': bool} — True when the node was already in
+        `to_event` and the two rows were folded together.
+        """
+        if from_event == to_event:
+            raise ValueError(f"'{node_name}' is already in '{to_event}'.")
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT delay_days, now_on_trigger, activated FROM EventNodes "
+                "WHERE event_name=? AND node_name=?",
+                (from_event, node_name),
+            )
+            source = cursor.fetchone()
+            if source is None:
+                raise ValueError(
+                    f"Dormant node '{node_name}' not found in event '{from_event}'."
+                )
+            source_delay, source_now, source_activated = source
+
+            if source_activated:
+                # A move that re-sleeps a live node is an un-trigger wearing a
+                # different hat, and un-triggering is deliberately absent.
+                raise ValueError(
+                    f"'{node_name}' is already awake; moving it would not put "
+                    "it back to sleep."
+                )
+
+            cursor.execute("SELECT status FROM Events WHERE name=?", (to_event,))
+            destination = cursor.fetchone()
+            if destination is None:
+                raise ValueError(f"Event '{to_event}' does not exist.")
+            if destination[0] == "Triggered":
+                raise ValueError(
+                    f"'{to_event}' has already been triggered, so a node moved "
+                    "into it would never wake."
+                )
+
+            new_delay = source_delay if delay_days is None else int(delay_days)
+            new_now = source_now if now_on_trigger is None else int(bool(now_on_trigger))
+
+            # The PK is (event_name, node_name), and multi-event membership
+            # puts this collision one click away, so merge rather than fail.
+            cursor.execute(
+                "SELECT 1 FROM EventNodes WHERE event_name=? AND node_name=?",
+                (to_event, node_name),
+            )
+            merged = cursor.fetchone() is not None
+            if merged:
+                # Nothing explicit was passed, so the destination's own
+                # settings win over the row being folded into it.
+                if delay_days is not None or now_on_trigger is not None:
+                    cursor.execute(
+                        "UPDATE EventNodes SET delay_days=?, now_on_trigger=?, "
+                        "activated=0, activation_date=NULL "
+                        "WHERE event_name=? AND node_name=?",
+                        (new_delay, new_now, to_event, node_name),
+                    )
+            else:
+                cursor.execute(
+                    "INSERT INTO EventNodes (event_name, node_name, delay_days, "
+                    "activation_date, activated, now_on_trigger) "
+                    "VALUES (?, ?, ?, NULL, 0, ?)",
+                    (to_event, node_name, new_delay, new_now),
+                )
+
+            cursor.execute(
+                "DELETE FROM EventNodes WHERE event_name=? AND node_name=?",
+                (from_event, node_name),
+            )
+            # The source row vanishing can change the answer: it may have been
+            # the only row keeping the node awake.
+            self._sync_dormant_flag(cursor, node_name)
+            conn.commit()
+
+        self._graph_changed(scoring=True)
+        return {'merged': merged}
+
     def get_event_nodes(self, event_name: str) -> List[Dict]:
         """Returns list of {node, delay_days, activation_date, activated,
-        now_on_trigger} for an event."""
+        now_on_trigger, woken_by} for an event.
+
+        `woken_by` names a *different* event that already woke this node, or
+        None. Under multi-event membership the first event to fire wins, and
+        without this the losing event's table would still call a live node
+        dormant. The subquery orders by activation_date so "first to fire"
+        is literal rather than alphabetical.
+        """
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT n.*, en.delay_days, en.activation_date, en.activated,
-                       en.now_on_trigger
+                       en.now_on_trigger,
+                       (SELECT other.event_name FROM EventNodes other
+                         WHERE other.node_name = en.node_name
+                           AND other.activated = 1
+                           AND other.event_name <> en.event_name
+                         ORDER BY other.activation_date, other.event_name
+                         LIMIT 1) AS woken_by
                 FROM EventNodes en
                 JOIN Nodes n ON en.node_name = n.name
                 WHERE en.event_name=?
@@ -297,6 +505,7 @@ class EventManager:
                 activation_date = row_dict.pop('activation_date')
                 activated = row_dict.pop('activated')
                 now_on_trigger = row_dict.pop('now_on_trigger', 0)
+                woken_by = row_dict.pop('woken_by', None)
                 node = Node(**row_dict)
                 results.append({
                     'node': node,
@@ -304,6 +513,7 @@ class EventManager:
                     'activation_date': activation_date,
                     'activated': activated,
                     'now_on_trigger': bool(now_on_trigger),
+                    'woken_by': woken_by,
                 })
             return results
 
@@ -322,6 +532,32 @@ class EventManager:
             activated = cursor.fetchone()[0]
             return {'total': total, 'activated': activated}
 
+    def get_event_node_counts(self) -> Dict[str, Dict[str, int]]:
+        """Total and activated counts for every event, in one query.
+
+        The list views need a count per card. Asking per event turned a page
+        render into one query per row; the sidebar's "has pending work"
+        predicate would have made that worse by needing the count for every
+        event rather than only the ones it draws.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT event_name, COUNT(*), COALESCE(SUM(activated), 0) "
+                "FROM EventNodes GROUP BY event_name"
+            )
+            counts = {
+                event_name: {'total': total, 'activated': activated}
+                for event_name, total, activated in cursor.fetchall()
+            }
+            # An event with no dormant nodes has no rows to group, so it is
+            # absent above rather than zero. Callers key off event names they
+            # already hold, so fill the gap here instead of at every call site.
+            cursor.execute("SELECT name FROM Events")
+            for (name,) in cursor.fetchall():
+                counts.setdefault(name, {'total': 0, 'activated': 0})
+        return counts
+
     @database.atomic
     def set_node_delay(self, event_name: str, node_name: str, delay_days: int):
         with self.get_connection() as conn:
@@ -329,6 +565,26 @@ class EventManager:
             cursor.execute(
                 "UPDATE EventNodes SET delay_days=? WHERE event_name=? AND node_name=?",
                 (delay_days, event_name, node_name)
+            )
+            conn.commit()
+        self._graph_changed(scoring=False)
+
+    @database.atomic
+    def set_node_wake_date(self, event_name: str, node_name: str,
+                           wake_date: Optional[str]) -> None:
+        """Moves a scheduled node's wake date.
+
+        Only meaningful once the event has fired. Before that the row has no
+        date and `set_node_delay` is the thing to call; after it, the delay has
+        nothing left to measure from, because `Events` records no firing time.
+        Editing the date directly is what keeps a committed delay changeable.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE EventNodes SET activation_date=? "
+                "WHERE event_name=? AND node_name=? AND activated=0",
+                (wake_date or None, event_name, node_name),
             )
             conn.commit()
         self._graph_changed(scoring=False)
@@ -400,22 +656,27 @@ class EventManager:
     # --- Activation ---
 
     @database.atomic
-    def trigger_event(self, event_name: str, selected_nodes: Optional[List[str]] = None) -> Dict[str, list]:
-        """Triggers an event, activating selected immediate nodes and scheduling delayed ones.
+    def trigger_event(self, event_name: str) -> Dict[str, list]:
+        """Fires an event. Every node it holds participates.
 
-        Args:
-            event_name: The event to trigger.
-            selected_nodes: Optional list of node names to activate. If None, activates all.
+        Selective firing used to live here as a `selected_nodes` filter, but
+        the event was marked Triggered either way, so the nodes left out could
+        never be released through it again. Per-node delays are what staging
+        is for.
 
         Returns dict with:
-          'activated'      — immediate node names
-          'scheduled'      — delayed node names
-          'now_intent'      — subset of activated+scheduled whose now_on_trigger=1
+          'activated'     — nodes woken now
+          'scheduled'     — delayed nodes given a future activation date
+          'already_awake' — nodes some other event had already woken
+          'now_intent'    — subset of 'activated' to put on Now straight away
+          'now_deferred'  — subset of 'scheduled' to put on Now when they wake
         """
         from graph_manager import GraphManager
         gm = GraphManager()
 
-        result: Dict[str, list] = {'activated': [], 'scheduled': [], 'now_intent': []}
+        result: Dict[str, list] = {'activated': [], 'scheduled': [],
+                                   'already_awake': [], 'now_intent': [],
+                                   'now_deferred': []}
         today = date.today()
 
         with self.get_connection() as conn:
@@ -426,38 +687,51 @@ class EventManager:
                 "UPDATE Events SET status='Triggered' WHERE name=?", (event_name,)
             )
 
-            # Get all event nodes
+            # `dormant` rides along so a node another event already woke is
+            # recognised rather than being woken a second time.
             cursor.execute(
-                "SELECT node_name, delay_days, now_on_trigger "
-                "FROM EventNodes WHERE event_name=? AND activated=0",
+                "SELECT en.node_name, en.delay_days, en.now_on_trigger, n.dormant "
+                "FROM EventNodes en JOIN Nodes n ON n.name = en.node_name "
+                "WHERE en.event_name=? AND en.activated=0",
                 (event_name,)
             )
             rows = cursor.fetchall()
 
-            for node_name, delay_days, now_on_trigger in rows:
-                # Skip if node is not in the selected set
-                if selected_nodes is not None and node_name not in selected_nodes:
-                    continue
-
-                if delay_days == 0:
-                    # Immediate activation
-                    cursor.execute("UPDATE Nodes SET dormant=0 WHERE name=?", (node_name,))
+            for node_name, delay_days, now_on_trigger, dormant in rows:
+                if not dormant:
+                    # First event to fire wins. This one still covers the node,
+                    # so close its row out — but with no future date, or the
+                    # delayed sweep would later "wake" an already-live node and
+                    # announce it. Now was settled by whichever event won.
                     cursor.execute(
-                        "UPDATE EventNodes SET activated=1, activation_date=? WHERE event_name=? AND node_name=?",
+                        "UPDATE EventNodes SET activated=1, activation_date=? "
+                        "WHERE event_name=? AND node_name=?",
                         (today.isoformat(), event_name, node_name)
                     )
+                    result['already_awake'].append(node_name)
+                elif delay_days == 0:
+                    cursor.execute(
+                        "UPDATE EventNodes SET activated=1, activation_date=? "
+                        "WHERE event_name=? AND node_name=?",
+                        (today.isoformat(), event_name, node_name)
+                    )
+                    self._sync_dormant_flag(cursor, node_name)
                     result['activated'].append(node_name)
+                    if now_on_trigger:
+                        result['now_intent'].append(node_name)
                 else:
-                    # Scheduled activation
                     activation_date = today + timedelta(days=delay_days)
                     cursor.execute(
-                        "UPDATE EventNodes SET activation_date=? WHERE event_name=? AND node_name=?",
+                        "UPDATE EventNodes SET activation_date=? "
+                        "WHERE event_name=? AND node_name=?",
                         (activation_date.isoformat(), event_name, node_name)
                     )
                     result['scheduled'].append(node_name)
-
-                if now_on_trigger:
-                    result['now_intent'].append(node_name)
+                    # Deliberately not now_intent. The node is still dormant
+                    # and Now skips dormant nodes, so pinning it here dropped
+                    # the intent on the floor. The delayed sweep does it.
+                    if now_on_trigger:
+                        result['now_deferred'].append(node_name)
 
             conn.commit()
 
@@ -473,14 +747,15 @@ class EventManager:
                 except Exception:
                     pass
 
-        if result["activated"] or result["scheduled"]:
-            self._graph_changed()
+        # Even a no-op firing changes the event's own status, and the sidebar
+        # reads that. Only a woken node is scoring-relevant.
+        self._graph_changed(scoring=bool(result['activated']))
 
         return result
 
     @database.atomic
     def check_pending_activations(self) -> List[str]:
-        """Checks for delayed nodes whose activation date has arrived.
+        """Wakes delayed nodes whose activation date has arrived.
 
         Returns list of newly activated node names.
         """
@@ -491,22 +766,32 @@ class EventManager:
         today = date.today().isoformat()
         activated: List[str] = []
         event_nodes_map: Dict[str, List[str]] = {}
+        now_wanted: List[str] = []
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT node_name, event_name FROM EventNodes
-                WHERE activation_date IS NOT NULL AND activation_date <= ? AND activated = 0
-            ''', (today,))
+            cursor.execute(
+                "SELECT node_name, event_name, now_on_trigger FROM EventNodes "
+                "WHERE activation_date IS NOT NULL AND activation_date <= ? "
+                "AND activated = 0",
+                (today,)
+            )
             pending_rows = cursor.fetchall()
 
-            for node_name, event_name in pending_rows:
-                cursor.execute("UPDATE Nodes SET dormant=0 WHERE name=?", (node_name,))
+            for node_name, event_name, now_on_trigger in pending_rows:
+                # Scoped to this event. Without the event_name predicate a node
+                # held by two events had both rows marked activated here, so
+                # the second event skipped it forever and lost its Now intent.
                 cursor.execute(
-                    "UPDATE EventNodes SET activated=1 WHERE node_name=?", (node_name,)
+                    "UPDATE EventNodes SET activated=1 "
+                    "WHERE event_name=? AND node_name=?",
+                    (event_name, node_name)
                 )
+                self._sync_dormant_flag(cursor, node_name)
                 activated.append(node_name)
                 event_nodes_map.setdefault(event_name, []).append(node_name)
+                if now_on_trigger:
+                    now_wanted.append(node_name)
 
             conn.commit()
 
@@ -519,11 +804,21 @@ class EventManager:
                 except Exception:
                     pass
 
+        # The Now intent a delayed node carried used to be applied at trigger
+        # time, while the node was still dormant — and Now skips dormant
+        # nodes, so it was dropped and never retried. Here the node is awake,
+        # which is the moment the user actually meant.
+        now_pinned, now_skipped = self._apply_now_intent(now_wanted)
+        pinned_set, skipped_set = set(now_pinned), set(now_skipped)
+
         for event_name, nodes in event_nodes_map.items():
+            names = set(nodes)
             ConfigManager.add_pending_event_notification({
                 "kind": "delayed_activated",
                 "event": event_name,
                 "nodes": nodes,
+                "now_pinned": sorted(names & pinned_set),
+                "now_skipped": sorted(names & skipped_set),
                 "when": today,
             })
 
@@ -531,6 +826,44 @@ class EventManager:
             self._graph_changed()
 
         return activated
+
+    @database.atomic
+    def trigger_event_manually(self, event_name: str,
+                               pin_all_now: bool = False) -> Dict[str, list]:
+        """Fires an event because the user clicked Trigger.
+
+        The same firing as the date and node-completion paths, plus the Now
+        pinning and the announcement those two already did for themselves.
+        Keeping it here means all four paths behave identically and the
+        callback no longer reaches into `_apply_now_intent` on its own.
+
+        `pin_all_now` is the confirm modal's switch: pin every node this
+        firing woke, not only the ones flagged "Add to Now" in advance.
+
+        Returns `trigger_event`'s result plus 'now_pinned' and 'now_skipped'.
+        """
+        from config import ConfigManager
+
+        result = self.trigger_event(event_name)
+        candidates = (sorted(result['activated']) if pin_all_now
+                      else result['now_intent'])
+        now_pinned, now_skipped = self._apply_now_intent(candidates)
+        result['now_pinned'] = now_pinned
+        result['now_skipped'] = now_skipped
+
+        # A manual firing used to leave no durable record at all: it reported
+        # inline into a status line that clears itself on a timer.
+        ConfigManager.add_pending_event_notification({
+            "kind": "manual_triggered",
+            "event": event_name,
+            "activated": result['activated'],
+            "scheduled": result['scheduled'],
+            "already_awake": result['already_awake'],
+            "now_pinned": now_pinned,
+            "now_skipped": now_skipped,
+            "when": date.today().isoformat(),
+        })
+        return result
 
     @database.atomic
     def check_scheduled_triggers(self) -> List[str]:
@@ -559,6 +892,7 @@ class EventManager:
                 "event": name,
                 "activated": result.get('activated', []),
                 "scheduled": result.get('scheduled', []),
+                "already_awake": result.get('already_awake', []),
                 "now_pinned": now_pinned,
                 "now_skipped": now_skipped,
                 "when": today,
@@ -602,6 +936,7 @@ class EventManager:
                 "trigger_mode": self._normalize_mode(event.trigger_mode),
                 "activated": result.get('activated', []),
                 "scheduled": result.get('scheduled', []),
+                "already_awake": result.get('already_awake', []),
                 "now_pinned": now_pinned,
                 "now_skipped": now_skipped,
                 "when": today,
@@ -675,7 +1010,6 @@ class EventManager:
         if node.name != old_node_name:
             gm.rename_node(old_node_name, node.name)
 
-        node.dormant = 1
         gm.update_node(node)
 
         with self.get_connection() as conn:
@@ -691,4 +1025,9 @@ class EventManager:
                 raise ValueError(
                     f"Dormant node '{old_node_name}' not found in event '{event_name}'."
                 )
+            # Was `node.dormant = 1` before the save. Editing a node that a
+            # different event has already woken must not put it back to sleep,
+            # so the rows decide rather than the fact that we arrived here
+            # through an event's editor.
+            self._sync_dormant_flag(cursor, node.name)
             conn.commit()

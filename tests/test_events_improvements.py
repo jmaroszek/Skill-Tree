@@ -8,6 +8,7 @@ Tests for the Events-system improvements:
 
 from datetime import date, timedelta
 from typing import Any
+from unittest.mock import patch
 import pytest
 import database
 from models import Node, Event, EDGE_NEEDS_HARD
@@ -203,3 +204,129 @@ class TestNowOnTrigger:
         assert entry["now_pinned"] == ["Waiting"]
         assert entry["now_skipped"] == []
 
+
+# ---------------------------------------------------------------------------
+# A delayed node's Add-to-Now intent, which used to be dropped on the floor
+# ---------------------------------------------------------------------------
+
+def _sweep_on(em, day):
+    """Run the delayed-activation sweep as if today were `day`."""
+    with patch("event_manager.date") as mock_date:
+        mock_date.today.return_value = day
+        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        return em.check_pending_activations()
+
+
+class TestDelayedNowIntent:
+    """Triggering put a delayed node into now_intent while it was still
+    dormant, and _apply_now_intent skips dormant nodes -- so the pin was
+    silently dropped and never retried. The intent now waits for the wake."""
+
+    def test_a_delayed_flagged_node_is_not_pinned_at_trigger_time(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
+
+        result = em.trigger_event("E")
+
+        assert result["now_intent"] == [], "still dormant, nothing to pin yet"
+        assert result["now_deferred"] == ["Later"]
+        assert mgr.get_now_nodes() == []
+
+    def test_it_is_pinned_when_it_actually_wakes(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
+        em.trigger_event_manually("E")
+        ConfigManager.clear_pending_event_notifications()
+
+        assert _sweep_on(em, date.today() + timedelta(days=7)) == ["Later"]
+
+        assert [n.name for n in mgr.get_now_nodes()] == ["Later"]
+        entry = ConfigManager.get_pending_event_notifications()[0]
+        assert entry["kind"] == "delayed_activated"
+        assert entry["now_pinned"] == ["Later"]
+        assert entry["now_skipped"] == []
+
+    def test_an_unflagged_delayed_node_is_left_off_now(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7)
+        em.trigger_event("E")
+
+        _sweep_on(em, date.today() + timedelta(days=7))
+
+        assert mgr.get_now_nodes() == []
+
+    def test_the_now_cap_still_wins_at_a_delayed_wake(self, em, mgr):
+        ConfigManager.set_now_node_cap(1)
+        mgr.add_node(_node("Already", now=1))
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
+        em.trigger_event("E")
+
+        _sweep_on(em, date.today() + timedelta(days=7))
+
+        assert [n.name for n in mgr.get_now_nodes()] == ["Already"]
+        entry = ConfigManager.get_pending_event_notifications()[-1]
+        assert entry["now_skipped"] == ["Later"]
+        # Skipped means un-pinned, not un-woken.
+        assert mgr.get_node("Later").dormant == 0
+
+    def test_a_node_flagged_in_two_events_is_only_pinned_once(self, em, mgr):
+        mgr.add_node(_node("Shared"))
+        em.add_event(Event(name="A"))
+        em.add_event(Event(name="B"))
+        em.add_node_to_event("A", "Shared", delay_days=7, now_on_trigger=True)
+        em.add_node_to_event("B", "Shared", delay_days=7, now_on_trigger=True)
+        em.trigger_event("A")
+        em.trigger_event("B")
+
+        _sweep_on(em, date.today() + timedelta(days=7))
+
+        assert [n.name for n in mgr.get_now_nodes()] == ["Shared"]
+
+
+# ---------------------------------------------------------------------------
+# The manual path, which used to leave no durable record
+# ---------------------------------------------------------------------------
+
+class TestManualTriggerAnnouncement:
+    def test_a_manual_trigger_queues_an_announcement(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Wakes"), "E")
+        em.create_dormant_node(_node("Later"), "E", delay_days=30)
+
+        em.trigger_event_manually("E")
+
+        entry = ConfigManager.get_pending_event_notifications()[-1]
+        assert entry["kind"] == "manual_triggered"
+        assert entry["event"] == "E"
+        assert entry["activated"] == ["Wakes"]
+        assert entry["scheduled"] == ["Later"]
+
+    def test_pin_all_now_pins_every_node_the_firing_woke(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Flagged"), "E", now_on_trigger=True)
+        em.create_dormant_node(_node("Plain"), "E")
+
+        result = em.trigger_event_manually("E", pin_all_now=True)
+
+        assert result["now_pinned"] == ["Flagged", "Plain"]
+        assert sorted(n.name for n in mgr.get_now_nodes()) == ["Flagged", "Plain"]
+
+    def test_without_the_switch_only_flagged_nodes_are_pinned(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Flagged"), "E", now_on_trigger=True)
+        em.create_dormant_node(_node("Plain"), "E")
+
+        result = em.trigger_event_manually("E")
+
+        assert result["now_pinned"] == ["Flagged"]
+
+    def test_pin_all_now_does_not_reach_scheduled_nodes(self, em, mgr):
+        """They are still dormant. Their turn comes at the delayed wake."""
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=30)
+
+        result = em.trigger_event_manually("E", pin_all_now=True)
+
+        assert result["now_pinned"] == []
+        assert mgr.get_now_nodes() == []

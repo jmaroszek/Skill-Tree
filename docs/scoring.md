@@ -379,11 +379,15 @@ Once a node is Done, the cascade will never silently flip it back to Open. A Don
 
 On every app launch, the graph manager walks every non-Goal node. It re-derives each status from the current Hard prereqs, corrects any drift, and logs what it fixed. Drift can only happen if you add nodes directly with SQL, bypassing the app's safety mechanisms.
 
+The event manager runs a second pass immediately afterwards, over the Dormant flag. It wakes any node whose event rows say it already activated, and logs what it fixed. It only ever wakes, never sleeps: an activated row is a firing that happened, so honouring it cannot lose information, while sleeping on the strength of a missing row could pull a node off the canvas behind your back.
+
 ## Dormant and Now Nodes
 
 The status function covers the three lifecycle values: Open, Blocked, and Done. Two extra flags also affect what the scoring algorithm sees. Neither is part of the cascade, because neither needs to be. Dormant and Now don't ripple through the graph the way status does, so nothing has to keep them consistent.
 
 **Dormant** nodes are excluded from every read path in the scoring pipeline. When an Event triggers a Dormant node, the flag clears. The status cascade then runs to settle whether the newly-live node is Open or Blocked.
+
+The flag is one bit per node, while event membership is a set — a node can sit in several Events. A node awake under any one of them is awake everywhere, which is why the flag is re-derived on every write to the event-node table rather than set by whichever caller happened to arrive. [dormant_node_triggering.md](dormant_node_triggering.md) has the rule and the paths that maintain it.
 
 **Now** nodes still cascade and still receive a final score, which the Explain modal uses. But the Home tab keeps them out of the Suggestions ranking, surfacing them in a separate Now panel instead.
 

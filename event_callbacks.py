@@ -12,7 +12,8 @@ from graph_manager import GraphManager
 from config import ConfigManager, SUPPORTED_NODE_TYPES, sort_subcontexts, sort_contexts
 from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
-                           build_triggered_divider)
+                           build_triggered_divider, trigger_confirmation_body)
+from duration_ui import duration_to_days, days_to_duration, format_duration_days
 from callback_helpers import (render_link_rows, render_alias_rows,
                               alias_rows_label, update_alias_rows,
                               serialize_links,
@@ -76,10 +77,16 @@ def _render_announcements(entries):
         scheduled = entry.get("scheduled") or []
         now_pinned = entry.get("now_pinned") or []
         now_skipped = entry.get("now_skipped") or []
+        already_awake = entry.get("already_awake") or []
 
         if kind == "date_triggered":
             summary = html.Strong(f"{event_name} — date-triggered ({when})")
-            detail = _format_node_counts(activated, scheduled, now_pinned, now_skipped)
+            detail = _format_node_counts(activated, scheduled, now_pinned, now_skipped,
+                                         already_awake)
+        elif kind == "manual_triggered":
+            summary = html.Strong(f"{event_name} — triggered manually ({when})")
+            detail = _format_node_counts(activated, scheduled, now_pinned, now_skipped,
+                                         already_awake)
         elif kind == "node_triggered":
             trig = entry.get("trigger_node", "?")
             trig_set = entry.get("trigger_nodes") or []
@@ -89,11 +96,20 @@ def _render_announcements(entries):
                     f"last was {trig} ({when})")
             else:
                 summary = html.Strong(f"{event_name} — triggered by completing {trig} ({when})")
-            detail = _format_node_counts(activated, scheduled, now_pinned, now_skipped)
+            detail = _format_node_counts(activated, scheduled, now_pinned, now_skipped,
+                                         already_awake)
         elif kind == "delayed_activated":
             nodes = entry.get("nodes") or []
             summary = html.Strong(f"{event_name} — delayed nodes activated ({when})")
-            detail = f"Nodes: {', '.join(nodes)}" if nodes else ""
+            # A delayed node flagged "Add to Now" is pinned when it wakes, not
+            # when its event fired, so this is where the outcome shows up.
+            parts = [f"Nodes: {', '.join(nodes)}"] if nodes else []
+            if now_pinned:
+                parts.append(f"added to Now: {', '.join(now_pinned)}")
+            if now_skipped:
+                parts.append("Now is full, so these stayed off it: "
+                             f"{', '.join(now_skipped)}")
+            detail = " — ".join(parts)
         elif kind == "trigger_node_deleted":
             deleted = entry.get("deleted_node", "?")
             events = entry.get("events") or []
@@ -118,12 +134,17 @@ def _render_announcements(entries):
     return html.Ul(items, style={"marginBottom": 0})
 
 
-def _format_node_counts(activated, scheduled, now_pinned=(), now_skipped=()):
+def _format_node_counts(activated, scheduled, now_pinned=(), now_skipped=(),
+                        already_awake=()):
     parts = []
     if activated:
         parts.append(f"{len(activated)} activated: {', '.join(activated)}")
     if scheduled:
         parts.append(f"{len(scheduled)} scheduled: {', '.join(scheduled)}")
+    # A node another event woke first. Counting it as activated here would
+    # claim a wake that did not happen.
+    if already_awake:
+        parts.append(f"{len(already_awake)} already awake: {', '.join(already_awake)}")
     if now_pinned:
         parts.append(f"added to Now: {', '.join(now_pinned)}")
     # A skip is the Now cap doing its job, but the user still needs telling —
@@ -203,6 +224,10 @@ def register_event_callbacks(app, services=None):
                 className="text-center py-5"
             )
 
+        # One grouped query for every card and for the impact sort. Both used
+        # to ask per event, which made a render cost one query per row.
+        node_counts = event_manager.get_event_node_counts()
+
         # Apply ordering based on sort mode
         if sort_mode == "az":
             events = sorted(events, key=lambda e: (e.name or "").lower())
@@ -219,7 +244,6 @@ def register_event_callbacks(app, services=None):
             )
         elif sort_mode == "impact":
             # Most dormant nodes unlocked first.
-            node_counts = {e.name: event_manager.get_event_node_count(e.name) for e in events}
             events = sorted(
                 events,
                 key=lambda e: (-node_counts[e.name]["total"], (e.name or "").lower()),
@@ -242,15 +266,23 @@ def register_event_callbacks(app, services=None):
                 if query in (e.name or "").lower() or query in (e.description or "").lower()
             ]
 
-        active = [e for e in events if e.status != "Triggered"]
-        triggered = [e for e in events if e.status == "Triggered"]
+        # An event leaves the list when it is *finished*, not merely fired.
+        # Status alone used to decide, so an event with three nodes waking in
+        # March vanished the moment it triggered.
+        def _finished(event):
+            counts = node_counts[event.name]
+            return (event.status == "Triggered"
+                    and counts['activated'] >= counts['total'])
+
+        active = [e for e in events if not _finished(e)]
+        triggered = [e for e in events if _finished(e)]
 
         is_manual = sort_mode not in ("az", "type", "impact")
 
         def _cards(group):
             cards = []
             for event in group:
-                counts = event_manager.get_event_node_count(event.name)
+                counts = node_counts[event.name]
                 cards.append(build_event_card(
                     event.name, event.description, event.status, counts,
                     is_selected=(event.name == selected_event),
@@ -502,7 +534,7 @@ def register_event_callbacks(app, services=None):
             event.name,
             event.description,
             "", "primary", _badge_hidden,
-            build_dormant_nodes_table(event_nodes, event.status),
+            build_dormant_nodes_table(event_nodes, event),
             trigger_style,
             "",
             event.trigger_date or "",
@@ -546,7 +578,7 @@ def register_event_callbacks(app, services=None):
             event.name,
             event.description,
             "", "primary", _badge_hidden,
-            build_dormant_nodes_table(event_nodes, event.status),
+            build_dormant_nodes_table(event_nodes, event),
             trigger_style,
             "",
             event.trigger_date or "",
@@ -695,6 +727,40 @@ def register_event_callbacks(app, services=None):
     def mirror_trigger_button_visibility(section_style):
         return section_style
 
+    # A Triggered event will not fire again, so it stops accepting nodes.
+    # Deliberately not mirrored off `event-trigger-section` the way the Trigger
+    # button is: that section is *also* hidden for a new unsaved event, where
+    # Add has to stay live so the auto-save-the-event path can run.
+    # `selected-event-store` is None for a new event, which tells the two apart.
+    @app.callback(
+        Output("dormant-add-btn-wrapper", "style"),
+        Input("selected-event-store", "data"),
+        Input("events-refresh-trigger", "data"),
+    )
+    def toggle_add_dormant_button(selected_event, _refresh):
+        if not selected_event:
+            return {}
+        event = event_manager.get_event(selected_event)
+        return {"display": "none"} if event and event.status == "Triggered" else {}
+
+    # Fills the confirm modal once it is open. Three separate callbacks already
+    # write this modal's `is_open`, and one of them splats _DETAIL_OUTPUTS and
+    # counts its no_updates by hand -- adding a body Output to each would mean
+    # three edits in lockstep every time that count moves. Reading `is_open` as
+    # an Input costs one round trip after the modal appears and keeps them all
+    # untouched.
+    @app.callback(
+        Output("trigger-confirm-body", "children"),
+        Input("modal-confirm-trigger", "is_open"),
+        State("selected-event-store", "data"),
+        prevent_initial_call=True,
+    )
+    def fill_trigger_confirmation(is_open, selected_event):
+        if not is_open or not selected_event:
+            return no_update
+        return trigger_confirmation_body(
+            selected_event, event_manager.get_event_nodes(selected_event))
+
     @app.callback(
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
@@ -706,39 +772,25 @@ def register_event_callbacks(app, services=None):
         Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
         Output("event-trigger-date", "value", allow_duplicate=True),
         Input("btn-trigger-confirm", "n_clicks"),
-        Input("btn-trigger-all-confirm", "n_clicks"),
         State("selected-event-store", "data"),
-        State({"type": "dormant-node-select", "index": ALL}, "value"),
-        State({"type": "dormant-node-select", "index": ALL}, "id"),
         State("manual-now-trigger-toggle", "value"),
         prevent_initial_call=True,
     )
-    def trigger_event(checked_clicks, all_clicks, selected_event, checkbox_values, checkbox_ids, now_toggle):
-        triggered = ctx.triggered_id
-        if not triggered or not selected_event:
+    def trigger_event(n_clicks, selected_event, now_toggle):
+        if not n_clicks or not selected_event:
             return (no_update,) * 9
 
-        if triggered == "btn-trigger-all-confirm":
-            selected_nodes = None
-        else:
-            selected_nodes = [
-                cb_id["index"]
-                for cb_id, checked in zip(checkbox_ids, checkbox_values)
-                if checked
-            ] if checkbox_ids else []
+        # One button, every node. The Now pinning and the announcement live in
+        # the manager now, so this path behaves exactly like the date and
+        # node-completion ones.
+        result = event_manager.trigger_event_manually(
+            selected_event, pin_all_now=bool(now_toggle))
 
-        result = event_manager.trigger_event(selected_event, selected_nodes=selected_nodes)
-
-        activated = list(result.get('activated', []))
-        scheduled = list(result.get('scheduled', []))
-        stored_intent = set(result.get('now_intent', []))
-
-        # Candidates = the nodes flagged "Add to Now" on this event, or every
-        # node it just woke when the user ticks the switch in the confirm modal.
-        triggered_set = set(activated) | set(scheduled)
-        candidates = sorted(triggered_set if now_toggle
-                            else triggered_set & stored_intent)
-        now_pinned, now_skipped = event_manager._apply_now_intent(candidates)
+        activated = result['activated']
+        scheduled = result['scheduled']
+        already_awake = result['already_awake']
+        now_pinned = result['now_pinned']
+        now_skipped = result['now_skipped']
 
         event_nodes = event_manager.get_event_nodes(selected_event)
         msg_parts = []
@@ -746,6 +798,8 @@ def register_event_callbacks(app, services=None):
             msg_parts.append(f"{len(activated)} node(s) activated")
         if scheduled:
             msg_parts.append(f"{len(scheduled)} node(s) scheduled")
+        if already_awake:
+            msg_parts.append(f"{len(already_awake)} already awake")
         if now_pinned:
             msg_parts.append(f"{len(now_pinned)} added to Now")
         if now_skipped:
@@ -756,8 +810,10 @@ def register_event_callbacks(app, services=None):
             f"trigger-{selected_event}",
             "Triggered", "success",
             {"display": "none"},
-            build_dormant_nodes_table(event_nodes, "Triggered"),
-            "Event triggered. " + (", ".join(msg_parts) if msg_parts else "No nodes selected."),
+            build_dormant_nodes_table(event_nodes,
+                                      event_manager.get_event(selected_event)),
+            "Event triggered. " + (", ".join(msg_parts) if msg_parts
+                                   else "It had no dormant nodes."),
             False,
             "",
         )
@@ -1331,6 +1387,7 @@ def register_event_callbacks(app, services=None):
         State("dormant-node-habit-days", "value"),
         State("dormant-node-delay-value", "value"),
         State("dormant-node-delay-unit", "value"),
+        State("dormant-node-wake-date", "value"),
         State("dormant-node-needs-hard", "value"),
         State("dormant-node-needs-soft", "value"),
         State("dormant-node-supports-hard", "value"),
@@ -1369,7 +1426,7 @@ def register_event_callbacks(app, services=None):
                           habit_duration, habit_duration_unit,
                           habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
                           habit_days,
-                          delay_value, delay_unit,
+                          delay_value, delay_unit, wake_date,
                           needs_hard, needs_soft, supports_hard, supports_soft, helps,
                           obsidian_vals, drive_vals, website_vals,
                           now_toggle,
@@ -1436,15 +1493,7 @@ def register_event_callbacks(app, services=None):
                     event_status_msg = "Event auto-saved."
                     event_trigger_style = {"display": "flex", "alignItems": "center"}
 
-            delay_value_int = int(delay_value or 0)
-            if delay_unit == "weeks":
-                delay_days_val = delay_value_int * 7
-            elif delay_unit == "months":
-                delay_days_val = delay_value_int * 30
-            elif delay_unit == "years":
-                delay_days_val = delay_value_int * 365
-            else:
-                delay_days_val = delay_value_int
+            delay_days_val = duration_to_days(delay_value, delay_unit)
 
             # Skip nodes already linked to this event (idempotent re-adds would
             # create duplicate EventNodes rows and break the composite index).
@@ -1459,10 +1508,13 @@ def register_event_callbacks(app, services=None):
                     continue
                 if node_name not in existing_nodes:
                     continue
-                event_manager.add_node_to_event(
-                    target_event, node_name, delay_days_val,
-                    now_on_trigger=now_toggle,
-                )
+                try:
+                    event_manager.add_node_to_event(
+                        target_event, node_name, delay_days_val,
+                        now_on_trigger=now_toggle,
+                    )
+                except ValueError as e:
+                    return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
                 added += 1
 
             event = event_manager.get_event(target_event)
@@ -1470,7 +1522,7 @@ def register_event_callbacks(app, services=None):
             return (
                 False,
                 "",
-                build_dormant_nodes_table(event_nodes, event.status if event else "Pending"),
+                build_dormant_nodes_table(event_nodes, event),
                 f"add-existing-{target_event}-{added}-{int(time.time())}",
                 target_event,
                 event_trigger_style,
@@ -1506,15 +1558,7 @@ def register_event_callbacks(app, services=None):
                 event_trigger_style = {"display": "flex", "alignItems": "center"}
 
         name = name.strip()
-        delay_value = int(delay_value or 0)
-        if delay_unit == "weeks":
-            delay_days = delay_value * 7
-        elif delay_unit == "months":
-            delay_days = delay_value * 30
-        elif delay_unit == "years":
-            delay_days = delay_value * 365
-        else:
-            delay_days = delay_value
+        delay_days = duration_to_days(delay_value, delay_unit)
 
         multiplier = ConfigManager.get_time_multiplier(time_unit)
         # Resolve time_mode via the shared helper — Goal/Milestone always
@@ -1568,6 +1612,12 @@ def register_event_callbacks(app, services=None):
                     delay_days=delay_days,
                     now_on_trigger=now_toggle,
                 )
+                # The editor showed a wake date rather than an offset, so the
+                # date is what the user actually edited. The delay field was
+                # hidden and still holds whatever the row was created with.
+                if wake_date:
+                    event_manager.set_node_wake_date(
+                        selected_event, node.name, wake_date)
             except ValueError as e:
                 return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
         else:
@@ -1595,13 +1645,149 @@ def register_event_callbacks(app, services=None):
         return (
             False,
             "",
-            build_dormant_nodes_table(event_nodes, event.status if event else "Pending"),
+            build_dormant_nodes_table(event_nodes, event),
             f"{'edit' if is_edit else 'add'}-node-{node.name}",
             selected_event,
             event_trigger_style,
             event_status_msg,
             None,
         )
+
+    # --- Offset before the event fires, date after ---
+    #
+    # Its own callback rather than extra Outputs on the two modal openers:
+    # those return 57 and 48 values against hand-counted `(no_update,) * N`
+    # literals, and this needs no part of them.
+    @app.callback(
+        Output("dormant-delay-offset-mode", "style"),
+        Output("dormant-delay-date-mode", "style"),
+        Output("dormant-node-wake-date", "value"),
+        Output("dormant-delay-heading", "children"),
+        Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
+        Input("dormant-edit-trigger-input", "value"),
+        Input("btn-add-dormant-node", "n_clicks"),
+        Input("dormant-existing-trigger-input", "value"),
+        State("selected-event-store", "data"),
+        prevent_initial_call=True,
+    )
+    def sync_delay_mode(edit_clicks, edit_value, _add_clicks, _existing_value,
+                        selected_event):
+        offset = ({}, {"display": "none"}, None, "Activation Delay")
+        triggered = ctx.triggered_id
+        if not selected_event:
+            return offset
+
+        # Two ways into the editor: the row's pencil, and the events canvas
+        # context menu writing the hidden input. Both have to land here, or
+        # one of them opens on the wrong field.
+        if triggered == "dormant-edit-trigger-input":
+            if not edit_value:
+                return offset
+            node_name = str(edit_value).split("|")[0]
+        elif isinstance(triggered, dict) and triggered.get("type") == "btn-edit-dormant-node":
+            if not any(edit_clicks or []):
+                return offset
+            node_name = triggered["index"]
+        else:
+            return offset
+        row = next((en for en in event_manager.get_event_nodes(selected_event)
+                    if en['node'].name == node_name), None)
+        # A committed date only exists for a node still asleep with a date
+        # already written: its event has fired and its turn has not come.
+        if row is None or not row['node'].dormant or not row.get('activation_date'):
+            return offset
+        return ({"display": "none"}, {}, row['activation_date'], "Wake Date")
+
+    # --- Move a dormant node to another event ---
+
+    @app.callback(
+        Output("modal-move-dormant-node", "is_open", allow_duplicate=True),
+        Output("move-dormant-title", "children"),
+        Output("move-dormant-target-event", "options"),
+        Output("move-dormant-target-event", "value"),
+        Output("move-dormant-note", "children"),
+        Output("move-dormant-status", "children", allow_duplicate=True),
+        Output("move-dormant-node-store", "data"),
+        Input({"type": "btn-move-dormant-node", "index": ALL}, "n_clicks"),
+        State("selected-event-store", "data"),
+        prevent_initial_call=True,
+    )
+    def open_move_dormant_modal(n_clicks_list, selected_event):
+        if not any(n_clicks_list) or not selected_event:
+            return (no_update,) * 7
+        node_name = ctx.triggered_id["index"]
+
+        row = next((en for en in event_manager.get_event_nodes(selected_event)
+                    if en['node'].name == node_name), None)
+        if row is None:
+            return (no_update,) * 7
+
+        # Only pending events can take it: a fired one would never wake it.
+        options = [{"label": e.name, "value": e.name}
+                   for e in event_manager.get_all_events()
+                   if e.status == "Pending" and e.name != selected_event]
+
+        if not options:
+            note = "There is no other pending event to move it to."
+        elif row['delay_days']:
+            note = (f"Its {format_duration_days(row['delay_days'])} delay moves "
+                    "with it, measured from the new event's firing.")
+        else:
+            note = "It will wake when the new event fires."
+
+        return (True, f'Move "{node_name}"', options, None, note, "", node_name)
+
+    @app.callback(
+        Output("modal-move-dormant-node", "is_open", allow_duplicate=True),
+        Input("btn-move-dormant-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def close_move_dormant_modal(n_clicks):
+        return False
+
+    @app.callback(
+        Output("move-dormant-note", "children", allow_duplicate=True),
+        Input("move-dormant-target-event", "value"),
+        State("move-dormant-node-store", "data"),
+        prevent_initial_call=True,
+    )
+    def warn_about_a_merge(target_event, node_name):
+        """The PK is (event, node), and a node may already sit in the target."""
+        if not target_event or not node_name:
+            return no_update
+        already = node_name in {en['node'].name
+                                for en in event_manager.get_event_nodes(target_event)}
+        if not already:
+            return no_update
+        return (f'"{node_name}" is already in "{target_event}". Moving will '
+                "fold the two together and keep that event's delay.")
+
+    @app.callback(
+        Output("modal-move-dormant-node", "is_open", allow_duplicate=True),
+        Output("move-dormant-status", "children", allow_duplicate=True),
+        Output("dormant-nodes-table-container", "children", allow_duplicate=True),
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Input("btn-move-dormant-confirm", "n_clicks"),
+        State("move-dormant-node-store", "data"),
+        State("move-dormant-target-event", "value"),
+        State("selected-event-store", "data"),
+        prevent_initial_call=True,
+    )
+    def confirm_move_dormant_node(n_clicks, node_name, target_event, selected_event):
+        if not n_clicks or not node_name or not selected_event:
+            return no_update, no_update, no_update, no_update
+        if not target_event:
+            return no_update, "Pick an event to move it to.", no_update, no_update
+
+        try:
+            event_manager.move_node_to_event(selected_event, node_name, target_event)
+        except ValueError as e:
+            return no_update, str(e), no_update, no_update
+
+        event = event_manager.get_event(selected_event)
+        event_nodes = event_manager.get_event_nodes(selected_event)
+        return (False, "", build_dormant_nodes_table(event_nodes, event),
+                f"move-{node_name}-{int(time.time())}")
 
     # --- Dormant Node Link Render Callbacks ---
     @app.callback(
@@ -1852,8 +2038,7 @@ def register_event_callbacks(app, services=None):
             node.habit_intensity_m, node.habit_intensity_p, node.habit_days)
 
         # Delay: invert to form fields via the shared helper.
-        from events_layout import _delay_days_to_form
-        delay_val, delay_unit = _delay_days_to_form(delay_days)
+        delay_val, delay_unit = days_to_duration(delay_days)
 
         # Link stores
         obs_links = parse_links(node.obsidian_path)
@@ -1930,13 +2115,13 @@ def register_event_callbacks(app, services=None):
             return no_update, no_update
 
         node_name = triggered["index"]
-        event_manager.remove_node_from_event(selected_event, node_name)
+        event_manager.delete_dormant_node(selected_event, node_name)
 
         event = event_manager.get_event(selected_event)
         event_nodes = event_manager.get_event_nodes(selected_event)
 
         return (
-            build_dormant_nodes_table(event_nodes, event.status if event else "Pending"),
+            build_dormant_nodes_table(event_nodes, event),
             f"remove-{node_name}",
         )
 

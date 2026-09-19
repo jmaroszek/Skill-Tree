@@ -127,12 +127,16 @@ The only score printed is the 0–100 priority.
 ### Event-card badge palette
 
 Used on Events-tab event cards. The three trigger-type labels (Manual,
-Scheduled, Completion) **all share a single neutral pewter tile** —
+Date, Completion) **all share a single neutral pewter tile** —
 they are peer categories and the text inside the badge already carries
 the type, so adding hue would only introduce false hierarchy or echo
 node-type colors. The `EventTriggered` tile deliberately matches the
 `Done` status badge (`#148a68`) so "fired / complete" reads as one
 consistent meaning across the app.
+
+The date label reads `Date`, not `Scheduled`. All three name the *mechanism*
+that fires the event, and Scheduled describes a state — which the dormant
+table now uses it for, on a node whose wake date is set.
 
 An event card keeps the complete description in the DOM and clamps it to three
 rendered lines with `.event-card-description`. Do not return to character-count
@@ -141,7 +145,7 @@ different numbers of lines.
 
 | Tile           | Background | Text      | Notes                                                              |
 |----------------|-----------|-----------|--------------------------------------------------------------------|
-| EventTrigger   | `#56575a` | `#dcdcdd` | Pewter — used for Manual / Scheduled / Completion uniformly.       |
+| EventTrigger   | `#56575a` | `#dcdcdd` | Pewter — used for Manual / Date / Completion uniformly.           |
 | EventTriggered | `#148a68` | `#ffffff` | Matches `Done`. Used once the event has fired.                     |
 
 ### Selection (Cytoscape)
@@ -652,8 +656,14 @@ Type column from an inline literal while the columns beside it used
 `.text-muted`. A test asserts all three share one definition.
 
 A default value should recede rather than disappear: muted text keeps "None"
-and "Dormant" quiet enough that a real delay or a woken node stands out,
-without the absence of a whole column having to carry that meaning.
+quiet enough that a real delay still stands out, without the absence of a
+whole column having to carry that meaning.
+
+The Events dormant table extends that rule to certainty. Its Wakes column is
+muted while the date is a projection, because the event has not fired and the
+date can still move. It takes full contrast once the event fires and the date
+is committed. A woken node takes a badge, the only non-text state in the
+column.
 
 The Details subtasks Name column is fixed at 360px. Its link is a single-line
 ellipsis and its `title` contains the complete node name; long names must not

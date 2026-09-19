@@ -70,7 +70,7 @@ def test_event_delete_cleans_references_and_unblocks_dependents(remove_only):
     events.add_event(Event(name="Delete"))
     events.add_node_to_event("Delete", "A")
     if remove_only:
-        events.remove_node_from_event("Delete", "A")
+        events.delete_dormant_node("Delete", "A")
     else:
         events.delete_event("Delete")
     assert m.get_node("B").status == "Open"
