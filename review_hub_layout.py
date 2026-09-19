@@ -44,17 +44,21 @@ def _build_pending_tab():
 def _build_history_tab():
     return dbc.Tab(label="Review History", tab_id="tab-review-history", children=[
         html.Div([
-            html.P(
-                "Already-reflected nodes. Click the pencil on any row to edit "
-                "its actuals.",
-                className="text-muted mb-2",
-            ),
+            # No caption. "Already-reflected nodes" only restates the tab's own
+            # name, and the pencil carries its own tooltip. The sibling tabs
+            # keep theirs because they say something their names do not: the
+            # queue explains that it goes one node at a time and what you
+            # capture, and Excluded has to say excluded from WHAT, and how to
+            # undo it.
+            #
+            # Search takes the width: a name is long and you type into it,
+            # while the context picker shows at most two contexts and a "+N".
             dbc.Row([
                 dbc.Col(
                     dbc.Input(id="hub-history-search", type="search",
                               placeholder="Search by name...",
                               style={"width": "100%"}),
-                    width=4,
+                    width=8,
                 ),
                 dbc.Col(
                     build_multi_context_picker(
@@ -62,7 +66,7 @@ def _build_history_tab():
                         "hub-history-filter-context",
                         "hub-history-filter-subcontext",
                     ),
-                    width=8,
+                    width=4,
                 ),
             ], className="mb-2 g-2"),
             html.Div(id="hub-history-table-container"),

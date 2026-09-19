@@ -77,9 +77,6 @@ def build_node_editor_content():
                 panel_close_button("btn-close-editor", "Close node editor", large=True)
             ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
             html.Div([
-                html.Div(id="node-priority-badge", children=[],
-                         className="d-flex gap-1 flex-wrap mb-2",
-                         style={"display": "none"}),
                 html.Div([
                     html.H5("Search", className="mb-0"),
                     dbc.Button(html.I(className="bi bi-crosshair"),

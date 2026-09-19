@@ -30,7 +30,7 @@ import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from event_manager import EventManager
 from canvases import CANVASES
-from config import (ConfigManager, badge_style, sort_subcontexts, sort_contexts,
+from config import (ConfigManager, sort_subcontexts, sort_contexts,
                     SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
                     DEFAULT_EVENTS_GRAPH_LAYOUT, SUPPORTED_NODE_TYPES)
@@ -1401,45 +1401,13 @@ def register_callbacks(app, services=None):
             return dash.no_update, dash.no_update, dash.no_update
         return "Changes reverted.", False, 0
 
-    # --- Priority Badge in Node Editor ---
-    @app.callback(
-        Output('node-priority-badge', 'children'),
-        Output('node-priority-badge', 'style'),
-        Input('node-name', 'value'),
-        Input('node-type', 'value'),
-    )
-    def update_node_priority_badge(node_name, node_type):
-        hidden = {"display": "none"}
-        visible = {"display": "flex", "gap": "4px", "flexWrap": "wrap", "marginBottom": "8px"}
-        if not node_name:
-            return [], hidden
-
-        # Only Priority/RelPriority live here. Status and Type are handled by
-        # other inputs in the editor, so they don't appear in this strip.
-        badges = []
-
-        # Priority — Priority N for priority Goals; Hard/Soft N for non-priority nodes in a priority subtree.
-        priority_goals = ConfigManager.get_priority_goals()
-        if priority_goals:
-            if node_type == "Goal" and node_name in priority_goals:
-                rank = priority_goals.index(node_name) + 1
-                badges.append(html.Span(f"Priority {rank}", className="badge",
-                                        style=badge_style('Priority')))
-            else:
-                for rank_idx, goal_name in enumerate(priority_goals[:3]):
-                    full_subtree = manager.get_goal_subtree(goal_name)
-                    if node_name not in full_subtree:
-                        continue
-                    rank = rank_idx + 1
-                    hard_subtree = manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
-                    rel_type = "Hard" if node_name in hard_subtree else "Soft"
-                    palette_name = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
-                    badges.append(html.Span(f"{rel_type} {rank}", className="badge",
-                                            style=badge_style(palette_name)))
-
-        if not badges:
-            return [], hidden
-        return badges, visible
+    # The node editor used to carry a read-only strip of "Priority N" /
+    # "Hard N" / "Soft N" badges describing where the node sat relative to the
+    # top priority Goals. It is gone: the editor is a form, and that was the
+    # only derived, read-only display in it. The Details panel shows the same
+    # relationship as part of a complete info strip, which is the surface for
+    # reading rather than changing. Same reasoning that moved Priority Rank out
+    # to the Goals sidebar.
 
     # --- Core State: Save, Delete, Render ---
     # NOTE: elements output goes to `elements-pending-store`, not directly to

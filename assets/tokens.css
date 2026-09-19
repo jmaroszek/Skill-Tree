@@ -112,8 +112,13 @@
        taller than what DARKLY actually renders, which is why the relationship
        dropdowns sat slightly proud of the resource and time-estimate fields
        beside them. Using the formula means they track each other whatever the
-       font size resolves to. */
-    --st-control-height: calc(1.5em + 0.75rem + 2px);
+       font size resolves to.
+
+       The border term reads --bs-border-width rather than assuming 2px:
+       DARKLY's border is 0.571px, not 1px, so a flat 2px overshot the real
+       control by 0.86px and left the context picker a hair taller than the
+       search field beside it. */
+    --st-control-height: calc(1.5em + 0.75rem + 2 * var(--bs-border-width, 1px));
 
     --st-shadow-panel: 0 4px 16px rgba(0, 0, 0, 0.4);
     --st-shadow-canvas: 0 4px 24px rgba(0, 0, 0, 0.4);
