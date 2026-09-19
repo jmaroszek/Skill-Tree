@@ -739,14 +739,9 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
     if description:
-        # The card is wider than 80 characters fills, so the ellipsis used to
-        # arrive with visible room to spare.
-        _MAX = 140
-        description_str = (description[:_MAX] + "..."
-                           if len(description) > _MAX else description)
         children.append(html.Small(
-            description_str,
-            className="text-muted d-block mb-1"
+            description,
+            className="event-card-description text-muted mb-1"
         ))
     if trigger_date and status != "Triggered":
         children.append(html.Small(

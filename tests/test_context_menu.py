@@ -10,6 +10,7 @@ from callback_helpers import format_now_nodes_section, format_suggestions_table
 from config import ConfigManager
 from graph_manager import GraphManager
 from models import Node
+import style_tokens as tokens
 
 
 def _node(name, **overrides):
@@ -213,6 +214,22 @@ def test_next_rows_carry_context_menu_state_and_all_link_types():
     assert getattr(now_row, "data-website") == '["https://example.com"]'
     assert getattr(now_row, "data-status") == "Open"
     assert getattr(now_row, "data-now") == "1"
+
+
+def test_now_card_context_uses_readable_body_size():
+    manager = GraphManager()
+    node = _node("Suggestion", context="Money", subcontext="Business", now=1)
+    manager.add_node(node)
+
+    now_section = format_now_nodes_section([node], 5, manager)
+    now_row = _find(now_section, {"type": "now-row", "index": "Suggestion"})
+    _accent, card_body = now_row.children
+    _top_row, context_line = card_body.children
+
+    assert context_line.style["fontSize"] == tokens.FS_BASE
+    assert [part.children for part in context_line.children] == [
+        "Money", "·", "Business",
+    ]
 
 
 def test_goal_cards_open_the_shared_node_menu():

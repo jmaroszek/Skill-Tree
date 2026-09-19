@@ -172,6 +172,15 @@ def test_graph_layout_panel_scrolls_within_a_short_canvas():
     assert "overflow-y: auto" in rule
 
 
+def test_native_picker_tries_below_before_using_overflow_fallbacks():
+    css = (Path(__file__).resolve().parents[1] / "assets" / "dropdowns.css").read_text()
+    supports = css[css.index("@supports (appearance: base-select)") :]
+    picker_start = supports.index("select::picker(select) {")
+    picker = supports[picker_start:supports.index("}", picker_start)]
+
+    assert "position-try-order: normal;" in picker
+
+
 def test_graph_layout_sliders_use_qualitative_endpoint_labels():
     panel = build_graph_settings_panel("test-graph-layout")
 

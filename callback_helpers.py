@@ -1379,7 +1379,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
 
         # --- Context subtitle ---
         ctx_line = html.Div(ctx_children, style={
-            "fontSize": tokens.FS_CAP, "color": tokens.TEXT_DIM, "fontFamily": _MONO_FONT,
+            "fontSize": tokens.FS_BASE, "color": tokens.TEXT_DIM, "fontFamily": _MONO_FONT,
             "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
             "lineHeight": "1.35",
             "minHeight": "17px",

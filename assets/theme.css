@@ -557,6 +557,17 @@
     border-color: var(--st-text-dim) !important;
 }
 
+/* Event descriptions use rendered lines rather than a character estimate, so
+   proportional glyph widths cannot make nominally equal excerpts vary from
+   one to four lines. The app targets Chromium/Electron, where this specified
+   legacy form of line clamping is stable. */
+.event-card-description {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
 /* --- Type-adaptive editor section transitions --- */
 
 #section-done-time,
@@ -771,6 +782,24 @@
 .review-history-table .review-history-actions:focus-within {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* Keep long node names from dictating the whole Details table grid. The
+   360px column is generous at the normal desktop split, while leaving useful
+   room for classification and scoring; the full name remains available in
+   the hover title. */
+.details-subtasks-table .details-subtask-name-heading,
+.details-subtasks-table .details-subtask-name-cell {
+    width: 360px;
+    max-width: 360px;
+}
+
+.details-subtasks-table .details-subtask-name-link {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* --- Node Editor: unified field + ghost icon affordances --- */

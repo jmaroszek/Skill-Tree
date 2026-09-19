@@ -540,7 +540,8 @@ def build_details_tab_content():
                 add_button("btn-details-add-node", "Add subtask node"),
             ], className="d-flex align-items-center"),
             html.Div(_build_toggles(), id="details-subtask-toggles-bottom"),
-        ], className="d-flex align-items-center justify-content-between mb-2"),
+        ], className="d-flex align-items-center justify-content-between",
+           style={"marginBottom": tokens.SPACE_BLOCK}),
         html.Div(id="details-subtasks-table-container",
                  style={"overflowY": "visible", "flex": "none"}),
     ], id="details-subtasks-section",
@@ -1404,9 +1405,14 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
 
         rows.append(html.Tr([
             html.Td(
-                html.Span(node.name, title="Open in Details tab",
-                          style={"cursor": "pointer"}),
+                html.Span(
+                    node.name,
+                    title=f"{node.name} — open in Details",
+                    className="details-subtask-name-link",
+                    style={"cursor": "pointer"},
+                ),
                 id={"type": "details-subtask-name", "index": node.name},
+                className="details-subtask-name-cell",
                 style=tokens.CELL_PRIMARY,
             ),
             html.Td(html.Span(node.status, className="badge",
@@ -1435,7 +1441,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
 
     return dbc.Table([
         html.Thead(html.Tr([
-            html.Th("Name"),
+            html.Th("Name", className="details-subtask-name-heading"),
             html.Th("Status"),
             html.Th("Relationship"),
             html.Th("Type"),

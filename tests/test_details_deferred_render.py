@@ -14,6 +14,7 @@ from details_callbacks import register_details_callbacks
 from event_callbacks import register_event_callbacks
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, Node
+import style_tokens as tokens
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -156,6 +157,52 @@ def test_every_subtask_row_has_edit_action_and_no_remove_action():
         action_group = row.children[-1].children
         assert action_group.className == "details-subtask-actions"
         assert action_group.children[0].children[0].className == "bi bi-pencil"
+
+
+def test_subtask_name_column_is_capped_and_keeps_full_name_on_hover():
+    from details_layout import build_details_subtasks_table
+
+    manager = GraphManager()
+    parent = _suggestion_node(name="Parent")
+    long_name = "A long but still useful subtask name that must not crowd metadata"
+    child = _suggestion_node(name=long_name, type="Learn")
+    for node in (parent, child):
+        manager.add_node(node)
+    manager.add_edge(long_name, "Parent", EDGE_NEEDS_HARD)
+
+    table = build_details_subtasks_table(
+        [child], manager, manager.get_edges(), "Parent"
+    )
+    heading = table.children[0].children.children[0]
+    name_cell = table.children[1].children[0].children[0]
+    name_link = name_cell.children
+
+    assert heading.className == "details-subtask-name-heading"
+    assert name_cell.className == "details-subtask-name-cell"
+    assert name_link.className == "details-subtask-name-link"
+    assert name_link.children == long_name
+    assert name_link.title == f"{long_name} — open in Details"
+
+    css = THEME_CSS.read_text(encoding="utf-8")
+    assert "width: 360px;" in css
+    assert "max-width: 360px;" in css
+    assert "text-overflow: ellipsis;" in css
+    assert "white-space: nowrap;" in css
+
+
+def test_subtasks_header_leaves_a_block_gap_before_the_table():
+    from details_layout import build_details_tab_content
+
+    content = build_details_tab_content()
+    header = next(
+        component for component in _walk_components(content)
+        if isinstance(getattr(component, "children", None), list)
+        and "details-subtask-toggles-bottom" in {
+            getattr(child, "id", None) for child in component.children
+        }
+    )
+
+    assert header.style["marginBottom"] == tokens.SPACE_BLOCK
 
 
 def test_subtask_edit_actions_reveal_on_row_intent_and_remain_available_on_touch():

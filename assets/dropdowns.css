@@ -184,12 +184,14 @@ select::picker(select) {
            user sees the old sharp-cornered list. */
         appearance: base-select;
 
-        /* No max-height. A flat cap here is read as the box's size when the
-           browser picks a side, so a four-option menu with 174px below it and
-           a 430px cap decides it does not fit and flips upward -- above a
-           control that had room beneath it all along. Leaving it off lets the
-           UA size the picker from the space actually available, which is the
-           behaviour we want; long lists still scroll. */
+        /* Chromium's UA rule prefers the side with the most vertical room,
+           which can put a short menu above the trigger even when it fits
+           below. Try the normal below-trigger position first; the UA's
+           fallback positions still move it above when below truly overflows. */
+        position-try-order: normal;
+
+        /* No fixed max-height. Let the UA's stretch sizing use the available
+           space on the chosen side; long lists still scroll. */
         overflow-y: auto;
         /* Anchor to the trigger and match its width — the same contract the
            Radix menu gets above. */

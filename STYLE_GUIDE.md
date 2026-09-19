@@ -134,6 +134,11 @@ node-type colors. The `EventTriggered` tile deliberately matches the
 `Done` status badge (`#148a68`) so "fired / complete" reads as one
 consistent meaning across the app.
 
+An event card keeps the complete description in the DOM and clamps it to three
+rendered lines with `.event-card-description`. Do not return to character-count
+truncation: proportional glyph widths make equal character counts occupy
+different numbers of lines.
+
 | Tile           | Background | Text      | Notes                                                              |
 |----------------|-----------|-----------|--------------------------------------------------------------------|
 | EventTrigger   | `#56575a` | `#dcdcdd` | Pewter — used for Manual / Scheduled / Completion uniformly.       |
@@ -462,8 +467,13 @@ than by reading the spec:
   `select::picker(select) option` is dropped silently by the parser, so rows
   have to be addressed as plain `option`.
 - The trigger needs `display: flex`, or base-select stacks its parts and the
-  control grows from 38px to 62px. It also needs `background-image: none`, or
-  Bootstrap's chevron and the real `::picker-icon` both draw.
+  control grows from 38px to 62px. Keep Bootstrap's established chevron and
+  hide the added `::picker-icon`, so native selects continue to match the
+  context picker and `dcc.Dropdown` when closed.
+- Set `position-try-order: normal` on the picker. Chromium's UA default prefers
+  whichever side has more vertical room, which can open a short menu upward
+  even when it fits below. `normal` tries below first and retains the UA's
+  above-trigger fallback for genuine overflow.
 
 Do not add a new dropdown style. If a control needs a look the shared rules do
 not give it, change the shared rules.
@@ -644,6 +654,10 @@ Type column from an inline literal while the columns beside it used
 A default value should recede rather than disappear: muted text keeps "None"
 and "Dormant" quiet enough that a real delay or a woken node stands out,
 without the absence of a whole column having to carry that meaning.
+
+The Details subtasks Name column is fixed at 360px. Its link is a single-line
+ellipsis and its `title` contains the complete node name; long names must not
+move or crowd the Status, Relationship, and classification columns.
 
 ## Badges
 
