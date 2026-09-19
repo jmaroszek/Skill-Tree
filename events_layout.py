@@ -888,7 +888,7 @@ DORMANT_COL_WIDTHS = {
 
 
 def _format_wake_date(iso_date: str) -> str:
-    """An ISO date as `Oct 1`, or `Oct 1 2027` when it is not this year.
+    """An ISO date as `Oct 1`, or `Oct 1, 2027` when it is not this year.
 
     The year is the part that only sometimes carries information, so it only
     sometimes appears. The full ISO string stays in the cell's title.
@@ -898,7 +898,7 @@ def _format_wake_date(iso_date: str) -> str:
     except (TypeError, ValueError):
         return iso_date or ""
     stamp = f"{when.strftime('%b')} {when.day}"
-    return stamp if when.year == date.today().year else f"{stamp} {when.year}"
+    return stamp if when.year == date.today().year else f"{stamp}, {when.year}"
 
 
 def _projected_wake(event, delay_days: int) -> str:

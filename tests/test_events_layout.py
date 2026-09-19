@@ -1,5 +1,6 @@
 """Structure contracts for the Events-tab layout."""
 
+from datetime import date
 from pathlib import Path
 
 from events_layout import (
@@ -174,11 +175,22 @@ def test_a_projected_wake_date_is_muted_and_a_committed_one_is_not():
     projected_cell = projected.children[1].children[0].children[3].children
     committed_cell = committed.children[1].children[0].children[3].children
 
-    assert projected_cell.children == "Jun 15 2027"
+    assert projected_cell.children == "Jun 15, 2027"
     assert projected_cell.className == "text-muted"
-    assert committed_cell.children == "Oct 1 2027"
+    assert committed_cell.children == "Oct 1, 2027"
     assert getattr(committed_cell, "className", None) is None
     assert committed_cell.title == "2027-10-01", "the full date stays reachable"
+
+
+def test_a_wake_date_carries_its_year_after_a_comma():
+    """This year needs no year at all; another year gets one, punctuated the
+    way a date is normally written."""
+    from events_layout import _format_wake_date
+
+    this_year = date.today().replace(month=10, day=1)
+    assert _format_wake_date(this_year.isoformat()) == "Oct 1"
+    assert _format_wake_date(f"{date.today().year + 1}-10-01") == (
+        f"Oct 1, {date.today().year + 1}")
 
 
 def test_a_delay_without_a_knowable_date_reads_as_an_offset():
