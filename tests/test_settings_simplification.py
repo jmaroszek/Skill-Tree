@@ -125,7 +125,12 @@ def test_single_setting_sections_do_not_repeat_their_labels():
     assert "Manage reflections from the journal icon" not in text
 
 
-def test_startup_analysis_uses_concise_user_facing_description():
+def test_graph_statistics_uses_concise_user_facing_description():
+    """The section is named for what it shows, not for when it runs.
+
+    It was "Startup Analysis", which described the timing and left the content
+    to be guessed at; the toggle beside it already says "Run on startup".
+    """
     modal = build_settings_modal()
     scoring_tab = next(
         component for component in _walk(modal)
@@ -133,17 +138,20 @@ def test_startup_analysis_uses_concise_user_facing_description():
     )
     copy = _text(scoring_tab)
     components = list(_walk(scoring_tab))
+    expected = ("Shows node and edge counts, and how long scoring took, "
+                "on the Home tab.")
     description_index = next(
         index for index, component in enumerate(components)
-        if getattr(component, "children", None)
-        == "Shows node, edge, and scoring-time totals on the Home tab."
+        if getattr(component, "children", None) == expected
     )
     toggle_index = next(
         index for index, component in enumerate(components)
         if getattr(component, "id", None) == "setting-show-scoring-perf"
     )
 
-    assert "Shows node, edge, and scoring-time totals on the Home tab." in copy
+    assert "Graph Statistics" in copy
+    assert "Startup Analysis" not in copy
+    assert expected in copy
     assert "records the first scoring run after launch" not in copy
     assert description_index < toggle_index
 

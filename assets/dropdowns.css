@@ -184,7 +184,12 @@ select::picker(select) {
            user sees the old sharp-cornered list. */
         appearance: base-select;
 
-        max-height: min(430px, calc(100vh - 16px));
+        /* No max-height. A flat cap here is read as the box's size when the
+           browser picks a side, so a four-option menu with 174px below it and
+           a 430px cap decides it does not fit and flips upward -- above a
+           control that had room beneath it all along. Leaving it off lets the
+           UA size the picker from the space actually available, which is the
+           behaviour we want; long lists still scroll. */
         overflow-y: auto;
         /* Anchor to the trigger and match its width — the same contract the
            Radix menu gets above. */

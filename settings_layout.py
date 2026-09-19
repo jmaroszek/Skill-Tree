@@ -247,10 +247,14 @@ def _build_scoring_tab():
             ], className="mt-1"),
 
             html.Hr(className="my-3"),
-            # Startup analysis: timing + log on the first scoring run only
-            html.H5("Startup Analysis", className="mt-2 mb-1"),
+            # The Home tab's stats readout: how big the graph is and how long
+            # scoring it took. Named for what you get rather than for when it
+            # runs -- "Startup Analysis" described the timing and left the
+            # content to be guessed at.
+            html.H5("Graph Statistics", className="mt-2 mb-1"),
             html.Small(
-                "Shows node, edge, and scoring-time totals on the Home tab.",
+                "Shows node and edge counts, and how long scoring took, "
+                "on the Home tab.",
                 className="text-muted d-block mb-2",
             ),
             dbc.Checklist(
