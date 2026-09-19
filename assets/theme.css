@@ -1023,18 +1023,23 @@
     font-size: var(--st-fs-lg);
 }
 
-/* The "+" beside a label that owns a repeatable field. */
+/* The "+" beside a label that owns a repeatable field. A text glyph rather
+   than an icon, matching what the node editor always had: no box, no hover
+   fill, just a muted plus that brightens. */
 .btn.adder-btn {
-    width: 24px;
-    height: 24px;
+    --bs-btn-color: var(--st-text-secondary);
+    --bs-btn-hover-bg: transparent;
+    --bs-btn-hover-color: var(--st-text-strong);
+    --bs-btn-active-bg: transparent;
+    width: auto;
+    height: auto;
+    padding: 0;
     margin-left: 0.5rem;
-    font-size: var(--st-fs-cap);
-    --bs-btn-color: var(--st-text-dim);
+    font-size: var(--st-fs-xl);
+    line-height: 1;
 }
 .btn.adder-btn.adder-btn-lg {
-    width: 28px;
-    height: 28px;
-    font-size: var(--st-fs-md);
+    font-size: var(--st-fs-2xl);
 }
 
 /* The (i) beside a heading or control. Sits on the text baseline rather than

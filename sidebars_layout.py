@@ -154,8 +154,18 @@ def build_node_editor_content():
                     context_value="",
                 ),
 
+                # A Goal's priority rank is set in the Goals sidebar, which is
+                # the one place that can see the ranking as a whole. Editing it
+                # here too meant two controls for one value, and the editor's
+                # copy won on save simply because that was the last write.
+                #
+                # The select stays in the DOM, permanently hidden: six
+                # callbacks read it as State and the form snapshot includes it
+                # for dirty-checking. It is populated from the node and never
+                # written back (see the save path in callbacks.py), so it is
+                # inert -- opening a Goal in the editor and saving no longer
+                # touches its rank.
                 html.Div(id="section-priority-rank", style={"display": "none"}, children=[
-                    dbc.Label("Priority Rank", className="mt-2"),
                     dbc.Select(
                         id="node-priority-rank",
                         options=[

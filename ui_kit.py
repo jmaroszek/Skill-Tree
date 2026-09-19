@@ -88,14 +88,29 @@ def panel_close_button(button_id, label="Close", large=False,
 def add_button(button_id, tooltip, placement="right", large=False, **kwargs):
     """The ``+`` that reveals or appends a repeatable field.
 
-    Per STYLE_GUIDE.md a ``+`` means *add a field* and a chevron means
-    *disclose existing content*; do not substitute one for the other. ``large``
-    is the sidebar-header variant.
+    A plain text ``+``, which is the treatment the node editor already had and
+    the one to match: lighter than an icon glyph, and it sits on the label's
+    baseline without needing a box. This is the one affordance that is not a
+    Bootstrap Icon, and deliberately so — the no-Unicode-glyph rule is about
+    symbols like ``×`` and ``↺`` that have a real icon equivalent, not about a
+    plus sign.
+
+    A ``+`` means *add a field*; a chevron means *disclose existing content*.
+    Do not substitute one for the other. ``large`` is the sidebar-header size.
     """
     size_class = "adder-btn-lg" if large else ""
-    return _icon_button(
-        button_id, "plus-lg", tooltip, f"adder-btn {size_class}".strip(),
-        tooltip=tooltip, placement=placement, **kwargs)
+    button = dbc.Button(
+        "+",
+        id=button_id,
+        color="link",
+        className=f"adder-btn {size_class}".strip(),
+        **kwargs,
+    )
+    return html.Span(
+        [button, dbc.Tooltip(tooltip, target=button_id,
+                             placement=placement, delay=_DELAY)],
+        className="ui-affordance",
+    )
 
 
 def info_button(button_id, tooltip=None, placement="top", **kwargs):

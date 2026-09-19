@@ -881,12 +881,13 @@ def register_callbacks(app, services=None):
     def toggle_type_fields(node_type):
         show = {}
         hide = {'display': 'none'}
+        # section-priority-rank stays hidden for every type now: rank is the
+        # Goals sidebar's job. The Output is kept so the hidden select the
+        # other callbacks read as State still has a container.
         if node_type == 'Goal':
-            # Priority rank visible; habit toggle hidden (containers must inherit).
-            return show, show, show, hide
+            # Habit toggle hidden — containers must inherit.
+            return show, show, hide, hide
         if node_type == 'Milestone':
-            # No priority rank (top-level-Goal mechanic only);
-            # habit toggle hidden (containers must inherit).
             return show, show, hide, hide
         # Learn, Action, Resource: full set, habit toggle visible.
         return show, show, hide, show
@@ -1779,16 +1780,12 @@ def register_callbacks(app, services=None):
                     clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
                     manager.set_aliases(name, clean_aliases)
 
-                    # Update priority goals for Goal nodes
-                    if n_type == 'Goal':
-                        priority_goals = ConfigManager.get_priority_goals()
-                        if name in priority_goals:
-                            priority_goals.remove(name)
-                        if priority_rank_val and priority_rank_val != "none":
-                            rank_idx = int(priority_rank_val) - 1
-                            rank_idx = min(rank_idx, len(priority_goals))
-                            priority_goals.insert(rank_idx, name)
-                        ConfigManager.set_priority_goals(priority_goals)
+                    # Priority rank is deliberately NOT written here. The
+                    # Goals sidebar owns it, because ranking is a judgement
+                    # about the whole list rather than about one node, and it
+                    # is the only surface that shows the list. This block used
+                    # to rewrite the ranking from the editor's hidden select on
+                    # every Goal save.
             except (ValueError, TypeError) as e:
                 msg = f"Error: {e}"
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)

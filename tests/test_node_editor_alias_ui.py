@@ -81,14 +81,19 @@ def test_alias_add_button_sits_beside_name_label(surface_index):
     _name_input, input_parent = _find(surface, name_id)
     aliases_label, _label_parent = _find(surface, aliases_label_id)
 
-    # The adder is a Bootstrap Icon with a visually-hidden label, not a "+"
-    # text glyph; see ui_kit.add_button. A "+" still means "add a field" and a
-    # chevron still means "disclose" -- only the rendering changed.
-    icon, hidden_label = button.children
-    assert icon.className == "bi bi-plus-lg"
-    assert hidden_label.children == "Add alias"
-    assert "visually-hidden" in hidden_label.className
+    # A plain text "+", which is the treatment the node editor always had and
+    # the one ui_kit.add_button standardised on. It is the one affordance that
+    # is not a Bootstrap Icon, deliberately: the no-Unicode-glyph rule is about
+    # symbols like "x" and the restore arrow that have a real icon equivalent.
+    assert button.children == "+"
+    assert "adder-btn" in button.className
     assert button_parent is not None
+
+    # Its tooltip is a sibling inside the same wrapper, so the label is still
+    # reachable without hovering blind.
+    tooltip = next(c for c in button_parent.children
+                   if getattr(c, "target", None) == add_id)
+    assert tooltip.children == "Add alias"
 
     # ui_kit wraps the button with its tooltip in a `display: contents` span,
     # so the row that owns the label is one level above that wrapper. The

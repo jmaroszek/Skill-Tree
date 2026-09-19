@@ -57,16 +57,13 @@ select.form-select:has(> option[value=""][hidden]:checked) {
     stroke-linejoin: round !important;
 }
 
-/* A dcc.Dropdown renders its value on the light field background, so its text
-   must be dark. This used to be done three different ways across 16 call
-   sites — a `className="text-dark"` wrapper (14x), an inline `color:#212529`,
-   and an inline white-bg-plus-black-text pair — with two id-scoped
-   `!important` patches for the sites that were missed. One rule replaces it. */
-.dash-dropdown .dash-dropdown-value,
-.dash-dropdown .dash-dropdown-input,
-.dash-dropdown input {
-    color: var(--st-field-fg);
-}
+/* The `.text-dark` wrapper on a dcc.Dropdown's container carries the dark
+   value text; every call site now uses that one idiom rather than the three
+   that were here before (the wrapper, an inline colour, and an inline
+   white-bg-plus-black-text pair). Do NOT add a blanket colour rule for
+   `.dash-dropdown-value` here: it also catches the placeholder, which turns
+   the "Hard..." / "Soft..." hints black instead of the placeholder grey every
+   other field uses. */
 
 /* The Details selector puts its clear action beside the chevron. Keep the
    visible x at native size but grow its hit target into the dead space on its
@@ -91,7 +88,8 @@ select.form-select:has(> option[value=""][hidden]:checked) {
    The shared look, defined once. context_picker.css styles
    .context-picker-panel from these same tokens. */
 
-.dash-dropdown-content,
+/* The native <select> picker is the one that needed a look; a dcc.Dropdown
+   already had a good one. Only the picker gets the shared panel treatment. */
 select::picker(select) {
     background: var(--st-menu-bg);
     color: var(--st-menu-fg);
@@ -140,38 +138,13 @@ select::picker(select) {
     box-sizing: border-box !important;
 }
 
-/* Rows, matched to .context-picker-menu-row. */
-.dash-dropdown-content .dash-dropdown-option,
-.dash-dropdown-content [role="option"] {
-    min-height: var(--st-menu-row-height);
-    display: flex;
-    align-items: center;
-    padding: 6px 10px;
-    border-radius: 3px;
-    color: var(--st-menu-fg);
-    cursor: pointer;
-}
-.dash-dropdown-content .dash-dropdown-option:hover,
-.dash-dropdown-content [role="option"]:hover,
-.dash-dropdown-content [role="option"][data-highlighted] {
-    background: var(--st-menu-row-hover);
-}
-.dash-dropdown-content [role="option"][data-state="checked"],
-.dash-dropdown-content [role="option"][aria-selected="true"] {
-    color: var(--st-menu-selected);
-    font-weight: 500;
-}
-
-/* The menu's own search field, matched to .context-picker-search. */
-.dash-dropdown-content input {
-    min-height: var(--st-menu-row-height);
-    margin-bottom: 5px;
-    padding: 6px 9px;
-    background: var(--st-field-bg);
-    color: var(--st-field-fg);
-    border: 1px solid var(--st-menu-border);
-    border-radius: 3px;
-}
+/* Deliberately NOT restyled: rows, the search field and the panel chrome.
+   A dcc.Dropdown with its search box and its multi-select chips is a control
+   people use heavily and already liked; Dash's own look for it stays. The
+   sizing and width rules above are the only interventions, and they are about
+   the menu being cut off or stretching past its trigger, not about its look.
+   The native <select> picker is the one that was unstyleable, and it is the
+   one this file exists to fix. */
 
 /* --- 2b. Native <select> (dbc.Select) -------------------------------- */
 
@@ -204,8 +177,13 @@ select::picker(select) {
     }
 
     select::picker(select) {
-        /* The shared panel look is applied in the combined rule above; this
-           block adds only what the picker specifically needs. */
+        /* The picker has to opt in as well. Setting appearance on the select
+           alone customises the button but leaves the popup rendering exactly
+           as the OS drew it before — which still reports our declared colours
+           through getComputedStyle, so it looks fixed from script while the
+           user sees the old sharp-cornered list. */
+        appearance: base-select;
+
         max-height: min(430px, calc(100vh - 16px));
         overflow-y: auto;
         /* Anchor to the trigger and match its width — the same contract the
