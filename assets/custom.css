@@ -200,3 +200,7 @@ input[type=number] {
     opacity: 0.9;
     box-shadow: var(--st-shadow-panel);
 }
+body.now-dragging,
+body.now-dragging * {
+    cursor: grabbing !important;
+}

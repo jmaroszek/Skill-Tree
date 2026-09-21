@@ -17,6 +17,7 @@ function _setNativeValueNow(el, val) {
 var _nowDragClasses = ['now-sortable-ghost', 'now-sortable-chosen', 'now-sortable-drag', 'now-sortable-fallback'];
 
 function _clearNowDragClasses() {
+    document.body.classList.remove('now-dragging');
     var cards = document.querySelectorAll('#now-cards-container .now-card');
     cards.forEach(function (c) {
         c.classList.remove.apply(c.classList, _nowDragClasses);
@@ -78,6 +79,8 @@ function _initNowSortable() {
         dragClass: 'now-sortable-drag',
         onStart: function () {
             _nowIsDragging = true;
+            // The cursor stays over the fallback clone, so set it page-wide.
+            document.body.classList.add('now-dragging');
         },
         onEnd: function () {
             _nowIsDragging = false;

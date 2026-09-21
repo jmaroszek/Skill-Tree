@@ -89,5 +89,17 @@ result = select([0,0],[],[a,b],[],result[0]);
 assert.equal(result[0], null);
 assert.equal(result[1], 'Click a card or row to see its description');
 assert.equal(a.props.style.backgroundColor, undefined);
+
+// After a reorder Dash's wildcard outputs no longer follow layout order;
+// each style must land on the card it belongs to.
+const n1 = row('N1', '', 'now-row'), n2 = row('N2', '', 'now-row'), n3 = row('N3', '', 'now-row');
+const out = names => names.map(name => ({id: {type: 'now-row', index: name}, property: 'style'}));
+window.dash_clientside.callback_context.outputs_list =
+    [null, null, out(['A', 'B']), out(['N3', 'N1', 'N2']), null];
+click('N2', 'now-row'); result = select([0,0],[0,1,0],[a,b],[n1,n2,n3],null);
+assert.equal(result[0], 'N2');
+assert.equal(result[3][0].border, '1px solid #495057');  // N3
+assert.equal(result[3][1].border, '1px solid #495057');  // N1
+assert.equal(result[3][2].border, '2px solid #0d6efd');  // N2
 '''.replace('SOURCE', source)
     subprocess.run([node, '-e', script], check=True, capture_output=True, text=True)

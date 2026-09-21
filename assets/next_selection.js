@@ -41,8 +41,20 @@
                 }
                 return result;
             }
-            return [selected, description, suggestions.map(row => style(row, false)),
-                now.map(row => style(row, true)),
+            // Wildcard outputs are matched to components in Dash's own registry
+            // order, which stops following layout order once Now cards have been
+            // reordered. Return each style at the position Dash asks for.
+            function styles(rowsInLayout, outputs, card) {
+                if (!outputs) return rowsInLayout.map(row => style(row, card));
+                const byIndex = new Map(rowsInLayout.map(row => [row.id.index, row]));
+                return outputs.map(output => {
+                    const row = byIndex.get(output.id.index);
+                    return row ? style(row, card) : window.dash_clientside.no_update;
+                });
+            }
+            const outputs = window.dash_clientside.callback_context.outputs_list || [];
+            return [selected, description, styles(suggestions, outputs[2], false),
+                styles(now, outputs[3], true),
                 {color: row ? '#dee2e6' : '#6c757d', whiteSpace: 'pre-wrap', fontSize: '0.95rem'}];
         }
     };
