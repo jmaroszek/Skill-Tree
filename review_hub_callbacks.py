@@ -8,7 +8,8 @@ Review History table + filters + edit hand-off.
 from dash import Input, Output, State, ALL, ctx, no_update, html
 import dash_bootstrap_components as dbc
 
-from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+from config import ConfigManager
+from ui_kit import Tooltip
 from graph_manager import GraphManager
 from callback_helpers import build_calibration_dismissed_view
 import style_tokens as tokens
@@ -105,12 +106,10 @@ def _build_history_table(nodes):
                 color="link",
                 className="review-history-edit-btn",
             ),
-            dbc.Tooltip(
+            Tooltip(
                 "Edit reflection",
                 target=edit_id,
                 placement="left",
-                delay={"show": TOOLTIP_SHOW_DELAY_MS,
-                       "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
         ], className="review-history-actions")
         rows.append(html.Tr([

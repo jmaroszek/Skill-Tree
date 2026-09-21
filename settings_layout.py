@@ -6,8 +6,6 @@ from duration_ui import bracket_label, unit_select
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from config import (
-    TOOLTIP_SHOW_DELAY_MS,
-    TOOLTIP_HIDE_DELAY_MS,
     SUBCONTEXT_SORT_DEFINITION,
     SUBCONTEXT_SORT_ALPHABETICAL,
     CONTEXT_SORT_DEFINITION,
@@ -17,7 +15,7 @@ from config import (
     NAME_FORMAT_SENTENCE,
 )
 import style_tokens as tokens
-from ui_kit import info_button, restore_button
+from ui_kit import Tooltip, info_button, restore_button
 
 
 
@@ -412,8 +410,7 @@ def build_settings_modal():
                    style={"fontSize": tokens.FS_LG, "lineHeight": "1", "padding": "4px 7px"}),
         html.Span(id="settings-save-status", className="text-success ms-2",
                   style={"fontSize": tokens.FS_BASE}),
-        dbc.Tooltip("Save settings", target="btn-settings-save", placement="bottom",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+        Tooltip("Save settings", target="btn-settings-save", placement="bottom"),
     ], className="ms-3 d-flex align-items-center")
 
     return dbc.Modal([

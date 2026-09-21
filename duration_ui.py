@@ -3,8 +3,8 @@ from dash import html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
-from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
-from ui_kit import info_button
+from config import ConfigManager
+from ui_kit import Tooltip, info_button
 import style_tokens as tokens
 
 _BRACKET_HINTS = {
@@ -18,8 +18,7 @@ def bracket_label(kind, label_id, className="small text-muted mb-0"):
     """A Lower/Expected/Upper input label with a hover tooltip on the word itself."""
     return [
         dbc.Label(kind, id=label_id, className=className),
-        dbc.Tooltip(_BRACKET_HINTS[kind], target=label_id, placement="top",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+        Tooltip(_BRACKET_HINTS[kind], target=label_id, placement="top"),
     ]
 
 

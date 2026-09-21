@@ -33,6 +33,25 @@ from models import STATUS_DONE, STATUS_OPEN
 _DELAY = {"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}
 
 
+def Tooltip(children, target, **kwargs):
+    """The app's one tooltip: a ``dbc.Tooltip`` that opens on hover only.
+
+    ``dbc.Tooltip`` defaults to ``trigger="hover focus"`` and opens on any
+    ``focusin`` without asking whether the focus came from the keyboard. A modal
+    hands focus back to whatever opened it when it closes, so the tooltip of the
+    button you had just clicked popped open with the cursor nowhere near it, and
+    stayed until you clicked elsewhere. Every tooltip goes through here so the
+    trigger is decided in one place.
+
+    Icon buttons still name themselves for assistive technology through their
+    visually-hidden label, so nothing is lost by dropping the focus trigger.
+    ``trigger`` and ``delay`` can still be overridden per call.
+    """
+    kwargs.setdefault("trigger", "hover")
+    kwargs.setdefault("delay", _DELAY)
+    return dbc.Tooltip(children, target=target, **kwargs)
+
+
 def _icon_button(button_id, icon, label, class_name, tooltip=None,
                  placement="top", **kwargs):
     """A ghost icon button with a visually-hidden label and optional tooltip.
@@ -62,8 +81,7 @@ def _icon_button(button_id, icon, label, class_name, tooltip=None,
     # `display: contents` on .ui-affordance keeps the wrapper out of layout, so
     # the button still behaves as a direct flex item of the row it sits in.
     return html.Span(
-        [button, dbc.Tooltip(tooltip, target=button_id,
-                             placement=placement, delay=_DELAY)],
+        [button, Tooltip(tooltip, target=button_id, placement=placement)],
         className="ui-affordance",
     )
 
@@ -107,8 +125,7 @@ def add_button(button_id, tooltip, placement="right", large=False, **kwargs):
         **kwargs,
     )
     return html.Span(
-        [button, dbc.Tooltip(tooltip, target=button_id,
-                             placement=placement, delay=_DELAY)],
+        [button, Tooltip(tooltip, target=button_id, placement=placement)],
         className="ui-affordance",
     )
 

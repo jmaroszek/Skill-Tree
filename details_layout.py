@@ -22,15 +22,14 @@ import dash_cytoscape as cyto
 from typing import Optional, List, Any
 from config import (
     ConfigManager,
-    TOOLTIP_SHOW_DELAY_MS,
-    TOOLTIP_HIDE_DELAY_MS,
     badge_style,
     BADGE_PALETTE,
 )
 from context_picker import build_single_context_picker
 from styles import stylesheet
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from ui_kit import add_button, info_button, nav_button, panel_close_button, restore_button
+from ui_kit import (Tooltip, add_button, info_button, nav_button, panel_close_button,
+                    restore_button)
 
 # Weekday toggle-pill options for the habit per-session scheduler. Values are
 # weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
@@ -124,9 +123,8 @@ def build_graph_settings_panel(
                 style={"fontSize": tokens.FS_BASE},
             ),
         ], className="d-flex gap-2"),
-        dbc.Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
-                    target=f"{p}-freeze-rerender", placement="left",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+        Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
+                    target=f"{p}-freeze-rerender", placement="left"),
         html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
     ]
 
@@ -187,9 +185,8 @@ def build_graph_settings_panel(
 
         dbc.Button("Settle", id=f"{p}-relayout",
                    color="secondary", size="sm", className="w-100 mt-2"),
-        dbc.Tooltip("Re-run layout physics to untangle nodes",
-                    target=f"{p}-relayout", placement="top",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+        Tooltip("Re-run layout physics to untangle nodes",
+                    target=f"{p}-relayout", placement="top"),
     ]
 
     return html.Div(children, id=f"{p}-panel", className="graph-settings-panel",
@@ -326,13 +323,11 @@ def build_details_tab_content():
         html.Div([
             dbc.Button("Edit", id="btn-details-edit", color="secondary",
                        size="sm", style={"flex": "1"}),
-            dbc.Tooltip("Open the node editor", target="btn-details-edit", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Open the node editor", target="btn-details-edit", placement="top"),
             dbc.Button("Explain", id="btn-details-explain", color="secondary",
                        size="sm", className="ms-1", style={"flex": "1"}),
-            dbc.Tooltip("Show where this node's priority score comes from",
-                        target="btn-details-explain", placement="top",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Show where this node's priority score comes from",
+                        target="btn-details-explain", placement="top"),
         ], className="d-flex mt-3"),
 
     ], id="details-node-summary",
@@ -412,8 +407,7 @@ def build_details_tab_content():
                        id="btn-details-graph-settings",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
-            dbc.Tooltip("Graph layout", target="btn-details-graph-settings", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Graph layout", target="btn-details-graph-settings", placement="left"),
             _freeze_indicator("details-freeze-indicator"),
             build_graph_settings_panel(
                 "details-graph-settings",
@@ -424,15 +418,13 @@ def build_details_tab_content():
                        id="btn-details-focus",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right-far"),
-            dbc.Tooltip("Open this node's subtree in the main canvas",
-                        target="btn-details-focus", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Open this node's subtree in the main canvas",
+                        target="btn-details-focus", placement="left"),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-details-graph-fullscreen",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
-            dbc.Tooltip("Toggle fullscreen", target="btn-details-graph-fullscreen", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Toggle fullscreen", target="btn-details-graph-fullscreen", placement="left"),
             html.Div(id="details-canvas-node-count", className="canvas-stats-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
@@ -1097,10 +1089,9 @@ def _build_add_node_modal(ted):
                         className="mb-0",
                     ),
                 ], className="d-flex align-items-center mt-2 mb-2"),
-                dbc.Tooltip(
+                Tooltip(
                     "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
                     target="details-add-value-mode", placement="left",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                 ),
                 # Locked-on notice for Milestones (mirrors the main editor).
                 html.Div(id="details-add-value-mode-warning",
@@ -1391,12 +1382,10 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                 color="link",
                 className="details-subtask-edit-btn",
             ),
-            dbc.Tooltip(
+            Tooltip(
                 "Open the node editor",
                 target=edit_id,
                 placement="left",
-                delay={"show": TOOLTIP_SHOW_DELAY_MS,
-                       "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
         ], className="details-subtask-actions")
 

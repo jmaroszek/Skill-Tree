@@ -30,7 +30,8 @@ from list_toolbar import SORT_MENUS, sort_menu_items
 import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select
-from ui_kit import (edit_button, info_button, panel_close_button, step_button)
+from ui_kit import (Tooltip, edit_button, info_button, panel_close_button,
+                    step_button)
 
 
 # --- Graph View (Canvas only) ---
@@ -70,8 +71,7 @@ def create_graph_view(initial_elements):
                        id="btn-graph-settings",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
-            dbc.Tooltip("Graph layout", target="btn-graph-settings", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Graph layout", target="btn-graph-settings", placement="left"),
             _freeze_indicator("freeze-indicator"),
             build_graph_settings_panel(
                 "graph-settings",
@@ -81,8 +81,7 @@ def create_graph_view(initial_elements):
                        id="btn-fullscreen",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
-            dbc.Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left"),
             html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
             # First-paint cover. This canvas mounts inside the hidden Nodes
             # tab, where Cytoscape stacks every node at the origin until its
@@ -1060,14 +1059,11 @@ def build_app_layout(initial_elements, env="production"):
         # LEFT: Node Editor + Goals + Events (open left-side sidebars)
         html.Div([
             dbc.Button(html.I(className="bi bi-node-plus"), id="btn-add", color="secondary", size="sm", className="me-2"),
-            dbc.Tooltip("Node editor", target="btn-add", placement="bottom",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Node editor", target="btn-add", placement="bottom"),
             dbc.Button(html.I(className="bi bi-star"), id="btn-goals-toggle", color="secondary", size="sm", className="me-2"),
-            dbc.Tooltip("Goals", target="btn-goals-toggle", placement="bottom",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Goals", target="btn-goals-toggle", placement="bottom"),
             dbc.Button(html.I(className="bi bi-calendar-event"), id="btn-events-sidebar-toggle", color="secondary", size="sm"),
-            dbc.Tooltip("Events", target="btn-events-sidebar-toggle", placement="bottom",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Events", target="btn-events-sidebar-toggle", placement="bottom"),
         ], className="d-flex align-items-center ps-3",
            style={"flex": "0 0 auto"}),
 
@@ -1091,18 +1087,13 @@ def build_app_layout(initial_elements, env="production"):
             dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm",
                        className="me-2", style={"display": "none"}),
             dbc.Button(html.I(className="bi bi-funnel"), id="btn-filters-toggle", color="secondary", size="sm"),
-            dbc.Tooltip("Filters", target="btn-filters-toggle", placement="bottom",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Filters", target="btn-filters-toggle", placement="bottom"),
             dbc.Button(html.I(className="bi bi-journal-text"), id="btn-calibration-review",
                        color="secondary", size="sm", className="ms-2",
                        style={"display": "none"}),
-            dbc.Tooltip("Reflection", target="btn-calibration-review", placement="bottom",
-                        trigger="hover",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Reflection", target="btn-calibration-review", placement="bottom"),
             dbc.Button(html.I(className="bi bi-gear"), id="btn-settings-toggle", color="secondary", size="sm", className="ms-2"),
-            dbc.Tooltip("Settings", target="btn-settings-toggle", placement="bottom",
-                        trigger="hover",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Settings", target="btn-settings-toggle", placement="bottom"),
         ], className="main-toolbar-actions d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
     ], id="main-toolbar", className="d-flex align-items-center",

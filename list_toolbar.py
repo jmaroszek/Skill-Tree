@@ -19,7 +19,7 @@ from typing import NamedTuple
 from dash import Input, Output, dcc, html
 import dash_bootstrap_components as dbc
 
-from config import TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+from ui_kit import Tooltip
 import style_tokens as tokens
 
 
@@ -107,12 +107,11 @@ def build_list_toolbar(search_input, sort: SortMenu):
                 "data-sort-input": sort.input_id,
             },
         ),
-        dbc.Tooltip(
+        Tooltip(
             f"Sort: {sort.label(sort.default)}",
             id=sort.tooltip_id,
             target=sort.button_id,
             placement="top",
-            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
         ),
         dcc.Store(id=sort.store_id, storage_type="local", data=sort.default),
     ], className="d-flex align-items-center",

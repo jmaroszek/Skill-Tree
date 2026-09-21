@@ -10,14 +10,14 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
 from datetime import date, timedelta
-from config import ConfigManager, TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOAST_CLEAR_INTERVAL_MS, badge_style
+from config import ConfigManager, TOAST_CLEAR_INTERVAL_MS, badge_style
 from models import STATUS_DONE
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
 from context_picker import build_single_context_picker
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
-from ui_kit import (add_button, confirm_action, danger_action, done_color,
-                     panel_close_button, primary_action)
+from ui_kit import (Tooltip, add_button, confirm_action, danger_action,
+                    done_color, panel_close_button, primary_action)
 
 
 def build_events_sidebar_content():
@@ -218,10 +218,9 @@ def build_events_tab_content():
                     className="mb-0",
                 ),
             ], className="d-flex align-items-center mt-2 mb-2"),
-            dbc.Tooltip(
+            Tooltip(
                 "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
                 target="dormant-node-value-mode", placement="left",
-                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
             # Locked-on notice for Milestones (mirrors the time-mode warning).
             html.Div(id="dormant-value-mode-warning",
@@ -570,15 +569,12 @@ def build_events_tab_content():
                     html.Div(id="event-save-status", className="text-success ms-3",
                              style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
                 ], className="d-flex align-items-center mb-2"),
-                dbc.Tooltip("Delete this event and its dormant nodes", target="btn-event-delete",
-                            placement="bottom",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                dbc.Tooltip("Save changes to this event", target="btn-event-save",
-                            placement="bottom",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                dbc.Tooltip("Trigger this event and activate its dormant nodes",
-                            target="btn-trigger-event", placement="bottom",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                Tooltip("Delete this event and its dormant nodes",
+                        target="btn-event-delete", placement="bottom"),
+                Tooltip("Save changes to this event",
+                        target="btn-event-save", placement="bottom"),
+                Tooltip("Trigger this event and activate its dormant nodes",
+                        target="btn-trigger-event", placement="bottom"),
 
                 html.Hr(className="my-3"),
 
@@ -702,8 +698,7 @@ def build_events_tab_content():
                        id="btn-events-graph-settings",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
-            dbc.Tooltip("Graph layout", target="btn-events-graph-settings", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Graph layout", target="btn-events-graph-settings", placement="left"),
             _freeze_indicator("events-freeze-indicator"),
             build_graph_settings_panel(
                 "events-graph-settings",
@@ -713,8 +708,7 @@ def build_events_tab_content():
                        id="btn-events-graph-fullscreen",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
-            dbc.Tooltip("Toggle fullscreen", target="btn-events-graph-fullscreen", placement="left",
-                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+            Tooltip("Toggle fullscreen", target="btn-events-graph-fullscreen", placement="left"),
             html.Div(id="events-canvas-node-count", className="canvas-stats-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="events-detail-graph-container", style={
@@ -1043,9 +1037,8 @@ def _dormant_row_actions(node_name: str):
             id=ids[action], color="link",
             className=f"dormant-node-action-btn{extra_class}",
         ))
-        children.append(dbc.Tooltip(
-            tip, target=ids[action], placement="left",
-            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}))
+        children.append(Tooltip(
+            tip, target=ids[action], placement="left"))
     return html.Div(
         children,
         className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")

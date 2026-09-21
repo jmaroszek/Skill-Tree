@@ -19,8 +19,6 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 from config import (
     ConfigManager,
-    TOOLTIP_SHOW_DELAY_MS,
-    TOOLTIP_HIDE_DELAY_MS,
     TOAST_CLEAR_INTERVAL_MS,
     LOCATE_TOAST_CLEAR_INTERVAL_MS,
     LOADING_SPINNER_STYLE,
@@ -36,7 +34,7 @@ from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 import style_tokens as tokens
-from ui_kit import (add_button, cancel_action, confirm_action, danger_action,
+from ui_kit import (Tooltip, add_button, cancel_action, confirm_action, danger_action,
                      done_color, info_button, panel_close_button,
                      primary_action)
 
@@ -92,9 +90,8 @@ def build_node_editor_content():
                     searchable=True,
                     clearable=True,
                 ), className="text-dark"),
-                dbc.Tooltip("Locate node in current view",
-                            target="btn-locate-node", placement="right",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                Tooltip("Locate node in current view",
+                            target="btn-locate-node", placement="right"),
                 html.Div(id="locate-message", className="text-warning small mt-1"),
                 dcc.Interval(id='locate-clear-interval', interval=LOCATE_TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
                 dcc.Store(id='locate-animate-trigger', data=None),
@@ -225,10 +222,9 @@ def build_node_editor_content():
                         className="mb-0",
                     ),
                 ], className="d-flex align-items-center mt-2 mb-2"),
-                dbc.Tooltip(
+                Tooltip(
                     "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
                     target="node-value-mode", placement="left",
-                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                 ),
                 # Locked-on notice for Milestones (mirrors the time-mode warning).
                 html.Div(id="value-mode-warning",
@@ -266,10 +262,9 @@ def build_node_editor_content():
                             switch=True,
                             className="mb-0",
                         ),
-                        dbc.Tooltip(
+                        Tooltip(
                             "Treat this node's time as the sum of its children's. Use for containers whose only work is completing the children.",
                             target="node-time-mode", placement="left",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                         ),
                         html.Div([
                             dbc.Checklist(
@@ -279,10 +274,9 @@ def build_node_editor_content():
                                 switch=True,
                                 className="mb-0",
                             ),
-                            dbc.Tooltip(
+                            Tooltip(
                                 "Distributed-cadence project (e.g., 30 min/day for 6 weeks). Enter a duration and per-period intensity; total hours are computed and used for scoring.",
                                 target="node-time-habit-mode", placement="left",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
                             ),
                         ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
                         unit_select("node-time-unit", value=_TED.get('unit', 'weeks'),
@@ -427,16 +421,11 @@ def build_node_editor_content():
                     "backgroundColor": tokens.BG_PANEL,
                     "paddingBottom": "10px",
                 }),
-                dbc.Tooltip("Discard unsaved changes and revert this node to its last saved state", target="btn-revert", placement="top",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                dbc.Tooltip("Save changes", target="btn-save", placement="top",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                dbc.Tooltip("Save changes and close the node editor", target="btn-save-close", placement="top",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                dbc.Tooltip("Delete this node", target="btn-delete", placement="top",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                dbc.Tooltip("Create a new node", target="btn-new-node", placement="top",
-                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                Tooltip("Discard unsaved changes and revert this node to its last saved state", target="btn-revert", placement="top"),
+                Tooltip("Save changes", target="btn-save", placement="top"),
+                Tooltip("Save changes and close the node editor", target="btn-save-close", placement="top"),
+                Tooltip("Delete this node", target="btn-delete", placement="top"),
+                Tooltip("Create a new node", target="btn-new-node", placement="top"),
                 dcc.Interval(id='clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
                 dcc.Store(id='node-time-unit-prev', data='weeks'),
                 dcc.Store(id='node-original-name', data=None)
@@ -645,16 +634,14 @@ def build_filters_content():
         dbc.Label("Community", className="mt-3"),
         dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
 
-        dbc.Tooltip(
+        Tooltip(
             "Show Done nodes on the canvas. Off = hide them.",
             target="filter-done", placement="top",
-            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
         ),
-        dbc.Tooltip(
+        Tooltip(
             "Show dormant (event-deferred) nodes on the canvas. Off = hide them. "
             "The events tab graph always shows them regardless.",
             target="filter-dormant", placement="top",
-            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
         ),
 
         html.Hr(className="my-3"),
