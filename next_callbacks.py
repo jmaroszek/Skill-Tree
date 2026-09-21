@@ -66,6 +66,12 @@ def register_next_callbacks(app, services=None):
         State('selected-suggestion-store', 'data'),
     )
 
+    # Not on page load. The layout already carries this table, built from the
+    # same snapshot and filters (next_view._initial_next_view), and rebuilding
+    # it there cost more than the request. Dash held the core engine behind
+    # it, because the table feeds selected-suggestion-store, one of the core
+    # engine's States, and so the whole startup waited on a copy of what was
+    # already on screen.
     @app.callback(
         Output('suggestions-table', 'children'),
         Input('graph-version-store', 'data'),
@@ -76,6 +82,7 @@ def register_next_callbacks(app, services=None):
         Input('filter-time-unit', 'value'), Input('filter-difficulty', 'value'),
         Input('filter-node-type', 'value'), Input('filter-dormant', 'value'),
         Input('settings-save-status', 'children'),
+        prevent_initial_call=True,
     )
     @database.snapshot_read
     def populate_suggestions(_version, count, context, subcontext, done, value,
@@ -90,11 +97,13 @@ def register_next_callbacks(app, services=None):
     # --- Now Section: populate now-nodes-table ---
     # Listens to graph-version-store so the section refreshes whenever any
     # node mutates (including a flip of the Now flag, which goes through
-    # update_node and bumps graph_version).
+    # update_node and bumps graph_version). Not on page load, for the same
+    # reason as the table above: the layout already carries it.
     @app.callback(
         Output('now-nodes-table', 'children'),
         Input('graph-version-store', 'data'),
         State('selected-suggestion-store', 'data'),
+        prevent_initial_call=True,
     )
     def populate_now_section(_version, selected_node_id):
         now_nodes = manager.get_now_nodes()

@@ -759,6 +759,7 @@ Do **not** add per-element scrollbar-hiding rules — the global rule covers eve
 
 | Layer | Value |
 |-------|-------|
+| Startup cover | `20000` |
 | Context menu | `10000` |
 | Tooltip | `9999` |
 | Drag clone (a sortable item dragged out of a modal) | `2000` |
@@ -793,3 +794,23 @@ cover the user never saw only reads as lag.
 
 Every cover needs a backstop that lifts it regardless. Content the user can see
 is always better than a spinner with nothing behind it.
+
+## Startup cover
+
+Don't show a surface the user can click before it can respond. The Home tab
+paints half a second after launch, seconds before the app can act on it, and
+a UI that looks ready but drops clicks is worse than a short wait. So the whole
+window opens behind a startup cover, and the app appears once it is ready.
+
+The cover follows the canvas cover's rules. It is opaque in the canvas color,
+which is also the desktop window's title-bar color. It shows the shared spinner
+over a `canvas-cover-label` caption, "Getting ready…". It sits above every
+other layer, modals included. It fades out over 200 ms, and a backstop lifts it
+regardless. It is part of the page template (`layout.build_index_string`), not
+the Dash layout, so it is the first thing painted.
+
+Its lift condition is in the Startup readiness section of
+[`docs/app_architecture.md`](docs/app_architecture.md). If new startup work
+runs, the cover waits for it. Keep work that nobody sees at launch out of the
+load path: skip a render the layout already carries, and give a hidden surface
+its own arrival signal.

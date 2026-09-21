@@ -54,7 +54,7 @@ manager reads one database per process, and the revision counters in
 | [goal_ranking.py](../goal_ranking.py), [graph_analytics.py](../graph_analytics.py) | Shared goal ranking/explanations and analytics data preparation. |
 | [node_commands.py](../node_commands.py), [context_rules.py](../context_rules.py), [editor_values.py](../editor_values.py), [next_view.py](../next_view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
 | [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named 28-field response contract. |
-| [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. |
+| [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. `layout.py` also builds the page template, which carries the startup cover. |
 | [styles.py](../styles.py) | Dash component style dicts. |
 | [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
 | [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. |
@@ -76,10 +76,13 @@ manager reads one database per process, and the revision counters in
 `main()` parses `--sandbox` and calls `create_app(AppSettings(...))`. The factory
 selects `config.ENVIRONMENT` before opening SQLite, configures logging if enabled,
 initializes the schema, seeds required types, and runs the existing status-repair
-safety net. It then constructs Dash, installs the canvas registry, assigns a
-snapshot-wrapped layout factory, and registers callbacks with `AppServices`.
-Importing `app` does none of this. Switching databases after startup is rejected;
-tests replace `database.get_db_path` before constructing an app with disposable data.
+safety net. It then constructs Dash, sets the page template that carries the
+startup cover, installs the canvas registry, assigns a snapshot-wrapped layout
+factory, and registers callbacks with `AppServices`. Importing `app` does none
+of this. Switching databases after startup is rejected; tests replace
+`database.get_db_path` before constructing an app with disposable data. What the
+browser does next, and why the page stays covered while it does, is in Startup
+readiness below.
 
 ### 2. Graph mutation → render (the central loop)
 
@@ -177,12 +180,71 @@ changes. Cache reads/publication share the write coordination lock; reads inside
 an uncommitted save bypass committed caches. The UI version bridge also observes
 event, Details and settings refreshes, independently of the main canvas.
 
+## Startup readiness
+
+The Home tab is part of the initial layout, so it paints about 0.4 s after
+load. The app behind it isn't ready for several seconds more. Startup is a
+cascade of about 80 callbacks, and Dash stays busy from the moment the layout
+renders until the last of them finishes. The core engine's first response is
+the heavy step. It carries the canvas payload, the editor's search options and
+every other dropdown the core engine fills. Cytoscape then spends most of a
+second ingesting that payload.
+
+That window used to be on screen, looking ready. A click on a Home row waited
+behind the cascade. In the first two seconds it could be dropped outright,
+because the Next table re-rendered and replaced the row under it. The Node
+Editor's search opened empty. Tab switches took up to 650 ms instead of 200.
+
+So the page opens behind a cover. `layout.build_index_string` adds it to Dash's
+page template, ahead of the entry point. That puts it in the first paint, and
+React never re-renders it. `assets/startup_cover.js` makes the app beneath it
+`inert` and lifts the cover once two things hold:
+
+- The core engine's first payload has reached the Nodes canvas. Dash applies
+  every output of a response together, so the dropdowns it fills are in place.
+  The canvas bridge in `callbacks.py` reports the payload.
+- Dash has then had nothing pending for 150 ms, confirmed once the browser is
+  idle. Dash renders `._dash-loading-callback` as a child of the entry point
+  while any callback is requested, blocked or in flight. That marker is the
+  busy signal.
+
+The payload has to come first, because the marker is also absent before the
+layout loads. On the 774-node sandbox, Dash never went idle mid-startup. The
+quiet window is a margin for a chain that continues through a timer, such as
+dash-cytoscape's element echo about 100 ms after an ingest. A 20 s backstop
+lifts the cover regardless. The lift fades over 200 ms, and clicks reach the
+app from its first frame.
+
+Everything the cover waits for adds to the wait, so three pieces of startup
+work changed:
+
+- The Next table and Now section no longer rebuild on load. The table also held
+  up the core engine. It feeds `selected-suggestion-store`, a State of the core
+  engine, and Dash won't dispatch a callback while a pending callback can still
+  reach one of its Inputs or States.
+- The Analyze and Goals prewarms start when the core payload lands. They used
+  to wait for the canvas ingest and then for idle. Now the server computes
+  Analyze while the browser ingests the canvas.
+- The Goals list no longer builds when its prewarm store mounts. A `dcc.Store`
+  whose data starts as `None` reports a change with no value when it mounts.
+  That wakes its listeners even under `prevent_initial_call`, and it is much of
+  why so many callbacks run at startup.
+
+Measured in headless Chrome over five alternating loads with a warm cache, the
+app now settles at 4.46 s instead of 5.29 s, and the cover lifts at 4.62 s. The
+search options arrive at 2.6 s, well before the lift. After it, a Home row
+selects in about 45 ms, the editor opens in about 80 ms, and a tab switch takes
+its usual 190 ms.
+
 ## Next responsiveness
 
 Next and Now content is included in the initial layout, using the same hydrated
 filter controls as the sidebar. Layout factories construct fresh components for each
 request. The hidden main canvas starts empty and is populated by the existing
 initial core callback, avoiding duplicate element generation during layout.
+Because the layout carries both, their refresh callbacks don't run on page load.
+The layout fills the Home tab's scoring-time caption too, since that load-time
+rebuild was its first update.
 
 `next_callbacks.py` owns recommendation refreshes for graph versions, filters,
 row count and settings. The core callback's legacy table output returns
@@ -270,9 +332,10 @@ because its graph is already laid out.
 All tab layouts remain mounted. Heavy callbacks therefore do not subscribe
 directly to every `main-tabs.active_tab` change: Analyze and Events use small
 clientside arrival stores that only notify their server callbacks when their
-own tab opens. Analyze also renders ahead of the first visit. Once the Nodes
-canvas payload lands and the browser goes idle, a clientside callback bumps
-`analyze-prewarm-store`, and the hidden tab renders. Each render records a
+own tab opens. Analyze also renders ahead of the first visit. When the core
+engine's first payload lands, a clientside callback bumps
+`analyze-prewarm-store`, and the hidden tab renders. It no longer waits for the
+browser to go idle; see Startup readiness. Each render records a
 signature in `analyze-rendered-store`: the graph version, the context list, and
 the date. An arrival that finds the signature current makes no recompute. Until
 the first render, the sections sit hidden behind a spinner. Its charts are

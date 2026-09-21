@@ -982,10 +982,55 @@ def _priority_items(prefix):
     ]
 
 
+# --- Page template: the startup cover ---
+# Dash's default page template, plus a cover that is part of the very first
+# paint. The Home tab arrives with the layout, seconds before the app can act
+# on it: until the startup callbacks settle, a click could wait behind them or
+# be dropped, and the Node Editor's search opened empty. The cover holds all of
+# that back, and assets/startup_cover.js lifts it once the app can respond. It
+# lives here rather than in the layout so it is on screen before Dash renders
+# anything, and so React never re-renders it.
+_INDEX_TEMPLATE = """<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        <div id="startup-cover" class="startup-cover" role="status" aria-live="polite">
+            <div class="spinner-border" style="__SPINNER_STYLE__"></div>
+            <div class="canvas-cover-label">Getting ready&hellip;</div>
+        </div>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>"""
+
+
+def build_index_string():
+    """The page template, with the startup cover drawn like every other cover.
+
+    The spinner takes LOADING_SPINNER_STYLE, as dbc.Spinner does in the canvas
+    and panel covers, so a change to it reaches this one too.
+    """
+    def css_name(prop):
+        return "".join(f"-{c.lower()}" if c.isupper() else c for c in prop)
+
+    spinner_style = "; ".join(f"{css_name(prop)}: {value}"
+                              for prop, value in LOADING_SPINNER_STYLE.items())
+    return _INDEX_TEMPLATE.replace("__SPINNER_STYLE__", spinner_style)
+
+
 @database.snapshot_read
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
-    from next_view import _initial_next_view
+    from next_view import _initial_next_view, perf_stats_text
     sidebars = build_all_sidebars()
     initial_next = _initial_next_view(build_next_view(), sidebars)
     
@@ -1160,7 +1205,10 @@ def build_app_layout(initial_elements, env="production"):
                 html.Div([initial_next], className="px-4 pt-3 pb-4"),
             ], style={"flex": "1", "minHeight": "0", "overflowY": "auto"}),
             html.Div(id="next-filter-indicator", className="canvas-stats-overlay"),
-            html.Div(id="next-perf-stats", className="next-perf-overlay"),
+            # Filled here, like the table: the table no longer re-renders on
+            # load, and that re-render was this caption's first update.
+            html.Div(perf_stats_text(), id="next-perf-stats",
+                     className="next-perf-overlay"),
         ],
         style={"display": "flex", "width": "100%", "height": "100%", "overflow": "hidden",
                "position": "absolute", "top": "0", "left": "0", "flexDirection": "column",

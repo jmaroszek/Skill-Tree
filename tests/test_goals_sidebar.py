@@ -129,7 +129,7 @@ def test_goal_list_shows_a_spinner_until_its_first_render():
     assert isinstance(cover.children[0], dbc.Spinner)
 
 
-def _render_goal_list(trigger, sidebar_style):
+def _render_goal_list(trigger, sidebar_style, prewarm=1):
     """Run render_goal_list as Dash would for a single triggering input."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
@@ -142,7 +142,7 @@ def _render_goal_list(trigger, sidebar_style):
 
     def run():
         context_value.set(AttributeDict(triggered_inputs=[{"prop_id": trigger, "value": 1}]))
-        return render("tab-next", None, None, None, None, "priority", None, 1, None,
+        return render("tab-next", None, None, None, None, "priority", None, prewarm, None,
                       sidebar_style)
     return copy_context().run(run)
 
@@ -177,3 +177,33 @@ def test_closed_goal_list_builds_only_for_the_background_prewarm():
     assert _render_goal_list("graph-version-store.data", closed) is dash.no_update
     cards = _render_goal_list("goals-prewarm-store.data", closed)
     assert len(cards) == 1
+
+
+def test_the_prewarm_stores_mount_is_not_a_prewarm():
+    """A dcc.Store whose data starts as None reports itself changed when it
+    mounts, with no value. That built this ~130 KB list on page load, while
+    the core engine was still computing, and the real prewarm built it again
+    a second later."""
+    _add_goals("Alpha")
+    closed = {"transform": SIDEBAR_TRANSLATE_CLOSED}
+    assert _render_goal_list("goals-prewarm-store.data", closed,
+                             prewarm=None) is dash.no_update
+
+
+def test_both_prewarms_start_with_the_core_payload():
+    """The startup cover waits for these renders. Waiting for the canvas
+    ingest and then for idle put them after most of a second of browser work
+    they could have overlapped on the server."""
+    import analyze_callbacks
+
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    sidebars_callbacks.register_sidebars_callbacks(app)
+    analyze_callbacks.register_analyze_callbacks(app)
+
+    for store in ("goals-prewarm-store.data", "analyze-prewarm-store.data"):
+        prewarm = next(c for c in app._callback_list if c["output"] == store)
+        assert [i["id"] for i in prewarm["inputs"]] == ["elements-pending-store"]
+        name = prewarm["clientside_function"]["function_name"]
+        source = next(s for s in app._inline_scripts if name in s)
+        assert "requestIdleCallback" not in source, store

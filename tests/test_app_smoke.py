@@ -50,6 +50,16 @@ def test_app_publishes_the_canvas_registry(isolated_app_import):
     assert 'window.SkillTree.canvases' in app_module.app.index_string
 
 
+def test_the_served_page_opens_behind_the_startup_cover(isolated_app_import):
+    """What the browser receives, not just the template: the cover comes
+    before the entry point, and the canvas registry still lands ahead of the
+    asset scripts that read it."""
+    page = isolated_app_import.app.server.test_client().get("/").get_data(as_text=True)
+
+    assert page.index('id="startup-cover"') < page.index('id="react-entry-point"')
+    assert page.index('window.SkillTree.canvases') < page.index('startup_cover.js')
+
+
 def test_app_title_reflects_environment(isolated_app_import):
     app_module = isolated_app_import
     assert app_module.app.title in {"Skill Tree", "Skill Tree (Sandbox)"}

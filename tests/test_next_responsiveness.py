@@ -103,3 +103,38 @@ assert.equal(result[3][1].border, '1px solid #495057');  // N1
 assert.equal(result[3][2].border, '2px solid #0d6efd');  // N2
 '''.replace('SOURCE', source)
     subprocess.run([node, '-e', script], check=True, capture_output=True, text=True)
+
+
+def test_home_tables_are_not_rebuilt_on_page_load():
+    """The layout already carries both, from the same snapshot and filters.
+    Rebuilding the table on load held up the whole startup: it feeds
+    selected-suggestion-store, a State of the core engine, so Dash kept the
+    core engine waiting for it. A row clicked meanwhile was also lost when
+    the rebuilt table replaced it."""
+    app = dash.Dash(__name__)
+    register_next_callbacks(app)
+    for output in ("suggestions-table.children", "now-nodes-table.children"):
+        spec = next(c for c in app._callback_list if c["output"] == output)
+        assert spec["prevent_initial_call"] is True, output
+
+
+def test_the_first_layout_carries_the_scoring_time_caption(monkeypatch):
+    """The table's rebuild on load used to be the caption's first update, so
+    without it the corner of Home stayed blank until the next refresh."""
+    from graph_manager import GraphManager
+    from layout import build_app_layout
+
+    monkeypatch.setattr(GraphManager, "_last_perf_timings",
+                        {"n_nodes": 3, "n_edges": 2, "total_ms": 12.4})
+    monkeypatch.setattr(GraphManager, "_startup_perf_recorded", True)
+    caption = _components_by_id(build_app_layout([], env="sandbox"))["next-perf-stats"]
+
+    assert caption.children == "3 nodes · 2 edges · 12ms"
+
+
+def test_no_caption_before_any_timing_is_recorded(monkeypatch):
+    from graph_manager import GraphManager
+    from next_view import perf_stats_text
+
+    monkeypatch.setattr(GraphManager, "_last_perf_timings", None)
+    assert perf_stats_text() is None

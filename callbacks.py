@@ -17,6 +17,7 @@ import database
 from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
 from core_response import CoreResponse
 from canvas_view import build_canvas_view
+from next_view import perf_stats_text
 import os
 import subprocess
 import urllib.parse
@@ -2467,11 +2468,8 @@ def register_callbacks(app, services=None):
     def update_next_perf_stats(_sugg_children, active_tab):
         if active_tab != 'tab-next':
             return dash.no_update
-        t = GraphManager._last_perf_timings
-        if not t:
-            return dash.no_update
-        return (f"{t['n_nodes']} nodes \u00b7 {t['n_edges']} edges \u00b7 "
-                f"{t['total_ms']:.0f}ms")
+        text = perf_stats_text()
+        return text if text else dash.no_update
 
     @app.callback(
         Output('canvas-node-count', 'children'),
@@ -2989,15 +2987,21 @@ def register_callbacks(app, services=None):
             container_id=canvas.container_id,
         )
 
-    # --- Nodes-tab first paint: report the element payload to the cover ---
-    # The cover waits for the main canvas's layout to settle, and a graph with
-    # no nodes never runs one — no `layoutstop` is ever coming, so nothing else
-    # would release it. Only the empty case matters; the JS ignores the rest.
+    # --- First paint: report the element payload to both covers ---
+    # The canvas cover waits for the main canvas's layout to settle, and a
+    # graph with no nodes never runs one — no `layoutstop` is ever coming, so
+    # nothing else would release it. Only the empty case matters to it; the JS
+    # ignores the rest. The startup cover (assets/startup_cover.js) waits for
+    # the first payload of any kind: it arrives with the core engine's first
+    # response, which also fills the editor's search and the other dropdowns.
     app.clientside_callback(
         """
         function(pending) {
             if (window.SkillTree && window.SkillTree.notifyCanvasElements) {
                 window.SkillTree.notifyCanvasElements(pending);
+            }
+            if (window.SkillTree && window.SkillTree.notifyStartupPayload) {
+                window.SkillTree.notifyStartupPayload(pending);
             }
             return window.dash_clientside.no_update;
         }

@@ -173,28 +173,22 @@ def register_sidebars_callbacks(app, services=None):
         return goal_style, "Goal", ed_style
 
     # --- Background Goal List Build ---
-    # Once the Nodes canvas payload has landed and the browser goes idle,
-    # build the Goals list once so the first open finds it ready instead of
-    # behind its spinner. Mirrors the Analyze prewarm. Later changes don't
-    # rebuild it in the background; opening the sidebar does that.
+    # Once the core engine's first payload has landed, build the Goals list
+    # once so the first open finds it ready instead of behind its spinner.
+    # Mirrors the Analyze prewarm, including starting without waiting for the
+    # browser to go idle. Later changes don't rebuild it in the background;
+    # opening the sidebar does that.
     app.clientside_callback(
         """
         function(elements, prewarmed) {
             if (prewarmed || !elements || !elements.length) {
                 return window.dash_clientside.no_update;
             }
-            return new Promise(function (resolve) {
-                function go() { resolve(Date.now()); }
-                if (window.requestIdleCallback) {
-                    window.requestIdleCallback(go, {timeout: 5000});
-                } else {
-                    setTimeout(go, 1000);
-                }
-            });
+            return Date.now();
         }
         """,
         Output("goals-prewarm-store", "data"),
-        Input("cytoscape-graph", "elements"),
+        Input("elements-pending-store", "data"),
         State("goals-prewarm-store", "data"),
         prevent_initial_call=True,
     )
@@ -222,9 +216,15 @@ def register_sidebars_callbacks(app, services=None):
         State("details-goal-sidebar", "style"),
     )
     def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val, sort_mode, manual_order, _prewarm, selected_node, goal_sidebar_style):
-        if (not left_sidebar_is_open(goal_sidebar_style)
-                and "goals-prewarm-store.data" not in ctx.triggered_prop_ids):
-            return no_update
+        if not left_sidebar_is_open(goal_sidebar_style):
+            # The prewarm writes a timestamp. The store also reports a change
+            # with no value when it mounts, because a dcc.Store whose data
+            # starts as None does that, and that used to build the list a
+            # second time, while the core engine was still computing.
+            prewarming = ("goals-prewarm-store.data" in ctx.triggered_prop_ids
+                          and bool(_prewarm))
+            if not prewarming:
+                return no_update
         # One snapshot for the whole build. Without it, each goal's completion
         # walk re-reads the database, which was ~90% of the build time.
         with database.read_snapshot():

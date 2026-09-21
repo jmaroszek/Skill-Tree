@@ -1048,28 +1048,25 @@ def register_analyze_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # Background prewarm. Once the Nodes canvas payload has landed and the
-    # browser goes idle, render the hidden Analyze tab so the first visit
-    # finds it ready. Waiting for the payload keeps this ~0.5 s compute from
-    # competing with startup work, on the server and the main thread alike.
+    # Background prewarm: render the hidden Analyze tab as soon as the core
+    # engine's first payload lands, so the first visit finds it ready. Waiting
+    # for the payload keeps this compute from competing with the core engine
+    # for the server. Starting then, rather than once the browser has gone
+    # idle, lets it run while the browser spends most of a second ingesting
+    # that payload. The startup cover waits for this render, so the idle wait
+    # used to make startup about half a second longer. See
+    # assets/startup_cover.js.
     app.clientside_callback(
         """
         function(elements, prewarmed) {
             if (prewarmed || !elements || !elements.length) {
                 return window.dash_clientside.no_update;
             }
-            return new Promise(function (resolve) {
-                function go() { resolve(Date.now()); }
-                if (window.requestIdleCallback) {
-                    window.requestIdleCallback(go, {timeout: 5000});
-                } else {
-                    setTimeout(go, 1000);
-                }
-            });
+            return Date.now();
         }
         """,
         Output("analyze-prewarm-store", "data"),
-        Input("cytoscape-graph", "elements"),
+        Input("elements-pending-store", "data"),
         State("analyze-prewarm-store", "data"),
         prevent_initial_call=True,
     )

@@ -102,7 +102,7 @@ def create_app(settings=None, services=None):
     import dash
     import dash_cytoscape as cyto
     import dash_bootstrap_components as dbc
-    from layout import build_app_layout
+    from layout import build_app_layout, build_index_string
     from canvases import install_client_registry
     from callbacks import register_callbacks
     from event_callbacks import register_event_callbacks
@@ -125,6 +125,7 @@ def create_app(settings=None, services=None):
         "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
     ])
     app.title = "Skill Tree (Sandbox)" if settings.environment == "sandbox" else "Skill Tree"
+    app.index_string = build_index_string()
     app.skill_tree_services = services
     install_client_registry(app)
     app.layout = database.snapshot_read(

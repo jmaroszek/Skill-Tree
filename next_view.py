@@ -48,6 +48,20 @@ def _initial_next_view(template, sidebars):
     return view
 
 
+def perf_stats_text():
+    """The Home tab's scoring-time caption, or None before one is recorded.
+
+    Timings are recorded once per process, by the first scoring pass, which
+    is the one that builds the first layout. So the layout carries the
+    caption, and each later table refresh reads it again.
+    """
+    t = GraphManager._last_perf_timings
+    if not t:
+        return None
+    return (f"{t['n_nodes']} nodes · {t['n_edges']} edges · "
+            f"{t['total_ms']:.0f}ms")
+
+
 NextRows = namedtuple("NextRows", "rows pinned_steps")
 
 

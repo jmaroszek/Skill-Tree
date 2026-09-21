@@ -154,6 +154,39 @@
     font-size: 0.85rem;
 }
 
+/* Startup cover.
+
+   The Home tab paints with the layout, seconds before the app can act on it.
+   This covers the whole window until startup has settled; see
+   assets/startup_cover.js, which owns the classes below. It is in the page
+   template (layout.build_index_string), so it is the first thing painted.
+   Opaque in the canvas color, which is also the desktop window's title-bar
+   color, so the window reads as one empty surface while it waits. Above
+   everything, modals included: a startup modal waits under it too. */
+.startup-cover {
+    position: fixed;
+    inset: 0;
+    z-index: var(--st-z-startup-cover);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background-color: var(--st-bg-canvas);
+    cursor: progress;
+}
+
+/* Clicks pass through as soon as the fade starts: by then the app is ready. */
+.startup-cover.is-lifting {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease-out;  /* LIFT_MS in startup_cover.js */
+}
+
+.startup-cover.is-lifted {
+    display: none;
+}
+
 /* Graph Layout Panel */
 .graph-settings-panel {
     position: absolute;
