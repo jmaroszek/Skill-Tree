@@ -311,6 +311,12 @@ hidden until the row is hovered, revealed on keyboard focus, always visible on
 coarse pointers. Details subtasks, Reflection history and Events dormant nodes
 share this.
 
+A state that belongs to a table row, not an action on it, is a quiet marker
+instead, and stays visible. The dormant table's Wakes cell puts a `bi-play-circle`
+(`.dormant-now-marker`, soft stroke, native `title`) after the date when the node
+will be added to Now on waking. It uses the same play glyph as the Add to Now menu
+command and disappears once the node is awake.
+
 ### Button sizes
 - `size="sm"` — Toolbar, inline actions
 - (default) — Form actions (Save, Delete, Clear)

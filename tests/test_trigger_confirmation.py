@@ -125,3 +125,38 @@ class TestAlreadyFiredRows:
         ]))
 
         assert "no dormant nodes left to wake" in text
+
+
+class TestAddToNow:
+    """The flag lands when a node wakes, so the summary has to say which
+    moment that is for each node."""
+
+    def test_a_flagged_node_waking_now_is_named(self):
+        row = _row("Flagged")
+        row["now_on_trigger"] = True
+
+        text = _text(trigger_confirmation_body("E", [row, _row("Plain")]))
+
+        assert "Added to Now, if there is room: Flagged." in text
+
+    def test_it_is_absent_when_nothing_is_flagged(self):
+        assert "Added to Now" not in _text(
+            trigger_confirmation_body("E", [_row("N1")]))
+
+    def test_a_delayed_flagged_node_says_it_is_added_when_it_wakes(self):
+        row = _row("Later", delay_days=14)
+        row["now_on_trigger"] = True
+
+        text = _text(trigger_confirmation_body("E", [row]))
+
+        assert "then added to Now" in text
+        assert "Added to Now, if there is room" not in text
+
+    def test_a_collapsed_schedule_still_counts_the_flagged(self):
+        rows = [_row(f"N{i}", delay_days=7 * (i + 1)) for i in range(6)]
+        for row in rows[:2]:
+            row["now_on_trigger"] = True
+
+        text = _text(trigger_confirmation_body("E", rows))
+
+        assert "2 of them will be added to Now when they wake." in text

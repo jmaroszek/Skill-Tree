@@ -209,20 +209,11 @@ def build_events_tab_content():
 
             html.Hr(className="my-2"),
             html.H5("Ratings", className="mt-2 mb-1"),
-            # Inherit-value + Add-to-Now toggles on one row — mirrors the main
-            # node editor (sidebars_layout). Both are switch-style checklists.
             html.Div([
                 dbc.Checklist(
                     options=[{"label": "Inherit", "value": "inherited"}],
                     value=[],
                     id="dormant-node-value-mode",
-                    switch=True,
-                    className="mb-0 me-3",
-                ),
-                dbc.Checklist(
-                    options=[{"label": "Add to Now", "value": "on"}],
-                    value=[],
-                    id="dormant-now-toggle",
                     switch=True,
                     className="mb-0",
                 ),
@@ -230,11 +221,6 @@ def build_events_tab_content():
             dbc.Tooltip(
                 "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
                 target="dormant-node-value-mode", placement="left",
-                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
-            ),
-            dbc.Tooltip(
-                "When this event wakes the node, move it straight onto the Now list. Skipped if Now is already full.",
-                target="dormant-now-toggle", placement="left",
                 delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS},
             ),
             # Locked-on notice for Milestones (mirrors the time-mode warning).
@@ -395,6 +381,22 @@ def build_events_tab_content():
                 html.Small("Move the node to a pending event to put it back on "
                            "an offset.", className="text-muted d-block mt-2"),
             ]),
+
+            # On Wake — common to both modes, like the delay above it. The flag
+            # lives on the event's row for this node, not on the node, so it has
+            # to be reachable when converting existing nodes too.
+            html.Hr(className="my-2"),
+            html.H5("On Wake", className="mt-2 mb-1"),
+            dbc.Checklist(
+                options=[{"label": "Add to Now", "value": "on"}],
+                value=[],
+                id="dormant-now-toggle",
+                switch=True,
+                className="mb-1",
+            ),
+            html.Small("Moves the node onto the Now list when it wakes, not when "
+                       "the event fires. Skipped if Now is full.",
+                       className="text-muted d-block"),
 
             html.Div(id="dormant-node-save-status", className="text-danger mt-2"),
         ]),
@@ -606,7 +608,7 @@ def build_events_tab_content():
                         html.Div(id="trigger-confirm-body"),
                         dbc.Switch(
                             id="manual-now-trigger-toggle",
-                            label="Add nodes flagged \"Add to Now\" to the Now list",
+                            label="Also add every other node that wakes now to the Now list",
                             value=False,
                             className="mt-3",
                         ),
@@ -996,10 +998,19 @@ def _wakes_cell(en, event):
                                   style={"fontSize": tokens.FS_XS})]
 
     if activation_date:
-        return html.Span(_format_wake_date(activation_date),
+        when = html.Span(_format_wake_date(activation_date),
                          title=activation_date)
-    return html.Span(_projected_wake(event, en['delay_days']),
-                     className="text-muted")
+    else:
+        when = html.Span(_projected_wake(event, en['delay_days']),
+                         className="text-muted")
+    if not en.get('now_on_trigger'):
+        return when
+    # Only while the node is still asleep: once it wakes the intent is spent,
+    # and the badge above reports what actually happened.
+    return [when, html.I(
+        className="bi bi-play-circle ms-2 dormant-now-marker",
+        title="Will be added to Now when it wakes",
+        role="img", **{"aria-label": "Will be added to Now when it wakes"})]
 
 
 def _dormant_row_actions(node_name: str):
@@ -1078,6 +1089,13 @@ def trigger_confirmation_body(event_name, event_nodes):
         lines.append(html.P(
             f"{_plural(len(waking), 'node')} will wake now: {names}.",
             className="mb-2"))
+        # Flagged ones only. The switch below widens this to every node that
+        # wakes now, and says so itself.
+        flagged = [en['node'].name for en in waking if en.get('now_on_trigger')]
+        if flagged:
+            lines.append(html.P(
+                f"Added to Now, if there is room: {', '.join(flagged)}.",
+                className="mb-2"))
 
     if scheduled:
         lines.append(html.P(
@@ -1090,10 +1108,18 @@ def trigger_confirmation_body(event_name, event_nodes):
                 [html.Li([
                     en['node'].name,
                     html.Span(
-                        f" — wakes {_format_wake_date((date.today() + timedelta(days=en['delay_days'])).isoformat())}",
+                        f" — wakes {_format_wake_date((date.today() + timedelta(days=en['delay_days'])).isoformat())}"
+                        + (", then added to Now" if en.get('now_on_trigger') else ""),
                         className="text-muted"),
                 ]) for en in scheduled],
                 className="mb-2"))
+        else:
+            # The list is collapsed, so the Now flag would vanish with it.
+            later_now = sum(1 for en in scheduled if en.get('now_on_trigger'))
+            if later_now:
+                lines.append(html.P(
+                    f"{later_now} of them will be added to Now when they wake.",
+                    className="text-muted mb-2"))
 
     if already:
         names = ", ".join(en['node'].name for en in already)

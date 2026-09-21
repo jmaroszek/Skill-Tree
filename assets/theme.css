@@ -870,6 +870,14 @@
     pointer-events: auto;
 }
 
+/* Marks a row that will land on the Now list when it wakes. Same play glyph as
+   the Add to Now menu command; soft stroke so it reads as a note on the date
+   rather than a control. */
+.dormant-nodes-table .dormant-now-marker {
+    color: var(--st-text-soft);
+    vertical-align: -0.1em;
+}
+
 .btn.dormant-node-action-btn {
     --bs-btn-bg: transparent;
     --bs-btn-border-color: transparent;
