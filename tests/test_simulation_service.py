@@ -185,12 +185,14 @@ def _summary(counts, centers, width, p10, p50, p90):
 
 
 HOURS = {'hours_per_week': 20, 'hours_per_month': 80}  # a year is 1,040h
+# A day is 20h here, so chains under 20h stay in hours.
+SHORT_DAYS = {'hours_per_week': 140, 'hours_per_month': 560}
 
 
 def test_chart_hover_gives_only_the_chance_of_finishing_within_each_bar():
     # 1,000 runs in bars spanning 4-6h, 6-8h, 8-10h and 10-12h.
     fig = simulation_figure(_summary([2, 0, 500, 498], [5.0, 7.0, 9.0, 11.0], 2.0,
-                                     6.0, 9.0, 11.0), HOURS)
+                                     6.0, 9.0, 11.0), SHORT_DAYS)
     assert list(fig.data[0].customdata) == [
         'Under 1% chance within 6.0h',
         'Under 1% chance within 8.0h',
@@ -218,8 +220,15 @@ def test_chart_draws_everything_in_the_unit_that_fits_the_median():
 
 
 def test_short_chains_stay_in_hours():
-    fig = simulation_figure(_summary([5, 5], [10.0, 14.0], 4.0, 9.0, 12.0, 15.0), HOURS)
+    fig = simulation_figure(_summary([5, 5], [10.0, 14.0], 4.0, 9.0, 12.0, 15.0),
+                            SHORT_DAYS)
     assert fig.layout.xaxis.title.text == 'Hours'
+
+
+def test_day_scale_chains_read_in_days():
+    # A day is 20h/7 here, so a 12h median is 4.2 days.
+    fig = simulation_figure(_summary([5, 5], [10.0, 14.0], 4.0, 9.0, 12.0, 15.0), HOURS)
+    assert fig.layout.xaxis.title.text == 'Days'
 
 
 def test_details_chart_is_read_by_hovering_a_bar_not_zooming():

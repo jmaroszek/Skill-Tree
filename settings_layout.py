@@ -277,6 +277,9 @@ def _build_time_tab():
             dbc.Row([
                 dbc.Col([
                     html.Small("Productive hours available.", className="text-muted d-block mb-2"),
+                    dbc.Label("Hours per Day"),
+                    dbc.Input(id="setting-hpd", type="number", min=0.01, step="any",
+                              className="mb-2", style={"width": "128px"}),
                     dbc.Label("Hours per Week"),
                     dbc.Input(id="setting-hpw", type="number", min=1, step=1,
                               className="mb-2", style={"width": "128px"}),

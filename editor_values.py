@@ -39,7 +39,7 @@ def _calibration_review_queue(manager):
 def _calibration_unit_for(hours):
     """The Unit-dropdown value matching the friendly formatter's choice for
     `hours` (e.g. a ~3.5w estimate → 'weeks'). Years cap to 'months' — the
-    modal dropdown offers only hours / weeks / months."""
+    modal dropdown offers hours / days / weeks / months."""
     _, unit = ConfigManager.hours_to_friendly_unit(hours or 0)
     return 'months' if unit == 'years' else unit
 
@@ -84,7 +84,7 @@ def _friendly_time_estimates(time_o, time_m, time_p):
     """Convert stored hour values for display in the node editor.
 
     Uses weeks as the maximum unit — never months or years — so the editor
-    always shows values in hours or weeks regardless of magnitude. Returns
+    always shows values in hours, days or weeks regardless of magnitude. Returns
     (o, m, p, unit_string).
     """
     max_hours = max(time_o or 0, time_m or 0, time_p or 0)

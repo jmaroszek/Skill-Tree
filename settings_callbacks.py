@@ -23,7 +23,7 @@ from config import (
     sort_subcontexts)
 from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
-from callback_helpers import get_trigger_id, build_context_weight_rows
+from callback_helpers import get_trigger_id, build_context_weight_rows, sync_time_fields
 from context_rules import detect_context_renames
 
 logger = logging.getLogger(__name__)
@@ -245,6 +245,7 @@ def register_settings_callbacks(app, services=None):
         Output('setting-node-status-colors-container', 'children'),
         Output('setting-node-type-colors-container', 'children'),
         Output('setting-context-weights-container', 'children'),
+        Output('setting-hpd', 'value'),
         Output('setting-hpw', 'value'),
         Output('setting-hpm', 'value'),
         Output('setting-hpy', 'value'),
@@ -264,7 +265,7 @@ def register_settings_callbacks(app, services=None):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 22
+            return (dash.no_update,) * 23
 
         contexts = ConfigManager.get_contexts()
         subcontexts = ConfigManager.get_subcontexts()
@@ -329,6 +330,7 @@ def register_settings_callbacks(app, services=None):
             status_color_rows,
             type_color_rows,
             weight_rows,
+            round(ConfigManager.get_hours_per_day(), 2),
             ts.get('hours_per_week', 40),
             ts.get('hours_per_month', 160),
             ConfigManager.get_hours_per_year(),
@@ -346,33 +348,24 @@ def register_settings_callbacks(app, services=None):
         )
 
     # --- Settings: Sync Time Estimates ---
-    # 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see ConfigManager.HOURS_PER_YEAR_MULT).
+    # 1 week = 7 days; 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see ConfigManager.HOURS_PER_YEAR_MULT).
     @app.callback(
+        Output('setting-hpd', 'value', allow_duplicate=True),
         Output('setting-hpw', 'value', allow_duplicate=True),
         Output('setting-hpm', 'value', allow_duplicate=True),
         Output('setting-hpy', 'value', allow_duplicate=True),
+        Input('setting-hpd', 'value'),
         Input('setting-hpw', 'value'),
         Input('setting-hpm', 'value'),
         Input('setting-hpy', 'value'),
         prevent_initial_call=True,
     )
-    def sync_time_settings(hpw, hpm, hpy):
+    def sync_time_settings(hpd, hpw, hpm, hpy):
         triggered = ctx.triggered_id
         if not triggered:
-            return dash.no_update, dash.no_update, dash.no_update
-        try:
-            if triggered == 'setting-hpw' and hpw is not None:
-                w = float(hpw)
-                return dash.no_update, round(w * 4.0, 2), round(w * 52.0, 2)
-            elif triggered == 'setting-hpm' and hpm is not None:
-                m = float(hpm)
-                return round(m / 4.0, 2), dash.no_update, round(m * 13.0, 2)
-            elif triggered == 'setting-hpy' and hpy is not None:
-                y = float(hpy)
-                return round(y / 52.0, 2), round(y / 13.0, 2), dash.no_update
-        except Exception:
-            pass
-        return dash.no_update, dash.no_update, dash.no_update
+            return (dash.no_update,) * 4
+        return tuple(dash.no_update if v is None else v
+                     for v in sync_time_fields(triggered, hpd, hpw, hpm, hpy))
 
     # --- Settings: Save ---
     @app.callback(

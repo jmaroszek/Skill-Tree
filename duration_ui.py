@@ -44,7 +44,7 @@ def estimate_guidance(id_prefix):
 # others never got.
 
 #: Elapsed-time units. Anything measuring how long work takes.
-TIME_UNITS = ("hours", "weeks", "months", "years")
+TIME_UNITS = ("hours", "days", "weeks", "months", "years")
 
 #: Calendar-duration units. Habit windows and activation delays, which are
 #: counted in days rather than worked hours.
@@ -126,7 +126,7 @@ def format_duration_days(days, zero="None") -> str:
     return f"{count} {unit[:-1] if count == 1 else unit}"
 
 
-_UNIT_TITLES = {"y": "Years", "m": "Months", "w": "Weeks", "h": "Hours"}
+_UNIT_TITLES = {"y": "Years", "m": "Months", "w": "Weeks", "d": "Days", "h": "Hours"}
 
 # literal: Plotly shape colours -- read as computed values, not CSS.
 _PERCENTILE_LINES = (("P10", "p10", "#198754"),  # literal: Plotly

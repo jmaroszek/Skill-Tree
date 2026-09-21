@@ -2297,7 +2297,13 @@ class TestTimeMultiplier:
         assert result == settings.get('hours_per_month', 160.0)
 
     def test_unknown_unit_returns_one(self):
-        assert ConfigManager.get_time_multiplier('days') == 1.0
+        assert ConfigManager.get_time_multiplier('fortnights') == 1.0
+
+    def test_days_is_a_seventh_of_a_week(self):
+        ConfigManager.set_time_settings({'hours_per_week': 21, 'hours_per_month': 84})
+        assert ConfigManager.get_time_multiplier('days') == 3
+        ConfigManager.set_time_settings({'hours_per_week': 70, 'hours_per_month': 280})
+        assert ConfigManager.get_time_multiplier('days') == 10
 
     def test_custom_settings_reflected(self):
         ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
@@ -2328,8 +2334,8 @@ class TestFormatTimeFriendly:
         assert result == "2.5h"
 
     def test_integer_hours_no_decimal(self):
-        result = ConfigManager.format_time_friendly(8.0)
-        assert result == "8h"  # Should not show ".0"
+        result = ConfigManager.format_time_friendly(2.0)
+        assert result == "2h"  # Should not show ".0"
 
     def test_exactly_one_week(self):
         hw = ConfigManager.get_time_settings().get('hours_per_week', 40)
@@ -2376,22 +2382,25 @@ class TestFormatTimeFriendly:
         int.is_integer() doesn't exist before Python 3.12 — so on the app's
         3.10 runtime an int argument used to raise AttributeError and 500 the
         Analyze tab. Every magnitude branch must accept an int."""
-        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
-        assert ConfigManager.format_time_friendly(8) == "8h"      # hours branch
-        assert ConfigManager.format_time_friendly(80) == "2w"     # weeks branch
-        assert ConfigManager.format_time_friendly(320) == "2m"    # months branch
-        assert ConfigManager.format_time_friendly(4160) == "2y"   # years branch
+        ConfigManager.set_time_settings({'hours_per_week': 35, 'hours_per_month': 140})
+        assert ConfigManager.format_time_friendly(4) == "4h"      # hours branch
+        assert ConfigManager.format_time_friendly(10) == "2d"     # days branch
+        assert ConfigManager.format_time_friendly(70) == "2w"     # weeks branch
+        assert ConfigManager.format_time_friendly(280) == "2m"    # months branch
+        assert ConfigManager.format_time_friendly(3640) == "2y"   # years branch
         # force_one_decimal path with an int must also not raise.
-        assert ConfigManager.format_time_friendly(8, force_one_decimal=True) == "8.0h"
+        assert ConfigManager.format_time_friendly(4, force_one_decimal=True) == "4.0h"
 
     def test_time_unit_is_the_unit_format_time_friendly_uses(self):
         ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
         assert ConfigManager.time_unit(0) == (1.0, "h")
-        assert ConfigManager.time_unit(19.9) == (1.0, "h")
+        assert ConfigManager.time_unit(2.8) == (1.0, "h")
+        assert ConfigManager.time_unit(20 / 7) == (20 / 7, "d")
+        assert ConfigManager.time_unit(19.9) == (20 / 7, "d")
         assert ConfigManager.time_unit(20) == (20.0, "w")
         assert ConfigManager.time_unit(80) == (80.0, "m")
         assert ConfigManager.time_unit(1040) == (1040.0, "y")
-        for hours in (8, 45, 300, 2500):
+        for hours in (2, 8, 45, 300, 2500):
             size, suffix = ConfigManager.time_unit(hours)
             assert ConfigManager.format_time_friendly(hours).endswith(suffix)
 

@@ -626,6 +626,38 @@ def habit_to_hours(duration: float, duration_unit: str,
     return round(days_total * hours_per_day, 2)
 
 
+def sync_time_fields(triggered, hpd, hpw, hpm, hpy):
+    """Fill the other productive-hours fields from the one just edited.
+
+    Returns (hpd, hpw, hpm, hpy) with None for a field to leave alone. A week is
+    seven days, a month four weeks, a year 52 weeks.
+
+    The day field is a rounded display of the week (20h/week reads 2.86). When
+    that rounded value lands back here as the trigger, it must not overwrite the
+    week: 2.86 x 7 is 20.02, which then drifts the month and year with it. So a
+    day value that is just the rounding of the current week is ignored.
+    """
+    none = (None, None, None, None)
+    try:
+        if triggered == 'setting-hpd' and hpd is not None:
+            if hpw is not None and abs(round(float(hpw) / 7.0, 2) - float(hpd)) < 1e-9:
+                return none
+            w = float(hpd) * 7.0
+            return None, round(w, 2), round(w * 4.0, 2), round(w * 52.0, 2)
+        if triggered == 'setting-hpw' and hpw is not None:
+            w = float(hpw)
+            return round(w / 7.0, 2), None, round(w * 4.0, 2), round(w * 52.0, 2)
+        if triggered == 'setting-hpm' and hpm is not None:
+            m = float(hpm)
+            return round(m / 28.0, 2), round(m / 4.0, 2), None, round(m * 13.0, 2)
+        if triggered == 'setting-hpy' and hpy is not None:
+            y = float(hpy)
+            return round(y / 364.0, 2), round(y / 52.0, 2), round(y / 13.0, 2), None
+    except (TypeError, ValueError):
+        pass
+    return none
+
+
 def compute_habit_time_omp(duration, duration_unit,
                            int_o, int_m, int_p, intensity_unit, days=None):
     """Convert PERT bands on intensity into PERT bands on total hours."""

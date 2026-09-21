@@ -171,7 +171,7 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     """Return (tickvals, ticktext) for an hours-valued axis with friendly labels.
 
     Picks a step that scales with the user's productivity settings — years for
-    very large ranges, then months, weeks, hours — and labels each tick via
+    very large ranges, then months, weeks, days, hours — and labels each tick via
     ``ConfigManager.format_time_friendly`` so the axis reads "1y" / "2m" /
     "3w" / "8h" instead of raw hour counts.
     """
@@ -181,6 +181,7 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     hw = max(1, settings.get('hours_per_week', 40))
     hm = max(1, settings.get('hours_per_month', 160))
     hy = ConfigManager.HOURS_PER_YEAR_MULT * hm
+    hd = hw / ConfigManager.DAYS_PER_WEEK
 
     # Pick a step that gives roughly 4-7 ticks for the visible range.
     if max_val >= 4 * hy:
@@ -195,6 +196,8 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
         step = hw
     elif max_val >= 1.5 * hw:
         step = hw / 2
+    elif max_val >= 4 * hd:
+        step = hd
     elif max_val >= 20:
         step = 5
     elif max_val >= 10:

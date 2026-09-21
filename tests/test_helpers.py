@@ -18,7 +18,7 @@ from callback_helpers import (
     resolve_time_mode, resolve_value_mode,
     editor_form_values, ALL_WEEKDAYS,
     format_value_rank, _ordinal, _contributor_hover,
-    alias_rows_label, update_alias_rows,
+    alias_rows_label, update_alias_rows, sync_time_fields,
 )
 from styles import stylesheet, mini_stylesheet
 
@@ -1112,7 +1112,7 @@ class TestExplainSummary:
         )
         text = _render_text(build_explain_summary(bd, normalized=40))
         assert "Prerequisites 16%" in text
-        assert "Hard prerequisite work left 6h" in text
+        assert "Hard prerequisite work left 2.1d" in text
         assert "Effort" not in text
         assert "Priority goal X (#2) +50%" in text
 
@@ -1180,3 +1180,45 @@ class TestOrdinal:
     def test_suffix_repeats_past_twenty(self):
         assert [_ordinal(n) for n in (21, 22, 23, 111, 112)] == \
             ["21st", "22nd", "23rd", "111th", "112th"]
+
+
+# ============================================================================
+# sync_time_fields
+# ============================================================================
+
+class TestSyncTimeFields:
+    def test_week_edit_fills_the_rest_and_leaves_the_week_alone(self):
+        assert sync_time_fields('setting-hpw', 2.86, 20, 80, 1040) == (2.86, None, 80.0, 1040.0)
+
+    def test_rounded_day_echo_does_not_overwrite_the_week(self):
+        # 20h/week displays as 2.86 h/day; that echo must not turn 20 into 20.02.
+        assert sync_time_fields('setting-hpd', 2.86, 20, 80, 1040) == (None, None, None, None)
+
+    def test_a_real_day_edit_still_updates_the_week(self):
+        assert sync_time_fields('setting-hpd', 3, 20, 80, 1040) == (None, 21.0, 84.0, 1092.0)
+
+    def test_month_and_year_edits_fill_the_rest(self):
+        assert sync_time_fields('setting-hpm', 2.86, 20, 80, 1040) == (2.86, 20.0, None, 1040.0)
+        assert sync_time_fields('setting-hpy', 2.86, 20, 80, 1040) == (2.86, 20.0, 80.0, None)
+
+    def test_blank_or_junk_input_changes_nothing(self):
+        assert sync_time_fields('setting-hpw', None, None, None, None) == (None,) * 4
+        assert sync_time_fields('setting-hpw', None, 'abc', None, None) == (None,) * 4
+        assert sync_time_fields(None, 1, 2, 3, 4) == (None,) * 4
+
+    def test_typing_20_reaches_a_fixed_point(self):
+        """Feed each output back in as the trigger until nothing changes."""
+        vals = {'setting-hpd': None, 'setting-hpw': 20, 'setting-hpm': None, 'setting-hpy': None}
+        order = ['setting-hpd', 'setting-hpw', 'setting-hpm', 'setting-hpy']
+        pending = ['setting-hpw']
+        for _ in range(10):
+            if not pending:
+                break
+            trig = pending.pop(0)
+            out = sync_time_fields(trig, *(vals[k] for k in order))
+            for k, v in zip(order, out):
+                if v is not None and vals[k] != v:
+                    vals[k] = v
+                    pending.append(k)
+        assert not pending
+        assert (vals['setting-hpw'], vals['setting-hpm'], vals['setting-hpy']) == (20, 80.0, 1040.0)

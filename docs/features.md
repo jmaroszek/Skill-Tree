@@ -602,7 +602,7 @@ The feature shines on large, vague, long-horizon Goals. It lets you say with con
 
 | Output | What it tells you |
 |---|---|
-| Histogram | The full distribution of how long the chain might take across the simulation runs. The axis uses whichever unit suits the median, such as years for a long Goal or hours for a short task. |
+| Histogram | The full distribution of how long the chain might take across the simulation runs. The axis uses whichever unit suits the median, such as years for a long Goal, days for a task of a few days, or hours for a short one. |
 | P10 line | Optimistic case — only 10% of runs finish faster than this. |
 | P50 line | The median — half of runs finish faster, half slower. |
 | P90 line | Pessimistic case — 90% of runs finish faster than this; a sensible "worst realistic" figure. |

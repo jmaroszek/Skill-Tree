@@ -241,7 +241,11 @@ class TestCalibrationUnitFor:
 
     def test_small_estimate_is_hours(self):
         hw, _, _ = self._bands()
-        assert _calibration_unit_for(hw / 2) == "hours"
+        assert _calibration_unit_for(hw / 14) == "hours"
+
+    def test_day_scale_estimate_is_days(self):
+        hw, _, _ = self._bands()
+        assert _calibration_unit_for(hw / 2) == "days"
 
     def test_week_scale_estimate_is_weeks(self):
         hw, hm, _ = self._bands()

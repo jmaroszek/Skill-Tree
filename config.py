@@ -894,17 +894,27 @@ class ConfigManager:
     def get_hours_per_year(cls) -> float:
         return cls.HOURS_PER_YEAR_MULT * cls.get_time_settings().get('hours_per_month', 160)
 
+    # A day is a seventh of a week. Derived from hours_per_week so a user-tuned
+    # weekly rate flows through, and not stored as a setting.
+    DAYS_PER_WEEK = 7
+
+    @classmethod
+    def get_hours_per_day(cls) -> float:
+        return cls.get_time_settings().get('hours_per_week', 40.0) / cls.DAYS_PER_WEEK
+
     @classmethod
     def get_time_multiplier(cls, unit: str) -> float:
         """Returns the hours-per-unit multiplier for time input conversion.
 
         Args:
-            unit: 'hours', 'weeks', 'months', or 'years'
+            unit: 'hours', 'days', 'weeks', 'months', or 'years'
 
         Returns:
             Multiplier to convert from the given unit to hours.
         """
-        if unit == 'weeks':
+        if unit == 'days':
+            return cls.get_hours_per_day()
+        elif unit == 'weeks':
             return cls.get_time_settings().get('hours_per_week', 40.0)
         elif unit == 'months':
             return cls.get_time_settings().get('hours_per_month', 160.0)
@@ -916,7 +926,7 @@ class ConfigManager:
     def time_unit(cls, hours: float | None, *, time_settings=None) -> tuple[float, str]:
         """The display unit for a duration: (hours in one unit, suffix).
 
-        The largest of year, month and week that the duration reaches, else
+        The largest of year, month, week and day that the duration reaches, else
         hours. `format_time_friendly` picks its unit this way. A chart can call
         it once and draw every value in that one unit.
         """
@@ -924,6 +934,7 @@ class ConfigManager:
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)
         hy = cls.HOURS_PER_YEAR_MULT * hm
+        hd = hw / cls.DAYS_PER_WEEK
         hours = hours or 0.0
 
         if hy > 0 and hours >= hy:
@@ -932,6 +943,8 @@ class ConfigManager:
             return float(hm), "m"
         if hw > 0 and hours >= hw:
             return float(hw), "w"
+        if hd > 0 and hours >= hd:
+            return float(hd), "d"
         return 1.0, "h"
 
     @classmethod
@@ -973,6 +986,7 @@ class ConfigManager:
         hw = settings.get('hours_per_week', 40)
         hm = settings.get('hours_per_month', 160)
         hy = cls.HOURS_PER_YEAR_MULT * hm
+        hd = hw / cls.DAYS_PER_WEEK
 
         if hy > 0 and hours >= hy:
             val = round(hours / hy, 2)
@@ -983,6 +997,9 @@ class ConfigManager:
         elif hw > 0 and hours >= hw:
             val = round(hours / hw, 2)
             return (val, 'weeks')
+        elif hd > 0 and hours >= hd:
+            val = round(hours / hd, 2)
+            return (val, 'days')
         else:
             return (round(hours, 2), 'hours')
 
