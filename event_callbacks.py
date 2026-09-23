@@ -14,6 +14,7 @@ from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
                            build_triggered_divider, trigger_confirmation_body)
 from duration_ui import duration_to_days, days_to_duration, format_duration_days
+from prerender import prerendered
 from callback_helpers import (render_link_rows, render_alias_rows,
                               alias_rows_label, update_alias_rows,
                               serialize_links,
@@ -183,7 +184,9 @@ def register_event_callbacks(app, services=None):
         Output("events-tab-content", "style"),
         Output("analyze-tab-content", "style"),
         Input("main-tabs", "active_tab"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_tab_content(active_tab):
         base = {"width": "100%", "height": "100%", "overflow": "hidden", "position": "absolute", "top": "0", "left": "0"}
         next_style = {**base,
@@ -394,7 +397,9 @@ def register_event_callbacks(app, services=None):
         Output("event-trigger-mode-hint", "children"),
         Input("event-trigger-mode", "value"),
         Input("event-trigger-node", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def describe_trigger_mode(trigger_mode, trigger_nodes):
         return _trigger_mode_hint(trigger_mode, trigger_nodes)
 
@@ -402,7 +407,9 @@ def register_event_callbacks(app, services=None):
         Output("dormant-new-event-trigger-mode-hint", "children"),
         Input("dormant-new-event-trigger-mode", "value"),
         Input("dormant-new-event-trigger-node", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def describe_dormant_trigger_mode(trigger_mode, trigger_nodes):
         return _trigger_mode_hint(trigger_mode, trigger_nodes)
 
@@ -411,7 +418,9 @@ def register_event_callbacks(app, services=None):
         Output("event-date-section", "style"),
         Output("event-node-section", "style"),
         Input("event-trigger-type", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_trigger_sections(trigger_type):
         date_style = {"display": "block"} if trigger_type == "date" else {"display": "none"}
         node_style = {"display": "block"} if trigger_type == "node" else {"display": "none"}
@@ -935,7 +944,9 @@ def register_event_callbacks(app, services=None):
     @app.callback(
         Output("dormant-node-subcontext", "options"),
         Input("dormant-node-context", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_dormant_subcontexts(context):
         base = [{"label": "None", "value": ""}]
         if not context:
@@ -948,7 +959,9 @@ def register_event_callbacks(app, services=None):
         [Output("dormant-aliases-container", "children"),
          Output("dormant-aliases-label", "children")],
         Input("dormant-aliases-store", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_dormant_aliases(aliases):
         return (
             render_alias_rows(
@@ -1100,7 +1113,9 @@ def register_event_callbacks(app, services=None):
         Input("dormant-node-habit-intensity-m", "value"),
         Input("dormant-node-habit-intensity-unit", "value"),
         Input("dormant-node-habit-days", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_dormant_habit_preview(duration, dur_unit, intensity_m, int_unit, days):
         return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
 
@@ -1109,7 +1124,9 @@ def register_event_callbacks(app, services=None):
         Output("dormant-mode-new-fields", "style"),
         Output("dormant-mode-existing-fields", "style"),
         Input("dormant-node-mode", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_dormant_mode_fields(mode):
         if mode == "existing":
             return {"display": "none"}, {"display": "block"}
@@ -1132,7 +1149,9 @@ def register_event_callbacks(app, services=None):
         Output("dormant-new-event-section", "style"),
         Output("dormant-existing-event-section", "style"),
         Input("dormant-event-target-mode", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_dormant_event_target_section(target_mode):
         if target_mode == "existing":
             return {"display": "none"}, {"display": "block"}
@@ -1143,7 +1162,9 @@ def register_event_callbacks(app, services=None):
         Output("dormant-new-event-date-section", "style"),
         Output("dormant-new-event-node-section", "style"),
         Input("dormant-new-event-trigger-type", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_dormant_new_event_trigger_sections(trigger_type):
         date_style = {"display": "block"} if trigger_type == "date" else {"display": "none"}
         node_style = {"display": "block"} if trigger_type == "node" else {"display": "none"}
@@ -1801,21 +1822,27 @@ def register_event_callbacks(app, services=None):
     @app.callback(
         Output('dormant-obsidian-links-container', 'children'),
         Input('dormant-obsidian-links-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_dormant_obsidian_links(links):
         return render_link_rows(links, 'dormant-obsidian-link', has_browse=True, has_open=False)
 
     @app.callback(
         Output('dormant-drive-links-container', 'children'),
         Input('dormant-drive-links-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_dormant_drive_links(links):
         return render_link_rows(strip_gdrive_prefix(links), 'dormant-drive-link', has_browse=True, has_open=False)
 
     @app.callback(
         Output('dormant-website-links-container', 'children'),
         Input('dormant-website-links-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_dormant_website_links(links):
         return render_link_rows(links, 'dormant-website-link', has_browse=False, has_open=False)
 

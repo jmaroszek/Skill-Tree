@@ -205,7 +205,7 @@ def register_review_hub_callbacks(app, services=None):
     @app.callback(
         Output('hub-pending-count', 'children'),
         Input('modal-review-hub', 'is_open'),
-        prevent_initial_call=False,
+        prevent_initial_call=True,
     )
     def refresh_pending_count(is_open):
         if not is_open:

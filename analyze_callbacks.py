@@ -19,12 +19,14 @@ from graph_analytics import (
 
 import logging
 import math
+import threading
 import uuid
 from datetime import date
 from dash import html, dcc, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from collections import defaultdict
+import database
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager, BADGE_PALETTE
@@ -1048,29 +1050,11 @@ def register_analyze_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # Background prewarm: render the hidden Analyze tab as soon as the core
-    # engine's first payload lands, so the first visit finds it ready. Waiting
-    # for the payload keeps this compute from competing with the core engine
-    # for the server. Starting then, rather than once the browser has gone
-    # idle, lets it run while the browser spends most of a second ingesting
-    # that payload. The startup cover waits for this render, so the idle wait
-    # used to make startup about half a second longer. See
-    # assets/startup_cover.js.
-    app.clientside_callback(
-        """
-        function(elements, prewarmed) {
-            if (prewarmed || !elements || !elements.length) {
-                return window.dash_clientside.no_update;
-            }
-            return Date.now();
-        }
-        """,
-        Output("analyze-prewarm-store", "data"),
-        Input("elements-pending-store", "data"),
-        State("analyze-prewarm-store", "data"),
-        prevent_initial_call=True,
-    )
-
+    # Analyze renders on its first visit, not at startup. Its charts cost the
+    # browser about 0.6 s of main-thread work, and the startup cover waited
+    # for them. assets/analyze_prewarm.js writes analyze-prewarm-store when
+    # the pointer or focus reaches the Analyze tab, so the render starts a
+    # moment before the click.
     @app.callback(
         Output("analyze-overview-content", "children"),
         Output("analyze-goals-content", "children"),
@@ -1104,18 +1088,27 @@ def register_analyze_callbacks(app, services=None):
                             thru_gran, thru_start, thru_end, _save_output,
                             active_tab, rendered_signature):
         skip = (no_update,) * 9
+        fired = set(ctx.triggered_prop_ids)
+        # A dcc.Store whose data starts as None reports a change with no
+        # value when it mounts. That isn't an arrival.
+        arrival = ((_arrived and "analyze-active-store.data" in fired)
+                   or (_prewarm and "analyze-prewarm-store.data" in fired))
+        others = fired - {"analyze-active-store.data",
+                          "analyze-prewarm-store.data"}
         signature = _analyze_signature()
-        if ctx.triggered_id in ("analyze-active-store", "analyze-prewarm-store"):
+        if others and active_tab == "tab-analyze":
+            reuse = False
+        elif not arrival or rendered_signature == signature:
             # Arrivals and the prewarm render only what's out of date. Every
             # write the charts depend on bumps the graph version.
-            if rendered_signature == signature:
-                return skip
-        elif active_tab != "tab-analyze":
             return skip
+        else:
+            reuse = True
 
         try:
-            sections = _render_analyze_sections(
-                bottlenecks, goals, thru_gran, thru_start, thru_end)
+            sections = _render_sections_once(
+                signature, (bottlenecks, goals, thru_gran, thru_start, thru_end),
+                reuse)
         except Exception:
             # Never strand the tab behind its cover. Leaving the signature
             # unset retries the render on the next visit.
@@ -1125,6 +1118,31 @@ def register_analyze_callbacks(app, services=None):
                            className="text-danger small")
             return error, "", "", "", "", "", False, True, None
         return (*sections, False, True, signature)
+
+
+_render_lock = threading.Lock()
+_last_render = None
+
+
+def _render_sections_once(signature, args, reuse):
+    """Render the sections, sharing one render between a prewarm and the click
+    that follows it.
+
+    The prewarm starts on hover, so the click usually arrives while it is
+    still computing. Dash drops the earlier request's response in favour of the
+    later one's. Without this the click would compute everything a second time
+    and wait for both. With it, the click waits for the render already under
+    way and returns it. Settings and save refreshes pass reuse=False: a
+    reflection edit changes the charts without changing the signature.
+    """
+    global _last_render
+    key = (database.get_db_path(), repr(signature), args)
+    with _render_lock:
+        if reuse and _last_render is not None and _last_render[0] == key:
+            return _last_render[1]
+        sections = _render_analyze_sections(*args)
+        _last_render = (key, sections)
+        return sections
 
 
 def _analyze_signature():

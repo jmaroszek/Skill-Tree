@@ -31,6 +31,7 @@ import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from event_manager import EventManager
 from canvases import CANVASES
+from prerender import prerendered
 from config import (ConfigManager, sort_subcontexts, sort_contexts,
                     SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
@@ -287,7 +288,9 @@ def register_callbacks(app, services=None):
     @app.callback(
         Output('hover-tooltip', 'children'),
         *(Input(canvas.cytoscape_id, 'mouseoverNodeData') for canvas in CANVASES),
+        prevent_initial_call=True,
     )
+    @prerendered
     def display_hover_data(*hover_data):
         # Only the canvas that fired holds the node under the cursor. Before
         # any hover nothing has fired, and the first canvas's value is empty.
@@ -471,7 +474,12 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
          State('node-habit-days', 'value')],
-        prevent_initial_call='initial_duplicate'
+        # Nothing to populate on page load. The form's defaults and its empty
+        # alias and link rows are in the layout, and every path that opens
+        # the editor runs this callback, which sends the relationship options.
+        # The load-time run used to send ~230 KB of those options and set off
+        # a dozen follow-on callbacks, all before the editor could be seen.
+        prevent_initial_call=True,
     )
     def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val,
@@ -665,21 +673,7 @@ def register_callbacks(app, services=None):
                     data['id'] = name
 
         if not name or not data:
-            out = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
-            if not trigger_id:
-                # Initial page load (no trigger). Seed the stores that drive the
-                # dynamic row-renderers — the Resources link inputs
-                # (indices 23/24/25: obsidian/drive/website) and the Aliases
-                # inputs (index 32). Each render callback takes its store as an
-                # input, and since the store is also an output of this callback,
-                # Dash defers the render until populate_editor produces a
-                # concrete value — returning no_update here leaves them deferred
-                # forever and the inputs never render. Seeding once on load
-                # builds the rows, which then persist in the DOM across the
-                # btn-add toggle's no_update returns.
-                out[23], out[24], out[25] = [''], [''], ['']
-                out[32] = ['']
-            return out
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
 
         edges = manager.get_edges()
 
@@ -2194,15 +2188,17 @@ def register_callbacks(app, services=None):
         return _calibration_prepop(node)
 
     # --- Calibration review button: hidden when the feature is off ---
-    # Re-evaluated on load and on every tab switch — a tab switch is the
-    # natural action after toggling the setting in Settings, and it happens
-    # after the save has committed, so there's no read-before-write race.
+    # Evaluated as the layout is built and on every tab switch — a tab switch
+    # is the natural action after toggling the setting in Settings, and it
+    # happens after the save has committed, so there's no read-before-write
+    # race.
     @app.callback(
         Output('btn-calibration-review', 'style'),
-        Input('app-load-interval', 'n_intervals'),
         Input('main-tabs', 'active_tab'),
+        prevent_initial_call=True,
     )
-    def _calibration_review_button_visibility(_n, _active_tab):
+    @prerendered
+    def _calibration_review_button_visibility(_active_tab):
         if ConfigManager.get_time_calibration_enabled():
             return {"display": "inline-block"}
         return {"display": "none"}
@@ -2484,7 +2480,9 @@ def register_callbacks(app, services=None):
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_canvas_node_count(elements, f_type, f_ctx, f_sub,
                                  f_comm, f_comm_method, f_val, f_int,
                                  f_diff, f_time, f_time_unit):
@@ -2510,7 +2508,9 @@ def register_callbacks(app, services=None):
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_next_filter_indicator(f_type, f_ctx, f_sub, f_comm,
                                      f_comm_method, f_val, f_int, f_diff,
                                      f_time, f_time_unit):
@@ -2620,7 +2620,9 @@ def register_callbacks(app, services=None):
         [Output('aliases-container', 'children'),
          Output('aliases-label', 'children')],
         Input('aliases-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_aliases(aliases):
         return render_alias_rows(aliases), alias_rows_label(aliases)
 
@@ -2646,21 +2648,27 @@ def register_callbacks(app, services=None):
     @app.callback(
         Output('obsidian-links-container', 'children'),
         Input('obsidian-links-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_obsidian_links(links):
         return render_link_rows(links, 'obsidian-link', has_browse=True)
 
     @app.callback(
         Output('drive-links-container', 'children'),
         Input('drive-links-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_drive_links(links):
         return render_link_rows(strip_gdrive_prefix(links), 'drive-link', has_browse=True)
 
     @app.callback(
         Output('website-links-container', 'children'),
         Input('website-links-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_website_links(links):
         return render_link_rows(links, 'website-link', has_browse=False)
 

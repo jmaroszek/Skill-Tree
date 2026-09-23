@@ -1121,7 +1121,9 @@ def build_app_layout(initial_elements, env="production"):
                 dbc.Tab(label="Nodes", tab_id="tab-canvas"),
                 dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
-                dbc.Tab(label="Analyze", tab_id="tab-analyze"),
+                # The class lets assets/analyze_prewarm.js find the tab.
+                dbc.Tab(label="Analyze", tab_id="tab-analyze",
+                        label_class_name="analyze-tab-link"),
             ],
             className="px-3 pt-1 justify-content-center",
             style={"flex": "1", "backgroundColor": tokens.BG_CANVAS, "borderBottom": "none"}
@@ -1364,8 +1366,8 @@ def build_app_layout(initial_elements, env="production"):
         # tab. refresh_analyze_tab listens to this instead of main-tabs
         # directly, so switching to any other tab makes no request at all.
         dcc.Store(id='analyze-active-store', data=None),
-        # Bumped once, when startup work has settled, so the hidden Analyze
-        # tab renders ahead of the first visit instead of on it.
+        # Bumped when the pointer or focus reaches the Analyze tab, so its
+        # first render starts before the click. See assets/analyze_prewarm.js.
         dcc.Store(id='analyze-prewarm-store', data=None),
         # What the rendered Analyze charts were computed from. An arrival that
         # finds it current skips the recompute. See _analyze_signature.

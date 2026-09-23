@@ -104,6 +104,7 @@ def create_app(settings=None, services=None):
     import dash_bootstrap_components as dbc
     from layout import build_app_layout, build_index_string
     from canvases import install_client_registry
+    from prerender import prerender_layout, prerendered_specs
     from callbacks import register_callbacks
     from event_callbacks import register_event_callbacks
     from details_callbacks import register_details_callbacks
@@ -128,8 +129,13 @@ def create_app(settings=None, services=None):
     app.index_string = build_index_string()
     app.skill_tree_services = services
     install_client_registry(app)
+    # Built per request, after registration below. prerender_layout runs the
+    # @prerendered callbacks' initial calls into the layout, so the browser
+    # doesn't ask for them on load.
     app.layout = database.snapshot_read(
-        lambda: build_app_layout(initial_elements=[], env=settings.environment))
+        lambda: prerender_layout(
+            build_app_layout(initial_elements=[], env=settings.environment),
+            app))
     for register in (register_callbacks, register_event_callbacks,
                      register_details_callbacks, register_next_callbacks,
                      register_settings_callbacks, register_review_hub_callbacks,
@@ -137,6 +143,9 @@ def create_app(settings=None, services=None):
         register(app, services)
     register_context_picker_callbacks(app)
     register_list_toolbar_callbacks(app)
+    # Fails at startup, not on the first page load, if a @prerendered
+    # callback would also run in the browser.
+    prerendered_specs(app)
     app.server.add_url_rule('/open-obsidian', view_func=open_obsidian_route)
     boot_id = uuid.uuid4().hex
     app.server.add_url_rule('/_server_boot_id', view_func=lambda: boot_id)

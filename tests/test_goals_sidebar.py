@@ -190,20 +190,30 @@ def test_the_prewarm_stores_mount_is_not_a_prewarm():
                              prewarm=None) is dash.no_update
 
 
-def test_both_prewarms_start_with_the_core_payload():
-    """The startup cover waits for these renders. Waiting for the canvas
-    ingest and then for idle put them after most of a second of browser work
-    they could have overlapped on the server."""
+def test_the_goals_prewarm_starts_with_the_core_payload():
+    """The startup cover waits for this render. Waiting for the canvas
+    ingest and then for idle put it after most of a second of browser work
+    it could have overlapped on the server."""
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    sidebars_callbacks.register_sidebars_callbacks(app)
+
+    prewarm = next(c for c in app._callback_list
+                   if c["output"] == "goals-prewarm-store.data")
+    assert [i["id"] for i in prewarm["inputs"]] == ["elements-pending-store"]
+    name = prewarm["clientside_function"]["function_name"]
+    source = next(s for s in app._inline_scripts if name in s)
+    assert "requestIdleCallback" not in source
+
+
+def test_analyze_does_not_render_at_startup():
+    """Its charts cost about 0.6 s of browser work, and the startup cover
+    waited for them. Only the Analyze tab's own hover prewarm writes the
+    store now."""
     import analyze_callbacks
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app)
     analyze_callbacks.register_analyze_callbacks(app)
-
-    for store in ("goals-prewarm-store.data", "analyze-prewarm-store.data"):
-        prewarm = next(c for c in app._callback_list if c["output"] == store)
-        assert [i["id"] for i in prewarm["inputs"]] == ["elements-pending-store"]
-        name = prewarm["clientside_function"]["function_name"]
-        source = next(s for s in app._inline_scripts if name in s)
-        assert "requestIdleCallback" not in source, store
+    assert not any(c["output"].startswith("analyze-prewarm-store")
+                   for c in app._callback_list)

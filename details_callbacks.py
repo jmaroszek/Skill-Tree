@@ -20,6 +20,7 @@ from details_layout import (build_details_subtasks_table,
 from simulation import SimulationCancelled
 from simulation_service import simulation_service
 from duration_ui import simulation_figure
+from prerender import prerendered
 from callback_helpers import (render_link_rows, render_alias_rows,
                               alias_rows_label, update_alias_rows,
                               strip_gdrive_prefix,
@@ -154,7 +155,9 @@ def register_details_callbacks(app, services=None):
         Output("details-node-select", "options"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def populate_details_dropdown(_refresh, _version):
         nodes = graph_manager.get_all_nodes()
         return [{"label": n.name, "value": n.name}
@@ -920,7 +923,9 @@ def register_details_callbacks(app, services=None):
         Input("filter-node-type", "value"),
         Input("filter-dormant", "value"),
         Input("settings-save-status", "children"),
+        prevent_initial_call=True,
     )
+    @prerendered
     @database.snapshot_read
     def build_empty_state_suggestions(
             _refresh, _version, f_context, f_subcontext, f_done,
@@ -1113,7 +1118,9 @@ def register_details_callbacks(app, services=None):
     @app.callback(
         Output("details-add-subcontext", "options"),
         Input("details-add-context", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_add_subcontexts(context):
         base = [{"label": "None", "value": ""}]
         if not context:
@@ -1144,7 +1151,9 @@ def register_details_callbacks(app, services=None):
         [Output("details-add-aliases-container", "children"),
          Output("details-add-aliases-label", "children")],
         Input("details-add-aliases-store", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_details_add_aliases(aliases):
         return (
             render_alias_rows(
@@ -1232,7 +1241,9 @@ def register_details_callbacks(app, services=None):
         Input("details-add-habit-intensity-m", "value"),
         Input("details-add-habit-intensity-unit", "value"),
         Input("details-add-habit-days", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_details_add_habit_preview(duration, dur_unit, intensity_m, int_unit, days):
         return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
 
@@ -1304,21 +1315,27 @@ def register_details_callbacks(app, services=None):
     @app.callback(
         Output('details-add-obsidian-container', 'children'),
         Input('details-add-obsidian-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_details_add_obsidian(links):
         return render_link_rows(links, 'details-add-obsidian-link', has_browse=True)
 
     @app.callback(
         Output('details-add-drive-container', 'children'),
         Input('details-add-drive-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_details_add_drive(links):
         return render_link_rows(strip_gdrive_prefix(links), 'details-add-drive-link', has_browse=True)
 
     @app.callback(
         Output('details-add-website-container', 'children'),
         Input('details-add-website-store', 'data'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_details_add_website(links):
         return render_link_rows(links, 'details-add-website-link', has_browse=False)
 

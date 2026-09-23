@@ -775,10 +775,12 @@ class TestReflectionDriftStatusGate:
 
 
 class TestAnalyzeRefreshGate:
-    """The tab renders in the background, so arrivals and the prewarm must
-    skip a render that is still current, and redo one the graph outran."""
+    """Arrivals and the hover prewarm must skip a render that is still
+    current, redo one the graph outran, and ignore the stores' mount."""
 
     ARGS = (25, 75, 'quarter', '', '', None)
+    PROPS = {'analyze-active-store': 'data', 'analyze-prewarm-store': 'data',
+             'save-output': 'children'}
 
     @pytest.fixture
     def refresh(self, monkeypatch):
@@ -786,6 +788,7 @@ class TestAnalyzeRefreshGate:
         import dash
         import analyze_callbacks
 
+        monkeypatch.setattr(analyze_callbacks, '_last_render', None)
         app = dash.Dash(__name__)
         app.config.suppress_callback_exceptions = True
         analyze_callbacks.register_analyze_callbacks(app)
@@ -795,11 +798,45 @@ class TestAnalyzeRefreshGate:
         while hasattr(fn, '__wrapped__'):
             fn = fn.__wrapped__
 
-        def call(trigger, active_tab, rendered):
-            monkeypatch.setattr(analyze_callbacks, 'ctx',
-                                types.SimpleNamespace(triggered_id=trigger))
-            return fn(1, 1, *self.ARGS, active_tab, rendered)
+        def call(trigger, active_tab, rendered, value=1):
+            monkeypatch.setattr(analyze_callbacks, 'ctx', types.SimpleNamespace(
+                triggered_id=trigger,
+                triggered_prop_ids={f'{trigger}.{self.PROPS[trigger]}': trigger}))
+            return fn(value, value, *self.ARGS, active_tab, rendered)
         return call
+
+    def test_store_mounts_are_not_arrivals(self, refresh):
+        """A dcc.Store whose data starts as None reports a change when it
+        mounts. Analyze no longer renders at startup, so that must not."""
+        from dash import no_update
+        GraphManager().add_node(_make_node("A"))
+        for store in ('analyze-active-store', 'analyze-prewarm-store'):
+            assert refresh(store, 'tab-next', None, value=None) == (no_update,) * 9
+
+    def test_click_after_hover_reuses_the_prewarm_render(self, refresh, monkeypatch):
+        import analyze_callbacks
+        GraphManager().add_node(_make_node("A"))
+        calls = []
+        real = analyze_callbacks._render_analyze_sections
+        monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections',
+                            lambda *a: calls.append(a) or real(*a))
+        refresh('analyze-prewarm-store', 'tab-next', None)
+        # Dash drops the prewarm's response once the click re-requests, so
+        # the click arrives with no signature and must not compute again.
+        refresh('analyze-active-store', 'tab-analyze', None)
+        assert len(calls) == 1
+
+    def test_save_on_the_tab_always_rerenders(self, refresh, monkeypatch):
+        """A reflection edit changes the charts without moving the signature."""
+        import analyze_callbacks
+        GraphManager().add_node(_make_node("A"))
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[8]
+        calls = []
+        real = analyze_callbacks._render_analyze_sections
+        monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections',
+                            lambda *a: calls.append(a) or real(*a))
+        refresh('save-output', 'tab-analyze', signature)
+        assert len(calls) == 1
 
     def test_prewarm_renders_while_hidden_and_uncovers(self, refresh):
         GraphManager().add_node(_make_node("A"))
