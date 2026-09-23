@@ -1,10 +1,9 @@
 /**
  * Drag-and-drop for the Settings ▸ Contexts row editor.
  *
- * Two kinds of list: the context rows, and each row's subcontext chips. The
- * chip lists share one SortableJS group, so a chip can be dragged into
- * another context — the store records that as a move of its
- * (context, subcontext) pair rather than a delete plus an add.
+ * Two kinds of list: the context rows, and each row's subcontext chips. Each
+ * chip list is its own SortableJS instance with no shared group, so a chip
+ * reorders within its row and cannot be dragged into another context.
  *
  * On drop the whole layout is read back from the DOM and written to the
  * hidden #ctx-editor-drag-input as
@@ -112,7 +111,6 @@ function _initCtxSortable() {
 
     root.querySelectorAll('.ctx-chips[data-ctx-subs]').forEach(function (list) {
         _ctxSortables.push(new Sortable(list, {
-            group: 'ctx-subs',
             animation: 150,
             draggable: '.ctx-chip',
             handle: '.ctx-chip-grip',

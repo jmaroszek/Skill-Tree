@@ -10,7 +10,8 @@
    inside one row. */
 
 /* Column headings. The paddings mirror .ctx-row's so each label sits over the
-   control it names; the leading offset covers the drag handle's width. */
+   control it names; the leading offset covers the drag handle's width and the
+   trailing spacer stands in for the row's remove button. */
 .ctx-head {
     display: flex;
     align-items: center;
@@ -27,16 +28,21 @@
     flex: 1 1 auto;
     min-width: 0;
 }
-.ctx-head-count {
-    width: 2rem;
-    flex: 0 0 auto;
-    text-align: right;
-}
 .ctx-head-weight {
-    width: 64px;
+    width: var(--ctx-weight-width);
     flex: 0 0 auto;
-    text-align: right;
-    padding-right: 1.9rem;
+    text-align: center;
+    white-space: nowrap;
+}
+.ctx-head-btn {
+    width: var(--ctx-row-btn-width);
+    flex: 0 0 auto;
+}
+
+.ctx-head,
+.ctx-editor-box {
+    --ctx-weight-width: 52px;
+    --ctx-row-btn-width: 32px;
 }
 
 .ctx-editor-box {
@@ -66,6 +72,10 @@
 }
 .ctx-drag-disabled {
     visibility: hidden;
+}
+
+.ctx-row-name-wrap {
+    flex: 0 0 auto;
 }
 
 .form-control.ctx-row-name {
@@ -181,20 +191,22 @@
 
 /* --- Trailing controls -------------------------------------------------- */
 
-.ctx-row-count {
-    flex: 0 0 auto;
-    width: 2rem;
-    text-align: right;
-    color: var(--st-text-dim);
-    font-size: var(--st-fs-sm);
-    font-variant-numeric: tabular-nums;
-}
-
+/* Priorities are short numbers, so the field is narrow and drops the
+   browser's spinner, which would otherwise take half its width. */
 .form-control.ctx-row-weight {
-    width: 64px;
+    width: var(--ctx-weight-width);
     flex: 0 0 auto;
     font-size: var(--st-fs-base);
-    text-align: right;
+    text-align: center;
+    padding-left: 4px;
+    padding-right: 4px;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.form-control.ctx-row-weight::-webkit-outer-spin-button,
+.form-control.ctx-row-weight::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .btn.ctx-row-btn {
@@ -212,6 +224,10 @@
     flex: 0 0 auto;
     padding: 2px 6px;
     font-size: var(--st-fs-lg);
+}
+/* Fixed width so the heading's spacer can match it exactly. */
+.ctx-row:not(.ctx-row-deleted) > .btn.ctx-row-btn-danger {
+    width: var(--ctx-row-btn-width);
 }
 /* Red only on hover, so a list of rows does not read as a wall of danger. */
 .btn.ctx-row-btn-danger {

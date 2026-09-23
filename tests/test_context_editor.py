@@ -247,52 +247,6 @@ class TestValidateRows:
         assert cr.validate_rows(rows) == {}
 
 
-# --- The text view ---------------------------------------------------------------
-
-class TestTextView:
-    def test_rows_render_to_the_familiar_grammar(self):
-        assert cr.rows_to_text(_rows()) == (
-            "Health: Stress, Rhythms\nPeople: Dating\nWisdom: Ethics, Logic")
-
-    def test_parse_and_format_round_trip(self):
-        text = cr.format_context_text(CONTEXTS, SUBCONTEXTS)
-        assert cr.parse_context_text(text) == (CONTEXTS, SUBCONTEXTS)
-
-    def test_an_in_place_rename_keeps_the_rows_identity(self):
-        """Position recovers what name-matching cannot."""
-        text = "Health: Stress, Rhythms\nPeople: Dating\nPhilosophy: Ethics, Logic"
-        rows = cr.reconcile_rows_with_text(text, _rows())
-        assert _row(rows, "Philosophy")["orig"] == "Wisdom"
-        assert _plan(rows)["ctx_renames"] == {"Wisdom": "Philosophy"}
-        assert _plan(rows)["deleted_contexts"] == []
-
-    def test_reordering_lines_keeps_every_identity(self):
-        text = "Wisdom: Ethics, Logic\nHealth: Stress, Rhythms\nPeople: Dating"
-        rows = cr.reconcile_rows_with_text(text, _rows())
-        assert [(r["orig"], r["name"]) for r in rows] == [
-            ("Wisdom", "Wisdom"), ("Health", "Health"), ("People", "People")]
-        assert _plan(rows)["ctx_renames"] == {}
-
-    def test_a_new_line_is_a_new_context_and_a_missing_one_is_removed(self):
-        text = "Health: Stress, Rhythms\nPeople: Dating\nWisdom: Ethics, Logic\nMoney"
-        rows = cr.reconcile_rows_with_text(text, _rows())
-        assert _row(rows, "Money")["orig"] is None
-
-        rows = cr.reconcile_rows_with_text("Health: Stress, Rhythms\nPeople: Dating",
-                                           _rows())
-        assert _plan(rows)["deleted_contexts"] == ["Wisdom"]
-
-    def test_a_renamed_subcontext_keeps_its_identity_by_position(self):
-        text = "Health: Stress, Sleep\nPeople: Dating\nWisdom: Ethics, Logic"
-        rows = cr.reconcile_rows_with_text(text, _rows())
-        assert _plan(rows)["pair_moves"] == [["Health", "Rhythms", "Health", "Sleep"]]
-
-    def test_weights_survive_a_text_edit(self):
-        text = "Health: Stress, Rhythms\nRelationships: Dating\nWisdom: Ethics, Logic"
-        rows = cr.reconcile_rows_with_text(text, _rows())
-        assert _row(rows, "Relationships")["weight"] == 1.4
-
-
 # --- Dragging ----------------------------------------------------------------------
 
 class TestApplyDragOrder:
@@ -300,14 +254,21 @@ class TestApplyDragOrder:
         rows = cr.apply_drag_order(_rows(), {"rows": ["c2", "c0", "c1"]})
         assert [r["name"] for r in rows] == ["Wisdom", "Health", "People"]
 
-    def test_a_chip_dragged_to_another_row_moves_there(self):
+    def test_chips_reorder_within_their_row(self):
+        order = {"rows": ["c0", "c1", "c2"], "subs": {"c2": ["c2s1", "c2s0"]}}
+        rows = cr.apply_drag_order(_rows(), order)
+        assert [s["name"] for s in _row(rows, "Wisdom")["subs"]] == ["Logic", "Ethics"]
+        assert _plan(rows)["pair_moves"] == []
+
+    def test_a_chip_cannot_be_moved_to_another_row(self):
+        """Moving a subcontext between contexts is not an edit this screen offers."""
         order = {"rows": ["c0", "c1", "c2"],
                  "subs": {"c0": ["c0s0", "c0s1"], "c1": ["c1s0", "c2s0"],
                           "c2": ["c2s1"]}}
         rows = cr.apply_drag_order(_rows(), order)
-        assert [s["name"] for s in _row(rows, "People")["subs"]] == ["Dating", "Ethics"]
-        assert [s["name"] for s in _row(rows, "Wisdom")["subs"]] == ["Logic"]
-        assert _plan(rows)["pair_moves"] == [["Wisdom", "Ethics", "People", "Ethics"]]
+        assert [s["name"] for s in _row(rows, "People")["subs"]] == ["Dating"]
+        assert [s["name"] for s in _row(rows, "Wisdom")["subs"]] == ["Logic", "Ethics"]
+        assert _plan(rows)["pair_moves"] == []
 
     def test_a_stale_payload_cannot_drop_anything(self):
         rows = cr.apply_drag_order(_rows(), {"rows": ["gone"], "subs": {"c0": ["nope"]}})
@@ -529,11 +490,11 @@ class TestMigrationDialog:
 
 
 class TestStructuralEdits:
-    def _edit(self, fns, prop_id, value, rows, drag="", text=""):
+    def _edit(self, fns, prop_id, value, rows, drag=""):
         state = {"rows": rows}
         return _with_trigger(
             fns["edit_context_rows"], prop_id, value,
-            None, [], [], [], [], drag, None, text, state, *_live(rows))
+            None, [], [], [], [], drag, state, *_live(rows))
 
     def test_removing_a_saved_row_keeps_it_for_undo(self, seeded):
         fns = _callbacks()
@@ -564,7 +525,7 @@ class TestStructuralEdits:
         live[0] = ["Health", "People", "Philosophy"]  # typed, not yet stored
         out = _with_trigger(
             fns["edit_context_rows"], _pm("ctx-sub-add", "c0"), 1,
-            None, [], [], [], [], "", None, "", {"rows": rows}, *live)
+            None, [], [], [], [], "", {"rows": rows}, *live)
         assert _row(out["rows"], "Philosophy")["orig"] == "Wisdom"
         assert len(_row(out["rows"], "Health")["subs"]) == 3
 
@@ -579,11 +540,6 @@ class TestStructuralEdits:
         out = self._edit(fns, "ctx-editor-drag-input.value", drag, _rows(), drag=drag)
         assert [r["name"] for r in out["rows"]] == ["People", "Health", "Wisdom"]
 
-    def test_applying_the_text_view(self, seeded):
-        fns = _callbacks()
-        text = "Health: Stress, Rhythms\nPeople: Dating\nPhilosophy: Ethics, Logic"
-        out = self._edit(fns, "btn-ctx-text-apply.n_clicks", 1, _rows(), text=text)
-        assert _row(out["rows"], "Philosophy")["orig"] == "Wisdom"
 
 
 def test_opening_settings_fills_every_output_and_seeds_the_rows(seeded):
@@ -601,10 +557,9 @@ def test_opening_settings_fills_every_output_and_seeds_the_rows(seeded):
     out = fn(True)
     assert len(out) == len(key.strip(".").split("..."))
     assert len(fn(False)) == len(out)
-    editor, text = out[0], out[1]
+    editor = out[0]
     assert [r["orig"] for r in editor["rows"]] == CONTEXTS
     assert editor["counts"]["ctx"] == {"Wisdom": 2, "People": 1}
-    assert text.splitlines()[0] == "Health: Stress, Rhythms"
 
 
 class TestLiveValidation:
@@ -676,9 +631,9 @@ class TestBuildContextEditorRows:
         rows = _rows()
         _row(rows, "Wisdom")["name"] = "Philosophy"
         tree = build_context_editor_rows(rows, {"Wisdom": 3})
-        counts = [c.children for c in _walk(tree)
-                  if getattr(c, "className", None) == "ctx-row-count"]
-        assert counts == ["", "", "3"]
+        counts = [getattr(c, "title", None) for c in _walk(tree)
+                  if getattr(c, "className", None) == "ctx-row-name-wrap"]
+        assert counts == [None, None, "3 nodes"]
 
     def test_a_removed_row_offers_undo_instead_of_inputs(self):
         rows = _rows()

@@ -119,8 +119,7 @@ def _structure_key(rows):
 
     SortableJS moves DOM nodes itself, behind React's back. If React then
     reconciled the next render against those moved nodes it would patch the
-    wrong ones — and a chip dragged to another row would make it try to
-    remove a node from a parent that no longer holds it. Changing the key on
+    wrong ones. Changing the key on
     every structural change remounts the editor instead, so React never
     reconciles against a DOM that SortableJS rearranged. Typing does not
     re-render, so this never costs the caret.
@@ -135,10 +134,11 @@ def _structure_key(rows):
 def build_context_editor_rows(rows, ctx_counts=None, pair_counts=None, errors=None):
     """Build the Contexts tab's row editor.
 
-    One row per context: drag handle, name, subcontext chips, how many nodes
-    sit in it today, its priority, and remove. Counts are looked up by the
-    names the nodes currently carry (each row's and chip's origin), so a
-    pending rename does not zero them out.
+    One row per context: drag handle, name, subcontext chips, its priority,
+    and remove. How many nodes sit in a context or subcontext today is its
+    hover title (on the name or chip) rather than a column. Counts are looked up by the names the
+    nodes currently carry (each row's and chip's origin), so a pending rename
+    does not zero them out.
 
     Rows keep their identity in the store rather than in these components —
     the ids here are only how a click finds its row again.
@@ -169,16 +169,15 @@ def build_context_editor_rows(rows, ctx_counts=None, pair_counts=None, errors=No
         out.append(html.Div([
             html.Span(html.I(className="bi bi-grip-vertical"),
                       className="ctx-drag-handle"),
-            dbc.Input(
+            # dbc.Input takes no title, so a wrapper carries the node count.
+            html.Div(dbc.Input(
                 id={"type": "ctx-row-name", "index": rid},
                 type="text", value=row.get("name", ""), placeholder="Context",
                 className="ctx-row-name", invalid=bool(errors.get(f"row:{rid}")),
                 autoFocus=_is_fresh(row),
-            ),
+            ), className="ctx-row-name-wrap",
+                title=_plural(count, "node") if count else None),
             html.Div(chips, className="ctx-chips", **{"data-ctx-subs": rid}),
-            html.Span(f"{count}" if count else "",
-                      className="ctx-row-count",
-                      title=_plural(count, "node") if count else None),
             dbc.Input(
                 id={"type": "ctx-row-weight", "index": rid},
                 type="number", min=0, max=10, step="any",

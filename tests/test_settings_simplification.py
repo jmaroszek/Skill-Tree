@@ -60,7 +60,7 @@ def test_context_priorities_live_in_contexts_with_plain_language():
     assert "setting-context-editor" in _by_id(contexts_tab)
     assert "setting-context-editor" not in _by_id(scoring_tab)
     copy = _text(contexts_tab)
-    assert "influence what appears next" in copy
+    assert "forward in what appears next" in copy
     assert "Doubling a weight" not in copy
 
 
@@ -192,7 +192,7 @@ def test_path_fields_are_responsive_but_visually_bounded():
     }.issubset(_by_id(containers[0]))
 
 
-def test_color_rows_show_swatch_without_visible_hex_value():
+def test_type_colors_show_their_hex_and_status_colors_do_not():
     from settings_callbacks import _build_status_color_rows, _build_type_color_rows
 
     colors = {"Done": "#123456", "Learn": "#abcdef"}
@@ -215,7 +215,11 @@ def test_color_rows_show_swatch_without_visible_hex_value():
     assert DEFAULT_NODE_COLORS[STATUS_BLOCKED] in values
     assert "#6c757d" not in values, (
         "An unset swatch is showing the old generic grey instead of its default")
-    assert "#" not in _text(rows)
+    # The type column has no labels of its own (the shapes column carries the
+    # type names), so the hex fills it and serves exact-colour and contrast
+    # lookups. Status rows are labelled and stay swatch-only.
+    assert "#abcdef" in _text(_build_type_color_rows(["Learn"], colors))
+    assert "#" not in _text(_build_status_color_rows(colors))
 
 
 def test_technical_and_maintenance_controls_are_not_user_facing():

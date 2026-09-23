@@ -877,7 +877,7 @@ The Settings modal collects the personal choices and machine-specific informatio
 | Tab | What lives here |
 |---|---|
 | **Appearance** | Customize node shapes and colors by type, set status colors, and choose how node names and aliases are capitalized. |
-| **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row to reorder it, or drag a subcontext into another context. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
+| **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
 | **Scoring** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and optionally show the startup graph summary on the Home tab. |
 | **Time** | Set your weekly, monthly, and yearly productive hour budgets, plus the time estimates and unit pre-filled for new nodes. |
 | **Paths** | Specify local file system paths for Obsidian vault and Google Drive integrations, allowing the app to resolve your external links correctly. |

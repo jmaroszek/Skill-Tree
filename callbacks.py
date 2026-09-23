@@ -1552,11 +1552,14 @@ def register_callbacks(app, services=None):
         # raw save-button click) so this runs AFTER save_settings has written
         # the new contexts/types to the DB — otherwise we'd race the write and
         # re-read stale config, leaving the context/type dropdowns showing
-        # values the user just deleted. Only the "Settings saved" message means
-        # config was actually persisted with no migration pending; the auto-clear
-        # to "", the "Migration required" message (the modal-close path handles
-        # that), and "Error..." carry no config change to render.
-        if trigger_id == 'settings-save-status' and settings_save_status != 'Settings saved':
+        # values the user just deleted. Only a "Settings saved" message means
+        # config was actually persisted with no migration pending; a context
+        # edit appends what it changed ("Settings saved — 1 rename"), so this
+        # matches the prefix. The auto-clear to "", the "Migration required"
+        # message (the modal-close path handles that), and "Error..." carry no
+        # config change to render.
+        if (trigger_id == 'settings-save-status'
+                and not str(settings_save_status or '').startswith('Settings saved')):
             return _core_engine_noop_tuple()
 
         all_triggered_ids = get_all_triggered_ids()
