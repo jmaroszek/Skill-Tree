@@ -17,10 +17,12 @@ import graph_scoring
 import graph_rules
 from graph_repository import GraphRepository
 from graph_state import GraphCaches, CacheValue, RevisionValue, revisions
-import networkx as nx
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
-from typing import List, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 
 # Fields whose mutation changes a node's priority_score. Anything else
@@ -989,7 +991,7 @@ class GraphManager:
         """
         return graph_queries.get_prerequisite_chains_typed(self, target_name)
 
-    def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> nx.Graph:
+    def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":
         return graph_queries._build_nx_graph(self, allowed_names)
 
     # --- Migration ---

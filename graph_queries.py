@@ -1,9 +1,11 @@
 """Graph traversal and view queries, called through GraphManager."""
-from typing import List, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
 import database
-import networkx as nx
 from config import ConfigManager
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 
 def get_unblocking_steps(manager, target_names, limit: int = 3,
@@ -469,7 +471,10 @@ def get_prerequisite_chains_typed(manager, target_name: str) -> List[tuple]:
     return typed_chains
 
 
-def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None) -> nx.Graph:
+def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":
+    # Imported here: NetworkX is hundreds of modules, and the server should
+    # answer before it has loaded. app.main warms it in the background.
+    import networkx as nx
     G = nx.Graph()
     nodes = manager.get_all_nodes()
     edges = manager.get_edges()
@@ -577,6 +582,7 @@ def detect_communities(manager, method: str = "components", filters: Optional[Di
         manager._cache_communities(cache_key, result)
         return [set(c) for c in result]
 
+    import networkx as nx
     if method == "louvain":
         communities = []
         for component in nx.connected_components(G):

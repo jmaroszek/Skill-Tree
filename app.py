@@ -3,6 +3,7 @@ import logging
 import sys
 import os
 import ctypes
+import importlib
 import uuid
 import webbrowser
 import threading
@@ -254,6 +255,12 @@ def main(argv=None):
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and _existing_instance_running(_port):
         _logger.info("Skill Tree is already running on port %d; exiting duplicate launch.", _port)
         sys.exit(0)
+
+    # The first canvas render detects communities with NetworkX, hundreds of
+    # modules that the server needn't load before it can answer. Loading them
+    # here overlaps the window opening and the page fetching its layout.
+    threading.Thread(target=importlib.import_module, args=("networkx",),
+                     name="warm-networkx", daemon=True).start()
 
     if _no_browser:
         # Server-only mode for the Electron desktop shell: no browser tab.

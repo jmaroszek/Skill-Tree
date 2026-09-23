@@ -74,6 +74,26 @@ assert logging.getLogger().handlers == handlers
     assert result.returncode == 0, result.stderr
 
 
+def test_networkx_loads_only_when_communities_are_detected():
+    """NetworkX is hundreds of modules. The desktop window waits for the
+    server to answer, so the server shouldn't load it first; app.main warms
+    it in the background instead."""
+    script = '''
+import importlib
+import sys
+for name in (
+    'app', 'app_services', 'graph_manager', 'graph_queries', 'callbacks',
+    'details_callbacks', 'analyze_callbacks', 'event_callbacks',
+    'next_callbacks', 'settings_callbacks', 'sidebars_callbacks',
+):
+    importlib.import_module(name)
+assert 'networkx' not in sys.modules
+'''
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True,
+                            text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+
+
 def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
     from canvas_view import build_canvas_view
     from callbacks import generate_elements
