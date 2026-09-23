@@ -314,6 +314,9 @@ share this.
 ### Button sizes
 - `size="sm"` — Toolbar, inline actions
 - (default) — Form actions (Save, Delete, Clear)
+- A form-action row inside a narrow side pane takes `sm` anyway. The Events
+  editor's Actions section is the case: at the default size, three buttons
+  above a dense table read as a slab rather than a row.
 - `size="lg"` + `className="w-100"` — Full-width major actions (Save Settings)
 
 ## Spacing

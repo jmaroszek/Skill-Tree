@@ -430,7 +430,7 @@ def register_event_callbacks(app, services=None):
         Output("event-status-badge", "color", allow_duplicate=True),
         Output("event-status-badge", "style", allow_duplicate=True),
         Output("dormant-nodes-table-container", "children", allow_duplicate=True),
-        Output("event-trigger-section", "style", allow_duplicate=True),
+        Output("event-delete-wrapper", "style", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
         Output("event-trigger-date", "value", allow_duplicate=True),
         Output("event-trigger-type", "value", allow_duplicate=True),
@@ -597,7 +597,7 @@ def register_event_callbacks(app, services=None):
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
-        Output("event-trigger-section", "style", allow_duplicate=True),
+        Output("event-delete-wrapper", "style", allow_duplicate=True),
         Output("event-status-badge", "children", allow_duplicate=True),
         Output("event-status-badge", "color", allow_duplicate=True),
         Output("event-status-badge", "style", allow_duplicate=True),
@@ -715,20 +715,28 @@ def register_event_callbacks(app, services=None):
             return True
         return False
 
-    # The Trigger button was relocated to the Dormant Nodes header, but its
-    # show/hide is still governed by event-trigger-section (hidden for new and
-    # already-triggered events). Mirror that section's style onto the button's
-    # wrapper so the four callbacks driving event-trigger-section need no change.
+    # All three verbs sit in the Actions section now, but they do not share a
+    # visibility rule: Delete and Trigger exist only for a saved, untriggered
+    # event, while Save has to stay live so a new event can be created at all.
+    # Four callbacks drive the Delete wrapper's style and the Trigger wrapper
+    # mirrors it; Save is deliberately in neither wrapper.
+    #
+    # Neither wrapper may carry a Bootstrap display utility (.d-flex and
+    # friends are `!important` and beat an inline style). That is exactly how
+    # the old event-trigger-section lost this argument: it boxed Delete and
+    # Save together in a .d-flex, so the `display: none` these callbacks write
+    # was silently ignored and Delete stayed on screen for new and already-
+    # triggered events.
     @app.callback(
         Output("event-trigger-btn-wrapper", "style"),
-        Input("event-trigger-section", "style"),
+        Input("event-delete-wrapper", "style"),
         prevent_initial_call=True,
     )
     def mirror_trigger_button_visibility(section_style):
         return section_style
 
     # A Triggered event will not fire again, so it stops accepting nodes.
-    # Deliberately not mirrored off `event-trigger-section` the way the Trigger
+    # Deliberately not mirrored off `event-delete-wrapper` the way the Trigger
     # button is: that section is *also* hidden for a new unsaved event, where
     # Add has to stay live so the auto-save-the-event path can run.
     # `selected-event-store` is None for a new event, which tells the two apart.
@@ -766,7 +774,7 @@ def register_event_callbacks(app, services=None):
         Output("events-refresh-trigger", "data", allow_duplicate=True),
         Output("event-status-badge", "children", allow_duplicate=True),
         Output("event-status-badge", "color", allow_duplicate=True),
-        Output("event-trigger-section", "style", allow_duplicate=True),
+        Output("event-delete-wrapper", "style", allow_duplicate=True),
         Output("dormant-nodes-table-container", "children", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
         Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
@@ -1355,7 +1363,7 @@ def register_event_callbacks(app, services=None):
         Output("dormant-nodes-table-container", "children", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
         Output("selected-event-store", "data", allow_duplicate=True),
-        Output("event-trigger-section", "style", allow_duplicate=True),
+        Output("event-delete-wrapper", "style", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
         Output("editing-dormant-node-store", "data", allow_duplicate=True),
         Input("btn-dormant-node-save", "n_clicks"),

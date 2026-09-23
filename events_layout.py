@@ -16,7 +16,8 @@ from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
 from context_picker import build_single_context_picker
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
-from ui_kit import (add_button, done_color, panel_close_button)
+from ui_kit import (add_button, confirm_action, danger_action, done_color,
+                     panel_close_button, primary_action)
 
 
 def build_events_sidebar_content():
@@ -433,45 +434,39 @@ def build_events_tab_content():
                 dbc.Badge(id="event-status-badge", children="Pending", color="primary",
                           style={"display": "none"}),
 
-                # --- Name + event actions ---
-                # Delete/Save act on the whole event, so they sit with the
-                # event's title rather than on a line of their own. The
-                # event-trigger-section wrapper still governs their visibility
-                # (hidden for new + triggered events) and feeds the mirror
-                # callback that shows/hides the relocated Trigger button.
+                # --- Name + close ---
+                # The row is a title, not a control strip. Every verb now
+                # lives in the Actions section below, so the only thing left
+                # up here is the dismiss -- the same panel_close_button, in
+                # the same corner, that the Events sidebar header one column
+                # to the left already uses.
                 html.Div([
                     dbc.Input(id="event-name", type="text", placeholder="Name event...",
                               className="flex-grow-1",
                               style={"fontSize": tokens.FS_2XL, "fontWeight": "300", "backgroundColor": "transparent",
                                      "border": "none", "color": tokens.TEXT_PRIMARY,
                                      "borderRadius": "0", "paddingLeft": "0"}),
-                    html.Div([
-                        dbc.Button("Close", id="btn-event-close", color="secondary", size="sm",
-                                   className="me-2"),
-                        dbc.Tooltip("Close this event without changing it", target="btn-event-close", placement="bottom",
-                                    delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                        html.Div(id="event-trigger-section", className="d-flex align-items-center", children=[
-                            dbc.Button("Delete", id="btn-event-delete", color="danger", size="sm",
-                                       className="me-2"),
-                            dbc.Tooltip("Delete this event and its dormant nodes", target="btn-event-delete", placement="bottom",
-                                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                            dbc.Button("Save", id="btn-event-save", color="primary", size="sm"),
-                            dbc.Tooltip("Save changes to this event", target="btn-event-save", placement="bottom",
-                                        delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
-                        ]),
-                    ], className="d-flex align-items-center ms-3"),
-                ], className="d-flex align-items-center mt-3 mb-1",
+                    panel_close_button("btn-event-close",
+                                       "Close this event without changing it",
+                                       placement="bottom",
+                                       className_extra="ms-2"),
+                ], className="d-flex align-items-center mt-3 mb-0",
                    style={"borderBottom": f"1px solid {tokens.BORDER_PANEL}"}),
 
-                html.Div(id="event-save-status", className="text-success mb-2",
-                         style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
-
                 # --- Description ---
-                dbc.Label("Description", className="mb-1"),
+                dbc.Label("Description", className="mt-3 mb-1"),
                 dbc.Textarea(id="event-description", rows=3,
                              style={"height": "90px", "resize": "vertical"}),
 
                 # --- Trigger Type ---
+                # Section rhythm: every label in this pane carries mt-3 and
+                # owns the whole gap above it, and nothing above a label
+                # carries a bottom margin. The three sections used to sit 4px,
+                # 16px and 24px apart, because a trailing mb-2 inside the
+                # trigger sub-sections stacked on the next label's mt-3
+                # instead of collapsing into it. Spacing between a control and
+                # the one it depends on therefore hangs off the dependent
+                # element's top, never the parent's bottom.
                 dbc.Label("Trigger Type", className="mt-3 mb-1"),
                 dbc.RadioItems(
                     id="event-trigger-type",
@@ -482,7 +477,7 @@ def build_events_tab_content():
                     ],
                     value="manual",
                     inline=True,
-                    className="mb-2",
+                    className="mb-0",
                     # Options should sit below their section label, not match
                     # it. Both were at the browser default, which made the
                     # three choices read louder than the question.
@@ -497,7 +492,7 @@ def build_events_tab_content():
                         html.Small("Auto-triggers on or after this date.",
                                    className="text-muted ms-2 align-self-center",
                                    style={"fontSize": tokens.FS_CAP}),
-                    ], className="d-flex align-items-center mb-2"),
+                    ], className="d-flex align-items-center mt-2"),
                 ]),
 
                 # Node completion trigger section
@@ -508,7 +503,7 @@ def build_events_tab_content():
                             placeholder="Select one or more nodes...",
                             multi=True,
                         ),
-                        className="text-dark mb-2",
+                        className="text-dark mt-2",
                         style={"maxWidth": "350px"},
                     ),
                     # Sub-choice of the Node Completion trigger, so it takes the
@@ -522,35 +517,80 @@ def build_events_tab_content():
                         ],
                         value="any",
                         inline=True,
-                        className="mb-1",
+                        className="mt-2",
                         style={"fontSize": tokens.FS_BASE},
                     ),
                     html.Small(id="event-trigger-mode-hint",
-                               className="text-muted d-block mb-2",
+                               className="text-muted d-block mt-1",
                                style={"fontSize": tokens.FS_CAP}),
                 ]),
+
+                # --- Actions ---
+                # One labelled section holding every verb the event has, in
+                # the same shape as the Trigger Type section above it: a
+                # dbc.Label, then its controls on the line beneath, left
+                # aligned. The buttons used to be scattered -- Delete and Save
+                # crowding the title, Trigger down beside the dormant table --
+                # which meant no single place answered "what can I do here?".
+                #
+                # Trigger gives up its adjacency to the roster it fires. The
+                # confirm modal already previews exactly which nodes will
+                # wake, so the table is not the only preview of the action.
+                #
+                # Order is the node editor's: danger, then the plain commit,
+                # then the commit that also finishes. They take size="sm"
+                # rather than the style guide's default form-action size --
+                # the pane is narrow and sits beside a dense table, where
+                # full-size buttons read as a slab.
+                #
+                # Neither wrapper may carry a Bootstrap display utility --
+                # .d-flex and friends are `!important` and beat the inline
+                # `display: none` the callbacks write, which is how Delete
+                # stayed on screen for new and triggered events for as long as
+                # it shared a .d-flex box with Save.
+                dbc.Label("Actions", className="mt-3 mb-1"),
+                html.Div([
+                    html.Div(
+                        danger_action("Delete", "btn-event-delete", size="sm"),
+                        id="event-delete-wrapper", className="me-2",
+                    ),
+                    primary_action("Save", "btn-event-save", size="sm",
+                                   className="me-2"),
+                    html.Div(
+                        confirm_action("Trigger", "btn-trigger-event", size="sm",
+                                       style={"backgroundColor": _done_color,
+                                              "borderColor": _done_color}),
+                        id="event-trigger-btn-wrapper",
+                    ),
+                    # The save confirmation rides beside the button that
+                    # causes it rather than under the title, a panel's height
+                    # away, where it used to appear.
+                    html.Div(id="event-save-status", className="text-success ms-3",
+                             style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
+                ], className="d-flex align-items-center mb-2"),
+                dbc.Tooltip("Delete this event and its dormant nodes", target="btn-event-delete",
+                            placement="bottom",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                dbc.Tooltip("Save changes to this event", target="btn-event-save",
+                            placement="bottom",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
+                dbc.Tooltip("Trigger this event and activate its dormant nodes",
+                            target="btn-trigger-event", placement="bottom",
+                            delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
 
                 html.Hr(className="my-3"),
 
                 # Dormant Nodes Section
+                # Heading plus its adder, nothing else: Trigger moved up to
+                # the Actions section, so this row is now purely the label for
+                # the table under it.
                 html.Div([
-                    html.Div([
-                        html.H5("Dormant Nodes", className="mb-0"),
-                        html.Div(
-                            add_button("btn-add-dormant-node",
-                                       "Add a dormant node to this event"),
-                            id="dormant-add-btn-wrapper",
-                        ),
-                    ], className="d-flex align-items-center"),
-                    # Trigger acts on the dormant nodes — placed here, not with
-                    # Save/Delete. Visibility mirrors event-trigger-section.
+                    html.H5("Dormant Nodes", className="mb-0"),
                     html.Div(
-                        dbc.Button("Trigger", id="btn-trigger-event", color="success", size="sm",
-                                   style={"backgroundColor": _done_color, "borderColor": _done_color}),
-                        id="event-trigger-btn-wrapper", className="ms-auto",
+                        add_button("btn-add-dormant-node",
+                                   "Add a dormant node to this event"),
+                        id="dormant-add-btn-wrapper",
                     ),
-                    dbc.Tooltip("Trigger this event and activate selected dormant nodes", target="btn-trigger-event", placement="left",
-                                delay={"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}),
                 ], className="d-flex align-items-center mb-3"),
 
                 html.Div(id="dormant-nodes-table-container"),
@@ -585,8 +625,13 @@ def build_events_tab_content():
                     dbc.ModalHeader(dbc.ModalTitle(id="move-dormant-title")),
                     dbc.ModalBody([
                         dbc.Label("Move to", className="mb-1"),
+                        # No preselected event: moving a node is a choice, not
+                        # a default. The placeholder is what the empty control
+                        # says while that is true -- dropdowns.css already has
+                        # the placeholder gray for exactly this shape.
                         dbc.Select(id="move-dormant-target-event", options=[],
-                                   value=None),
+                                   value=None,
+                                   placeholder="Select an event..."),
                         html.Div(id="move-dormant-note",
                                  className="text-muted mt-2",
                                  style={"fontSize": tokens.FS_CAP}),

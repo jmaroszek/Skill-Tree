@@ -172,6 +172,21 @@ select::picker(select) {
         align-items: center;
     }
 
+    /* A select with nothing selected has no <selectedcontent> to give the flex
+       trigger height, so it collapses to its padding -- a skinny sliver about
+       a third of a control tall. DARKLY never hit this, because a block-flow
+       select is sized by line-height whether or not it has content. Same
+       floor, and the same reason, as .dash-dropdown above.
+
+       Not applied to .form-select-sm, whose natural height is lower: this
+       floor would inflate the four sm selects in the bulk-context dialog. All
+       of them ship with a value and so cannot collapse. If an sm select ever
+       does need a floor, give tokens.css an sm control height rather than
+       writing the metric here. */
+    select.form-select:not(.form-select-sm) {
+        min-height: var(--st-control-height);
+    }
+
     select.form-select::picker-icon {
         display: none;
     }
