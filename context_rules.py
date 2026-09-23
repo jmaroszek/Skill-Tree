@@ -11,7 +11,7 @@ meant instead of leaving the save path to guess:
 
 Subcontexts are identified by the ``(context, subcontext)`` pair, so each one
 also remembers the context it was loaded under (``orig_ctx``). That is what
-lets a chip move between contexts as a move rather than a delete plus an add.
+keeps a chip's identity when its parent context is renamed.
 
 Row shape::
 
@@ -22,9 +22,9 @@ Row shape::
 
 DEFAULT_CONTEXT_WEIGHT = 1.0
 
-# Both characters are structural in the "Name: sub, sub" grammar the text view
-# round-trips through, and neither has ever survived a save. Rejecting them
-# states a restriction that was previously silent.
+# Both characters were structural in the old "Name: sub, sub" text grammar, so
+# no saved name contains them. They stay rejected rather than opening a new
+# class of name nothing downstream has seen.
 _FORBIDDEN_IN_CONTEXT = (":", ",")
 _FORBIDDEN_IN_SUBCONTEXT = (",",)
 
@@ -307,160 +307,15 @@ def describe_plan(plan, ctx_counts=None, pair_counts=None):
     return " · ".join(parts) + tail
 
 
-# --- Text view ---------------------------------------------------------------
-
-def parse_context_text(text):
-    """Parse the "Name: sub, sub" grammar into ``(contexts, subcontexts)``.
-
-    Kept for the text view, which stays as the fast path for bulk edits.
-    Repeated context lines merge their subcontexts, as they always have.
-    """
-    contexts = []
-    subcontexts = {}
-    for line in (text or "").split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        if ":" in line:
-            ctx_name, subs_str = line.split(":", 1)
-            ctx_name = ctx_name.strip()
-            subs = [s.strip() for s in subs_str.split(",") if s.strip()]
-        else:
-            ctx_name, subs = line, []
-        if not ctx_name:
-            continue
-        if ctx_name not in contexts:
-            contexts.append(ctx_name)
-        for sub in subs:
-            bucket = subcontexts.setdefault(ctx_name, [])
-            if sub not in bucket:
-                bucket.append(sub)
-    return contexts, subcontexts
-
-
-def format_context_text(contexts, subcontexts):
-    """Render the taxonomy back into the text grammar."""
-    subcontexts = subcontexts or {}
-    lines = []
-    for ctx in contexts or []:
-        subs = subcontexts.get(ctx, [])
-        lines.append(f"{ctx}: {', '.join(subs)}" if subs else ctx)
-    for ctx, subs in subcontexts.items():
-        if ctx not in (contexts or []):
-            lines.append(f"{ctx}: {', '.join(subs)}")
-    return "\n".join(lines)
-
-
-def rows_to_text(rows):
-    """Render the current rows into the text grammar."""
-    contexts, subcontexts, _ = rows_to_taxonomy(normalize_rows(rows))
-    return format_context_text(contexts, subcontexts)
-
-
-def reconcile_rows_with_text(text, rows):
-    """Fold a text edit back into rows, keeping identity where it can be traced.
-
-    Lines are matched to existing rows by name first, then by position among
-    what is left over. Position is what recovers a rename: editing "Humanities"
-    to "Arts" on line six leaves an unmatched line six and an unclaimed row
-    six, so the row keeps its origin and the save reads it as a rename. A line
-    with no counterpart is a new context; a row no line claims is a deletion.
-    """
-    rows = normalize_rows(rows)
-    contexts, subcontexts = parse_context_text(text)
-
-    by_name = {}
-    for i, row in enumerate(rows):
-        by_name.setdefault((row.get("name") or "").casefold(), []).append(i)
-
-    taken = set()
-    matched = {}
-    for pos, ctx in enumerate(contexts):
-        bucket = by_name.get(ctx.casefold(), [])
-        for i in bucket:
-            if i not in taken:
-                taken.add(i)
-                matched[pos] = i
-                break
-
-    # Positional fallback: pair the nth unmatched line with the nth unclaimed
-    # row, so an in-place rename keeps that row's origin.
-    spare = [i for i in range(len(rows)) if i not in taken]
-    for pos in range(len(contexts)):
-        if pos not in matched and spare:
-            matched[pos] = spare.pop(0)
-
-    out = []
-    for pos, ctx in enumerate(contexts):
-        source = rows[matched[pos]] if pos in matched else None
-        subs = _reconcile_subs(subcontexts.get(ctx, []), source, ctx)
-        out.append({
-            "rid": source["rid"] if source else f"t{pos}",
-            "orig": source.get("orig") if source else None,
-            "name": ctx,
-            "weight": source.get("weight", DEFAULT_CONTEXT_WEIGHT) if source
-                      else DEFAULT_CONTEXT_WEIGHT,
-            "subs": subs,
-        })
-    return _dedupe_ids(out)
-
-
-def _reconcile_subs(names, source, ctx):
-    """Match parsed subcontext names back to a row's chips, by name then position."""
-    existing = list((source or {}).get("subs", []))
-    by_name = {}
-    for i, sub in enumerate(existing):
-        by_name.setdefault((sub.get("name") or "").casefold(), []).append(i)
-
-    taken = set()
-    matched = {}
-    for pos, name in enumerate(names):
-        for i in by_name.get(name.casefold(), []):
-            if i not in taken:
-                taken.add(i)
-                matched[pos] = i
-                break
-
-    spare = [i for i in range(len(existing)) if i not in taken]
-    for pos in range(len(names)):
-        if pos in matched or not spare:
-            continue
-        matched[pos] = spare.pop(0)
-
-    subs = []
-    for pos, name in enumerate(names):
-        src = existing[matched[pos]] if pos in matched else None
-        subs.append({
-            "sid": src["sid"] if src else f"t{ctx}{pos}",
-            "orig": src.get("orig") if src else None,
-            "orig_ctx": src.get("orig_ctx") if src else None,
-            "name": name,
-        })
-    return subs
-
-
-def _dedupe_ids(rows):
-    """Guarantee unique rids/sids after a reconcile stitched rows together."""
-    seen_rid, seen_sid, n = set(), set(), 0
-    for row in rows:
-        while row["rid"] in seen_rid:
-            n += 1
-            row["rid"] = f"d{n}"
-        seen_rid.add(row["rid"])
-        for sub in row["subs"]:
-            while sub["sid"] in seen_sid:
-                n += 1
-                sub["sid"] = f"e{n}"
-            seen_sid.add(sub["sid"])
-    return rows
-
-
 def apply_drag_order(rows, order):
-    """Reorder rows and move chips between them from the DOM order JS reports.
+    """Reorder rows, and chips within their row, from the DOM order JS reports.
 
-    ``order`` is ``{"rows": [rid, ...], "subs": {rid: [sid, ...]}}``. Anything
-    the payload does not mention keeps its current place, so a stale payload
-    degrades to a no-op rather than dropping a row.
+    ``order`` is ``{"rows": [rid, ...], "subs": {rid: [sid, ...]}}``. A chip
+    only ever reorders inside its own row: moving a subcontext to another
+    context is not an edit this screen offers, so a sid reported under a
+    different row is ignored. Anything the payload does not mention keeps its
+    current place, so a stale payload degrades to a no-op rather than dropping
+    a row or chip.
     """
     if not isinstance(order, dict):
         return rows
@@ -472,22 +327,14 @@ def apply_drag_order(rows, order):
     ordered += [row for row in rows if row["rid"] not in set(wanted)]
 
     sub_order = order.get("subs") or {}
-    if not sub_order:
-        return ordered
-
-    pool = {s["sid"]: s for row in ordered for s in row.get("subs", [])}
-    home = {s["sid"]: row["rid"] for row in ordered for s in row.get("subs", [])}
-    placed, assigned = set(), {}
+    out = []
     for row in ordered:
-        wanted_subs = [s for s in sub_order.get(row["rid"], [])
-                       if s in pool and s not in placed]
-        assigned[row["rid"]] = [pool[s] for s in wanted_subs]
-        placed.update(wanted_subs)
-    # A chip the payload never named stays where it was, so a partial or stale
-    # payload cannot silently delete one.
-    for sid, sub in pool.items():
-        if sid not in placed:
-            assigned.setdefault(home[sid], []).append(sub)
-    for row in ordered:
-        row["subs"] = assigned.get(row["rid"], [])
-    return ordered
+        subs = list(row.get("subs", []))
+        by_sid = {s["sid"]: s for s in subs}
+        named = []
+        for sid in sub_order.get(row["rid"], []):
+            if sid in by_sid and sid not in named:
+                named.append(sid)
+        rest = [s for s in subs if s["sid"] not in set(named)]
+        out.append({**row, "subs": [by_sid[sid] for sid in named] + rest})
+    return out

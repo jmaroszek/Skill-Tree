@@ -278,7 +278,9 @@ def register_context_picker_callbacks(app: Any) -> None:
     )
     def refresh_context_taxonomy(settings_status: Any, migration_open: bool) -> Any:
         trigger_id = ctx.triggered_id
-        if trigger_id == "settings-save-status" and settings_status != "Settings saved":
+        # A context edit appends what it changed ("Settings saved — 1 rename").
+        if (trigger_id == "settings-save-status"
+                and not str(settings_status or "").startswith("Settings saved")):
             return no_update
         if trigger_id == "modal-migration" and migration_open:
             return no_update

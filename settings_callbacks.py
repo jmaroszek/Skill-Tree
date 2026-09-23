@@ -5,7 +5,7 @@ Callback definitions for the Settings tab.
 import json
 import logging
 import dash
-from dash import html, Input, Output, State, ALL, ctx
+from dash import html, Input, Output, State, ALL, MATCH, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
 from config import (
@@ -26,6 +26,7 @@ from typing import Tuple, Any
 from callback_helpers import (
     get_trigger_id, build_context_editor_rows, sync_time_fields)
 import context_rules
+import style_tokens as tokens
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,13 @@ def _build_type_color_rows(display_types, colors):
                 type="color",
                 value=color_val,
                 style={"height": "38px", "width": "52px", "padding": "2px"},
+            ),
+            # The hex is for matching exact colours or checking contrast.
+            html.Small(
+                color_val,
+                id={"type": "setting-color-hex", "index": t},
+                className="text-muted",
+                style={"fontSize": tokens.FS_CAP, "fontVariantNumeric": "tabular-nums"},
             ),
         ], className="d-flex align-items-center gap-2 mb-2"))
     return rows
@@ -233,19 +241,12 @@ def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals:
 def register_settings_callbacks(app, services=None):
     manager = services.graph if services is not None else globals()['manager']
 
-    # --- Settings: Auto-resize the Definitions textarea to fit its line count ---
-    # Bounds [3, 10] rows. Fires on every keystroke; runs in the browser so
-    # no server round-trip. Mirrors the manual-resize disable in the layout's
-    # textarea style.
+    # --- Settings: Keep each type colour's hex in step with its picker ---
     app.clientside_callback(
-        """
-        function(value) {
-            var n = (value || '').split('\\n').length;
-            return Math.max(3, Math.min(10, n));
-        }
-        """,
-        Output('setting-subcontexts', 'rows'),
-        Input('setting-subcontexts', 'value'),
+        "function(value) { return value || window.dash_clientside.no_update; }",
+        Output({"type": "setting-color-hex", "index": MATCH}, "children"),
+        Input({"type": "setting-color", "index": MATCH}, "value"),
+        prevent_initial_call=True,
     )
 
     # --- Contexts editor -----------------------------------------------
@@ -333,13 +334,11 @@ def register_settings_callbacks(app, services=None):
         Input({"type": "ctx-sub-add", "index": ALL}, "n_clicks"),
         Input({"type": "ctx-sub-remove", "index": ALL}, "n_clicks"),
         Input('ctx-editor-drag-input', 'value'),
-        Input('btn-ctx-text-apply', 'n_clicks'),
-        State('setting-subcontexts', 'value'),
         *_CTX_EDIT_STATES,
         prevent_initial_call=True,
     )
     def edit_context_rows(_add, _del, _undel, _sub_add, _sub_del, drag_value,
-                          _text_apply, text_value, state,
+                          state,
                           name_vals, name_ids, weight_vals, weight_ids,
                           sub_vals, sub_ids):
         """Apply one structural edit to the rows and hand back a fresh store.
@@ -369,11 +368,6 @@ def register_settings_callbacks(app, services=None):
             except (ValueError, TypeError):
                 return dash.no_update
 
-        elif trigger == 'btn-ctx-text-apply':
-            if not _clicked(fired):
-                return dash.no_update
-            rows = context_rules.reconcile_rows_with_text(text_value, rows)
-
         elif isinstance(trigger, dict):
             if not _clicked(fired):
                 return dash.no_update
@@ -397,25 +391,6 @@ def register_settings_callbacks(app, services=None):
             return dash.no_update
 
         return {**(state or {}), 'rows': rows}
-
-    # --- Contexts editor: the text view ---------------------------------
-    @app.callback(
-        Output('ctx-text-view', 'is_open'),
-        Output('setting-subcontexts', 'value', allow_duplicate=True),
-        Input('btn-ctx-text-toggle', 'n_clicks'),
-        State('ctx-text-view', 'is_open'),
-        *_CTX_EDIT_STATES,
-        prevent_initial_call=True,
-    )
-    def toggle_ctx_text_view(_n, is_open, state,
-                             name_vals, name_ids, weight_vals, weight_ids,
-                             sub_vals, sub_ids):
-        """Open the text view on the rows as they stand, not on the last save."""
-        if is_open:
-            return False, dash.no_update
-        return True, context_rules.rows_to_text(_live_rows(
-            state, name_vals, name_ids, weight_vals, weight_ids,
-            sub_vals, sub_ids))
 
     # --- Settings: Open the Settings modal from the toolbar gear button ---
     @app.callback(
@@ -448,7 +423,6 @@ def register_settings_callbacks(app, services=None):
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
         Output('context-editor-store', 'data'),
-        Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
         Output('setting-obsidian-path', 'value'),
         Output('setting-gdrive-path', 'value'),
@@ -475,19 +449,14 @@ def register_settings_callbacks(app, services=None):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 23
+            return (dash.no_update,) * 22
 
         editor_state = _editor_state(manager)
-        contexts = editor_state['old']['contexts']
-        subcontexts = editor_state['old']['subcontexts']
         obs_path = ConfigManager.get_obsidian_vault()
         gdrive_path = ConfigManager.get_gdrive_path()
         profile = ConfigManager.get_hp_profile()
         if profile not in PROFILES:
             profile = "Sage"
-
-        # Seeds the collapsed text view; the rows above it are the real editor.
-        sub_val = context_rules.format_context_text(contexts, subcontexts)
 
         shapes = ConfigManager.get_node_shapes()
         display_types = _display_types()
@@ -521,7 +490,6 @@ def register_settings_callbacks(app, services=None):
 
         return (
             editor_state,
-            sub_val,
             profile,
             obs_path,
             gdrive_path,
