@@ -14,8 +14,8 @@ layout. The callback is registered with prevent_initial_call=True, so the
 browser never repeats it. Later input changes run it as before.
 
 Only callbacks whose inputs are all in the initial layout qualify, with no
-pattern-matching ids. A dcc.Store whose data starts as None doesn't qualify
-either: it reports a change when it mounts, which runs the callback anyway.
+pattern-matching ids. A Store input is fine, even one whose data starts as
+None: assets/store_mount.js keeps a mounting Store from reporting a change.
 """
 import json
 from contextvars import copy_context

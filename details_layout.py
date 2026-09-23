@@ -534,7 +534,8 @@ def build_details_tab_content():
             html.Div(_build_toggles(), id="details-subtask-toggles-bottom"),
         ], className="d-flex align-items-center justify-content-between",
            style={"marginBottom": tokens.SPACE_BLOCK}),
-        html.Div(id="details-subtasks-table-container",
+        html.Div(build_no_selection_subtasks(),
+                 id="details-subtasks-table-container",
                  style={"overflowY": "visible", "flex": "none"}),
     ], id="details-subtasks-section",
        style={"flex": "1", "minWidth": "300px", "display": "flex",
@@ -1254,6 +1255,12 @@ def _build_add_node_modal(ted):
         ]),
     ], id="modal-details-add-node", size="lg", is_open=False, centered=True,
        scrollable=True)
+
+
+def build_no_selection_subtasks():
+    """What the subtasks table shows before any node is selected."""
+    return html.Div("Select a node to see subtasks.",
+                    className="text-muted text-center py-3")
 
 
 def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,

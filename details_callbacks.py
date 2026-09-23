@@ -15,6 +15,7 @@ from config import (ConfigManager, SUPPORTED_NODE_TYPES, badge_style,
                     sort_subcontexts, sort_contexts)
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table,
+                             build_no_selection_subtasks,
                              _build_suggestion_row, build_details_suggestions,
                              build_milestone_tile)
 from simulation import SimulationCancelled
@@ -503,9 +504,7 @@ def register_details_callbacks(app, services=None):
                                 f_difficulty, f_node_types, f_show_dormant,
                                 hide_blocked_val, freeze_on):
         if not selected_node:
-            return html.Div(
-                "Select a node to see subtasks.",
-                className="text-muted text-center py-3")
+            return build_no_selection_subtasks()
 
         trigger = get_trigger_id()
         if trigger == "details-selected-node-store" and not freeze_on:

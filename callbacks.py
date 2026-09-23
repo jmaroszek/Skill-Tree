@@ -875,8 +875,10 @@ def register_callbacks(app, services=None):
          Output('section-time-estimates', 'style'),
          Output('section-priority-rank', 'style'),
          Output('section-time-habit-toggle', 'style')],
-        Input('node-type', 'value')
+        Input('node-type', 'value'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_type_fields(node_type):
         show = {}
         hide = {'display': 'none'}
@@ -986,7 +988,9 @@ def register_callbacks(app, services=None):
         Input('node-habit-intensity-m', 'value'),
         Input('node-habit-intensity-unit', 'value'),
         Input('node-habit-days', 'value'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_habit_total_preview(duration, dur_unit, intensity_m, int_unit, days):
         return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
 
@@ -2552,8 +2556,10 @@ def register_callbacks(app, services=None):
 
     @app.callback(
         Output('node-subcontext', 'options'),
-        Input('node-context', 'value')
+        Input('node-context', 'value'),
+        prevent_initial_call=True,
     )
+    @prerendered
     def update_node_subcontexts(ctx):
         base = [{"label": "None", "value": ""}]
         if not ctx:
@@ -3144,7 +3150,9 @@ def register_callbacks(app, services=None):
         Output("node-now", "value"),
         Input("node-original-name", "data"),
         Input("node-now-trigger-input", "value"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def populate_node_now_state(node_name, _trigger):
         if not node_name:
             return []

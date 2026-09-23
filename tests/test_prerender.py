@@ -145,19 +145,15 @@ def _served_props(layout):
     return found
 
 
-def test_prerendered_inputs_are_on_the_page_and_do_not_fire_on_mount(real_app):
-    """A dcc.Store whose data starts as None reports a change when it
-    mounts, which would run the callback in the browser anyway."""
+def test_prerendered_inputs_are_on_the_page(real_app):
+    """Dash doesn't run a callback on load when an input is missing, and
+    neither does the prerender."""
     props = _served_props(_served_layout(real_app))
     specs = prerendered_specs(real_app)
     assert specs
     for spec in specs:
-        for component_id, prop in spec.inputs:
+        for component_id, _prop in spec.inputs:
             assert component_id in props, (spec.name, component_id)
-            component_type, component_props = props[component_id]
-            if component_type == 'Store':
-                assert component_props.get('data') is not None, (
-                    spec.name, component_id)
 
 
 def test_the_editor_form_is_ready_without_a_load_time_callback(real_app):

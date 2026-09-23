@@ -214,6 +214,8 @@ def register_sidebars_callbacks(app, services=None):
         Input("goals-prewarm-store", "data"),
         State("details-selected-node-store", "data"),
         State("details-goal-sidebar", "style"),
+        # The sidebar starts closed, so a page-load call has nothing to do.
+        prevent_initial_call=True,
     )
     def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val, sort_mode, manual_order, _prewarm, selected_node, goal_sidebar_style):
         if not left_sidebar_is_open(goal_sidebar_style):

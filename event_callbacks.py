@@ -218,7 +218,9 @@ def register_event_callbacks(app, services=None):
         Input("events-show-triggered-store", "data"),
         Input("events-sort-mode", "data"),
         State("selected-event-store", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def render_events_list(refresh_trigger, ui_refresh, _arrived, event_order, search_text, show_triggered, sort_mode, selected_event):
         events = event_manager.get_all_events()
         if not events:
@@ -357,7 +359,9 @@ def register_event_callbacks(app, services=None):
         Output("events-search-datalist", "children"),
         Input("events-refresh-trigger", "data"),
         Input("events-active-store", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def populate_events_search_datalist(refresh_trigger, _arrived):
         from dash import html as _html
         events = event_manager.get_all_events()
@@ -385,7 +389,9 @@ def register_event_callbacks(app, services=None):
         Output("event-trigger-node", "options"),
         Input("events-refresh-trigger", "data"),
         Input("events-active-store", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def populate_trigger_node_dropdown(_refresh, _arrived):
         nodes = graph_manager.get_all_nodes()
         return [{"label": n.name, "value": n.name} for n in sorted(nodes, key=lambda n: n.name)]
@@ -753,7 +759,9 @@ def register_event_callbacks(app, services=None):
         Output("dormant-add-btn-wrapper", "style"),
         Input("selected-event-store", "data"),
         Input("events-refresh-trigger", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_add_dormant_button(selected_event, _refresh):
         if not selected_event:
             return {}
@@ -1138,7 +1146,9 @@ def register_event_callbacks(app, services=None):
         Output("dormant-event-target-wrapper", "style"),
         Input("dormant-node-mode", "value"),
         Input("selected-event-store", "data"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def toggle_dormant_event_target_wrapper(mode, selected_event):
         if mode == "existing" and not selected_event:
             return {"display": "block"}
@@ -1274,7 +1284,9 @@ def register_event_callbacks(app, services=None):
         Input("events-refresh-trigger", "data"),
         Input("modal-dormant-node", "is_open"),
         Input("modal-dormant-deactivate-confirm", "is_open"),
+        prevent_initial_call=True,
     )
+    @prerendered
     def populate_node_dormant_state(node_name, _refresh, dormant_modal_open,
                                     deactivate_modal_open):
         # Only sync after a modal closes — opening shouldn't reset the user's
