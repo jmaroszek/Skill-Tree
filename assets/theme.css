@@ -888,8 +888,10 @@
 }
 
 /* Dormant-node actions are secondary to scanning the event's queued work.
-   On a precise pointer, reveal the row under attention's actions. They remain
-   in the tab order, and their own focus exposes them for keyboard users.
+   On a precise pointer, reveal the row under attention's actions. A mouse
+   click that opened and then closed the editor restores ordinary focus to its
+   pencil; :focus-visible limits the keyboard exception to actual keyboard
+   navigation, so that restored mouse focus does not leave the row revealed.
    Coarse/non-hover pointers retain visible controls. */
 .dormant-nodes-table .dormant-node-actions {
     opacity: 0;
@@ -898,7 +900,7 @@
 }
 
 .dormant-nodes-table .dormant-node-row:hover .dormant-node-actions,
-.dormant-nodes-table .dormant-node-actions:focus-within {
+.dormant-nodes-table .dormant-node-actions:has(.dormant-node-action-btn:focus-visible) {
     opacity: 1;
     pointer-events: auto;
 }

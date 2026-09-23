@@ -256,7 +256,7 @@ def test_dormant_node_actions_are_visible_on_intent_and_for_touch():
 
     assert "opacity: 0;" in _css_rule(css, ".dormant-nodes-table .dormant-node-actions")
     assert ".dormant-node-row:hover .dormant-node-actions," in css
-    assert ".dormant-node-actions:focus-within" in css
+    assert ".dormant-node-actions:has(.dormant-node-action-btn:focus-visible)" in css
     assert ".dormant-node-row:focus-within .dormant-node-actions" not in css
     assert "@media (hover: none), (pointer: coarse)" in css
 
