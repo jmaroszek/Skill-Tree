@@ -64,3 +64,31 @@ Sandbox checks covered rapid row changes, Now selection and navigation to the
 populated Nodes canvas. Regression tests cover initial saved filters, selection
 refresh/removal, and the absence of server selection subscribers. These are
 functional and callback-dependency checks; no end-to-end latency number is claimed.
+
+## Startup
+
+Measured on 2026-09-23 in headless Chrome over the Chrome DevTools Protocol,
+with a warm cache. The server ran the way the desktop window runs it: no
+debug mode, no dev bundles. Each figure is the median of five or six loads of
+a copy of the 774-node sandbox. "Ready" is when the startup cover lifted, the
+`skill-tree-ready` performance mark.
+
+| | Before | After |
+|---|---:|---:|
+| Cover lifts | 4.7 s | 2.7 s |
+| Startup callback requests | 82 | 15 |
+| Redux store updates before the lift | ~1,600 | ~700 |
+| Main-thread work before the lift | ~5.2 s | ~2.7 s |
+| Home row selection right after the lift | 35–40 ms | 35–40 ms |
+| Server boot, warm (`create_app`) | 0.85 s | 0.71 s |
+
+A devtools trace showed the main thread busy without a break from 0.5 s until
+the lift, so the server's timing hardly mattered. The before profile split
+roughly as: dash-renderer's store updates 2.1 s, Cytoscape ingest and fCoSE
+1.0 s, Analyze's Plotly charts 0.6 s. The store updates scale with mounted
+components times updates, which is why removing startup callbacks paid off
+more than their server time suggests. [app_architecture.md](app_architecture.md)
+lists the changes under Startup readiness.
+
+Analyze now renders on its first visit. With the hover head start, its charts
+appeared about 0.8 s after the click.

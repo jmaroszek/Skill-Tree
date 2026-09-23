@@ -360,7 +360,7 @@ Content that draws into a fixed-size surface does not follow a glide on its own.
 
 A panel that loads on first view shows the shared loading cover: `dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE)` over a `canvas-cover-label` caption, inside a `loading-cover` div. Analyze and the Goals sidebar use it.
 
-Analyze is prewarmed while its tab is hidden. On every reveal, `assets/analyze_first_paint.js` hides only the `.dash-graph` drawings. It resizes their Plotly roots against the visible columns, then reveals them on the next frame. Keep Analyze graphs responsive, and give their wrappers an explicit figure height. That lets the sizing gate hold the finished page layout without exposing Plotly's hidden-tab fallback width.
+Analyze renders on its first visit, starting while its tab is still hidden when the pointer or focus reaches it. On every reveal, `assets/analyze_first_paint.js` hides only the `.dash-graph` drawings. It resizes their Plotly roots against the visible columns, then reveals them on the next frame. Keep Analyze graphs responsive, and give their wrappers an explicit figure height. That lets the sizing gate hold the finished page layout without exposing Plotly's hidden-tab fallback width.
 
 ## Borders & Dividers
 
@@ -813,4 +813,6 @@ Its lift condition is in the Startup readiness section of
 [`docs/app_architecture.md`](docs/app_architecture.md). If new startup work
 runs, the cover waits for it. Keep work that nobody sees at launch out of the
 load path: skip a render the layout already carries, and give a hidden surface
-its own arrival signal.
+its own arrival signal. When a callback's page-load answer depends only on the
+layout, mark it `@prerendered` so the server builds that answer into the
+layout instead of the browser asking for it.
