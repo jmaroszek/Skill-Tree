@@ -225,9 +225,10 @@ def build_migration_content(orphans_by_field, new_values_by_field,
     also has a "Bulk apply" row for the common case where all nodes in a
     group should go to the same target.
 
-    `rename_map` (from `detect_context_renames`) pre-fills per-node defaults
-    to (new_ctx, original_subcontext) when a 1:1 context rename preserves
-    subcontexts — making "rename Social → People" a one-click apply.
+    `rename_map` pre-fills per-node defaults to (new_ctx, original_subcontext)
+    for a known rename. The Contexts editor carries renames onto the nodes
+    before this dialog opens, so from Settings it is empty and only genuine
+    removals arrive here.
 
     Args:
         orphans_by_field: {'context': {'OldCtx': [n_obj, ...]}, 'type': {...}, 'subcontext': {...}}

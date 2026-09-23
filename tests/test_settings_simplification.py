@@ -40,7 +40,8 @@ def test_settings_keep_profiles_context_priorities_and_startup_summary():
     assert [option["value"] for option in options] == [
         "Sage", "Explorer", "Compounder", "Pragmatist", "Creator", "Glider"
     ]
-    assert "setting-context-weights-container" in components
+    # Context priorities are edited on each context's own row.
+    assert "setting-context-editor" in components
     assert "setting-show-scoring-perf" in components
     assert "setting-now-node-cap" in components
 
@@ -56,8 +57,8 @@ def test_context_priorities_live_in_contexts_with_plain_language():
         if getattr(component, "tab_id", None) == "tab-scoring"
     )
 
-    assert "setting-context-weights-container" in _by_id(contexts_tab)
-    assert "setting-context-weights-container" not in _by_id(scoring_tab)
+    assert "setting-context-editor" in _by_id(contexts_tab)
+    assert "setting-context-editor" not in _by_id(scoring_tab)
     copy = _text(contexts_tab)
     assert "influence what appears next" in copy
     assert "Doubling a weight" not in copy

@@ -10,7 +10,7 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_BLOCKED, STATUS_OPEN
 from graph_manager import GraphManager
-from context_rules import compute_orphaned_subcontext_pairs, detect_context_renames
+from context_rules import compute_orphaned_subcontext_pairs
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
 from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, time_cost_term,
@@ -1707,71 +1707,6 @@ class TestOrphanedSubcontextPairs:
         assert sorted(pairs) == sorted([("STEM", "Psychology"), ("STEM", "Bio")])
 
 
-class TestDetectContextRenames:
-    """Strict 1:1 rename detection — used by the migration modal to pre-fill defaults."""
-
-    def test_pure_rename_preserves_subcontexts(self):
-        old_ctx = ["Social", "Mind"]
-        new_ctx = ["People", "Mind"]
-        old_sub = {"Social": ["Dating", "Morality"], "Mind": ["Sleep"]}
-        new_sub = {"People": ["Dating", "Morality"], "Mind": ["Sleep"]}
-        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {"Social": "People"}
-
-    def test_superset_subcontexts_still_counts(self):
-        old_ctx = ["Social"]
-        new_ctx = ["People"]
-        old_sub = {"Social": ["Dating"]}
-        new_sub = {"People": ["Dating", "Friends"]}
-        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {"Social": "People"}
-
-    def test_missing_subcontext_blocks_rename(self):
-        old_ctx = ["Social"]
-        new_ctx = ["People"]
-        old_sub = {"Social": ["Dating", "Morality"]}
-        new_sub = {"People": ["Dating"]}
-        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
-
-    def test_two_removals_is_ambiguous(self):
-        old_ctx = ["A", "B"]
-        new_ctx = ["X", "Y"]
-        old_sub = {"A": ["sub"], "B": ["sub"]}
-        new_sub = {"X": ["sub"], "Y": ["sub"]}
-        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
-
-    def test_pure_addition_is_not_a_rename(self):
-        old_ctx = ["A"]
-        new_ctx = ["A", "B"]
-        old_sub = {"A": ["sub"]}
-        new_sub = {"A": ["sub"], "B": ["sub"]}
-        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
-
-    def test_pure_removal_is_not_a_rename(self):
-        old_ctx = ["A", "B"]
-        new_ctx = ["A"]
-        old_sub = {"A": ["sub"], "B": ["sub"]}
-        new_sub = {"A": ["sub"]}
-        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
-
-    def test_no_changes_returns_empty(self):
-        old_ctx = ["A"]
-        new_ctx = ["A"]
-        assert detect_context_renames(old_ctx, new_ctx, {"A": ["s"]}, {"A": ["s"]}) == {}
-
-    def test_rename_with_no_old_subcontexts(self):
-        # Old context had no subs; new context has some — still a valid rename.
-        old_ctx = ["Old"]
-        new_ctx = ["New"]
-        assert detect_context_renames(old_ctx, new_ctx, {}, {"New": ["a"]}) == {"Old": "New"}
-
-    def test_subcontext_only_change_is_not_a_rename(self):
-        # Same context names; only subcontexts shifted. Not a rename.
-        old_ctx = ["A"]
-        new_ctx = ["A"]
-        old_sub = {"A": ["s1"]}
-        new_sub = {"A": ["s2"]}
-        assert detect_context_renames(old_ctx, new_ctx, old_sub, new_sub) == {}
-
-
 class TestBuildMigrationContent:
     """Per-node UI generation, smart defaults, and mapping-store shape.
 
@@ -1881,7 +1816,7 @@ class TestBuildMigrationContent:
     # --- No-rename fallback --------------------------------------------------
 
     def test_no_rename_falls_back_to_first_new_ctx_uniformly(self):
-        """When detect_context_renames returned {}, every per-node row
+        """With no rename map, every per-node row
         should default to (first_new_ctx, first_sub) — the user can adjust."""
         nodes = [self._ns('A', subcontext='Dating'),
                  self._ns('B', subcontext='Morality')]
@@ -2049,90 +1984,6 @@ class TestBuildMigrationContent:
         sels = self._walk(children)
         assert sels[('migration-bulk-sgc', 0)]['value'] == 'Social'
         assert ('migration-bulk-sg-apply', 0) in sels
-
-
-class TestBuildRenameMapFromPerNodeChoices:
-    """Majority-vote rename-map builder used to feed _migrate_context_weights
-    after a heterogeneous per-node migration."""
-
-    def _build(self, ctx_nodes, cgc_values):
-        from settings_callbacks import _build_rename_map_from_per_node_choices
-        return _build_rename_map_from_per_node_choices(ctx_nodes, cgc_values)
-
-    @staticmethod
-    def _entries(old, names):
-        return [{'field': 'context', 'old_value': old, 'node_name': n,
-                 'group_idx': 0} for n in names]
-
-    def test_unanimous_choice_wins(self):
-        entries = self._entries('Social', ['A', 'B', 'C'])
-        assert self._build(entries, ['People', 'People', 'People']) == {'Social': 'People'}
-
-    def test_clear_majority_wins(self):
-        entries = self._entries('Social', ['A', 'B', 'C', 'D', 'E'])
-        # 3 People, 2 Mind → People wins
-        assert self._build(entries, ['People', 'People', 'People', 'Mind', 'Mind']) == {'Social': 'People'}
-
-    def test_two_way_tie_drops_old(self):
-        entries = self._entries('Social', ['A', 'B'])
-        assert self._build(entries, ['People', 'Mind']) == {}
-
-    def test_three_way_tie_drops_old(self):
-        entries = self._entries('Social', ['A', 'B', 'C'])
-        assert self._build(entries, ['People', 'Mind', 'Body']) == {}
-
-    def test_plurality_with_tie_for_top_drops_old(self):
-        # 2 People, 2 Mind, 1 Body → tie at top → drop
-        entries = self._entries('Social', ['A', 'B', 'C', 'D', 'E'])
-        assert self._build(entries, ['People', 'People', 'Mind', 'Mind', 'Body']) == {}
-
-    def test_keep_and_clear_dont_count_toward_majority(self):
-        # 1 People, 1 Mind, 3 __keep__ → 1-1 tie → drop
-        entries = self._entries('Social', ['A', 'B', 'C', 'D', 'E'])
-        assert self._build(entries, ['People', 'Mind', '__keep__', '__keep__', '__keep__']) == {}
-
-    def test_keep_filtered_lets_real_majority_emerge(self):
-        # 2 People + 1 Mind (the Mind is a vote, not __keep__) → People wins
-        entries = self._entries('Social', ['A', 'B', 'C'])
-        assert self._build(entries, ['People', 'People', 'Mind']) == {'Social': 'People'}
-
-    def test_all_keep_yields_empty_map(self):
-        entries = self._entries('Social', ['A', 'B'])
-        assert self._build(entries, ['__keep__', '__keep__']) == {}
-
-    def test_all_clear_yields_empty_map(self):
-        entries = self._entries('Social', ['A', 'B'])
-        assert self._build(entries, ['__clear__', '__clear__']) == {}
-
-    def test_multiple_old_groups_voted_independently(self):
-        entries = (
-            self._entries('Social', ['A', 'B'])
-            + [{'field': 'context', 'old_value': 'Hobbies', 'node_name': n,
-                'group_idx': 1} for n in ['X', 'Y', 'Z']]
-        )
-        # Social: unanimous People; Hobbies: tie Mind/Body/Body
-        cgc = ['People', 'People', 'Mind', 'Body', 'Body']
-        assert self._build(entries, cgc) == {'Social': 'People', 'Hobbies': 'Body'}
-
-    def test_empty_entries_returns_empty_map(self):
-        assert self._build([], []) == {}
-
-    def test_cgc_values_shorter_than_entries_is_graceful(self):
-        """Defensive — Dash shouldn't deliver mismatched lengths but the
-        helper must not crash if it does."""
-        entries = self._entries('Social', ['A', 'B', 'C'])
-        # Only first 2 values present; 3rd entry has no choice → ignored
-        assert self._build(entries, ['People', 'People']) == {'Social': 'People'}
-
-    def test_cgc_values_longer_than_entries_is_graceful(self):
-        entries = self._entries('Social', ['A'])
-        # Trailing values beyond entries are ignored
-        assert self._build(entries, ['People', 'Mind', 'Body']) == {'Social': 'People'}
-
-    def test_none_value_is_ignored(self):
-        entries = self._entries('Social', ['A', 'B'])
-        # A None in cgc shouldn't count or crash
-        assert self._build(entries, [None, 'People']) == {'Social': 'People'}
 
 
 class TestApplyPerNodeMigrations:

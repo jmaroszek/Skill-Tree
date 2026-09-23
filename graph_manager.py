@@ -1017,6 +1017,24 @@ class GraphManager:
                 orphans[val] = affected
         return orphans
 
+    def find_nodes_by_pairs(self, pairs) -> Dict[str, List[Node]]:
+        """Group nodes by the (context, subcontext) pairs they still reference.
+
+        Keyed by 'ctx > sub' display labels, and only for pairs that actually
+        hold nodes. Includes dormant nodes — see find_orphaned_nodes.
+        """
+        pairs = [tuple(p) for p in pairs or []]
+        if not pairs:
+            return {}
+
+        all_nodes = self.get_all_nodes(include_dormant=True)
+        found = {}
+        for ctx, sub in pairs:
+            affected = [n for n in all_nodes if n.context == ctx and n.subcontext == sub]
+            if affected:
+                found[f"{ctx} > {sub}"] = affected
+        return found
+
     def find_orphaned_subcontext_pairs(self, old_subcontexts: Dict, new_subcontexts: Dict,
                                        new_contexts: list) -> Dict[str, List[Node]]:
         """Find nodes whose (context, subcontext) pair no longer exists in the new structure.
@@ -1025,22 +1043,59 @@ class GraphManager:
         moving a subcontext between parents leaves the bare name in the flat list but
         invalidates the pair. Returns a dict keyed by 'ctx > sub' display labels.
 
-        Includes dormant nodes for the same reason as find_orphaned_nodes: their
-        stale (context, subcontext) pair would survive a config delete and only
-        manifest as a broken reference at event-trigger time.
+        This compares taxonomies by name. The Contexts editor tracks each row's
+        origin instead, so it names the dropped pairs itself and calls
+        find_nodes_by_pairs directly.
         """
         from context_rules import compute_orphaned_subcontext_pairs
         pairs = compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts)
-        if not pairs:
-            return {}
+        return self.find_nodes_by_pairs(pairs)
 
-        all_nodes = self.get_all_nodes(include_dormant=True)
-        orphans = {}
-        for ctx, sub in pairs:
-            affected = [n for n in all_nodes if n.context == ctx and n.subcontext == sub]
-            if affected:
-                orphans[f"{ctx} > {sub}"] = affected
-        return orphans
+    def count_nodes_by_context(self):
+        """Return ({context: n}, {(context, subcontext): n}) across every node.
+
+        Feeds the blast-radius counts in the Contexts editor, so it counts
+        dormant nodes too: they hold config values just the same, and a
+        deletion strands them just the same.
+        """
+        ctx_counts: Dict[str, int] = {}
+        pair_counts: Dict[tuple, int] = {}
+        for node in self.get_all_nodes(include_dormant=True):
+            if not node.context:
+                continue
+            ctx_counts[node.context] = ctx_counts.get(node.context, 0) + 1
+            if node.subcontext:
+                key = (node.context, node.subcontext)
+                pair_counts[key] = pair_counts.get(key, 0) + 1
+        return ctx_counts, pair_counts
+
+    @database.atomic
+    def apply_taxonomy_migration(self, ctx_renames: Dict[str, str],
+                                 pair_moves) -> None:
+        """Carry context renames and (context, subcontext) moves onto the nodes.
+
+        Pair moves run first, while the rows still hold their original values;
+        the context renames that follow then only reach the nodes no pair move
+        claimed — those with no subcontext, or with one being dropped. Doing it
+        the other way round would leave a renamed context's pairs unmatchable.
+        """
+        pair_moves = [tuple(m) for m in pair_moves or []]
+        if not ctx_renames and not pair_moves:
+            return
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            for old_ctx, old_sub, new_ctx, new_sub in pair_moves:
+                cursor.execute(
+                    "UPDATE Nodes SET context=?, subcontext=? "
+                    "WHERE context=? AND subcontext=?",
+                    (new_ctx, new_sub, old_ctx, old_sub),
+                )
+            for old_ctx, new_ctx in (ctx_renames or {}).items():
+                cursor.execute("UPDATE Nodes SET context=? WHERE context=?",
+                               (new_ctx, old_ctx))
+            conn.commit()
+        self._bump_version(scoring=True)
 
     @database.atomic
     def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Optional[Dict] = None):

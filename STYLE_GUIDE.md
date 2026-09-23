@@ -617,6 +617,35 @@ The selected `value` list holds the chosen options directly, so selection
 state needs no extra callback. Compare these lists as sets in dirty-checks
 (`is_form_dirty_vs_snapshot`) since the order is not significant.
 
+### Row editor (Settings ▸ Contexts)
+
+When the user edits a list of named things that other data refers to by name,
+give each item a row that remembers the name it was loaded under, rather than
+a free-text field. The row's identity is what turns an edit into a rename
+instead of a delete plus an add. The Contexts tab is the example; its model is
+in `context_rules.py` and its rows in `build_context_editor_rows`.
+
+- **Children as chips.** A context's subcontexts are pills holding an inline
+  input sized in `ch` to its text, a grip, and a trailing `×`. The grip is the
+  drag handle, because a drag cannot start inside a text field. It uses the
+  progressive disclosure described under the flat ghost treatment above.
+- **Removal is held, not immediate.** Removing a saved row strikes it through
+  on `--st-danger-wash`, names how many nodes it holds, and offers undo until
+  Save. A row that was never saved simply disappears.
+- **Typing never re-renders.** Names are callback `State`, folded into the
+  store on the next structural edit and on Save, so the caret stays put. Live
+  feedback writes only `invalid` flags and the one summary line under the
+  rows.
+- **Drag remounts.** SortableJS moves DOM nodes behind React's back. The
+  container's React `key` is derived from the row and chip ids in order, so
+  the render after a drop remounts it rather than reconciling against the
+  rearranged DOM. That matters most for a chip dragged into another row.
+  Inside a modal, use SortableJS's fallback mode with `fallbackOnBody` and the
+  drag-clone z-index, so the clone shows above the modal.
+- **Plain-id controls stay static.** A callback `Input` with a string id must
+  be in the initial layout, so the "Add context" button sits outside the
+  rendered rows. Only pattern-matched ids live inside them.
+
 ### Details local-view control row
 
 Graph-layout physics sliders use qualitative endpoint rows rather than native
@@ -726,6 +755,7 @@ Do **not** add per-element scrollbar-hiding rules — the global rule covers eve
 |-------|-------|
 | Context menu | `10000` |
 | Tooltip | `9999` |
+| Drag clone (a sortable item dragged out of a modal) | `2000` |
 | Filters overlay | `100` |
 | Canvas first-paint cover | `30` |
 | Graph layout panel | `20` |

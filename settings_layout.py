@@ -3,7 +3,7 @@ Layout definitions for the Settings modal.
 """
 
 from duration_ui import bracket_label, unit_select
-from dash import html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from config import (
     TOOLTIP_SHOW_DELAY_MS,
@@ -91,13 +91,62 @@ def _build_contexts_tab():
         html.Div([
             # --- Context definitions ---
             html.H5("Definitions", className="mt-2 mb-1"),
-            html.Small("One context per line. Optionally add a colon and comma-separated subcontexts.", className="text-muted d-block mb-1"),
-            dbc.Textarea(
-                id="setting-subcontexts",
-                rows=3,
-                placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial",
-                style={"resize": "none", "overflow": "hidden"},
-            ),
+            html.Small(
+                "One row per context, with its subcontexts beside it. "
+                "Drag a row to reorder it, or a subcontext to move it. "
+                "Renaming here renames it on your nodes too.",
+                className="text-muted d-block mb-1"),
+            html.Small(
+                "Priority decides how strongly an area should influence what "
+                "appears next. 1 is the normal priority; higher numbers bring "
+                "an area forward, while lower numbers let it recede. "
+                "Subcontexts share their parent context's priority.",
+                className="text-muted d-block mb-2"),
+
+            # Column headings, so the two trailing numbers say what they are.
+            html.Div([
+                html.Span("Context", className="ctx-head-name"),
+                html.Span("Subcontexts", className="ctx-head-subs"),
+                html.Span("Nodes", className="ctx-head-count"),
+                html.Span("Priority", className="ctx-head-weight"),
+            ], className="ctx-head"),
+
+            # The rows are rendered from context-editor-store; the adder is
+            # static because a callback Input must be in the initial layout.
+            html.Div([
+                html.Div(id="setting-context-editor"),
+                dbc.Button([html.I(className="bi bi-plus"), " Add context"],
+                           id="btn-ctx-row-add", className="ctx-row-adder"),
+            ], className="ctx-editor-box"),
+            html.Div(id="ctx-editor-summary", className="mt-1"),
+
+            # The text view stays as the fast path for bulk edits. Applying it
+            # matches lines back to rows by name and then by position, so an
+            # in-place rename keeps the row it belongs to.
+            dbc.Button(
+                [html.I(className="bi bi-pencil"), " Edit as text"],
+                id="btn-ctx-text-toggle", color="link", size="sm",
+                className="ps-0 text-muted"),
+            dbc.Collapse([
+                dbc.Textarea(
+                    id="setting-subcontexts",
+                    rows=3,
+                    placeholder="e.g.\nMind: Rational, Sensory\nBody: Stress, Sleep\nSocial",
+                    style={"resize": "none", "overflow": "hidden"},
+                ),
+                html.Small(
+                    "One context per line. Optionally add a colon and "
+                    "comma-separated subcontexts.",
+                    className="text-muted d-block mb-1"),
+                dbc.Button("Apply to rows", id="btn-ctx-text-apply",
+                           color="secondary", size="sm"),
+            ], id="ctx-text-view", is_open=False, className="mb-2"),
+
+            # Hidden input: assets/context_editor_sortable.js writes the DOM
+            # order here after a drag so Dash can fold it into the store.
+            dcc.Input(id="ctx-editor-drag-input", type="text", value="",
+                      style={"display": "none"}),
+            dcc.Store(id="context-editor-store", data=None),
 
             # --- Dropdown order ---
             html.Hr(className="my-3"),
@@ -131,17 +180,6 @@ def _build_contexts_tab():
                     ),
                 ], width=6),
             ]),
-
-            # --- Context priorities ---
-            html.Hr(className="my-3"),
-            html.H5("Context Priorities", className="mt-2 mb-1"),
-            html.Small(
-                "Choose how strongly each area should influence what appears next. "
-                "1 is the normal priority; higher numbers bring an area forward, "
-                "while lower numbers let it recede. Subcontexts share their "
-                "parent context's priority.",
-                className="text-muted d-block mb-2"),
-            html.Div(id="setting-context-weights-container"),
         ], className="p-2")
     ])
 

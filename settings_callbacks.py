@@ -2,6 +2,7 @@
 Callback definitions for the Settings tab.
 """
 
+import json
 import logging
 import dash
 from dash import html, Input, Output, State, ALL, ctx
@@ -19,12 +20,12 @@ from config import (
     SUBCONTEXT_SORT_ALPHABETICAL,
     SUBCONTEXT_SORT_DEFINITION,
     SUPPORTED_NODE_TYPES,
-    sort_contexts,
     sort_subcontexts)
 from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
-from callback_helpers import get_trigger_id, build_context_weight_rows, sync_time_fields
-from context_rules import detect_context_renames
+from callback_helpers import (
+    get_trigger_id, build_context_editor_rows, sync_time_fields)
+import context_rules
 
 logger = logging.getLogger(__name__)
 
@@ -109,64 +110,104 @@ def _clamp(val, lo, hi, default):
     return max(lo, min(hi, v))
 
 
-def _migrate_context_weights(old_weights: dict, pending_weights: dict,
-                             new_contexts: list, rename_map: dict) -> dict:
-    """Resolve context weights after a save that renamed/merged/removed contexts.
+def _fold_live_values(rows, name_vals, name_ids, weight_vals, weight_ids,
+                      sub_vals, sub_ids):
+    """Copy what is currently typed in the editor back into the stored rows.
 
-    Rules:
-      1. Context present in new_contexts  → keep its weight from pending_weights.
-      2. Context renamed (old → new) via the migration dialog:
-         - If the target's current weight in `final_weights` is the default
-           (1.0) and the source's old weight is non-default, carry the source's
-           weight to the target (the "I renamed Health → Body" case).
-         - Otherwise the target's weight wins (the "I'm folding Health into
-           an existing weighted Body context" case).
-      3. Context removed with no rename target: weight dropped.
-
-    Args:
-        old_weights: weights as persisted in the DB before this save.
-        pending_weights: weights from the current UI form state.
-        new_contexts: the post-save context list.
-        rename_map: {old_name: new_name} from the user's migration dropdown
-            selections. Empty for skip / no-migration flows.
-
-    Returns: the dict to persist via set_context_weights.
+    The name, priority and chip inputs are deliberately not callback Inputs —
+    re-rendering the container on every keystroke would take the caret with
+    it. They are read here instead, just before a structural edit (add,
+    remove, drag) rebuilds the rows, and again on save.
     """
-    final_weights = {
-        c: pending_weights[c] for c in new_contexts if c in pending_weights
+    by_rid_name = {i["index"]: v for i, v in zip(name_ids or [], name_vals or [])}
+    by_rid_weight = {i["index"]: v for i, v in zip(weight_ids or [], weight_vals or [])}
+    by_sid = {i["index"]: v for i, v in zip(sub_ids or [], sub_vals or [])}
+
+    folded = []
+    for row in rows or []:
+        rid = row["rid"]
+        name = by_rid_name.get(rid, row.get("name"))
+        weight = by_rid_weight.get(rid, row.get("weight"))
+        try:
+            weight = float(weight)
+        except (TypeError, ValueError):
+            weight = context_rules.DEFAULT_CONTEXT_WEIGHT
+        subs = [{**s, "name": by_sid.get(s["sid"], s.get("name"))}
+                for s in row.get("subs", [])]
+        folded.append({**row, "name": name if name is not None else "",
+                       "weight": weight, "subs": subs})
+    return folded
+
+
+def _editor_state(manager, rows=None):
+    """Build the Contexts editor's store payload.
+
+    Alongside the rows it carries the taxonomy they are diffed against and the
+    node counts per context and per (context, subcontext) pair. Capturing
+    those once, when the modal opens, is what lets the live summary and the
+    validation run on every keystroke without touching the database. Saving
+    re-reads the config rather than trusting this snapshot.
+    """
+    contexts = ConfigManager.get_contexts()
+    subcontexts = ConfigManager.get_subcontexts()
+    ctx_counts, pair_counts = manager.count_nodes_by_context()
+    if rows is None:
+        rows = context_rules.taxonomy_to_rows(
+            contexts, subcontexts, ConfigManager.get_context_weights())
+    return {
+        'rows': rows,
+        'old': {'contexts': contexts, 'subcontexts': subcontexts},
+        'counts': {
+            'ctx': ctx_counts,
+            # JSON has no tuple keys, so pairs travel as [ctx, sub, n] triples.
+            'pair': [[c, s, n] for (c, s), n in pair_counts.items()],
+        },
     }
-    for old_name, new_name in rename_map.items():
-        if new_name not in new_contexts:
-            continue
-        target_w = final_weights.get(new_name, 1.0)
-        source_w = old_weights.get(old_name, 1.0)
-        if abs(target_w - 1.0) < 1e-9 and abs(source_w - 1.0) >= 1e-9:
-            final_weights[new_name] = source_w
-    return final_weights
 
 
-def _build_rename_map_from_per_node_choices(ctx_nodes: list, cgc_node_values: list) -> dict:
-    """Build {old_ctx: new_ctx} from per-node ctx selections in the migration modal.
+def _counts_from_state(state):
+    """Unpack the store's node counts back into ({ctx: n}, {(ctx, sub): n})."""
+    counts = (state or {}).get('counts') or {}
+    pairs = {(row[0], row[1]): row[2] for row in counts.get('pair', [])
+             if len(row) == 3}
+    return counts.get('ctx', {}), pairs
 
-    With per-node migration, nodes from the same old group can target different
-    new contexts. The most-chosen new context per old group wins. Ties (no
-    clear majority) drop the old weight — consult the caller (`_migrate_context_weights`).
-    `__keep__` and `__clear__` selections don't count toward any majority.
+
+def _remove_row(rows, rid):
+    """Drop a row, or mark it removed when it has something to lose.
+
+    A row that was never saved just disappears — there is nothing to undo. One
+    that came from the config is kept, struck through, so the node count stays
+    visible and the removal can be taken back before Save.
     """
-    from collections import Counter
-    by_old: dict = {}
-    for i, entry in enumerate(ctx_nodes):
-        old_name = entry.get('old_value')
-        new_name = cgc_node_values[i] if i < len(cgc_node_values) else None
-        if old_name and new_name and new_name not in ('__keep__', '__clear__'):
-            by_old.setdefault(old_name, []).append(new_name)
-    rename_map: dict = {}
-    for old_name, choices in by_old.items():
-        counts = Counter(choices)
-        top_name, top_count = counts.most_common(1)[0]
-        if list(counts.values()).count(top_count) == 1:
-            rename_map[old_name] = top_name
-    return rename_map
+    out = []
+    for row in rows:
+        if row["rid"] != rid:
+            out.append(row)
+        elif row.get("orig"):
+            out.append({**row, "deleted": True})
+    return out
+
+
+def _save_message(plan) -> str:
+    """Confirm a save, naming the context changes it made.
+
+    Worded by the same describe_plan as the live line under the rows, so the
+    confirmation repeats what the user was told rather than recounting it —
+    a renamed context's subcontexts follow it, and are not changes of their own.
+    """
+    detail = context_rules.describe_plan(plan)
+    return f"Settings saved — {detail}" if detail else "Settings saved"
+
+
+def _clicked(triggered_value) -> bool:
+    """True when a pattern-matched button was actually clicked.
+
+    Re-rendering the row container mounts fresh buttons whose n_clicks is
+    None, which fires the callback again; without this guard the first render
+    after any edit would replay that edit.
+    """
+    return bool(triggered_value)
 
 
 def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals: list,
@@ -207,6 +248,175 @@ def register_settings_callbacks(app, services=None):
         Input('setting-subcontexts', 'value'),
     )
 
+    # --- Contexts editor -----------------------------------------------
+    # The rows live in `context-editor-store`; the components below are only
+    # how a click finds its row again. Text inputs are read as State rather
+    # than driving Inputs, so typing never re-renders the container out from
+    # under the caret. See context_rules.py for the row model.
+
+    _CTX_EDIT_STATES = (
+        State('context-editor-store', 'data'),
+        State({"type": "ctx-row-name", "index": ALL}, "value"),
+        State({"type": "ctx-row-name", "index": ALL}, "id"),
+        State({"type": "ctx-row-weight", "index": ALL}, "value"),
+        State({"type": "ctx-row-weight", "index": ALL}, "id"),
+        State({"type": "ctx-sub-name", "index": ALL}, "value"),
+        State({"type": "ctx-sub-name", "index": ALL}, "id"),
+    )
+
+    def _live_rows(state, name_vals, name_ids, weight_vals, weight_ids,
+                   sub_vals, sub_ids):
+        """Rows from the store with whatever is currently typed folded in."""
+        return _fold_live_values((state or {}).get('rows', []),
+                                 name_vals, name_ids, weight_vals, weight_ids,
+                                 sub_vals, sub_ids)
+
+    @app.callback(
+        Output('setting-context-editor', 'children'),
+        Input('context-editor-store', 'data'),
+    )
+    def render_context_editor(state):
+        state = state or {}
+        ctx_counts, pair_counts = _counts_from_state(state)
+        rows = state.get('rows', [])
+        return build_context_editor_rows(
+            rows, ctx_counts, pair_counts,
+            context_rules.validate_rows(context_rules.normalize_rows(rows)))
+
+    @app.callback(
+        Output({"type": "ctx-row-name", "index": ALL}, "invalid"),
+        Output({"type": "ctx-sub-name", "index": ALL}, "invalid"),
+        Output('ctx-editor-summary', 'children'),
+        Output('ctx-editor-summary', 'className'),
+        Input({"type": "ctx-row-name", "index": ALL}, "value"),
+        Input({"type": "ctx-sub-name", "index": ALL}, "value"),
+        State('context-editor-store', 'data'),
+        State({"type": "ctx-row-name", "index": ALL}, "id"),
+        State({"type": "ctx-sub-name", "index": ALL}, "id"),
+    )
+    def validate_context_editor(name_vals, sub_vals, state, name_ids, sub_ids):
+        """Flag problems and say what a save would do, without a re-render.
+
+        Writing only `invalid` flags and one line of text leaves the inputs
+        themselves in place, which is what lets this run on every keystroke.
+        Everything it needs was captured in the store when the modal opened,
+        so it costs no database read.
+        """
+        state = state or {}
+        rows = _fold_live_values(state.get('rows', []),
+                                 name_vals, name_ids, [], [], sub_vals, sub_ids)
+        rows = context_rules.normalize_rows(rows)
+        errors = context_rules.validate_rows(rows)
+
+        name_flags = [f"row:{i['index']}" in errors for i in name_ids or []]
+        sub_flags = [f"sub:{i['index']}" in errors for i in sub_ids or []]
+
+        if errors:
+            first = next(iter(errors.values()))
+            extra = len(errors) - 1
+            text = first + (f" (+{extra} more)" if extra else "")
+            return name_flags, sub_flags, text, "mt-1 ctx-summary-error"
+
+        old = state.get('old') or {}
+        ctx_counts, pair_counts = _counts_from_state(state)
+        plan = context_rules.plan_taxonomy_change(
+            rows, old.get('contexts', []), old.get('subcontexts', {}))
+        return (name_flags, sub_flags,
+                context_rules.describe_plan(plan, ctx_counts, pair_counts),
+                "mt-1")
+
+    @app.callback(
+        Output('context-editor-store', 'data', allow_duplicate=True),
+        Input('btn-ctx-row-add', 'n_clicks'),
+        Input({"type": "ctx-row-delete", "index": ALL}, "n_clicks"),
+        Input({"type": "ctx-row-undelete", "index": ALL}, "n_clicks"),
+        Input({"type": "ctx-sub-add", "index": ALL}, "n_clicks"),
+        Input({"type": "ctx-sub-remove", "index": ALL}, "n_clicks"),
+        Input('ctx-editor-drag-input', 'value'),
+        Input('btn-ctx-text-apply', 'n_clicks'),
+        State('setting-subcontexts', 'value'),
+        *_CTX_EDIT_STATES,
+        prevent_initial_call=True,
+    )
+    def edit_context_rows(_add, _del, _undel, _sub_add, _sub_del, drag_value,
+                          _text_apply, text_value, state,
+                          name_vals, name_ids, weight_vals, weight_ids,
+                          sub_vals, sub_ids):
+        """Apply one structural edit to the rows and hand back a fresh store.
+
+        Every branch folds the live text values in first, so an edit never
+        discards a name the user typed but has not blurred.
+        """
+        trigger = ctx.triggered_id
+        if trigger is None:
+            return dash.no_update
+        fired = ctx.triggered[0].get('value') if ctx.triggered else None
+        rows = _live_rows(state, name_vals, name_ids, weight_vals, weight_ids,
+                          sub_vals, sub_ids)
+
+        if trigger == 'btn-ctx-row-add':
+            if not _clicked(fired):
+                return dash.no_update
+            rows.append({"rid": context_rules.next_row_id(rows), "orig": None,
+                         "name": "", "subs": [],
+                         "weight": context_rules.DEFAULT_CONTEXT_WEIGHT})
+
+        elif trigger == 'ctx-editor-drag-input':
+            if not drag_value:
+                return dash.no_update
+            try:
+                rows = context_rules.apply_drag_order(rows, json.loads(drag_value))
+            except (ValueError, TypeError):
+                return dash.no_update
+
+        elif trigger == 'btn-ctx-text-apply':
+            if not _clicked(fired):
+                return dash.no_update
+            rows = context_rules.reconcile_rows_with_text(text_value, rows)
+
+        elif isinstance(trigger, dict):
+            if not _clicked(fired):
+                return dash.no_update
+            kind, index = trigger.get('type'), trigger.get('index')
+            if kind == 'ctx-row-delete':
+                rows = _remove_row(rows, index)
+            elif kind == 'ctx-row-undelete':
+                rows = [{**r, "deleted": False} if r["rid"] == index else r
+                        for r in rows]
+            elif kind == 'ctx-sub-add':
+                sid = context_rules.next_sub_id(rows)
+                blank = {"sid": sid, "orig": None, "orig_ctx": None, "name": ""}
+                rows = [{**r, "subs": list(r["subs"]) + [blank]}
+                        if r["rid"] == index else r for r in rows]
+            elif kind == 'ctx-sub-remove':
+                rows = [{**r, "subs": [s for s in r["subs"] if s["sid"] != index]}
+                        for r in rows]
+            else:
+                return dash.no_update
+        else:
+            return dash.no_update
+
+        return {**(state or {}), 'rows': rows}
+
+    # --- Contexts editor: the text view ---------------------------------
+    @app.callback(
+        Output('ctx-text-view', 'is_open'),
+        Output('setting-subcontexts', 'value', allow_duplicate=True),
+        Input('btn-ctx-text-toggle', 'n_clicks'),
+        State('ctx-text-view', 'is_open'),
+        *_CTX_EDIT_STATES,
+        prevent_initial_call=True,
+    )
+    def toggle_ctx_text_view(_n, is_open, state,
+                             name_vals, name_ids, weight_vals, weight_ids,
+                             sub_vals, sub_ids):
+        """Open the text view on the rows as they stand, not on the last save."""
+        if is_open:
+            return False, dash.no_update
+        return True, context_rules.rows_to_text(_live_rows(
+            state, name_vals, name_ids, weight_vals, weight_ids,
+            sub_vals, sub_ids))
+
     # --- Settings: Open the Settings modal from the toolbar gear button ---
     @app.callback(
         Output("settings-modal", "is_open"),
@@ -237,6 +447,7 @@ def register_settings_callbacks(app, services=None):
 
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
+        Output('context-editor-store', 'data'),
         Output('setting-subcontexts', 'value'),
         Output('setting-hp-profile', 'value'),
         Output('setting-obsidian-path', 'value'),
@@ -244,7 +455,6 @@ def register_settings_callbacks(app, services=None):
         Output('setting-node-shapes-container', 'children'),
         Output('setting-node-status-colors-container', 'children'),
         Output('setting-node-type-colors-container', 'children'),
-        Output('setting-context-weights-container', 'children'),
         Output('setting-hpd', 'value'),
         Output('setting-hpw', 'value'),
         Output('setting-hpm', 'value'),
@@ -267,27 +477,17 @@ def register_settings_callbacks(app, services=None):
         if not is_open:
             return (dash.no_update,) * 23
 
-        contexts = ConfigManager.get_contexts()
-        subcontexts = ConfigManager.get_subcontexts()
-        ctx_weights = ConfigManager.get_context_weights()
+        editor_state = _editor_state(manager)
+        contexts = editor_state['old']['contexts']
+        subcontexts = editor_state['old']['subcontexts']
         obs_path = ConfigManager.get_obsidian_vault()
         gdrive_path = ConfigManager.get_gdrive_path()
         profile = ConfigManager.get_hp_profile()
         if profile not in PROFILES:
             profile = "Sage"
 
-        sub_lines = []
-        for ctx_name in contexts:
-            subs = subcontexts.get(ctx_name, [])
-            if subs:
-                sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
-            else:
-                sub_lines.append(ctx_name)
-        # Include any subcontext-only entries not in contexts list
-        for ctx_name, subs in subcontexts.items():
-            if ctx_name not in contexts:
-                sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
-        sub_val = '\n'.join(sub_lines)
+        # Seeds the collapsed text view; the rows above it are the real editor.
+        sub_val = context_rules.format_context_text(contexts, subcontexts)
 
         shapes = ConfigManager.get_node_shapes()
         display_types = _display_types()
@@ -295,8 +495,6 @@ def register_settings_callbacks(app, services=None):
         colors = ConfigManager.get_node_colors()
         status_color_rows = _build_status_color_rows(colors)
         type_color_rows = _build_type_color_rows(display_types, colors)
-
-        weight_rows = build_context_weight_rows(sort_contexts(contexts), ctx_weights)
 
         ts = ConfigManager.get_time_settings()
         from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
@@ -322,6 +520,7 @@ def register_settings_callbacks(app, services=None):
             context_sort_mode = CONTEXT_SORT_DEFINITION
 
         return (
+            editor_state,
             sub_val,
             profile,
             obs_path,
@@ -329,7 +528,6 @@ def register_settings_callbacks(app, services=None):
             shape_rows,
             status_color_rows,
             type_color_rows,
-            weight_rows,
             round(ConfigManager.get_hours_per_day(), 2),
             ts.get('hours_per_week', 40),
             ts.get('hours_per_month', 160),
@@ -373,17 +571,14 @@ def register_settings_callbacks(app, services=None):
         Output('pending-settings-store', 'data'),
         Output('settings-clear-interval', 'disabled'),
         Output('settings-clear-interval', 'n_intervals'),
-        Output('setting-context-weights-container', 'children', allow_duplicate=True),
+        Output('context-editor-store', 'data', allow_duplicate=True),
         Input('btn-settings-save', 'n_clicks'),
-        State('setting-subcontexts', 'value'),
         State('setting-obsidian-path', 'value'),
         State('setting-gdrive-path', 'value'),
         State({"type": "setting-shape", "index": ALL}, "value"),
         State({"type": "setting-shape", "index": ALL}, "id"),
         State({"type": "setting-color", "index": ALL}, "value"),
         State({"type": "setting-color", "index": ALL}, "id"),
-        State({"type": "setting-context-weight", "index": ALL}, "value"),
-        State({"type": "setting-context-weight", "index": ALL}, "id"),
         State('setting-hpw', 'value'), State('setting-hpm', 'value'),
         State('setting-default-time-unit', 'value'),
         State('setting-default-time-o', 'value'),
@@ -397,19 +592,21 @@ def register_settings_callbacks(app, services=None):
         State('setting-context-sort-mode', 'value'),
         State('setting-time-calibration-enabled', 'value'),
         State('setting-now-node-cap', 'value'),
+        *_CTX_EDIT_STATES,
         prevent_initial_call=True,
     )
-    def save_settings(n_clicks, subcontexts_val, obs_path, gdrive_path,
+    def save_settings(n_clicks, obs_path, gdrive_path,
                       shape_values, shape_ids, color_values, color_ids,
-                      ctx_weight_values, ctx_weight_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
                       name_format_mode, linter_exclusions_val,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
-                      now_node_cap_val):
+                      now_node_cap_val, editor_store,
+                      ctx_name_vals, ctx_name_ids, ctx_weight_vals, ctx_weight_ids,
+                      ctx_sub_vals, ctx_sub_ids):
         if not n_clicks:
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return (dash.no_update,) * 5
 
         try:
             # Perf-toggle is independent of any migrated setting — persist
@@ -430,14 +627,6 @@ def register_settings_callbacks(app, services=None):
             profile_name = hp_profile if hp_profile in PROFILES else "Sage"
             new_hp = dict(PROFILES[profile_name])
 
-            new_ctx_weights: dict = {}
-            if ctx_weight_ids and ctx_weight_values:
-                for wid, wval in zip(ctx_weight_ids, ctx_weight_values):
-                    name = wid.get("index")
-                    if not name:
-                        continue
-                    new_ctx_weights[name] = _clamp(wval, 0.0, 10.0, 1.0)
-
             # Keep simulation policy values that are no longer exposed in the
             # modal while updating the two user-supplied capacity values.
             new_ts = dict(ConfigManager.get_time_settings())
@@ -454,33 +643,33 @@ def register_settings_callbacks(app, services=None):
                 'unit': def_time_unit or DEFAULT_TIME_ESTIMATE_DEFAULTS['unit'],
             }
 
-            new_contexts = []
-            new_subcontexts = {}
-            if subcontexts_val is not None:
-                for line in subcontexts_val.split('\n'):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    if ':' in line:
-                        ctx_name, subs_str = line.split(':', 1)
-                        ctx_name = ctx_name.strip()
-                        subs = [s.strip() for s in subs_str.split(',') if s.strip()]
-                        if ctx_name:
-                            if ctx_name not in new_contexts:
-                                new_contexts.append(ctx_name)
-                            if subs:
-                                if ctx_name in new_subcontexts:
-                                    new_subcontexts[ctx_name].extend(subs)
-                                else:
-                                    new_subcontexts[ctx_name] = subs
-                    else:
-                        ctx_name = line.strip()
-                        if ctx_name and ctx_name not in new_contexts:
-                            new_contexts.append(ctx_name)
+            # The editor rows are the taxonomy. They are diffed against the
+            # config as it stands right now, not against the snapshot the
+            # store took when the modal opened. With no store at all the
+            # editor never loaded — Save beat the modal's first render — so
+            # there is no edit to apply. Seeding the rows from the config
+            # makes that a no-op rather than an empty taxonomy that would
+            # wipe every subcontext and priority.
+            if editor_store is None:
+                editor_store = {'rows': context_rules.taxonomy_to_rows(
+                    ConfigManager.get_contexts(), ConfigManager.get_subcontexts(),
+                    ConfigManager.get_context_weights())}
+            rows = context_rules.normalize_rows(_live_rows(
+                editor_store, ctx_name_vals, ctx_name_ids, ctx_weight_vals,
+                ctx_weight_ids, ctx_sub_vals, ctx_sub_ids))
+            errors = context_rules.validate_rows(rows)
+            if errors:
+                return ("Contexts need a fix before saving — see the note "
+                        "under the rows."), dash.no_update, False, 0, dash.no_update
 
             old_contexts = ConfigManager.get_contexts()
             old_subcontexts = ConfigManager.get_subcontexts()
-
+            plan = context_rules.plan_taxonomy_change(
+                rows, old_contexts, old_subcontexts)
+            new_contexts = plan['contexts']
+            new_subcontexts = plan['subcontexts']
+            new_ctx_weights = {name: _clamp(w, 0.0, 10.0, 1.0)
+                               for name, w in plan['weights'].items()}
             new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
 
             # Annotate dormant orphans with their event names so the migration
@@ -497,8 +686,11 @@ def register_settings_callbacks(app, services=None):
                     base['events'] = _em.get_events_for_node(node.name)
                 return base
 
+            # Only removals can strand a node. Renames and moves are carried
+            # onto the nodes below, so they never reach this dialog.
             orphans = {}
-            ctx_orphans = manager.find_orphaned_nodes('context', old_contexts, new_contexts)
+            ctx_orphans = manager.find_orphaned_nodes(
+                'context', plan['deleted_contexts'], [])
             if ctx_orphans:
                 # Carry each node's current subcontext so the modal can pre-fill
                 # per-node defaults that preserve subcontexts during a rename.
@@ -506,14 +698,18 @@ def register_settings_callbacks(app, services=None):
                     k: [{**_annotate(n), 'subcontext': n.subcontext} for n in v]
                     for k, v in ctx_orphans.items()
                 }
-            sub_orphans = manager.find_orphaned_subcontext_pairs(
-                old_subcontexts, new_subcontexts, new_contexts
-            )
+            sub_orphans = manager.find_nodes_by_pairs(plan['deleted_pairs'])
             if sub_orphans:
                 orphans['subcontext'] = {
                     k: [{**_annotate(n), 'context': n.context} for n in v]
                     for k, v in sub_orphans.items()
                 }
+
+            new_name_formatting = {
+                'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
+                         else NAME_FORMAT_TITLE),
+                'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
+            }
 
             if orphans:
                 pending_shapes = {}
@@ -527,11 +723,6 @@ def register_settings_callbacks(app, services=None):
                         if cval:
                             pending_colors[cid["index"]] = cval
 
-                new_name_formatting = {
-                    'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
-                             else NAME_FORMAT_TITLE),
-                    'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
-                }
                 pending = {
                     'hp': new_hp,
                     'hp_profile': profile_name,
@@ -550,12 +741,16 @@ def register_settings_callbacks(app, services=None):
                         'context': new_contexts,
                         'subcontext': new_sub_flat,
                     },
-                    'rename_map': detect_context_renames(
-                        old_contexts, new_contexts,
-                        old_subcontexts, new_subcontexts,
-                    ),
+                    # Applied by handle_migration on Apply *and* on Skip:
+                    # skipping declines to rehome the orphans, not to make the
+                    # rename the user asked for.
+                    'ctx_renames': plan['ctx_renames'],
+                    'pair_moves': plan['pair_moves'],
                 }
-                return "Migration required \u2014 check the migration dialog.", pending, False, 0, dash.no_update
+                return ("Migration required — check the migration dialog.",
+                        pending, False, 0, dash.no_update)
+
+            manager.apply_taxonomy_migration(plan['ctx_renames'], plan['pair_moves'])
 
             ConfigManager.set_hp_profile(profile_name)
             ConfigManager.set_hyperparams(new_hp)
@@ -563,15 +758,12 @@ def register_settings_callbacks(app, services=None):
             ConfigManager.set_time_estimate_defaults(new_ted)
             ConfigManager.set_obsidian_vault(obs_path)
             ConfigManager.set_gdrive_path(gdrive_path or "")
-            old_weights = ConfigManager.get_context_weights()
             if new_contexts:
                 ConfigManager.set_contexts(new_contexts)
             ConfigManager.set_subcontexts(new_subcontexts)
-            # No orphans here means no rename dialog was needed — just drop
-            # weights for contexts the user removed outright.
-            ConfigManager.set_context_weights(_migrate_context_weights(
-                old_weights, new_ctx_weights, new_contexts or [], {},
-            ))
+            # Weights ride along with their row, so a rename keeps its
+            # priority and a removal drops it without any reconciliation.
+            ConfigManager.set_context_weights(new_ctx_weights)
 
             if shape_ids and shape_values:
                 new_shapes = {}
@@ -589,18 +781,10 @@ def register_settings_callbacks(app, services=None):
                 if new_colors:
                     ConfigManager.set_node_colors(new_colors)
 
-            new_name_formatting = {
-                'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
-                         else NAME_FORMAT_TITLE),
-                'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
-            }
             ConfigManager.set_name_formatting(new_name_formatting)
 
-            saved_contexts = new_contexts if new_contexts else ConfigManager.get_contexts()
-            refreshed_weight_rows = build_context_weight_rows(
-                sort_contexts(saved_contexts), ConfigManager.get_context_weights()
-            )
-            return "Settings saved", dash.no_update, False, 0, refreshed_weight_rows
+            return (_save_message(plan), dash.no_update, False, 0,
+                    _editor_state(manager))
 
         except Exception:
             logger.exception("Failed to save settings")
@@ -611,7 +795,7 @@ def register_settings_callbacks(app, services=None):
         Output('modal-migration', 'is_open'),
         Output('migration-modal-body', 'children'),
         Output('migration-mapping-store', 'data'),
-        Output('setting-subcontexts', 'value', allow_duplicate=True),
+        Output('context-editor-store', 'data', allow_duplicate=True),
         Input('pending-settings-store', 'data'),
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-skip', 'n_clicks'),
@@ -652,24 +836,21 @@ def register_settings_callbacks(app, services=None):
             return True, children, mapping, dash.no_update
 
         if trigger_id == 'btn-migration-cancel':
-            # Restore the context field from the database.
-            old_contexts = ConfigManager.get_contexts()
-            old_subcontexts = ConfigManager.get_subcontexts()
-            sub_lines = []
-            for ctx_name in old_contexts:
-                subs = old_subcontexts.get(ctx_name, [])
-                if subs:
-                    sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
-                else:
-                    sub_lines.append(ctx_name)
-            for ctx_name, subs in old_subcontexts.items():
-                if ctx_name not in old_contexts:
-                    sub_lines.append(f"{ctx_name}: {', '.join(subs)}")
-            restored_sub_val = '\n'.join(sub_lines)
-            return False, [], None, restored_sub_val
+            # Nothing was written, so put the editor back to what is stored.
+            return False, [], None, _editor_state(manager)
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             try:
+                # The renames and moves the editor already resolved go on
+                # first, on Skip as well as Apply: skipping declines to rehome
+                # the stranded nodes, not to make the rename that was asked
+                # for. Doing it here rather than at Save is what makes Cancel
+                # leave the graph untouched.
+                manager.apply_taxonomy_migration(
+                    pending_state.get('ctx_renames', {}),
+                    pending_state.get('pair_moves', []),
+                )
+
                 ConfigManager.set_hp_profile(
                     pending_state.get('hp_profile', 'Sage'))
                 ConfigManager.set_hyperparams(pending_state['hp'])
@@ -680,23 +861,16 @@ def register_settings_callbacks(app, services=None):
                 ConfigManager.set_obsidian_vault(pending_state['obs_path'])
                 ConfigManager.set_gdrive_path(pending_state.get('gdrive_path', ''))
                 new_contexts = pending_state.get('contexts', [])
-                # Snapshot persisted weights BEFORE set_contexts/set_context_weights
-                # so weight migration can consult pre-save state for rule-2 (rename).
-                old_weights = ConfigManager.get_context_weights()
                 if new_contexts:
                     ConfigManager.set_contexts(new_contexts)
                 ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
-                pending_weights = pending_state.get('context_weights', {}) or {}
-                # Only honor the rename map when the user clicked Apply; Skip
-                # means "don't migrate", so filter-only (empty rename_map).
-                rename_map: dict = {}
-                if trigger_id == 'btn-migration-apply' and isinstance(mapping_data, dict):
-                    rename_map = _build_rename_map_from_per_node_choices(
-                        mapping_data.get('ctx_nodes', []), cgc_node_values,
-                    )
-                ConfigManager.set_context_weights(_migrate_context_weights(
-                    old_weights, pending_weights, new_contexts or [], rename_map,
-                ))
+                # Each weight came off its own row, so it is already keyed by
+                # the post-rename name and a removed context simply is not in
+                # the dict. Reassigning a stranded node below does not move a
+                # weight with it — the surviving context's own priority is the
+                # one the user set, and it stands.
+                ConfigManager.set_context_weights(
+                    pending_state.get('context_weights', {}) or {})
 
                 pending_shapes = pending_state.get('shapes', {})
                 if pending_shapes:
@@ -720,7 +894,9 @@ def register_settings_callbacks(app, services=None):
                 _apply_per_node_migrations(manager, sub_nodes, sgc_node_values,
                                             sgs_node_values, new_subcontexts)
 
-            return False, [], None, dash.no_update
+            # Re-seed the rows from what was just saved, so the next edit
+            # diffs against it and the node counts reflect the rehoming.
+            return False, [], None, _editor_state(manager)
 
         return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 

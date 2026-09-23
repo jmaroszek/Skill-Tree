@@ -144,6 +144,7 @@
     --st-z-graph-panel: 20;
     --st-z-canvas-cover: 30;
     --st-z-filters-overlay: 100;
+    --st-z-drag-clone: 2000;       /* above Bootstrap's modal (1055) */
     --st-z-tooltip: 9999;
     --st-z-ctx-menu: 10002;
     --st-z-picker-panel: 12000;

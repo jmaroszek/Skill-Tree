@@ -1,0 +1,307 @@
+/* --- Settings ▸ Contexts: the row editor ---------------------------------
+   One row per context, replacing the free-text Definitions field. The row is
+   the unit of identity: it carries the name the context was loaded under, so
+   an edit reads as a rename instead of a delete plus an add. See
+   context_rules.py for the model and assets/context_editor_sortable.js for
+   the drag wiring.
+
+   The rows sit on the dark panel while the name, chips and priority are part
+   of the app's light form layer, which is why the two colour families meet
+   inside one row. */
+
+/* Column headings. The paddings mirror .ctx-row's so each label sits over the
+   control it names; the leading offset covers the drag handle's width. */
+.ctx-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.5rem 0.2rem 1.9rem;
+    color: var(--st-text-dim);
+    font-size: var(--st-fs-sm);
+}
+.ctx-head-name {
+    width: 132px;
+    flex: 0 0 auto;
+}
+.ctx-head-subs {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.ctx-head-count {
+    width: 2rem;
+    flex: 0 0 auto;
+    text-align: right;
+}
+.ctx-head-weight {
+    width: 64px;
+    flex: 0 0 auto;
+    text-align: right;
+    padding-right: 1.9rem;
+}
+
+.ctx-editor-box {
+    border: 1px solid var(--st-border-panel);
+    border-radius: var(--st-radius);
+    background-color: var(--st-bg-panel);
+    overflow: hidden;
+}
+
+.ctx-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--st-border-subtle);
+}
+
+.ctx-drag-handle {
+    color: var(--st-text-dim);
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+.ctx-drag-handle:hover {
+    color: var(--st-text-primary);
+}
+.ctx-drag-disabled {
+    visibility: hidden;
+}
+
+.form-control.ctx-row-name {
+    width: 132px;
+    flex: 0 0 auto;
+    font-size: var(--st-fs-base);
+}
+
+.ctx-row-name-static {
+    width: 132px;
+    flex: 0 0 auto;
+    font-size: var(--st-fs-base);
+    color: var(--st-text-primary);
+}
+
+/* --- Subcontext chips --------------------------------------------------- */
+
+.ctx-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ctx-chip {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--st-field-bg);
+    border: 1px solid var(--st-menu-border);
+    border-radius: 999px;
+    padding: 1px 2px 1px 8px;
+}
+.ctx-chip:focus-within {
+    border-color: var(--st-field-focus-border);
+}
+
+/* A drag cannot start inside a text field, so each chip carries a grip. It is
+   progressive disclosure, as for other secondary row actions: hidden until
+   the chip is hovered or focused, and always shown on a coarse pointer. The
+   space stays reserved so a chip never changes width under the cursor. */
+.ctx-chip-grip {
+    display: flex;
+    align-items: center;
+    margin-left: -5px;
+    padding-right: 1px;
+    color: var(--st-text-dim);
+    font-size: var(--st-fs-sm);
+    cursor: grab;
+    opacity: 0;
+    transition: opacity var(--st-transition-fast);
+}
+.ctx-chip:hover .ctx-chip-grip,
+.ctx-chip:focus-within .ctx-chip-grip {
+    opacity: 1;
+}
+@media (pointer: coarse) {
+    .ctx-chip-grip {
+        opacity: 1;
+    }
+}
+
+/* The chip input is sized in `ch` by the renderer so the pill hugs its text.
+   It drops every scrap of .form-control chrome — the pill is the control. */
+.form-control.ctx-chip-input {
+    border: none;
+    background-color: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    height: auto;
+    min-height: 0;
+    line-height: 1.5;
+    font-size: var(--st-fs-sm);
+    color: var(--st-text-on-field);
+}
+
+.btn.ctx-chip-remove,
+.btn.ctx-chip-add {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+    border: none;
+    line-height: 1;
+}
+
+.btn.ctx-chip-remove {
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-light);
+    --bs-btn-hover-color: var(--st-danger);
+    --bs-btn-active-bg: var(--st-ghost-active-light);
+    --bs-btn-active-color: var(--st-danger);
+    padding: 0 3px;
+    border-radius: 999px;
+    font-size: var(--st-fs-sm);
+}
+
+.btn.ctx-chip-add {
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-color: var(--st-text-primary);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-color: var(--st-text-primary);
+    border: 1px dashed var(--st-border-panel);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: var(--st-fs-sm);
+}
+
+/* --- Trailing controls -------------------------------------------------- */
+
+.ctx-row-count {
+    flex: 0 0 auto;
+    width: 2rem;
+    text-align: right;
+    color: var(--st-text-dim);
+    font-size: var(--st-fs-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.form-control.ctx-row-weight {
+    width: 64px;
+    flex: 0 0 auto;
+    font-size: var(--st-fs-base);
+    text-align: right;
+}
+
+.btn.ctx-row-btn {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: var(--st-text-primary);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+    border: none;
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    font-size: var(--st-fs-lg);
+}
+/* Red only on hover, so a list of rows does not read as a wall of danger. */
+.btn.ctx-row-btn-danger {
+    --bs-btn-hover-color: var(--st-danger);
+    --bs-btn-active-color: var(--st-danger);
+}
+
+.btn.ctx-row-adder {
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-hover-color: var(--st-text-primary);
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    width: 100%;
+    text-align: left;
+    padding: 0.4rem 0.5rem 0.4rem 0.6rem;
+    font-size: var(--st-fs-base);
+}
+
+/* --- Pending states ----------------------------------------------------- */
+
+/* A removed context stays visible, struck through, until Save — deleting is
+   the one edit here that can strand nodes, so it gets an undo rather than
+   vanishing on click. */
+.ctx-row-deleted {
+    background-color: var(--st-danger-wash);
+}
+.ctx-row-removed {
+    text-decoration: line-through;
+    color: var(--st-danger-text);
+}
+.ctx-row-note {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--st-danger-text);
+    font-size: var(--st-fs-sm);
+}
+
+/* Bootstrap's .is-invalid also paints a warning glyph into the field's
+   background. At these widths it crowds out the text, so the red border
+   carries the state on its own and the hover title says what is wrong. */
+.form-control.ctx-row-name.is-invalid,
+.form-control.ctx-chip-input.is-invalid {
+    background-image: none;
+    padding-right: inherit;
+}
+.form-control.ctx-row-name.is-invalid {
+    border-color: var(--st-danger);
+}
+/* The chip input has no border of its own — the pill around it shows the
+   state instead. */
+.ctx-chip:has(.is-invalid) {
+    border-color: var(--st-danger);
+}
+
+#ctx-editor-summary {
+    min-height: 1.2rem;
+    font-size: var(--st-fs-cap);
+    color: var(--st-text-secondary);
+}
+#ctx-editor-summary.ctx-summary-error {
+    color: var(--st-danger-text);
+}
+
+/* --- Drag feedback ------------------------------------------------------ */
+
+.ctx-sortable-ghost {
+    opacity: 0.3;
+}
+.ctx-row.ctx-sortable-chosen {
+    background-color: var(--st-bg-raised);
+}
+.ctx-chip.ctx-sortable-chosen {
+    border-color: var(--st-accent);
+}
+/* While a row or chip is in hand the cursor sits over the fallback clone, so
+   the grab cursor is set page-wide, as the Now cards do. */
+body.ctx-dragging,
+body.ctx-dragging * {
+    cursor: grabbing !important;
+}
+/* The clone that follows the pointer lives on <body>, outside the modal, so
+   it needs its own layer to show above the modal it was dragged out of. */
+.ctx-sortable-fallback {
+    opacity: 0.9;
+    box-shadow: var(--st-shadow-panel);
+    z-index: var(--st-z-drag-clone) !important;
+}
