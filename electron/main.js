@@ -76,11 +76,15 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+  // Maximize before the page loads, so its first frame is drawn at full size.
+  // Maximizing after the first paint (on ready-to-show) resized a page whose
+  // main thread was busy with startup. It couldn't re-lay-out until the work
+  // paused, so the startup cover sat in the top-left 1400x900 corner.
+  // maximize() also shows the window, in backgroundColor, which matches the
+  // cover, until the page paints.
+  mainWindow.maximize();
+  mainWindow.show();
   mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.maximize();
-    mainWindow.show();
-  });
   mainWindow.on('closed', () => { mainWindow = null; });
   // F12 / Ctrl+Shift+I toggles DevTools (there's no app menu to provide it).
   mainWindow.webContents.on('before-input-event', (e, input) => {
