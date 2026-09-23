@@ -241,3 +241,47 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
                   "calibration_open", "calibration_reference",
                   "calibration_pending"):
         assert getattr(out, field) is dash.no_update, field
+
+
+def _render(monkeypatch, trigger, active_tab, stamp=None):
+    """Run core_engine for one trigger, with the Nodes tab state given."""
+    import inspect
+    from core_response import CoreResponse
+
+    cb, _ = _core_engine_fn()
+    names = list(inspect.signature(cb).parameters)
+    args = _core_engine_args()
+    args[names.index("active_tab")] = active_tab
+    args[names.index("canvas_stamp")] = stamp
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids",
+                        lambda *a: {trigger} if trigger else set())
+    return CoreResponse(*cb(*args))
+
+
+def test_the_nodes_canvas_loads_on_its_first_visit(monkeypatch):
+    """Its ingest and cold layout used to hold up the startup cover for about
+    a second. Until the canvas loads, a render sends a marker instead."""
+    from canvas_view import CANVAS_DEFERRED
+
+    assert _render(monkeypatch, "", "tab-next").elements == CANVAS_DEFERRED
+    assert isinstance(_render(monkeypatch, "", "tab-canvas").elements, list)
+
+
+def test_a_tab_switch_leaves_the_resets_alone(monkeypatch):
+    out = _render(monkeypatch, "main-tabs", "tab-canvas")
+    assert isinstance(out.elements, list)
+    assert out.message is dash.no_update
+
+
+def test_a_loaded_canvas_stays_current_in_the_background(monkeypatch):
+    out = _render(monkeypatch, "filter-context", "tab-next",
+                  stamp={"loaded": True, "nodes": 3})
+    assert isinstance(out.elements, list)
+
+
+def test_returning_to_a_loaded_canvas_sends_nothing(monkeypatch):
+    """Every render keeps a loaded canvas current, so a visit needs no regen."""
+    out = _render(monkeypatch, "main-tabs", "tab-canvas",
+                  stamp={"loaded": True, "nodes": 3})
+    assert all(value is dash.no_update for value in out)

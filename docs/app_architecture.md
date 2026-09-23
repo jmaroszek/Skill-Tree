@@ -102,20 +102,22 @@ This is the path almost every edit takes. Get it wrong and the canvas either doe
 2. The mutator writes SQLite, runs the status cascade if the change is status-affecting, and calls `_bump_version(scoring=…)`.
 3. The callback returns `generate_elements(filters, active_node_id, …)` to **`elements-pending-store`** (with `allow_duplicate`) — *not* to the Cytoscape `elements` prop.
 4. A clientside callback (`freeze_positions.js`) consumes the pending elements and **diffs them into the live graph in place** — adding/removing/updating individual elements and preserving existing node positions, seeding new nodes near their neighbors. Replacing the whole `elements` list instead would trigger a full fcose relayout and the graph would jump on every edit. *This indirection is why you can't simply `Output('cytoscape-graph', 'elements')`.*
-5. The change to Cytoscape `elements` fires `sync_graph_version`, which bumps `graph-version-store` only if `manager._graph_version` advanced — gating downstream recomputation to real mutations.
+5. The same pending payload is stamped by a clientside bridge into `canvas-payload-stamp`: whether the canvas has loaded, its node count, and when. The stamp fires `sync_graph_version`, which bumps `graph-version-store` only if `manager._graph_version` advanced — gating downstream recomputation to real mutations. Server callbacks listen to the stamp, not to the elements, which as an Input would send the whole canvas back to the server on every render.
+
+Until the Nodes canvas loads on its first visit, the core engine writes a deferred marker (`canvas_view.CANVAS_DEFERRED`) in place of the elements. The freeze bridge skips anything that isn't a list, and the stamp still fires, so the graph version stays current. See Nodes-tab first paint.
 
 ```mermaid
 flowchart TD
     C["Callback calls a<br/>GraphManager mutator"] --> M["Mutator writes SQLite,<br/>runs the status cascade,<br/>bumps the version"]
     M --> P["Callback returns<br/>generate_elements() to<br/>elements-pending-store"]
     P --> J["freeze_positions.js diffs<br/>the elements into the<br/>live graph in place"]
-    J --> V["The elements change fires<br/>sync_graph_version, bumping<br/>graph-version-store"]
+    J --> V["The payload's stamp fires<br/>sync_graph_version, bumping<br/>graph-version-store"]
     V --> D["Downstream callbacks<br/>recompute — only on<br/>a real mutation"]
 ```
 
 `generate_elements` ([callbacks.py](../callbacks.py)) decides what the Nodes canvas shows. It pulls filtered nodes from `GraphManager` and keeps the edges between them. Details and Events choose their own nodes, in `_build_graph_elements` and `render_event_graph`.
 
-All three canvases build their elements with `build_node_element` and `build_edge_element` in [callback_helpers.py](../callback_helpers.py). So a node gets the same fill color, shape, classes (`trigger`, `dormant`, `now`) and data fields on every canvas. The hover tooltip, context menu, stylesheet and Now pulse all read that payload, whichever canvas raised them. A canvas passes only what is its own: its selection state, Events' "attached to this event" dormant flag, or Details' view-root marker. `canvas_node_styles` reads the colors, shapes and trigger names together, so no canvas can paint without one.
+All three canvases build their elements with `build_node_element` and `build_edge_element` in [callback_helpers.py](../callback_helpers.py). So a node gets the same fill color, shape, classes (`trigger`, `dormant`, `now`) and data fields on every canvas. The hover tooltip, context menu, stylesheet and Now pulse all read that payload, whichever canvas raised them. A canvas passes only what is its own: its selection state, Events' "attached to this event" dormant flag, or Details' view-root marker. The data fields are the list `CANVAS_NODE_FIELDS`, which names each field's reader. Elements used to carry every `Node` field so that no canvas could miss one, but nothing read most of them, and a test now checks the list covers the tooltip and the context menu. `canvas_node_styles` reads the colors, shapes and trigger names together, so no canvas can paint without one.
 
 ### 3. Right-click → editor (the JS-Dash bridge)
 
@@ -202,9 +204,10 @@ page template, ahead of the entry point. That puts it in the first paint, and
 React never re-renders it. `assets/startup_cover.js` makes the app beneath it
 `inert` and lifts the cover once two things hold:
 
-- The core engine's first payload has reached the Nodes canvas. Dash applies
-  every output of a response together, so the dropdowns it fills are in place.
-  The canvas bridge in `callbacks.py` reports the payload.
+- The core engine's first response has landed. It writes the Nodes canvas's
+  pending store: the elements once that canvas has loaded, a deferred marker
+  before. Dash applies every output of a response together, so the dropdowns
+  it fills are in place. The canvas bridge in `callbacks.py` reports it.
 - Dash has then had nothing pending for 150 ms, confirmed once the browser is
   idle. Dash renders `._dash-loading-callback` as a child of the entry point
   while any callback is requested, blocked or in flight. That marker is the
@@ -259,6 +262,8 @@ Everything the cover waits for adds to the wait, so startup work changed:
   holds them closed and empty. Restating them woke six callbacks.
 - Analyze renders on its first visit, not at startup. See Hidden-tab and
   Details responsiveness.
+- So does the Nodes canvas. Its ingest and cold fCoSE layout were about a
+  second of main-thread work. See Nodes-tab first paint.
 - The Next table and Now section don't rebuild on load. The table also held
   up the core engine. It feeds `selected-suggestion-store`, a State of the core
   engine, and Dash won't dispatch a callback while a pending callback can still
@@ -267,6 +272,15 @@ Everything the cover waits for adds to the wait, so startup work changed:
   ingest and an idle wait. It stays: it costs about 0.17 s, and without it the
   first open of the Goals sidebar would slide in over a spinner.
 
+Two costs weren't Dash's. Dash loads a core-js 2 polyfill that replaces the
+browser's `trim`, `parseFloat` and `parseInt` with versions 13 to 60 times
+slower, while reporting "[native code]". Cytoscape calls them constantly as it
+reads styles. `assets/native_builtins.js` reinstalls the native ones from a
+fresh iframe realm; they return primitives, so that is safe across realms.
+And the core engine's view build opened a SQLite connection per node, to name
+the community filter's options. It now runs under one read snapshot, which
+took a core render from about 350 ms to about 60 ms on the server.
+
 The server boots before any of this, and the desktop window waits for it.
 NetworkX is only needed for community detection in the first canvas render, so
 it is imported where it is used. `app.main` warms it on a background thread
@@ -274,23 +288,21 @@ while the window opens. That took about 0.15 s off a warm 0.85 s boot, and more
 from a cold disk, since NetworkX is hundreds of modules.
 
 Measured in headless Chrome with a warm cache, on a copy of the 774-node
-sandbox, the cover now lifts at 2.7 s instead of 4.7 s. Startup requests fell
-from 82 to 15, store updates from about 1,600 to about 700, and main-thread
-work from about 5.2 s to 2.7 s. After the lift, a Home row selects in about
-40 ms, as before. No long task runs after the lift.
+sandbox, the cover now lifts at 1.4 s instead of 4.7 s. Startup requests fell
+from 82 to 13. After the lift, a Home row selects in about 40 ms, as before,
+and no long task runs. The first Nodes visit takes about 1.4 s behind its
+cover; later visits show the graph at once and send nothing.
 
-What remains is mostly work the user asked for. The Nodes canvas ingest and
-its fCoSE layout take about 0.9 s. dash-renderer's store updates take about
-0.6 s. Plotly loads and evaluates for about 0.25 s, because the Details
-simulation chart is mounted from the start. The layout itself renders in about
-0.5 s.
+What remains at startup is mostly fixed cost: loading and evaluating the
+scripts, rendering the ~2,150-component layout, dash-renderer's store updates,
+and about 0.25 s for Plotly, which loads because the Details simulation chart is
+mounted from the start.
 
 ## Next responsiveness
 
 Next and Now content is included in the initial layout, using the same hydrated
 filter controls as the sidebar. Layout factories construct fresh components for each
-request. The hidden main canvas starts empty and is populated by the existing
-initial core callback, avoiding duplicate element generation during layout.
+request. The hidden main canvas starts empty and loads on its first visit.
 Because the layout carries both, their refresh callbacks don't run on page load.
 The layout fills the Home tab's scoring-time caption too, since that load-time
 rebuild was its first update.
@@ -318,8 +330,14 @@ not scheduling — calling `layout.run()` the instant the elements land does not
 start it any sooner, because it queues behind the same blocked main thread. It
 only adds a second randomized pass that reshuffles the graph again.
 
-So the canvas is generated eagerly, as it already was, and held behind an opaque
-cover instead. `assets/canvas_first_paint.js` lifts it once the graph is both
+So the canvas is held behind an opaque cover instead. It also loads on its
+first visit, not at startup: `canvas_view.canvas_wanted` sends the elements
+when the Nodes tab is open or the canvas has loaded, and a deferred marker
+otherwise. After that first load every render keeps it current in the
+background, and returning to the tab needs no render at all. A first visit
+takes about 1.4 s on the sandbox, behind the cover's caption. Locate from
+another tab navigates to an unloaded canvas and waits for its first paint
+before pulsing the node. `assets/canvas_first_paint.js` lifts it once the graph is both
 laid out (`layoutstop` on a graph with nodes, positions away from the origin, or
 an element payload with no nodes to lay out) and framed (the canvas has a real
 size, so the fit can land). That fit used to live in `fullscreen.js`, which

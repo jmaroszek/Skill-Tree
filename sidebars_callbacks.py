@@ -181,7 +181,9 @@ def register_sidebars_callbacks(app, services=None):
     app.clientside_callback(
         """
         function(elements, prewarmed) {
-            if (prewarmed || !elements || !elements.length) {
+            // A render arrives as elements, or as a deferred marker while the
+            // Nodes canvas hasn't loaded. Either is the core payload landing.
+            if (prewarmed || !elements) {
                 return window.dash_clientside.no_update;
             }
             return Date.now();

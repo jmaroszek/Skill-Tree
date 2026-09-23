@@ -13,9 +13,11 @@
  *
  * So the page template (layout.build_index_string) paints a cover first, and
  * this module lifts it once two things are true:
- *   - the core engine's first payload has reached the Nodes canvas. Dash
- *     applies every output of a response together, so the search options and
- *     every other dropdown that response fills are in place;
+ *   - the core engine's first response has landed. It writes the Nodes
+ *     canvas's pending store: the elements once the canvas has loaded, a
+ *     deferred marker before that. Dash applies every output of a response
+ *     together, so the search options and every other dropdown that response
+ *     fills are in place;
  *   - Dash then has nothing pending for QUIET_MS, confirmed once the browser
  *     is idle. The ingest that follows the payload, and the prewarms it
  *     starts, are then behind the user's first click rather than ahead of it.
@@ -115,12 +117,13 @@
         }, QUIET_MS);
     }
 
-    // Called by the clientside bridge in callbacks.py with every element
-    // payload. Only the first one matters. A dcc.Store whose data starts as
-    // None reports itself changed when it mounts, so the bridge also runs
-    // once with no payload at all; that doesn't count.
-    window.SkillTree.notifyStartupPayload = function (elements) {
-        if (payloadLanded || !Array.isArray(elements)) return;
+    // Called by the clientside bridge in callbacks.py with every Nodes
+    // render. Only the first one matters. Until the Nodes canvas loads, a
+    // render carries a deferred marker instead of elements; it arrives with
+    // the same core engine response, so it counts the same. An empty store
+    // (a mount, or a run with nothing written) doesn't.
+    window.SkillTree.notifyStartupPayload = function (payload) {
+        if (payloadLanded || payload === null || payload === undefined) return;
         payloadLanded = true;
         settle();
     };

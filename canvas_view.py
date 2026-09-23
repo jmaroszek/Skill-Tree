@@ -3,6 +3,26 @@ import dash
 from config import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
 from callback_helpers import format_traversal_ui, node_options
 from core_response import CoreResponse
+from canvases import CANVASES
+
+_NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
+
+# What goes to elements-pending-store in place of the Nodes canvas's elements
+# until that canvas loads. It still marks a render, which is what the graph
+# version bridge, the startup cover and the Goals prewarm listen for.
+CANVAS_DEFERRED = {'deferred': True}
+
+
+def canvas_wanted(active_tab, payload_stamp):
+    """Whether this render sends the Nodes canvas its elements.
+
+    The canvas loads on its first visit. Its ingest and cold layout cost the
+    browser about a second of main-thread work, which used to hold up
+    startup. Once loaded it is kept current in the background, so later
+    visits find it ready.
+    """
+    return (active_tab == _NODES_TAB
+            or bool((payload_stamp or {}).get('loaded')))
 
 
 def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info):

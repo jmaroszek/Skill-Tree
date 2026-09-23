@@ -53,7 +53,7 @@ def test_cover_and_its_sink_are_in_the_layout():
     ids = _ids(layout)
 
     assert "canvas-first-paint-cover" in ids
-    assert "canvas-first-paint-sink" in ids
+    assert "canvas-payload-stamp" in ids
 
 
 def test_cover_is_the_last_child_of_the_canvas_container():
@@ -75,7 +75,7 @@ def test_element_payloads_reach_the_cover():
     register_callbacks(app)
 
     bridge = next(c for c in app._callback_list
-                  if c["output"] == "canvas-first-paint-sink.data")
+                  if c["output"] == "canvas-payload-stamp.data")
 
     assert [i["id"] for i in bridge["inputs"]] == ["elements-pending-store"]
     # Clientside: the payload never needs to travel back to the server, and the

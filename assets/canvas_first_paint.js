@@ -173,6 +173,13 @@
         return false;
     }
 
+    // Whether the canvas has had its first layout and framing. Until then it
+    // is behind the cover, or hasn't loaded at all: the Nodes canvas loads on
+    // its first visit. Locate waits for this before it pulses a node.
+    window.SkillTree.canvasFirstPaintDone = function () {
+        return done;
+    };
+
     // Called from the clientside bridge in callbacks.py with each element
     // payload. A graph with no nodes has no layout to wait for, so no
     // `layoutstop` is ever coming — nothing else would release the cover.

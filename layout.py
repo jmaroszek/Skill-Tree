@@ -1358,10 +1358,11 @@ def build_app_layout(initial_elements, env="production"):
         # candidates (parent container becoming ready after the child Goal
         # is marked Done) are queued naturally.
         dcc.Store(id='auto-done-candidates-store', data=[]),
-        # Sink for the clientside callback that hands each element payload to
-        # the Nodes-tab first-paint cover. Same story: the callback only needs
-        # somewhere valid to write.
-        dcc.Store(id='canvas-first-paint-sink', data=None),
+        # A stamp of each Nodes render, written by the clientside bridge that
+        # also reports it to the first-paint and startup covers: whether the
+        # canvas has loaded, its node count, and when. Server callbacks listen
+        # to it instead of the canvas's elements. See callbacks.py.
+        dcc.Store(id='canvas-payload-stamp', data=None),
         # Bumped by a clientside filter only when the user opens the Analyze
         # tab. refresh_analyze_tab listens to this instead of main-tabs
         # directly, so switching to any other tab makes no request at all.

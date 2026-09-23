@@ -392,8 +392,29 @@ def node_fill_color(node, colors):
                                             DEFAULT_NODE_COLORS[STATUS_OPEN]))
 
 
+# The node fields a canvas element carries, and who reads them. Every canvas
+# builds its elements here, so they can't drift apart, which is what went
+# wrong when each canvas picked its own fields. They used to carry every Node
+# field instead, about 45, most of which nothing read. The largest,
+# description, was about a seventh of the Nodes payload.
+#   - The hover tooltip (callbacks.display_hover_data): type, context,
+#     subcontext, value, interest, difficulty, time, time_mode, value_mode.
+#   - The node context menu (assets/context_menu.js): type, status, now,
+#     dormant, website, obsidian_path, google_drive_path.
+#   - Tap handlers read only the id; the editor re-reads the node itself.
+# The stylesheet reads id, label, color, shape and now_color, which are set
+# below. Add a field here when something new reads it from element data.
+CANVAS_NODE_FIELDS = (
+    'type', 'status', 'context', 'subcontext',
+    'value', 'interest', 'difficulty',
+    'time', 'time_mode', 'value_mode',
+    'now', 'dormant',
+    'website', 'obsidian_path', 'google_drive_path',
+)
+
+
 def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=None):
-    """Build a Cytoscape node element carrying the node's full field set.
+    """Build a Cytoscape node element carrying CANVAS_NODE_FIELDS.
 
     A canvas passes only what is its own:
       selected    Cytoscape's selection state. Omitted when None, so the
@@ -407,8 +428,9 @@ def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=
         'label': node.name,
         'color': node_fill_color(node, styles.colors),
         'shape': styles.shapes.get(node.type, 'rectangle'),
-        **node.to_dict(),
     }
+    for field in CANVAS_NODE_FIELDS:
+        data[field] = node.time if field == 'time' else getattr(node, field)
     if dormant is None:
         dormant = bool(node.dormant)
     else:

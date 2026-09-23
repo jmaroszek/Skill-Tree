@@ -54,6 +54,12 @@
         return window.SkillTree.getCy(wrapper);
     }
 
+    function canvasIsEmpty(canvasId) {
+        var cy = getCyInstance(canvasId);
+        if (!cy) return true;
+        return typeof cy.nodes === 'function' && cy.nodes().length === 0;
+    }
+
     window.SkillTree.canvasHasNode = function (canvasId, nodeName) {
         var cy = getCyInstance(canvasId);
         if (!cy || !nodeName) return false;
@@ -157,8 +163,29 @@
         );
     }
 
-    function tryLocate(nodeName, canvasId, attempt) {
+    function isMainCanvas(canvasId) {
+        var registry = window.SkillTree.canvases || [];
+        return registry.some(function (item) {
+            return item.key === 'main' && item.cytoscapeId === canvasId;
+        });
+    }
+
+    // The Nodes canvas loads on its first visit and lays out behind its
+    // first-paint cover. A pulse before that would be spent on nodes still
+    // piled at the origin, or on no nodes at all.
+    var FIRST_PAINT_WAIT_TRIES = 150;  // 15 s, the first-paint cover's backstop
+
+    function tryLocate(nodeName, canvasId, attempt, firstPaintWaits) {
         attempt = attempt || 0;
+        firstPaintWaits = firstPaintWaits || 0;
+        var paint = window.SkillTree.canvasFirstPaintDone;
+        if (isMainCanvas(canvasId) && typeof paint === 'function' && !paint()
+                && firstPaintWaits < FIRST_PAINT_WAIT_TRIES) {
+            setTimeout(function () {
+                tryLocate(nodeName, canvasId, attempt, firstPaintWaits + 1);
+            }, 100);
+            return;
+        }
         var cy = getCyInstance(canvasId);
         if (!cy) {
             if (attempt < 20) setTimeout(function () { tryLocate(nodeName, canvasId, attempt + 1); }, 100);
@@ -201,8 +228,12 @@
             canvas = registry.find(function (item) { return item.key === 'main'; });
             needsNavigation = true;
         }
-        if (!canvas || !window.SkillTree.canvasHasNode(
-                canvas.cytoscapeId, request.name)) {
+        // The Nodes canvas loads on its first visit. Before then it has no
+        // nodes at all, which says nothing about this one; the server has
+        // already checked that it exists.
+        var unloaded = needsNavigation && canvas && canvasIsEmpty(canvas.cytoscapeId);
+        if (!canvas || (!unloaded && !window.SkillTree.canvasHasNode(
+                canvas.cytoscapeId, request.name))) {
             return {
                 status: 'missing', name: request.name, request: request.request,
                 view: canvas ? canvas.key : 'canvas',

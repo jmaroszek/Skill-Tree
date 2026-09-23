@@ -75,11 +75,12 @@ a copy of the 774-node sandbox. "Ready" is when the startup cover lifted, the
 
 | | Before | After |
 |---|---:|---:|
-| Cover lifts | 4.7 s | 2.7 s |
-| Startup callback requests | 82 | 15 |
-| Redux store updates before the lift | ~1,600 | ~700 |
-| Main-thread work before the lift | ~5.2 s | ~2.7 s |
+| Cover lifts | 4.7 s | 1.4 s |
+| Startup callback requests | 82 | 13 |
 | Home row selection right after the lift | 35–40 ms | 35–40 ms |
+| First Nodes visit, click to graph | ready at startup | 1.4 s |
+| Later Nodes visits | ~0.3 s re-send and diff | nothing sent |
+| Core engine render, server | ~350 ms | ~60 ms |
 | Server boot, warm (`create_app`) | 0.85 s | 0.71 s |
 
 A devtools trace showed the main thread busy without a break from 0.5 s until
@@ -90,5 +91,8 @@ components times updates, which is why removing startup callbacks paid off
 more than their server time suggests. [app_architecture.md](app_architecture.md)
 lists the changes under Startup readiness.
 
-Analyze now renders on its first visit. With the hover head start, its charts
-appeared about 0.8 s after the click.
+Analyze and the Nodes canvas now load on their first visit. With the hover
+head start, Analyze's charts appeared about 0.8 s after the click. The Nodes
+canvas answer came back in about 30 ms; the rest of its 1.4 s is Cytoscape
+ingesting 567 nodes and running fCoSE. Its payload is 374 KB, down from
+747 KB, since elements carry only the fields something reads.

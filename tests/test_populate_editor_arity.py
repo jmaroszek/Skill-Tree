@@ -37,7 +37,7 @@ POPULATE_EDITOR_NUM_OUTPUTS = 45
 def _make_state_args():
     """Return the State positional args populate_editor expects (all None/defaults).
 
-    Order: elements, ed_style, original_name, cur_name, cur_type, cur_desc,
+    Order: ed_style, original_name, cur_name, cur_type, cur_desc,
     cur_context, cur_subctx, cur_status_done, cur_val, cur_interest, cur_diff,
     cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
     cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
@@ -48,7 +48,7 @@ def _make_state_args():
     cur_habit_int_o, cur_habit_int_m, cur_habit_int_p, cur_habit_int_unit,
     cur_habit_days.
     """
-    return [None] * 38
+    return [None] * 37
 
 
 def _call_with_trigger(monkeypatch, trigger_id, inputs):

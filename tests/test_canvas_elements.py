@@ -168,3 +168,27 @@ def test_dormant_argument_replaces_the_node_flag():
     assert (attached['data']['dormant'], attached['classes']) == (1, 'dormant')
     released = build_node_element(_node('Released', dormant=1), _STYLES, dormant=False)
     assert (released['data']['dormant'], released['classes']) == (0, '')
+
+
+def test_elements_carry_every_field_their_readers_use():
+    """Canvas elements carry a chosen field list, not the whole node. The
+    tooltip and the context menu read fields from element data, so a field
+    either of them starts reading has to join CANVAS_NODE_FIELDS."""
+    import inspect
+    import re
+    from pathlib import Path
+    from callback_helpers import CANVAS_NODE_FIELDS
+
+    carried = set(CANVAS_NODE_FIELDS) | {'id', 'label', 'color', 'shape'}
+
+    source = inspect.getsource(callbacks.register_callbacks)
+    tooltip = source[source.index('def display_hover_data'):]
+    tooltip = tooltip[:tooltip.index('\n    # ---')]
+    read = set(re.findall(r"data\.get\('([a-z_]+)'", tooltip))
+    assert read and read <= carried, read - carried
+
+    menu = (Path(__file__).resolve().parents[1] / 'assets' / 'context_menu.js'
+            ).read_text(encoding='utf-8')
+    read = set(re.findall(r"\b(?:nodeData|_currentNodeData|node)\.([a-z_]+)\b", menu))
+    read -= {'id', 'push', 'data'}  # node.data() is Cytoscape's accessor
+    assert read and read <= carried, read - carried

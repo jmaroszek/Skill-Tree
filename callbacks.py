@@ -16,7 +16,7 @@ import logging
 import database
 from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
 from core_response import CoreResponse
-from canvas_view import build_canvas_view
+from canvas_view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
 from next_view import perf_stats_text
 import os
 import subprocess
@@ -231,14 +231,17 @@ def register_callbacks(app, services=None):
     # subscribed to graph-version-store skip unnecessary recomputation.
     @app.callback(
         Output('graph-version-store', 'data'),
-        Input('cytoscape-graph', 'elements'),
+        # Each render's stamp, not the elements themselves: an Input of the
+        # elements sent the whole canvas to the server on every render, and a
+        # render deferred while the canvas hasn't loaded has none.
+        Input('canvas-payload-stamp', 'data'),
         Input('events-refresh-trigger', 'data'),
         Input('details-refresh-trigger', 'data'),
         Input('settings-save-status', 'children'),
         State('graph-version-store', 'data'),
         prevent_initial_call=True,
     )
-    def sync_graph_version(_elements, _events, _details, _settings, current):
+    def sync_graph_version(_stamp, _events, _details, _settings, current):
         if manager._graph_version != current:
             return manager._graph_version
         return dash.no_update
@@ -444,8 +447,7 @@ def register_callbacks(app, services=None):
          Input('btn-editor-new', 'n_clicks'),
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value')],
-        [State('cytoscape-graph', 'elements'),
-         State('sidebar-editor-container', 'style'),
+        [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
          State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
          State('node-context', 'value'), State('node-subcontext', 'value'),
@@ -483,7 +485,7 @@ def register_callbacks(app, services=None):
     )
     def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val,
-                        elements, ed_style, original_name,
+                        ed_style, original_name,
                         cur_name, cur_type, cur_desc, cur_context, cur_subctx, cur_status_done,
                         cur_val, cur_interest, cur_diff,
                         cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
@@ -1486,7 +1488,6 @@ def register_callbacks(app, services=None):
          State({'type': 'obsidian-link', 'index': ALL}, 'value'),
          State({'type': 'drive-link', 'index': ALL}, 'value'),
          State({'type': 'website-link', 'index': ALL}, 'value'),
-         State('cytoscape-graph', 'elements'),
          State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
          State('node-time-mode', 'value'),
@@ -1505,7 +1506,8 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-m', 'value'),
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value')],
+         State('node-habit-days', 'value'),
+         State('canvas-payload-stamp', 'data')],
         prevent_initial_call='initial_duplicate'
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
@@ -1522,7 +1524,7 @@ def register_callbacks(app, services=None):
                      time_o, time_m, time_p, time_unit,
                      e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                      obs_link_values, drive_link_values, website_link_values,
-                     current_elements, ed_style, original_name,
+                     ed_style, original_name,
                      time_mode_val, priority_rank_val,
                      goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values,
                      pristine_snapshot, pending_undo_done,
@@ -1530,7 +1532,7 @@ def register_callbacks(app, services=None):
                      time_habit_mode_val,
                      habit_duration, habit_duration_unit,
                      habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                     habit_days):
+                     habit_days, canvas_stamp):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         The existing Dash wiring preserves mutation and refresh ordering. Sidebar
@@ -1543,7 +1545,12 @@ def register_callbacks(app, services=None):
         # Tab-switch gate: switching to Events/Analyze doesn't need a graph
         # regen — those tabs have their own refresh callbacks. Short-circuit
         # to no_update so we skip the scoring + generate_elements cycle.
-        if trigger_id == 'main-tabs' and active_tab in _NON_GRAPH_TABS:
+        # Nodes needs one only for its first load: once loaded, every render
+        # keeps it current, and re-sending it cost ~0.3 s of browser work
+        # just as the tab appeared.
+        if trigger_id == 'main-tabs' and (
+                active_tab in _NON_GRAPH_TABS
+                or (canvas_stamp or {}).get('loaded')):
             return _core_engine_noop_tuple()
 
         # Settings-save gate: we trigger off `settings-save-status` (not the
@@ -1862,8 +1869,12 @@ def register_callbacks(app, services=None):
                 msg = handle_group_delete(manager, group_delete_data)
             except Exception as e:
                 msg = f"Error: {e}"
-        view = build_canvas_view(
-            manager, render_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
+        # Every mutation above has committed, so the view is all reads. One
+        # snapshot serves them: naming the community filter's options alone
+        # used to open a connection per node, about 0.3 s per render.
+        with database.read_snapshot():
+            view = build_canvas_view(
+                manager, render_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
 
         # Time-calibration: when an explicit single-node completion just
         # happened and the feature is enabled, open the modal to capture how
@@ -1883,10 +1894,15 @@ def register_callbacks(app, services=None):
                 tc_pending = {'mode': 'single', 'node': completion_check_node}
                 tc_unit = _calibration_unit_for(_tc_node.time)
 
-        if not trigger_id:
-            # Page load: nothing ran, so there's no message and no modal to
-            # open, and the layout already holds every reset below. Sending
-            # them anyway woke six callbacks at startup that only reset again.
+        if (isinstance(view.elements, list)
+                and not canvas_wanted(active_tab, canvas_stamp)):
+            view = view._replace(elements=CANVAS_DEFERRED)
+
+        if not trigger_id or trigger_id == 'main-tabs':
+            # Page load or a tab switch: nothing ran, so
+            # there's no message and no modal to open, and the page already
+            # holds every reset below. Sending them anyway woke six callbacks
+            # each time that only reset again.
             return view._replace(
                 editor_style=next_ed_style,
                 goal_style=next_goal_style,
@@ -2251,9 +2267,12 @@ def register_callbacks(app, services=None):
         Input('btn-auto-done-confirm', 'n_clicks'),
         Input('btn-auto-done-dismiss', 'n_clicks'),
         State('auto-done-candidates-store', 'data'),
+        State('main-tabs', 'active_tab'),
+        State('canvas-payload-stamp', 'data'),
         prevent_initial_call=True,
     )
-    def manage_auto_done_modal(_version, _confirm, _dismiss, current_candidates):
+    def manage_auto_done_modal(_version, _confirm, _dismiss, current_candidates,
+                               active_tab, canvas_stamp):
         from models import STATUS_DONE, STATUS_BLOCKED
         trig = get_trigger_id()
         candidates = list(current_candidates or [])
@@ -2280,7 +2299,9 @@ def register_callbacks(app, services=None):
                     node.status = STATUS_DONE
                     manager.update_node(node)
                     save_msg_out = f"Marked '{target}' as Done"
-                    elements_out = render_elements()
+                    elements_out = (render_elements()
+                                    if canvas_wanted(active_tab, canvas_stamp)
+                                    else CANVAS_DEFERRED)
                 except Exception as exc:
                     save_msg_out = f"Error marking '{target}' Done: {exc}"
                     # Re-prepend so the user can retry from the modal.
@@ -2483,7 +2504,7 @@ def register_callbacks(app, services=None):
 
     @app.callback(
         Output('canvas-node-count', 'children'),
-        Input('cytoscape-graph', 'elements'),
+        Input('canvas-payload-stamp', 'data'),
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
         Input('filter-subcontext', 'value'),
@@ -2497,10 +2518,10 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     @prerendered
-    def update_canvas_node_count(elements, f_type, f_ctx, f_sub,
+    def update_canvas_node_count(stamp, f_type, f_ctx, f_sub,
                                  f_comm, f_comm_method, f_val, f_int,
                                  f_diff, f_time, f_time_unit):
-        n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
+        n = (stamp or {}).get('nodes') or 0
         text = f"{n} node{'s' if n != 1 else ''}"
         if is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
@@ -2944,7 +2965,9 @@ def register_callbacks(app, services=None):
         app.clientside_callback(
             """
             function(pending) {
-                if (pending === null || pending === undefined) {
+                // Anything but a list is a render with no elements to apply,
+                // such as the Nodes canvas's deferred marker.
+                if (!Array.isArray(pending)) {
                     return window.dash_clientside.no_update;
                 }
                 var st = window.SkillTree;
@@ -3011,27 +3034,40 @@ def register_callbacks(app, services=None):
             container_id=canvas.container_id,
         )
 
-    # --- First paint: report the element payload to both covers ---
+    # --- Each Nodes render: stamp it, and report it to both covers ---
+    # The stamp is what server callbacks listen to instead of the elements,
+    # which would send the whole canvas back to the server on every render.
+    # `loaded` stays true once the canvas has had elements; until then the
+    # core engine sends CANVAS_DEFERRED (see canvas_view.canvas_wanted).
     # The canvas cover waits for the main canvas's layout to settle, and a
     # graph with no nodes never runs one — no `layoutstop` is ever coming, so
     # nothing else would release it. Only the empty case matters to it; the JS
     # ignores the rest. The startup cover (assets/startup_cover.js) waits for
-    # the first payload of any kind: it arrives with the core engine's first
+    # the first render of any kind: it arrives with the core engine's first
     # response, which also fills the editor's search and the other dropdowns.
     app.clientside_callback(
         """
-        function(pending) {
+        function(pending, previous) {
             if (window.SkillTree && window.SkillTree.notifyCanvasElements) {
                 window.SkillTree.notifyCanvasElements(pending);
             }
             if (window.SkillTree && window.SkillTree.notifyStartupPayload) {
                 window.SkillTree.notifyStartupPayload(pending);
             }
-            return window.dash_clientside.no_update;
+            var loaded = Boolean(previous && previous.loaded);
+            var nodes = previous ? previous.nodes : null;
+            if (Array.isArray(pending)) {
+                loaded = true;
+                nodes = pending.filter(function (element) {
+                    return element && element.data && element.data.source == null;
+                }).length;
+            }
+            return {loaded: loaded, nodes: nodes, at: Date.now()};
         }
         """,
-        Output('canvas-first-paint-sink', 'data'),
+        Output('canvas-payload-stamp', 'data'),
         Input('elements-pending-store', 'data'),
+        State('canvas-payload-stamp', 'data'),
         prevent_initial_call=True,
     )
 

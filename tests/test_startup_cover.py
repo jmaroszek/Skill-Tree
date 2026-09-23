@@ -68,7 +68,7 @@ def test_the_canvas_bridge_reports_the_first_payload_to_the_cover():
     register_callbacks(app)
 
     bridge = next(c for c in app._callback_list
-                  if c["output"] == "canvas-first-paint-sink.data")
+                  if c["output"] == "canvas-payload-stamp.data")
     name = bridge["clientside_function"]["function_name"]
     source = next(s for s in app._inline_scripts if name in s)
 
