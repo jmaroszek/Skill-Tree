@@ -222,3 +222,22 @@ def test_edit_trigger_batched_with_other_input_does_not_short_circuit(monkeypatc
         "batched edit-trigger+search-node should have run the full path and updated "
         "non-sidebar outputs; short-circuit fired incorrectly"
     )
+
+
+def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
+    """The layout already holds the empty message and the closed undo and
+    calibration modals. Restating them on load woke six startup callbacks
+    that only reset again."""
+    from core_response import CoreResponse
+
+    cb, _ = _core_engine_fn()
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "")
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda *a: set())
+    out = CoreResponse(*cb(*_core_engine_args()))
+
+    assert out.elements is not dash.no_update
+    for field in ("message", "clear_disabled", "clear_intervals",
+                  "undo_open", "undo_body", "undo_pending",
+                  "calibration_open", "calibration_reference",
+                  "calibration_pending"):
+        assert getattr(out, field) is dash.no_update, field

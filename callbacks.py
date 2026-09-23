@@ -1883,6 +1883,16 @@ def register_callbacks(app, services=None):
                 tc_pending = {'mode': 'single', 'node': completion_check_node}
                 tc_unit = _calibration_unit_for(_tc_node.time)
 
+        if not trigger_id:
+            # Page load: nothing ran, so there's no message and no modal to
+            # open, and the layout already holds every reset below. Sending
+            # them anyway woke six callbacks at startup that only reset again.
+            return view._replace(
+                editor_style=next_ed_style,
+                goal_style=next_goal_style,
+                events_style=next_events_sidebar_style,
+            )
+
         # Last 6 outputs: the undo-Done modal trio followed by the
         # time-calibration modal trio. The undo-Done path either opens its
         # modal earlier (return short-circuit in the toggle branch) or, as
