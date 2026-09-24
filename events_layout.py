@@ -645,6 +645,18 @@ def build_events_tab_content():
                    centered=True),
                 dcc.Store(id="move-dormant-node-store", data=None),
                 dbc.Modal([
+                    dbc.ModalHeader(dbc.ModalTitle("Delete Node")),
+                    dbc.ModalBody(id="delete-dormant-body"),
+                    dbc.ModalFooter([
+                        dbc.Button("Cancel", id="btn-delete-dormant-cancel",
+                                   color="secondary", className="flex-fill me-2"),
+                        dbc.Button("Delete", id="btn-delete-dormant-confirm",
+                                   color="danger", className="flex-fill"),
+                    ], className="d-flex"),
+                ], id="modal-delete-dormant-node", size="sm", is_open=False,
+                   centered=True),
+                dcc.Store(id="delete-dormant-node-store", data=None),
+                dbc.Modal([
                     # Was the only delete confirm in the app opening as a naked
                     # body; the node-delete confirm in layout.py has carried a
                     # title all along for identical copy.
@@ -1008,15 +1020,19 @@ def _wakes_cell(en, event):
 
 
 def _dormant_row_actions(node_name: str):
-    """Edit / Move / Remove for one row, or None when it has nothing to act on.
+    """Edit / Move / Delete for one row, or None when it has nothing to act on.
 
     Gated per row rather than per event. A Pending event can hold an awake
     node (another event woke it) and a fired event can still hold scheduled
     ones, so the event's own status was never the right question.
+
+    The last action deletes the node from the graph. It used to be drawn as
+    an ✕ labelled "Remove", which reads as "take it out of this event" --
+    the thing Move does -- and it fired with no confirmation.
     """
     ids = {
         action: {"type": f"btn-{action}-dormant-node", "index": node_name}
-        for action in ("edit", "move", "remove")
+        for action in ("edit", "move", "delete")
     }
     specs = [
         ("edit", "bi bi-pencil", f"Edit dormant node {node_name}",
@@ -1024,8 +1040,8 @@ def _dormant_row_actions(node_name: str):
         ("move", "bi bi-box-arrow-right",
          f"Move dormant node {node_name} to another event",
          "Move to another event", ""),
-        ("remove", "bi bi-x-lg", f"Remove dormant node {node_name}",
-         "Remove dormant node", " dormant-node-action-btn-danger"),
+        ("delete", "bi bi-trash3", f"Delete dormant node {node_name}",
+         "Delete node", " dormant-node-action-btn-danger"),
     ]
     children = []
     for action, icon, label, tip, extra_class in specs:
@@ -1042,6 +1058,28 @@ def _dormant_row_actions(node_name: str):
     return html.Div(
         children,
         className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")
+
+
+def dormant_delete_confirmation_body(node_name, other_events=()):
+    """What deleting a dormant node from its row will do, for the confirm modal.
+
+    `other_events` are the events besides the selected one that also hold the
+    node. Deleting it takes it out of those too, and nothing on this row says
+    they exist.
+    """
+    children = [html.P(
+        [html.Strong(node_name),
+         " will be permanently deleted from the graph, along with its "
+         "relationships. This cannot be undone."],
+        className="mb-2")]
+    if other_events:
+        names = ", ".join(f'"{name}"' for name in other_events)
+        children.append(html.P(
+            f"It will also leave {names}.", className="mb-2"))
+    children.append(html.P(
+        "To keep it, move it to another event instead.",
+        className="text-muted mb-0", style={"fontSize": tokens.FS_CAP}))
+    return children
 
 
 #: Above this many scheduled nodes, listing every wake date stops being

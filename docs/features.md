@@ -716,7 +716,7 @@ Each row says when its node wakes. For a date event the app can work the date ou
 
 A node that has woken shows an **Awake** badge instead. If a different event woke it first, the row says so: *Awake · via Music*. A node can belong to more than one event, and the first one to fire wakes it.
 
-Every row has three actions on hover: edit the node, move it to another event, or remove it.
+Every row has three actions on hover: edit the node, move it to another event, or delete it. Delete removes the node from the whole graph, not just this event. It asks first, and names any other events that also hold the node.
 
 ### Firing an Event
 

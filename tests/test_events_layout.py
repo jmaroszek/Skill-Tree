@@ -7,6 +7,7 @@ from events_layout import (
     DORMANT_COL_WIDTHS,
     build_dormant_nodes_table,
     build_event_card,
+    dormant_delete_confirmation_body,
 )
 from models import Node
 from config import BADGE_PALETTE
@@ -75,7 +76,7 @@ def test_dormant_node_table_uses_progressively_disclosed_direct_actions():
     row = table.children[1].children[0]
     actions = row.children[-1].children
     (edit_button, _edit_tip, move_button, _move_tip,
-     remove_button, _remove_tip) = actions.children
+     delete_button, _delete_tip) = actions.children
 
     assert table.className.startswith("dormant-nodes-table")
     assert _header_labels(table) == ["Name", "Type", "Delay", "Wakes", "Actions"]
@@ -84,16 +85,47 @@ def test_dormant_node_table_uses_progressively_disclosed_direct_actions():
     assert "dormant-node-actions" in actions.className
     assert edit_button.className == "dormant-node-action-btn"
     assert move_button.className == "dormant-node-action-btn"
-    assert "dormant-node-action-btn-danger" in remove_button.className
+    assert "dormant-node-action-btn-danger" in delete_button.className
     assert edit_button.children[0].className == "bi bi-pencil"
     assert move_button.children[0].className == "bi bi-box-arrow-right"
-    assert remove_button.children[0].className == "bi bi-x-lg"
+    assert delete_button.children[0].className == "bi bi-trash3"
     assert edit_button.children[1].children == "Edit dormant node Audio Engineering"
     assert move_button.children[1].children == (
         "Move dormant node Audio Engineering to another event")
-    assert remove_button.children[1].children == "Remove dormant node Audio Engineering"
+    assert delete_button.children[1].children == "Delete dormant node Audio Engineering"
+    assert delete_button.id == {"type": "btn-delete-dormant-node",
+                                "index": "Audio Engineering"}
+    assert _delete_tip.children == "Delete node"
     assert not hasattr(edit_button, "title")
-    assert not hasattr(remove_button, "title")
+    assert not hasattr(delete_button, "title")
+
+
+def _text(component):
+    """Flattened visible text of a component tree."""
+    if component is None:
+        return ""
+    if isinstance(component, str):
+        return component
+    if isinstance(component, (list, tuple)):
+        return "".join(_text(c) for c in component)
+    return _text(getattr(component, "children", None))
+
+
+def test_delete_confirmation_names_the_node_and_says_it_is_permanent():
+    body = _text(dormant_delete_confirmation_body("Audio Engineering"))
+
+    assert "Audio Engineering" in body
+    assert "permanently deleted from the graph" in body
+    assert "cannot be undone" in body
+    assert "move it to another event instead" in body
+    assert "also leave" not in body
+
+
+def test_delete_confirmation_names_the_other_events_that_lose_the_node():
+    body = _text(dormant_delete_confirmation_body(
+        "Audio Engineering", ["Music", "Studio"]))
+
+    assert 'It will also leave "Music", "Studio".' in body
 
 
 def test_an_awake_row_has_no_actions():
