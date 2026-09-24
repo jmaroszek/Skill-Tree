@@ -478,7 +478,7 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
     border_style = f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}"
 
     drag_handle = html.Span(
-        html.I(className="bi bi-grip-horizontal"), className="event-drag-handle",
+        html.I(className="bi bi-list"), className="event-drag-handle",
         style={"cursor": "grab", "color": tokens.TEXT_DIM, "fontSize": tokens.FS_MD,
                "marginRight": "8px", "userSelect": "none"},
     ) if show_drag_handle else None

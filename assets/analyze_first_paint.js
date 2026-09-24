@@ -12,6 +12,11 @@
  * page layout), resize every Plotly root against the now-visible pane, and
  * reveal the drawings on the following animation frame.
  *
+ * Subtabs repeat the problem inside the open tab: their panes render while
+ * display:none too. A style change on an `.analyze-subpane` counts as a
+ * reveal, and only graphs in shown panes are sized; a hidden pane's graphs
+ * wait for their own reveal.
+ *
  * The child-list path covers the less common case where the user reaches
  * Analyze before the background render finishes: newly mounted graphs are
  * held until Plotly has created their SVGs and they can be sized. A bounded
@@ -22,6 +27,7 @@
     'use strict';
 
     var PANE_ID = 'analyze-tab-content';
+    var SUBPANE_CLASS = 'analyze-subpane';
     var SIZING_CLASS = 'analyze-is-sizing';
     var MAX_READY_FRAMES = 120;
     var generation = 0;
@@ -30,12 +36,24 @@
         return Boolean(pane && pane.style.display !== 'none' && pane.clientWidth);
     }
 
+    function inShownSubpane(el) {
+        var subpane = el.closest ? el.closest('.' + SUBPANE_CLASS) : null;
+        return !subpane || subpane.style.display !== 'none';
+    }
+
     function graphWrappers(pane) {
-        return Array.prototype.slice.call(pane.querySelectorAll('.dash-graph'));
+        return Array.prototype.slice.call(pane.querySelectorAll('.dash-graph'))
+            .filter(inShownSubpane);
     }
 
     function plotRoots(pane) {
-        return Array.prototype.slice.call(pane.querySelectorAll('.js-plotly-plot'));
+        return Array.prototype.slice.call(pane.querySelectorAll('.js-plotly-plot'))
+            .filter(inShownSubpane);
+    }
+
+    function isSubpane(node) {
+        return Boolean(node && node.classList
+            && node.classList.contains(SUBPANE_CLASS));
     }
 
     function plotsAreReady(wrappers, plots) {
@@ -132,7 +150,8 @@
             }
 
             var revealed = mutations.some(function (mutation) {
-                return mutation.type === 'attributes' && mutation.target === pane;
+                return mutation.type === 'attributes'
+                    && (mutation.target === pane || isSubpane(mutation.target));
             });
             if (revealed || mutations.some(addedGraph)) beginSizing(pane);
         });

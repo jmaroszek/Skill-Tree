@@ -78,7 +78,7 @@ def _chip(sub, count=0, error=None):
     name = sub.get("name") or ""
     width = f"{max(_MIN_CHIP_CHARS, len(name) + 1)}ch"
     return html.Div([
-        html.Span(html.I(className="bi bi-grip-vertical"),
+        html.Span(html.I(className="bi bi-list"),
                   className="ctx-chip-grip"),
         dbc.Input(
             id={"type": "ctx-sub-name", "index": sub["sid"]},
@@ -100,7 +100,7 @@ def _deleted_row(row, count):
     stranded = (f"{_plural(count, 'node')} need a new home" if count
                 else "no nodes affected")
     return html.Div([
-        html.Span(html.I(className="bi bi-grip-vertical"),
+        html.Span(html.I(className="bi bi-list"),
                   className="ctx-drag-handle ctx-drag-disabled"),
         html.Span(row.get("orig") or row.get("name") or "",
                   className="ctx-row-name-static ctx-row-removed"),
@@ -167,7 +167,7 @@ def build_context_editor_rows(rows, ctx_counts=None, pair_counts=None, errors=No
             title="Add a subcontext", className="ctx-chip-add"))
 
         out.append(html.Div([
-            html.Span(html.I(className="bi bi-grip-vertical"),
+            html.Span(html.I(className="bi bi-list"),
                       className="ctx-drag-handle"),
             # dbc.Input takes no title, so a wrapper carries the node count.
             html.Div(dbc.Input(

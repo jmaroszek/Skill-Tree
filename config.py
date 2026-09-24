@@ -341,7 +341,7 @@ DEFAULT_EVENTS_GRAPH_LAYOUT = {
 }
 
 DEFAULT_ANALYZE_LIMITS = {
-    'bottlenecks': 25,
+    'bottlenecks': 10,
     'goals': 75,
     'throughput_granularity': 'quarter',  # 'month' | 'quarter' | 'year'
     'throughput_start': None,  # ISO date string; None = earliest done_date

@@ -158,17 +158,12 @@ def test_plotly_chart_colours_match_their_tokens():
     the palette's darker red.
     """
     import analyze_callbacks
-    from config import BADGE_PALETTE
-    from models import STATUS_OPEN, STATUS_DONE, STATUS_BLOCKED
-
-    for status in (STATUS_OPEN, STATUS_DONE, STATUS_BLOCKED):
-        assert analyze_callbacks._STATUS_COLORS[status] == BADGE_PALETTE[status][0], (
-            f"Analyze paints {status} differently from its badge elsewhere.")
 
     css = TOKENS_CSS.read_text(encoding="utf-8")
     for const, token in [("_BG", "--st-bg-canvas"),
                          ("_CARD_BG", "--st-bg-raised"),
-                         ("_BORDER", "--st-border-panel")]:
+                         ("_BORDER", "--st-border-panel"),
+                         ("_TEXT", "--st-text-primary")]:
         expected = re.search(rf"{token}:\s*([^;]+);", css).group(1).strip()
         assert getattr(analyze_callbacks, const) == expected, (
             f"analyze_callbacks.{const} has drifted from {token}.")
