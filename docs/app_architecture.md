@@ -122,7 +122,7 @@ All three canvases build their elements with `build_node_element` and `build_edg
 ### 3. Right-click → editor (the JS-Dash bridge)
 
 1. `context_menu.js` shows the node menu on right-click and stashes `_currentNodeData`. On a canvas the data is the Cytoscape node's; on a Next row, Now card or goal card it comes from the `node_menu_attributes` data attributes. `menus.js` positions and closes it, as it does every floating menu.
-2. "Edit" calls `triggerEdit()`, which routes by source: events+dormant → `dormant-edit-trigger-input`; the Nodes canvas → `edit-trigger-input` (which switches to the canvas tab); anywhere else → `details-edit-trigger-input` (opens the editor *in place*, no tab switch).
+2. "Edit" calls `triggerEdit()`, which routes by source: the Nodes canvas → `edit-trigger-input` (which switches to the canvas tab); anywhere else, the Events canvas included → `details-edit-trigger-input` (opens the editor *in place*, no tab switch). Dormant nodes take the same route; there is one node editor.
 3. It pokes that hidden Dash input via the **value-setter bridge**: the native `HTMLInputElement` value setter plus a synthetic `input` event. A plain `el.value = x` is silently ignored because the input is React-controlled. The value is suffixed with `'|' + Date.now()` so that re-editing the *same* node still changes the value and re-fires the callback.
 4. The Dash callback bound to that input opens and populates the editor sidebar.
 
@@ -132,6 +132,17 @@ It also owns `SkillTree.getCy`, the single boundary for Cytoscape's private DOM
 registration, and `SkillTree.wrapLayout`, which composes cold-start, fit, and request
 hooks once per live instance. The latest registered hook remains outermost, matching
 the former wrappers; a remounted canvas gets its own hook chain.
+
+### Dormancy in the node editor
+
+Dormant is a form field of the one node editor, saved with Save.
+
+- `populate_node_dormancy` ([event_callbacks.py](../event_callbacks.py)) fills the Dormant switch and the Events section from the database whenever `node-original-name` changes or `events-refresh-trigger` fires. It also writes the `dormancy` key of `editor-pristine-snapshot`, so the unsaved-changes check compares against what it just drew.
+- A clientside callback collects the switch, the per-event rows and the join fields into `node-dormancy-form`. `core_engine`, `populate_editor`, `toggle_unsaved_modal` and `sync_original_name_after_save` read that one store. Its shape is documented beside `NEW_NODE_DORMANCY` in [callback_helpers.py](../callback_helpers.py).
+- On Save, `core_engine` runs `handle_save`, then `node_commands.apply_dormancy`, in one transaction. A refusal (no event chosen, a node another event already woke) raises `ValueError` and rolls back the whole save.
+- `refresh_events_after_save` bumps `events-refresh-trigger` once the save message appears, which is after the commit. That redraws the Events tab table and refills the section from the database.
+- `sync_original_name_after_save` rewrites `node-original-name` only on a rename or a new node. A rewrite on every save would refill the section from the database, and after a refused save that would throw away the user's Dormant switch.
+- The Events tab's **+** writes `editor-dormant-preset` and clicks `btn-editor-new`. The populator applies the preset to the next blank form. The **Add to Event** modal (`build_add_to_event_modal`) puts existing nodes to sleep in bulk; the context menu's "Add to Event…" opens it through `dormant-existing-trigger-input`.
 
 ### 4. Status cascade
 
@@ -243,7 +254,7 @@ Everything the cover waits for adds to the wait, so startup work changed:
   `prevent_initial_call=True`, so the browser never repeats them. That covers
   tab styles, trigger hints, subcontext options, the empty alias and link rows,
   the Details dropdown and suggestions, the Events list and the editor's Now
-  and dormant switches. A callback qualifies when every input is in the initial
+  switch. A callback qualifies when every input is in the initial
   layout and none is pattern-matched. `create_app` fails at startup if a marked
   callback would also run in the browser.
 - `populate_editor` no longer runs on load. Every path that opens the editor

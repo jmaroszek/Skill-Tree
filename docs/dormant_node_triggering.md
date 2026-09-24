@@ -61,7 +61,7 @@ back under an Event is what the user asked for, and refuses while any row
 still holds it awake. A node with no rows at all is untouched by both halves.
 
 Every path that writes `EventNodes` goes through it: `add_node_to_event`,
-`update_dormant_node`, `delete_event(delete_nodes=False)`,
+`delete_event(delete_nodes=False)`,
 `move_node_to_event`, `trigger_event`, and `check_pending_activations`. The
 one exception is `detach_node_from_all_events`, whose `dormant = 0` is the
 user's explicit instruction.
@@ -115,9 +115,32 @@ Before an Event fires there is no date to speak of, so a delay is an offset:
 `EventNodes.activation_date` and the offset has nothing left to measure from,
 because `Events` records no firing time.
 
-So the editor changes field with the row. A dormant row edits its offset; a
-scheduled row edits its wake date directly, via `set_node_wake_date`. Moving
-the node to a pending Event clears the date and puts it back on an offset.
+So the node editor's Events section changes field with the row. A row whose
+Event has not fired edits its offset; a scheduled row edits its wake date
+directly, via `set_node_wake_date`. Moving the node to a pending Event clears
+the date and puts it back on an offset.
+
+## One node editor
+
+Dormant nodes used to have their own editor, a modal on the Events tab that
+copied every field of the node editor. The two drifted. The modal rebuilt the
+node from its form, so a save dropped the fields it did not show, such as the
+Now flag, lifecycle dates and recorded actual time. The node editor refused
+dormant nodes, yet its search listed them.
+
+Now there is one editor. Dormant is a field of it, applied on Save by
+`node_commands.apply_dormancy`. While Dormant is on, the editor lists the
+node's waiting rows (delay or wake date, and Add to Now on wake) and offers
+an Event to join. Turning it on for a live node requires an Event, either a
+pending one or a new one created with a manual trigger.
+
+Putting a node to sleep refuses a node that an Event has already woken. A
+woken row keeps its node awake under the rule above, so adding a second row
+would change nothing. The old flow added the row anyway and left the node
+live without saying so.
+
+Adding existing nodes in bulk, from the Events tab or the canvas menu, goes
+through a small Add to Event modal with no node fields.
 
 ## Row presentation
 

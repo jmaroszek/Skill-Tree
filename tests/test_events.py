@@ -236,12 +236,10 @@ class TestEventNodeAssociation:
         assert event_nodes[0]['delay_days'] == 7
 
     def test_handle_save_preserves_dormant(self, em, mgr):
-        # Regression: editing a dormant node via the modal save flow used to
-        # reset Nodes.dormant to 0 because handle_save's form-built Node
-        # defaulted dormant=0 and update_node wrote that over the stored value.
-        # Note: after the dormant-modal-edit refactor, the UI no longer routes
-        # dormant nodes through handle_save. This test remains as a safety net
-        # protecting any other code path that still reaches the helper.
+        # Regression: editing a dormant node used to reset Nodes.dormant to 0
+        # because handle_save's form-built Node defaulted dormant=0 and
+        # update_node wrote that over the stored value. The node editor saves
+        # dormant nodes through handle_save, so this is the main path now.
         from node_commands import handle_save
 
         em.add_event(Event(name="E1"))
@@ -258,91 +256,6 @@ class TestEventNodeAssociation:
         after = mgr.get_node("N1")
         assert after.description == "edited"
         assert after.dormant == 1, "dormant flag must round-trip through edit/save"
-
-
-# ============================================================================
-# Dormant Node Edit (update_dormant_node)
-# ============================================================================
-
-class TestDormantNodeEdit:
-    def test_update_preserves_dormant_flag(self, em, mgr):
-        em.add_event(Event(name="E1"))
-        em.create_dormant_node(_make_node("N1", description="orig"), "E1", delay_days=0)
-        assert mgr.get_node("N1").dormant == 1
-
-        em.update_dormant_node(
-            "E1", "N1", _make_node("N1", description="edited"),
-            delay_days=0,
-        )
-
-        after = mgr.get_node("N1")
-        assert after.description == "edited"
-        assert after.dormant == 1
-
-    def test_update_preserves_delay_days(self, em, mgr):
-        em.add_event(Event(name="E1"))
-        em.create_dormant_node(_make_node("N1"), "E1", delay_days=14)
-
-        em.update_dormant_node(
-            "E1", "N1", _make_node("N1", description="edited"),
-            delay_days=14,
-        )
-
-        ens = em.get_event_nodes("E1")
-        assert ens[0]['delay_days'] == 14
-
-    def test_update_followed_by_sync_edges_rewrites_relationships(self, em, mgr):
-        em.add_event(Event(name="E1"))
-        mgr.add_node(_make_node("Other1"))
-        mgr.add_node(_make_node("Other2"))
-        em.create_dormant_node(_make_node("D"), "E1", delay_days=0)
-        # Initial edge: D needs Other1 (hard)
-        mgr.add_edge("Other1", "D", EDGE_NEEDS_HARD)
-
-        em.update_dormant_node("E1", "D", _make_node("D"), delay_days=0)
-        # Caller pattern: sync_edges with the new edge set
-        mgr.sync_edges("D", [], [], ["Other2"], [], [])
-
-        edges = mgr.get_edges()
-        needs_hard = [e for e in edges if e['target'] == "D" and e['type'] == EDGE_NEEDS_HARD]
-        supports_hard = [e for e in edges if e['source'] == "D" and e['type'] == EDGE_NEEDS_HARD]
-        assert needs_hard == []
-        assert len(supports_hard) == 1 and supports_hard[0]['target'] == "Other2"
-
-    def test_update_missing_row_raises(self, em):
-        em.add_event(Event(name="E1"))
-        with pytest.raises(ValueError, match="not found in event"):
-            em.update_dormant_node("E1", "Ghost", _make_node("Ghost"), delay_days=0)
-
-    def test_update_rename_cascades(self, em, mgr):
-        em.add_event(Event(name="E1"))
-        mgr.add_node(_make_node("Other"))
-        em.create_dormant_node(_make_node("OldName"), "E1", delay_days=3,
-                               now_on_trigger=True)
-        mgr.add_edge("OldName", "Other", EDGE_HELPS)
-
-        renamed = _make_node("NewName", description="renamed")
-        em.update_dormant_node("E1", "OldName", renamed, delay_days=3,
-                               now_on_trigger=True)
-
-        assert mgr.get_node("OldName") is None
-        after = mgr.get_node("NewName")
-        assert after is not None
-        assert after.dormant == 1
-        assert after.description == "renamed"
-
-        # Edge moved with the rename
-        edges = mgr.get_edges()
-        assert any(e['source'] == "NewName" and e['target'] == "Other"
-                   and e['type'] == EDGE_HELPS for e in edges)
-        assert not any(e['source'] == "OldName" for e in edges)
-
-        # EventNodes row moved to the new name, preserving delay + Now intent
-        ens = em.get_event_nodes("E1")
-        assert len(ens) == 1
-        assert ens[0]['node'].name == "NewName"
-        assert ens[0]['delay_days'] == 3
-        assert ens[0]['now_on_trigger'] is True
 
 
 # ============================================================================
@@ -630,20 +543,6 @@ class TestDormantInvariant:
         em.add_event(Event(name="E1"))
         em.add_node_to_event("E1", "Fresh")
         assert mgr.get_node("Fresh").dormant == 1
-        assert_invariant(em)
-
-    def test_editing_a_node_another_event_woke_does_not_resleep_it(self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="First"))
-        em.add_event(Event(name="Second"))
-        em.add_node_to_event("First", "Shared")
-        em.add_node_to_event("Second", "Shared")
-        em.trigger_event("First")
-
-        em.update_dormant_node("Second", "Shared", _make_node("Shared", value=9))
-
-        assert mgr.get_node("Shared").dormant == 0
-        assert mgr.get_node("Shared").value == 9
         assert_invariant(em)
 
     def test_delete_event_keeping_nodes_leaves_one_asleep_under_another_pending_event(

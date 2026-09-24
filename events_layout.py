@@ -3,18 +3,15 @@ Layout definitions for the Events tab.
 """
 
 import style_tokens as tokens
-from duration_ui import (DURATION_UNITS, bracket_label, estimate_guidance, unit_select,
-                         format_duration_days)
+from duration_ui import DURATION_UNITS, unit_select, format_duration_days
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
 from datetime import date, timedelta
 from config import ConfigManager, TOAST_CLEAR_INTERVAL_MS, badge_style
-from models import STATUS_DONE
 from styles import events_graph_stylesheet
-from details_layout import build_graph_settings_panel, _freeze_indicator, WEEKDAY_OPTIONS
-from context_picker import build_single_context_picker
+from details_layout import build_graph_settings_panel, _freeze_indicator
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
 from ui_kit import (Tooltip, add_button, confirm_action, danger_action,
                     done_color, panel_close_button, primary_action)
@@ -53,358 +50,9 @@ def build_events_sidebar_content():
 
 def build_events_tab_content():
     """Builds the Events tab UI (right panel only — list is now in the global sidebar)."""
-    _ted = ConfigManager.get_time_estimate_defaults()
     # Triggering an event is its "done" moment — tint the button with the
     # node-status Done color rather than a loud default green.
     _done_color = done_color()
-
-    # --- Node Editor Modal for Dormant Nodes ---
-    dormant_node_modal = dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Add Dormant Node", id="modal-dormant-node-title")),
-        dbc.ModalBody([
-            # Mode toggle: New node (full editor) vs Existing nodes (picker).
-            # Hidden during edit — editing only operates on a single dormant node.
-            html.Div(id="dormant-mode-toggle-wrapper", children=[
-                dbc.RadioItems(
-                    id="dormant-node-mode",
-                    options=[
-                        {"label": "New node", "value": "new"},
-                        {"label": "Existing nodes", "value": "existing"},
-                    ],
-                    value="new",
-                    inline=True,
-                    className="mb-2",
-                ),
-                html.Hr(className="my-2"),
-            ]),
-
-            # Existing-nodes mode: pick live non-dormant nodes to convert.
-            html.Div(id="dormant-mode-existing-fields", style={"display": "none"}, children=[
-                dbc.Label("Convert these nodes to dormant"),
-                html.Div(
-                    dcc.Dropdown(
-                        id="dormant-existing-picker",
-                        multi=True,
-                        placeholder="Select existing nodes...",
-                        options=[],
-                    ),
-                    className="text-dark",
-                ),
-                # Event target sub-section: visible only when no event is currently selected.
-                html.Div(id="dormant-event-target-wrapper", style={"display": "none"}, children=[
-                    html.Hr(className="my-2"),
-                    html.H5("Add to event", className="mt-2 mb-1"),
-                    dbc.RadioItems(
-                        id="dormant-event-target-mode",
-                        options=[
-                            {"label": "New event", "value": "new"},
-                            {"label": "Existing event", "value": "existing"},
-                        ],
-                        value="new",
-                        inline=True,
-                        className="mb-2",
-                    ),
-                    html.Div(id="dormant-new-event-section", children=[
-                        dbc.Label("Event Name"),
-                        dbc.Input(id="dormant-new-event-name", type="text"),
-                        dbc.Label("Description", className="mt-2"),
-                        dbc.Textarea(id="dormant-new-event-desc", rows=2,
-                                     style={"height": "60px", "resize": "vertical"}),
-                        dbc.Label("Trigger Type", className="mt-2 mb-1"),
-                        dbc.RadioItems(
-                            id="dormant-new-event-trigger-type",
-                            options=[
-                                {"label": "Manual", "value": "manual"},
-                                {"label": "Date", "value": "date"},
-                                {"label": "Node Completion", "value": "node"},
-                            ],
-                            value="manual",
-                            inline=True,
-                            className="mb-2",
-                        ),
-                        html.Div(id="dormant-new-event-date-section",
-                                 style={"display": "none"}, children=[
-                            html.Div([
-                                dbc.Input(id="dormant-new-event-trigger-date", type="date",  # type: ignore[reportArgumentType]
-                                          style={"maxWidth": "200px"}),
-                                html.Small("Auto-triggers on or after this date.",
-                                           className="text-muted ms-2 align-self-center",
-                                           style={"fontSize": tokens.FS_CAP}),
-                            ], className="d-flex align-items-center mb-2"),
-                        ]),
-                        html.Div(id="dormant-new-event-node-section",
-                                 style={"display": "none"}, children=[
-                            html.Div(
-                                dcc.Dropdown(
-                                    id="dormant-new-event-trigger-node",
-                                    placeholder="Select one or more nodes...",
-                                    options=[],
-                                    multi=True,
-                                ),
-                                className="text-dark mb-2",
-                                style={"maxWidth": "350px"},
-                            ),
-                            dbc.RadioItems(
-                                id="dormant-new-event-trigger-mode",
-                                options=[
-                                    {"label": "Any", "value": "any"},
-                                    {"label": "All", "value": "all"},
-                                ],
-                                value="any",
-                                inline=True,
-                                className="mb-1",
-                                style={"fontSize": tokens.FS_BASE},
-                            ),
-                            html.Small(id="dormant-new-event-trigger-mode-hint",
-                                       className="text-muted d-block mb-2",
-                                       style={"fontSize": tokens.FS_CAP}),
-                        ]),
-                    ]),
-                    html.Div(id="dormant-existing-event-section", style={"display": "none"}, children=[
-                        dbc.Label("Pending Event"),
-                        html.Div(
-                            dcc.Dropdown(
-                                id="dormant-existing-event-picker",
-                                placeholder="Select event...",
-                                options=[],
-                            ),
-                            className="text-dark",
-                        ),
-                    ]),
-                ]),
-            ]),
-
-            # New-node mode: full node editor (Name through Resources).
-            html.Div(id="dormant-mode-new-fields", children=[
-            html.Div([
-                dbc.Label("Name", className="mb-0"),
-                add_button("btn-dormant-alias-add", "Add alias"),
-            ], className="d-flex align-items-center mb-1"),
-            dbc.Input(id="dormant-node-name", type="text", placeholder="Name node..."),
-            dbc.Collapse(
-                html.Div([
-                    dbc.Label("Alias", id="dormant-aliases-label",
-                              className="mt-1 mb-1"),
-                    html.Div(id='dormant-aliases-container'),
-                ]),
-                id="collapse-dormant-aliases", is_open=False,
-            ),
-            dcc.Store(id='dormant-aliases-store', data=['']),
-
-            dbc.Label("Type", className="mt-2"),
-            dbc.Select(id="dormant-node-type", options=[],
-                       placeholder="Choose node type..."),
-
-            dbc.Label("Description", className="mt-2"),
-            dbc.Textarea(id="dormant-node-desc", placeholder="Describe your project...",
-                         style={"height": "80px", "resize": "vertical"}),
-
-            dbc.Label("Context", className="mt-2"),
-            build_single_context_picker(
-                "dormant-node-context-picker",
-                "dormant-node-context",
-                "dormant-node-subcontext",
-                subcontext_options=[{"label": "None", "value": ""}],
-            ),
-
-            html.Hr(className="my-2"),
-            html.H5("Ratings", className="mt-2 mb-1"),
-            html.Div([
-                dbc.Checklist(
-                    options=[{"label": "Inherit", "value": "inherited"}],
-                    value=[],
-                    id="dormant-node-value-mode",
-                    switch=True,
-                    className="mb-0",
-                ),
-            ], className="d-flex align-items-center mt-2 mb-2"),
-            Tooltip(
-                "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
-                target="dormant-node-value-mode", placement="left",
-            ),
-            # Locked-on notice for Milestones (mirrors the time-mode warning).
-            html.Div(id="dormant-value-mode-warning",
-                     style=tokens.ERROR_TEXT_HIDDEN,
-                     className="mt-1 mb-2", children=""),
-            html.Div(id="section-dormant-ratings", children=[
-                dbc.Label("Value", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-value"),
-
-                dbc.Label("Interest", className="mt-2"),
-                dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-interest"),
-
-                html.Div(id="dormant-node-effort-row", children=[
-                    dbc.Label("Effort", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="dormant-node-difficulty"),
-                ]),
-                html.Div(id="dormant-node-effort-caption", style={"display": "none"}, children=[
-                    dbc.Label("Effort", className="mt-2"),
-                    html.Div("Derived from subtasks", className="text-muted small"),
-                ]),
-            ]),
-            html.Hr(className="my-2"),
-            html.Div([
-                html.H5("Time Estimates", className="mb-0"),
-                estimate_guidance("dormant-node"),
-            ], className="d-flex align-items-center mt-2 mb-2"),
-            html.Div([
-                dbc.Checklist(
-                    options=[{"label": "Inherit", "value": "inherited"}],
-                    value=[],
-                    id="dormant-node-time-mode",
-                    switch=True,
-                    className="mb-0",
-                ),
-                dbc.Checklist(
-                    options=[{"label": "Habit", "value": "habit"}],
-                    value=[],
-                    id="dormant-node-time-habit-mode",
-                    switch=True,
-                    className="mb-0 ms-3 flex-grow-1",
-                ),
-                unit_select("dormant-node-time-unit",
-                            value=_ted.get('unit', 'weeks'), compact=True)
-            ], className="d-flex align-items-center mb-2"),
-            html.Div(id="dormant-node-time-omp", children=[
-                dbc.Row([
-                    dbc.Col([*bracket_label("Lower", "dormant-node-time-o-label"), dbc.Input(id="dormant-node-time-o", type="number", min=0, value=_ted.get('optimistic', 0))]),
-                    dbc.Col([*bracket_label("Expected", "dormant-node-time-m-label"), dbc.Input(id="dormant-node-time-m", type="number", min=0, value=_ted.get('expected', 0))]),
-                    dbc.Col([*bracket_label("Upper", "dormant-node-time-p-label"), dbc.Input(id="dormant-node-time-p", type="number", min=0, value=_ted.get('pessimistic', 0))]),
-                ]),
-            ]),
-            html.Div(id="section-dormant-node-time-habit",
-                     style={"display": "none"}, children=[
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Label("Duration", className="mb-0"),
-                        dbc.Input(id="dormant-node-habit-duration", type="number", min=0, value=0),
-                    ], width=7),
-                    dbc.Col([
-                        dbc.Label(" ", className="mb-0"),
-                        unit_select("dormant-node-habit-duration-unit",
-                                    units=DURATION_UNITS, value="weeks"),
-                    ], width=5),
-                ], className="mb-2"),
-                dbc.Label("Minutes per Session", className="mb-0 mt-2"),
-                dbc.Row([
-                    dbc.Col([*bracket_label("Lower", "dormant-node-habit-intensity-o-label"),
-                             dbc.Input(id="dormant-node-habit-intensity-o", type="number", min=0, value=0)]),
-                    dbc.Col([*bracket_label("Expected", "dormant-node-habit-intensity-m-label"),
-                             dbc.Input(id="dormant-node-habit-intensity-m", type="number", min=0, value=0)]),
-                    dbc.Col([*bracket_label("Upper", "dormant-node-habit-intensity-p-label"),
-                             dbc.Input(id="dormant-node-habit-intensity-p", type="number", min=0, value=0)]),
-                ]),
-                dcc.Input(id="dormant-node-habit-intensity-unit", type="hidden",
-                          value="min_per_session"),
-                dbc.Label("On these days", className="mb-1 mt-2 d-block"),
-                dbc.Checklist(
-                    id="dormant-node-habit-days",
-                    options=WEEKDAY_OPTIONS,
-                    value=[0, 1, 2, 3, 4, 5, 6],
-                    className="habit-days-picker",
-                    inputClassName="btn-check",
-                    labelClassName="btn btn-outline-light btn-sm",
-                    labelCheckedClassName="active",
-                ),
-                html.Div(id="dormant-node-habit-total-preview",
-                         className="mt-2 small text-muted"),
-            ]),
-
-            html.Hr(className="my-2"),
-            html.H5("Relationships", className="mt-2 mb-1"),
-            dbc.Label("Needs", className="mt-2"),
-            html.Div([
-                dcc.Dropdown(id="dormant-node-needs-hard", multi=True, placeholder="Hard..."),
-                dcc.Dropdown(id="dormant-node-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
-            ], className="text-dark"),
-            dbc.Label("Supports", className="mt-2"),
-            html.Div([
-                dcc.Dropdown(id="dormant-node-supports-hard", multi=True, placeholder="Hard..."),
-                dcc.Dropdown(id="dormant-node-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
-            ], className="text-dark"),
-            dbc.Label("Helps", className="mt-2"),
-            html.Div(dcc.Dropdown(id="dormant-node-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
-
-            html.Hr(className="my-2"),
-            html.H5("Resources", className="mt-2 mb-1"),
-            dcc.Store(id='dormant-obsidian-links-store', data=['']),
-            dcc.Store(id='dormant-drive-links-store', data=['']),
-            dcc.Store(id='dormant-website-links-store', data=['']),
-            html.Div([
-                dbc.Label("Obsidian", className="mb-0"),
-                add_button("btn-dormant-obsidian-add", "Add Obsidian link"),
-            ], className="d-flex align-items-center mt-2 mb-1"),
-            html.Div(id='dormant-obsidian-links-container'),
-            html.Div([
-                dbc.Label("Google Drive", className="mb-0"),
-                add_button("btn-dormant-drive-add", "Add Google Drive link"),
-            ], className="d-flex align-items-center mt-3 mb-1"),
-            html.Div(id='dormant-drive-links-container'),
-            html.Div([
-                dbc.Label("Website", className="mb-0"),
-                add_button("btn-dormant-website-add", "Add Website link"),
-            ], className="d-flex align-items-center mt-3 mb-1"),
-            html.Div(id='dormant-website-links-container'),
-            ]),  # end dormant-mode-new-fields
-
-            # Activation Delay — common to both new and existing modes.
-            #
-            # Two modes, because the question changes once the event fires.
-            # Before it fires there is no date to speak of, so the answer is an
-            # offset: "two weeks after". After it fires the wake date is fixed
-            # and known, so the offset has nothing left to measure from and the
-            # date itself is the thing to edit.
-            html.Hr(className="my-2"),
-            html.H5("Wake Settings", className="mt-2 mb-1"),
-            dbc.Label("Activation Delay", className="mt-2", id="dormant-delay-heading"),
-            html.Div(id="dormant-delay-offset-mode", children=[
-                html.Small("How long after the event triggers before this node wakes up.",
-                           className="text-muted d-block mb-2"),
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Input(id="dormant-node-delay-value", type="number", min=0, value=0, placeholder="0"),
-                    ], width=6),
-                    dbc.Col([
-                        unit_select("dormant-node-delay-unit",
-                                    units=DURATION_UNITS, value="days"),
-                    ], width=6),
-                ]),
-                html.Small("0 = activates immediately when event is triggered.", className="text-muted"),
-            ]),
-            html.Div(id="dormant-delay-date-mode", style={"display": "none"}, children=[
-                html.Small("This event has already fired, so this node has a "
-                           "wake date rather than an offset.",
-                           className="text-muted d-block mb-2"),
-                dbc.Input(id="dormant-node-wake-date", type="date",  # type: ignore[reportArgumentType]
-                          style={"maxWidth": "200px"}),
-                html.Small("Move the node to a pending event to put it back on "
-                           "an offset.", className="text-muted d-block mt-2"),
-            ]),
-
-            # On Wake — common to both modes, like the delay above it. The flag
-            # lives on the event's row for this node, not on the node, so it has
-            # to be reachable when converting existing nodes too.
-            dbc.Label("On Wake", className="mt-3 d-block"),
-            dbc.Checklist(
-                options=[{"label": "Add to Now", "value": "on"}],
-                value=[],
-                id="dormant-now-toggle",
-                switch=True,
-                className="mb-1",
-            ),
-            html.Small("Moves the node onto the Now list when it wakes. "
-                       "Skipped if Now is full.",
-                       className="text-muted d-block"),
-
-            html.Div(id="dormant-node-save-status", className="text-danger mt-2"),
-        ]),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-dormant-node-cancel", color="secondary", className="me-2"),
-            dbc.Button("Add Node", id="btn-dormant-node-save", color="success",
-                       style={"backgroundColor": _done_color, "borderColor": _done_color}),
-        ]),
-    ], id="modal-dormant-node", dialog_style={"maxWidth": "500px"},
-        is_open=False, centered=True)
 
     # --- Event Detail (left: fixed natural width, right of it goes to the graph) ---
     event_detail_panel = html.Div([
@@ -579,16 +227,22 @@ def build_events_tab_content():
                 html.Hr(className="my-3"),
 
                 # Dormant Nodes Section
-                # Heading plus its adder, nothing else: Trigger moved up to
+                # Heading plus its adders, nothing else: Trigger moved up to
                 # the Actions section, so this row is now purely the label for
-                # the table under it.
+                # the table under it. "+" opens the node editor on a new node
+                # already set Dormant under this event; "Add existing" puts
+                # nodes that already exist to sleep here.
                 html.Div([
                     html.H5("Dormant Nodes", className="mb-0"),
-                    html.Div(
+                    html.Div([
                         add_button("btn-add-dormant-node",
-                                   "Add a dormant node to this event"),
-                        id="dormant-add-btn-wrapper",
-                    ),
+                                   "Add a new dormant node to this event"),
+                        dbc.Button("Add existing", id="btn-add-existing-to-event",
+                                   color="link", size="sm",
+                                   className="p-0 ms-2 text-decoration-none"),
+                        Tooltip("Put existing nodes to sleep under this event",
+                                target="btn-add-existing-to-event", placement="right"),
+                    ], id="dormant-add-btn-wrapper"),
                 ], className="d-flex align-items-center mb-3"),
 
                 html.Div(id="dormant-nodes-table-container"),
@@ -734,7 +388,6 @@ def build_events_tab_content():
 
     return html.Div([
         dcc.Store(id='selected-event-store', data=None),
-        dcc.Store(id='editing-dormant-node-store', data=None),
         dcc.Store(id='events-refresh-trigger', data=0),
         # Bumped clientside only when Events is actually opened. Heavy Events
         # content listens here instead of to every main-tab switch.
@@ -747,9 +400,6 @@ def build_events_tab_content():
         dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
-        # Hidden input: context-menu Edit on a dormant node routes here (set by context_menu.js)
-        dcc.Input(id='dormant-edit-trigger-input', type='text', value='', style={'display': 'none'}),
-        dormant_node_modal,
         html.Div([
             event_detail_panel,
             v_drag_handle,
@@ -1175,3 +825,128 @@ def build_dormant_nodes_table(event_nodes, event=None):
     ], **tokens.TABLE_PROPS,
        className=f"dormant-nodes-table {tokens.TABLE_CLASS}",
        style={**tokens.TABLE_STYLE, "tableLayout": "fixed"})
+
+
+# --- Node editor: Events section ---
+# The node editor lists every event a dormant node is waiting on. Each row is
+# a [event, delay value, delay unit, wake date, add-to-Now] list from
+# callback_helpers.membership_form_rows. Before an event fires the row edits
+# a delay; after it fires the row edits the wake date it was given, because
+# the delay has nothing left to measure from (see
+# docs/dormant_node_triggering.md).
+
+def delay_fields(wrapper_id, value_id, unit_id, value, unit, visible):
+    """The "[n] [unit] after it fires" row behind a Delay switch.
+
+    The wrapper carries the shown/hidden style and the inner row the flex:
+    Bootstrap's .d-flex is `!important` and would beat `display: none`.
+    """
+    return html.Div(id=wrapper_id, style={} if visible else {"display": "none"},
+                    className="w-100 mb-1", children=html.Div([
+        dbc.Input(id=value_id, type="number", min=0, value=value, size="sm",
+                  style={"width": "80px"}),
+        unit_select(unit_id, units=DURATION_UNITS, value=unit,
+                    compact=True, className="ms-2"),
+        html.Small("after it fires", className="text-muted ms-2"),
+    ], className="d-flex align-items-center"))
+
+
+def wake_switches(delay_switch, fields, now_switch):
+    """Delay and Add to Now side by side, the way the Status toggles sit.
+
+    The delay fields span the full width, so turning Delay on wraps them onto
+    their own line and pushes Add to Now below them.
+    """
+    return html.Div([delay_switch, fields, now_switch],
+                    className="d-flex flex-wrap align-items-center",
+                    style={"columnGap": "1rem", "rowGap": "0.25rem"})
+
+
+def build_event_membership_rows(rows):
+    """Rows for the node editor's Events section, one per waiting event.
+
+    Each row is headed by its event's name, set as a label like the section's
+    other subheadings. Most nodes wake the moment their event fires, so the
+    delay stays behind a switch until it is wanted.
+    """
+    out = []
+    for event, delay_value, delay_unit, wake_date, now in rows or []:
+        now_switch = dbc.Checklist(
+            id={"type": "membership-now", "index": event},
+            options=[{"label": "Add to Now", "value": "on"}],
+            value=["on"] if now else [],
+            switch=True,
+        )
+        if wake_date is not None:
+            when = [
+                dbc.Input(id={"type": "membership-wake-date", "index": event},
+                          type="date", value=wake_date, size="sm",  # type: ignore[reportArgumentType]
+                          style={"maxWidth": "170px"}),
+                html.Small("Wake date. This event has already fired.",
+                           className="text-muted d-block mt-1 mb-1"),
+                now_switch,
+            ]
+        else:
+            has_delay = bool(delay_value)
+            when = [wake_switches(
+                dbc.Checklist(
+                    id={"type": "membership-delay-on", "index": event},
+                    options=[{"label": "Delay", "value": "on"}],
+                    value=["on"] if has_delay else [],
+                    switch=True,
+                ),
+                delay_fields({"type": "membership-delay-fields", "index": event},
+                             {"type": "membership-delay-value", "index": event},
+                             {"type": "membership-delay-unit", "index": event},
+                             delay_value if has_delay else 0,
+                             delay_unit if has_delay else "days", has_delay),
+                now_switch,
+            )]
+        out.append(html.Div([
+            dbc.Label(event, className="mt-2 mb-1"),
+            *when,
+        ], className="event-membership-row"))
+    return out
+
+
+# --- Add to Event modal ---
+# Puts existing nodes to sleep under an event, several at once. Opened by the
+# canvas context menu's "Add to Event…" and the Events tab's "Add existing".
+# Creating nodes, and editing a dormant node, happen in the node editor.
+
+def build_add_to_event_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Add to Event")),
+        dbc.ModalBody([
+            dbc.Label("Nodes", className="mb-1"),
+            html.Div(dcc.Dropdown(id="add-to-event-nodes", multi=True, options=[],
+                                  placeholder="Select nodes..."),
+                     className="text-dark"),
+            dbc.Label("Event", className="mt-3 mb-1"),
+            dbc.Select(id="add-to-event-target", options=[], value=None,
+                       placeholder="Select an event..."),
+            dbc.Label("Activation Delay", className="mt-3 mb-1"),
+            html.Div([
+                dbc.Input(id="add-to-event-delay-value", type="number", min=0,
+                          value=0, style={"width": "90px"}),
+                unit_select("add-to-event-delay-unit", units=DURATION_UNITS,
+                            value="days", className="ms-2",
+                            style={"width": "120px"}),
+            ], className="d-flex align-items-center"),
+            html.Small("How long after the event fires before these nodes wake.",
+                       className="text-muted d-block mt-1"),
+            dbc.Checklist(
+                id="add-to-event-now",
+                options=[{"label": "Add to Now on wake", "value": "on"}],
+                value=[],
+                switch=True,
+                className="mt-3",
+            ),
+            html.Div(id="add-to-event-status", className="text-danger mt-2"),
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-add-to-event-cancel", color="secondary",
+                       className="me-2"),
+            dbc.Button("Add to Event", id="btn-add-to-event-save", color="primary"),
+        ]),
+    ], id="modal-add-to-event", size="md", is_open=False, centered=True)

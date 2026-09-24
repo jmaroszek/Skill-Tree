@@ -93,6 +93,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
                     value_mode=form_state.get('value_mode_val'),
                     priority_rank=form_state.get('priority_rank_val'),
                     aliases=form_state.get('alias_values'),
+                    dormancy=form_state.get('dormancy'),
                 ),
             )
             if not form_has_content:

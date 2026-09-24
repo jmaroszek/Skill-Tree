@@ -570,6 +570,18 @@ class EventManager:
         self._graph_changed(scoring=False)
 
     @database.atomic
+    def set_now_on_trigger(self, event_name: str, node_name: str,
+                           now_on_trigger: bool):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE EventNodes SET now_on_trigger=? WHERE event_name=? AND node_name=?",
+                (1 if now_on_trigger else 0, event_name, node_name)
+            )
+            conn.commit()
+        self._graph_changed(scoring=False)
+
+    @database.atomic
     def set_node_wake_date(self, event_name: str, node_name: str,
                            wake_date: Optional[str]) -> None:
         """Moves a scheduled node's wake date.
@@ -652,6 +664,30 @@ class EventManager:
                 "SELECT event_name FROM EventNodes WHERE node_name=?", (node_name,)
             )
             return [row[0] for row in cursor.fetchall()]
+
+    def get_node_memberships(self, node_name: str) -> List[Dict]:
+        """The node's still-waiting EventNodes rows, one per event, by event name.
+
+        What the node editor's Events section edits. A row that has already
+        activated is history, not a setting, so it is left out.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT en.event_name, en.delay_days, en.activation_date, "
+                "en.now_on_trigger, e.status FROM EventNodes en "
+                "JOIN Events e ON e.name = en.event_name "
+                "WHERE en.node_name=? AND en.activated=0 ORDER BY en.event_name",
+                (node_name,),
+            )
+            return [{
+                'event': event_name,
+                'delay_days': delay_days or 0,
+                'activation_date': activation_date,
+                'now_on_trigger': bool(now_on_trigger),
+                'event_status': status,
+            } for event_name, delay_days, activation_date, now_on_trigger, status
+                in cursor.fetchall()]
 
     # --- Activation ---
 
@@ -994,40 +1030,3 @@ class EventManager:
         gm.add_node(node)
         self.add_node_to_event(event_name, node.name, delay_days,
                                now_on_trigger=now_on_trigger)
-
-    @database.atomic
-    def update_dormant_node(self, event_name: str, old_node_name: str, node: Node,
-                            delay_days: int = 0,
-                            now_on_trigger: bool = False):
-        """Update an existing dormant node's content + EventNodes row in place.
-
-        Edges are NOT handled here — the caller runs graph_manager.sync_edges
-        afterward, matching the create path's convention.
-        """
-        from graph_manager import GraphManager
-        gm = GraphManager()
-
-        if node.name != old_node_name:
-            gm.rename_node(old_node_name, node.name)
-
-        gm.update_node(node)
-
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE EventNodes SET delay_days=?, now_on_trigger=? "
-                "WHERE event_name=? AND node_name=?",
-                (delay_days,
-                 1 if now_on_trigger else 0,
-                 event_name, node.name)
-            )
-            if cursor.rowcount == 0:
-                raise ValueError(
-                    f"Dormant node '{old_node_name}' not found in event '{event_name}'."
-                )
-            # Was `node.dormant = 1` before the save. Editing a node that a
-            # different event has already woken must not put it back to sleep,
-            # so the rows decide rather than the fact that we arrived here
-            # through an event's editor.
-            self._sync_dormant_flag(cursor, node.name)
-            conn.commit()

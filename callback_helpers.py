@@ -905,10 +905,106 @@ def _norm_list(lst):
     return sorted([v for v in (lst or []) if v])
 
 
+# --- Dormancy in the node editor ---
+# Dormant is a form field like any other: flipping it writes nothing until
+# Save. The Events section's controls are collected into one dict by a
+# clientside callback (node-dormancy-form); this is its shape:
+#
+#   dormant    the Dormant switch
+#   rows       one [event, delay value, delay unit, wake date, add-to-Now]
+#              per event still holding the node. A row whose event has not
+#              fired edits a delay; a row whose event has fired edits the wake
+#              date it was given, so exactly one of the two halves is set.
+#   join       event to add the node to on Save, NEW_EVENT_OPTION, or None
+#   join_name  name for the new event when join is NEW_EVENT_OPTION
+#   join_delay_value / join_delay_unit / join_now   the new row's settings
+
+NEW_EVENT_OPTION = '__new__'
+
+NEW_NODE_DORMANCY = {'dormant': False, 'rows': [], 'join': None, 'join_name': ''}
+
+
+def membership_form_rows(memberships):
+    """The editor's row list for `EventManager.get_node_memberships` output."""
+    from duration_ui import days_to_duration
+    rows = []
+    for m in memberships:
+        if m.get('activation_date'):
+            rows.append([m['event'], None, None, m['activation_date'],
+                         bool(m.get('now_on_trigger'))])
+        else:
+            value, unit = days_to_duration(m.get('delay_days'))
+            rows.append([m['event'], value, unit, None,
+                         bool(m.get('now_on_trigger'))])
+    return rows
+
+
+def build_dormancy_snapshot(node, event_manager=None):
+    """What the editor's Dormant switch and Events section show for `node`.
+
+    Only a dormant node lists memberships. A live node can still hold a
+    waiting row (added to a second event after another woke it), but it is
+    not asleep under that row, so there is nothing for the section to edit.
+    """
+    if node is None or not node.dormant:
+        return dict(NEW_NODE_DORMANCY, rows=[])
+    if event_manager is None:
+        from event_manager import EventManager
+        event_manager = EventManager()
+    return {
+        'dormant': True,
+        'rows': membership_form_rows(event_manager.get_node_memberships(node.name)),
+        'join': None,
+        'join_name': '',
+    }
+
+
+def _norm_dormancy(dormancy):
+    """Comparable form of a dormancy dict. Delays compare in days, so
+    "1 week" and "7 days" are the same setting."""
+    from duration_ui import duration_to_days
+    d = dormancy or {}
+    rows = []
+    for row in d.get('rows') or []:
+        event, value, unit, wake, now = (list(row) + [None] * 5)[:5]
+        when = ('date', wake) if wake else ('days', duration_to_days(value, unit))
+        rows.append((event, when, bool(now)))
+    join = d.get('join') or None
+    join_name = _norm_str(d.get('join_name')) if join == NEW_EVENT_OPTION else ''
+    return bool(d.get('dormant')), sorted(rows), join, join_name
+
+
+def dormancy_for_save(dormancy):
+    """The node-dormancy-form dict in the shape node_commands.apply_dormancy
+    takes: delays in days, and the new-event choice resolved to its name."""
+    from duration_ui import duration_to_days
+    d = dormancy or {}
+    rows = []
+    for row in d.get('rows') or []:
+        event, value, unit, wake, now = (list(row) + [None] * 5)[:5]
+        rows.append([event,
+                     None if wake is not None else duration_to_days(value, unit),
+                     wake, bool(now)])
+    join = d.get('join') or None
+    new_event = join == NEW_EVENT_OPTION
+    if new_event:
+        join = _norm_str(d.get('join_name')) or None
+    return {
+        'dormant': bool(d.get('dormant')),
+        'rows': rows,
+        'join': join,
+        'new_event': new_event,
+        'join_delay_days': duration_to_days(d.get('join_delay_value'),
+                                            d.get('join_delay_unit')),
+        'join_now': bool(d.get('join_now')),
+    }
+
+
 # Pristine snapshot for the new-node form — mirrors the def_out defaults
-# emitted by populate_editor when the user clicks "+ New Node".
+# emitted by populate_editor when the user clicks "+ New Node". The type
+# starts unselected there, so it is blank here too.
 NEW_NODE_SNAPSHOT = {
-    'name': '', 'n_type': 'Learn', 'desc': '',
+    'name': '', 'n_type': '', 'desc': '',
     'context': '', 'subctx': '',
     'status_done': [],
     'val': 5, 'interest': 5, 'diff': 5,
@@ -926,6 +1022,7 @@ NEW_NODE_SNAPSHOT = {
     'value_mode': [],
     'priority_rank': 'none',
     'aliases': [''],
+    'dormancy': NEW_NODE_DORMANCY,
 }
 
 
@@ -1014,6 +1111,7 @@ def build_editor_snapshot(manager, node_name):
         'value_mode': ['inherited'] if node.value_mode == 'inherited' else [],
         'priority_rank': priority_rank,
         'aliases': aliases,
+        'dormancy': build_dormancy_snapshot(node),
     }
 
 
@@ -1063,6 +1161,9 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'value_mode': form_values.get('value_mode') or [],
         'priority_rank': form_values.get('priority_rank') or 'none',
         'aliases': linted_aliases or [''],
+        # The Events section is refreshed from the database after any save
+        # that touches dormancy, and that refresh re-baselines this key.
+        'dormancy': form_values.get('dormancy') or NEW_NODE_DORMANCY,
     }
 
 
@@ -1074,6 +1175,7 @@ def editor_form_values(
     e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
     obs_links, drive_links, website_links,
     time_mode, value_mode, priority_rank, aliases,
+    dormancy,
     time_habit_mode=None,
     habit_duration=0, habit_duration_unit='weeks',
     habit_intensity_o=0, habit_intensity_m=0, habit_intensity_p=0,
@@ -1118,6 +1220,7 @@ def editor_form_values(
         'value_mode': value_mode,
         'priority_rank': priority_rank,
         'aliases': aliases,
+        'dormancy': dormancy,
     }
 
 
@@ -1175,6 +1278,9 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
               'obs_links', 'drive_links', 'website_links', 'aliases'):
         if _norm_list(form_values.get(k)) != _norm_list(snapshot.get(k)):
             return True
+
+    if _norm_dormancy(form_values.get('dormancy')) != _norm_dormancy(snapshot.get('dormancy')):
+        return True
 
     return False
 

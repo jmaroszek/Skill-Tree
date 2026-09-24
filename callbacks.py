@@ -39,7 +39,7 @@ from config import (ConfigManager, sort_subcontexts, sort_contexts,
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
-    prior_node_for_completion,
+    prior_node_for_completion, apply_dormancy,
 )
 from callback_helpers import (
     parse_links, serialize_links, get_trigger_id, get_all_triggered_ids,
@@ -51,7 +51,7 @@ from callback_helpers import (
     should_open_editor, resolve_active_node_id, left_sidebar_is_open,
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
-    snapshot_from_form_state, editor_form_values,
+    snapshot_from_form_state, editor_form_values, dormancy_for_save,
     habit_to_hours, compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
@@ -475,7 +475,8 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-m', 'value'),
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value')],
+         State('node-habit-days', 'value'),
+         State('node-dormancy-form', 'data')],
         # Nothing to populate on page load. The form's defaults and its empty
         # alias and link rows are in the layout, and every path that opens
         # the editor runs this callback, which sends the relationship options.
@@ -498,7 +499,7 @@ def register_callbacks(app, services=None):
                         cur_time_habit_mode,
                         cur_habit_duration, cur_habit_duration_unit,
                         cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
-                        cur_habit_int_unit, cur_habit_days):
+                        cur_habit_int_unit, cur_habit_days, cur_dormancy):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
 
@@ -560,6 +561,7 @@ def register_callbacks(app, services=None):
                 value_mode=cur_value_mode,
                 priority_rank=cur_priority_rank,
                 aliases=cur_aliases,
+                dormancy=cur_dormancy,
             ))
 
         if trigger_id == 'btn-add':
@@ -628,16 +630,11 @@ def register_callbacks(app, services=None):
 
         name = None
         if trigger_id in ('edit-trigger-input', 'details-edit-trigger-input'):
-            # Context menu / dormant-node Edit: node ID carried in the trigger value
+            # Context menu / Events-table Edit: node ID carried in the trigger value
             edit_val = edit_trigger_val if trigger_id == 'edit-trigger-input' else details_edit_trigger_val
             if edit_val:
                 edit_node_name = edit_val.split('|')[0]
                 node = manager.get_node(edit_node_name)
-                if node and node.dormant:
-                    # Dormant nodes have their own editor (Events-tab dormant modal).
-                    # Defense-in-depth: if any code path forwards a dormant name here,
-                    # don't load it into the generic sidebar.
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
                 if node:
                     name = node.name
                     data = node.to_dict()
@@ -657,8 +654,6 @@ def register_callbacks(app, services=None):
                 resolved = manager.resolve_alias(alias_key)
                 resolved_name = resolved if resolved is not None else search_val
             node = manager.get_node(resolved_name)
-            if node and node.dormant:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
             if node:
                 name = node.name
                 data = node.to_dict()
@@ -802,7 +797,9 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-m', 'value'),
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value')],
+         State('node-habit-days', 'value'),
+         State('node-dormancy-form', 'data'),
+         State('node-original-name', 'data')],
         prevent_initial_call=True,
     )
     def sync_original_name_after_save(_save_clicks, _save_close_clicks,
@@ -817,7 +814,8 @@ def register_callbacks(app, services=None):
                                       cur_time_habit_mode,
                                       cur_habit_duration, cur_habit_duration_unit,
                                       cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
-                                      cur_habit_int_unit, cur_habit_days):
+                                      cur_habit_int_unit, cur_habit_days,
+                                      cur_dormancy, cur_original_name):
         if not cur_name or not cur_name.strip():
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         linted = ConfigManager.apply_name_formatting(cur_name.strip())
@@ -867,9 +865,15 @@ def register_callbacks(app, services=None):
             'habit_days': cur_habit_days,
             'value_mode': cur_value_mode,
             'priority_rank': cur_priority_rank,
+            'dormancy': cur_dormancy,
         }
         snapshot = snapshot_from_form_state(form_values, linted, linted_aliases)
-        return linted, linted, linted_aliases, snapshot
+        # Rewrite node-original-name only when the save changed it (a rename
+        # or a new node). Everything keyed off it reloads from the database,
+        # and on a save that failed that reload would throw away what the
+        # user had just entered, such as a Dormant switch the save refused.
+        original_out = linted if linted != cur_original_name else dash.no_update
+        return original_out, linted, linted_aliases, snapshot
 
     # --- Type-adaptive field visibility ---
     @app.callback(
@@ -1506,7 +1510,8 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
          State('node-habit-days', 'value'),
-         State('canvas-payload-stamp', 'data')],
+         State('canvas-payload-stamp', 'data'),
+         State('node-dormancy-form', 'data')],
         prevent_initial_call='initial_duplicate'
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
@@ -1531,7 +1536,7 @@ def register_callbacks(app, services=None):
                      time_habit_mode_val,
                      habit_duration, habit_duration_unit,
                      habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                     habit_days, canvas_stamp):
+                     habit_days, canvas_stamp, dormancy):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         The existing Dash wiring preserves mutation and refresh ordering. Sidebar
@@ -1600,6 +1605,7 @@ def register_callbacks(app, services=None):
                 'value_mode_val': value_mode_val,
                 'priority_rank_val': priority_rank_val,
                 'alias_values': alias_values,
+                'dormancy': dormancy,
                 'pristine_snapshot': pristine_snapshot,
             }
             ed, goal, events = _compute_sidebar_styles(
@@ -1647,6 +1653,7 @@ def register_callbacks(app, services=None):
             'value_mode_val': value_mode_val,
             'priority_rank_val': priority_rank_val,
             'alias_values': alias_values,
+            'dormancy': dormancy,
         }
         next_ed_style, next_goal_style, next_events_sidebar_style = _compute_sidebar_styles(
             trigger_id, all_triggered_ids, search_val,
@@ -1701,6 +1708,9 @@ def register_callbacks(app, services=None):
             if not n_type:
                 msg = "Error: Node type is required."
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
+            # Done is hidden while Dormant is on; a sleeping node isn't finished.
+            if (dormancy or {}).get('dormant'):
+                status_done = []
             try:
                 with database.transaction():
                     # Track if this save marks the node Done. Only count a true
@@ -1728,8 +1738,8 @@ def register_callbacks(app, services=None):
 
                     # Resolve the canonical time_mode via the shared helper —
                     # centralizes the Goal/Milestone-must-inherit invariant and
-                    # eliminates drift across the three save paths (main editor,
-                    # dormant-node creation, details-panel save).
+                    # eliminates drift across the save paths (main editor,
+                    # details-panel save).
                     time_mode = resolve_time_mode(n_type, time_mode_val, time_habit_mode_val)
                     if time_mode == 'habit':
                         t_o, t_m, t_p = compute_habit_time_omp(
@@ -1741,6 +1751,8 @@ def register_callbacks(app, services=None):
                     # Milestone-must-inherit-value invariant (Goals are exempt —
                     # they carry their own value).
                     value_mode = resolve_value_mode(n_type, value_mode_val)
+                    _prior = manager.get_node(name)
+                    was_dormant = bool(_prior and _prior.dormant)
                     msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
                                       interest, diff, status_done, context, subctx,
                                       obs_path, drive_path, website_path,
@@ -1759,6 +1771,12 @@ def register_callbacks(app, services=None):
                     # Save aliases
                     clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
                     manager.set_aliases(name, clean_aliases)
+
+                    # Dormant switch and Events section. A refusal raises
+                    # ValueError and rolls the whole save back.
+                    from event_manager import EventManager
+                    apply_dormancy(manager, EventManager(), name,
+                                   dormancy_for_save(dormancy), was_dormant)
 
                     # Priority rank is deliberately NOT written here. The
                     # Goals sidebar owns it, because ranking is a judgement
@@ -2374,7 +2392,8 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-m', 'value'),
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value')],
+         State('node-habit-days', 'value'),
+         State('node-dormancy-form', 'data')],
         prevent_initial_call=True
     )
     def toggle_unsaved_modal(_close, _add, _cancel, _save, _discard,
@@ -2390,7 +2409,7 @@ def register_callbacks(app, services=None):
                               time_habit_mode_val,
                               habit_duration, habit_duration_unit,
                               habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                              habit_days):
+                              habit_days, dormancy):
         trig = get_trigger_id()
         if trig == 'btn-add':
             # btn-add is the toolbar toggle: only its close half (editor already
@@ -2423,6 +2442,7 @@ def register_callbacks(app, services=None):
             value_mode=value_mode_val,
             priority_rank=priority_rank_val,
             aliases=alias_values,
+            dormancy=dormancy,
         ))
 
     # --- Delete Confirmation Modal ---

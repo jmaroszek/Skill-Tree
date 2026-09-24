@@ -552,7 +552,7 @@ always-visible field when it is commonly used.
 ### Radio groups and nesting depth
 
 A mutually-exclusive choice is a `dbc.RadioItems` with `inline=True` when the
-options are short (`event-trigger-type`, `dormant-node-mode`) and stacked when
+options are short (`event-trigger-type`, `event-trigger-mode`) and stacked when
 the labels run long. Every radio group in the app is currently inline; the
 stacked variant lost its last example when the priority override was retired,
 so match the inline ones unless your labels genuinely won't fit. Use a
@@ -572,10 +572,11 @@ at this second level.
 Help text under either sits in `html.Small(className="text-muted d-block mb-2",
 style={"fontSize": "0.8rem"})`.
 
-When the same control exists on two surfaces (the event editor and the
-dormant-node modal both build triggers), drive their help text from **one**
-shared formatting helper rather than duplicating literals — the copies drift
-otherwise. `_trigger_mode_hint` in `event_callbacks.py` feeds both.
+When the same control exists on two surfaces, drive their help text from
+**one** shared formatting helper rather than duplicating literals — the copies
+drift otherwise. Better still, don't build the second surface: the Events tab
+once had its own copy of the node editor for dormant nodes, and the two
+drifted until it was folded back into the one editor.
 
 ### Sidebar list toolbar (search + sort)
 

@@ -150,12 +150,9 @@
         }
 
         function triggerEdit() {
-            if (_menuSource === 'events' && _currentNodeData && _currentNodeData.dormant && _currentNodeData.id) {
-                // Events tab dormant node: route to the dormant-specific modal
-                // instead of the generic sidebar editor (which refuses dormant nodes).
-                _setHiddenInput('dormant-edit-trigger-input', _currentNodeData.id);
-            } else if (_menuSource !== 'main' && _currentNodeData && _currentNodeData.id) {
+            if (_menuSource !== 'main' && _currentNodeData && _currentNodeData.id) {
                 // Anywhere but the Nodes canvas: open the editor in place without switching tabs.
+                // Dormant nodes included -- the one editor handles them.
                 // edit-trigger-input would force a switch to tab-canvas (see handle_edit_trigger).
                 _setHiddenInput('details-edit-trigger-input', _currentNodeData.id);
             } else if (_currentNodeData && _currentNodeData.id) {

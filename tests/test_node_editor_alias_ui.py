@@ -62,19 +62,16 @@ def _text(component):
 
 def _editor_surfaces():
     from details_layout import build_details_tab_content
-    from events_layout import build_events_tab_content
     from sidebars_layout import node_editor_content
 
     return (
         (node_editor_content, "node-name", "btn-alias-add", "aliases-label"),
         (build_details_tab_content(), "details-add-name",
          "btn-details-add-alias-add", "details-add-aliases-label"),
-        (build_events_tab_content(), "dormant-node-name",
-         "btn-dormant-alias-add", "dormant-aliases-label"),
     )
 
 
-@pytest.mark.parametrize("surface_index", range(3))
+@pytest.mark.parametrize("surface_index", range(2))
 def test_alias_add_button_sits_beside_name_label(surface_index):
     surface, name_id, add_id, aliases_label_id = _editor_surfaces()[surface_index]
     button, button_parent = _find(surface, add_id)
@@ -116,24 +113,9 @@ def test_alias_disclosure_chevrons_are_gone_from_every_node_editor():
         "aliases-chevron",
         "btn-details-add-aliases-toggle",
         "details-add-aliases-chevron",
-        "btn-dormant-aliases-toggle",
-        "dormant-aliases-chevron",
     }
     for surface, _name_id, _add_id, _aliases_label_id in _editor_surfaces():
         assert removed_ids.isdisjoint(_ids(surface))
-
-
-def test_dormant_node_type_starts_unselected_like_main_node_editor():
-    from events_layout import build_events_tab_content
-    from sidebars_layout import node_editor_content
-
-    main_type, _main_parent = _find(node_editor_content, "node-type")
-    dormant_type, _dormant_parent = _find(
-        build_events_tab_content(), "dormant-node-type"
-    )
-
-    assert main_type.placeholder == dormant_type.placeholder == "Choose node type..."
-    assert not hasattr(dormant_type, "value")
 
 
 def test_resources_heading_is_short_and_consistent_in_every_node_editor():

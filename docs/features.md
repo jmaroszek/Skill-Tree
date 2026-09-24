@@ -90,7 +90,19 @@ The table below provides a brief overview of each status, but each will be cover
 |---|---|
 | Now | Flags the node as one of your currently-active projects. |
 | Done | Marks the node complete. May unblock downstream work, depending on its [relationships](#relationships). |
-| Dormant | Puts the node into hibernation until an [event](#events) wakes it up. Since a dormant node without an Event almost always gets lost, flipping this toggle opens an **Add to Event** modal where you can bind the node to an existing event, or create a new one. |
+| Dormant | Puts the node into hibernation until an [event](#events) wakes it up. Turning it on opens an **Events** section below the toggles, where you choose the event. It takes effect when you save. |
+
+Dormant works like every other field in the editor. Nothing changes until you press Save.
+
+While Dormant is on, Now and Done are hidden. A sleeping node is neither being worked on nor finished. The reverse holds too: while Now or Done is on, Dormant is hidden. Its **Add to Now** switch, under Wake settings, takes Now's place, and saving takes the node off the Now list.
+
+A dormant node without an event would never wake, so the Events section asks for one. Pick a pending event, or choose **New event…** and give it a name. A new event starts with a manual trigger. You can give it a date or node trigger later on the Events tab.
+
+Once you pick an event, **Wake settings** appear. Most nodes wake the moment their event fires, so a delay stays behind a **Delay** switch until you turn it on.
+
+For a node that is already dormant, the section lists each event it is waiting on. Before an event fires, you can set a delay for how long after firing the node wakes. After it fires, you edit the wake date itself. You can also add the node to another event from here.
+
+Turning Dormant off on a sleeping node wakes it and removes it from its events when you save. The section says so before you do.
 
 
 ## Ratings
@@ -281,7 +293,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Explain Priority | Opens the priority-score breakdown. |
 | Set Priority | Goals only. Makes the goal Priority 1, 2 or 3, or clears its priority. |
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. |
-| Add to Event… | Adds the node to an Event. |
+| Add to Event… | Puts the node, or every selected node, to sleep under an event. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. |
 | Open Website | Opens the linked website. Only shown when the link is set. |
 | Open in Obsidian | Opens the linked Obsidian note. Only shown when the link is set. |
@@ -716,7 +728,9 @@ Each row says when its node wakes. For a date event the app can work the date ou
 
 A node that has woken shows an **Awake** badge instead. If a different event woke it first, the row says so: *Awake · via Music*. A node can belong to more than one event, and the first one to fire wakes it.
 
-Every row has three actions on hover: edit the node, move it to another event, or remove it.
+Every row has three actions on hover: edit the node, move it to another event, or remove it. Edit opens the node in the node editor, the same one every other node uses.
+
+Two buttons sit beside the table's heading. The **+** opens the node editor on a new node that is already dormant under this event. **Add existing** puts nodes you already have to sleep under this event, several at once.
 
 ### Firing an Event
 

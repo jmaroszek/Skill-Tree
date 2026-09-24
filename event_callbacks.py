@@ -6,24 +6,19 @@ import database
 import json
 import time
 import dash
-from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
+from dash import html, Input, Output, State, ALL, MATCH, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
 from graph_manager import GraphManager
-from config import ConfigManager, SUPPORTED_NODE_TYPES, sort_subcontexts, sort_contexts
-from models import Node, Event, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from config import ConfigManager
+from models import Event, STATUS_BLOCKED, STATUS_DONE
 from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
-                           build_triggered_divider, trigger_confirmation_body)
-from duration_ui import duration_to_days, days_to_duration, format_duration_days
+                           build_triggered_divider, trigger_confirmation_body,
+                           build_event_membership_rows)
+from duration_ui import duration_to_days, format_duration_days
 from prerender import prerendered
-from callback_helpers import (render_link_rows, render_alias_rows,
-                              alias_rows_label, update_alias_rows,
-                              serialize_links,
-                              spawn_local_file_picker,
-                              strip_gdrive_prefix, habit_to_hours, compute_habit_time_omp,
-                              habit_preview_text, habit_editor_view,
-                              resolve_time_mode, resolve_value_mode,
-                              build_node_element, build_edge_element,
-                              canvas_node_styles)
+from callback_helpers import (build_node_element, build_edge_element,
+                              canvas_node_styles, build_dormancy_snapshot,
+                              NEW_EVENT_OPTION)
 import style_tokens as tokens
 
 event_manager = EventManager()
@@ -397,8 +392,6 @@ def register_event_callbacks(app, services=None):
         return [{"label": n.name, "value": n.name} for n in sorted(nodes, key=lambda n: n.name)]
 
     # --- Trigger mode hint text ---
-    # Both trigger surfaces (event editor + dormant-node modal) share one
-    # wording helper so they can't drift apart.
     @app.callback(
         Output("event-trigger-mode-hint", "children"),
         Input("event-trigger-mode", "value"),
@@ -407,16 +400,6 @@ def register_event_callbacks(app, services=None):
     )
     @prerendered
     def describe_trigger_mode(trigger_mode, trigger_nodes):
-        return _trigger_mode_hint(trigger_mode, trigger_nodes)
-
-    @app.callback(
-        Output("dormant-new-event-trigger-mode-hint", "children"),
-        Input("dormant-new-event-trigger-mode", "value"),
-        Input("dormant-new-event-trigger-node", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def describe_dormant_trigger_mode(trigger_mode, trigger_nodes):
         return _trigger_mode_hint(trigger_mode, trigger_nodes)
 
     # --- Trigger Type Section Visibility ---
@@ -750,11 +733,9 @@ def register_event_callbacks(app, services=None):
     def mirror_trigger_button_visibility(section_style):
         return section_style
 
-    # A Triggered event will not fire again, so it stops accepting nodes.
-    # Deliberately not mirrored off `event-delete-wrapper` the way the Trigger
-    # button is: that section is *also* hidden for a new unsaved event, where
-    # Add has to stay live so the auto-save-the-event path can run.
-    # `selected-event-store` is None for a new event, which tells the two apart.
+    # Nodes join a saved, untriggered event. A Triggered event will not fire
+    # again, so it stops accepting nodes; an unsaved one has no name for them
+    # to join yet (its table says to save first).
     @app.callback(
         Output("dormant-add-btn-wrapper", "style"),
         Input("selected-event-store", "data"),
@@ -764,7 +745,7 @@ def register_event_callbacks(app, services=None):
     @prerendered
     def toggle_add_dormant_button(selected_event, _refresh):
         if not selected_event:
-            return {}
+            return {"display": "none"}
         event = event_manager.get_event(selected_event)
         return {"display": "none"} if event and event.status == "Triggered" else {}
 
@@ -843,901 +824,397 @@ def register_event_callbacks(app, services=None):
             "",
         )
 
-    # --- Open Dormant Node Modal ---
-    @app.callback(
-        Output("modal-dormant-node", "is_open", allow_duplicate=True),
-        Output("dormant-node-type", "options", allow_duplicate=True),
-        Output("dormant-node-context", "options", allow_duplicate=True),
-        Output("dormant-node-subcontext", "options", allow_duplicate=True),
-        Output("dormant-node-name", "value", allow_duplicate=True),
-        Output("dormant-node-desc", "value", allow_duplicate=True),
-        Output("dormant-node-save-status", "children", allow_duplicate=True),
-        Output("dormant-node-time-unit", "value", allow_duplicate=True),
-        Output("dormant-node-needs-hard", "options", allow_duplicate=True),
-        Output("dormant-node-needs-soft", "options", allow_duplicate=True),
-        Output("dormant-node-supports-hard", "options", allow_duplicate=True),
-        Output("dormant-node-supports-soft", "options", allow_duplicate=True),
-        Output("dormant-node-helps", "options", allow_duplicate=True),
-        Output("dormant-node-needs-hard", "value", allow_duplicate=True),
-        Output("dormant-node-needs-soft", "value", allow_duplicate=True),
-        Output("dormant-node-supports-hard", "value", allow_duplicate=True),
-        Output("dormant-node-supports-soft", "value", allow_duplicate=True),
-        Output("dormant-node-helps", "value", allow_duplicate=True),
-        Output("dormant-node-time-mode", "value", allow_duplicate=True),
-        Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
-        Output("dormant-drive-links-store", "data", allow_duplicate=True),
-        Output("dormant-website-links-store", "data", allow_duplicate=True),
-        Output("dormant-now-toggle", "value", allow_duplicate=True),
-        Output("dormant-node-value-mode", "value", allow_duplicate=True),
-        Output("dormant-node-value", "value", allow_duplicate=True),
-        Output("dormant-node-interest", "value", allow_duplicate=True),
-        Output("dormant-node-difficulty", "value", allow_duplicate=True),
-        Output("dormant-node-time-o", "value", allow_duplicate=True),
-        Output("dormant-node-time-m", "value", allow_duplicate=True),
-        Output("dormant-node-time-p", "value", allow_duplicate=True),
-        Output("dormant-node-delay-value", "value", allow_duplicate=True),
-        Output("dormant-node-delay-unit", "value", allow_duplicate=True),
-        Output("editing-dormant-node-store", "data", allow_duplicate=True),
-        Output("modal-dormant-node-title", "children", allow_duplicate=True),
-        Output("btn-dormant-node-save", "children", allow_duplicate=True),
-        # Habit-mode reset (7 new outputs)
-        Output("dormant-node-time-habit-mode", "value", allow_duplicate=True),
-        Output("dormant-node-habit-duration", "value", allow_duplicate=True),
-        Output("dormant-node-habit-duration-unit", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-o", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-m", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-p", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-unit", "value", allow_duplicate=True),
-        Output("dormant-node-habit-days", "value", allow_duplicate=True),
-        # Mode toggle + existing-mode resets (8 new outputs)
-        Output("dormant-node-mode", "value", allow_duplicate=True),
-        Output("dormant-mode-toggle-wrapper", "style", allow_duplicate=True),
-        Output("dormant-existing-picker", "options", allow_duplicate=True),
-        Output("dormant-existing-picker", "value", allow_duplicate=True),
-        Output("dormant-existing-event-picker", "options", allow_duplicate=True),
-        Output("dormant-existing-event-picker", "value", allow_duplicate=True),
-        Output("dormant-new-event-name", "value", allow_duplicate=True),
-        Output("dormant-new-event-desc", "value", allow_duplicate=True),
-        # New-event trigger-type resets (5 new outputs)
-        Output("dormant-new-event-trigger-type", "value", allow_duplicate=True),
-        Output("dormant-new-event-trigger-date", "value", allow_duplicate=True),
-        Output("dormant-new-event-trigger-node", "options", allow_duplicate=True),
-        Output("dormant-new-event-trigger-node", "value", allow_duplicate=True),
-        Output("dormant-new-event-trigger-mode", "value", allow_duplicate=True),
-        # Reset a prior selection every time the modal opens for a new node.
-        Output("dormant-node-type", "value", allow_duplicate=True),
-        Input("btn-add-dormant-node", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def open_dormant_node_modal(n_clicks):
-        if not n_clicks:
-            return (no_update,) * 57
+    # --- Node editor: Dormant switch and Events section ---
+    #
+    # Dormant is an ordinary form field. Flipping it writes nothing; Save
+    # applies it (node_commands.apply_dormancy). These callbacks fill the
+    # section from the database, keep its visibility in step with the
+    # switches, and collect it into node-dormancy-form for Save and the
+    # unsaved-changes check.
 
-        types = SUPPORTED_NODE_TYPES
-        contexts = sort_contexts(ConfigManager.get_contexts())
-        _ted = ConfigManager.get_time_estimate_defaults()
-        type_opts = [{"label": t, "value": t} for t in types]
-        ctx_opts = [{"label": c, "value": c} for c in contexts]
-        node_opts = [{"label": n.name, "value": n.name}
-                     for n in graph_manager.get_all_nodes(include_dormant=True)]
-        existing_picker_opts = [{"label": n.name, "value": n.name}
-                                for n in graph_manager.get_all_nodes() if not n.dormant]
-        pending_event_opts = [{"label": e.name, "value": e.name}
-                              for e in event_manager.get_all_events() if e.status == "Pending"]
+    def _pending_event_options(exclude=()):
+        options = [{"label": e.name, "value": e.name}
+                   for e in event_manager.get_all_events()
+                   if e.status == "Pending" and e.name not in exclude]
+        # A native <select> can't hold an <hr>, so the divider is a disabled
+        # option drawn with box-drawing characters.
+        divider = [{"label": "─" * 16, "value": "__divider__", "disabled": True}] if options else []
+        return options + divider + [{"label": "New event…", "value": NEW_EVENT_OPTION}]
 
-        return (True, type_opts, ctx_opts, [{"label": "None", "value": ""}], "", "", "",
-                _ted.get('unit', 'weeks'),
-                node_opts, node_opts, node_opts, node_opts, node_opts,
-                [], [], [], [], [],
-                [],
-                [''], [''], [''],
-                [], [],
-                5, 5, 5,
-                _ted.get('optimistic', 2),
-                _ted.get('expected', 4),
-                _ted.get('pessimistic', 6),
-                0, "days",
-                None, "Add Dormant Node", "Add Node",
-                # Habit reset
-                [], 0, 'weeks', 0, 0, 0, 'min_per_session', [0, 1, 2, 3, 4, 5, 6],
-                # Mode toggle + existing-mode resets
-                "new", {"display": "block"},
-                existing_picker_opts, [], pending_event_opts, None,
-                "", "",
-                # New-event trigger-type resets
-                "manual", None, existing_picker_opts, [], "any",
-                None)
-
-    # --- Update Dormant Node Subcontexts ---
-    @app.callback(
-        Output("dormant-node-subcontext", "options"),
-        Input("dormant-node-context", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def update_dormant_subcontexts(context):
-        base = [{"label": "None", "value": ""}]
-        if not context:
-            return base
-        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(context, []))
-        return base + [{"label": s, "value": s} for s in subs]
-
-    # --- Dormant Node Modal: Aliases (mirrors the main node editor) ---
-    @app.callback(
-        [Output("dormant-aliases-container", "children"),
-         Output("dormant-aliases-label", "children")],
-        Input("dormant-aliases-store", "data"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_dormant_aliases(aliases):
-        return (
-            render_alias_rows(
-                aliases, 'dormant-alias-input',
-                'btn-dormant-alias-remove',
-            ),
-            alias_rows_label(aliases),
-        )
-
-    @app.callback(
-        [Output("dormant-aliases-store", "data", allow_duplicate=True),
-         Output("collapse-dormant-aliases", "is_open", allow_duplicate=True)],
-        [Input("btn-dormant-alias-add", "n_clicks"),
-         Input({"type": "btn-dormant-alias-remove", "index": ALL}, "n_clicks")],
-        [State({"type": "dormant-alias-input", "index": ALL}, "value"),
-         State("dormant-aliases-store", "data"),
-         State("collapse-dormant-aliases", "is_open")],
-        prevent_initial_call=True,
-    )
-    def modify_dormant_aliases(add_clicks, remove_clicks, current_values,
-                               store_data, aliases_open):
-        return update_alias_rows(
-            ctx.triggered_id, current_values, store_data, aliases_open,
-            "btn-dormant-alias-add", "btn-dormant-alias-remove",
-        )
-
-    # Load aliases when the modal opens: existing node's aliases on edit, a
-    # single blank row for a fresh add. Keyed off the editing-store (set by both
-    # the open-new and edit-populate callbacks) so it stays decoupled from those
-    # large multi-output callbacks.
-    @app.callback(
-        Output("dormant-aliases-store", "data", allow_duplicate=True),
-        Input("modal-dormant-node", "is_open"),
-        State("editing-dormant-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    def load_dormant_aliases(is_open, editing_name):
-        if not is_open:
-            return no_update
-        if editing_name:
-            return graph_manager.get_aliases(editing_name) or ['']
-        return ['']
-
-    # --- Dormant Node Modal: Mode toggles control OMP / Habit visibility ---
-    @app.callback(
-        Output("dormant-node-time-omp", "style"),
-        Output("section-dormant-node-time-habit", "style"),
-        Input("dormant-node-time-mode", "value"),
-        Input("dormant-node-time-habit-mode", "value"),
-        prevent_initial_call=True,
-    )
-    def toggle_dormant_time_mode(inherit_val, habit_val):
-        inherit_on = bool(inherit_val and "inherited" in inherit_val)
-        habit_on = bool(habit_val and "habit" in habit_val)
-        if inherit_on:
-            return {"display": "none"}, {"display": "none"}
-        if habit_on:
-            return {"display": "none"}, {"display": "block"}
-        return {"display": "block"}, {"display": "none"}
-
-    # --- Dormant Node Modal: Habit / Inherit mutual exclusivity ---
-    @app.callback(
-        Output("dormant-node-time-mode", "value", allow_duplicate=True),
-        Output("dormant-node-time-habit-mode", "value", allow_duplicate=True),
-        Input("dormant-node-time-mode", "value"),
-        Input("dormant-node-time-habit-mode", "value"),
-        prevent_initial_call=True,
-    )
-    def enforce_dormant_time_exclusivity(inherit_val, habit_val):
-        trig = ctx.triggered_id
-        if trig == "dormant-node-time-mode" and inherit_val and "inherited" in inherit_val:
-            return inherit_val, []
-        if trig == "dormant-node-time-habit-mode" and habit_val and "habit" in habit_val:
-            return [], habit_val
-        return inherit_val, habit_val
-
-    # --- Dormant Node Modal: Inherit-ratings toggle hides/shows V/I/E sliders ---
-    # Mirrors the main node editor (callbacks.py). Clientside to avoid a flash.
-    app.clientside_callback(
-        """
-        function(value_mode_val) {
-            if (value_mode_val && value_mode_val.indexOf('inherited') >= 0) {
-                return {display: 'none'};
-            }
-            return {display: 'block'};
-        }
-        """,
-        Output("section-dormant-ratings", "style"),
-        Input("dormant-node-value-mode", "value"),
-        prevent_initial_call=True,
-    )
-
-    # --- Dormant Node Modal: Hide Effort slider on Goals; show caption ---
-    app.clientside_callback(
-        """
-        function(node_type) {
-            if (node_type === 'Goal') return [{display: 'none'}, {}];
-            return [{}, {display: 'none'}];
-        }
-        """,
-        Output("dormant-node-effort-row", "style"),
-        Output("dormant-node-effort-caption", "style"),
-        Input("dormant-node-type", "value"),
-    )
-
-    # --- Dormant Node Modal: Lock Inherit-value ON for Milestones ---
-    # Milestones are transparent checkpoints: their own value never enters
-    # scoring. Force the value toggle ON and warn if the user tries to clear
-    # it — the symmetric partner to the Goal/Milestone time lock in the main
-    # editor (callbacks.py). Goals are NOT locked: they carry their own value.
-    app.clientside_callback(
-        """
-        function(value_mode_val, node_type) {
-            var no_update = window.dash_clientside.no_update;
-            var hidden = {display: "none"};
-            var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
-            var ctx = window.dash_clientside.callback_context;
-            var triggered = (ctx && ctx.triggered) || [];
-            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
-            var only_value_mode = ids.length === 1 && ids[0] === 'dormant-node-value-mode';
-
-            if (node_type !== 'Milestone') {
-                return [no_update, hidden, ""];
-            }
-            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
-            if (inherited_on) {
-                if (only_value_mode) return [no_update, no_update, no_update];
-                return [no_update, hidden, ""];
-            }
-            var msg = "Inherit is required for Milestone nodes — they are " +
-                      "checkpoints, so their own ratings don't affect scoring.";
-            if (only_value_mode) return [['inherited'], visible, msg];
-            return [['inherited'], hidden, ""];
-        }
-        """,
-        Output('dormant-node-value-mode', 'value', allow_duplicate=True),
-        Output('dormant-value-mode-warning', 'style'),
-        Output('dormant-value-mode-warning', 'children'),
-        Input('dormant-node-value-mode', 'value'),
-        Input('dormant-node-type', 'value'),
-        prevent_initial_call=True,
-    )
-
-    # --- Dormant Node Modal: Live total-hours preview for habit ---
-    @app.callback(
-        Output("dormant-node-habit-total-preview", "children"),
-        Input("dormant-node-habit-duration", "value"),
-        Input("dormant-node-habit-duration-unit", "value"),
-        Input("dormant-node-habit-intensity-m", "value"),
-        Input("dormant-node-habit-intensity-unit", "value"),
-        Input("dormant-node-habit-days", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def update_dormant_habit_preview(duration, dur_unit, intensity_m, int_unit, days):
-        return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
-
-    # --- Dormant Node Modal: Mode toggle (New / Existing) visibility ---
-    @app.callback(
-        Output("dormant-mode-new-fields", "style"),
-        Output("dormant-mode-existing-fields", "style"),
-        Input("dormant-node-mode", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def toggle_dormant_mode_fields(mode):
-        if mode == "existing":
-            return {"display": "none"}, {"display": "block"}
-        return {"display": "block"}, {"display": "none"}
-
-    # --- Dormant Node Modal: Event-target sub-section visibility ---
-    # Only shown when in "existing" mode AND no event is currently selected.
-    @app.callback(
-        Output("dormant-event-target-wrapper", "style"),
-        Input("dormant-node-mode", "value"),
-        Input("selected-event-store", "data"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def toggle_dormant_event_target_wrapper(mode, selected_event):
-        if mode == "existing" and not selected_event:
-            return {"display": "block"}
-        return {"display": "none"}
-
-    # --- Dormant Node Modal: New-event vs Existing-event sub-sections ---
-    @app.callback(
-        Output("dormant-new-event-section", "style"),
-        Output("dormant-existing-event-section", "style"),
-        Input("dormant-event-target-mode", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def toggle_dormant_event_target_section(target_mode):
-        if target_mode == "existing":
-            return {"display": "none"}, {"display": "block"}
-        return {"display": "block"}, {"display": "none"}
-
-    # --- Dormant Node Modal: New event trigger-type sub-sections ---
-    @app.callback(
-        Output("dormant-new-event-date-section", "style"),
-        Output("dormant-new-event-node-section", "style"),
-        Input("dormant-new-event-trigger-type", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def toggle_dormant_new_event_trigger_sections(trigger_type):
-        date_style = {"display": "block"} if trigger_type == "date" else {"display": "none"}
-        node_style = {"display": "block"} if trigger_type == "node" else {"display": "none"}
-        return date_style, node_style
-
-    # --- Open Dormant Node Modal from canvas (Add to event…) ---
-    # Triggered by context_menu.js writing JSON node IDs to dormant-existing-trigger-input.
-    @app.callback(
-        Output("modal-dormant-node", "is_open", allow_duplicate=True),
-        Output("dormant-node-mode", "value", allow_duplicate=True),
-        Output("dormant-mode-toggle-wrapper", "style", allow_duplicate=True),
-        Output("dormant-existing-picker", "options", allow_duplicate=True),
-        Output("dormant-existing-picker", "value", allow_duplicate=True),
-        Output("dormant-existing-event-picker", "options", allow_duplicate=True),
-        Output("dormant-existing-event-picker", "value", allow_duplicate=True),
-        Output("dormant-event-target-mode", "value", allow_duplicate=True),
-        Output("dormant-new-event-name", "value", allow_duplicate=True),
-        Output("dormant-new-event-desc", "value", allow_duplicate=True),
-        Output("dormant-node-delay-value", "value", allow_duplicate=True),
-        Output("dormant-node-delay-unit", "value", allow_duplicate=True),
-        Output("dormant-now-toggle", "value", allow_duplicate=True),
-        Output("editing-dormant-node-store", "data", allow_duplicate=True),
-        Output("dormant-node-save-status", "children", allow_duplicate=True),
-        Output("modal-dormant-node-title", "children", allow_duplicate=True),
-        Output("btn-dormant-node-save", "children", allow_duplicate=True),
-        # New-event trigger-type resets (5 new outputs)
-        Output("dormant-new-event-trigger-type", "value", allow_duplicate=True),
-        Output("dormant-new-event-trigger-date", "value", allow_duplicate=True),
-        Output("dormant-new-event-trigger-node", "options", allow_duplicate=True),
-        Output("dormant-new-event-trigger-node", "value", allow_duplicate=True),
-        Output("dormant-new-event-trigger-mode", "value", allow_duplicate=True),
-        # Clear any sticky event selection so each canvas trigger forces an
-        # explicit new/existing event choice in the modal. Without this, the
-        # event_target_wrapper stays hidden after a previous save and the user
-        # silently keeps adding nodes to whichever event was most recent.
-        Output("selected-event-store", "data", allow_duplicate=True),
-        Input("dormant-existing-trigger-input", "value"),
-        prevent_initial_call=True,
-    )
-    def open_modal_for_existing_nodes(trigger_val):
-        _N = 23
-        if not trigger_val:
-            return (no_update,) * _N
-        try:
-            json_part = trigger_val.split("|")[0]
-            node_ids = json.loads(json_part)
-            if not isinstance(node_ids, list):
-                return (no_update,) * _N
-        except (ValueError, json.JSONDecodeError):
-            return (no_update,) * _N
-
-        existing_picker_opts = [{"label": n.name, "value": n.name}
-                                for n in graph_manager.get_all_nodes() if not n.dormant]
-        valid_names = {opt["value"] for opt in existing_picker_opts}
-        valid_ids = [nid for nid in node_ids if nid in valid_names]
-
-        pending_event_opts = [{"label": e.name, "value": e.name}
-                              for e in event_manager.get_all_events() if e.status == "Pending"]
-
-        return (
-            True,                               # modal is_open
-            "existing",                         # mode
-            {"display": "block"},               # toggle wrapper visible
-            existing_picker_opts,               # picker options
-            valid_ids,                          # picker pre-fill
-            pending_event_opts,                 # existing-event-picker options
-            None,                               # existing-event-picker value
-            "new",                              # event-target-mode default
-            "",                                 # new-event-name
-            "",                                 # new-event-desc
-            0,                                  # delay-value
-            "days",                             # delay-unit
-            [],                                 # now-toggle (checklist list)
-            None,                               # editing store cleared
-            "",                                 # save status cleared
-            "Add to Event",                     # title
-            "Add to Event",                     # save button text
-            # New-event trigger-type resets
-            "manual",                           # trigger-type default
-            None,                               # trigger-date cleared
-            existing_picker_opts,               # trigger-node options
-            [],                                 # trigger-node value
-            "any",                              # trigger-mode default
-            None,                               # selected-event-store cleared
-        )
-
-    # --- Cancel Dormant Node Modal ---
-    @app.callback(
-        Output("modal-dormant-node", "is_open", allow_duplicate=True),
-        Output("editing-dormant-node-store", "data", allow_duplicate=True),
-        Input("btn-dormant-node-cancel", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def close_dormant_node_modal(n_clicks):
-        if n_clicks:
-            return False, None
-        return no_update, no_update
-
-    # --- Editor Dormant Toggle: populate switch + "In event: X" line ---
-    # Re-runs whenever the loaded node changes OR something dormant-related
-    # might have happened (events-refresh, modal close). The DB is the SSOT;
-    # the toggle never holds a value the DB doesn't agree with.
     @app.callback(
         Output("node-dormant", "value"),
-        Output("node-dormant-event-info", "children"),
+        Output("node-event-memberships", "children"),
+        Output("node-join-event", "options"),
+        Output("node-join-event", "value"),
+        Output("node-join-event-label", "children"),
+        Output("node-join-event-name", "value"),
+        Output("node-join-delay-value", "value"),
+        Output("node-join-delay-unit", "value"),
+        Output("node-join-delay-on", "value"),
+        Output("node-join-now", "value"),
+        Output("node-dormant-loaded", "data"),
+        Output("editor-pristine-snapshot", "data", allow_duplicate=True),
+        Output("editor-dormant-preset", "data", allow_duplicate=True),
         Input("node-original-name", "data"),
         Input("events-refresh-trigger", "data"),
-        Input("modal-dormant-node", "is_open"),
-        Input("modal-dormant-deactivate-confirm", "is_open"),
+        State("editor-dormant-preset", "data"),
+        State("editor-pristine-snapshot", "data"),
         prevent_initial_call=True,
     )
-    @prerendered
-    def populate_node_dormant_state(node_name, _refresh, dormant_modal_open,
-                                    deactivate_modal_open):
-        # Only sync after a modal closes — opening shouldn't reset the user's
-        # in-progress toggle click before the modal flow has a chance to save.
-        trig = ctx.triggered_id
-        if trig == "modal-dormant-node" and dormant_modal_open:
-            return no_update, no_update
-        if trig == "modal-dormant-deactivate-confirm" and deactivate_modal_open:
-            return no_update, no_update
+    def populate_node_dormancy(node_name, _refresh, preset, snapshot):
+        node = graph_manager.get_node(node_name) if node_name else None
+        dormancy = build_dormancy_snapshot(node, event_manager)
+        consumed = no_update
 
-        if not node_name:
-            return [], ""
-        node = graph_manager.get_node(node_name)
-        if not node:
-            return [], ""
+        # The Events tab's "+" opens a blank editor with Dormant already on
+        # and the event chosen. The preset is used once, by the next blank
+        # form, and only while it is fresh.
+        if node is None and preset and preset.get("event"):
+            consumed = None
+            if time.time() * 1000 - (preset.get("ts") or 0) < 30_000:
+                dormancy = {"dormant": True, "rows": [],
+                            "join": preset["event"], "join_name": ""}
 
-        toggle_val = ["dormant"] if node.dormant else []
-        if node.dormant:
-            events = event_manager.get_events_for_node(node_name)
-            if events:
-                info = f"In event: {', '.join(events)}"
-            else:
-                info = "Dormant (not linked to any event)"
+        rows = dormancy["rows"]
+        in_events = {row[0] for row in rows}
+        if isinstance(snapshot, dict):
+            snapshot = {**snapshot, "dormancy": dormancy}
         else:
-            info = ""
-        return toggle_val, info
-
-    # --- Editor Dormant Toggle: dispatcher ---
-    # Compares the toggle's new value to the loaded node's actual dormant
-    # state. On a real transition, opens the appropriate modal (Add-to-Event
-    # for ON, confirm for OFF) without touching the DB. The DB change happens
-    # inside those modal flows; populate_node_dormant_state syncs the switch
-    # back when they close.
-    @app.callback(
-        Output("dormant-existing-trigger-input", "value", allow_duplicate=True),
-        Output("modal-dormant-deactivate-confirm", "is_open", allow_duplicate=True),
-        Output("dormant-deactivate-confirm-body", "children"),
-        Output("pending-dormant-toggle-store", "data"),
-        Input("node-dormant", "value"),
-        State("node-original-name", "data"),
-        prevent_initial_call=True,
-    )
-    def dispatch_dormant_toggle(toggle_val, node_name):
-        if not node_name:
-            return no_update, no_update, no_update, no_update
-        node = graph_manager.get_node(node_name)
-        if not node:
-            return no_update, no_update, no_update, no_update
-
-        wants_dormant = bool(toggle_val and "dormant" in toggle_val)
-        is_dormant = bool(node.dormant)
-
-        if wants_dormant == is_dormant:
-            # Toggle matches DB — this fire was the populate sync, not a user click.
-            return no_update, no_update, no_update, no_update
-
-        if wants_dormant and not is_dormant:
-            # Make-dormant: open Add-to-Event modal pre-filled with this node.
-            payload = json.dumps([node_name]) + "|" + str(int(time.time() * 1000))
-            return payload, no_update, no_update, node_name
-
-        # Wake: open confirm modal.
-        events = event_manager.get_events_for_node(node_name)
-        if events:
-            body = f"Remove '{node_name}' from event{'s' if len(events) != 1 else ''} '{', '.join(events)}' and wake it?"
-        else:
-            body = f"'{node_name}' is dormant but not linked to any event. Wake it?"
-        return no_update, True, body, node_name
-
-    # --- Editor Dormant Toggle: confirm wake ---
-    @app.callback(
-        Output("modal-dormant-deactivate-confirm", "is_open", allow_duplicate=True),
-        Output("events-refresh-trigger", "data", allow_duplicate=True),
-        Output("pending-dormant-toggle-store", "data", allow_duplicate=True),
-        Input("btn-dormant-deactivate-confirm", "n_clicks"),
-        State("pending-dormant-toggle-store", "data"),
-        prevent_initial_call=True,
-    )
-    def confirm_wake(n_clicks, pending_node):
-        if not n_clicks or not pending_node:
-            return no_update, no_update, no_update
-        try:
-            event_manager.detach_node_from_all_events(pending_node)
-        except Exception as e:
-            # Don't leave the modal open on error; surface via save-output channel.
-            return False, no_update, None
-        return False, f"detach-{pending_node}-{int(time.time())}", None
-
-    # --- Editor Dormant Toggle: cancel wake ---
-    # Just closes the modal; populate_node_dormant_state will re-sync the
-    # toggle to the DB's actual (still-dormant) state.
-    @app.callback(
-        Output("modal-dormant-deactivate-confirm", "is_open", allow_duplicate=True),
-        Output("pending-dormant-toggle-store", "data", allow_duplicate=True),
-        Input("btn-dormant-deactivate-cancel", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def cancel_wake(n_clicks):
-        if not n_clicks:
-            return no_update, no_update
-        return False, None
-
-    # --- Save Dormant Node ---
-    @app.callback(
-        Output("modal-dormant-node", "is_open", allow_duplicate=True),
-        Output("dormant-node-save-status", "children", allow_duplicate=True),
-        Output("dormant-nodes-table-container", "children", allow_duplicate=True),
-        Output("events-refresh-trigger", "data", allow_duplicate=True),
-        Output("selected-event-store", "data", allow_duplicate=True),
-        Output("event-delete-wrapper", "style", allow_duplicate=True),
-        Output("event-save-status", "children", allow_duplicate=True),
-        Output("editing-dormant-node-store", "data", allow_duplicate=True),
-        Input("btn-dormant-node-save", "n_clicks"),
-        State("selected-event-store", "data"),
-        State("event-name", "value"),
-        State("event-description", "value"),
-        State("event-trigger-date", "value"),
-        State("dormant-node-name", "value"),
-        State("dormant-node-type", "value"),
-        State("dormant-node-context", "value"),
-        State("dormant-node-subcontext", "value"),
-        State("dormant-node-desc", "value"),
-        State("dormant-node-value", "value"),
-        State("dormant-node-interest", "value"),
-        State("dormant-node-difficulty", "value"),
-        State("dormant-node-time-o", "value"),
-        State("dormant-node-time-m", "value"),
-        State("dormant-node-time-p", "value"),
-        State("dormant-node-time-unit", "value"),
-        State("dormant-node-time-mode", "value"),
-        # Habit-mode states
-        State("dormant-node-time-habit-mode", "value"),
-        State("dormant-node-habit-duration", "value"),
-        State("dormant-node-habit-duration-unit", "value"),
-        State("dormant-node-habit-intensity-o", "value"),
-        State("dormant-node-habit-intensity-m", "value"),
-        State("dormant-node-habit-intensity-p", "value"),
-        State("dormant-node-habit-intensity-unit", "value"),
-        State("dormant-node-habit-days", "value"),
-        State("dormant-node-delay-value", "value"),
-        State("dormant-node-delay-unit", "value"),
-        State("dormant-node-wake-date", "value"),
-        State("dormant-node-needs-hard", "value"),
-        State("dormant-node-needs-soft", "value"),
-        State("dormant-node-supports-hard", "value"),
-        State("dormant-node-supports-soft", "value"),
-        State("dormant-node-helps", "value"),
-        State({"type": "dormant-obsidian-link", "index": ALL}, "value"),
-        State({"type": "dormant-drive-link", "index": ALL}, "value"),
-        State({"type": "dormant-website-link", "index": ALL}, "value"),
-        # Add to Now on trigger
-        State("dormant-now-toggle", "value"),
-        # Value-inherit toggle (Inherit ratings)
-        State("dormant-node-value-mode", "value"),
-        State("editing-dormant-node-store", "data"),
-        # Mode + existing-mode states
-        State("dormant-node-mode", "value"),
-        State("dormant-existing-picker", "value"),
-        State("dormant-event-target-mode", "value"),
-        State("dormant-new-event-name", "value"),
-        State("dormant-new-event-desc", "value"),
-        State("dormant-existing-event-picker", "value"),
-        # New-event trigger info (used when creating an event via the modal)
-        State("dormant-new-event-trigger-type", "value"),
-        State("dormant-new-event-trigger-date", "value"),
-        State("dormant-new-event-trigger-node", "value"),
-        State("dormant-new-event-trigger-mode", "value"),
-        State({"type": "dormant-alias-input", "index": ALL}, "value"),
-        prevent_initial_call=True,
-    )
-    @database.atomic
-    def save_dormant_node(n_clicks, selected_event,
-                          event_name_val, event_desc_val, event_date_val,
-                          name, node_type, context, subcontext, desc,
-                          value, interest, difficulty, time_o, time_m, time_p, time_unit,
-                          time_mode_val,
-                          time_habit_mode_val,
-                          habit_duration, habit_duration_unit,
-                          habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                          habit_days,
-                          delay_value, delay_unit, wake_date,
-                          needs_hard, needs_soft, supports_hard, supports_soft, helps,
-                          obsidian_vals, drive_vals, website_vals,
-                          now_toggle,
-                          value_mode_val,
-                          editing_original_name,
-                          mode, existing_picker_vals,
-                          event_target_mode, new_event_name, new_event_desc,
-                          existing_event_pick,
-                          new_event_trigger_type, new_event_trigger_date,
-                          new_event_trigger_node, new_event_trigger_mode, alias_values):
-        _nu8 = (no_update,) * 8
-        if not n_clicks:
-            return _nu8
-
-        # The Add-to-Now toggle is a switch-style Checklist (value is a list
-        # like ["on"]) to match the main editor — normalize to a bool for the
-        # event-manager calls below.
-        now_toggle = bool(now_toggle and "on" in now_toggle)
-
-        is_edit = bool(editing_original_name)
-
-        # --- Existing-nodes bulk conversion path ---
-        if mode == "existing" and not is_edit:
-            picker_vals = [v for v in (existing_picker_vals or []) if v]
-            if not picker_vals:
-                return no_update, "Select at least one node.", no_update, no_update, no_update, no_update, no_update, no_update
-
-            target_event = selected_event
-            event_status_msg = no_update
-            event_trigger_style = no_update
-            if not target_event:
-                if event_target_mode == "existing":
-                    if not existing_event_pick:
-                        return no_update, "Pick an existing event.", no_update, no_update, no_update, no_update, no_update, no_update
-                    target_event = existing_event_pick
-                else:
-                    ev_name = (new_event_name or "").strip()
-                    if not ev_name:
-                        return no_update, "Enter a name for the new event.", no_update, no_update, no_update, no_update, no_update, no_update
-                    ev_desc = (new_event_desc or "").strip()
-                    # Trigger type is "manual" by default; only forward date /
-                    # node when explicitly selected, so leftover values in the
-                    # other field don't get persisted.
-                    trig_type = new_event_trigger_type or "manual"
-                    resolved_date = new_event_trigger_date if trig_type == "date" else None
-                    resolved_trigger_nodes = (
-                        _normalize_trigger_nodes(new_event_trigger_node)
-                        if trig_type == "node" else []
-                    )
-                    resolved_trigger_mode = (
-                        new_event_trigger_mode if new_event_trigger_mode in ("any", "all") else "any"
-                    )
-                    try:
-                        event_manager.add_event(Event(
-                            name=ev_name,
-                            description=ev_desc,
-                            trigger_date=resolved_date,
-                            trigger_nodes=resolved_trigger_nodes,
-                            trigger_mode=resolved_trigger_mode,
-                        ))
-                    except ValueError as e:
-                        return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
-                    target_event = ev_name
-                    event_status_msg = "Event auto-saved."
-                    event_trigger_style = {"display": "flex", "alignItems": "center"}
-
-            delay_days_val = duration_to_days(delay_value, delay_unit)
-
-            # Skip nodes already linked to this event (idempotent re-adds would
-            # create duplicate EventNodes rows and break the composite index).
-            already_linked = {
-                en['node'].name for en in event_manager.get_event_nodes(target_event)
-            }
-            existing_nodes = {n.name for n in graph_manager.get_all_nodes(include_dormant=True)}
-
-            added = 0
-            for node_name in picker_vals:
-                if node_name in already_linked:
-                    continue
-                if node_name not in existing_nodes:
-                    continue
-                try:
-                    event_manager.add_node_to_event(
-                        target_event, node_name, delay_days_val,
-                        now_on_trigger=now_toggle,
-                    )
-                except ValueError as e:
-                    return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
-                added += 1
-
-            event = event_manager.get_event(target_event)
-            event_nodes = event_manager.get_event_nodes(target_event)
-            return (
-                False,
-                "",
-                build_dormant_nodes_table(event_nodes, event),
-                f"add-existing-{target_event}-{added}-{int(time.time())}",
-                target_event,
-                event_trigger_style,
-                event_status_msg,
-                None,
-            )
-
-        # --- New-node single path (existing behavior) ---
-        if not name or not name.strip():
-            return no_update, "Node name is required.", no_update, no_update, no_update, no_update, no_update, no_update
-        if not node_type:
-            return no_update, "Node type is required.", no_update, no_update, no_update, no_update, no_update, no_update
-
-        event_status_msg = no_update
-        event_trigger_style = no_update
-
-        if is_edit:
-            if not selected_event:
-                return no_update, "Internal error: no event context for edit.", no_update, no_update, no_update, no_update, no_update, no_update
-        else:
-            if not selected_event:
-                ev_name = (event_name_val or "").strip()
-                if not ev_name:
-                    return no_update, "Enter an event name first, then add nodes.", no_update, no_update, no_update, no_update, no_update, no_update
-                ev_desc = (event_desc_val or "").strip()
-                ev_date = event_date_val or None
-                try:
-                    event_manager.add_event(Event(name=ev_name, description=ev_desc, trigger_date=ev_date))
-                except ValueError as e:
-                    return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
-                selected_event = ev_name
-                event_status_msg = "Event auto-saved."
-                event_trigger_style = {"display": "flex", "alignItems": "center"}
-
-        name = name.strip()
-        delay_days = duration_to_days(delay_value, delay_unit)
-
-        multiplier = ConfigManager.get_time_multiplier(time_unit)
-        # Resolve time_mode via the shared helper — Goal/Milestone always
-        # inherit; otherwise habit > inherited > manual.
-        t_mode = resolve_time_mode(node_type, time_mode_val, time_habit_mode_val)
-        if t_mode == 'habit':
-            t_o, t_m, t_p = compute_habit_time_omp(
-                habit_duration or 0, habit_duration_unit or 'weeks',
-                habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
-                habit_int_unit or 'min_per_session', habit_days,
-            )
-        else:
-            t_o = float(time_o or 0) * multiplier
-            t_m = float(time_m or 0) * multiplier
-            t_p = float(time_p or 0) * multiplier
-        # Mirror time_mode — Milestones always inherit value; Goals keep their
-        # own; otherwise the toggle wins.
-        v_mode = resolve_value_mode(node_type, value_mode_val)
-
-        node = Node(
-            name=name,
-            type=node_type,
-            description=desc or "",
-            value=value or 5,
-            time_o=t_o,
-            time_m=t_m,
-            time_p=t_p,
-            interest=interest or 5,
-            difficulty=difficulty or 5,
-            status=STATUS_OPEN,
-            context=context or None,
-            subcontext=(subcontext or '').strip() or None,
-            obsidian_path=serialize_links(obsidian_vals) or None,
-            google_drive_path=serialize_links(drive_vals) or None,
-            website=serialize_links(website_vals) or None,
-            time_mode=t_mode,
-            value_mode=v_mode,
-            habit_duration=habit_duration or 0,
-            habit_duration_unit=habit_duration_unit or 'weeks',
-            habit_intensity_o=habit_int_o or 0,
-            habit_intensity_m=habit_int_m or 0,
-            habit_intensity_p=habit_int_p or 0,
-            habit_intensity_unit=habit_int_unit or 'min_per_session',
-            **({'habit_days': habit_days} if habit_days is not None else {}),
-        )
-
-        if is_edit:
-            try:
-                event_manager.update_dormant_node(
-                    selected_event, editing_original_name, node,
-                    delay_days=delay_days,
-                    now_on_trigger=now_toggle,
-                )
-                # The editor showed a wake date rather than an offset, so the
-                # date is what the user actually edited. The delay field was
-                # hidden and still holds whatever the row was created with.
-                if wake_date:
-                    event_manager.set_node_wake_date(
-                        selected_event, node.name, wake_date)
-            except ValueError as e:
-                return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
-        else:
-            try:
-                event_manager.create_dormant_node(
-                    node, selected_event, delay_days=delay_days,
-                    now_on_trigger=now_toggle,
-                )
-            except ValueError as e:
-                return no_update, str(e), no_update, no_update, selected_event, event_trigger_style, event_status_msg, no_update
-
-        try:
-            graph_manager.set_aliases(
-                node.name, [a for a in (alias_values or []) if a and a.strip()])
-
-            graph_manager.sync_edges(node.name, needs_hard or [], needs_soft or [],
-                                     supports_hard or [], supports_soft or [], helps or [])
-
-        except ValueError as e:
-            return no_update, str(e), no_update, no_update, no_update, no_update, no_update, no_update
-
-        event = event_manager.get_event(selected_event)
-        event_nodes = event_manager.get_event_nodes(selected_event)
-
+            snapshot = no_update
         return (
-            False,
-            "",
-            build_dormant_nodes_table(event_nodes, event),
-            f"{'edit' if is_edit else 'add'}-node-{node.name}",
-            selected_event,
-            event_trigger_style,
-            event_status_msg,
-            None,
+            ["dormant"] if dormancy["dormant"] else [],
+            build_event_membership_rows(rows),
+            _pending_event_options(exclude=in_events),
+            dormancy["join"],
+            "Also add to event" if rows else "Add to event",
+            "", 0, "days", [], [],
+            bool(node is not None and node.dormant),
+            snapshot,
+            consumed,
         )
 
-    # --- Offset before the event fires, date after ---
-    #
-    # Its own callback rather than extra Outputs on the two modal openers:
-    # those return 57 and 48 values against hand-counted `(no_update,) * N`
-    # literals, and this needs no part of them.
+    # The list is also filled whenever Dormant is switched on. A blank form
+    # opened from the toolbar never loads a node, so the populator above
+    # never runs for it, and an event created since the last load would be
+    # missing anyway.
     @app.callback(
-        Output("dormant-delay-offset-mode", "style"),
-        Output("dormant-delay-date-mode", "style"),
-        Output("dormant-node-wake-date", "value"),
-        Output("dormant-delay-heading", "children"),
-        Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
-        Input("dormant-edit-trigger-input", "value"),
-        Input("btn-add-dormant-node", "n_clicks"),
-        Input("dormant-existing-trigger-input", "value"),
+        Output("node-join-event", "options", allow_duplicate=True),
+        Input("node-dormant", "value"),
+        State("node-dormancy-form", "data"),
+        prevent_initial_call=True,
+    )
+    def refresh_join_event_options(dormant, dormancy):
+        if not dormant:
+            return no_update
+        in_events = {row[0] for row in (dormancy or {}).get("rows") or []}
+        return _pending_event_options(exclude=in_events)
+
+    # A cancelled unsaved-changes prompt means the "+" never got its blank
+    # form, so its preset must not wait around for the next one.
+    @app.callback(
+        Output("editor-dormant-preset", "data", allow_duplicate=True),
+        Input("btn-unsaved-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def drop_dormant_preset(n_clicks):
+        return None if n_clicks else no_update
+
+    app.clientside_callback(
+        """
+        function(dormant, delayOns, delayValues, delayUnits, wakeDates, nows,
+                 join, joinName, joinDelayOn, joinDelay, joinUnit, joinNow,
+                 delayOnIds, delayIds, unitIds, wakeIds, nowIds) {
+            function on(v) { return !!(v && v.indexOf('on') >= 0); }
+            var rows = {};
+            function row(ev) {
+                if (!rows[ev]) rows[ev] = [ev, null, null, null, false];
+                return rows[ev];
+            }
+            // A delay behind a switched-off Delay is no delay.
+            var delayed = {};
+            (delayOnIds || []).forEach(function(id, i) { delayed[id.index] = on(delayOns[i]); });
+            (delayIds || []).forEach(function(id, i) {
+                var v = delayValues[i];
+                row(id.index)[1] = !delayed[id.index] ? 0
+                    : ((v === undefined || v === '') ? null : v);
+            });
+            (unitIds || []).forEach(function(id, i) { row(id.index)[2] = delayUnits[i]; });
+            // A cleared date stays '' rather than null, so Save can tell a
+            // wake-date row that lost its date from a delay row.
+            (wakeIds || []).forEach(function(id, i) { row(id.index)[3] = wakeDates[i] || ''; });
+            (nowIds || []).forEach(function(id, i) {
+                row(id.index)[4] = on(nows[i]);
+            });
+            var list = Object.keys(rows).sort().map(function(k) { return rows[k]; });
+            return {
+                dormant: !!(dormant && dormant.indexOf('dormant') >= 0),
+                rows: list,
+                join: join || null,
+                join_name: joinName || '',
+                join_delay_value: on(joinDelayOn) ? joinDelay : 0,
+                join_delay_unit: joinUnit,
+                join_now: on(joinNow)
+            };
+        }
+        """,
+        Output("node-dormancy-form", "data"),
+        Input("node-dormant", "value"),
+        Input({"type": "membership-delay-on", "index": ALL}, "value"),
+        Input({"type": "membership-delay-value", "index": ALL}, "value"),
+        Input({"type": "membership-delay-unit", "index": ALL}, "value"),
+        Input({"type": "membership-wake-date", "index": ALL}, "value"),
+        Input({"type": "membership-now", "index": ALL}, "value"),
+        Input("node-join-event", "value"),
+        Input("node-join-event-name", "value"),
+        Input("node-join-delay-on", "value"),
+        Input("node-join-delay-value", "value"),
+        Input("node-join-delay-unit", "value"),
+        Input("node-join-now", "value"),
+        State({"type": "membership-delay-on", "index": ALL}, "id"),
+        State({"type": "membership-delay-value", "index": ALL}, "id"),
+        State({"type": "membership-delay-unit", "index": ALL}, "id"),
+        State({"type": "membership-wake-date", "index": ALL}, "id"),
+        State({"type": "membership-now", "index": ALL}, "id"),
+    )
+
+    # Now and Done hide while Dormant is on, and Dormant hides while Now or
+    # Done is on: a node being worked on, or finished, isn't asleep.
+    # Unchecking Dormant on a sleeping node says what Save will do, which is
+    # what the old wake-confirm modal used to ask.
+    app.clientside_callback(
+        """
+        function(dormant, now, done, join, joinDelayOn, snapshot) {
+            var hide = {display: 'none'}, show = {};
+            var isDormant = !!(dormant && dormant.indexOf('dormant') >= 0);
+            var isBusy = !!(now && now.length) || !!(done && done.length);
+            var saved = (snapshot && snapshot.dormancy) || {};
+            var waking = !!saved.dormant && !isDormant;
+            var events = (saved.rows || []).map(function(r) { return r[0]; });
+            var warning = '';
+            if (waking) {
+                warning = events.length
+                    ? 'Saving wakes this node and removes it from ' + events.join(', ') + '.'
+                    : 'Saving wakes this node.';
+            }
+            return [
+                isDormant ? hide : show,
+                isDormant ? hide : show,
+                (isBusy && !isDormant) ? hide : show,
+                isDormant ? show : hide,
+                join === '__new__' ? show : hide,
+                join ? show : hide,
+                (joinDelayOn && joinDelayOn.length) ? show : hide,
+                waking ? show : hide,
+                warning
+            ];
+        }
+        """,
+        Output("node-now-wrapper", "style"),
+        Output("node-status-done-wrapper", "style"),
+        Output("node-dormant-wrapper", "style"),
+        Output("node-dormant-section", "style"),
+        Output("node-join-event-name", "style"),
+        Output("node-join-settings", "style"),
+        Output("node-join-delay-fields", "style"),
+        Output("node-dormant-wake-warning", "style"),
+        Output("node-dormant-wake-warning", "children"),
+        Input("node-dormant", "value"),
+        Input("node-now", "value"),
+        Input("node-status-done", "value"),
+        Input("node-join-event", "value"),
+        Input("node-join-delay-on", "value"),
+        Input("editor-pristine-snapshot", "data"),
+    )
+
+    # Each event row's Delay switch shows or hides its own delay fields.
+    app.clientside_callback(
+        """
+        function(on) {
+            return (on && on.length) ? {} : {display: 'none'};
+        }
+        """,
+        Output({"type": "membership-delay-fields", "index": MATCH}, "style"),
+        Input({"type": "membership-delay-on", "index": MATCH}, "value"),
+        prevent_initial_call=True,
+    )
+
+    # A save that put a node to sleep, changed its events or woke it has to
+    # reach the Events tab and refill the section from the database. The save
+    # message is written only after the save commits, so it is the signal.
+    @app.callback(
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Input("save-output", "children"),
+        State("node-dormancy-form", "data"),
+        State("node-dormant-loaded", "data"),
+        prevent_initial_call=True,
+    )
+    def refresh_events_after_save(message, dormancy, was_dormant):
+        saved = isinstance(message, str) and message.startswith(("Updated node", "Added node"))
+        if not saved or not ((dormancy or {}).get("dormant") or was_dormant):
+            return no_update
+        return f"editor-save-{int(time.time() * 1000)}"
+
+    # The node editor and the Add to Event modal change an event's roster
+    # from outside the Events tab's own callbacks, which write the table
+    # directly. A refresh redraws it for whichever event is open.
+    @app.callback(
+        Output("dormant-nodes-table-container", "children", allow_duplicate=True),
+        Input("events-refresh-trigger", "data"),
         State("selected-event-store", "data"),
         prevent_initial_call=True,
     )
-    def sync_delay_mode(edit_clicks, edit_value, _add_clicks, _existing_value,
-                        selected_event):
-        offset = ({}, {"display": "none"}, None, "Activation Delay")
-        triggered = ctx.triggered_id
-        if not selected_event:
-            return offset
+    def refresh_dormant_nodes_table(_refresh, selected_event):
+        event = event_manager.get_event(selected_event) if selected_event else None
+        if event is None:
+            return no_update
+        return build_dormant_nodes_table(event_manager.get_event_nodes(selected_event), event)
 
-        # Two ways into the editor: the row's pencil, and the events canvas
-        # context menu writing the hidden input. Both have to land here, or
-        # one of them opens on the wrong field.
-        if triggered == "dormant-edit-trigger-input":
-            if not edit_value:
-                return offset
-            node_name = str(edit_value).split("|")[0]
-        elif isinstance(triggered, dict) and triggered.get("type") == "btn-edit-dormant-node":
-            if not any(edit_clicks or []):
-                return offset
-            node_name = triggered["index"]
+    # --- Events tab: "+" opens the node editor on a new dormant node ---
+    # Clears the form through the editor's own New-node button, so the
+    # unsaved-changes prompt behaves exactly as it does there. That button
+    # lives inside the editor and never has to open it, so the sidebar is
+    # opened here, the way the toolbar's fast path does (editor_sidebar.js).
+    # The preset rides alongside and populate_node_dormancy applies it.
+    app.clientside_callback(
+        """
+        function(n, selectedEvent, editorStyle, goalStyle, eventsStyle) {
+            var NO = window.dash_clientside.no_update;
+            if (!n || !selectedEvent) return [NO, NO, NO, NO];
+            setTimeout(function() {
+                var btn = document.getElementById('btn-editor-new');
+                if (btn) btn.click();
+            }, 0);
+            var styles = window.dash_clientside.editor.open_on_add(
+                n, editorStyle, goalStyle, eventsStyle);
+            return [{event: selectedEvent, ts: Date.now()}].concat(styles);
+        }
+        """,
+        Output("editor-dormant-preset", "data", allow_duplicate=True),
+        Output("sidebar-editor-container", "style", allow_duplicate=True),
+        Output("details-goal-sidebar", "style", allow_duplicate=True),
+        Output("events-sidebar-container", "style", allow_duplicate=True),
+        Input("btn-add-dormant-node", "n_clicks"),
+        State("selected-event-store", "data"),
+        State("sidebar-editor-container", "style"),
+        State("details-goal-sidebar", "style"),
+        State("events-sidebar-container", "style"),
+        prevent_initial_call=True,
+    )
+
+    # --- Events tab: a row's Edit opens the node editor in place ---
+    @app.callback(
+        Output("details-edit-trigger-input", "value", allow_duplicate=True),
+        Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def edit_dormant_node(n_clicks_list):
+        triggered = ctx.triggered_id
+        if not any(n_clicks_list or []) or not isinstance(triggered, dict):
+            return no_update
+        return f"{triggered['index']}|{int(time.time() * 1000)}"
+
+    # --- Add to Event modal ---
+    @app.callback(
+        Output("modal-add-to-event", "is_open", allow_duplicate=True),
+        Output("add-to-event-nodes", "options"),
+        Output("add-to-event-nodes", "value"),
+        Output("add-to-event-target", "options"),
+        Output("add-to-event-target", "value"),
+        Output("add-to-event-delay-value", "value"),
+        Output("add-to-event-delay-unit", "value"),
+        Output("add-to-event-now", "value"),
+        Output("add-to-event-status", "children", allow_duplicate=True),
+        Input("dormant-existing-trigger-input", "value"),
+        Input("btn-add-existing-to-event", "n_clicks"),
+        State("selected-event-store", "data"),
+        prevent_initial_call=True,
+    )
+    def open_add_to_event_modal(trigger_val, n_clicks, selected_event):
+        _N = 9
+        if not trigger_val and not n_clicks:
+            return (no_update,) * _N
+        picked = []
+        target = None
+        if ctx.triggered_id == "dormant-existing-trigger-input":
+            # context_menu.js writes a JSON list of node names plus "|<ms>".
+            if not trigger_val:
+                return (no_update,) * _N
+            try:
+                picked = json.loads(trigger_val.split("|")[0])
+            except ValueError:
+                return (no_update,) * _N
+            if not isinstance(picked, list):
+                return (no_update,) * _N
+        elif ctx.triggered_id == "btn-add-existing-to-event":
+            if not n_clicks or not selected_event:
+                return (no_update,) * _N
+            target = selected_event
         else:
-            return offset
-        row = next((en for en in event_manager.get_event_nodes(selected_event)
-                    if en['node'].name == node_name), None)
-        # A committed date only exists for a node still asleep with a date
-        # already written: its event has fired and its turn has not come.
-        if row is None or not row['node'].dormant or not row.get('activation_date'):
-            return offset
-        return ({"display": "none"}, {}, row['activation_date'], "Wake Date")
+            return (no_update,) * _N
+
+        live = [n.name for n in graph_manager.get_all_nodes() if not n.dormant]
+        live_set = set(live)
+        events = [{"label": e.name, "value": e.name}
+                  for e in event_manager.get_all_events() if e.status == "Pending"]
+        if target not in {e["value"] for e in events}:
+            target = None
+        return (
+            True,
+            [{"label": n, "value": n} for n in live],
+            [n for n in picked if n in live_set],
+            events,
+            target,
+            0, "days", [], "",
+        )
+
+    @app.callback(
+        Output("modal-add-to-event", "is_open", allow_duplicate=True),
+        Input("btn-add-to-event-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def close_add_to_event_modal(n_clicks):
+        return False if n_clicks else no_update
+
+    @database.atomic
+    def _add_nodes_to_event(target, names, delay_days, now_on_trigger):
+        already = {en['node'].name for en in event_manager.get_event_nodes(target)}
+        for name in names:
+            if name in already or not graph_manager.get_node(name):
+                continue
+            event_manager.add_node_to_event(target, name, delay_days,
+                                            now_on_trigger=now_on_trigger)
+            if not graph_manager.get_node(name).dormant:
+                # The node editor's refusal: a woken row keeps the node awake,
+                # so the add would silently do nothing.
+                raise ValueError(f"'{name}' was already woken by another event, "
+                                 "so it can't go back to sleep.")
+
+    @app.callback(
+        Output("modal-add-to-event", "is_open", allow_duplicate=True),
+        Output("add-to-event-status", "children", allow_duplicate=True),
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Input("btn-add-to-event-save", "n_clicks"),
+        State("add-to-event-nodes", "value"),
+        State("add-to-event-target", "value"),
+        State("add-to-event-delay-value", "value"),
+        State("add-to-event-delay-unit", "value"),
+        State("add-to-event-now", "value"),
+        prevent_initial_call=True,
+    )
+    def save_add_to_event(n_clicks, names, target, delay_value, delay_unit, now_val):
+        if not n_clicks:
+            return (no_update,) * 3
+        names = [n for n in (names or []) if n]
+        if not names:
+            return no_update, "Select at least one node.", no_update
+        if not target:
+            return no_update, "Pick an event.", no_update
+        try:
+            _add_nodes_to_event(target, names, duration_to_days(delay_value, delay_unit),
+                                bool(now_val and "on" in now_val))
+        except ValueError as e:
+            return no_update, str(e), no_update
+        return False, "", f"add-to-event-{target}-{int(time.time() * 1000)}"
 
     # --- Move a dormant node to another event ---
 
@@ -1829,321 +1306,6 @@ def register_event_callbacks(app, services=None):
         event_nodes = event_manager.get_event_nodes(selected_event)
         return (False, "", build_dormant_nodes_table(event_nodes, event),
                 f"move-{node_name}-{int(time.time())}")
-
-    # --- Dormant Node Link Render Callbacks ---
-    @app.callback(
-        Output('dormant-obsidian-links-container', 'children'),
-        Input('dormant-obsidian-links-store', 'data'),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_dormant_obsidian_links(links):
-        return render_link_rows(links, 'dormant-obsidian-link', has_browse=True, has_open=False)
-
-    @app.callback(
-        Output('dormant-drive-links-container', 'children'),
-        Input('dormant-drive-links-store', 'data'),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_dormant_drive_links(links):
-        return render_link_rows(strip_gdrive_prefix(links), 'dormant-drive-link', has_browse=True, has_open=False)
-
-    @app.callback(
-        Output('dormant-website-links-container', 'children'),
-        Input('dormant-website-links-store', 'data'),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_dormant_website_links(links):
-        return render_link_rows(links, 'dormant-website-link', has_browse=False, has_open=False)
-
-    # --- Dormant Node Link Modify Callbacks ---
-    @app.callback(
-        Output('dormant-obsidian-links-store', 'data', allow_duplicate=True),
-        [Input('btn-dormant-obsidian-add', 'n_clicks'),
-         Input({'type': 'btn-dormant-obsidian-link-remove', 'index': ALL}, 'n_clicks'),
-         Input({'type': 'btn-dormant-obsidian-browse', 'index': ALL}, 'n_clicks')],
-        [State({'type': 'dormant-obsidian-link', 'index': ALL}, 'value'),
-         State('dormant-obsidian-links-store', 'data')],
-        prevent_initial_call=True,
-    )
-    def modify_dormant_obsidian_links(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        links = list(current_values) if current_values else list(store_data or [''])
-        if trigger == 'btn-dormant-obsidian-add':
-            links.append('')
-        elif isinstance(trigger, dict):
-            if trigger.get('type') == 'btn-dormant-obsidian-link-remove':
-                idx = trigger['index']
-                if 0 <= idx < len(links) and len(links) > 1:
-                    links.pop(idx)
-            elif trigger.get('type') == 'btn-dormant-obsidian-browse':
-                idx = trigger['index']
-                if not any(browse_clicks):
-                    return no_update
-                vault = ConfigManager.get_obsidian_vault()
-                import os
-                abs_path = spawn_local_file_picker(
-                    initial_dir=vault,
-                    title="Select Obsidian File",
-                    filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")]
-                )
-                if abs_path:
-                    vault_norm = os.path.normpath(vault)
-                    if abs_path.startswith(vault_norm):
-                        rel = abs_path[len(vault_norm):].lstrip(os.sep)
-                    else:
-                        rel = abs_path
-                    if 0 <= idx < len(links):
-                        links[idx] = rel
-                else:
-                    return no_update
-        return links
-
-    @app.callback(
-        Output('dormant-drive-links-store', 'data', allow_duplicate=True),
-        [Input('btn-dormant-drive-add', 'n_clicks'),
-         Input({'type': 'btn-dormant-drive-link-remove', 'index': ALL}, 'n_clicks'),
-         Input({'type': 'btn-dormant-drive-browse', 'index': ALL}, 'n_clicks')],
-        [State({'type': 'dormant-drive-link', 'index': ALL}, 'value'),
-         State('dormant-drive-links-store', 'data')],
-        prevent_initial_call=True,
-    )
-    def modify_dormant_drive_links(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        links = list(current_values) if current_values else list(store_data or [''])
-        if trigger == 'btn-dormant-drive-add':
-            links.append('')
-        elif isinstance(trigger, dict):
-            if trigger.get('type') == 'btn-dormant-drive-link-remove':
-                idx = trigger['index']
-                if 0 <= idx < len(links) and len(links) > 1:
-                    links.pop(idx)
-            elif trigger.get('type') == 'btn-dormant-drive-browse':
-                idx = trigger['index']
-                if not any(browse_clicks):
-                    return no_update
-                abs_path = spawn_local_file_picker(
-                    initial_dir=ConfigManager.get_gdrive_path() or '',
-                    title="Select Google Drive File",
-                    filetypes_list=[("All files", "*.*")]
-                )
-                if abs_path:
-                    if 0 <= idx < len(links):
-                        links[idx] = abs_path
-                else:
-                    return no_update
-        return links
-
-    @app.callback(
-        Output('dormant-website-links-store', 'data', allow_duplicate=True),
-        [Input('btn-dormant-website-add', 'n_clicks'),
-         Input({'type': 'btn-dormant-website-link-remove', 'index': ALL}, 'n_clicks')],
-        [State({'type': 'dormant-website-link', 'index': ALL}, 'value'),
-         State('dormant-website-links-store', 'data')],
-        prevent_initial_call=True,
-    )
-    def modify_dormant_website_links(add_clicks, remove_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        links = list(current_values) if current_values else list(store_data or [''])
-        if trigger == 'btn-dormant-website-add':
-            links.append('')
-        elif isinstance(trigger, dict) and trigger.get('type') == 'btn-dormant-website-link-remove':
-            idx = trigger['index']
-            if 0 <= idx < len(links) and len(links) > 1:
-                links.pop(idx)
-        return links
-
-    # --- Edit Dormant Node → Open Dormant Node modal pre-filled ---
-    @app.callback(
-        Output("modal-dormant-node", "is_open", allow_duplicate=True),
-        Output("editing-dormant-node-store", "data", allow_duplicate=True),
-        Output("modal-dormant-node-title", "children", allow_duplicate=True),
-        Output("btn-dormant-node-save", "children", allow_duplicate=True),
-        Output("dormant-node-name", "value", allow_duplicate=True),
-        Output("dormant-node-type", "value", allow_duplicate=True),
-        Output("dormant-node-type", "options", allow_duplicate=True),
-        Output("dormant-node-context", "value", allow_duplicate=True),
-        Output("dormant-node-context", "options", allow_duplicate=True),
-        Output("dormant-node-subcontext", "value", allow_duplicate=True),
-        Output("dormant-node-subcontext", "options", allow_duplicate=True),
-        Output("dormant-node-desc", "value", allow_duplicate=True),
-        Output("dormant-node-value-mode", "value", allow_duplicate=True),
-        Output("dormant-node-value", "value", allow_duplicate=True),
-        Output("dormant-node-interest", "value", allow_duplicate=True),
-        Output("dormant-node-difficulty", "value", allow_duplicate=True),
-        Output("dormant-node-time-o", "value", allow_duplicate=True),
-        Output("dormant-node-time-m", "value", allow_duplicate=True),
-        Output("dormant-node-time-p", "value", allow_duplicate=True),
-        Output("dormant-node-time-unit", "value", allow_duplicate=True),
-        Output("dormant-node-time-mode", "value", allow_duplicate=True),
-        Output("dormant-node-delay-value", "value", allow_duplicate=True),
-        Output("dormant-node-delay-unit", "value", allow_duplicate=True),
-        Output("dormant-node-needs-hard", "value", allow_duplicate=True),
-        Output("dormant-node-needs-hard", "options", allow_duplicate=True),
-        Output("dormant-node-needs-soft", "value", allow_duplicate=True),
-        Output("dormant-node-needs-soft", "options", allow_duplicate=True),
-        Output("dormant-node-supports-hard", "value", allow_duplicate=True),
-        Output("dormant-node-supports-hard", "options", allow_duplicate=True),
-        Output("dormant-node-supports-soft", "value", allow_duplicate=True),
-        Output("dormant-node-supports-soft", "options", allow_duplicate=True),
-        Output("dormant-node-helps", "value", allow_duplicate=True),
-        Output("dormant-node-helps", "options", allow_duplicate=True),
-        Output("dormant-obsidian-links-store", "data", allow_duplicate=True),
-        Output("dormant-drive-links-store", "data", allow_duplicate=True),
-        Output("dormant-website-links-store", "data", allow_duplicate=True),
-        Output("dormant-now-toggle", "value", allow_duplicate=True),
-        Output("dormant-node-save-status", "children", allow_duplicate=True),
-        # Habit-mode pre-fill (7 new outputs)
-        Output("dormant-node-time-habit-mode", "value", allow_duplicate=True),
-        Output("dormant-node-habit-duration", "value", allow_duplicate=True),
-        Output("dormant-node-habit-duration-unit", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-o", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-m", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-p", "value", allow_duplicate=True),
-        Output("dormant-node-habit-intensity-unit", "value", allow_duplicate=True),
-        Output("dormant-node-habit-days", "value", allow_duplicate=True),
-        # Mode-toggle wrapper hidden during edit (single-node only)
-        Output("dormant-mode-toggle-wrapper", "style", allow_duplicate=True),
-        Output("dormant-node-mode", "value", allow_duplicate=True),
-        Input({"type": "btn-edit-dormant-node", "index": ALL}, "n_clicks"),
-        Input("dormant-edit-trigger-input", "value"),
-        State("selected-event-store", "data"),
-        prevent_initial_call=True,
-    )
-    def open_dormant_node_modal_for_edit(n_clicks_list, edit_trigger_val, selected_event):
-        _N = 48
-        if not selected_event:
-            return (no_update,) * _N
-        triggered = ctx.triggered_id
-        if triggered == "dormant-edit-trigger-input":
-            # Context-menu Edit on a dormant node in the events canvas.
-            # JS appends "|<timestamp>" to force a fresh value on repeat clicks.
-            if not edit_trigger_val:
-                return (no_update,) * _N
-            node_name = edit_trigger_val.split("|")[0]
-        else:
-            if not any(n_clicks_list) or not triggered:
-                return (no_update,) * _N
-            node_name = triggered["index"]
-
-        # Locate EventNodes row for this node within the selected event.
-        matching = None
-        for en in event_manager.get_event_nodes(selected_event):
-            if en['node'].name == node_name:
-                matching = en
-                break
-        if not matching:
-            return (no_update,) * _N
-
-        node = matching['node']
-        delay_days = matching['delay_days'] or 0
-        now_on_trigger = bool(matching['now_on_trigger'])
-
-        # Derive edge buckets for this node (same mapping as callbacks.populate_editor).
-        from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-        from callback_helpers import parse_links
-        from editor_values import _friendly_time_estimates
-
-        edges = graph_manager.get_edges()
-        needs_hard_v = [e['source'] for e in edges if e['target'] == node_name and e['type'] == EDGE_NEEDS_HARD]
-        needs_soft_v = [e['source'] for e in edges if e['target'] == node_name and e['type'] == EDGE_NEEDS_SOFT]
-        supp_hard_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_NEEDS_HARD]
-        supp_soft_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_NEEDS_SOFT]
-        helps_v = [e['target'] for e in edges if e['source'] == node_name and e['type'] == EDGE_HELPS]
-        helps_v += [e['source'] for e in edges if e['target'] == node_name and e['type'] == EDGE_HELPS]
-        helps_v = list(set(helps_v))
-
-        # Dropdown options — edit mode includes dormant nodes (excluding self) so
-        # dormant→dormant edges round-trip correctly.
-        node_opts = [{"label": n.name, "value": n.name}
-                     for n in graph_manager.get_all_nodes(include_dormant=True)
-                     if n.name != node_name]
-
-        # Type / context / subcontext options
-        types = SUPPORTED_NODE_TYPES
-        contexts = sort_contexts(ConfigManager.get_contexts())
-        type_opts = [{"label": t, "value": t} for t in types]
-        ctx_opts = [{"label": c, "value": c} for c in contexts]
-        subctx_opts = [{"label": "None", "value": ""}]
-        if node.context:
-            subs = sort_subcontexts(ConfigManager.get_subcontexts().get(node.context, []))
-            subctx_opts += [{"label": s, "value": s} for s in subs]
-
-        # Time fields: convert stored hours back to friendly unit.
-        friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
-            node.time_o, node.time_m, node.time_p
-        )
-        time_mode_val = ["inherited"] if node.time_mode == 'inherited' else []
-        time_habit_mode_val = ["habit"] if node.time_mode == 'habit' else []
-        value_mode_val = ["inherited"] if node.value_mode == 'inherited' else []
-        now_toggle_val = ["on"] if now_on_trigger else []
-        # Fold stored habit fields onto the per-session editor widgets.
-        h_unit, h_o, h_m, h_p, h_days = habit_editor_view(
-            node.habit_intensity_unit, node.habit_intensity_o,
-            node.habit_intensity_m, node.habit_intensity_p, node.habit_days)
-
-        # Delay: invert to form fields via the shared helper.
-        delay_val, delay_unit = days_to_duration(delay_days)
-
-        # Link stores
-        obs_links = parse_links(node.obsidian_path)
-        drive_links = parse_links(node.google_drive_path)
-        website_links = parse_links(node.website)
-
-        return (
-            True,                              # modal is_open
-            node_name,                         # editing-dormant-node-store (original name)
-            "Edit Dormant Node",               # title
-            "Save",                            # save button text
-            node.name,                         # name
-            node.type or "Learn",              # type value
-            type_opts,                         # type options
-            node.context or "",                # context value
-            ctx_opts,                          # context options
-            node.subcontext or "",             # subcontext value
-            subctx_opts,                       # subcontext options
-            node.description or "",            # desc
-            value_mode_val,                    # value-mode (Inherit ratings)
-            node.value or 5,                   # value
-            node.interest or 5,                # interest
-            node.difficulty or 5,              # difficulty
-            friendly_o,                        # time-o
-            friendly_m,                        # time-m
-            friendly_p,                        # time-p
-            friendly_unit,                     # time-unit
-            time_mode_val,                     # time-mode
-            delay_val,                         # delay-value
-            delay_unit,                        # delay-unit
-            needs_hard_v,                      # needs-hard value
-            node_opts,                         # needs-hard options
-            needs_soft_v,                      # needs-soft value
-            node_opts,                         # needs-soft options
-            supp_hard_v,                       # supports-hard value
-            node_opts,                         # supports-hard options
-            supp_soft_v,                       # supports-soft value
-            node_opts,                         # supports-soft options
-            helps_v,                           # helps value
-            node_opts,                         # helps options
-            obs_links,                         # obsidian store
-            drive_links,                       # drive store
-            website_links,                     # website store
-            now_toggle_val,                    # add-to-Now toggle (checklist list)
-            "",                                # save-status
-            # Habit-mode pre-fill
-            time_habit_mode_val,
-            node.habit_duration or 0,
-            node.habit_duration_unit or 'weeks',
-            h_o,
-            h_m,
-            h_p,
-            h_unit,
-            h_days,
-            # Hide mode toggle during edit; force "new" so the existing fields render
-            {"display": "none"},
-            "new",
-        )
 
     # --- Remove Dormant Node ---
     @app.callback(

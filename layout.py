@@ -19,7 +19,7 @@ from config import (
     DEFAULT_GRAPH_LAYOUT,
     sort_subcontexts,
 )
-from events_layout import build_events_tab_content
+from events_layout import build_events_tab_content, build_add_to_event_modal
 from details_layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
 from settings_layout import build_settings_modal
 from review_hub_layout import build_review_hub_modal
@@ -522,21 +522,6 @@ def build_undo_done_confirm_modal():
             dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
         ], className="d-flex"),
     ], id="modal-undo-done-confirm", size="sm", is_open=False, centered=True)
-
-
-# Confirms detaching a dormant node from its event(s) and waking it back into
-# the live graph. Triggered by toggling the editor's Dormant switch off.
-# Distinct from the events-tab "Delete event" flow — this preserves the node,
-# only severs the event association and clears dormant=1.
-def build_dormant_deactivate_confirm_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Wake node?")),
-        dbc.ModalBody(id="dormant-deactivate-confirm-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-dormant-deactivate-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Wake", id="btn-dormant-deactivate-confirm", color="primary", className="flex-fill"),
-        ], className="d-flex"),
-    ], id="modal-dormant-deactivate-confirm", size="sm", is_open=False, centered=True)
 
 
 # Suggestion modal that fires when the last hard prerequisite of a Goal or
@@ -1293,10 +1278,6 @@ def build_app_layout(initial_elements, env="production"):
         # Set by context_menu.js when "Add to event…" is clicked. Carries a
         # JSON-encoded list of selected node IDs plus a "|<timestamp>" suffix.
         dcc.Input(id='dormant-existing-trigger-input', type='text', value='', style={'display': 'none'}),
-        # Holds the node name whose dormant state is being toggled while the
-        # confirm/Add-to-Event modal is open, so the post-modal sync can revert
-        # the switch on cancel and the confirm callback knows what to detach.
-        dcc.Store(id='pending-dormant-toggle-store', data=None),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         html.Div(id='tooltip-config', style={'display': 'none'}, **{  # type: ignore[reportArgumentType]
             'data-show': str(TOOLTIP_SHOW_DELAY_MS),
@@ -1309,7 +1290,7 @@ def build_app_layout(initial_elements, env="production"):
         build_unsaved_changes_modal(),
         build_delete_confirm_modal(),
         build_undo_done_confirm_modal(),
-        build_dormant_deactivate_confirm_modal(),
+        build_add_to_event_modal(),
         build_auto_done_suggestion_modal(),
         build_time_calibration_modal(),
         build_calibration_review_toast(),

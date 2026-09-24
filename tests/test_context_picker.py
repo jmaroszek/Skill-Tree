@@ -72,7 +72,6 @@ def test_every_ordinary_context_selection_surface_uses_the_shared_picker():
         "node-context-picker",
         "filter-context-picker",
         "details-add-context-picker",
-        "dormant-node-context-picker",
         "hub-history-context-picker",
     }
     found = {getattr(item, "id", None) for item in _walk(layout)}

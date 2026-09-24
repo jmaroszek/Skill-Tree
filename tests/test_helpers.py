@@ -854,6 +854,7 @@ class TestEditorFormValues:
             habit_intensity_o=0, habit_intensity_m=0, habit_intensity_p=0,
             habit_intensity_unit='min_per_session',
             habit_days=list(ALL_WEEKDAYS),
+            dormancy=None,
         )
         base.update(overrides)
         return base
@@ -879,7 +880,7 @@ class TestEditorFormValues:
         """A blank new-node form (component defaults) built through the helper
         must not register dirty against NEW_NODE_SNAPSHOT."""
         blank = editor_form_values(**self._full_kwargs(
-            name='', desc='', context='', subctx='', time_o=2, time_m=4,
+            name='', n_type='', desc='', context='', subctx='', time_o=2, time_m=4,
             time_p=6, time_unit='weeks',
         ))
         assert not is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, blank)
@@ -905,6 +906,7 @@ class TestEditorFormValues:
             e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
             obs_links=[''], drive_links=[''], website_links=[''],
             time_mode=[], value_mode=[], priority_rank='none', aliases=[''],
+            dormancy=snap['dormancy'],
         )
         assert not is_form_dirty_vs_snapshot(snap, form)
 
@@ -945,6 +947,7 @@ class TestEditorFormValues:
             habit_days=snap['habit_days'],
             value_mode=snap['value_mode'], priority_rank=snap['priority_rank'],
             aliases=snap['aliases'],
+            dormancy=snap['dormancy'],
         )
         assert not is_form_dirty_vs_snapshot(snap, form)
 

@@ -77,6 +77,63 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     return msg
 
 
+@database.atomic
+def apply_dormancy(manager, events, name, dormancy, was_dormant):
+    """Write the editor's Dormant switch and Events section for a saved node.
+
+    Runs after handle_save, inside the same transaction, so a refusal here
+    undoes the whole save. `dormancy` is callback_helpers.dormancy_for_save
+    output: delays already in days. `was_dormant` is the node's state before
+    this save.
+    """
+    from models import Event
+
+    d = dormancy or {}
+    if not d.get('dormant'):
+        if was_dormant:
+            events.detach_node_from_all_events(name)
+        return
+
+    if was_dormant:
+        for event, delay_days, wake_date, now in d.get('rows') or []:
+            if wake_date is not None:
+                # A fired event's row has a date instead of a delay, and a
+                # row with neither would never wake.
+                if not wake_date:
+                    raise ValueError(f"Enter a wake date for '{event}'.")
+                events.set_node_wake_date(event, name, wake_date)
+            else:
+                events.set_node_delay(event, name, delay_days or 0)
+            events.set_now_on_trigger(event, name, bool(now))
+
+    join = d.get('join') or None
+    if d.get('new_event'):
+        if not join:
+            raise ValueError("Name the new event.")
+        # Manual until the user gives it a real trigger on the Events tab.
+        events.add_event(Event(name=join))
+    if join:
+        if join not in events.get_events_for_node(name):
+            events.add_node_to_event(join, name, d.get('join_delay_days') or 0,
+                                     now_on_trigger=bool(d.get('join_now')))
+    elif not was_dormant:
+        raise ValueError("Pick an event for this dormant node.")
+
+    node = manager.get_node(name)
+    if not node.dormant:
+        # An event already woke this node, and a woken row keeps it awake
+        # (EventManager._sync_dormant_flag). Say so rather than save a
+        # Dormant switch that did nothing.
+        waiting = {m['event'] for m in events.get_node_memberships(name)}
+        woke = [e for e in events.get_events_for_node(name) if e not in waiting]
+        raise ValueError(
+            f"'{name}' was woken by {', '.join(woke)}, so it can't go back to sleep.")
+    if node.now:
+        # Add to Now on wake replaces Now while the node sleeps.
+        node.now = 0
+        manager.update_node(node)
+
+
 def prior_node_for_completion(manager, name, original_name):
     """The DB row a save is about to overwrite, for Done-transition detection.
 

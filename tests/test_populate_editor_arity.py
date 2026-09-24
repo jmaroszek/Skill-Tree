@@ -46,9 +46,9 @@ def _make_state_args():
     cur_aliases, pending_nav, pristine_snapshot, cur_value_mode,
     cur_time_habit_mode, cur_habit_duration, cur_habit_duration_unit,
     cur_habit_int_o, cur_habit_int_m, cur_habit_int_p, cur_habit_int_unit,
-    cur_habit_days.
+    cur_habit_days, cur_dormancy.
     """
-    return [None] * 37
+    return [None] * 38
 
 
 def _call_with_trigger(monkeypatch, trigger_id, inputs):
@@ -140,6 +140,22 @@ def test_populate_editor_includes_dormant_nodes_in_relationship_fields(monkeypat
         assert {option["value"] for option in options} == {
             "ActivePrereq", "DormantPrereq"
         }
+
+
+def test_populate_editor_loads_a_dormant_node_found_by_search(monkeypatch):
+    """There is one node editor. Searching for a dormant node loads it,
+    rather than opening the sidebar on whatever was loaded before."""
+    GraphManager().add_node(Node(
+        name="Sleeper", type="Action", description="asleep", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind", dormant=1,
+    ))
+    inputs = [None, None, None, None, "Sleeper", None, None, None, None, None]
+    result = _call_with_trigger(monkeypatch, "search-node", inputs)
+    assert result[0] == "Sleeper"
+    assert result[2] == "asleep"
+    assert result[28] == "Sleeper"  # node-original-name
+    assert result[35]["dormancy"]["dormant"] is True
 
 
 def test_populate_editor_all_return_paths_use_22_not_21(monkeypatch):
