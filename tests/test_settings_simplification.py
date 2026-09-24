@@ -192,7 +192,7 @@ def test_path_fields_are_responsive_but_visually_bounded():
     }.issubset(_by_id(containers[0]))
 
 
-def test_type_colors_show_their_hex_and_status_colors_do_not():
+def test_type_and_status_colors_show_their_hex():
     from settings_callbacks import _build_status_color_rows, _build_type_color_rows
 
     colors = {"Done": "#123456", "Learn": "#abcdef"}
@@ -215,11 +215,13 @@ def test_type_colors_show_their_hex_and_status_colors_do_not():
     assert DEFAULT_NODE_COLORS[STATUS_BLOCKED] in values
     assert "#6c757d" not in values, (
         "An unset swatch is showing the old generic grey instead of its default")
-    # The type column has no labels of its own (the shapes column carries the
-    # type names), so the hex fills it and serves exact-colour and contrast
-    # lookups. Status rows are labelled and stay swatch-only.
+    # Type and status rows show the selected value for exact-colour and
+    # contrast lookups.
     assert "#abcdef" in _text(_build_type_color_rows(["Learn"], colors))
-    assert "#" not in _text(_build_status_color_rows(colors))
+    status_text = _text(_build_status_color_rows(colors))
+    assert "#123456" in status_text
+    assert DEFAULT_NODE_COLORS[STATUS_BLOCKED] in status_text
+    assert DEFAULT_NODE_COLORS["Now"] in status_text
 
 
 def test_technical_and_maintenance_controls_are_not_user_facing():

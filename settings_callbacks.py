@@ -76,6 +76,12 @@ def _build_color_row(label, key, colors):
             value=color_val,
             style={"height": "38px", "width": "52px", "padding": "2px"},
         ),
+        html.Small(
+            color_val,
+            id={"type": "setting-color-hex", "index": key},
+            className="text-muted",
+            style={"fontSize": tokens.FS_CAP, "fontVariantNumeric": "tabular-nums"},
+        ),
     ], className="d-flex align-items-center gap-2 mb-2")
 
 
