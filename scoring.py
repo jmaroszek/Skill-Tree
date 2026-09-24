@@ -144,7 +144,26 @@ def _done_names(all_nodes, memo):
     return memo[key]
 
 
-def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset()):
+def _milestone_names(all_nodes, memo):
+    """Names of Milestones, which scoring treats as free hops."""
+    key = ('milestones',)
+    if key not in memo:
+        memo[key] = frozenset(name for name, node in all_nodes.items()
+                              if node.type == 'Milestone')
+    return memo[key]
+
+
+_ROUTE_PREFERENCE = {'Self': 0, 'Hard': 1, 'Soft': 2}
+
+
+def _better_route(candidate, old):
+    """Stronger wins; ties prefer fewer steps, then a Hard first hop."""
+    return old is None or ((-candidate[0], candidate[1], _ROUTE_PREFERENCE[candidate[2]])
+                           < (-old[0], old[1], _ROUTE_PREFERENCE[old[2]]))
+
+
+def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset(),
+                      free=frozenset()):
     """One strongest route per beneficiary; deterministic ties prefer fewer hops.
 
     Cache route maps separately from value and completion work. Invalid graphs
@@ -155,28 +174,33 @@ def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset()):
     through a Done node leads nowhere new, because whatever lies past it no
     longer waits on anything upstream of it. `start` itself is never skipped.
 
+    Edges leaving a node in `free` carry no discount and add no step. Scoring
+    frees Milestones: a Milestone tracks progress and holds no work, so it
+    isn't a step between the work before it and the work after it.
+
     Each entry is (weight, depth, via, step). `step` is the last hop into the
     beneficiary as (previous node, 'Hard' or 'Soft'), or None for `start`, so
     Explain's Focus can draw the exact route the score credited rather than
     re-deriving one.
     """
-    key = ('routes', start, d_H, d_S, skip)
+    key = ('routes', start, d_H, d_S, skip, free)
     if key in memo:
         return memo[key]
     routes = {start: (1.0, 0, 'Self', None)}
     order = _reachable_topo(start, H_out, S_out, {})
-    preference = {'Self': 0, 'Hard': 1, 'Soft': 2}
     for name in order:
         if name not in routes:
             continue
         weight, depth, via, _ = routes[name]
+        passes_free = name in free and name != start
         for adjacency, discount, kind in ((H_out, d_H, 'Hard'), (S_out, d_S, 'Soft')):
             for target in adjacency.get(name, []):
                 if target in skip and target != start:
                     continue
-                candidate = (weight * discount, depth + 1, kind if name == start else via, (name, kind))
-                old = routes.get(target)
-                if old is None or (-candidate[0], candidate[1], preference[candidate[2]]) < (-old[0], old[1], preference[old[2]]):
+                candidate = (weight * (1.0 if passes_free else discount),
+                             depth + (0 if passes_free else 1),
+                             kind if name == start else via, (name, kind))
+                if _better_route(candidate, routes.get(target)):
                     routes[target] = candidate
     memo[key] = routes
     return routes
@@ -220,12 +244,13 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
     value is already banked, and a Done Helps partner is rewarded by the
     completion multiplier instead of the pair bonus. The Goal ranker turns
     this off, because it counts finished prerequisites as part of a Goal's
-    value.
+    value. Milestones are free hops everywhere (see _strongest_routes).
     """
     memo = {} if memo is None else memo
     if start not in all_nodes:
         return []
     skip = _done_names(all_nodes, memo) if skip_done else frozenset()
+    free = _milestone_names(all_nodes, memo)
     channels = [(start, 1.0, False)]
     context = all_nodes[start].context
     for partner in sorted(Syn.get(start, set()) - {start}):
@@ -237,7 +262,8 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
             channels.append((partner, d_Syn_pair * cross, True))
     rows = {}
     for seed, coefficient, synergy in channels:
-        for name, (route_weight, depth, via, _) in _strongest_routes(seed, H_out, S_out, d_H, d_S, memo, skip).items():
+        for name, (route_weight, depth, via, _) in _strongest_routes(
+                seed, H_out, S_out, d_H, d_S, memo, skip, free).items():
             if name not in all_nodes:
                 continue
             weight = coefficient * route_weight
@@ -1025,6 +1051,7 @@ def focus_route_data(
     H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
     memo: dict = {}
     skip = _done_names(all_nodes_dict, memo) if skip_done else frozenset()
+    free = _milestone_names(all_nodes_dict, memo)
     hop_type = {'Hard': EDGE_NEEDS_HARD, 'Soft': EDGE_NEEDS_SOFT}
 
     # A Helps edge is stored one way round, and the canvas matches that one.
@@ -1056,14 +1083,14 @@ def focus_route_data(
         if row.get('via') == 'Synergy':
             best = None
             for partner, coefficient in partners.items():
-                routes = _strongest_routes(partner, H_out, S_out, d_H, d_S, memo, skip)
+                routes = _strongest_routes(partner, H_out, S_out, d_H, d_S, memo, skip, free)
                 if name in routes and (best is None or coefficient * routes[name][0] > best[0]):
                     best = (coefficient * routes[name][0], partner, routes)
             if best is None:
                 return None
             _, partner, routes = best
             return [(partner, helps_edge[frozenset((source, partner))])] + route_steps(routes, name)
-        routes = _strongest_routes(source, H_out, S_out, d_H, d_S, memo, skip)
+        routes = _strongest_routes(source, H_out, S_out, d_H, d_S, memo, skip, free)
         return route_steps(routes, name) if name in routes else None
 
     node_rank: Dict[str, int] = {source: 1}

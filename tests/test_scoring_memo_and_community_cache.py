@@ -98,7 +98,7 @@ def test_total_value_memo_populates_full_dag_reach():
     memo: dict = {}
     tv_a = _call_tv("A", nodes, edges, memo=memo)
     # Cache the source's unique beneficiary map, rather than scalar subtree sums.
-    routes = memo[('routes', 'A', HYPERS['d_H'], HYPERS['d_S'], frozenset())]
+    routes = memo[('routes', 'A', HYPERS['d_H'], HYPERS['d_S'], frozenset(), frozenset())]
     assert set(routes) == {'A', 'B', 'C', 'D'}
     assert routes['D'][0] == pytest.approx(HYPERS['d_H'] ** 3)
     assert _call_tv('A', nodes, edges, memo=memo) == tv_a

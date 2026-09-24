@@ -13,7 +13,7 @@ The five node types in Skill Tree are not just cosmetic labels. Each answers a d
 | **Learn** | What do I want to understand? | I understand it enough to use it | Reading, writing, thinking, building, etc. | Scored for priority. Competes with Resource and Action Nodes directly. |
 | **Action** | What do I want to do? | I've done the action | Actually doing the practice | Scored for priority. Competes with Learn and Resource Nodes directly. |
 | **Resource** | What do I want to consume? | I have absorbed the material, and feel confident that I won't promptly forget it | Reading, watching, studying, reflecting | Scored for priority. Competes with Learn and Action Nodes directly. |
-| **Milestone** | What objective and measurable benchmark do I want to hit? | I hit the target | Time spent on child nodes | Excluded from scoring. Pass-through node for both ranking algorithms |
+| **Milestone** | What objective and measurable benchmark do I want to hit? | I hit the target | Time spent on child nodes | Excluded from scoring. Passes value through at no cost in both ranking algorithms |
 | **Goal** | What domain, area, or capacity am I developing? | All Hard children are Done | Time spent working on child nodes | Sink node; ranked in the Goals Sidebar and Analyze Tab using the inverted cascade. |
 
 The five types are conceptually distinct, but first-time modelers often hit boundary cases where two seem to overlap. Getting these boundaries right keeps your graph faithful to your intuition and legible to the recommendation engine.
@@ -54,6 +54,8 @@ Use both Goals and Milestones. Goals cluster related work across every node type
 Both Actions and Milestones are objective, externally verifiable events. But they play different roles. An Action is the practice itself. It has a duration and effort, and finishing it means you completed some well-defined work. A Milestone is a checkpoint with no duration of its own. The difference is in the verb: you *do* an Action, but you *hit* a Milestone.
 
 "Complete a 6-Week Squat Program" is an Action. "Squat 1.5x Bodyweight" is a Milestone.
+
+Because a Milestone holds no work, scoring doesn't count it as a step. Put one between two nodes and they stay exactly as close as before. So add Milestones wherever they help you track progress, without worrying that they push the work around them further away.
 
 ## Node Size
 

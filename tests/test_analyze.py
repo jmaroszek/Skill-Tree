@@ -343,7 +343,8 @@ class TestComputeGoalComparison:
         is constructed with manual time + high ratings + 100h, but the model
         forces every Milestone to a pure container (both modes inherited), so
         its value AND its 100h drop out of the Goal's ROI entirely — no
-        in-memory transform in the ranker required."""
+        in-memory transform in the ranker required. Nor is M a step: Work
+        reaches G at one hop's discount, as if M weren't there."""
         _setup_graph(mgr, [
             _make_node("G", type="Goal", time_mode='inherited',
                        value=1, interest=1),
@@ -372,7 +373,7 @@ class TestComputeGoalComparison:
         g = hp.get('value_exponent', 1.0)
         expected_tv = (
             hp['w_v'] * 1 ** g + hp['w_i'] * 1 ** g
-            + (hp['d_H'] ** 2) * (hp['w_v'] * 10 ** g + hp['w_i'] * 10 ** g)
+            + hp['d_H'] * (hp['w_v'] * 10 ** g + hp['w_i'] * 10 ** g)
         )
         assert comps["G"]["tv"] == pytest.approx(expected_tv)
         assert comps["G"]["remaining_time"] == pytest.approx(work.time)

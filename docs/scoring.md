@@ -54,7 +54,9 @@ $$ \text{TV}_{\text{dag}}(n)=\sum_d W(n,d)\,\text{IV}(d) $$
 
 For A -> B -> D and A -> C -> D with all Hard edges, D contributes once at $d_H^2$. B and C still contribute their own value. Capping summed weights would leave duplicate credit below the cap. Strongest-path propagation removes it at every magnitude.
 
-Discounts retain their per-hop meaning. Strongest does not always mean shortest. Ties prefer fewer hops, then a Hard first hop. Inserting a zero-work container still adds a discount hop, so this is not invariant to every graph rewrite.
+Discounts retain their per-hop meaning. Strongest does not always mean shortest. Ties prefer fewer hops, then a Hard first hop.
+
+Milestones are the exception: passing through one costs nothing. A Milestone tracks progress and holds no work, so it isn't a step between the work before it and the work after it. See [Milestone Transparency](#milestone-transparency). A container is different. It groups a stage of real work, so passing through one still costs a hop.
 
 Done nodes are left out of the cascade. A finished node's value is already banked, so it earns nothing for the work that led to it. Routes don't pass through a Done node either. Whatever lies past it no longer waits on anything upstream of it. The sums above therefore run over unfinished beneficiaries only. The Goal ranker is the one exception, covered in [The Edge Inversion Trick](#the-edge-inversion-trick).
 
@@ -327,7 +329,7 @@ A Milestone marks an achievement, not the effort to reach it. "10 strict pull-up
 
 This creates a problem for Goal ranking. A Milestone often sits mid-tree, between a Goal and the real work beneath it. If it carried its own value and time ratings, those numbers would enter the Goal's ROI as though the checkpoint were itself a body of work.
 
-So the app treats every Milestone as transparent: its own value and time are set to zero, so it contributes nothing of its own to the score. Prerequisite value still cascades up through it, discounted by the usual per-hop factor. The milestone adds no value, but it still sits in the chain like any other node, so passing through it costs one discount hop. The work beneath it still counts toward cost.
+So the app treats every Milestone as transparent. Its own value and time are set to zero, so it contributes nothing of its own to the score. It isn't a step either. Value passes through it with no discount, so the work on either side of a Milestone is as close as if the Milestone weren't there. This holds in both rankings, for ordinary nodes and for Goals. The work beneath it still counts toward cost.
 
 # Containers Are Not Recommended
 
