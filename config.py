@@ -482,7 +482,9 @@ DEFAULT_HYPERPARAMS = {
     'future_work_half_credit_hours': 1300.0,
     'future_work_exponent': 0.60,
     'd_H': 0.60,
-    'd_S': 0.40,
+    # Soft prep counts at half a hard step (2026-09): a soft route earns half
+    # what the same route starting with a hard edge would.
+    'd_S': 0.30,
     'd_Syn_pair': 0.10,
     'd_Syn_mul': 0.40,
     'cross_context_mult': 1.00,
