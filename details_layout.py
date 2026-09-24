@@ -145,8 +145,6 @@ def build_graph_settings_panel(
                 persistence_type="local",
                 style={"fontSize": tokens.FS_BASE},
             ),
-            Tooltip("Show nodes outside this event that link to its nodes",
-                    target=outside_nodes_id, placement="left"),
             html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
         ]
 
