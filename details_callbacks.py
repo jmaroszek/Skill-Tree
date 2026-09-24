@@ -828,7 +828,10 @@ def register_details_callbacks(app, services=None):
                 return no_update
             node_name = triggered.get("index")
         else:
-            if not n_clicks:
+            # Re-rendering the subtask list re-fires this callback with no
+            # real trigger. Without this check, the Edit button's stale
+            # n_clicks reopened the editor on every node selection.
+            if triggered != "btn-details-edit" or not n_clicks:
                 return no_update
             node_name = selected_node
         if not node_name:
