@@ -355,8 +355,8 @@ def build_events_tab_content():
             # and known, so the offset has nothing left to measure from and the
             # date itself is the thing to edit.
             html.Hr(className="my-2"),
-            html.H5("Activation Delay", className="mt-2 mb-1",
-                    id="dormant-delay-heading"),
+            html.H5("Wake Settings", className="mt-2 mb-1"),
+            dbc.Label("Activation Delay", className="mt-2", id="dormant-delay-heading"),
             html.Div(id="dormant-delay-offset-mode", children=[
                 html.Small("How long after the event triggers before this node wakes up.",
                            className="text-muted d-block mb-2"),
@@ -384,8 +384,7 @@ def build_events_tab_content():
             # On Wake — common to both modes, like the delay above it. The flag
             # lives on the event's row for this node, not on the node, so it has
             # to be reachable when converting existing nodes too.
-            html.Hr(className="my-2"),
-            html.H5("On Wake", className="mt-2 mb-1"),
+            dbc.Label("On Wake", className="mt-3 d-block"),
             dbc.Checklist(
                 options=[{"label": "Add to Now", "value": "on"}],
                 value=[],
@@ -393,8 +392,8 @@ def build_events_tab_content():
                 switch=True,
                 className="mb-1",
             ),
-            html.Small("Moves the node onto the Now list when it wakes, not when "
-                       "the event fires. Skipped if Now is full.",
+            html.Small("Moves the node onto the Now list when it wakes. "
+                       "Skipped if Now is full.",
                        className="text-muted d-block"),
 
             html.Div(id="dormant-node-save-status", className="text-danger mt-2"),
