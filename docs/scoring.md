@@ -56,6 +56,8 @@ For A -> B -> D and A -> C -> D with all Hard edges, D contributes once at $d_H^
 
 Discounts retain their per-hop meaning. Strongest does not always mean shortest. Ties prefer fewer hops, then a Hard first hop. Inserting a zero-work container still adds a discount hop, so this is not invariant to every graph rewrite.
 
+Done nodes are left out of the cascade. A finished node's value is already banked, so it earns nothing for the work that led to it. Routes don't pass through a Done node either. Whatever lies past it no longer waits on anything upstream of it. The sums above therefore run over unfinished beneficiaries only. The Goal ranker is the one exception, covered in [The Edge Inversion Trick](#the-edge-inversion-trick).
+
 ## Remaining Required Work
 
 Let $R(n,d)$ sum Node.time over d and its unique unfinished Hard prerequisites, excluding n. Done work and inherited-time containers contribute no hours. Hard co-prerequisites on other branches are included; optional Soft prerequisites are excluded. The self contribution has $R(n,n)=0$.
@@ -76,10 +78,10 @@ Synergy edges — the Helps relationship — work differently from prerequisites
 
 Take Foreign Language and Travel. Time abroad cements vocabulary in a way no classroom drill can match. Modest fluency, in turn, opens up places a monolingual tourist would struggle to navigate. Each genuinely amplifies the other, so the algorithm rewards the pairing.
 
-Synergies feed into total value in two stages. The **pair bonus** applies before either partner is done. The **completion multiplier** comes online once one of the pair is finished.
+Synergies feed into total value in two stages. The **pair bonus** applies while the partner is unfinished. The **completion multiplier** replaces it once the partner is Done.
 
 ### Pair Bonus
-Write $Y(n)$ for $n$'s set of synergy partners. Each partner $z \in Y(n)$ passes a fraction $d_{\text{Syn,pair}}$ of its own total value back to $n$:
+Write $Y(n)$ for $n$'s set of synergy partners. Each unfinished partner $z \in Y(n)$ passes a fraction $d_{\text{Syn,pair}}$ of its own total value back to $n$:
 
 $$ \text{Syn}_+(n) = d_{\text{Syn,pair}} \sum_{z \in Y(n)} c(n, z) \cdot \sum_d W(z,d)\,\text{IV}(d)\,q(n,d) $$
 
@@ -288,7 +290,7 @@ Goal value uses strongest routes on **reversed Hard edges only**. Soft and Helps
 
 $$ \text{TV}'(g)=\text{IV}(g)+\sum_{d\in A_H(g)}W_H'(g,d)\,\text{IV}(d) $$
 
-Completed prerequisite value remains part of the capacity's value; only remaining work enters cost. The task-level future-work discount is disabled because Goals already charge aggregate remaining hard work. Explain uses this same scope and the Goal ranker's cost.
+Completed prerequisite value remains part of the capacity's value; only remaining work enters cost. This is the one place the cascade keeps Done nodes. The task-level future-work discount is disabled because Goals already charge aggregate remaining hard work. Explain uses this same scope and the Goal ranker's cost.
 
 ## Cost For Goals
 

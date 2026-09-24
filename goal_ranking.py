@@ -93,6 +93,7 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
             w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
             cross_context_mult=cross_context_mult,
             value_exponent=value_exponent,
+            skip_done=False,
         )
         remaining_time = _hard_subtree_remaining(g.name)
         # A Goal's cost is its whole remaining hard subtree, which runs ~33x
@@ -234,7 +235,8 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
     # Milestones are stored as pure containers (see _rank_goals), so they're
     # already transparent — pass all_nodes straight through.
     bd = explain_score(goal_name, all_nodes, inverted,
-                       dict(hp, future_work_half_credit_hours=0.0), priority_goals)
+                       dict(hp, future_work_half_credit_hours=0.0), priority_goals,
+                       skip_done=False)
     if bd is None:
         return None
 

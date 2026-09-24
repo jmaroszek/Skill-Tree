@@ -1859,7 +1859,7 @@ def register_details_callbacks(app, services=None):
             ]
         pi = focus_route_data(
             selected_node, contributors, k_int, all_nodes_fc, edges_fc,
-            ConfigManager.get_hyperparams(),
+            ConfigManager.get_hyperparams(), skip_done=not is_goal_fc,
         )
         edge_rank_items = list(pi['edge_rank'].items())
         if is_goal_fc:

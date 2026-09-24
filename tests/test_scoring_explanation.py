@@ -526,12 +526,11 @@ def test_m3_multiplier_does_not_amplify_cascade():
     from scoring import intrinsic_value
     iv_s = intrinsic_value(s, HYPERS['w_v'], HYPERS['w_i'])
     iv_p = intrinsic_value(p, HYPERS['w_v'], HYPERS['w_i'])
-    iv_z = intrinsic_value(z, HYPERS['w_v'], HYPERS['w_i'])
 
     # cascade is d_H * iv_p (unscaled — multiplier doesn't touch it)
     assert math.isclose(comp['hard_cascade'], HYPERS['d_H'] * iv_p, rel_tol=1e-9)
-    # additive synergy bonus is d_Syn_pair * iv_z (unscaled)
-    assert math.isclose(comp['synergy'], HYPERS['d_Syn_pair'] * iv_z, rel_tol=1e-9)
+    # a Done partner pays no additive pair bonus; the multiplier replaces it
+    assert comp['synergy'] == 0
     # multiplier kick is iv_s * d_Syn_mul — applies to intrinsic only
     assert math.isclose(comp['iv_multiplier_contribution'],
                         iv_s * HYPERS['d_Syn_mul'], rel_tol=1e-9)

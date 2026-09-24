@@ -75,11 +75,13 @@ def test_cross_context_synergy_scales_with_multiplier():
     assert math.isclose(tv_at_2 - tv_at_1, delta_expected, rel_tol=1e-9)
 
 
-def test_cross_context_only_affects_pair_bonus_not_done_multiplier():
+def test_cross_context_does_not_touch_done_multiplier():
     """Done synergy partners give iv * (1 + d_Syn_mul * sqrt(count)).
 
     That multiplier is context-blind by design — it kicks in on the start
     node's own intrinsic value regardless of where its Done partners live.
+    A Done partner pays no pair bonus, so nothing is left for the
+    cross-context multiplier to scale.
     """
     nodes = [
         _node("A", ctx="Mind", value=10),
@@ -90,14 +92,9 @@ def test_cross_context_only_affects_pair_bonus_not_done_multiplier():
     tv_at_1 = _tv("A", nodes, edges, cross_context_mult=1.0)
     tv_at_3 = _tv("A", nodes, edges, cross_context_mult=3.0)
 
-    # When B is Done, the pair bonus still fires (B's TV is positive), so
-    # the multiplier still applies on that path. But the "Done multiplier
-    # on intrinsic" component (iv_A * (1 + d_Syn_mul * sqrt(1))) is
-    # identical in both runs, so the difference equals the pair-bonus
-    # scaling only.
-    iv_b = BASE['w_v'] * 6 + BASE['w_i'] * 5
-    delta_expected = (3.0 - 1.0) * BASE['d_Syn_pair'] * iv_b
-    assert math.isclose(tv_at_3 - tv_at_1, delta_expected, rel_tol=1e-9)
+    iv_a = BASE['w_v'] * 10 + BASE['w_i'] * 5
+    assert math.isclose(tv_at_1, iv_a * (1 + BASE['d_Syn_mul']), rel_tol=1e-9)
+    assert math.isclose(tv_at_3, tv_at_1, rel_tol=1e-9)
 
 
 # ---------------------------------------------------------------------------

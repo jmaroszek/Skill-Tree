@@ -135,18 +135,32 @@ def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
     return True
 
 
-def _strongest_routes(start, H_out, S_out, d_H, d_S, memo):
+def _done_names(all_nodes, memo):
+    """Names of Done nodes, cached in `memo` like the other status-derived maps."""
+    key = ('done',)
+    if key not in memo:
+        memo[key] = frozenset(name for name, node in all_nodes.items()
+                              if node.status == STATUS_DONE)
+    return memo[key]
+
+
+def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset()):
     """One strongest route per beneficiary; deterministic ties prefer fewer hops.
 
     Cache route maps separately from value and completion work. Invalid graphs
     fail closed at their cyclic portion rather than enumerating cyclic paths.
+
+    Nodes in `skip` are left out entirely: they neither benefit nor pass value
+    on. Scoring skips Done nodes, whose value is already banked. A route
+    through a Done node leads nowhere new, because whatever lies past it no
+    longer waits on anything upstream of it. `start` itself is never skipped.
 
     Each entry is (weight, depth, via, step). `step` is the last hop into the
     beneficiary as (previous node, 'Hard' or 'Soft'), or None for `start`, so
     Explain's Focus can draw the exact route the score credited rather than
     re-deriving one.
     """
-    key = ('routes', start, d_H, d_S)
+    key = ('routes', start, d_H, d_S, skip)
     if key in memo:
         return memo[key]
     routes = {start: (1.0, 0, 'Self', None)}
@@ -158,6 +172,8 @@ def _strongest_routes(start, H_out, S_out, d_H, d_S, memo):
         weight, depth, via, _ = routes[name]
         for adjacency, discount, kind in ((H_out, d_H, 'Hard'), (S_out, d_S, 'Soft')):
             for target in adjacency.get(name, []):
+                if target in skip and target != start:
+                    continue
                 candidate = (weight * discount, depth + 1, kind if name == start else via, (name, kind))
                 old = routes.get(target)
                 if old is None or (-candidate[0], candidate[1], preference[candidate[2]]) < (-old[0], old[1], preference[old[2]]):
@@ -197,23 +213,31 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
                          d_H, d_S, d_Syn_pair, cross_context_mult=1.0,
                          value_exponent=1.0, memo=None,
                          future_work_half_credit_hours=0.0,
-                         future_work_exponent=0.6):
-    """Shared scoring/Explain attribution. Synergy is a separate additive channel."""
+                         future_work_exponent=0.6, skip_done=True):
+    """Shared scoring/Explain attribution. Synergy is a separate additive channel.
+
+    With `skip_done`, Done nodes earn `start` nothing. A Done beneficiary's
+    value is already banked, and a Done Helps partner is rewarded by the
+    completion multiplier instead of the pair bonus. The Goal ranker turns
+    this off, because it counts finished prerequisites as part of a Goal's
+    value.
+    """
     memo = {} if memo is None else memo
     if start not in all_nodes:
         return []
+    skip = _done_names(all_nodes, memo) if skip_done else frozenset()
     channels = [(start, 1.0, False)]
     context = all_nodes[start].context
     for partner in sorted(Syn.get(start, set()) - {start}):
         other = all_nodes.get(partner)
-        if other is None:
+        if other is None or partner in skip:
             continue
         cross = cross_context_mult if context is not None and other.context is not None and context != other.context else 1.0
         if d_Syn_pair * cross:
             channels.append((partner, d_Syn_pair * cross, True))
     rows = {}
     for seed, coefficient, synergy in channels:
-        for name, (route_weight, depth, via, _) in _strongest_routes(seed, H_out, S_out, d_H, d_S, memo).items():
+        for name, (route_weight, depth, via, _) in _strongest_routes(seed, H_out, S_out, d_H, d_S, memo, skip).items():
             if name not in all_nodes:
                 continue
             weight = coefficient * route_weight
@@ -251,18 +275,20 @@ def _tv_dag(node_name, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
 def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
                 w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None,
                 cross_context_mult=1.0, value_exponent=1.0,
-                future_work_half_credit_hours=0.0, future_work_exponent=0.6):
+                future_work_half_credit_hours=0.0, future_work_exponent=0.6,
+                skip_done=True):
     """Strongest-path value, completion-work discount, and distinct synergy bonuses.
 
     Direct callers may disable the future-work discount with a zero half-credit
-    scale. Profiles supply a positive scale; Goal ranking explicitly disables it.
+    scale. Profiles supply a positive scale; Goal ranking explicitly disables it,
+    and also turns off `skip_done` (see _value_contributions).
     """
     if node_name in visited or node_name not in all_nodes:
         return 0.0
     partners = {node_name: Syn.get(node_name, set()) - visited}
     rows = _value_contributions(node_name, all_nodes, H_out, S_out, partners,
         w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent, memo,
-        future_work_half_credit_hours, future_work_exponent)
+        future_work_half_credit_hours, future_work_exponent, skip_done)
     done = sum(all_nodes[z].status == STATUS_DONE for z in partners[node_name]
                if z != node_name and z in all_nodes)
     kick = intrinsic_value(all_nodes[node_name], w_v, w_i, value_exponent) * d_Syn_mul * math.sqrt(done)
@@ -743,6 +769,7 @@ def explain_score(
     hyperparams: dict,
     priority_goals: Optional[List[str]] = None,
     variety: Optional[dict] = None,
+    skip_done: bool = True,
 ) -> Optional[Dict]:
     """Decomposes a node's priority score into its constituent parts.
 
@@ -761,6 +788,9 @@ def explain_score(
     than recomputed because it depends on the whole pool: the caller has the
     ranked list to hand, and reproducing it here would mean scoring the graph
     a second time and risking a number that disagrees with the ranking.
+
+    `skip_done` must match the ranking being explained: True for ordinary
+    nodes, False for a Goal (see _value_contributions).
 
     Returns None if the node is not in `all_nodes`.
     """
@@ -796,7 +826,8 @@ def explain_score(
     contributors = _value_contributions(node_name, all_nodes_dict, H_out, S_out, Syn,
         w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent,
         future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
-        future_work_exponent=hyperparams.get('future_work_exponent', 0.6))
+        future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
+        skip_done=skip_done)
 
     # Synergy multiplier on intrinsic: kicks in when partners are Done.
     # This is a node-level scalar, not a per-contributor weight, so it
@@ -953,6 +984,7 @@ def focus_route_data(
     all_nodes: List[Node],
     edges: List[Dict],
     hyperparams: dict,
+    skip_done: bool = True,
 ) -> Dict:
     """Canvas highlighting for Explain's Focus: up to `k` distinct value routes.
 
@@ -971,8 +1003,9 @@ def focus_route_data(
       * any other starts a new route, until `k` routes exist.
 
     `contributors` is explain_score's list (or its dcc.Store copy), sorted by
-    contribution. `edges` and `hyperparams` must be the ones that list came
-    from; for a Goal that means the inverted Hard edges.
+    contribution. `edges`, `hyperparams` and `skip_done` must be the ones that
+    list came from; for a Goal that means the inverted Hard edges and
+    `skip_done=False`.
 
     Returns a dict with:
       - 'subtree':       every node on a route, plus `source`, sorted
@@ -991,6 +1024,7 @@ def focus_route_data(
     cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
     H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
     memo: dict = {}
+    skip = _done_names(all_nodes_dict, memo) if skip_done else frozenset()
     hop_type = {'Hard': EDGE_NEEDS_HARD, 'Soft': EDGE_NEEDS_SOFT}
 
     # A Helps edge is stored one way round, and the canvas matches that one.
@@ -1010,7 +1044,7 @@ def focus_route_data(
     # Synergy coefficients, exactly as _value_contributions applies them.
     context = all_nodes_dict[source].context
     partners = {}
-    for partner in sorted(Syn.get(source, set()) - {source}):
+    for partner in sorted(Syn.get(source, set()) - {source} - skip):
         other = all_nodes_dict[partner]
         cross = (cross_context_mult if context is not None and other.context is not None
                  and context != other.context else 1.0)
@@ -1022,14 +1056,14 @@ def focus_route_data(
         if row.get('via') == 'Synergy':
             best = None
             for partner, coefficient in partners.items():
-                routes = _strongest_routes(partner, H_out, S_out, d_H, d_S, memo)
+                routes = _strongest_routes(partner, H_out, S_out, d_H, d_S, memo, skip)
                 if name in routes and (best is None or coefficient * routes[name][0] > best[0]):
                     best = (coefficient * routes[name][0], partner, routes)
             if best is None:
                 return None
             _, partner, routes = best
             return [(partner, helps_edge[frozenset((source, partner))])] + route_steps(routes, name)
-        routes = _strongest_routes(source, H_out, S_out, d_H, d_S, memo)
+        routes = _strongest_routes(source, H_out, S_out, d_H, d_S, memo, skip)
         return route_steps(routes, name) if name in routes else None
 
     node_rank: Dict[str, int] = {source: 1}
