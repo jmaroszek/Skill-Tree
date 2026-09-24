@@ -5,23 +5,27 @@
    context_rules.py for the model and assets/context_editor_sortable.js for
    the drag wiring.
 
-   The rows sit on the dark panel while the name, chips and priority are part
-   of the app's light form layer, which is why the two colour families meet
-   inside one row. */
+   The rows sit straight on the modal, outlined but unfilled: a panel fill
+   here would be a second dark grey of a different hue from the modal's. The
+   name, chips and priority are part of the app's light form layer and share
+   one control height, so each row reads along a single centre line. */
 
 /* Column headings. The paddings mirror .ctx-row's so each label sits over the
-   control it names; the leading offset covers the drag handle's width and the
-   trailing spacer stands in for the row's remove button. */
+   control it names; the leading offset is the row's padding, the handle's
+   fixed width and one gap, and the trailing spacer stands in for the row's
+   remove button. They are headings, not captions, so they take the secondary
+   text colour rather than the dim one. */
 .ctx-head {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0 0.5rem 0.2rem 1.9rem;
-    color: var(--st-text-dim);
-    font-size: var(--st-fs-sm);
+    padding: 0 0.5rem 0.3rem calc(0.5rem + var(--ctx-handle-width) + 0.5rem);
+    color: var(--st-text-secondary);
+    font-size: var(--st-fs-cap);
+    font-weight: 500;
 }
 .ctx-head-name {
-    width: 132px;
+    width: var(--ctx-name-width);
     flex: 0 0 auto;
 }
 .ctx-head-subs {
@@ -41,14 +45,20 @@
 
 .ctx-head,
 .ctx-editor-box {
+    --ctx-handle-width: 1rem;
+    --ctx-name-width: 112px;
     --ctx-weight-width: 52px;
-    --ctx-row-btn-width: 32px;
+    --ctx-row-btn-width: 28px;
+    /* The one height the name, priority and row buttons share. Chips are a
+       touch shorter so a wrapped second line of them stays compact. */
+    --ctx-control-height: 30px;
+    --ctx-chip-height: 26px;
 }
 
 .ctx-editor-box {
     border: 1px solid var(--st-border-panel);
     border-radius: var(--st-radius);
-    background-color: var(--st-bg-panel);
+    background-color: transparent;
     overflow: hidden;
 }
 
@@ -56,16 +66,22 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.35rem 0.5rem;
-    border-bottom: 1px solid var(--st-border-subtle);
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--st-border-panel);
 }
 
+/* The same three-line handle as the goal and event cards. */
 .ctx-drag-handle {
     color: var(--st-text-dim);
     cursor: grab;
     display: flex;
     align-items: center;
+    justify-content: center;
+    width: var(--ctx-handle-width);
     flex: 0 0 auto;
+    font-size: var(--st-fs-md);
+    line-height: 1;
+    user-select: none;
 }
 .ctx-drag-handle:hover {
     color: var(--st-text-primary);
@@ -78,14 +94,22 @@
     flex: 0 0 auto;
 }
 
+/* No taller than the controls beside it. A rectangle at body size against
+   small pills sets it apart from the chips without bold. */
 .form-control.ctx-row-name {
-    width: 132px;
+    width: var(--ctx-name-width);
+    height: var(--ctx-control-height);
+    min-height: 0;
+    padding: 0 0.5rem;
     flex: 0 0 auto;
     font-size: var(--st-fs-base);
 }
 
+/* Padded like the input (its padding plus its 1px border), so a removed
+   row's name sits where the live names' text does. */
 .ctx-row-name-static {
-    width: 132px;
+    width: var(--ctx-name-width);
+    padding-left: calc(0.5rem + 1px);
     flex: 0 0 auto;
     font-size: var(--st-fs-base);
     color: var(--st-text-primary);
@@ -97,7 +121,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     flex: 1 1 auto;
     min-width: 0;
 }
@@ -108,7 +132,8 @@
     background-color: var(--st-field-bg);
     border: 1px solid var(--st-menu-border);
     border-radius: 999px;
-    padding: 1px 2px 1px 8px;
+    height: var(--ctx-chip-height);
+    padding: 0 3px 0 9px;
 }
 .ctx-chip:focus-within {
     border-color: var(--st-field-focus-border);
@@ -150,7 +175,7 @@
     height: auto;
     min-height: 0;
     line-height: 1.5;
-    font-size: var(--st-fs-sm);
+    font-size: var(--st-fs-base);
     color: var(--st-text-on-field);
 }
 
@@ -177,16 +202,24 @@
     font-size: var(--st-fs-sm);
 }
 
+/* Same height and shape as a chip, so it reads as the next chip to be. It
+   stays outlined rather than white because it is an action, not a value. */
 .btn.ctx-chip-add {
-    --bs-btn-color: var(--st-text-dim);
+    --bs-btn-color: var(--st-text-soft);
     --bs-btn-hover-bg: var(--st-ghost-hover-dark);
     --bs-btn-hover-color: var(--st-text-primary);
     --bs-btn-active-bg: var(--st-ghost-active-dark);
     --bs-btn-active-color: var(--st-text-primary);
-    border: 1px dashed var(--st-border-panel);
+    display: inline-flex;
+    align-items: center;
+    height: var(--ctx-chip-height);
+    border: 1px dashed var(--st-text-dim);
     border-radius: 999px;
-    padding: 1px 9px;
-    font-size: var(--st-fs-sm);
+    padding: 0 10px 0 8px;
+    font-size: var(--st-fs-cap);
+}
+.btn.ctx-chip-add:hover {
+    border-color: var(--st-text-soft);
 }
 
 /* --- Trailing controls -------------------------------------------------- */
@@ -195,6 +228,10 @@
    browser's spinner, which would otherwise take half its width. */
 .form-control.ctx-row-weight {
     width: var(--ctx-weight-width);
+    height: var(--ctx-control-height);
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
     flex: 0 0 auto;
     font-size: var(--st-fs-base);
     text-align: center;
@@ -222,17 +259,38 @@
     box-shadow: none;
     border: none;
     flex: 0 0 auto;
-    padding: 2px 6px;
-    font-size: var(--st-fs-lg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--ctx-control-height);
+    padding: 0 6px;
+    font-size: var(--st-fs-md);
 }
 /* Fixed width so the heading's spacer can match it exactly. */
 .ctx-row:not(.ctx-row-deleted) > .btn.ctx-row-btn-danger {
     width: var(--ctx-row-btn-width);
 }
-/* Red only on hover, so a list of rows does not read as a wall of danger. */
+/* Red only on hover, so a list of rows does not read as a wall of danger.
+   It is a secondary row action, so it uses the same progressive disclosure
+   as the Events dormant-node actions: hidden until its row is hovered, shown
+   on keyboard focus, and always shown on a coarse pointer. */
 .btn.ctx-row-btn-danger {
     --bs-btn-hover-color: var(--st-danger);
     --bs-btn-active-color: var(--st-danger);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease-in-out;
+}
+.ctx-row:hover > .btn.ctx-row-btn-danger,
+.btn.ctx-row-btn-danger:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+@media (pointer: coarse) {
+    .btn.ctx-row-btn-danger {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }
 
 .btn.ctx-row-adder {

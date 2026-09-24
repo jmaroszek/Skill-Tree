@@ -90,8 +90,8 @@ def _build_contexts_tab():
             # --- Context definitions ---
             html.H5("Definitions", className="mt-2 mb-1"),
             html.Small(
-                "Drag to reorder. Priority 1 is normal; higher brings an "
-                "area forward in what appears next, lower lets it recede.",
+                "Drag to reorder. Priority scales a context's tasks in the "
+                "rankings: 1 is normal, 2 doubles, 0.5 halves.",
                 className="text-muted d-block mb-2"),
 
             # Column headings. The trailing spacer stands in for each row's

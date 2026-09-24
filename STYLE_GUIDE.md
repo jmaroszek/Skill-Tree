@@ -635,6 +635,14 @@ a free-text field. The row's identity is what turns an edit into a rename
 instead of a delete plus an add. The Contexts tab is the example; its model is
 in `context_rules.py` and its rows in `build_context_editor_rows`.
 
+- **One row, one centre line.** The rows sit straight on the modal inside an
+  outline, with no panel fill. `--st-bg-panel` is a cool grey that clashes
+  with the modal's neutral `#303030`. The name, priority and row buttons share
+  one 30px control height, and chips are 26px. Column headings use
+  `--st-text-secondary`, not the dim caption colour. The row's remove `×` is a
+  progressive-disclosure row action. Enter leaves a name or priority field.
+- **Drag handles are three lines.** Every drag handle in the app is `bi-list`:
+  goal cards, event cards, context rows and subcontext chips.
 - **Children as chips.** A context's subcontexts are pills holding an inline
   input sized in `ch` to its text, a grip, and a trailing `×`. The grip is the
   drag handle, because a drag cannot start inside a text field. It uses the

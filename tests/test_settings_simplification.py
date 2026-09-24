@@ -60,7 +60,7 @@ def test_context_priorities_live_in_contexts_with_plain_language():
     assert "setting-context-editor" in _by_id(contexts_tab)
     assert "setting-context-editor" not in _by_id(scoring_tab)
     copy = _text(contexts_tab)
-    assert "forward in what appears next" in copy
+    assert "scales a context's tasks in the rankings" in copy
     assert "Doubling a weight" not in copy
 
 

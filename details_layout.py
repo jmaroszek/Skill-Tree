@@ -904,7 +904,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     # Drag handle (visible only for non-priority, manual-sort goals)
     drag_handle = html.Span(
-        html.I(className="bi bi-grip-horizontal"), className="goal-drag-handle",
+        html.I(className="bi bi-list"), className="goal-drag-handle",
         style={"cursor": "grab", "color": tokens.TEXT_DIM, "fontSize": tokens.FS_MD,
                "marginRight": "8px", "userSelect": "none"},
     ) if show_order_buttons else None

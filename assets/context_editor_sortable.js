@@ -126,6 +126,20 @@ function _initCtxSortable() {
     });
 }
 
+/* ---------- Enter commits a field ---------- */
+// A name or priority field has no form to submit, so Enter would otherwise do
+// nothing. It leaves the field instead, which is what finishing a name means.
+// The value already reached Dash on each keystroke, so blurring loses nothing.
+// Delegated from document because the rows remount on every structural edit.
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    var field = e.target;
+    if (!field || !field.matches ||
+        !field.matches('.ctx-row-name, .ctx-chip-input, .ctx-row-weight')) return;
+    e.preventDefault();
+    field.blur();
+});
+
 /* ---------- Re-bind after every render ---------- */
 // The Settings modal renders into a portal on <body>, outside the Dash app
 // root, so the observer watches <body>. It only resets a timer; the bind
