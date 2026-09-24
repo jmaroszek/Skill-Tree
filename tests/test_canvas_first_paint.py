@@ -13,7 +13,7 @@ main-thread work it was meant to explain, so arriving early showed a blank
 canvas with no sign anything was happening.
 
 The module also owns the one layout that can't be a transition. The layout prop
-keeps positions and follows Smooth, because every filter change re-runs it. A
+keeps positions and follows Animate, because every filter change re-runs it. A
 run starting from nodes stacked at the origin has no shape to keep, so it is
 randomized, and it skips the animation while the cover is up.
 """
@@ -86,7 +86,7 @@ def test_element_payloads_reach_the_cover():
 def test_the_nodes_layout_prop_agrees_with_the_smooth_switch():
     """Filter changes re-run whatever layout prop the canvas holds, and the
     graph-settings callback only rewrites it once a control is touched. A prop
-    that disagreed with the switch left Smooth showing on while every
+    that disagreed with the switch left Animate showing on while every
     transition snapped."""
     view = create_graph_view([])
     graph = _by_id(view, "cytoscape-graph")
@@ -485,7 +485,7 @@ attachCy(cy);
 
 const filterChange = {name: 'fcose', animate: true, randomize: false};
 cy.layout(filterChange).run();
-assert.deepEqual(cy.layouts[0], filterChange, 'keeps positions and follows Smooth');
+assert.deepEqual(cy.layouts[0], filterChange, 'keeps positions and follows Animate');
 
 const settle = {name: 'fcose', animate: true, randomize: true};
 cy.layout(settle).run();
@@ -493,14 +493,14 @@ assert.deepEqual(cy.layouts[1], settle, 'Settle still reshuffles');
 
 const smoothOff = {name: 'fcose', animate: false, randomize: false};
 cy.layout(smoothOff).run();
-assert.deepEqual(cy.layouts[2], smoothOff, 'Smooth off still snaps');
+assert.deepEqual(cy.layouts[2], smoothOff, 'Animate off still snaps');
 ''')
 
 
 def test_a_cold_start_after_first_paint_animates_its_arrival():
     """Filters that emptied the graph and then brought nodes back leave every
     node at the origin again. It still has to randomize, but the cover is gone,
-    so Smooth applies."""
+    so Animate applies."""
     _run_contract(r'''
 const cy = makeCy([makeNode(40, 40)]);
 attachCy(cy);
@@ -512,7 +512,7 @@ cy.layout({name: 'fcose', animate: true, randomize: false}).run();
 
 const arrival = cy.layouts[cy.layouts.length - 1];
 assert.equal(arrival.randomize, true);
-assert.equal(arrival.animate, true, 'with the cover gone, Smooth applies');
+assert.equal(arrival.animate, true, 'with the cover gone, Animate applies');
 ''')
 
 

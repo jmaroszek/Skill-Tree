@@ -45,9 +45,9 @@ def create_graph_view(initial_elements):
                 id='cytoscape-graph',
                 # Filter changes re-run this layout, so it describes a
                 # transition: keep the current positions, and animate to match
-                # the Smooth switch, which starts on. The graph-settings
+                # the Animate switch, which starts on. The graph-settings
                 # callback only rewrites this prop once a control is touched,
-                # so until then Smooth read on but ran off. The cold start
+                # so until then Animate read on but ran off. The cold start
                 # from nodes stacked at the origin is the exception, adjusted
                 # by assets/canvas_first_paint.js.
                 layout={

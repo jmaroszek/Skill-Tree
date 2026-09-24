@@ -382,11 +382,11 @@ worse than any transition it could hide.
 Filter changes make dash-cytoscape re-run whatever `layout` prop the canvas
 holds, on every `add` or `remove`. The graph-settings callback only rewrites
 that prop once a control is touched, and the prop in `layout.py` said
-`animate: False` while the Smooth switch said on. So Smooth did nothing until a
+`animate: False` while the Animate switch said on. So Animate did nothing until a
 slider moved, and every filter change also re-randomized the whole graph.
 
 The prop now describes a transition, as Details does for same-root changes. It
-keeps the current positions (`randomize: False`) and animates when Smooth is on.
+keeps the current positions (`randomize: False`) and animates when the Animate switch is on.
 Adding the 127-node STEM context back that way spread it through its own region,
 with none of its nodes within 12 px of another. Existing nodes moved 152 px on
 average across a 3,200 px graph. In the running sandbox, switching the context

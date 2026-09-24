@@ -116,7 +116,7 @@ def build_graph_settings_panel(
             *([
                 dbc.Switch(
                     id=f"{p}-animate",
-                    label="Smooth",
+                    label="Animate",
                     value=True,
                     style={"fontSize": tokens.FS_BASE},
                 ),

@@ -421,7 +421,7 @@ The gear icon in the bottom right corner of each canvas opens the **Graph Layout
 
 | Control | What it does |
 |---|---|
-| Smooth | Animate layout changes instead of snapping. Most elegant for smaller networks. |
+| Animate | Glide layout changes into place instead of snapping. Most elegant for smaller networks. |
 | Freeze | Pause re-layout so hand-placed nodes stay put (more details). |
 | Edge Length | The length of the springs between connected nodes. |
 | Gravity | How strongly nodes are pulled toward the center. |

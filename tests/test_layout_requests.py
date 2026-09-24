@@ -148,7 +148,7 @@ assert.equal(linkedLayout.randomize, true);
 assert.equal(linkedLayout.animate, true);
 assert.equal(linkedLayout.skillTreeTween, undefined);
 
-// Turning Smooth off must still mean no motion, with either layout.
+// Turning Animate off must still mean no motion, with either layout.
 assert.equal(request(details.cytoscapeId, [...linked, {data: {id: 'extra'}}],
                      'Large', false, false).animate, false);
 const still = request(details.cytoscapeId, [...nodes, {data: {id: 'extra2'}}],
@@ -296,7 +296,7 @@ assert.equal(request(events.cytoscapeId, grown), 'NO');
 // Slider changes still re-run the current graph without reseeding it.
 assert.equal(request('events-graph-settings-edge-length', grown).randomize, false);
 
-// Turning Smooth off still means no motion.
+// Turning Animate off still means no motion.
 assert.equal(request('events-graph-settings-animate', grown, 'Move', false, false).animate, false);
 
 // Frozen canvases ignore element updates; Settle bypasses the freeze.

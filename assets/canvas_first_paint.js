@@ -86,7 +86,7 @@
 
     // The layout prop describes a transition, because that is what every run
     // after the first one is: a filter change adds or removes nodes, and the
-    // graph should keep its shape, gliding when Smooth is on. A run that starts
+    // graph should keep its shape, gliding when Animate is on. A run that starts
     // with every node stacked at the origin is the exception. There is no shape
     // to keep, so it has to randomize — incremental from that pile, fCoSE left
     // 547 of 568 sandbox nodes within 12 px of a neighbor. And while the cover
