@@ -728,7 +728,7 @@ Each row says when its node wakes. For a date event the app can work the date ou
 
 A node that has woken shows an **Awake** badge instead. If a different event woke it first, the row says so: *Awake · via Music*. A node can belong to more than one event, and the first one to fire wakes it.
 
-Every row has three actions on hover: edit the node, move it to another event, or remove it. Edit opens the node in the node editor, the same one every other node uses.
+Every row has three actions on hover: edit the node, move it to another event, or delete it. Edit opens the node in the node editor, the same one every other node uses. Delete removes the node from the whole graph, not just this event. It asks first, and names any other events that also hold the node.
 
 Two buttons sit beside the table's heading. The **+** opens the node editor on a new node that is already dormant under this event. **Add existing** puts nodes you already have to sleep under this event, several at once.
 

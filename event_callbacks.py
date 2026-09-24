@@ -13,7 +13,8 @@ from config import ConfigManager
 from models import Event, STATUS_BLOCKED, STATUS_DONE
 from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
                            build_triggered_divider, trigger_confirmation_body,
-                           build_event_membership_rows)
+                           build_event_membership_rows,
+                           dormant_delete_confirmation_body)
 from duration_ui import duration_to_days, format_duration_days
 from prerender import prerendered
 from callback_helpers import (build_node_element, build_edge_element,
@@ -1307,32 +1308,55 @@ def register_event_callbacks(app, services=None):
         return (False, "", build_dormant_nodes_table(event_nodes, event),
                 f"move-{node_name}-{int(time.time())}")
 
-    # --- Remove Dormant Node ---
+    # --- Delete Dormant Node ---
+    # Deletes the node itself, not just this event's row: re-homing is Move's
+    # job, and waking one is the editor's Dormant toggle. So it confirms first.
     @app.callback(
-        Output("dormant-nodes-table-container", "children", allow_duplicate=True),
-        Output("events-refresh-trigger", "data", allow_duplicate=True),
-        Input({"type": "btn-remove-dormant-node", "index": ALL}, "n_clicks"),
+        Output("modal-delete-dormant-node", "is_open", allow_duplicate=True),
+        Output("delete-dormant-body", "children"),
+        Output("delete-dormant-node-store", "data"),
+        Input({"type": "btn-delete-dormant-node", "index": ALL}, "n_clicks"),
         State("selected-event-store", "data"),
         prevent_initial_call=True,
     )
-    def remove_dormant_node(n_clicks_list, selected_event):
+    def open_delete_dormant_modal(n_clicks_list, selected_event):
         if not any(n_clicks_list) or not selected_event:
-            return no_update, no_update
+            return no_update, no_update, no_update
+        node_name = ctx.triggered_id["index"]
+        others = [e for e in event_manager.get_events_for_node(node_name)
+                  if e != selected_event]
+        return (True, dormant_delete_confirmation_body(node_name, others),
+                node_name)
 
-        triggered = ctx.triggered_id
-        if not triggered:
-            return no_update, no_update
+    @app.callback(
+        Output("modal-delete-dormant-node", "is_open", allow_duplicate=True),
+        Input("btn-delete-dormant-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def close_delete_dormant_modal(n_clicks):
+        return False
 
-        node_name = triggered["index"]
+    @app.callback(
+        Output("modal-delete-dormant-node", "is_open", allow_duplicate=True),
+        Output("dormant-nodes-table-container", "children", allow_duplicate=True),
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Input("btn-delete-dormant-confirm", "n_clicks"),
+        State("delete-dormant-node-store", "data"),
+        State("selected-event-store", "data"),
+        prevent_initial_call=True,
+    )
+    def confirm_delete_dormant_node(n_clicks, node_name, selected_event):
+        if not n_clicks or not node_name or not selected_event:
+            return no_update, no_update, no_update
+
         event_manager.delete_dormant_node(selected_event, node_name)
 
         event = event_manager.get_event(selected_event)
         event_nodes = event_manager.get_event_nodes(selected_event)
-
-        return (
-            build_dormant_nodes_table(event_nodes, event),
-            f"remove-{node_name}",
-        )
+        # Timestamped like the move: deleting, re-creating, and deleting the
+        # same name would otherwise write an unchanged value and not refresh.
+        return (False, build_dormant_nodes_table(event_nodes, event),
+                f"delete-{node_name}-{int(time.time())}")
 
     # --- App-load Announcement Modal ---
     @app.callback(
