@@ -46,10 +46,9 @@ release that stranded the remainder.
 
 ## The awake/dormant rule
 
-`Nodes.dormant` is one bit per node. Event membership is a set: a node may
-belong to several Events. Nothing keeps the two agreeing unless every writer
-says so, which makes this a policy the code installs rather than a fact it can
-read:
+`Nodes.dormant` is one bit per node, stored apart from the node's
+`EventNodes` row. Nothing keeps the two agreeing unless every writer says so,
+which makes this a policy the code installs rather than a fact it can read:
 
 > A node with at least one `EventNodes` row is awake (`dormant = 0`) exactly
 > when one of those rows has `activated = 1`.
@@ -72,24 +71,23 @@ is unambiguous and cannot lose information. It is deliberately not a schema
 migration: a migration runs once at a version bump, while this runs every
 launch and so still catches drift introduced afterwards.
 
-## Multi-event membership: first fire wins
+## One Event per node
 
-A dormant node may belong to more than one Event. The first Event to fire
-wakes it. The others still cover the node, so their rows close out too, but
-they report it honestly rather than claiming it is still dormant.
+A dormant node belongs to one Event. A unique index on
+`EventNodes.node_name` enforces it, and `add_node_to_event` refuses a node
+that already has a row, naming the Event it is in. Moving is how a node
+changes Event.
 
-`get_event_nodes` returns a `woken_by` key naming the Event that got there
-first, ordered by activation date so "first to fire" is literal. The table
-shows `Awake · via Music`, or `Awake · woken outside this event` when no
-sibling row fired.
+Several Events per node used to be allowed, with the first to fire waking
+the node. In practice that read as "all of these must fire", which is not
+what it did. A node that should wait for several things is better served by
+a Milestone gate or a Manual Event fired by hand. Schema v8 folded any node
+still in several Events down to one row: the one that woke it, or else the
+one added first.
 
-Two consequences worth stating:
-
-- An already-awake row is closed out with today's date and **no** future
-  activation date. A future date on a live node would send the delayed sweep
-  off to wake it a second time and announce the wake.
-- The trigger confirmation counts these separately. Without that line the
-  summary claims wakes that are not going to happen.
+A node its Event has already woken keeps that activated row, so it can never
+join another Event and go back to sleep. That is the no-un-trigger rule
+below, applied to single nodes.
 
 ## Moving a node between Events
 
@@ -105,9 +103,6 @@ Event, a destination that does not exist, a destination that has already
 fired, and a node that is already awake. That last one matters — a move that
 re-sleeps a live node is an un-trigger by another name.
 
-If the destination already holds the node, the two rows merge rather than
-colliding on the primary key.
-
 ## Offsets before firing, dates after
 
 Before an Event fires there is no date to speak of, so a delay is an offset:
@@ -115,10 +110,10 @@ Before an Event fires there is no date to speak of, so a delay is an offset:
 `EventNodes.activation_date` and the offset has nothing left to measure from,
 because `Events` records no firing time.
 
-So the node editor's Events section changes field with the row. A row whose
-Event has not fired edits its offset; a scheduled row edits its wake date
-directly, via `set_node_wake_date`. Moving the node to a pending Event clears
-the date and puts it back on an offset.
+So the node editor's Event section changes field with the row. A node whose
+Event has not fired edits its offset; a scheduled node edits its wake date
+directly, via `set_node_wake_date`. Choosing a pending Event instead moves the
+node, which clears the date and puts it back on an offset.
 
 ## One node editor
 
@@ -129,18 +124,18 @@ Now flag, lifecycle dates and recorded actual time. The node editor refused
 dormant nodes, yet its search listed them.
 
 Now there is one editor. Dormant is a field of it, applied on Save by
-`node_commands.apply_dormancy`. While Dormant is on, the editor lists the
-node's waiting rows (delay or wake date, and Add to Now on wake) and offers
-an Event to join. Turning it on for a live node requires an Event, either a
-pending one or a new one created with a manual trigger.
+`node_commands.apply_dormancy`. While Dormant is on, the editor shows one
+Event field with the node's wake settings (delay or wake date, and Add to
+Now). Turning it on for a live node requires an Event, either a pending one
+or a new one created with a manual trigger. Choosing a different Event for a
+dormant node moves it.
 
-Putting a node to sleep refuses a node that an Event has already woken. A
-woken row keeps its node awake under the rule above, so adding a second row
-would change nothing. The old flow added the row anyway and left the node
-live without saying so.
+Putting a node to sleep refuses a node that an Event has already woken, for
+the reason above.
 
-Adding existing nodes in bulk, from the Events tab or the canvas menu, goes
-through a small Add to Event modal with no node fields.
+Adding existing nodes in bulk, from the Events tab's "+" menu or the canvas
+menu, goes through a small Add to Event modal with no node fields. It lists
+only nodes with no Event.
 
 ## Row presentation
 
@@ -154,14 +149,13 @@ and the Wakes column answers both "when" and "has it" in one place.
 | Dormant under a Manual or Completion Event, no delay | `On trigger`, muted |
 | Dormant under a Manual or Completion Event, with a delay | `2 weeks after`, muted |
 | Scheduled | the committed date, full contrast |
-| Awake | an `Awake` badge, with `via <event>` beneath when another Event woke it |
+| Awake | an `Awake` badge |
 
 A projected date is muted because the Event has not fired and the date can
 still move. A date written at firing is full contrast because it is committed.
 
 Actions are gated per row, not per Event. An awake row has none. Under the old
-per-Event gate a pending Event could show actions on an awake row, and a fired
-Event showed none on rows still waiting.
+per-Event gate a fired Event showed none on rows still waiting.
 
 ## Sidebar
 
@@ -192,11 +186,10 @@ thing to add.
    the same code and queue the same kind of announcement.
 4. **Is changing a delay enough flexibility?** Delays provide the staging, and
    `move_node_to_event` covers the rest.
-5. **Should a dormant node belong to multiple Events?** Yes, and the first to
-   fire wins. This overrules the original memo's recommended default of one
-   owning Event per dormant node. The production graph already had a node in
-   two Events on purpose, and one ownership rule would have forced a data
-   change to satisfy the code.
+5. **Should a dormant node belong to multiple Events?** No. It was allowed
+   for a while, with the first to fire winning, but that read as "all must
+   fire" and added complexity nothing needed. The one node in two Events was
+   moved to one, and the schema now enforces a single Event per node.
 
 ## Alternatives considered
 

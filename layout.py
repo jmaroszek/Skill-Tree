@@ -1072,6 +1072,15 @@ def build_app_layout(initial_elements, env="production"):
         _menu_item("Delete…", "event-ctx-delete", danger=True, icon="trash3"),
     ])
 
+    # --- Events tab: the Dormant Nodes "+" ---
+    # dormant_add_menu.js opens it under the button and writes the choice to
+    # dormant-add-choice-input.
+    dormant_add_menu = _floating_menu("dormant-add-menu", [
+        _menu_heading("Add to this event"),
+        _menu_item("New node", "dormant-add-new", icon="plus-lg"),
+        _menu_item("Existing nodes…", "dormant-add-existing", icon="box-arrow-in-down"),
+    ])
+
     # --- Goals / Events sidebars: sort menus (the ⇅ button beside search) ---
     # sort_menu.js opens each under its button and writes the choice to the
     # hidden input; list_toolbar.py moves it into the sort store.
@@ -1227,6 +1236,7 @@ def build_app_layout(initial_elements, env="production"):
         context_menu,
         goal_rank_popover,
         event_context_menu,
+        dormant_add_menu,
         *sort_menus,
         dcc.Input(id='event-ctx-action-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='ctx-obsidian-path-store', data=None),
@@ -1278,6 +1288,7 @@ def build_app_layout(initial_elements, env="production"):
         # Set by context_menu.js when "Add to event…" is clicked. Carries a
         # JSON-encoded list of selected node IDs plus a "|<timestamp>" suffix.
         dcc.Input(id='dormant-existing-trigger-input', type='text', value='', style={'display': 'none'}),
+        dcc.Input(id='dormant-add-choice-input', type='text', value='', style={'display': 'none'}),
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         html.Div(id='tooltip-config', style={'display': 'none'}, **{  # type: ignore[reportArgumentType]
             'data-show': str(TOOLTIP_SHOW_DELAY_MS),

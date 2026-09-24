@@ -216,7 +216,7 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _utc_now_ts() -> int:
@@ -315,6 +315,27 @@ def _migrate(cursor, from_version: int) -> None:
                     AND h.event_type = 'now_started'
               )
         ''', (started_at,))
+
+    # --- v8: a dormant node belongs to one event. Several used to be allowed,
+    # with the first to fire waking the node, but that read as "all of them
+    # must fire". A node still in several keeps the row that woke it, or else
+    # the one added first, and loses the rest.
+    if from_version < 8:
+        cursor.execute('''
+            DELETE FROM EventNodes WHERE rowid NOT IN (
+                SELECT (SELECT keep.rowid FROM EventNodes keep
+                        WHERE keep.node_name = en.node_name
+                        ORDER BY keep.activated DESC, keep.rowid
+                        LIMIT 1)
+                FROM EventNodes en GROUP BY en.node_name
+            )
+        ''')
+        if cursor.rowcount:
+            print(f"NOTE: removed {cursor.rowcount} extra event membership(s); "
+                  "a node now belongs to one event.")
+        cursor.execute("DROP INDEX IF EXISTS idx_event_nodes_node")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_event_nodes_node "
+                       "ON EventNodes(node_name)")
 
 
 def init_db():
@@ -462,11 +483,9 @@ def init_db():
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
-    # The composite PK indexes event_name first, so every "which events hold
-    # this node?" lookup was a table scan. Multi-event membership makes those
-    # lookups routine: the dormant-flag sync runs one on each EventNodes write.
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_event_nodes_node "
-                   "ON EventNodes(node_name)")
+    # A node belongs to at most one event. The unique index that enforces it
+    # is created by the v8 step in _migrate, which first folds any node an
+    # older database still has in several events down to one.
 
     # Append-only user lifecycle boundaries. start_date/done_date on Nodes stay
     # as convenient latest-state snapshots; this table is the prospective,

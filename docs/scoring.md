@@ -389,7 +389,7 @@ The status function covers the three lifecycle values: Open, Blocked, and Done. 
 
 **Dormant** nodes are excluded from every read path in the scoring pipeline. When an Event triggers a Dormant node, the flag clears. The status cascade then runs to settle whether the newly-live node is Open or Blocked.
 
-The flag is one bit per node, while event membership is a set — a node can sit in several Events. A node awake under any one of them is awake everywhere, which is why the flag is re-derived on every write to the event-node table rather than set by whichever caller happened to arrive. [dormant_node_triggering.md](dormant_node_triggering.md) has the rule and the paths that maintain it.
+The flag is one bit per node, stored apart from the node's event row. That is why it is re-derived on every write to the event-node table rather than set by whichever caller happened to arrive. [dormant_node_triggering.md](dormant_node_triggering.md) has the rule and the paths that maintain it.
 
 **Now** nodes still cascade and still receive a final score, which the Explain modal uses. But the Home tab keeps them out of the Suggestions ranking, surfacing them in a separate Now panel instead.
 

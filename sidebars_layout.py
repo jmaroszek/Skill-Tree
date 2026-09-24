@@ -177,13 +177,14 @@ def build_node_editor_content():
                 # --- Section: Status (Now + Done + Dormant toggles) ---
                 # Dormant is a form field, saved with Save like the rest. While
                 # it is on, Now and Done are hidden (a sleeping node is neither
-                # being worked on nor finished) and the Events section below
-                # says which events will wake it. Done hides Dormant in turn.
+                # being worked on nor finished) and the Event section below
+                # says which event will wake it. Now and Done hide Dormant in
+                # turn.
                 # The wrappers carry no Bootstrap display utility: those are
                 # `!important` and would beat the inline `display: none`.
                 html.Div(id="section-done-time", children=[
                     html.Hr(className="my-2"),
-                    html.H5("Status", className="mt-2 mb-2"),
+                    html.H5("Status", className="mt-2 mb-1"),
                     html.Div([
                         html.Div(dbc.Checklist(
                             options=[{"label": "Now", "value": "now"}],
@@ -203,33 +204,40 @@ def build_node_editor_content():
                             id="node-dormant",
                             switch=True,
                         ), id="node-dormant-wrapper"),
-                    ], className="d-flex justify-content-start gap-3 mt-3"),
+                    ], className="d-flex justify-content-start gap-3 mt-2"),
                     html.Div(id="node-dormant-wake-warning",
                              className="small text-warning mt-1",
                              style={"display": "none"}),
                     html.Div(id="node-dormant-section", style={"display": "none"}, children=[
-                        html.Div(id="node-event-memberships", className="mt-2"),
-                        dbc.Label("Add to event", id="node-join-event-label",
-                                  className="mt-2 mb-1"),
-                        dbc.Select(id="node-join-event", options=[], value=None,
+                        dbc.Label("Event", className="mt-2 mb-1"),
+                        dbc.Select(id="node-dormant-event", options=[], value=None,
                                    placeholder="Choose an event..."),
-                        dbc.Input(id="node-join-event-name", type="text",
+                        dbc.Input(id="node-dormant-event-name", type="text",
                                   placeholder="Name the new event...",
                                   className="mt-1", style={"display": "none"}),
-                        html.Div(id="node-join-settings", style={"display": "none"}, children=[
+                        html.Div(id="node-dormant-settings", style={"display": "none"}, children=[
                             dbc.Label("Wake settings", className="mt-2 mb-1"),
+                            # A fired event gave the node a date instead of a
+                            # delay. Shown only while it stays in that event.
+                            html.Div(id="node-dormant-wake-date-wrapper",
+                                     style={"display": "none"}, children=[
+                                dbc.Input(id="node-dormant-wake-date", type="date",
+                                          size="sm", style={"maxWidth": "170px"}),
+                                html.Small("Wake date. This event has already fired.",
+                                           className="text-muted d-block mt-1 mb-1"),
+                            ]),
                             wake_switches(
-                                dbc.Checklist(
-                                    id="node-join-delay-on",
+                                html.Div(dbc.Checklist(
+                                    id="node-dormant-delay-on",
                                     options=[{"label": "Delay", "value": "on"}],
                                     value=[],
                                     switch=True,
-                                ),
-                                delay_fields("node-join-delay-fields",
-                                             "node-join-delay-value", "node-join-delay-unit",
+                                ), id="node-dormant-delay-switch"),
+                                delay_fields("node-dormant-delay-fields",
+                                             "node-dormant-delay-value", "node-dormant-delay-unit",
                                              0, "days", False),
                                 dbc.Checklist(
-                                    id="node-join-now",
+                                    id="node-dormant-now",
                                     options=[{"label": "Add to Now", "value": "on"}],
                                     value=[],
                                     switch=True,
@@ -237,7 +245,7 @@ def build_node_editor_content():
                             ),
                         ]),
                     ]),
-                    # The whole Events section as one dict, collected clientside
+                    # The whole Event section as one dict, collected clientside
                     # (event_callbacks.py). Save and the dirty check read this.
                     dcc.Store(id="node-dormancy-form", data=None),
                     # Whether the loaded node was asleep when the section was

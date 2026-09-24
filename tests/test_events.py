@@ -106,8 +106,7 @@ class TestEventCRUD:
         assert em.get_event("E1") is None
         assert em.get_event("E1-Renamed") is not None
         # EventNodes should follow
-        events = em.get_events_for_node("N1")
-        assert "E1-Renamed" in events
+        assert em.get_event_for_node("N1") == "E1-Renamed"
 
     def test_delete_event_deletes_dormant_nodes(self, em, mgr):
         em.add_event(Event(name="E1"))
@@ -217,13 +216,14 @@ class TestEventNodeAssociation:
         assert counts['total'] == 2
         assert counts['activated'] == 0
 
-    def test_get_events_for_node(self, em, mgr):
+    def test_get_event_for_node(self, em, mgr):
         em.add_event(Event(name="E1"))
         em.add_event(Event(name="E2"))
         mgr.add_node(_make_node("N1", dormant=1))
+        mgr.add_node(_make_node("Plain"))
         em.add_node_to_event("E1", "N1")
-        events = em.get_events_for_node("N1")
-        assert events == ["E1"]
+        assert em.get_event_for_node("N1") == "E1"
+        assert em.get_event_for_node("Plain") is None
 
     def test_create_dormant_node(self, em, mgr):
         em.add_event(Event(name="E1"))
@@ -521,21 +521,21 @@ class TestDormantNodeSubcontext:
 # ============================================================================
 
 class TestDormantInvariant:
-    """`Nodes.dormant` is one bit and event membership is a set, so nothing
-    keeps them agreeing unless every writer says so."""
+    """`Nodes.dormant` is one bit and lives apart from the node's event row,
+    so nothing keeps them agreeing unless every writer says so."""
 
-    def test_adding_an_awake_node_to_a_pending_event_does_not_resleep_it(self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
+    def test_a_node_its_event_woke_cannot_join_another(self, mgr, em):
+        mgr.add_node(_make_node("Woken"))
         em.add_event(Event(name="First"))
         em.add_event(Event(name="Second"))
-        em.add_node_to_event("First", "Shared")
+        em.add_node_to_event("First", "Woken")
         em.trigger_event("First")
-        assert mgr.get_node("Shared").dormant == 0
 
-        # The click that used to pull a live node off the canvas.
-        em.add_node_to_event("Second", "Shared")
+        with pytest.raises(ValueError, match="already woke from 'First'"):
+            em.add_node_to_event("Second", "Woken")
 
-        assert mgr.get_node("Shared").dormant == 0
+        assert mgr.get_node("Woken").dormant == 0
+        assert em.get_event_for_node("Woken") == "First"
         assert_invariant(em)
 
     def test_adding_a_plain_node_to_an_event_still_sleeps_it(self, mgr, em):
@@ -545,44 +545,17 @@ class TestDormantInvariant:
         assert mgr.get_node("Fresh").dormant == 1
         assert_invariant(em)
 
-    def test_delete_event_keeping_nodes_leaves_one_asleep_under_another_pending_event(
-            self, mgr, em):
-        """The regression for the two rows sitting in the sandbox database.
-
-        Deleting an event and keeping its nodes used to wake every one of
-        them, including nodes a different Pending event still claimed.
-        """
-        mgr.add_node(_make_node("Shared"))
-        mgr.add_node(_make_node("Only Here"))
+    def test_delete_event_keeping_nodes_wakes_them(self, mgr, em):
+        mgr.add_node(_make_node("Kept"))
         em.add_event(Event(name="Going"))
-        em.add_event(Event(name="Staying"))
-        em.add_node_to_event("Going", "Shared")
-        em.add_node_to_event("Going", "Only Here")
-        em.add_node_to_event("Staying", "Shared")
+        em.add_node_to_event("Going", "Kept")
 
         result = em.delete_event("Going", delete_nodes=False)
 
-        assert mgr.get_node("Shared").dormant == 1, "still claimed by Staying"
-        assert mgr.get_node("Only Here").dormant == 0, "had no other home"
-        assert result["still_dormant"] == ["Shared"]
-        assert result["woken"] == ["Only Here"]
+        assert result == {"woken": ["Kept"], "deleted": []}
+        assert mgr.get_node("Kept").dormant == 0
+        assert em.get_event_for_node("Kept") is None
         assert_invariant(em)
-
-    def test_a_triggered_events_claim_is_dead_and_does_not_hold_a_node_asleep(
-            self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="Fired"))
-        em.add_event(Event(name="Going"))
-        em.add_node_to_event("Fired", "Shared", delay_days=30)
-        em.add_node_to_event("Going", "Shared")
-        em.trigger_event("Fired")          # Shared is scheduled, still dormant
-        assert mgr.get_node("Shared").dormant == 1
-
-        em.delete_event("Going", delete_nodes=False)
-
-        # Fired holds a scheduled row, but it has already fired -- it is not a
-        # home that can keep the node asleep once its real owner is gone.
-        assert mgr.get_node("Shared").dormant == 0
 
     def test_reconcile_is_a_noop_on_a_clean_database(self, mgr, em):
         mgr.add_node(_make_node("N1"))
@@ -624,138 +597,71 @@ class TestDormantInvariant:
 
 
 # ============================================================================
-# Multi-event membership: first event to fire wins
+# A node belongs to one event
 # ============================================================================
 
-def _row(em, event_name, node_name):
-    """The raw EventNodes row, so a test can see what a sweep actually wrote."""
-    with em.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT activated, activation_date FROM EventNodes "
-            "WHERE event_name=? AND node_name=?",
-            (event_name, node_name),
-        )
-        return cursor.fetchone()
-
-
-def _sweep_on(em, day):
-    with patch("event_manager.date") as mock_date:
-        mock_date.today.return_value = day
-        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
-        return em.check_pending_activations()
-
-
-class TestMultiEventFirstFireWins:
-    """A dormant node may sit in several events. The first one to fire wakes
-    it; the others report it truthfully instead of still calling it dormant."""
-
-    def test_the_second_event_reports_the_node_as_already_awake(self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
+class TestOneEventPerNode:
+    def test_a_second_event_is_refused(self, mgr, em):
+        mgr.add_node(_make_node("N1"))
         em.add_event(Event(name="A"))
         em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared")
-        em.add_node_to_event("B", "Shared")
+        em.add_node_to_event("A", "N1")
 
-        em.trigger_event("A")
-        result = em.trigger_event("B")
+        with pytest.raises(ValueError, match="already in 'A'"):
+            em.add_node_to_event("B", "N1")
 
-        assert result["already_awake"] == ["Shared"]
-        assert result["activated"] == [], "B did not wake it; A did"
-        assert_invariant(em)
+        assert _names(em, "B") == []
 
-    def test_the_losing_events_row_names_the_winner(self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
+    def test_the_database_enforces_it(self, mgr, em):
+        import sqlite3
+        mgr.add_node(_make_node("N1"))
         em.add_event(Event(name="A"))
         em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared")
-        em.add_node_to_event("B", "Shared")
+        em.add_node_to_event("A", "N1")
 
-        em.trigger_event("A")
+        with em.get_connection() as conn, pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO EventNodes (event_name, node_name) "
+                         "VALUES ('B', 'N1')")
 
-        row = next(r for r in em.get_event_nodes("B") if r['node'].name == "Shared")
-        assert row['node'].dormant == 0
-        assert row['activated'] == 0, "B has not fired"
-        assert row['woken_by'] == "A"
-
-    def test_an_already_awake_node_is_not_re_pinned_to_now(self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
+    def test_a_node_freed_by_its_event_being_deleted_can_join_another(self, mgr, em):
+        mgr.add_node(_make_node("N1"))
         em.add_event(Event(name="A"))
         em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared")
-        em.add_node_to_event("B", "Shared", now_on_trigger=True)
+        em.add_node_to_event("A", "N1")
+        em.delete_event("A", delete_nodes=False)
 
-        em.trigger_event("A")
-        result = em.trigger_event("B")
+        em.add_node_to_event("B", "N1")
 
-        assert result["now_intent"] == []
-        assert mgr.get_now_nodes() == []
+        assert em.get_event_for_node("N1") == "B"
+        assert mgr.get_node("N1").dormant == 1
 
-    def test_an_already_awake_row_gets_no_future_activation_date(self, mgr, em):
-        """A future date on a live node would send the delayed sweep off to
-        'wake' it a second time and announce the wake."""
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="A"))
-        em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared")
-        em.add_node_to_event("B", "Shared", delay_days=30)
+    def test_the_v8_migration_keeps_one_row_per_node(self, mgr, em):
+        """An older database may hold a node in several events. It keeps the
+        row that woke it, or else the one added first."""
+        for name in ("Waiting", "Woken"):
+            mgr.add_node(_make_node(name))
+        for name in ("A", "B", "C"):
+            em.add_event(Event(name=name))
+        with database.get_connection() as conn:
+            conn.execute("DROP INDEX idx_event_nodes_node")
+            conn.executemany(
+                "INSERT INTO EventNodes (event_name, node_name, activated) "
+                "VALUES (?, ?, ?)",
+                [("B", "Waiting", 0), ("A", "Waiting", 0),
+                 ("A", "Woken", 0), ("C", "Woken", 1)])
+            conn.execute("PRAGMA user_version = 7")
+            conn.commit()
 
-        em.trigger_event("A")
-        result = em.trigger_event("B")
+        database._initialized = False
+        database.init_db()
 
-        assert result["already_awake"] == ["Shared"]
-        assert result["scheduled"] == []
-        activated, activation_date = _row(em, "B", "Shared")
-        assert activated == 1
-        assert activation_date == date.today().isoformat()
-
-    def test_a_delayed_sweep_only_touches_its_own_events_row(self, mgr, em):
-        """The regression for the unscoped UPDATE. A node whose delay elapsed
-        under A had B's row marked activated too, so B skipped it forever."""
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="A"))
-        em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared", delay_days=7)
-        em.add_node_to_event("B", "Shared")        # B is never triggered
-
-        em.trigger_event("A")
-        assert _sweep_on(em, date.today() + timedelta(days=7)) == ["Shared"]
-
-        assert _row(em, "A", "Shared") == (1, (date.today() + timedelta(days=7)).isoformat())
-        assert _row(em, "B", "Shared") == (0, None), "B's row must be untouched"
-        assert mgr.get_node("Shared").dormant == 0
-        assert_invariant(em)
-
-    def test_a_still_pending_event_can_fire_after_the_sweep_woke_its_node(self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="A"))
-        em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared", delay_days=7)
-        em.add_node_to_event("B", "Shared")
-
-        em.trigger_event("A")
-        _sweep_on(em, date.today() + timedelta(days=7))
-        result = em.trigger_event("B")
-
-        assert result["already_awake"] == ["Shared"]
-        assert em.get_event("B").status == "Triggered"
-        assert_invariant(em)
-
-    def test_each_event_wakes_its_own_nodes_independently(self, mgr, em):
-        mgr.add_node(_make_node("Shared"))
-        mgr.add_node(_make_node("Only B"))
-        em.add_event(Event(name="A"))
-        em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared")
-        em.add_node_to_event("B", "Shared")
-        em.add_node_to_event("B", "Only B")
-
-        em.trigger_event("A")
-        result = em.trigger_event("B")
-
-        assert result["activated"] == ["Only B"]
-        assert result["already_awake"] == ["Shared"]
-        assert_invariant(em)
+        assert em.get_event_for_node("Waiting") == "B"
+        assert em.get_event_for_node("Woken") == "C"
+        with database.get_connection() as conn:
+            unique = conn.execute(
+                "SELECT \"unique\" FROM pragma_index_list('EventNodes') "
+                "WHERE name='idx_event_nodes_node'").fetchone()
+        assert unique == (1,)
 
 
 # ============================================================================
@@ -810,7 +716,7 @@ class TestMoveNodeToEvent:
         em.add_event(Event(name="To"))
         em.create_dormant_node(_make_node("N1"), "From")
 
-        assert em.move_node_to_event("From", "N1", "To") == {'merged': False}
+        em.move_node_to_event("From", "N1", "To")
 
         assert _names(em, "From") == []
         assert _names(em, "To") == ["N1"]
@@ -873,22 +779,6 @@ class TestMoveNodeToEvent:
         assert mgr.get_node("Shared").dormant == 1
         assert_invariant(em)
 
-    def test_a_node_awake_through_another_event_stays_awake(self, em, mgr):
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="Woke It"))
-        em.add_event(Event(name="From"))
-        em.add_event(Event(name="To"))
-        em.add_node_to_event("Woke It", "Shared")
-        em.add_node_to_event("From", "Shared")
-        em.trigger_event("Woke It")
-
-        em.move_node_to_event("From", "Shared", "To")
-
-        assert mgr.get_node("Shared").dormant == 0
-        assert _names(em, "To") == ["Shared"]
-        assert_invariant(em)
-
-
 class TestMoveRefusals:
     def test_moving_to_the_same_event_is_refused(self, em, mgr):
         em.add_event(Event(name="E1"))
@@ -934,33 +824,6 @@ class TestMoveRefusals:
             em.move_node_to_event("Fired", "N1", "To")
 
         assert mgr.get_node("N1").dormant == 0
-
-
-class TestMoveMerges:
-    def test_moving_into_an_event_that_already_holds_the_node_merges(self, em, mgr):
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="From"))
-        em.add_event(Event(name="To"))
-        em.add_node_to_event("From", "Shared", delay_days=7)
-        em.add_node_to_event("To", "Shared", delay_days=30)
-
-        assert em.move_node_to_event("From", "Shared", "To") == {'merged': True}
-
-        assert _names(em, "From") == []
-        rows = em.get_event_nodes("To")
-        assert len(rows) == 1, "one row, not a duplicate"
-        assert rows[0]['delay_days'] == 30, "the destination's own delay wins"
-
-    def test_an_explicit_delay_still_applies_on_a_merge(self, em, mgr):
-        mgr.add_node(_make_node("Shared"))
-        em.add_event(Event(name="From"))
-        em.add_event(Event(name="To"))
-        em.add_node_to_event("From", "Shared", delay_days=7)
-        em.add_node_to_event("To", "Shared", delay_days=30)
-
-        em.move_node_to_event("From", "Shared", "To", delay_days=1)
-
-        assert em.get_event_nodes("To")[0]['delay_days'] == 1
 
 
 # ============================================================================

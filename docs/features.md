@@ -90,19 +90,21 @@ The table below provides a brief overview of each status, but each will be cover
 |---|---|
 | Now | Flags the node as one of your currently-active projects. |
 | Done | Marks the node complete. May unblock downstream work, depending on its [relationships](#relationships). |
-| Dormant | Puts the node into hibernation until an [event](#events) wakes it up. Turning it on opens an **Events** section below the toggles, where you choose the event. It takes effect when you save. |
+| Dormant | Puts the node into hibernation until an [event](#events) wakes it up. Turning it on opens an **Event** field below the toggles, where you choose the event. It takes effect when you save. |
 
 Dormant works like every other field in the editor. Nothing changes until you press Save.
 
 While Dormant is on, Now and Done are hidden. A sleeping node is neither being worked on nor finished. The reverse holds too: while Now or Done is on, Dormant is hidden. Its **Add to Now** switch, under Wake settings, takes Now's place, and saving takes the node off the Now list.
 
-A dormant node without an event would never wake, so the Events section asks for one. Pick a pending event, or choose **New event…** and give it a name. A new event starts with a manual trigger. You can give it a date or node trigger later on the Events tab.
+A dormant node without an event would never wake, so the editor asks for one. Pick a pending event, or choose **New event…** and give it a name. A new event starts with a manual trigger. You can give it a date or node trigger later on the Events tab.
+
+A dormant node belongs to one event. To move it to another, choose a different event and save.
 
 Once you pick an event, **Wake settings** appear. Most nodes wake the moment their event fires, so a delay stays behind a **Delay** switch until you turn it on.
 
-For a node that is already dormant, the section lists each event it is waiting on. Before an event fires, you can set a delay for how long after firing the node wakes. After it fires, you edit the wake date itself. You can also add the node to another event from here.
+For a node that is already dormant, the editor shows its event. Before the event fires, you can set a delay for how long after firing the node wakes. After it fires, you edit the wake date itself.
 
-Turning Dormant off on a sleeping node wakes it and removes it from its events when you save. The section says so before you do.
+Turning Dormant off on a sleeping node wakes it and removes it from its event when you save. The editor says so before you do.
 
 
 ## Ratings
@@ -426,6 +428,7 @@ The gear icon in the bottom right corner of each canvas opens the **Graph Layout
 | Repulsion | How hard nodes push away from each other. |
 | Settle | Re-run the layout physics to untangle the graph. |
 | Max Depth | *Details tab only.* How many relationship steps out the local view reaches. Unlike the controls above it, this one is not just about layout — it also limits the Subtasks table, Milestones and time simulation. |
+| Nodes outside event | *Events tab only.* Shows nodes outside the event that link to its nodes. Turn it off to see only the event's own nodes and the links between them. The app remembers your choice. |
 
 </td>
   </tr>
@@ -726,17 +729,17 @@ The event editor lets you manage details about an event. The most useful section
 
 Each row says when its node wakes. For a date event the app can work the date out, so it shows one. For a manual or completion event there is no date to know yet, so the row says *On trigger*, or *2 weeks after* when the node has a delay. Those dates are greyed out because they are projections and can still move. Once the event fires they turn solid, because then they are committed.
 
-A node that has woken shows an **Awake** badge instead. If a different event woke it first, the row says so: *Awake · via Music*. A node can belong to more than one event, and the first one to fire wakes it.
+A node that has woken shows an **Awake** badge instead. A node belongs to one event, so each dormant node appears in exactly one table.
 
-Every row has three actions on hover: edit the node, move it to another event, or delete it. Edit opens the node in the node editor, the same one every other node uses. Delete removes the node from the whole graph, not just this event. It asks first, and names any other events that also hold the node.
+Every row has three actions on hover: edit the node, move it to another event, or delete it. Edit opens the node in the node editor, the same one every other node uses. Delete removes the node from the whole graph, not just this event. It asks first.
 
-Two buttons sit beside the table's heading. The **+** opens the node editor on a new node that is already dormant under this event. **Add existing** puts nodes you already have to sleep under this event, several at once.
+The **+** beside the table's heading opens a small menu. **New node** opens the node editor on a new node that is already dormant under this event. **Existing nodes…** puts nodes you already have to sleep under this event, several at once. It only offers nodes that aren't in an event yet.
 
 ### Firing an Event
 
 The **Trigger** button fires the event. An event fires once, and everything attached to it takes part. There is no way to fire half an event.
 
-Before it fires, a confirmation tells you exactly what is about to happen: which nodes wake now, which get scheduled and for when, and which are already awake because another event got there first. That summary is your last look, so read it rather than the row list.
+Before it fires, a confirmation tells you exactly what is about to happen: which nodes wake now, and which get scheduled and for when. That summary is your last look, so read it rather than the row list.
 
 If you are not ready to release something, move it to another event first. That is what the move action is for, and it is also how you change a delay you have already committed to: the destination event resets the date.
 
@@ -747,7 +750,7 @@ A delay is how you stage a release without splitting it into two events. Give a 
 Before the event fires you set a delay as an offset, because there is no date yet. Afterwards the editor shows you the wake date itself, since that is the thing that now exists. If two groups of work genuinely become relevant at different real-world moments, they are probably two events rather than one event with delays.
 
 ### Event Canvas
-The right side of the tab shows a mini-graph of the selected event's dormant nodes. It works the same way as other canvases. Use it as a sanity check to make sure the nodes are wired how you want them before they go live.
+The right side of the tab shows a mini-graph of the selected event's dormant nodes, plus the nodes they link to outside the event. It works the same way as other canvases. Use it as a sanity check to make sure the nodes are wired how you want them before they go live. To see only the event's own nodes, turn off **Nodes outside event** in the Graph Layout panel.
 
 ## Event Announcements
 When an event triggers — automatically or because you clicked trigger — an announcement shows up telling you what woke, what is scheduled and for when, and what was already awake. Delayed nodes get their own announcement later, on the day they actually wake.

@@ -72,6 +72,7 @@ def build_graph_settings_panel(
     include_animate: bool = True,
     defaults_getter=ConfigManager.get_graph_layout_defaults,
     max_depth_id: str = None,
+    outside_nodes_id: str = None,
 ):
     """Build a graph-layout panel. Single source of truth for all three canvases
     (Nodes / Details / Events).
@@ -89,6 +90,10 @@ def build_graph_settings_panel(
     inherited ratings and Time Simulation, so it keeps the tab-scoped
     ``details-max-depth`` name instead of a panel-scoped one. It sits above a
     divider, separated from the physics sliders below it.
+
+    ``outside_nodes_id`` is the Events canvas's counterpart: a switch that
+    shows or hides nodes outside the event that link to its nodes. It is
+    remembered in the browser between sessions.
     """
     gl = defaults_getter()
     p = prefix
@@ -130,6 +135,21 @@ def build_graph_settings_panel(
 
     # Scope, not physics — so it leads the panel and gets its own divider
     # rather than sitting among the force-layout sliders.
+    if outside_nodes_id:
+        children += [
+            dbc.Switch(
+                id=outside_nodes_id,
+                label="Nodes outside event",
+                value=True,
+                persistence=True,
+                persistence_type="local",
+                style={"fontSize": tokens.FS_BASE},
+            ),
+            Tooltip("Show nodes outside this event that link to its nodes",
+                    target=outside_nodes_id, placement="left"),
+            html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
+        ]
+
     if max_depth_id:
         children += [
             html.Div("Max Depth", className="settings-label"),

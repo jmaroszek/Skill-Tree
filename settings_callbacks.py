@@ -651,7 +651,8 @@ def register_settings_callbacks(app, services=None):
                 base = {'name': node.name}
                 if node.dormant:
                     base['dormant'] = True
-                    base['events'] = _em.get_events_for_node(node.name)
+                    event = _em.get_event_for_node(node.name)
+                    base['events'] = [event] if event else []
                 return base
 
             # Only removals can strand a node. Renames and moves are carried

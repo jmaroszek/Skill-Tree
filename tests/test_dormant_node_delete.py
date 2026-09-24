@@ -63,13 +63,11 @@ def _text(component):
     return _text(getattr(component, "children", None))
 
 
-def _setup(*events):
+def _setup(event):
     em = EventManager()
-    for name in events:
-        em.add_event(Event(name=name))
+    em.add_event(Event(name=event))
     GraphManager().add_node(_node("Audio Engineering"))
-    for name in events:
-        em.add_node_to_event(name, "Audio Engineering")
+    em.add_node_to_event(event, "Audio Engineering")
     return em
 
 
@@ -85,18 +83,7 @@ def test_clicking_delete_opens_the_confirm_and_deletes_nothing():
     assert "Audio Engineering" in _text(body)
     assert "permanently deleted" in _text(body)
     assert GraphManager().get_node("Audio Engineering") is not None
-    assert em.get_events_for_node("Audio Engineering") == ["Music"]
-
-
-def test_the_confirm_names_other_events_that_hold_the_node():
-    _setup("Music", "Studio")
-    fn = _callbacks()["open_delete_dormant_modal"]
-
-    _, body, _ = _with_trigger(
-        fn, _delete_button("Audio Engineering"), 1, [1], "Music")
-
-    assert 'also leave "Studio"' in _text(body)
-    assert '"Music"' not in _text(body)
+    assert em.get_event_for_node("Audio Engineering") == "Music"
 
 
 def test_a_table_rerender_does_not_open_the_confirm():
@@ -113,8 +100,8 @@ def test_cancel_closes_without_deleting():
     assert GraphManager().get_node("Audio Engineering") is not None
 
 
-def test_confirm_deletes_the_node_from_the_graph_and_every_event():
-    em = _setup("Music", "Studio")
+def test_confirm_deletes_the_node_from_the_graph_and_its_event():
+    em = _setup("Music")
     fn = _callbacks()["confirm_delete_dormant_node"]
 
     is_open, table, refresh = fn(1, "Audio Engineering", "Music")
@@ -122,9 +109,8 @@ def test_confirm_deletes_the_node_from_the_graph_and_every_event():
     assert is_open is False
     assert refresh.startswith("delete-Audio Engineering-")
     assert GraphManager().get_node("Audio Engineering") is None
-    assert em.get_events_for_node("Audio Engineering") == []
+    assert em.get_event_for_node("Audio Engineering") is None
     assert em.get_event_nodes("Music") == []
-    assert em.get_event_nodes("Studio") == []
     assert "Audio Engineering" not in _text(table)
 
 

@@ -396,7 +396,10 @@ Event / Done); conditional external links; and an isolated destructive Delete
 row with `_menu_item(..., danger=True)`. An option that fits only some nodes
 gets a section of its own where it can, so hiding it leaves the rest of the
 menu identical for every node. The Events sidebar menu follows the same
-grouping: Edit; Trigger Now…; Delete…. A choice menu, such as a sidebar sort
+grouping: Edit; Trigger Now…; Delete…. When one `+` can add things in more
+than one way, it opens a menu rather than sitting beside a second button:
+the Events tab's Dormant Nodes `+` offers New node and Existing nodes…. A
+text link next to a `+` reads like save-status feedback. A choice menu, such as a sidebar sort
 menu, gives every row a check glyph and shows only the current row's
 (`.ctx-menu-item-checked`). Labels name the command in full rather
 than a bare noun (`View Details`, not `Details`). Toggle labels describe the

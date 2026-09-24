@@ -79,12 +79,12 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
 
 @database.atomic
 def apply_dormancy(manager, events, name, dormancy, was_dormant):
-    """Write the editor's Dormant switch and Events section for a saved node.
+    """Write the editor's Dormant switch and Event section for a saved node.
 
     Runs after handle_save, inside the same transaction, so a refusal here
     undoes the whole save. `dormancy` is callback_helpers.dormancy_for_save
-    output: delays already in days. `was_dormant` is the node's state before
-    this save.
+    output: the delay already in days. `was_dormant` is the node's state
+    before this save.
     """
     from models import Event
 
@@ -94,40 +94,38 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
             events.detach_node_from_all_events(name)
         return
 
-    if was_dormant:
-        for event, delay_days, wake_date, now in d.get('rows') or []:
-            if wake_date is not None:
-                # A fired event's row has a date instead of a delay, and a
-                # row with neither would never wake.
-                if not wake_date:
-                    raise ValueError(f"Enter a wake date for '{event}'.")
-                events.set_node_wake_date(event, name, wake_date)
-            else:
-                events.set_node_delay(event, name, delay_days or 0)
-            events.set_now_on_trigger(event, name, bool(now))
-
-    join = d.get('join') or None
+    event = d.get('event') or None
     if d.get('new_event'):
-        if not join:
+        if not event:
             raise ValueError("Name the new event.")
         # Manual until the user gives it a real trigger on the Events tab.
-        events.add_event(Event(name=join))
-    if join:
-        if join not in events.get_events_for_node(name):
-            events.add_node_to_event(join, name, d.get('join_delay_days') or 0,
-                                     now_on_trigger=bool(d.get('join_now')))
-    elif not was_dormant:
+        events.add_event(Event(name=event))
+    if not event:
         raise ValueError("Pick an event for this dormant node.")
 
+    now = bool(d.get('now'))
+    delay_days = d.get('delay_days') or 0
+    current = events.get_node_membership(name) if was_dormant else None
+    if current is None:
+        # Refuses a node that already has an event, including one its event
+        # already woke: that row keeps it awake for good.
+        events.add_node_to_event(event, name, delay_days, now_on_trigger=now)
+    elif current['event'] != event:
+        events.move_node_to_event(current['event'], name, event,
+                                  delay_days=delay_days, now_on_trigger=now)
+    else:
+        wake_date = d.get('wake_date')
+        if wake_date is not None:
+            # A fired event's row has a date instead of a delay, and a row
+            # with neither would never wake.
+            if not wake_date:
+                raise ValueError(f"Enter a wake date for '{name}'.")
+            events.set_node_wake_date(event, name, wake_date)
+        else:
+            events.set_node_delay(event, name, delay_days)
+        events.set_now_on_trigger(event, name, now)
+
     node = manager.get_node(name)
-    if not node.dormant:
-        # An event already woke this node, and a woken row keeps it awake
-        # (EventManager._sync_dormant_flag). Say so rather than save a
-        # Dormant switch that did nothing.
-        waiting = {m['event'] for m in events.get_node_memberships(name)}
-        woke = [e for e in events.get_events_for_node(name) if e not in waiting]
-        raise ValueError(
-            f"'{name}' was woken by {', '.join(woke)}, so it can't go back to sleep.")
     if node.now:
         # Add to Now on wake replaces Now while the node sleeps.
         node.now = 0

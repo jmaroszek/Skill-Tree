@@ -6,14 +6,13 @@ import database
 import json
 import time
 import dash
-from dash import html, Input, Output, State, ALL, MATCH, ctx, no_update, ClientsideFunction
+from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
 from graph_manager import GraphManager
 from config import ConfigManager
 from models import Event, STATUS_BLOCKED, STATUS_DONE
 from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
                            build_triggered_divider, trigger_confirmation_body,
-                           build_event_membership_rows,
                            dormant_delete_confirmation_body)
 from duration_ui import duration_to_days, format_duration_days
 from prerender import prerendered
@@ -138,8 +137,8 @@ def _format_node_counts(activated, scheduled, now_pinned=(), now_skipped=(),
         parts.append(f"{len(activated)} activated: {', '.join(activated)}")
     if scheduled:
         parts.append(f"{len(scheduled)} scheduled: {', '.join(scheduled)}")
-    # A node another event woke first. Counting it as activated here would
-    # claim a wake that did not happen.
+    # A node that was already awake when its event fired. Counting it as
+    # activated here would claim a wake that did not happen.
     if already_awake:
         parts.append(f"{len(already_awake)} already awake: {', '.join(already_awake)}")
     if now_pinned:
@@ -825,7 +824,7 @@ def register_event_callbacks(app, services=None):
             "",
         )
 
-    # --- Node editor: Dormant switch and Events section ---
+    # --- Node editor: Dormant switch and Event section ---
     #
     # Dormant is an ordinary form field. Flipping it writes nothing; Save
     # applies it (node_commands.apply_dormancy). These callbacks fill the
@@ -833,26 +832,25 @@ def register_event_callbacks(app, services=None):
     # switches, and collect it into node-dormancy-form for Save and the
     # unsaved-changes check.
 
-    def _pending_event_options(exclude=()):
+    def _event_options(current=None):
+        """Pending events, plus the node's own event when that one has fired
+        and still holds it on a wake date."""
         options = [{"label": e.name, "value": e.name}
-                   for e in event_manager.get_all_events()
-                   if e.status == "Pending" and e.name not in exclude]
-        # A native <select> can't hold an <hr>, so the divider is a disabled
-        # option drawn with box-drawing characters.
-        divider = [{"label": "─" * 16, "value": "__divider__", "disabled": True}] if options else []
-        return options + divider + [{"label": "New event…", "value": NEW_EVENT_OPTION}]
+                   for e in event_manager.get_all_events() if e.status == "Pending"]
+        if current and current != NEW_EVENT_OPTION and current not in {o["value"] for o in options}:
+            options.insert(0, {"label": current, "value": current})
+        return options + [{"label": "New event…", "value": NEW_EVENT_OPTION}]
 
     @app.callback(
         Output("node-dormant", "value"),
-        Output("node-event-memberships", "children"),
-        Output("node-join-event", "options"),
-        Output("node-join-event", "value"),
-        Output("node-join-event-label", "children"),
-        Output("node-join-event-name", "value"),
-        Output("node-join-delay-value", "value"),
-        Output("node-join-delay-unit", "value"),
-        Output("node-join-delay-on", "value"),
-        Output("node-join-now", "value"),
+        Output("node-dormant-event", "options"),
+        Output("node-dormant-event", "value"),
+        Output("node-dormant-event-name", "value"),
+        Output("node-dormant-delay-on", "value"),
+        Output("node-dormant-delay-value", "value"),
+        Output("node-dormant-delay-unit", "value"),
+        Output("node-dormant-wake-date", "value"),
+        Output("node-dormant-now", "value"),
         Output("node-dormant-loaded", "data"),
         Output("editor-pristine-snapshot", "data", allow_duplicate=True),
         Output("editor-dormant-preset", "data", allow_duplicate=True),
@@ -873,22 +871,23 @@ def register_event_callbacks(app, services=None):
         if node is None and preset and preset.get("event"):
             consumed = None
             if time.time() * 1000 - (preset.get("ts") or 0) < 30_000:
-                dormancy = {"dormant": True, "rows": [],
-                            "join": preset["event"], "join_name": ""}
+                dormancy = {**dormancy, "dormant": True, "event": preset["event"]}
 
-        rows = dormancy["rows"]
-        in_events = {row[0] for row in rows}
         if isinstance(snapshot, dict):
             snapshot = {**snapshot, "dormancy": dormancy}
         else:
             snapshot = no_update
+        delayed = bool(dormancy["delay_value"])
         return (
             ["dormant"] if dormancy["dormant"] else [],
-            build_event_membership_rows(rows),
-            _pending_event_options(exclude=in_events),
-            dormancy["join"],
-            "Also add to event" if rows else "Add to event",
-            "", 0, "days", [], [],
+            _event_options(dormancy["event"]),
+            dormancy["event"],
+            "",
+            ["on"] if delayed else [],
+            dormancy["delay_value"] if delayed else 0,
+            dormancy["delay_unit"] if delayed else "days",
+            dormancy["wake_date"] or "",
+            ["on"] if dormancy["now"] else [],
             bool(node is not None and node.dormant),
             snapshot,
             consumed,
@@ -899,16 +898,15 @@ def register_event_callbacks(app, services=None):
     # never runs for it, and an event created since the last load would be
     # missing anyway.
     @app.callback(
-        Output("node-join-event", "options", allow_duplicate=True),
+        Output("node-dormant-event", "options", allow_duplicate=True),
         Input("node-dormant", "value"),
-        State("node-dormancy-form", "data"),
+        State("node-dormant-event", "value"),
         prevent_initial_call=True,
     )
-    def refresh_join_event_options(dormant, dormancy):
+    def refresh_dormant_event_options(dormant, current):
         if not dormant:
             return no_update
-        in_events = {row[0] for row in (dormancy or {}).get("rows") or []}
-        return _pending_event_options(exclude=in_events)
+        return _event_options(current)
 
     # A cancelled unsaved-changes prompt means the "+" never got its blank
     # form, so its preset must not wait around for the next one.
@@ -920,62 +918,44 @@ def register_event_callbacks(app, services=None):
     def drop_dormant_preset(n_clicks):
         return None if n_clicks else no_update
 
+    # The wake date applies only while the node stays in the event that gave
+    # it one; choosing another event moves the node, and a delay applies
+    # there instead. The saved section in the pristine snapshot says which
+    # event that is.
     app.clientside_callback(
         """
-        function(dormant, delayOns, delayValues, delayUnits, wakeDates, nows,
-                 join, joinName, joinDelayOn, joinDelay, joinUnit, joinNow,
-                 delayOnIds, delayIds, unitIds, wakeIds, nowIds) {
+        function(dormant, event, eventName, delayOn, delayValue, delayUnit,
+                 wakeDate, now, snapshot) {
             function on(v) { return !!(v && v.indexOf('on') >= 0); }
-            var rows = {};
-            function row(ev) {
-                if (!rows[ev]) rows[ev] = [ev, null, null, null, false];
-                return rows[ev];
+            var saved = (snapshot && snapshot.dormancy) || {};
+            var scheduled = saved.wake_date != null && !!event && event === saved.event;
+            var delay = 0;
+            if (!scheduled && on(delayOn)) {
+                delay = (delayValue === undefined || delayValue === '') ? null : delayValue;
             }
-            // A delay behind a switched-off Delay is no delay.
-            var delayed = {};
-            (delayOnIds || []).forEach(function(id, i) { delayed[id.index] = on(delayOns[i]); });
-            (delayIds || []).forEach(function(id, i) {
-                var v = delayValues[i];
-                row(id.index)[1] = !delayed[id.index] ? 0
-                    : ((v === undefined || v === '') ? null : v);
-            });
-            (unitIds || []).forEach(function(id, i) { row(id.index)[2] = delayUnits[i]; });
-            // A cleared date stays '' rather than null, so Save can tell a
-            // wake-date row that lost its date from a delay row.
-            (wakeIds || []).forEach(function(id, i) { row(id.index)[3] = wakeDates[i] || ''; });
-            (nowIds || []).forEach(function(id, i) {
-                row(id.index)[4] = on(nows[i]);
-            });
-            var list = Object.keys(rows).sort().map(function(k) { return rows[k]; });
             return {
                 dormant: !!(dormant && dormant.indexOf('dormant') >= 0),
-                rows: list,
-                join: join || null,
-                join_name: joinName || '',
-                join_delay_value: on(joinDelayOn) ? joinDelay : 0,
-                join_delay_unit: joinUnit,
-                join_now: on(joinNow)
+                event: event || null,
+                event_name: eventName || '',
+                delay_value: delay,
+                delay_unit: delayUnit || 'days',
+                // A cleared date stays '' rather than null, so Save can tell
+                // a wake date that was emptied from no wake date at all.
+                wake_date: scheduled ? (wakeDate || '') : null,
+                now: on(now)
             };
         }
         """,
         Output("node-dormancy-form", "data"),
         Input("node-dormant", "value"),
-        Input({"type": "membership-delay-on", "index": ALL}, "value"),
-        Input({"type": "membership-delay-value", "index": ALL}, "value"),
-        Input({"type": "membership-delay-unit", "index": ALL}, "value"),
-        Input({"type": "membership-wake-date", "index": ALL}, "value"),
-        Input({"type": "membership-now", "index": ALL}, "value"),
-        Input("node-join-event", "value"),
-        Input("node-join-event-name", "value"),
-        Input("node-join-delay-on", "value"),
-        Input("node-join-delay-value", "value"),
-        Input("node-join-delay-unit", "value"),
-        Input("node-join-now", "value"),
-        State({"type": "membership-delay-on", "index": ALL}, "id"),
-        State({"type": "membership-delay-value", "index": ALL}, "id"),
-        State({"type": "membership-delay-unit", "index": ALL}, "id"),
-        State({"type": "membership-wake-date", "index": ALL}, "id"),
-        State({"type": "membership-now", "index": ALL}, "id"),
+        Input("node-dormant-event", "value"),
+        Input("node-dormant-event-name", "value"),
+        Input("node-dormant-delay-on", "value"),
+        Input("node-dormant-delay-value", "value"),
+        Input("node-dormant-delay-unit", "value"),
+        Input("node-dormant-wake-date", "value"),
+        Input("node-dormant-now", "value"),
+        Input("editor-pristine-snapshot", "data"),
     )
 
     # Now and Done hide while Dormant is on, and Dormant hides while Now or
@@ -984,17 +964,17 @@ def register_event_callbacks(app, services=None):
     # what the old wake-confirm modal used to ask.
     app.clientside_callback(
         """
-        function(dormant, now, done, join, joinDelayOn, snapshot) {
+        function(dormant, now, done, event, delayOn, snapshot) {
             var hide = {display: 'none'}, show = {};
             var isDormant = !!(dormant && dormant.indexOf('dormant') >= 0);
             var isBusy = !!(now && now.length) || !!(done && done.length);
             var saved = (snapshot && snapshot.dormancy) || {};
+            var scheduled = saved.wake_date != null && !!event && event === saved.event;
             var waking = !!saved.dormant && !isDormant;
-            var events = (saved.rows || []).map(function(r) { return r[0]; });
             var warning = '';
             if (waking) {
-                warning = events.length
-                    ? 'Saving wakes this node and removes it from ' + events.join(', ') + '.'
+                warning = saved.event
+                    ? 'Saving wakes this node and removes it from ' + saved.event + '.'
                     : 'Saving wakes this node.';
             }
             return [
@@ -1002,9 +982,11 @@ def register_event_callbacks(app, services=None):
                 isDormant ? hide : show,
                 (isBusy && !isDormant) ? hide : show,
                 isDormant ? show : hide,
-                join === '__new__' ? show : hide,
-                join ? show : hide,
-                (joinDelayOn && joinDelayOn.length) ? show : hide,
+                event === '__new__' ? show : hide,
+                event ? show : hide,
+                scheduled ? show : hide,
+                scheduled ? hide : show,
+                (!scheduled && delayOn && delayOn.length) ? show : hide,
                 waking ? show : hide,
                 warning
             ];
@@ -1014,32 +996,22 @@ def register_event_callbacks(app, services=None):
         Output("node-status-done-wrapper", "style"),
         Output("node-dormant-wrapper", "style"),
         Output("node-dormant-section", "style"),
-        Output("node-join-event-name", "style"),
-        Output("node-join-settings", "style"),
-        Output("node-join-delay-fields", "style"),
+        Output("node-dormant-event-name", "style"),
+        Output("node-dormant-settings", "style"),
+        Output("node-dormant-wake-date-wrapper", "style"),
+        Output("node-dormant-delay-switch", "style"),
+        Output("node-dormant-delay-fields", "style"),
         Output("node-dormant-wake-warning", "style"),
         Output("node-dormant-wake-warning", "children"),
         Input("node-dormant", "value"),
         Input("node-now", "value"),
         Input("node-status-done", "value"),
-        Input("node-join-event", "value"),
-        Input("node-join-delay-on", "value"),
+        Input("node-dormant-event", "value"),
+        Input("node-dormant-delay-on", "value"),
         Input("editor-pristine-snapshot", "data"),
     )
 
-    # Each event row's Delay switch shows or hides its own delay fields.
-    app.clientside_callback(
-        """
-        function(on) {
-            return (on && on.length) ? {} : {display: 'none'};
-        }
-        """,
-        Output({"type": "membership-delay-fields", "index": MATCH}, "style"),
-        Input({"type": "membership-delay-on", "index": MATCH}, "value"),
-        prevent_initial_call=True,
-    )
-
-    # A save that put a node to sleep, changed its events or woke it has to
+    # A save that put a node to sleep, changed its event or woke it has to
     # reach the Events tab and refill the section from the database. The save
     # message is written only after the save commits, so it is the signal.
     @app.callback(
@@ -1070,7 +1042,7 @@ def register_event_callbacks(app, services=None):
             return no_update
         return build_dormant_nodes_table(event_manager.get_event_nodes(selected_event), event)
 
-    # --- Events tab: "+" opens the node editor on a new dormant node ---
+    # --- Events tab: "+" > New node opens the node editor on a new dormant node ---
     # Clears the form through the editor's own New-node button, so the
     # unsaved-changes prompt behaves exactly as it does there. That button
     # lives inside the editor and never has to open it, so the sidebar is
@@ -1078,9 +1050,11 @@ def register_event_callbacks(app, services=None):
     # The preset rides alongside and populate_node_dormancy applies it.
     app.clientside_callback(
         """
-        function(n, selectedEvent, editorStyle, goalStyle, eventsStyle) {
+        function(choice, selectedEvent, editorStyle, goalStyle, eventsStyle) {
             var NO = window.dash_clientside.no_update;
-            if (!n || !selectedEvent) return [NO, NO, NO, NO];
+            var parts = (choice || '').split('|');
+            if (parts[0] !== 'new' || !selectedEvent) return [NO, NO, NO, NO];
+            var n = Number(parts[1]) || 1;
             setTimeout(function() {
                 var btn = document.getElementById('btn-editor-new');
                 if (btn) btn.click();
@@ -1094,7 +1068,7 @@ def register_event_callbacks(app, services=None):
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Output("details-goal-sidebar", "style", allow_duplicate=True),
         Output("events-sidebar-container", "style", allow_duplicate=True),
-        Input("btn-add-dormant-node", "n_clicks"),
+        Input("dormant-add-choice-input", "value"),
         State("selected-event-store", "data"),
         State("sidebar-editor-container", "style"),
         State("details-goal-sidebar", "style"),
@@ -1126,13 +1100,13 @@ def register_event_callbacks(app, services=None):
         Output("add-to-event-now", "value"),
         Output("add-to-event-status", "children", allow_duplicate=True),
         Input("dormant-existing-trigger-input", "value"),
-        Input("btn-add-existing-to-event", "n_clicks"),
+        Input("dormant-add-choice-input", "value"),
         State("selected-event-store", "data"),
         prevent_initial_call=True,
     )
-    def open_add_to_event_modal(trigger_val, n_clicks, selected_event):
+    def open_add_to_event_modal(trigger_val, choice, selected_event):
         _N = 9
-        if not trigger_val and not n_clicks:
+        if not trigger_val and not choice:
             return (no_update,) * _N
         picked = []
         target = None
@@ -1146,14 +1120,19 @@ def register_event_callbacks(app, services=None):
                 return (no_update,) * _N
             if not isinstance(picked, list):
                 return (no_update,) * _N
-        elif ctx.triggered_id == "btn-add-existing-to-event":
-            if not n_clicks or not selected_event:
+        elif ctx.triggered_id == "dormant-add-choice-input":
+            # The Events tab's "+" menu, "Existing nodes…".
+            if not (choice or "").startswith("existing|") or not selected_event:
                 return (no_update,) * _N
             target = selected_event
         else:
             return (no_update,) * _N
 
-        live = [n.name for n in graph_manager.get_all_nodes() if not n.dormant]
+        # A node belongs to one event, and one its event already woke can't
+        # sleep again, so only nodes with no event at all are offered.
+        taken = event_manager.get_nodes_in_events()
+        live = [n.name for n in graph_manager.get_all_nodes()
+                if not n.dormant and n.name not in taken]
         live_set = set(live)
         events = [{"label": e.name, "value": e.name}
                   for e in event_manager.get_all_events() if e.status == "Pending"]
@@ -1178,17 +1157,12 @@ def register_event_callbacks(app, services=None):
 
     @database.atomic
     def _add_nodes_to_event(target, names, delay_days, now_on_trigger):
-        already = {en['node'].name for en in event_manager.get_event_nodes(target)}
+        # add_node_to_event refuses a node that already has an event, and
+        # the refusal rolls back the whole batch.
         for name in names:
-            if name in already or not graph_manager.get_node(name):
-                continue
-            event_manager.add_node_to_event(target, name, delay_days,
-                                            now_on_trigger=now_on_trigger)
-            if not graph_manager.get_node(name).dormant:
-                # The node editor's refusal: a woken row keeps the node awake,
-                # so the add would silently do nothing.
-                raise ValueError(f"'{name}' was already woken by another event, "
-                                 "so it can't go back to sleep.")
+            if graph_manager.get_node(name):
+                event_manager.add_node_to_event(target, name, delay_days,
+                                                now_on_trigger=now_on_trigger)
 
     @app.callback(
         Output("modal-add-to-event", "is_open", allow_duplicate=True),
@@ -1265,23 +1239,6 @@ def register_event_callbacks(app, services=None):
         return False
 
     @app.callback(
-        Output("move-dormant-note", "children", allow_duplicate=True),
-        Input("move-dormant-target-event", "value"),
-        State("move-dormant-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    def warn_about_a_merge(target_event, node_name):
-        """The PK is (event, node), and a node may already sit in the target."""
-        if not target_event or not node_name:
-            return no_update
-        already = node_name in {en['node'].name
-                                for en in event_manager.get_event_nodes(target_event)}
-        if not already:
-            return no_update
-        return (f'"{node_name}" is already in "{target_event}". Moving will '
-                "fold the two together and keep that event's delay.")
-
-    @app.callback(
         Output("modal-move-dormant-node", "is_open", allow_duplicate=True),
         Output("move-dormant-status", "children", allow_duplicate=True),
         Output("dormant-nodes-table-container", "children", allow_duplicate=True),
@@ -1323,10 +1280,7 @@ def register_event_callbacks(app, services=None):
         if not any(n_clicks_list) or not selected_event:
             return no_update, no_update, no_update
         node_name = ctx.triggered_id["index"]
-        others = [e for e in event_manager.get_events_for_node(node_name)
-                  if e != selected_event]
-        return (True, dormant_delete_confirmation_body(node_name, others),
-                node_name)
+        return True, dormant_delete_confirmation_body(node_name), node_name
 
     @app.callback(
         Output("modal-delete-dormant-node", "is_open", allow_duplicate=True),
@@ -1385,14 +1339,17 @@ def register_event_callbacks(app, services=None):
         return False
 
     # --- Event Graph: render dormant nodes + immediate neighbors ---
+    # The Nodes outside event switch drops the neighbors, leaving the event's own
+    # nodes and the links between them.
     # Outputs to events-elements-pending-store; freeze bypass applied by a
     # clientside callback in callbacks.py.
     @app.callback(
         Output("events-elements-pending-store", "data"),
         Input("selected-event-store", "data"),
         Input("events-refresh-trigger", "data"),
+        Input("events-outside-nodes", "value"),
     )
-    def render_event_graph(selected_event, _refresh):
+    def render_event_graph(selected_event, _refresh, show_outside=True):
         if not selected_event:
             return []
 
@@ -1403,7 +1360,7 @@ def register_event_callbacks(app, services=None):
 
         all_edges = graph_manager.get_edges()
         neighbor_names = set()
-        for e in all_edges:
+        for e in (all_edges if show_outside is not False else []):
             if e['source'] in dormant_names and e['target'] not in dormant_names:
                 neighbor_names.add(e['target'])
             if e['target'] in dormant_names and e['source'] not in dormant_names:

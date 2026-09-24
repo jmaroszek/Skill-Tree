@@ -118,19 +118,10 @@ def test_delete_confirmation_names_the_node_and_says_it_is_permanent():
     assert "permanently deleted from the graph" in body
     assert "cannot be undone" in body
     assert "move it to another event instead" in body
-    assert "also leave" not in body
-
-
-def test_delete_confirmation_names_the_other_events_that_lose_the_node():
-    body = _text(dormant_delete_confirmation_body(
-        "Audio Engineering", ["Music", "Studio"]))
-
-    assert 'It will also leave "Music", "Studio".' in body
 
 
 def test_an_awake_row_has_no_actions():
-    """Gated per row, not per event. A Pending event can hold an awake node
-    because a different event woke it first."""
+    """Gated per row, not per event."""
     table = build_dormant_nodes_table([_row(activated=True, dormant=0)])
 
     assert table.children[1].children[0].children[-1].children is None
@@ -254,25 +245,12 @@ def test_an_awake_row_takes_the_badge():
     assert badge.style["backgroundColor"] == BADGE_PALETTE[STATUS_DONE][0]
 
 
-def test_a_row_woken_by_another_event_reads_awake_and_names_it():
-    """First event to fire wins. The losing event used to call the node
-    Dormant, which was simply untrue."""
-    table = build_dormant_nodes_table(
-        [_row("Audio for Video", activated=False, dormant=0, woken_by="Video")])
-
-    badge, note = table.children[1].children[0].children[3].children
-    assert badge.children == "Awake"
-    assert note.children == "via Video"
-    assert note.className == "text-muted d-block"
-
-
-def test_a_row_woken_outside_any_event_reads_awake_without_naming_one():
+def test_an_awake_row_reads_awake():
     table = build_dormant_nodes_table(
         [_row("Find a Piano Teacher", activated=False, dormant=0)])
 
-    badge, note = table.children[1].children[0].children[3].children
+    badge = table.children[1].children[0].children[3].children
     assert badge.children == "Awake"
-    assert note.children == "woken outside this event"
 
 
 def test_a_one_year_delay_reads_as_one_year():

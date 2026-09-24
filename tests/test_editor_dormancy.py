@@ -1,15 +1,15 @@
-"""The node editor edits dormant nodes: its Dormant switch and Events section.
+"""The node editor edits dormant nodes: its Dormant switch and Event section.
 
 There used to be a second editor, a modal on the Events tab, for dormant
 nodes. It rebuilt the node from its own form and dropped every field it did
 not show. Dormancy is now one more field of the one editor, applied on Save by
-node_commands.apply_dormancy.
+node_commands.apply_dormancy. A dormant node belongs to one event.
 """
-
-from datetime import date
 
 import dash
 import pytest
+from dash._callback_context import context_value
+from dash._utils import AttributeDict
 
 import database
 import event_callbacks
@@ -17,7 +17,6 @@ from callback_helpers import (NEW_EVENT_OPTION, NEW_NODE_SNAPSHOT,
                               build_dormancy_snapshot, build_editor_snapshot,
                               dormancy_for_save, is_form_dirty_vs_snapshot)
 from event_manager import EventManager
-from events_layout import build_event_membership_rows
 from graph_manager import GraphManager
 from models import Event, Node
 from node_commands import apply_dormancy, handle_save
@@ -41,12 +40,12 @@ def _node(name, **overrides):
     return Node(**fields)
 
 
-def _form(dormant=True, rows=(), join=None, join_name="", delay=0, unit="days",
-          now=False):
+def _form(dormant=True, event=None, event_name="", delay=0, unit="days",
+          wake_date=None, now=False):
     """A node-dormancy-form dict as the clientside collector builds it."""
-    return {"dormant": dormant, "rows": [list(r) for r in rows], "join": join,
-            "join_name": join_name, "join_delay_value": delay,
-            "join_delay_unit": unit, "join_now": now}
+    return {"dormant": dormant, "event": event, "event_name": event_name,
+            "delay_value": delay, "delay_unit": unit, "wake_date": wake_date,
+            "now": now}
 
 
 def _apply(mgr, em, name, form, was_dormant):
@@ -59,11 +58,11 @@ def test_a_live_node_sleeps_under_the_chosen_event(mgr, em):
     mgr.add_node(_node("Voice"))
     em.add_event(Event(name="Move"))
 
-    _apply(mgr, em, "Voice", _form(join="Move", delay=2, unit="weeks", now=True),
+    _apply(mgr, em, "Voice", _form(event="Move", delay=2, unit="weeks", now=True),
            was_dormant=False)
 
     assert mgr.get_node("Voice").dormant == 1
-    [row] = em.get_node_memberships("Voice")
+    row = em.get_node_membership("Voice")
     assert row["event"] == "Move"
     assert row["delay_days"] == 14
     assert row["now_on_trigger"] is True
@@ -72,19 +71,19 @@ def test_a_live_node_sleeps_under_the_chosen_event(mgr, em):
 def test_new_event_is_created_manual_by_name(mgr, em):
     mgr.add_node(_node("Voice"))
 
-    _apply(mgr, em, "Voice", _form(join=NEW_EVENT_OPTION, join_name="  After Move "),
+    _apply(mgr, em, "Voice", _form(event=NEW_EVENT_OPTION, event_name="  After Move "),
            was_dormant=False)
 
     event = em.get_event("After Move")
     assert event is not None
     assert event.trigger_date is None and not event.trigger_nodes
-    assert em.get_events_for_node("Voice") == ["After Move"]
+    assert em.get_event_for_node("Voice") == "After Move"
 
 
 def test_new_event_needs_a_name(mgr, em):
     mgr.add_node(_node("Voice"))
     with pytest.raises(ValueError, match="Name the new event"):
-        _apply(mgr, em, "Voice", _form(join=NEW_EVENT_OPTION), was_dormant=False)
+        _apply(mgr, em, "Voice", _form(event=NEW_EVENT_OPTION), was_dormant=False)
 
 
 def test_sleeping_needs_an_event(mgr, em):
@@ -94,28 +93,28 @@ def test_sleeping_needs_an_event(mgr, em):
     assert mgr.get_node("Voice").dormant == 0
 
 
-def test_a_node_an_event_already_woke_says_so_and_nothing_is_saved(mgr, em):
-    """A woken row keeps a node awake. The old flow added the row and then
-    silently left the node live; the editor refuses and rolls back."""
+def test_a_node_its_event_already_woke_says_so_and_nothing_is_saved(mgr, em):
+    """A woken row keeps a node awake for good, so the editor refuses and
+    the transaction rolls the save back."""
     mgr.add_node(_node("Voice"))
     em.add_event(Event(name="First"))
     em.add_event(Event(name="Second"))
     em.add_node_to_event("First", "Voice")
     em.trigger_event("First")
 
-    with pytest.raises(ValueError, match="woken by First"):
+    with pytest.raises(ValueError, match="already woke from 'First'"):
         with database.transaction():
-            _apply(mgr, em, "Voice", _form(join="Second"), was_dormant=False)
+            _apply(mgr, em, "Voice", _form(event="Second"), was_dormant=False)
 
     assert mgr.get_node("Voice").dormant == 0
-    assert "Second" not in em.get_events_for_node("Voice")
+    assert em.get_event_for_node("Voice") == "First"
 
 
 def test_sleeping_takes_the_node_off_now(mgr, em):
     mgr.add_node(_node("Voice", now=1))
     em.add_event(Event(name="Move"))
 
-    _apply(mgr, em, "Voice", _form(join="Move"), was_dormant=False)
+    _apply(mgr, em, "Voice", _form(event="Move"), was_dormant=False)
 
     assert mgr.get_node("Voice").now == 0
 
@@ -131,32 +130,55 @@ def test_a_new_dormant_node_is_saved_in_one_transaction(mgr, em):
     assert mgr.get_node("Fresh") is None
 
 
-# --- Editing and waking a dormant node ---------------------------------------
+# --- Editing, moving and waking a dormant node ------------------------------
 
-def test_row_edits_land_on_their_own_rows(mgr, em):
+def test_editing_the_delay_and_now_flag(mgr, em):
+    em.add_event(Event(name="A"))
+    em.create_dormant_node(_node("Voice"), "A", delay_days=7)
+
+    _apply(mgr, em, "Voice", _form(event="A", delay=1, unit="months", now=True),
+           was_dormant=True)
+
+    row = em.get_node_membership("Voice")
+    assert row["delay_days"] == 30 and row["now_on_trigger"] is True
+
+
+def test_choosing_another_event_moves_the_node(mgr, em):
     em.add_event(Event(name="A"))
     em.add_event(Event(name="B"))
     em.create_dormant_node(_node("Voice"), "A", delay_days=7)
-    em.add_node_to_event("B", "Voice", 0)
 
-    _apply(mgr, em, "Voice", _form(rows=[["A", 3, "days", None, True],
-                                          ["B", 1, "months", None, False]]),
-           was_dormant=True)
+    _apply(mgr, em, "Voice", _form(event="B", delay=3, now=True), was_dormant=True)
 
-    rows = {m["event"]: m for m in em.get_node_memberships("Voice")}
-    assert rows["A"]["delay_days"] == 3 and rows["A"]["now_on_trigger"] is True
-    assert rows["B"]["delay_days"] == 30 and rows["B"]["now_on_trigger"] is False
+    assert em.get_event_nodes("A") == []
+    row = em.get_node_membership("Voice")
+    assert row["event"] == "B"
+    assert row["delay_days"] == 3 and row["now_on_trigger"] is True
+    assert mgr.get_node("Voice").dormant == 1
 
 
-def test_a_fired_event_row_edits_its_wake_date(mgr, em):
+def test_a_node_on_a_wake_date_can_move_to_a_pending_event(mgr, em):
+    em.add_event(Event(name="Fired"))
+    em.add_event(Event(name="Later"))
+    em.create_dormant_node(_node("Voice"), "Fired", delay_days=90)
+    em.trigger_event("Fired")
+
+    _apply(mgr, em, "Voice", _form(event="Later"), was_dormant=True)
+
+    row = em.get_node_membership("Voice")
+    assert row["event"] == "Later"
+    assert row["activation_date"] is None
+
+
+def test_a_fired_event_edits_its_wake_date(mgr, em):
     em.add_event(Event(name="A"))
     em.create_dormant_node(_node("Voice"), "A", delay_days=90)
     em.trigger_event("A")
 
-    _apply(mgr, em, "Voice", _form(rows=[["A", None, None, "2027-03-01", False]]),
+    _apply(mgr, em, "Voice", _form(event="A", wake_date="2027-03-01"),
            was_dormant=True)
 
-    assert em.get_node_memberships("Voice")[0]["activation_date"] == "2027-03-01"
+    assert em.get_node_membership("Voice")["activation_date"] == "2027-03-01"
 
 
 def test_a_cleared_wake_date_is_refused(mgr, em):
@@ -165,29 +187,17 @@ def test_a_cleared_wake_date_is_refused(mgr, em):
     em.trigger_event("A")
 
     with pytest.raises(ValueError, match="wake date"):
-        _apply(mgr, em, "Voice", _form(rows=[["A", None, None, "", False]]),
-               was_dormant=True)
+        _apply(mgr, em, "Voice", _form(event="A", wake_date=""), was_dormant=True)
 
 
-def test_unchecking_dormant_wakes_the_node_and_leaves_its_events(mgr, em):
+def test_unchecking_dormant_wakes_the_node_and_leaves_its_event(mgr, em):
     em.add_event(Event(name="A"))
     em.create_dormant_node(_node("Voice"), "A")
 
     _apply(mgr, em, "Voice", _form(dormant=False), was_dormant=True)
 
     assert mgr.get_node("Voice").dormant == 0
-    assert em.get_events_for_node("Voice") == []
-
-
-def test_a_dormant_node_can_join_a_second_event(mgr, em):
-    em.add_event(Event(name="A"))
-    em.add_event(Event(name="B"))
-    em.create_dormant_node(_node("Voice"), "A")
-
-    _apply(mgr, em, "Voice", _form(rows=[["A", 0, "days", None, False]], join="B"),
-           was_dormant=True)
-
-    assert sorted(em.get_events_for_node("Voice")) == ["A", "B"]
+    assert em.get_event_for_node("Voice") is None
 
 
 def test_saving_a_dormant_node_keeps_fields_the_form_does_not_show(mgr, em):
@@ -202,8 +212,7 @@ def test_saving_a_dormant_node_keeps_fields_the_form_does_not_show(mgr, em):
 
     handle_save(mgr, "Voice", "Action", "edited", 5, 1.0, 2.0, 4.0, 5, 5,
                 [], "Mind", None, "", "", "", [], [], [], [], [])
-    _apply(mgr, em, "Voice", _form(rows=[["A", 0, "days", None, False]]),
-           was_dormant=True)
+    _apply(mgr, em, "Voice", _form(event="A"), was_dormant=True)
 
     after = mgr.get_node("Voice")
     assert after.description == "edited"
@@ -215,33 +224,43 @@ def test_saving_a_dormant_node_keeps_fields_the_form_does_not_show(mgr, em):
 
 # --- What the section shows, and the unsaved-changes check -------------------
 
-def test_memberships_list_only_rows_still_waiting(mgr, em):
+def test_a_woken_row_is_not_a_membership(mgr, em):
     mgr.add_node(_node("Voice"))
     em.add_event(Event(name="First"))
-    em.add_event(Event(name="Second"))
     em.add_node_to_event("First", "Voice")
     em.trigger_event("First")
-    em.add_node_to_event("Second", "Voice")
 
-    assert [m["event"] for m in em.get_node_memberships("Voice")] == ["Second"]
+    assert em.get_node_membership("Voice") is None
 
 
 def test_set_now_on_trigger(mgr, em):
     em.add_event(Event(name="A"))
     em.create_dormant_node(_node("Voice"), "A")
     em.set_now_on_trigger("A", "Voice", True)
-    assert em.get_node_memberships("Voice")[0]["now_on_trigger"] is True
+    assert em.get_node_membership("Voice")["now_on_trigger"] is True
 
 
-def test_snapshot_of_a_dormant_node_lists_its_rows(mgr, em):
+def test_snapshot_of_a_dormant_node_shows_its_event(mgr, em):
     em.add_event(Event(name="A"))
     em.create_dormant_node(_node("Voice"), "A", delay_days=14, now_on_trigger=True)
 
     snap = build_dormancy_snapshot(mgr.get_node("Voice"), em)
 
-    assert snap["dormant"] is True
-    assert snap["rows"] == [["A", 2, "weeks", None, True]]
+    assert snap == {"dormant": True, "event": "A", "event_name": "",
+                    "delay_value": 2, "delay_unit": "weeks",
+                    "wake_date": None, "now": True}
     assert build_editor_snapshot(mgr, "Voice")["dormancy"] == snap
+
+
+def test_snapshot_of_a_scheduled_node_shows_its_wake_date(mgr, em):
+    em.add_event(Event(name="A"))
+    em.create_dormant_node(_node("Voice"), "A", delay_days=14)
+    em.trigger_event("A")
+
+    snap = build_dormancy_snapshot(mgr.get_node("Voice"), em)
+
+    assert snap["event"] == "A"
+    assert snap["wake_date"] == em.get_node_membership("Voice")["activation_date"]
 
 
 def test_a_live_node_snapshot_is_not_dormant(mgr):
@@ -249,10 +268,21 @@ def test_a_live_node_snapshot_is_not_dormant(mgr):
     assert build_dormancy_snapshot(mgr.get_node("Voice"))["dormant"] is False
 
 
-def test_rows_compare_in_days():
-    snap = dict(NEW_NODE_SNAPSHOT, dormancy=_form(rows=[["A", 1, "weeks", None, False]]))
-    form = dict(snap, dormancy=_form(rows=[["A", 7, "days", None, False]]))
+def test_delays_compare_in_days():
+    snap = dict(NEW_NODE_SNAPSHOT, dormancy=_form(event="A", delay=1, unit="weeks"))
+    form = dict(snap, dormancy=_form(event="A", delay=7, unit="days"))
     assert not is_form_dirty_vs_snapshot(snap, form)
+
+
+def test_changing_the_event_is_an_unsaved_change():
+    snap = dict(NEW_NODE_SNAPSHOT, dormancy=_form(event="A"))
+    form = dict(snap, dormancy=_form(event="B"))
+    assert is_form_dirty_vs_snapshot(snap, form)
+
+
+def test_the_section_is_ignored_while_dormant_is_off():
+    form = dict(NEW_NODE_SNAPSHOT, dormancy=_form(dormant=False, event="A", delay=3))
+    assert not is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, form)
 
 
 def test_flipping_dormant_is_an_unsaved_change():
@@ -265,29 +295,7 @@ def test_an_unset_store_matches_a_live_node():
     assert not is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, form)
 
 
-def test_membership_rows_edit_a_delay_or_a_date():
-    rows = build_event_membership_rows([["A", 2, "weeks", None, True],
-                                        ["B", None, None, date.today().isoformat(), False]])
-    ids = set()
-
-    def walk(c):
-        if isinstance(getattr(c, "id", None), dict):
-            ids.add((c.id["type"], c.id["index"]))
-        children = getattr(c, "children", None)
-        for child in children if isinstance(children, list) else [children]:
-            if child is not None and not isinstance(child, str):
-                walk(child)
-
-    for row in rows:
-        walk(row)
-    assert ("membership-delay-value", "A") in ids
-    assert ("membership-wake-date", "A") not in ids
-    assert ("membership-wake-date", "B") in ids
-    assert ("membership-delay-value", "B") not in ids
-    assert {("membership-now", "A"), ("membership-now", "B")} <= ids
-
-
-# --- The Events tab's Add to Event modal -------------------------------------
+# --- The Events tab's "+" menu and the Add to Event modal --------------------
 
 def _callback(name):
     app = dash.Dash(__name__)
@@ -300,6 +308,42 @@ def _callback(name):
         if fn is not None and fn.__name__ == name:
             return fn
     raise KeyError(name)
+
+
+def _with_trigger(fn, prop_id, *args):
+    token = context_value.set(AttributeDict(
+        triggered_inputs=[{"prop_id": prop_id, "value": args[0]}]))
+    try:
+        return fn(*args)
+    finally:
+        context_value.reset(token)
+
+
+def test_existing_nodes_offers_only_nodes_without_an_event(mgr, em):
+    mgr.add_node(_node("Free"))
+    mgr.add_node(_node("Woken"))
+    em.add_event(Event(name="Move"))
+    em.add_event(Event(name="Fired"))
+    em.add_node_to_event("Fired", "Woken")
+    em.trigger_event("Fired")
+
+    result = _with_trigger(_callback("open_add_to_event_modal"),
+                           "dormant-add-choice-input.value",
+                           None, "existing|123", "Move")
+
+    assert result[0] is True
+    assert [o["value"] for o in result[1]] == ["Free"]
+    assert result[4] == "Move"
+
+
+def test_new_node_choice_does_not_open_the_modal(mgr, em):
+    em.add_event(Event(name="Move"))
+
+    result = _with_trigger(_callback("open_add_to_event_modal"),
+                           "dormant-add-choice-input.value",
+                           None, "new|123", "Move")
+
+    assert result == (dash.no_update,) * 9
 
 
 def test_add_to_event_puts_several_nodes_to_sleep(mgr, em):
@@ -316,13 +360,12 @@ def test_add_to_event_puts_several_nodes_to_sleep(mgr, em):
     assert all(r["delay_days"] == 7 and r["now_on_trigger"] for r in rows.values())
 
 
-def test_add_to_event_refuses_a_woken_node_and_adds_none(mgr, em):
+def test_add_to_event_refuses_a_node_in_another_event_and_adds_none(mgr, em):
     mgr.add_node(_node("Voice"))
     mgr.add_node(_node("Piano"))
     em.add_event(Event(name="First"))
     em.add_event(Event(name="Move"))
     em.add_node_to_event("First", "Piano")
-    em.trigger_event("First")
 
     result = _callback("save_add_to_event")(
         1, ["Voice", "Piano"], "Move", 0, "days", [])

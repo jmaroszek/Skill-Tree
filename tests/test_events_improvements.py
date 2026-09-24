@@ -270,19 +270,6 @@ class TestDelayedNowIntent:
         # Skipped means un-pinned, not un-woken.
         assert mgr.get_node("Later").dormant == 0
 
-    def test_a_node_flagged_in_two_events_is_only_pinned_once(self, em, mgr):
-        mgr.add_node(_node("Shared"))
-        em.add_event(Event(name="A"))
-        em.add_event(Event(name="B"))
-        em.add_node_to_event("A", "Shared", delay_days=7, now_on_trigger=True)
-        em.add_node_to_event("B", "Shared", delay_days=7, now_on_trigger=True)
-        em.trigger_event("A")
-        em.trigger_event("B")
-
-        _sweep_on(em, date.today() + timedelta(days=7))
-
-        assert [n.name for n in mgr.get_now_nodes()] == ["Shared"]
-
 
 # ---------------------------------------------------------------------------
 # The manual path, which used to leave no durable record

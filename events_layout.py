@@ -229,19 +229,14 @@ def build_events_tab_content():
                 # Dormant Nodes Section
                 # Heading plus its adders, nothing else: Trigger moved up to
                 # the Actions section, so this row is now purely the label for
-                # the table under it. "+" opens the node editor on a new node
-                # already set Dormant under this event; "Add existing" puts
-                # nodes that already exist to sleep here.
+                # the table under it. "+" opens a menu (dormant_add_menu.js):
+                # a new node, opened in the node editor already set Dormant
+                # under this event, or existing nodes, put to sleep here.
                 html.Div([
                     html.H5("Dormant Nodes", className="mb-0"),
                     html.Div([
                         add_button("btn-add-dormant-node",
-                                   "Add a new dormant node to this event"),
-                        dbc.Button("Add existing", id="btn-add-existing-to-event",
-                                   color="link", size="sm",
-                                   className="p-0 ms-2 text-decoration-none"),
-                        Tooltip("Put existing nodes to sleep under this event",
-                                target="btn-add-existing-to-event", placement="right"),
+                                   "Add dormant nodes to this event"),
                     ], id="dormant-add-btn-wrapper"),
                 ], className="d-flex align-items-center mb-3"),
 
@@ -369,6 +364,7 @@ def build_events_tab_content():
             build_graph_settings_panel(
                 "events-graph-settings",
                 defaults_getter=ConfigManager.get_events_graph_layout_defaults,
+                outside_nodes_id="events-outside-nodes",
             ),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-events-graph-fullscreen",
@@ -640,18 +636,9 @@ def _wakes_cell(en, event):
     activation_date = en.get('activation_date')
 
     if not node.dormant:
-        badge = html.Span("Awake", className="badge",
-                          style=badge_style('EventTriggered',
-                                            font_size=tokens.FS_XS))
-        if en.get('activated'):
-            return badge
-        # Awake without this row firing: some other event got there first, or
-        # the node was woken outside the event system entirely. Either way the
-        # old table called it Dormant, which was simply untrue.
-        woken_by = en.get('woken_by')
-        note = f"via {woken_by}" if woken_by else "woken outside this event"
-        return [badge, html.Small(note, className="text-muted d-block",
-                                  style={"fontSize": tokens.FS_XS})]
+        return html.Span("Awake", className="badge",
+                         style=badge_style('EventTriggered',
+                                           font_size=tokens.FS_XS))
 
     if activation_date:
         when = html.Span(_format_wake_date(activation_date),
@@ -672,9 +659,8 @@ def _wakes_cell(en, event):
 def _dormant_row_actions(node_name: str):
     """Edit / Move / Delete for one row, or None when it has nothing to act on.
 
-    Gated per row rather than per event. A Pending event can hold an awake
-    node (another event woke it) and a fired event can still hold scheduled
-    ones, so the event's own status was never the right question.
+    Gated per row rather than per event. A fired event can still hold
+    scheduled nodes, so the event's own status was never the right question.
 
     The last action deletes the node from the graph. It used to be drawn as
     an ✕ labelled "Remove", which reads as "take it out of this event" --
@@ -710,26 +696,18 @@ def _dormant_row_actions(node_name: str):
         className="dormant-node-actions d-flex gap-1 justify-content-end align-items-center")
 
 
-def dormant_delete_confirmation_body(node_name, other_events=()):
-    """What deleting a dormant node from its row will do, for the confirm modal.
-
-    `other_events` are the events besides the selected one that also hold the
-    node. Deleting it takes it out of those too, and nothing on this row says
-    they exist.
-    """
-    children = [html.P(
-        [html.Strong(node_name),
-         " will be permanently deleted from the graph, along with its "
-         "relationships. This cannot be undone."],
-        className="mb-2")]
-    if other_events:
-        names = ", ".join(f'"{name}"' for name in other_events)
-        children.append(html.P(
-            f"It will also leave {names}.", className="mb-2"))
-    children.append(html.P(
-        "To keep it, move it to another event instead.",
-        className="text-muted mb-0", style={"fontSize": tokens.FS_CAP}))
-    return children
+def dormant_delete_confirmation_body(node_name):
+    """What deleting a dormant node from its row will do, for the confirm modal."""
+    return [
+        html.P(
+            [html.Strong(node_name),
+             " will be permanently deleted from the graph, along with its "
+             "relationships. This cannot be undone."],
+            className="mb-2"),
+        html.P(
+            "To keep it, move it to another event instead.",
+            className="text-muted mb-0", style={"fontSize": tokens.FS_CAP}),
+    ]
 
 
 #: Above this many scheduled nodes, listing every wake date stops being
@@ -749,12 +727,11 @@ def trigger_confirmation_body(event_name, event_nodes):
     row checkboxes used to do badly. It names the nodes waking now for that
     reason, and the wake dates while there are few enough to read.
     """
-    pending = [en for en in event_nodes if not en['activated']]
-    waking = [en for en in pending if en['node'].dormant and not en['delay_days']]
-    scheduled = [en for en in pending if en['node'].dormant and en['delay_days']]
-    # Some other event got here first. Counting these as woken would claim a
-    # wake that is not going to happen.
-    already = [en for en in pending if not en['node'].dormant]
+    # A node that is awake already has nothing left for this event to do.
+    pending = [en for en in event_nodes
+               if not en['activated'] and en['node'].dormant]
+    waking = [en for en in pending if not en['delay_days']]
+    scheduled = [en for en in pending if en['delay_days']]
 
     lines = [html.P(f'Trigger "{event_name}"?', className="mb-2")]
 
@@ -801,12 +778,6 @@ def trigger_confirmation_body(event_name, event_nodes):
                 lines.append(html.P(
                     f"{later_now} of them will be added to Now when they wake.",
                     className="text-muted mb-2"))
-
-    if already:
-        names = ", ".join(en['node'].name for en in already)
-        lines.append(html.P(
-            f"{_plural(len(already), 'node')} already awake: {names}.",
-            className="text-muted mb-0"))
 
     return lines
 
@@ -865,13 +836,10 @@ def build_dormant_nodes_table(event_nodes, event=None):
        style={**tokens.TABLE_STYLE, "tableLayout": "fixed"})
 
 
-# --- Node editor: Events section ---
-# The node editor lists every event a dormant node is waiting on. Each row is
-# a [event, delay value, delay unit, wake date, add-to-Now] list from
-# callback_helpers.membership_form_rows. Before an event fires the row edits
-# a delay; after it fires the row edits the wake date it was given, because
-# the delay has nothing left to measure from (see
-# docs/dormant_node_triggering.md).
+# --- Node editor: Event section ---
+# Before the node's event fires, the section edits a delay; after it fires,
+# it edits the wake date the node was given, because the delay has nothing
+# left to measure from (see docs/dormant_node_triggering.md).
 
 def delay_fields(wrapper_id, value_id, unit_id, value, unit, visible):
     """The "[n] [unit] after it fires" row behind a Delay switch.
@@ -900,56 +868,9 @@ def wake_switches(delay_switch, fields, now_switch):
                     style={"columnGap": "1rem", "rowGap": "0.25rem"})
 
 
-def build_event_membership_rows(rows):
-    """Rows for the node editor's Events section, one per waiting event.
-
-    Each row is headed by its event's name, set as a label like the section's
-    other subheadings. Most nodes wake the moment their event fires, so the
-    delay stays behind a switch until it is wanted.
-    """
-    out = []
-    for event, delay_value, delay_unit, wake_date, now in rows or []:
-        now_switch = dbc.Checklist(
-            id={"type": "membership-now", "index": event},
-            options=[{"label": "Add to Now", "value": "on"}],
-            value=["on"] if now else [],
-            switch=True,
-        )
-        if wake_date is not None:
-            when = [
-                dbc.Input(id={"type": "membership-wake-date", "index": event},
-                          type="date", value=wake_date, size="sm",  # type: ignore[reportArgumentType]
-                          style={"maxWidth": "170px"}),
-                html.Small("Wake date. This event has already fired.",
-                           className="text-muted d-block mt-1 mb-1"),
-                now_switch,
-            ]
-        else:
-            has_delay = bool(delay_value)
-            when = [wake_switches(
-                dbc.Checklist(
-                    id={"type": "membership-delay-on", "index": event},
-                    options=[{"label": "Delay", "value": "on"}],
-                    value=["on"] if has_delay else [],
-                    switch=True,
-                ),
-                delay_fields({"type": "membership-delay-fields", "index": event},
-                             {"type": "membership-delay-value", "index": event},
-                             {"type": "membership-delay-unit", "index": event},
-                             delay_value if has_delay else 0,
-                             delay_unit if has_delay else "days", has_delay),
-                now_switch,
-            )]
-        out.append(html.Div([
-            dbc.Label(event, className="mt-2 mb-1"),
-            *when,
-        ], className="event-membership-row"))
-    return out
-
-
 # --- Add to Event modal ---
 # Puts existing nodes to sleep under an event, several at once. Opened by the
-# canvas context menu's "Add to Event…" and the Events tab's "Add existing".
+# canvas context menu's "Add to Event…" and the Events tab's "+" menu.
 # Creating nodes, and editing a dormant node, happen in the node editor.
 
 def build_add_to_event_modal():

@@ -1772,7 +1772,7 @@ def register_callbacks(app, services=None):
                     clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
                     manager.set_aliases(name, clean_aliases)
 
-                    # Dormant switch and Events section. A refusal raises
+                    # Dormant switch and Event section. A refusal raises
                     # ValueError and rolls the whole save back.
                     from event_manager import EventManager
                     apply_dormancy(manager, EventManager(), name,

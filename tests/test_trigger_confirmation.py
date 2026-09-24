@@ -3,7 +3,7 @@
 Firing takes every node an event holds, so this summary is the last place to
 notice one you did not mean to release — the job the row checkboxes used to do
 badly. These tests pin what it must say, particularly that it never claims to
-wake a node some other event already woke.
+wake a node that is already awake.
 """
 
 from datetime import date, timedelta
@@ -80,30 +80,22 @@ class TestWhatItSays:
 
 
 class TestAlreadyAwake:
-    """Without this line the summary lies, and multi-event membership makes
-    that happen on real data."""
-
-    def test_a_node_another_event_woke_is_counted_separately(self):
-        body = trigger_confirmation_body("Music", [
+    def test_a_node_that_is_already_awake_is_not_promised_a_wake(self):
+        text = _text(trigger_confirmation_body("Music", [
             _row("Composition"),
             _row("Audio for Video", dormant=0),
-        ])
+        ]))
 
-        text = _text(body)
         assert "1 node will wake now: Composition." in text
-        assert "1 node already awake: Audio for Video." in text
+        assert "Audio for Video" not in text
 
-    def test_it_is_absent_when_nothing_is_already_awake(self):
-        assert "already awake" not in _text(
-            trigger_confirmation_body("E", [_row("N1")]))
-
-    def test_an_event_holding_only_awake_nodes_promises_no_wakes(self):
+    def test_an_event_holding_only_awake_nodes_reads_as_empty(self):
         text = _text(trigger_confirmation_body("E", [
             _row("A", dormant=0), _row("B", dormant=0),
         ]))
 
         assert "will wake now" not in text
-        assert "2 nodes already awake: A, B." in text
+        assert "no dormant nodes left to wake" in text
 
 
 class TestAlreadyFiredRows:
