@@ -556,7 +556,7 @@ PROFILES = {
     # defect. w_t 135 is the normalized equivalent of the pre-v2 w_t 4.0.
     'Glider': {
         'w_v': 1.00, 'w_i': 1.00, 'value_exponent': 1.00,
-        'd_H': 0.40, 'd_S': 0.25,
+        'd_H': 0.40, 'd_S': 0.20,
         'd_Syn_pair': 0.05, 'd_Syn_mul': 0.20,
         'cross_context_mult': 1.00,
         'w_e': 3.50, 'w_t': 135.00, 'beta': 0.95,

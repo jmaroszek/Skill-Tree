@@ -224,7 +224,7 @@ The six built-in profiles are essentially hyperparameter bundles. The first tabl
 | Interest weight | $w_I$ | 1.00 | 2.00 | 0.40 | 0.50 | 1.00 | 1.00 |
 | Rating exponent | $\gamma$ | 2.00 | 2.50 | 1.50 | 2.50 | 2.00 | 1.00 |
 | Hard discount | $d_H$ | 0.60 | 0.50 | 0.92 | 0.65 | 0.55 | 0.40 |
-| Soft discount | $d_S$ | 0.30 | 0.35 | 0.20 | 0.02 | 0.45 | 0.25 |
+| Soft discount | $d_S$ | 0.30 | 0.35 | 0.20 | 0.02 | 0.45 | 0.20 |
 | Synergy pair bonus | $d_{\text{Syn,pair}}$ | 0.10 | 0.35 | 0.02 | 0.00 | 0.60 | 0.05 |
 | Synergy completion mult | $d_{\text{Syn,mul}}$ | 0.40 | 0.90 | 0.10 | 0.10 | 1.30 | 0.20 |
 | Cross-context synergy mult | $m_{\text{cross}}$ | 1.00 | 2.50 | 1.00 | 1.00 | 3.00 | 1.00 |
