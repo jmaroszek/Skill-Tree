@@ -404,7 +404,8 @@ def build_events_tab_content():
             dbc.Button("Add Node", id="btn-dormant-node-save", color="success",
                        style={"backgroundColor": _done_color, "borderColor": _done_color}),
         ]),
-    ], id="modal-dormant-node", size="lg", is_open=False, centered=True)
+    ], id="modal-dormant-node", dialog_style={"maxWidth": "500px"},
+        is_open=False, centered=True)
 
     # --- Event Detail (left: fixed natural width, right of it goes to the graph) ---
     event_detail_panel = html.Div([
