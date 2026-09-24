@@ -103,8 +103,10 @@ def test_goal_scope_and_explanation_exclude_optional_work_and_second_discount():
     assert actual == base
     bd,_ = explain_goal('D',ns,extra,hp,[])
     assert bd['composition']['total_value'] == actual['tv']
-    assert {r['name'] for r in bd['contributors']} == {'A','D'}
-    assert all(r['future_discount']==1 for r in bd['contributors'])
+    assert {r['name'] for r in bd['contributors']} == {'A'}
+    # A's worth carries D's credit undiscounted, however much work D needs.
+    iv = (hp['w_v']+hp['w_i'])*5**hp['value_exponent']
+    assert actual['tv'] == pytest.approx(iv + hp['d_H']*iv)
 
 
 @pytest.mark.parametrize('schema,exponent', [(1,1.0),(2,2.0),(3,2.0)])

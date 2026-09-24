@@ -79,4 +79,5 @@ def test_goal_ranking_frees_milestones_too():
     comp = _rank_goals([nodes[3]], nodes, edges, [], hp, with_components=True)[0][1]
     g = hp['value_exponent']
     iv = lambda v: hp['w_v'] * v ** g + hp['w_i'] * v ** g
-    assert comp['tv'] == pytest.approx(iv(1) + D_H * iv(6) + D_H ** 2 * iv(8))
+    assert comp['tv'] == pytest.approx(iv(8) + iv(6) + 2 * D_H * iv(1))
+    assert comp['n_tasks'] == 2

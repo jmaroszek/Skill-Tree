@@ -108,8 +108,9 @@ def _ranked(manager):
 
 
 def test_finished_goals_get_no_number_and_do_not_set_the_base():
-    """Regression: a Done Goal owes no work, so its score dwarfed every open
-    Goal and shrank the Explain modal's numbers below the sidebar's."""
+    """A finished Goal owes no work. It once scored highest of all and shrank
+    the Explain modal's numbers below the sidebar's; now it scores nothing,
+    and it still gets no number."""
     manager = GraphManager()
     _add_graph(manager, [
         _goal("Finished", status=STATUS_DONE),
@@ -123,7 +124,8 @@ def test_finished_goals_get_no_number_and_do_not_set_the_base():
         ("O1", "Open")])
     ranked, nodes, edges = _ranked(manager)
     scores = dict((goal.name, score) for goal, score in ranked)
-    assert scores["Finished"] > scores["Open"]
+    assert scores["Finished"] == scores["Ticked"] == 0
+    assert scores["Open"] > 0
 
     priorities = normalize_goal_scores(ranked, nodes, edges)
 

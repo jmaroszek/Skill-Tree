@@ -1707,8 +1707,8 @@ def register_details_callbacks(app, services=None):
         if is_goal:
             # Goals are sinks in the prereq DAG: explain_score's forward
             # cascade collapses to ~nothing and would mark them ineligible.
-            # explain_goal recomputes the breakdown on the inverted prereq
-            # graph and pulls the headline score from _rank_goals, so the
+            # explain_goal builds the breakdown from the work left beneath
+            # the Goal and pulls the headline score from _rank_goals, so the
             # modal matches the Goals-sidebar ranking exactly.
             from goal_ranking import explain_goal
             result = explain_goal(node_name, all_nodes,
@@ -1740,9 +1740,10 @@ def register_details_callbacks(app, services=None):
                     normalized = round((breakdown['score'] / top) * 100)
         title = node_name if breakdown else "Node not found"
 
-        # Where this node's total value sits among comparable ones. Goals are
-        # ranked against Goals because their value is computed on the inverted
-        # prerequisite graph and is not comparable to an ordinary node's.
+        # Where this node's value, before cost, sits among comparable ones.
+        # Goals are ranked against Goals. A Goal's total sums the work left
+        # beneath it, so it would only rank Goals by size; the average worth
+        # of a task is the comparable figure.
         subtitle = ""
         tv = breakdown['composition']['total_value'] if breakdown else None
         if tv is not None:
@@ -1753,8 +1754,10 @@ def register_details_callbacks(app, services=None):
                     goals, all_nodes, graph_manager.get_edges(),
                     priority_goals, hypers, with_components=True,
                 )
-                peers = [c.get('tv') for _, c in ranked_goals]
-                subtitle = format_value_rank(tv, peers, "goals")
+                peers = [c['tv'] / c['n_tasks'] for _, c in ranked_goals if c['n_tasks']]
+                n_tasks = breakdown['cost']['n_tasks']
+                subtitle = (format_value_rank(tv / n_tasks, peers, "goals")
+                            if n_tasks else "")
             else:
                 peer_nodes = graph_manager.calculate_priority_scores(
                     all_nodes, priority_goals=priority_goals,
@@ -1850,9 +1853,9 @@ def register_details_callbacks(app, services=None):
         is_goal_fc = node_fc is not None and node_fc.type == 'Goal'
         edges_fc = graph_manager.get_edges()
         if is_goal_fc:
-            # A Goal's contributors are its hard prerequisites, found on the
-            # inverted Hard-only graph (see explain_goal). The routes must be
-            # traced on that same graph or they won't match the chart.
+            # A Goal's contributors are the tasks in its hard subtree, and
+            # explain_goal measures their depth on the inverted Hard-only
+            # graph. The routes are traced on that same graph.
             edges_fc = [
                 {'source': e['target'], 'target': e['source'], 'type': e['type']}
                 for e in edges_fc if e['type'] == EDGE_NEEDS_HARD

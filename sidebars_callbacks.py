@@ -61,9 +61,9 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
     score_map = {}
     if sort_mode == "priority":
         # Goals are sinks, so the forward priority_score collapses to
-        # ~nothing. _rank_goals ranks them by ROI on the inverted prereq
-        # graph — subtree value per unit of remaining time, boosted by
-        # priority rank and context weight. Every Goal is ranked, not just
+        # ~nothing. _rank_goals ranks them by the average worth of the work
+        # left in their hard subtree, boosted by priority rank and context
+        # weight. Every Goal is ranked, not just
         # the ones the search leaves, so the corner numbers keep the same
         # base as the Explain modal and the Details suggestions.
         from goal_ranking import _rank_goals, normalize_goal_scores

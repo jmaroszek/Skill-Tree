@@ -1833,9 +1833,10 @@ def _explain_summary_table(breakdown: dict, normalized):
     rather than the parameter values behind them. Value sources with no share
     are left out, as is the Adjustments section when nothing adjusts the score.
 
-    Goal breakdowns (`is_goal`, produced by analyze_callbacks.explain_goal)
-    are scored on the inverted Hard graph: the cascade share is the value of
-    the Goal's prerequisites, and cost is the hard prerequisite work left.
+    Goal breakdowns (`is_goal`, produced by goal_ranking.explain_goal) are
+    scored by the average worth of the work left beneath the Goal. Their
+    value splits into the tasks' own ratings and the credit the tasks earn
+    for this Goal and for other Goals, and their cost is that work.
     """
     comp = breakdown['composition']
     cost_info = breakdown['cost']
@@ -1887,7 +1888,13 @@ def _explain_summary_table(breakdown: dict, normalized):
                       f"Interest {_format_rating(intrinsic['interest'])}")
     else:
         own_detail = None
-    row("Own ratings", share(comp['iv']), own_detail)
+    if is_goal:
+        row("Ratings of the work left", share(comp['iv']))
+        row("Credit for this goal", share(comp.get('goal_credit', 0.0)), own_detail)
+        if comp.get('other_goal_credit', 0.0) > 1e-9:
+            row("Credit for other goals", share(comp['other_goal_credit']))
+    else:
+        row("Own ratings", share(comp['iv']), own_detail)
     for label, amount in (
         ("Prerequisites" if is_goal else "Unlocks", comp['hard_cascade']),
         ("Prepares you for", comp['soft_cascade']),
@@ -1909,7 +1916,9 @@ def _explain_summary_table(breakdown: dict, normalized):
         return ConfigManager.format_time_friendly(hours) if hours > 0 else "None"
 
     if is_goal:
-        row("Hard prerequisite work left", duration(cost_info.get('remaining_time', 0.0)))
+        count = cost_info.get('n_tasks', 0)
+        row("Work left", duration(cost_info.get('remaining_time', 0.0)),
+            f"{count} task{'' if count == 1 else 's'}")
     else:
         row("Time", "None of its own" if cost_info['time_overridden']
             else duration(cost_info['time']))
@@ -1981,7 +1990,8 @@ def _contributor_hover(row: dict) -> str:
         through = {'Hard': "hard prerequisite", 'Soft': "soft prerequisite",
                    'Synergy': "synergy partner"}.get(via, "relationship")
         lines.append(f"{steps} step{'' if steps == 1 else 's'} away via {through}")
-        if row.get('iv', 0.0) > 1e-9:
+        # A Goal's work counts in full, so there is no share to report.
+        if row.get('iv', 0.0) > 1e-9 and not row.get('goal_work'):
             # Route discounts and the required-work discount, combined.
             passed_on = 100.0 * row.get('contribution', 0.0) / row['iv']
             lines.append(f"Passes on {_format_share(passed_on)} of its value")
@@ -2054,8 +2064,9 @@ def format_value_rank(total_value, peer_values, noun="projects"):
     nothing on its own. The rank carries everything useful about it.
 
     `peer_values` is every comparable node's total value and must include this
-    node's own. Goals are ranked against Goals: their value is computed on the
-    inverted prerequisite graph and runs an order of magnitude larger, so mixing
+    node's own. Goals are ranked against Goals: their figure is the average
+    worth of the work left beneath them, which is not an ordinary node's
+    total value, so mixing
     them with ordinary nodes would rank every Goal near the top.
 
     Returns '' when there is nothing to compare against, so the caller can drop

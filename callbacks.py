@@ -1053,9 +1053,8 @@ def register_callbacks(app, services=None):
     )
 
     # --- Hide Effort slider on Goals; show caption instead ---
-    # Effort on a Goal is decorative — _rank_goals omits it, total_value
-    # doesn't cascade it, and w_t * time^beta dwarfs w_e * difficulty on
-    # the Goal's own priority score. The caption tells the user why the
+    # Effort on a Goal is decorative — _rank_goals counts only the effort
+    # of the tasks beneath it, and total_value doesn't cascade it. The caption tells the user why the
     # input is absent so the UI stops asking for a value the system ignores.
     app.clientside_callback(
         """

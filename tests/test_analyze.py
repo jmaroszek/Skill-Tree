@@ -339,12 +339,11 @@ class TestComputeGoalComparison:
         assert comps["GoalRich"]["score"] > comps["GoalSparse"]["score"]
 
     def test_rank_goals_treats_milestones_as_transparent_checkpoints(self, mgr):
-        """Milestones pass through upstream work without adding own ROI. Here M
-        is constructed with manual time + high ratings + 100h, but the model
-        forces every Milestone to a pure container (both modes inherited), so
-        its value AND its 100h drop out of the Goal's ROI entirely — no
-        in-memory transform in the ranker required. Nor is M a step: Work
-        reaches G at one hop's discount, as if M weren't there."""
+        """Milestones hold no work. Here M is constructed with manual time +
+        high ratings + 100h, but the model forces every Milestone to a pure
+        container (both modes inherited), so its value AND its 100h drop out
+        of the Goal's score entirely. Work behind it still earns G's credit
+        at one hop's discount, as if M weren't there."""
         _setup_graph(mgr, [
             _make_node("G", type="Goal", time_mode='inherited',
                        value=1, interest=1),
@@ -372,10 +371,11 @@ class TestComputeGoalComparison:
 
         g = hp.get('value_exponent', 1.0)
         expected_tv = (
-            hp['w_v'] * 1 ** g + hp['w_i'] * 1 ** g
-            + hp['d_H'] * (hp['w_v'] * 10 ** g + hp['w_i'] * 10 ** g)
+            hp['w_v'] * 10 ** g + hp['w_i'] * 10 ** g
+            + hp['d_H'] * (hp['w_v'] * 1 ** g + hp['w_i'] * 1 ** g)
         )
         assert comps["G"]["tv"] == pytest.approx(expected_tv)
+        assert comps["G"]["n_tasks"] == 1
         assert comps["G"]["remaining_time"] == pytest.approx(work.time)
 
     def test_explain_goal_matches_rank_goals(self, mgr):
@@ -405,11 +405,13 @@ class TestComputeGoalComparison:
         assert bd['is_goal'] is True
         assert bd['eligible'] is True
         assert bd['score'] == round(ranked["G"]["score"], 2)
-        # Prereq subtree value flows into the cascade rows; G alone (no
-        # prereqs) would have a zero cascade.
-        cascade = (bd['composition']['hard_cascade']
-                   + bd['composition']['soft_cascade'])
-        assert cascade > 0
+        # Only the Hard prerequisite is work toward G. Its worth splits into
+        # its own ratings and the credit it earns for G.
+        comp = bd['composition']
+        assert [r['name'] for r in bd['contributors']] == ["P1"]
+        assert comp['iv'] > 0 and comp['goal_credit'] > 0
+        assert comp['iv'] + comp['goal_credit'] + comp['other_goal_credit'] == \
+            pytest.approx(comp['total_value'])
         # Sole ranked goal -> normalized to the top (100).
         assert normalized == 100
 
@@ -561,6 +563,7 @@ class TestGoalDensityNormalization:
     def test_density_changes_final_ranking(self, mgr):
         """Two Goals with equal intrinsic worth — one alone in its bucket, one
         with three siblings — should rank the lone Goal higher."""
+        names = ["Solo"] + [f"Crowd{i}" for i in range(4)]
         _setup_graph(mgr, [
             _make_node("Solo", type="Goal", time_mode='inherited',
                        value=5, interest=5,
@@ -570,10 +573,11 @@ class TestGoalDensityNormalization:
                        value=5, interest=5,
                        context="STEM", subcontext="Math")
             for i in range(4)
-        ])
+        ] + [_make_node(f"Task{name}") for name in names],
+            [(f"Task{name}", name, EDGE_NEEDS_HARD) for name in names])
         comps = self._rank_with(mgr)
-        # Raw ROI is identical (same value/interest, same inherited cost
-        # structure). Density is the tiebreaker.
+        # Raw scores are identical (same ratings, same work). Density is the
+        # tiebreaker.
         assert comps["Solo"]["raw"] == pytest.approx(comps["Crowd0"]["raw"])
         assert comps["Solo"]["score"] > comps["Crowd0"]["score"]
 

@@ -14,7 +14,7 @@ The five node types in Skill Tree are not just cosmetic labels. Each answers a d
 | **Action** | What do I want to do? | I've done the action | Actually doing the practice | Scored for priority. Competes with Learn and Resource Nodes directly. |
 | **Resource** | What do I want to consume? | I have absorbed the material, and feel confident that I won't promptly forget it | Reading, watching, studying, reflecting | Scored for priority. Competes with Learn and Action Nodes directly. |
 | **Milestone** | What objective and measurable benchmark do I want to hit? | I hit the target | Time spent on child nodes | Excluded from scoring. Passes value through at no cost in both ranking algorithms |
-| **Goal** | What domain, area, or capacity am I developing? | All Hard children are Done | Time spent working on child nodes | Sink node; ranked in the Goals Sidebar and Analyze Tab using the inverted cascade. |
+| **Goal** | What domain, area, or capacity am I developing? | All Hard children are Done | Time spent working on child nodes | Sink node; ranked in the Goals Sidebar and Analyze Tab by the average worth of the work left beneath it. |
 
 The five types are conceptually distinct, but first-time modelers often hit boundary cases where two seem to overlap. Getting these boundaries right keeps your graph faithful to your intuition and legible to the recommendation engine.
 

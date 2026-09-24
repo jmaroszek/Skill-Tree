@@ -22,7 +22,6 @@ from config import (
 )
 from models import Node
 from scoring import (
-    GOAL_TIME_REF_HOURS,
     TIME_REF_HOURS,
     intrinsic_value,
     perceived_cost,
@@ -64,8 +63,7 @@ class TestTimeCostTerm:
         assert flat < steep
 
     def test_accepts_an_alternate_reference(self):
-        assert time_cost_term(GOAL_TIME_REF_HOURS, 7.0, 0.7,
-                              ref=GOAL_TIME_REF_HOURS) == pytest.approx(7.0)
+        assert time_cost_term(1300.0, 7.0, 0.7, ref=1300.0) == pytest.approx(7.0)
 
 
 # ============================================================================

@@ -1103,16 +1103,21 @@ class TestExplainSummary:
         assert "Context weight Mind +100%" in text
         assert "Together +200%" in text
 
-    def test_goal_breakdown_shows_prerequisites_and_work_left(self):
+    def test_goal_breakdown_shows_goal_credit_and_work_left(self):
         bd = _minimal_breakdown(
             is_goal=True,
-            cost={'goal': True, 'remaining_time': 6.0, 'cost': 2.0,
-                  'time_overridden': False},
+            cost={'goal': True, 'remaining_time': 6.0, 'n_tasks': 2,
+                  'cost': 2.0, 'time_overridden': False},
+            composition={'iv': 6.0, 'goal_credit': 3.0, 'other_goal_credit': 1.0,
+                         'hard_cascade': 0.0, 'soft_cascade': 0.0,
+                         'synergy': 0.0, 'total_value': 10.0},
             goal_boost={'multiplier': 1.5, 'goal': 'X', 'rank': 2},
         )
         text = _render_text(build_explain_summary(bd, normalized=40))
-        assert "Prerequisites 16%" in text
-        assert "Hard prerequisite work left 2.1d" in text
+        assert "Ratings of the work left 60%" in text
+        assert "Credit for this goal Value 5 · Interest 5 30%" in text
+        assert "Credit for other goals 10%" in text
+        assert "Work left 2 tasks 2.1d" in text
         assert "Effort" not in text
         assert "Priority goal X (#2) +50%" in text
 

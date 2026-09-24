@@ -43,7 +43,7 @@ $t_{\text{ref}}$ is deliberately hardcoded rather than measured from the graph. 
 
 *The exponent $`\beta`$ bends the time penalty sublinearly. A lower $`\beta`$ bends harder. Every curve meets at the reference.*
 
-The Goal ranker in the Analyze tab uses the same formula, with the same $w_t$ and $\beta$. Its cost is a Goal's entire remaining hard-prerequisite subtree rather than one node's estimate. Subtrees run about $33\times$ larger than single nodes. So the Goal ranker normalizes against its own reference of 1300 hours. Without a separate reference the same knob would mean two different things in the two places.
+The Goal ranker prices a Goal's work with this same cost, one task at a time. See [Goal Scoring](#goal-scoring).
 
 ## The DAG Cascade
 
@@ -60,7 +60,7 @@ Milestones are the exception: passing through one costs nothing. A Milestone tra
 
 Goals are credited through their whole hard subtree. A Goal's rating pays out as its work gets done, so every task toward it counts as progress. Each task in a Goal's hard subtree counts as a direct prerequisite of it, however deep it sits. It earns the Goal at one hop's discount, $d_H$. A sub-Goal is a step, though. A parent Goal's rating mostly restates what its sub-Goals are worth, so a task under a sub-Goal earns the parent one hop further on: $d_H$ for the sub-Goal, $d_H^2$ for its parent, and so on. Nesting Goals deeper therefore adds less each level instead of a full share, so how you organize your Goals matters less. A route that enters the subtree from outside keeps the discounts it paid on the way in. So soft prep for a task in the subtree earns the Goal at $d_S \cdot d_H$. A Soft edge straight into a Goal earns it at $d_S$. The remaining-work discount below still applies, so a Goal with more work left pays less.
 
-Done nodes are left out of the cascade. A finished node's value is already banked, so it earns nothing for the work that led to it. Routes don't pass through a Done node either. Whatever lies past it no longer waits on anything upstream of it. The sums above therefore run over unfinished beneficiaries only. The Goal ranker is the one exception, covered in [The Edge Inversion Trick](#the-edge-inversion-trick).
+Done nodes are left out of the cascade. A finished node's value is already banked, so it earns nothing for the work that led to it. Routes don't pass through a Done node either. Whatever lies past it no longer waits on anything upstream of it. The sums above therefore run over unfinished beneficiaries only. The Goal ranker likewise counts only the work left.
 
 ## Remaining Required Work
 
@@ -268,51 +268,39 @@ A's cost is 1 + 1.5 * 5 + 6 * (40/40)^0.6 = 14.5. Its own value contributes 50. 
 
 # Goal Scoring
 
-Goals describe capacities built from prerequisite work. They use a separate ranking of their required subtree, rather than competing with actionable tasks.
+Goals describe capacities built from prerequisite work. They get their own ranking rather than competing with tasks. A Goal ranks by the average worth of the work left beneath it.
 
-## The Edge Inversion Trick
+The Goals sidebar helps you choose which Goals to make priorities. Priorities then decide what matters right now. So the ranking itself reports how good a Goal's remaining work is, by your own ratings. It doesn't favor big Goals or small ones.
 
-Reverse Hard edges only to rank the required work feeding a Goal. Exclude Soft and Helps edges. The reversed cascade uses strongest-path contributions without the task-level future-work discount.
+## The Work Beneath a Goal
 
-```mermaid
-flowchart LR
-    subgraph G["Original graph"]
-        direction LR
-        s1["Squat"] --> g1["Strength (Goal)"]
-        s2["Deadlift"] --> g1
-        s3["Overhead Press"] --> g1
-    end
-    subgraph Gp["Inverted graph"]
-        direction LR
-        g2["Strength (Goal)"] --> t1["Squat"]
-        g2 --> t2["Deadlift"]
-        g2 --> t3["Overhead Press"]
-    end
-```
+A Goal's work is every unfinished task in its hard subtree. That is every node with a chain of Hard edges leading into the Goal. Soft prep and Helps partners aren't part of it. Finished work isn't either.
 
-Goal value uses strongest routes on **reversed Hard edges only**. Soft and Helps relationships enter neither its numerator nor its denominator.
+A task is a node with hours of its own. Sub-Goals, Milestones and containers that inherit their time hold no work of their own. Their work is the tasks beneath them.
 
-$$ \text{TV}'(g)=\text{IV}(g)+\sum_{d\in A_H(g)}W_H'(g,d)\,\text{IV}(d) $$
+Every task counts alike, however deep it sits. A task five steps below a Goal is as much progress toward it as one directly beneath it.
 
-Completed prerequisite value remains part of the capacity's value; only remaining work enters cost. This is the one place the cascade keeps Done nodes. It is also the one place prerequisites stay per-step: here the Goal is the start of the cascade, not a beneficiary, so the whole-subtree rule for Goals doesn't apply. The task-level future-work discount is disabled because Goals already charge aggregate remaining hard work. Explain uses this same scope and the Goal ranker's cost.
+## What a Task Is Worth
 
-## Cost For Goals
+A task is worth its own ratings plus the credit it earns for the Goals it serves. That credit follows the same rule as the [cascade](#the-dag-cascade). A task earns $d_H$ of its nearest Goal's rating, and one more $d_H$ for each parent Goal above that. Let $\gamma(n)$ be the Goals above task $n$ and $k(n,g)$ the number of Goal levels from $n$ up to $g$, counting its nearest Goal as 1. Then:
 
-Raw $\text{TV}'(g)$ is extensive. It grows with subtree size, so on its own it would rank Goals by how big they are. The cost denominator turns it into a priority signal. Let $A_H(g)$ be the Hard-only prereq closure and define
+$$ w(n) = \text{IV}(n) + \sum_{g \in \gamma(n)} d_H^{\,k(n,g)}\,\text{IV}(g) $$
 
-$$ R(g) = \{n \in A_H(g) : \text{status}(n) \ne \text{Done}\} $$
-
-as the **remaining** hard subtree (work still owed before the Goal is Done). The cost is the beta-compressed sum of that remaining time:
-
-$$ \text{Cost}'(g) = 1 + w_t \cdot \left(\frac{\sum_{n \in R(g)} t(n)}{1300}\right)^\beta $$
-
-The primary cost includes a difficulty term for the node's own effort. Goal cost drops it. A Goal isn't itself a unit of work, so rating its difficulty directly means little. Its real cost is the work still owed across its prereq subtree. The summed remaining time captures that, and beta compression keeps a large subtree from dominating on size alone.
+A task is worth the same whichever Goal counts it. What it unlocks isn't added, because that work is counted in its own right. Credit pays out as the work gets done, so the future-work discount doesn't apply.
 
 ## Goal Score
 
-A Goal's priority retains rank, context weight, and its own density correction. Suggestion variety does not change Goal ranking.
+Let $R(g)$ be the unfinished tasks in Goal $g$'s hard subtree. Its base score is their total worth over their total cost:
 
-$$ P_g(g) = \underbrace{\frac{\text{TV}'(g)}{\text{Cost}'(g)}}_{\text{Base Score}} \cdot \underbrace{\rho(g)}_{\text{Goal Priority}} \cdot \underbrace{w_c(\text{ctx}(g))}_{\text{Context Weight}} \cdot \underbrace{\delta_g(g)}_{\text{Goal Density}} $$
+$$ P_g(g) = \underbrace{\frac{\sum_{n \in R(g)} w(n)}{\sum_{n \in R(g)} \text{Cost}(n)}}_{\text{Base Score}} \cdot \underbrace{\rho(g)}_{\text{Goal Priority}} \cdot \underbrace{w_c(\text{ctx}(g))}_{\text{Context Weight}} \cdot \underbrace{\delta_g(g)}_{\text{Goal Density}} $$
+
+$\text{Cost}(n)$ is each task's ordinary [perceived cost](#perceived-cost). A Goal with no work left scores 0.
+
+The base score is an average, so size is handled by an explicit rule. A Goal's size counts neither for nor against it. Adding more work of the same quality leaves its score unchanged. How the work is drawn doesn't matter either. A chain of tasks scores the same as the same tasks linked straight to the Goal.
+
+A Goal's own rating enters through the credit each of its tasks earns. A Goal you rate highly lifts all of its work. A sub-Goal is a step on the way up. A parent Goal's rating mostly restates what its sub-Goals are worth, so it counts one $d_H$ less.
+
+A Goal's priority keeps the rank boost, context weight and its own density correction. Suggestion variety does not change Goal ranking.
 
 Goal density is bucketed by Goal headcount alone. Let $B_g(g) = (\text{ctx}(g), \text{subctx}(g))$ be the Goal's bucket. Let $|B_g(g)|$ be the count of **open** Goals sharing that bucket. Done Goals are excluded, since they aren't competing for sidebar attention. Then:
 
@@ -320,18 +308,26 @@ $$ \delta_g(g) = \frac{1}{\max(1,\, |B_g(g)|)^{\alpha_g}} $$
 
 Goal density has its own exponent, alpha_goal: Sage 0.20, Explorer 0.50, Compounder 0, Pragmatist 0.05, Creator 0.20, and Glider 0.35. These settings are unchanged by v3 and v4. Zero disables the correction.
 
-Why count only Goals? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized twice: once for its own subtree size (already inflating $`\text{Cost}'(g)`$), and again for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
+Why count only Goals? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
 
 > [!NOTE] Note
 > The Goals sidebar, the Analyze tab's Completion chart and the Details suggestions all rank Goals by the priority ranking explained here. Wherever a Goal shows a 0-100 priority, 100 is the top score among unfinished Goals. A Goal is unfinished until it is Done or every hard prerequisite beneath it is. Searches and filters never move that base.
+
+## Why an Average
+
+Two other rules were measured on a real graph in September 2026 and set aside.
+
+Summing a Goal's work ranks Goals by size. Worth grows with every task, while cost grows more slowly, so the largest Goals win. The earlier ranker kept this in check by discounting each task by its steps from the Goal. That made the score depend on how the Goal was drawn. A highly rated Goal whose work sat in a chain of stages ranked 58th of 60, and 2nd once the same tasks were linked straight to it.
+
+Scoring a Goal by the next work it would pull up fails because Goals share their best tasks. Six Goals opened with the same two tasks, so the sidebar would have repeated the Home tab. That question belongs to priorities: the boost lifts a Goal's best next work.
 
 ## Milestone Transparency
 
 A Milestone marks an achievement, not the effort to reach it. "10 strict pull-ups" is a line you cross, not a thing you practice. The practice lives in the capacity nodes that lead up to it.
 
-This creates a problem for Goal ranking. A Milestone often sits mid-tree, between a Goal and the real work beneath it. If it carried its own value and time ratings, those numbers would enter the Goal's ROI as though the checkpoint were itself a body of work.
+This creates a problem for Goal ranking. A Milestone often sits mid-tree, between a Goal and the real work beneath it. If it carried its own value and time ratings, those numbers would enter the Goal's score as though the checkpoint were itself a body of work.
 
-So the app treats every Milestone as transparent. Its own value and time are set to zero, so it contributes nothing of its own to the score. It isn't a step either. Value passes through it with no discount, so the work on either side of a Milestone is as close as if the Milestone weren't there. This holds in both rankings, for ordinary nodes and for Goals. The work beneath it still counts toward cost.
+So the app treats every Milestone as transparent. Its own value and time are set to zero, so it contributes nothing of its own to the score. It isn't a step either. Value passes through it with no discount, so the work on either side of a Milestone is as close as if the Milestone weren't there. In the Goal ranking, the tasks beneath a Milestone count like any others.
 
 # Containers Are Not Recommended
 
@@ -450,6 +446,8 @@ The full edge set is $E = E_H \cup E_S \cup E_Y$. An edge $A \to B$ means $A$ is
 | $w_c$ | Context weight | [Context Weight](#context-weight) |
 | `a`, `b` | Repetition exponents | [Suggestion Variety](#suggestion-variety) |
 | $P(n)$ | Final score | [Final Score](#final-score) |
+| $w(n)$ | A task's worth to the Goal ranker | [What a Task Is Worth](#what-a-task-is-worth) |
+| $P_g(g)$ | Goal score | [Goal Score](#goal-score) |
 
 Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{\text{Syn,mul}}$, $m_{\text{cross}}$, $w_e$, $w_t$, $\beta$, $b$, $\alpha_g$, and suggestion premiums) are listed in [Profile Hyperparameters](#profile-hyperparameters).
 

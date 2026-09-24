@@ -332,8 +332,8 @@ _MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
     """Compute goal stats and pairwise overlap using in-memory adjacency.
 
-    Ranks goals via _rank_goals (prereq-subtree value per unit of remaining
-    time, boosted by priority rank and context weight), then caps to the top
+    Ranks goals via _rank_goals (average worth of the work left in the hard
+    subtree, boosted by priority rank and context weight), then caps to the top
     N to keep visualizations readable. Progress is computed over hard
     prerequisites only (those gate completion); pairwise overlap is computed
     over hard + soft prerequisites (the full body of prep work shared between
@@ -386,7 +386,7 @@ def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
         })
         # Hard + soft subtree drives shared-prerequisite overlap.
         prereq_subtrees[g.name] = _walk_back(g.name, prereq_rev)
-    # goal_rows stays in _rank_goals ROI order (highest priority first) — both
+    # goal_rows stays in _rank_goals order (highest priority first) — both
     # the completion chart and the overlap heatmap render in that order.
 
     # Pairwise overlap (only among top goals) — uses combined hard + soft prereqs

@@ -72,29 +72,26 @@ def intrinsic_value(node: Node, w_v: float, w_i: float,
     return (w_v * (node.value ** value_exponent)) + (w_i * (node.interest ** value_exponent))
 
 
-# Reference scales for the time term. `t` is divided by one of these before
+# Reference scale for the time term. `t` is divided by it before
 # the beta exponent is applied, so beta is a pure *curvature* knob and w_t is
 # the only *magnitude* knob. Under the older `w_t * t**beta` form the two were
 # entangled: lowering beta silently shrank the whole time term (5.7x between
 # beta 0.85 and 0.45 at the median node), which handed the denominator to
 # difficulty instead of rebalancing toward value. See docs/scoring.md.
 #
-# Both MUST stay hardcoded constants. Deriving them from the live graph would
+# It MUST stay a hardcoded constant. Deriving it from the live graph would
 # make every node's cost depend on the whole graph, so long tasks would get
 # quietly cheaper as work is completed, and the scoring cache keyed on
 # _SCORING_RELEVANT_FIELDS would no longer be sound.
-TIME_REF_HOURS = 40.0        # a typical substantial Learn node
-GOAL_TIME_REF_HOURS = 1300.0  # median remaining hours in a Goal's hard subtree
+TIME_REF_HOURS = 40.0  # a typical substantial Learn node
 
 
 def time_cost_term(t: float, w_t: float, beta: float,
                    ref: float = TIME_REF_HOURS) -> float:
     """The time contribution to a cost denominator: `w_t * (t / ref)**beta`.
 
-    Shared by `perceived_cost` (leaf nodes, ref = TIME_REF_HOURS) and the Goal
-    ranker in analyze_callbacks (whole subtrees, ref = GOAL_TIME_REF_HOURS).
-    The two operate at ~33x different argument scales, so they need different
-    references for `w_t` to mean the same thing in both places.
+    Used by `perceived_cost`, which also prices the tasks the Goal ranker
+    averages over.
     """
     if t <= 0:
         return 0.0

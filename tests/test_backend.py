@@ -14,7 +14,7 @@ from context_rules import compute_orphaned_subcontext_pairs
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
 from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, time_cost_term,
-                     TIME_REF_HOURS, GOAL_TIME_REF_HOURS)
+                     TIME_REF_HOURS)
 
 
 # --- Fixtures ---

@@ -30,10 +30,7 @@ import database
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager, BADGE_PALETTE
-from scoring import (
-    build_adjacency as _scoring_build_adjacency, total_value, explain_score,
-    time_cost_term, GOAL_TIME_REF_HOURS,
-)
+from scoring import build_adjacency as _scoring_build_adjacency
 import style_tokens as tokens
 
 graph_manager = GraphManager()
