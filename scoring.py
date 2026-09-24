@@ -206,6 +206,102 @@ def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset(),
     return routes
 
 
+def _goals_above(H_out, all_nodes, memo, skip):
+    """For each node, the nearest Goals it leads to along Hard edges alone.
+
+    A walk stops at the first Goal on each path, so a task under a sub-Goal
+    lists the sub-Goal, not the Goals above it. Routes also stop at skipped
+    nodes, as they do in _strongest_routes. Returns (nearest, order): the map,
+    and every Goal in an order where a sub-Goal comes before its parents.
+    """
+    key = ('goals_above', skip)
+    if key in memo:
+        return memo[key]
+    above: Dict[str, frozenset] = {}
+    order: List[str] = []
+
+    def visit(name):
+        if name in above:
+            return above[name]
+        above[name] = frozenset()  # cycle guard; the Hard graph is a DAG
+        found = set()
+        for target in H_out.get(name, []):
+            if target in skip or target not in all_nodes:
+                continue
+            if all_nodes[target].type == 'Goal':
+                found.add(target)
+            else:
+                found |= visit(target)
+        above[name] = frozenset(found)
+        return above[name]
+
+    def place(goal, placed):
+        # Parents after children: a Goal is placed once every sub-Goal is.
+        if goal in placed:
+            return
+        placed.add(goal)
+        for parent in visit(goal):
+            place(parent, placed)
+        order.append(goal)
+
+    for name in all_nodes:
+        visit(name)
+    placed: set = set()
+    for name in all_nodes:
+        if all_nodes[name].type == 'Goal':
+            place(name, placed)
+    memo[key] = (above, order[::-1])
+    return memo[key]
+
+
+def _credited_routes(start, all_nodes, H_out, S_out, d_H, d_S, memo,
+                     skip=frozenset(), flat_goals=True):
+    """The routes scoring credits: strongest routes, with Milestones free and,
+    under `flat_goals`, every Goal credited through its whole hard subtree.
+
+    A Goal's rating pays out as its work gets done, so every task in its hard
+    subtree counts as a direct prerequisite of it, however deep the task sits.
+    A route that reaches the subtree from outside, say through a Soft edge,
+    keeps the discounts it paid on the way in: its weight is the route to the
+    first subtree member it reaches, times d_H.
+
+    A sub-Goal is a step, though. A parent Goal's rating mostly restates what
+    its sub-Goals are worth, so a task under a sub-Goal earns the parent one
+    d_H further on: d_H for the sub-Goal, d_H**2 for its parent, and so on.
+    Nesting Goals deeper therefore adds less each level instead of a full
+    share. Entries keep the step of the ordinary strongest route to the Goal,
+    so Focus draws a real path.
+    """
+    free = _milestone_names(all_nodes, memo)
+    routes = _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip, free)
+    if not flat_goals:
+        return routes
+    key = ('credited', start, d_H, d_S, skip)
+    if key in memo:
+        return memo[key]
+    nearest, goal_order = _goals_above(H_out, all_nodes, memo, skip)
+    credited = dict(routes)
+
+    def offer(goal, weight, depth, via):
+        old = credited[goal]
+        candidate = (weight * d_H, depth + 1, via, old[3])
+        if _better_route(candidate, old):
+            credited[goal] = candidate
+
+    for member, (weight, depth, via, _) in routes.items():
+        if all_nodes[member].type == 'Goal' and member != start:
+            continue  # Goals pass credit upward below, once their own is final
+        for goal in nearest.get(member, ()):
+            offer(goal, weight, depth, 'Hard' if member == start else via)
+    for goal in goal_order:
+        if goal in credited and goal != start:
+            weight, depth, via, _ = credited[goal]
+            for parent in nearest.get(goal, ()):
+                offer(parent, weight, depth, via)
+    memo[key] = credited
+    return credited
+
+
 def _remaining_hours(target, source, all_nodes, H_out, memo):
     """Unique unfinished hard closure, including target, excluding today's work."""
     if target == source:
@@ -237,20 +333,22 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
                          d_H, d_S, d_Syn_pair, cross_context_mult=1.0,
                          value_exponent=1.0, memo=None,
                          future_work_half_credit_hours=0.0,
-                         future_work_exponent=0.6, skip_done=True):
+                         future_work_exponent=0.6, skip_done=True,
+                         flat_goals=True):
     """Shared scoring/Explain attribution. Synergy is a separate additive channel.
 
     With `skip_done`, Done nodes earn `start` nothing. A Done beneficiary's
     value is already banked, and a Done Helps partner is rewarded by the
-    completion multiplier instead of the pair bonus. The Goal ranker turns
-    this off, because it counts finished prerequisites as part of a Goal's
-    value. Milestones are free hops everywhere (see _strongest_routes).
+    completion multiplier instead of the pair bonus. With `flat_goals`, a Goal
+    credits every task in its hard subtree alike (see _credited_routes). The
+    Goal ranker turns both off: it counts finished prerequisites as part of a
+    Goal's value, and it walks the inverted graph, where Goals are the start.
+    Milestones are free hops everywhere (see _strongest_routes).
     """
     memo = {} if memo is None else memo
     if start not in all_nodes:
         return []
     skip = _done_names(all_nodes, memo) if skip_done else frozenset()
-    free = _milestone_names(all_nodes, memo)
     channels = [(start, 1.0, False)]
     context = all_nodes[start].context
     for partner in sorted(Syn.get(start, set()) - {start}):
@@ -262,8 +360,8 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
             channels.append((partner, d_Syn_pair * cross, True))
     rows = {}
     for seed, coefficient, synergy in channels:
-        for name, (route_weight, depth, via, _) in _strongest_routes(
-                seed, H_out, S_out, d_H, d_S, memo, skip, free).items():
+        for name, (route_weight, depth, via, _) in _credited_routes(
+                seed, all_nodes, H_out, S_out, d_H, d_S, memo, skip, flat_goals).items():
             if name not in all_nodes:
                 continue
             weight = coefficient * route_weight
@@ -302,19 +400,19 @@ def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
                 w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None,
                 cross_context_mult=1.0, value_exponent=1.0,
                 future_work_half_credit_hours=0.0, future_work_exponent=0.6,
-                skip_done=True):
+                skip_done=True, flat_goals=True):
     """Strongest-path value, completion-work discount, and distinct synergy bonuses.
 
     Direct callers may disable the future-work discount with a zero half-credit
     scale. Profiles supply a positive scale; Goal ranking explicitly disables it,
-    and also turns off `skip_done` (see _value_contributions).
+    and also turns off `skip_done` and `flat_goals` (see _value_contributions).
     """
     if node_name in visited or node_name not in all_nodes:
         return 0.0
     partners = {node_name: Syn.get(node_name, set()) - visited}
     rows = _value_contributions(node_name, all_nodes, H_out, S_out, partners,
         w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent, memo,
-        future_work_half_credit_hours, future_work_exponent, skip_done)
+        future_work_half_credit_hours, future_work_exponent, skip_done, flat_goals)
     done = sum(all_nodes[z].status == STATUS_DONE for z in partners[node_name]
                if z != node_name and z in all_nodes)
     kick = intrinsic_value(all_nodes[node_name], w_v, w_i, value_exponent) * d_Syn_mul * math.sqrt(done)
@@ -796,6 +894,7 @@ def explain_score(
     priority_goals: Optional[List[str]] = None,
     variety: Optional[dict] = None,
     skip_done: bool = True,
+    flat_goals: bool = True,
 ) -> Optional[Dict]:
     """Decomposes a node's priority score into its constituent parts.
 
@@ -815,8 +914,8 @@ def explain_score(
     ranked list to hand, and reproducing it here would mean scoring the graph
     a second time and risking a number that disagrees with the ranking.
 
-    `skip_done` must match the ranking being explained: True for ordinary
-    nodes, False for a Goal (see _value_contributions).
+    `skip_done` and `flat_goals` must match the ranking being explained:
+    True for ordinary nodes, False for a Goal (see _value_contributions).
 
     Returns None if the node is not in `all_nodes`.
     """
@@ -853,7 +952,7 @@ def explain_score(
         w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent,
         future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
         future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
-        skip_done=skip_done)
+        skip_done=skip_done, flat_goals=flat_goals)
 
     # Synergy multiplier on intrinsic: kicks in when partners are Done.
     # This is a node-level scalar, not a per-contributor weight, so it
@@ -1011,6 +1110,7 @@ def focus_route_data(
     edges: List[Dict],
     hyperparams: dict,
     skip_done: bool = True,
+    flat_goals: bool = True,
 ) -> Dict:
     """Canvas highlighting for Explain's Focus: up to `k` distinct value routes.
 
@@ -1029,9 +1129,9 @@ def focus_route_data(
       * any other starts a new route, until `k` routes exist.
 
     `contributors` is explain_score's list (or its dcc.Store copy), sorted by
-    contribution. `edges`, `hyperparams` and `skip_done` must be the ones that
-    list came from; for a Goal that means the inverted Hard edges and
-    `skip_done=False`.
+    contribution. `edges`, `hyperparams`, `skip_done` and `flat_goals` must be
+    the ones that list came from; for a Goal that means the inverted Hard edges
+    and both flags False.
 
     Returns a dict with:
       - 'subtree':       every node on a route, plus `source`, sorted
@@ -1051,7 +1151,6 @@ def focus_route_data(
     H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
     memo: dict = {}
     skip = _done_names(all_nodes_dict, memo) if skip_done else frozenset()
-    free = _milestone_names(all_nodes_dict, memo)
     hop_type = {'Hard': EDGE_NEEDS_HARD, 'Soft': EDGE_NEEDS_SOFT}
 
     # A Helps edge is stored one way round, and the canvas matches that one.
@@ -1083,14 +1182,16 @@ def focus_route_data(
         if row.get('via') == 'Synergy':
             best = None
             for partner, coefficient in partners.items():
-                routes = _strongest_routes(partner, H_out, S_out, d_H, d_S, memo, skip, free)
+                routes = _credited_routes(partner, all_nodes_dict, H_out, S_out, d_H, d_S,
+                                          memo, skip, flat_goals)
                 if name in routes and (best is None or coefficient * routes[name][0] > best[0]):
                     best = (coefficient * routes[name][0], partner, routes)
             if best is None:
                 return None
             _, partner, routes = best
             return [(partner, helps_edge[frozenset((source, partner))])] + route_steps(routes, name)
-        routes = _strongest_routes(source, H_out, S_out, d_H, d_S, memo, skip, free)
+        routes = _credited_routes(source, all_nodes_dict, H_out, S_out, d_H, d_S,
+                                  memo, skip, flat_goals)
         return route_steps(routes, name) if name in routes else None
 
     node_rank: Dict[str, int] = {source: 1}

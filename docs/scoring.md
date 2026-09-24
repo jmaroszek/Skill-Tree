@@ -58,6 +58,8 @@ Discounts retain their per-hop meaning. Strongest does not always mean shortest.
 
 Milestones are the exception: passing through one costs nothing. A Milestone tracks progress and holds no work, so it isn't a step between the work before it and the work after it. See [Milestone Transparency](#milestone-transparency). A container is different. It groups a stage of real work, so passing through one still costs a hop.
 
+Goals are credited through their whole hard subtree. A Goal's rating pays out as its work gets done, so every task toward it counts as progress. Each task in a Goal's hard subtree counts as a direct prerequisite of it, however deep it sits. It earns the Goal at one hop's discount, $d_H$. A sub-Goal is a step, though. A parent Goal's rating mostly restates what its sub-Goals are worth, so a task under a sub-Goal earns the parent one hop further on: $d_H$ for the sub-Goal, $d_H^2$ for its parent, and so on. Nesting Goals deeper therefore adds less each level instead of a full share, so how you organize your Goals matters less. A route that enters the subtree from outside keeps the discounts it paid on the way in. So soft prep for a task in the subtree earns the Goal at $d_S \cdot d_H$. A Soft edge straight into a Goal earns it at $d_S$. The remaining-work discount below still applies, so a Goal with more work left pays less.
+
 Done nodes are left out of the cascade. A finished node's value is already banked, so it earns nothing for the work that led to it. Routes don't pass through a Done node either. Whatever lies past it no longer waits on anything upstream of it. The sums above therefore run over unfinished beneficiaries only. The Goal ranker is the one exception, covered in [The Edge Inversion Trick](#the-edge-inversion-trick).
 
 ## Remaining Required Work
@@ -292,7 +294,7 @@ Goal value uses strongest routes on **reversed Hard edges only**. Soft and Helps
 
 $$ \text{TV}'(g)=\text{IV}(g)+\sum_{d\in A_H(g)}W_H'(g,d)\,\text{IV}(d) $$
 
-Completed prerequisite value remains part of the capacity's value; only remaining work enters cost. This is the one place the cascade keeps Done nodes. The task-level future-work discount is disabled because Goals already charge aggregate remaining hard work. Explain uses this same scope and the Goal ranker's cost.
+Completed prerequisite value remains part of the capacity's value; only remaining work enters cost. This is the one place the cascade keeps Done nodes. It is also the one place prerequisites stay per-step: here the Goal is the start of the cascade, not a beneficiary, so the whole-subtree rule for Goals doesn't apply. The task-level future-work discount is disabled because Goals already charge aggregate remaining hard work. Explain uses this same scope and the Goal ranker's cost.
 
 ## Cost For Goals
 
