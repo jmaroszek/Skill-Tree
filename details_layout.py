@@ -1243,16 +1243,22 @@ def _build_add_node_modal(ted):
                 dcc.Store(id='details-add-website-store', data=['']),
 
                 html.Div([
-                    dbc.Label("Obsidian", className="mb-0"),
-                    add_button("btn-details-add-obsidian-add", "Add Obsidian link"),
-                ], className="d-flex align-items-center mt-2 mb-1"),
-                html.Div(id='details-add-obsidian-container'),
+                    html.Div([
+                        dbc.Label("Obsidian", className="mb-0"),
+                        add_button("btn-details-add-obsidian-add", "Add Obsidian link"),
+                    ], className="d-flex align-items-center mt-2 mb-1"),
+                    html.Div(id='details-add-obsidian-container'),
+                ], id='details-add-obsidian-resources',
+                   style={} if ConfigManager.get_obsidian_enabled() else {"display": "none"}),
 
                 html.Div([
-                    dbc.Label("Google Drive", className="mb-0"),
-                    add_button("btn-details-add-drive-add", "Add Google Drive link"),
-                ], className="d-flex align-items-center mt-3 mb-1"),
-                html.Div(id='details-add-drive-container'),
+                    html.Div([
+                        dbc.Label("Google Drive", className="mb-0"),
+                        add_button("btn-details-add-drive-add", "Add Google Drive link"),
+                    ], className="d-flex align-items-center mt-3 mb-1"),
+                    html.Div(id='details-add-drive-container'),
+                ], id='details-add-drive-resources',
+                   style={} if ConfigManager.get_gdrive_enabled() else {"display": "none"}),
 
                 html.Div([
                     dbc.Label("Website", className="mb-0"),

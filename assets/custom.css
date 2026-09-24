@@ -204,3 +204,8 @@ body.now-dragging,
 body.now-dragging * {
     cursor: grabbing !important;
 }
+/* Settings keeps optional resource inputs mounted so edits cannot erase links. */
+body:has(#editor-obsidian-resources[style*="display: none"]) .resource-dot-obsidian,
+body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
+    display: none;
+}

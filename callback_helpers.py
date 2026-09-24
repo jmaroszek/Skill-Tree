@@ -1516,8 +1516,12 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         })
 
         dots = html.Span([
-            _suggestion_dot(bool(getattr(s, 'obsidian_path', None)), "Obsidian", tokens.TEXT_PRIMARY),
-            _suggestion_dot(bool(getattr(s, 'google_drive_path', None)), "Drive", tokens.TEXT_PRIMARY),
+            html.Span(_suggestion_dot(bool(getattr(s, 'obsidian_path', None)),
+                                      "Obsidian", tokens.TEXT_PRIMARY),
+                      className="resource-dot-obsidian"),
+            html.Span(_suggestion_dot(bool(getattr(s, 'google_drive_path', None)),
+                                      "Drive", tokens.TEXT_PRIMARY),
+                      className="resource-dot-drive"),
             _suggestion_dot(bool(getattr(s, 'website', None)), "Website", tokens.TEXT_PRIMARY),
         ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
 

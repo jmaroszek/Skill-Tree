@@ -627,6 +627,12 @@ The selected `value` list holds the chosen options directly, so selection
 state needs no extra callback. Compare these lists as sets in dirty-checks
 (`is_form_dirty_vs_snapshot`) since the order is not significant.
 
+Optional resource integrations live in Settings → Integrations. The node editor
+and Add Node modal keep their resource inputs mounted and hide their sections
+when disabled, so saving a node never clears links the user cannot see. Website
+stays visible. Google Drive inputs accept both URLs and local paths, with the
+mounted root path optional.
+
 ### Row editor (Settings ▸ Contexts)
 
 When the user edits a list of named things that other data refers to by name,

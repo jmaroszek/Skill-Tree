@@ -375,7 +375,7 @@ def seeded():
 def _save(fns, rows, state=None):
     state = state or {"rows": rows}
     return fns["save_settings"](
-        1, "", "", [], [], [], [],
+        1, "", "", [], [], [], [], [], [],
         40, 160, "hours", 1, 2, 4, "Sage", "title", "",
         [], "definition", "definition", [], 5,
         state, *_live(rows),
@@ -427,7 +427,7 @@ class TestSave:
         """
         fns = _callbacks()
         status, pending, *_ = fns["save_settings"](
-            1, "", "", [], [], [], [],
+            1, "", "", [], [], [], [], [], [],
             40, 160, "hours", 1, 2, 4, "Sage", "title", "",
             [], "definition", "definition", [], 5,
             None, None, None, None, None, None, None,

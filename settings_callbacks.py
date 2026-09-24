@@ -432,6 +432,8 @@ def register_settings_callbacks(app, services=None):
         Output('setting-hp-profile', 'value'),
         Output('setting-obsidian-path', 'value'),
         Output('setting-gdrive-path', 'value'),
+        Output('setting-obsidian-enabled', 'value'),
+        Output('setting-gdrive-enabled', 'value'),
         Output('setting-node-shapes-container', 'children'),
         Output('setting-node-status-colors-container', 'children'),
         Output('setting-node-type-colors-container', 'children'),
@@ -455,7 +457,7 @@ def register_settings_callbacks(app, services=None):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 22
+            return (dash.no_update,) * 24
 
         editor_state = _editor_state(manager)
         obs_path = ConfigManager.get_obsidian_vault()
@@ -499,6 +501,8 @@ def register_settings_callbacks(app, services=None):
             profile,
             obs_path,
             gdrive_path,
+            ["enabled"] if ConfigManager.get_obsidian_enabled() else [],
+            ["enabled"] if ConfigManager.get_gdrive_enabled() else [],
             shape_rows,
             status_color_rows,
             type_color_rows,
@@ -549,6 +553,8 @@ def register_settings_callbacks(app, services=None):
         Input('btn-settings-save', 'n_clicks'),
         State('setting-obsidian-path', 'value'),
         State('setting-gdrive-path', 'value'),
+        State('setting-obsidian-enabled', 'value'),
+        State('setting-gdrive-enabled', 'value'),
         State({"type": "setting-shape", "index": ALL}, "value"),
         State({"type": "setting-shape", "index": ALL}, "id"),
         State({"type": "setting-color", "index": ALL}, "value"),
@@ -570,6 +576,7 @@ def register_settings_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, obs_path, gdrive_path,
+                      obsidian_enabled_val, gdrive_enabled_val,
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
@@ -583,6 +590,14 @@ def register_settings_callbacks(app, services=None):
             return (dash.no_update,) * 5
 
         try:
+            obs_path = (obs_path or "").strip()
+            gdrive_path = (gdrive_path or "").strip()
+            obsidian_enabled = "enabled" in (obsidian_enabled_val or [])
+            gdrive_enabled = "enabled" in (gdrive_enabled_val or [])
+            if obsidian_enabled and not obs_path:
+                return (html.Span("Set an Obsidian vault path before enabling it.",
+                                  className="text-danger"),
+                        dash.no_update, False, 0, dash.no_update)
             # Perf-toggle is independent of any migrated setting — persist
             # it immediately so the user's choice survives regardless of
             # whether a type/context migration is pending.
@@ -704,7 +719,9 @@ def register_settings_callbacks(app, services=None):
                     'ts': new_ts,
                     'ted': new_ted,
                     'obs_path': obs_path,
-                    'gdrive_path': gdrive_path or "",
+                    'gdrive_path': gdrive_path,
+                    'obsidian_enabled': obsidian_enabled,
+                    'gdrive_enabled': gdrive_enabled,
                     'contexts': new_contexts,
                     'subcontexts': new_subcontexts,
                     'context_weights': new_ctx_weights,
@@ -732,7 +749,9 @@ def register_settings_callbacks(app, services=None):
             ConfigManager.set_time_settings(new_ts)
             ConfigManager.set_time_estimate_defaults(new_ted)
             ConfigManager.set_obsidian_vault(obs_path)
-            ConfigManager.set_gdrive_path(gdrive_path or "")
+            ConfigManager.set_gdrive_path(gdrive_path)
+            ConfigManager.set_obsidian_enabled(obsidian_enabled)
+            ConfigManager.set_gdrive_enabled(gdrive_enabled)
             if new_contexts:
                 ConfigManager.set_contexts(new_contexts)
             ConfigManager.set_subcontexts(new_subcontexts)
@@ -764,6 +783,23 @@ def register_settings_callbacks(app, services=None):
         except Exception:
             logger.exception("Failed to save settings")
             return "Error saving settings.", dash.no_update, False, 0, dash.no_update
+
+    # Keep both node-creation surfaces in sync after Settings is saved. Their
+    # inputs stay mounted while hidden so editing a node never drops its links.
+    @app.callback(
+        Output('editor-obsidian-resources', 'style'),
+        Output('editor-drive-resources', 'style'),
+        Output('details-add-obsidian-resources', 'style'),
+        Output('details-add-drive-resources', 'style'),
+        Input('settings-save-status', 'children'),
+        Input('modal-migration', 'is_open'),
+        Input('settings-modal', 'is_open'),
+        prevent_initial_call=True,
+    )
+    def refresh_resource_visibility(_save_status, _migration_open, _settings_open):
+        obsidian_style = {} if ConfigManager.get_obsidian_enabled() else {'display': 'none'}
+        drive_style = {} if ConfigManager.get_gdrive_enabled() else {'display': 'none'}
+        return obsidian_style, drive_style, obsidian_style, drive_style
 
     # --- Migration Modal ---
     @app.callback(
@@ -835,6 +871,8 @@ def register_settings_callbacks(app, services=None):
                     ConfigManager.set_time_estimate_defaults(pending_state['ted'])
                 ConfigManager.set_obsidian_vault(pending_state['obs_path'])
                 ConfigManager.set_gdrive_path(pending_state.get('gdrive_path', ''))
+                ConfigManager.set_obsidian_enabled(pending_state.get('obsidian_enabled', False))
+                ConfigManager.set_gdrive_enabled(pending_state.get('gdrive_enabled', False))
                 new_contexts = pending_state.get('contexts', [])
                 if new_contexts:
                     ConfigManager.set_contexts(new_contexts)

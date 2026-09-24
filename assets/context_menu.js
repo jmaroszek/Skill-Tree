@@ -123,10 +123,14 @@
             var hasWebsite = _getFirstLink(nodeData.website);
             websiteItem.style.display = hasWebsite ? '' : 'none';
 
-            var hasObsidian = _getFirstLink(nodeData.obsidian_path);
+            var obsidianSection = document.getElementById('editor-obsidian-resources');
+            var hasObsidian = obsidianSection && obsidianSection.style.display !== 'none'
+                && _getFirstLink(nodeData.obsidian_path);
             obsidianItem.style.display = hasObsidian ? '' : 'none';
 
-            var hasDrive = _getFirstLink(nodeData.google_drive_path);
+            var driveSection = document.getElementById('editor-drive-resources');
+            var hasDrive = driveSection && driveSection.style.display !== 'none'
+                && _getFirstLink(nodeData.google_drive_path);
             driveItem.style.display = hasDrive ? '' : 'none';
 
             // Collapse the upper divider when neither link is present, so the

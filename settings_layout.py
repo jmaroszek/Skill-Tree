@@ -360,15 +360,28 @@ def _build_misc_tab():
     ])
 
 
-def _build_paths_tab():
-    return dbc.Tab(label="Paths", tab_id="tab-paths", children=[
+def _build_integrations_tab():
+    return dbc.Tab(label="Integrations", tab_id="tab-integrations", children=[
         html.Div([
             html.Div([
-                dbc.Label("Obsidian Vault Root Path", className="mt-2"),
+                html.H5("Obsidian", className="mt-2 mb-1"),
+                dbc.Checklist(id="setting-obsidian-enabled", switch=True,
+                              options=[{"label": "Show Obsidian resources", "value": "enabled"}],
+                              value=[], className="mb-1"),
+                dbc.Label("Vault path", html_for="setting-obsidian-path"),
                 dbc.Input(id="setting-obsidian-path", type="text", className="mb-2"),
-
-                dbc.Label("Google Drive Root Path"),
-                dbc.Input(id="setting-gdrive-path", type="text"),
+                html.Small("A vault path is needed to open Obsidian notes.",
+                           className="text-muted d-block mb-2"),
+                html.Hr(className="my-2"),
+                html.H5("Google Drive", className="mt-2 mb-1"),
+                dbc.Checklist(id="setting-gdrive-enabled", switch=True,
+                              options=[{"label": "Show Google Drive resources", "value": "enabled"}],
+                              value=[], className="mb-1"),
+                dbc.Label("Mounted Drive root path (optional)", html_for="setting-gdrive-path"),
+                dbc.Input(id="setting-gdrive-path", type="text", className="mb-2"),
+                html.Small("Google Drive resources accept a URL or a local path. "
+                           "A root path helps browse mounted files and resolve relative paths.",
+                           className="text-muted d-block"),
             ], style={"width": "100%", "maxWidth": "640px"}),
         ], className="p-2")
     ])
@@ -396,7 +409,7 @@ def build_settings_modal():
                 _build_contexts_tab(),
                 _build_scoring_tab(),
                 _build_time_tab(),
-                _build_paths_tab(),
+                _build_integrations_tab(),
                 _build_misc_tab(),
             ]),
         ),

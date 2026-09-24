@@ -216,7 +216,7 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 def _utc_now_ts() -> int:
@@ -336,6 +336,36 @@ def _migrate(cursor, from_version: int) -> None:
         cursor.execute("DROP INDEX IF EXISTS idx_event_nodes_node")
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_event_nodes_node "
                        "ON EventNodes(node_name)")
+
+    # --- v9: existing resource links remain available after integrations
+    # become opt-in. A fresh database has no links or paths, so both start off.
+    if from_version < 9:
+        for setting_key, path_key, node_column in (
+            ("OBSIDIAN_ENABLED", "OBSIDIAN_VAULT", "obsidian_path"),
+            ("GDRIVE_ENABLED", "GDRIVE_ROOT_PATH", "google_drive_path"),
+        ):
+            path_row = cursor.execute(
+                "SELECT value FROM Settings WHERE key = ?", (path_key,)
+            ).fetchone()
+            has_path = bool(path_row and path_row[0].strip())
+            has_links = cursor.execute(
+                f"SELECT 1 FROM Nodes WHERE {node_column} IS NOT NULL "
+                f"AND TRIM({node_column}) NOT IN ('', '[]', 'null') LIMIT 1"
+            ).fetchone() is not None
+            cursor.execute(
+                "INSERT OR IGNORE INTO Settings (key, value) VALUES (?, ?)",
+                (setting_key, "1" if has_path or has_links else "0"),
+            )
+            if setting_key == "OBSIDIAN_ENABLED" and has_links and not has_path:
+                # Older builds used ~/Documents/Obsidian without saving it.
+                # Preserve that behavior for an existing vault on this host.
+                from pathlib import Path
+                legacy_vault = Path.home() / "Documents" / "Obsidian"
+                if legacy_vault.is_dir():
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO Settings (key, value) VALUES (?, ?)",
+                        (path_key, str(legacy_vault)),
+                    )
 
 
 def init_db():

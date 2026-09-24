@@ -172,24 +172,27 @@ def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():
         assert technical_phrase not in copy
 
 
-def test_path_fields_are_responsive_but_visually_bounded():
+def test_integrations_are_opt_in_and_path_fields_are_bounded():
     modal = build_settings_modal()
-    paths_tab = next(
+    integrations_tab = next(
         component for component in _walk(modal)
-        if getattr(component, "tab_id", None) == "tab-paths"
+        if getattr(component, "tab_id", None) == "tab-integrations"
     )
     containers = [
-        component for component in _walk(paths_tab)
+        component for component in _walk(integrations_tab)
         if getattr(component, "style", None) == {
             "width": "100%", "maxWidth": "640px"
         }
     ]
 
     assert len(containers) == 1
-    assert "Paths" not in _text(paths_tab)
     assert {
-        "setting-obsidian-path", "setting-gdrive-path"
+        "setting-obsidian-path", "setting-gdrive-path",
+        "setting-obsidian-enabled", "setting-gdrive-enabled",
     }.issubset(_by_id(containers[0]))
+    assert _by_id(integrations_tab)["setting-obsidian-enabled"].value == []
+    assert _by_id(integrations_tab)["setting-gdrive-enabled"].value == []
+    assert "URL or a local path" in _text(integrations_tab)
 
 
 def test_type_and_status_colors_show_their_hex():
