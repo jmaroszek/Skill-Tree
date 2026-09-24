@@ -185,6 +185,40 @@ assert.equal(resizeCalls(), 0, 'the stale visible-width job was cancelled');
 ''')
 
 
+def test_switching_subtabs_gates_the_revealed_pane():
+    _run_contract(r'''
+openTab();
+flushFrame();
+await new Promise(resolve => setImmediate(resolve));
+flushFrame();
+assert.equal(pane.classList.contains('analyze-is-sizing'), false);
+
+const subpane = {classList: {contains: value => value === 'analyze-subpane'}};
+notifyPane({type: 'attributes', target: subpane});
+assert.equal(pane.classList.contains('analyze-is-sizing'), true,
+    'a subtab pane shown inside the open tab is gated before paint');
+
+flushFrame();
+await new Promise(resolve => setImmediate(resolve));
+flushFrame();
+assert.equal(resizeCalls(), 2, 'its charts were resized against the open pane');
+assert.equal(pane.classList.contains('analyze-is-sizing'), false);
+''')
+
+
+def test_style_changes_inside_charts_do_not_regate():
+    _run_contract(r'''
+openTab();
+flushFrame();
+await new Promise(resolve => setImmediate(resolve));
+flushFrame();
+
+notifyPane({type: 'attributes', target: {classList: {contains: () => false}}});
+assert.equal(pane.classList.contains('analyze-is-sizing'), false,
+    'Plotly restyling its own elements is not a reveal');
+''')
+
+
 def test_css_hides_only_graph_drawings_while_they_are_sized():
     css = (Path(__file__).resolve().parents[1] / "assets" / "theme.css").read_text()
     rule = "#analyze-tab-content.analyze-is-sizing .dash-graph"

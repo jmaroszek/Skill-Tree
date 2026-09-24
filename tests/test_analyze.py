@@ -4,6 +4,7 @@ Tests for the Analyze tab compute functions.
 Uses a temporary database for isolation — does not touch the production skilltree.db.
 """
 
+from datetime import date
 from typing import Any
 import pytest
 import database
@@ -12,9 +13,10 @@ from graph_manager import GraphManager
 from config import ConfigManager
 from analyze_callbacks import (
     _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
-    _compute_ratings, _compute_goal_comparison, _compute_context_coverage,
+    _compute_hub_score, _compute_goal_comparison, _compute_context_coverage,
     _compute_throughput, _compute_reflection_drift,
 )
+from graph_analytics import _compute_plan_vs_actual
 
 
 def _throughput_node_names(rows):
@@ -124,75 +126,85 @@ class TestComputeOverview:
 # ============================================================================
 
 class TestComputeBottlenecks:
-    def test_cascade_ordering(self, mgr):
-        """Node A → B → C: A has cascade 2, B has cascade 1."""
-        nodes = [
-            _make_node("A", status="Open"),
-            _make_node("B", status="Open"),
-            _make_node("C", status="Open"),
-        ]
-        edges = [
-            {'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD},
-            {'source': 'B', 'target': 'C', 'type': EDGE_NEEDS_HARD},
-        ]
-        hard_fwd, _, _, _, _ = _build_adjacency(edges)
-        limits = {'bottlenecks': 25}
-        result = _compute_bottlenecks(nodes, hard_fwd, limits)
+    @staticmethod
+    def _edges(*pairs):
+        return [{'source': s, 'target': t, 'type': EDGE_NEEDS_HARD} for s, t in pairs]
 
-        assert result[0]['name'] == 'A'
-        assert result[0]['cascade'] == 2
-        assert result[1]['name'] == 'B'
-        assert result[1]['cascade'] == 1
+    def test_ranks_by_hours_of_work_gated(self):
+        """A → B → C: A gates B and C, B gates only C."""
+        nodes = [_make_node(n, status="Open") for n in "ABC"]
+        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B"), ("B", "C")))
+        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+
+        assert [r['names'] for r in result] == [['A'], ['B']]
+        assert result[0]['count'] == 2
+        assert result[0]['hours'] == pytest.approx(nodes[1].time + nodes[2].time)
+
+    def test_blocked_nodes_are_left_out(self):
+        """B's gated work already sits inside A's row."""
+        nodes = [_make_node("A", status="Open"), _make_node("B", status="Blocked"),
+                 _make_node("C", status="Blocked")]
+        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B"), ("B", "C")))
+        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        assert [r['names'] for r in result] == [['A']]
+
+    def test_goals_and_milestones_are_walked_through_not_counted(self):
+        nodes = [_make_node("A", status="Open"),
+                 _make_node("M", type="Milestone", status="Blocked"),
+                 _make_node("G", type="Goal", status="Blocked"),
+                 _make_node("B", status="Blocked")]
+        hard_fwd, *_ = _build_adjacency(self._edges(("A", "M"), ("M", "G"), ("G", "B")))
+        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        assert [(r['names'], r['count']) for r in result] == [(['A'], 1)]
+
+    def test_nodes_gating_the_same_work_share_a_row(self):
+        nodes = [_make_node("B", status="Open"), _make_node("A", status="Open"),
+                 _make_node("C", status="Blocked")]
+        hard_fwd, *_ = _build_adjacency(self._edges(("A", "C"), ("B", "C")))
+        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        assert [r['names'] for r in result] == [['A', 'B']]
 
     def test_done_nodes_excluded(self):
         nodes = [
             _make_node("A", status="Done"),
             _make_node("B", status="Open"),
         ]
-        edges = [{'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD}]
-        hard_fwd, _, _, _, _ = _build_adjacency(edges)
-        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B")))
         # A is Done, so it shouldn't appear; B has no outgoing
-        assert len(result) == 0
+        assert _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25}) == []
 
     def test_respects_limit(self):
         nodes = [_make_node(f"N{i}", status="Open") for i in range(10)]
-        edges = [{'source': f'N{i}', 'target': f'N{i+1}', 'type': EDGE_NEEDS_HARD} for i in range(9)]
-        hard_fwd, _, _, _, _ = _build_adjacency(edges)
+        hard_fwd, *_ = _build_adjacency(
+            self._edges(*[(f"N{i}", f"N{i+1}") for i in range(9)]))
         result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 3})
         assert len(result) == 3
 
 
 # ============================================================================
-# _compute_ratings
+# _compute_hub_score
 # ============================================================================
 
-class TestComputeRatings:
-    def test_averages(self):
-        nodes = [
-            _make_node("A", value=8, interest=6, difficulty=4, context="Mind"),
-            _make_node("B", value=4, interest=2, difficulty=8, context="Mind"),
-        ]
-        result = _compute_ratings(nodes)
-        mind = [r for r in result if r['context'] == 'Mind'][0]
-        assert mind['avg_value'] == 6.0
-        assert mind['avg_interest'] == 4.0
-        assert mind['avg_difficulty'] == 6.0
+class TestComputeHubScore:
+    def test_goals_are_not_ranked(self):
+        """A Goal's incoming edges are its members, not concepts feeding it."""
+        nodes = [_make_node("L1"), _make_node("L2"), _make_node("L3"),
+                 _make_node("G", type="Goal"), _make_node("Umbrella", type="Goal")]
+        edges = [{'source': s, 'target': t, 'type': EDGE_NEEDS_HARD}
+                 for s, t in [("L1", "G"), ("L2", "G"), ("G", "Umbrella"),
+                              ("L3", "L1"), ("L1", "L2")]]
+        names = [r['name'] for r in _compute_hub_score(nodes, edges, {'bottlenecks': 25})]
+        assert "G" not in names
+        assert "L1" in names
 
-    def test_no_context_bucket(self):
-        nodes = [_make_node("A", context=None)]
-        result = _compute_ratings(nodes)
-        assert result[0]['context'] == 'No Context'
-
-    def test_completion_rate(self):
-        nodes = [
-            _make_node("A", status="Done", context="Mind"),
-            _make_node("B", status="Open", context="Mind"),
-            _make_node("C", status="Open", context="Mind"),
-        ]
-        result = _compute_ratings(nodes)
-        mind = [r for r in result if r['context'] == 'Mind'][0]
-        assert mind['completion_pct'] == 33  # 1 of 3
+    def test_resource_inputs_do_not_count(self):
+        nodes = [_make_node("R", type="Resource"), _make_node("A", type="Action"),
+                 _make_node("T"), _make_node("Next")]
+        edges = [{'source': s, 'target': t, 'type': EDGE_NEEDS_SOFT}
+                 for s, t in [("R", "T"), ("A", "T"), ("T", "Next")]]
+        row = next(r for r in _compute_hub_score(nodes, edges, {'bottlenecks': 25})
+                   if r['name'] == "T")
+        assert (row['in_count'], row['out_count']) == (1, 1)
 
 
 # ============================================================================
@@ -816,7 +828,7 @@ class TestAnalyzeRefreshGate:
         from dash import no_update
         GraphManager().add_node(_make_node("A"))
         for store in ('analyze-active-store', 'analyze-prewarm-store'):
-            assert refresh(store, 'tab-next', None, value=None) == (no_update,) * 9
+            assert refresh(store, 'tab-next', None, value=None) == (no_update,) * 11
 
     def test_click_after_hover_reuses_the_prewarm_render(self, refresh, monkeypatch):
         import analyze_callbacks
@@ -835,7 +847,7 @@ class TestAnalyzeRefreshGate:
         """A reflection edit changes the charts without moving the signature."""
         import analyze_callbacks
         GraphManager().add_node(_make_node("A"))
-        signature = refresh('analyze-prewarm-store', 'tab-next', None)[8]
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[10]
         calls = []
         real = analyze_callbacks._render_analyze_sections
         monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections',
@@ -846,28 +858,28 @@ class TestAnalyzeRefreshGate:
     def test_prewarm_renders_while_hidden_and_uncovers(self, refresh):
         GraphManager().add_node(_make_node("A"))
         out = refresh('analyze-prewarm-store', 'tab-next', None)
-        assert out[6:8] == (False, True)
-        assert out[8]
+        assert out[8:10] == (False, True)
+        assert out[10]
 
     def test_arrival_skips_a_current_render(self, refresh):
         from dash import no_update
         GraphManager().add_node(_make_node("A"))
-        signature = refresh('analyze-prewarm-store', 'tab-next', None)[8]
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[10]
         assert refresh('analyze-active-store', 'tab-analyze',
-                       signature) == (no_update,) * 9
+                       signature) == (no_update,) * 11
 
     def test_arrival_rerenders_after_a_graph_change(self, refresh):
         from dash import no_update
         GraphManager().add_node(_make_node("A"))
-        signature = refresh('analyze-prewarm-store', 'tab-next', None)[8]
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[10]
         GraphManager().add_node(_make_node("B"))
         out = refresh('analyze-active-store', 'tab-analyze', signature)
         assert out[0] is not no_update
-        assert out[8] != signature
+        assert out[10] != signature
 
     def test_settings_changes_off_tab_do_nothing(self, refresh):
         from dash import no_update
-        assert refresh('save-output', 'tab-next', None) == (no_update,) * 9
+        assert refresh('save-output', 'tab-next', None) == (no_update,) * 11
 
     def test_failed_render_uncovers_and_retries(self, refresh, monkeypatch):
         import analyze_callbacks
@@ -875,8 +887,8 @@ class TestAnalyzeRefreshGate:
             raise RuntimeError("boom")
         monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections', boom)
         out = refresh('analyze-active-store', 'tab-analyze', None)
-        assert out[6:8] == (False, True)
-        assert out[8] is None
+        assert out[8:10] == (False, True)
+        assert out[10] is None
 
 
 class TestHoursByContextColors:
@@ -930,3 +942,36 @@ class TestHoursByContextColors:
             for a, b in zip(colors, colors[1:]):
                 assert a != b, ctx
                 assert not (a == _SLATE and b == _NO_SUBCONTEXT_COLOR), ctx
+
+
+class TestComputePlanVsActual:
+    TODAY = date(2026, 9, 24)
+
+    def test_shares_of_open_and_recently_finished_work(self):
+        nodes = [
+            _make_node("OpenA", context="A", time_o=10, time_m=10, time_p=10),
+            _make_node("OpenB", context="B", time_o=30, time_m=30, time_p=30),
+            _make_node("DoneA", context="A", status="Done", done_date="2026-08-01",
+                       time_o=5, time_m=5, time_p=5),
+        ]
+        rows, total = _compute_plan_vs_actual(nodes, self.TODAY)
+        by = {r['context']: r for r in rows}
+        assert [r['context'] for r in rows] == ['B', 'A']
+        assert by['A']['planned_pct'] == pytest.approx(25)
+        assert by['A']['completed_pct'] == pytest.approx(100)
+        assert by['B']['completed_pct'] == 0
+        assert total == pytest.approx(5)
+
+    def test_completions_outside_the_window_are_ignored(self):
+        nodes = [_make_node("Open", context="A"),
+                 _make_node("Old", context="A", status="Done", done_date="2024-01-01")]
+        _, total = _compute_plan_vs_actual(nodes, self.TODAY)
+        assert total == 0
+
+    def test_captured_actual_time_wins_over_the_estimate(self):
+        nodes = [_make_node("Open", context="A"),
+                 _make_node("Done", context="B", status="Done", done_date="2026-09-01",
+                            actual_time_lower=40, actual_time_point=40,
+                            actual_time_upper=40)]
+        _, total = _compute_plan_vs_actual(nodes, self.TODAY)
+        assert total == pytest.approx(40)

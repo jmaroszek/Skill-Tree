@@ -316,6 +316,13 @@
    selectors targeted react-select, which Dash 4 no longer uses. Dropdown
    styling is now in assets/dropdowns.css. */
 
+/* --- Analyze subtabs: a divider under the bar, like the modal tabs --- */
+
+.analyze-subtabs {
+    background-color: transparent;
+    border-bottom: 1px solid var(--st-border-panel);
+}
+
 /* --- Settings modal tab styling --- */
 
 .modal .nav-tabs {

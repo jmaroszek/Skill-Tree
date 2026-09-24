@@ -421,7 +421,9 @@ signature in `analyze-rendered-store`: the graph version, the context list, and
 the date. An arrival that finds the signature current makes no recompute. Until
 the first render, the sections sit hidden behind a spinner. Its charts are
 responsive graphs with pinned heights, so charts drawn while hidden re-measure
-their width when the tab opens. Details dropdown options are hydrated initially and refreshed
+their width when the tab opens. The three Analyze subtabs render together, and a
+switch only shows and hides their panes. `assets/analyze_first_paint.js` treats
+a pane being shown like the tab opening, and sizes its charts before they paint. Details dropdown options are hydrated initially and refreshed
 from graph/version stores, so opening Details does not resend an unchanged
 node list. Empty-state suggestions likewise ignore node selection once hidden.
 

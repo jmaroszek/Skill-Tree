@@ -2,7 +2,8 @@
 import math
 from collections import defaultdict
 from config import ConfigManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_BLOCKED, STATUS_DONE
+from models import (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN,
+                    STATUS_BLOCKED, STATUS_DONE)
 from goal_ranking import _rank_goals
 
 def _build_adjacency(edges):
@@ -49,48 +50,65 @@ def _compute_overview(nodes, edges):
     }
 
 
-def _compute_bottlenecks(nodes, hard_fwd, limits):
-    """For each non-Done node, compute how many downstream nodes are reachable via hard edges."""
-    non_done = {n.name for n in nodes if n.status != STATUS_DONE}
-    node_map = {n.name: n for n in nodes}
-    results = []
+# Goals are containers and Milestones are checkpoints. Neither is work, so the
+# structure charts walk through them without ranking or counting them.
+_CONTAINER_TYPES = ('Goal', 'Milestone')
+# Node types whose incoming edges count as a hub's inputs. A Resource linked to
+# a topic is reading material for it, not a concept feeding into it.
+_CONCEPT_TYPES = ('Learn', 'Action')
 
-    for name in non_done:
-        if name not in hard_fwd:
+
+def _compute_bottlenecks(nodes, hard_fwd, limits):
+    """Rank Open work nodes by the hours of unfinished work they gate.
+
+    Walks forward through hard edges from each Open node and sums the time of
+    the work it reaches, stepping through Goals and Milestones without counting
+    them. Blocked nodes are left out: the work a Blocked node gates already sits
+    inside the row of an Open node upstream of it. Open nodes that gate exactly
+    the same work share one row, since finishing any of them opens nothing the
+    others don't."""
+    node_map = {n.name: n for n in nodes}
+    non_done = {n.name for n in nodes if n.status != STATUS_DONE}
+    groups = defaultdict(list)
+
+    for n in nodes:
+        if n.status != STATUS_OPEN or n.type in _CONTAINER_TYPES:
             continue
-        # BFS forward through hard edges counting non-Done reachable nodes
-        direct = set(hard_fwd.get(name, []))
-        direct_non_done = direct & non_done
-        # Cascade: full BFS
-        visited = set()
-        queue = list(direct_non_done)
+        reached = set()
+        queue = [t for t in hard_fwd.get(n.name, []) if t in non_done]
         while queue:
             current = queue.pop()
-            if current in visited:
+            if current in reached:
                 continue
-            visited.add(current)
-            for nxt in hard_fwd.get(current, []):
-                if nxt not in visited and nxt in non_done:
-                    queue.append(nxt)
+            reached.add(current)
+            queue.extend(t for t in hard_fwd.get(current, [])
+                         if t in non_done and t not in reached)
+        work = frozenset(r for r in reached
+                         if node_map[r].type not in _CONTAINER_TYPES)
+        if work:
+            groups[work].append(n.name)
 
-        node = node_map[name]
+    results = []
+    for work, names in groups.items():
+        names.sort(key=str.casefold)
         results.append({
-            'name': name,
-            'status': node.status,
-            'type': node.type,
-            'time': node.time,
-            'direct_unlocks': len(direct_non_done),
-            'cascade': len(visited),
+            'names': names,
+            'hours': sum(node_map[w].time for w in work),
+            'count': len(work),
         })
-
-    results.sort(key=lambda r: (r['cascade'], r['direct_unlocks']), reverse=True)
-    return results[:limits.get('bottlenecks', 25)]
+    results.sort(key=lambda r: (-r['hours'], -r['count'], r['names'][0].casefold()))
+    return results[:limits.get('bottlenecks', 10)]
 
 
 def _compute_hub_score(nodes, edges, limits):
-    """For each non-Done node, compute its hub score —
+    """For each unfinished work node, compute its hub score —
     ``sqrt(in_count * out_count) + 0.5 * helps_count`` over Hard + Soft
     prereq edges, with Helps edges counted as symmetric synergy partners.
+
+    Only Learn and Action prerequisites count as inputs, and Goals and
+    Milestones are not ranked. A Goal's incoming edges are its members, so
+    every umbrella Goal used to top the list; a Resource's edge into a topic
+    measures the length of its reading list, not how central the topic is.
 
     The geometric mean punishes asymmetry (a pure root or pure leaf scores
     0 on the first term), so hubs are exactly the nodes with traffic in
@@ -99,33 +117,27 @@ def _compute_hub_score(nodes, edges, limits):
 
     Returns the top N (capped by ``limits['bottlenecks']``, since the
     Graph Structure section's gear controls both charts) sorted by score
-    descending. Each row also carries the score components and the count
-    of distinct contexts among the node's neighbors, for tooltip display."""
+    descending, with the score components for the tooltip."""
     node_map = {n.name: n for n in nodes}
-    non_done = {n.name for n in nodes if n.status != STATUS_DONE}
+    candidates = {n.name for n in nodes
+                  if n.status != STATUS_DONE and n.type not in _CONTAINER_TYPES}
 
     in_ct: dict = defaultdict(int)
     out_ct: dict = defaultdict(int)
     helps_ct: dict = defaultdict(int)
-    neighbor_ctx: dict = defaultdict(set)
 
     for e in edges:
         s, t, etype = e['source'], e['target'], e['type']
         if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
             out_ct[s] += 1
-            in_ct[t] += 1
+            if s in node_map and node_map[s].type in _CONCEPT_TYPES:
+                in_ct[t] += 1
         elif etype == EDGE_HELPS:
             helps_ct[s] += 1
             helps_ct[t] += 1
-        s_ctx = node_map[s].context if s in node_map else None
-        t_ctx = node_map[t].context if t in node_map else None
-        if s_ctx:
-            neighbor_ctx[t].add(s_ctx)
-        if t_ctx:
-            neighbor_ctx[s].add(t_ctx)
 
     results = []
-    for name in non_done:
+    for name in candidates:
         i, o = in_ct[name], out_ct[name]
         h = helps_ct[name]
         score = math.sqrt(i * o) + 0.5 * h
@@ -138,14 +150,12 @@ def _compute_hub_score(nodes, edges, limits):
             'in_count': i,
             'out_count': o,
             'helps_count': h,
-            'distinct_contexts': len(neighbor_ctx[name]),
             'type': n.type,
             'status': n.status,
-            'context': n.context,
         })
 
-    results.sort(key=lambda r: r['score'], reverse=True)
-    return results[:limits.get('bottlenecks', 25)]
+    results.sort(key=lambda r: (-r['score'], r['name'].casefold()))
+    return results[:limits.get('bottlenecks', 10)]
 
 
 def _compute_estimation_accuracy(nodes):
@@ -236,19 +246,9 @@ def _compute_throughput(nodes, granularity='quarter',
     natural extent). Per-node hours use captured actual time when present,
     otherwise the forecast estimate; each segment carries its ``nodes``
     list (``(name, hours)`` tuples, hours-descending) for tooltips."""
-    from models import expected_time_estimate
-
     if granularity not in ('month', 'quarter', 'year'):
         granularity = 'quarter'
-
-    def _hours(n):
-        actual = expected_time_estimate(
-            n.actual_time_lower, n.actual_time_point, n.actual_time_upper)
-        if actual > 0 and (n.actual_time_lower is not None
-                           or n.actual_time_point is not None
-                           or n.actual_time_upper is not None):
-            return actual
-        return n.time
+    _hours = _completed_hours
 
     def _bucket_key(y, m):
         if granularity == 'month':
@@ -323,6 +323,58 @@ def _compute_throughput(nodes, granularity='quarter',
             'total_hours': sum(s['hours'] for s in segments),
         })
     return rows
+
+
+def _completed_hours(n):
+    """Hours a finished node took: its captured actual time when there is
+    one, otherwise its forecast estimate."""
+    from models import expected_time_estimate
+    captured = (n.actual_time_lower, n.actual_time_point, n.actual_time_upper)
+    actual = expected_time_estimate(*captured)
+    if actual > 0 and any(v is not None for v in captured):
+        return actual
+    return n.time
+
+
+PLAN_VS_ACTUAL_DAYS = 365  # completion window for the Plan vs. Actual chart
+
+
+def _compute_plan_vs_actual(nodes, today, days=PLAN_VS_ACTUAL_DAYS):
+    """Each context's share of the open work against its share of the work
+    finished in the last ``days`` days.
+
+    Planned hours are what Hours by Context charts: the estimate of every
+    unfinished node. Completed hours count currently-Done nodes whose
+    ``done_date`` falls in the window, using captured actual time where there
+    is one. Returns ``(rows, completed_total)``. Rows are sorted by planned
+    share, largest first, and carry both shares as percentages plus the hours
+    behind them. Contexts with neither kind of hours are left out."""
+    from datetime import timedelta
+    start = (today - timedelta(days=days)).isoformat()
+    end = today.isoformat()
+    planned, completed = defaultdict(float), defaultdict(float)
+    for n in nodes:
+        ctx = n.context or 'No Context'
+        if n.status != STATUS_DONE:
+            planned[ctx] += n.time
+        elif n.done_date and start <= n.done_date <= end:
+            completed[ctx] += _completed_hours(n)
+
+    plan_total, done_total = sum(planned.values()), sum(completed.values())
+    rows = []
+    for ctx in set(planned) | set(completed):
+        p, c = planned[ctx], completed[ctx]
+        if p <= 0 and c <= 0:
+            continue
+        rows.append({
+            'context': ctx,
+            'planned_hours': p,
+            'completed_hours': c,
+            'planned_pct': 100 * p / plan_total if plan_total else 0.0,
+            'completed_pct': 100 * c / done_total if done_total else 0.0,
+        })
+    rows.sort(key=lambda r: (-r['planned_pct'], r['context'].casefold()))
+    return rows, done_total
 
 
 _MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -408,40 +460,6 @@ def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
     overlap_rows.sort(key=lambda r: r['shared'], reverse=True)
 
     return goal_rows, overlap_rows, total_goal_count
-
-
-def _compute_ratings(nodes):
-    """Compute average value, interest, difficulty per context for non-Done nodes."""
-    all_by_ctx = defaultdict(lambda: {'total': 0, 'done': 0})
-    active = [n for n in nodes if n.status != STATUS_DONE]
-    for n in nodes:
-        ctx = n.context or 'No Context'
-        all_by_ctx[ctx]['total'] += 1
-        if n.status == STATUS_DONE:
-            all_by_ctx[ctx]['done'] += 1
-
-    by_ctx = defaultdict(lambda: {'values': [], 'interests': [], 'difficulties': [], 'count': 0})
-    for n in active:
-        ctx = n.context or 'No Context'
-        by_ctx[ctx]['values'].append(n.value)
-        by_ctx[ctx]['interests'].append(n.interest)
-        by_ctx[ctx]['difficulties'].append(n.difficulty)
-        by_ctx[ctx]['count'] += 1
-
-    results = []
-    for ctx, d in by_ctx.items():
-        c = d['count']
-        totals = all_by_ctx[ctx]
-        completion = round(totals['done'] / totals['total'] * 100) if totals['total'] else 0
-        results.append({
-            'context': ctx, 'count': c,
-            'avg_value': round(sum(d['values']) / c, 1),
-            'avg_interest': round(sum(d['interests']) / c, 1),
-            'avg_difficulty': round(sum(d['difficulties']) / c, 1),
-            'completion_pct': completion,
-        })
-    results.sort(key=lambda r: r['count'], reverse=True)
-    return results
 
 
 def _compute_context_coverage(nodes):
