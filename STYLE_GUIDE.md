@@ -372,7 +372,7 @@ Plotly hover boxes on Analyze use one style, set in the shared layout helper: th
 - Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
 - Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars and modals
-- **Settings sections**: a tab whose sections are long (Appearance) separates them with `html.Hr(className="my-3")`; a tab of short sections uses space alone, with the next `H5` taking `mt-4`
+- **Settings sections**: a tab whose sections are long (Editing) separates them with `html.Hr(className="my-3")`; a tab of short sections uses space alone, with the next `H5` taking `mt-4`
 - **Standalone section dividers**: `html.Hr(className="my-3")` — more spacious, for filter panels and major sections
 - **Context menu dividers**: `_menu_divider()` in `layout.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
 - Never use bare `html.Hr()` — always specify a margin class
@@ -633,7 +633,7 @@ The selected `value` list holds the chosen options directly, so selection
 state needs no extra callback. Compare these lists as sets in dirty-checks
 (`is_form_dirty_vs_snapshot`) since the order is not significant.
 
-Settings → Integrations owns up to five named Resource sections. Every section
+Settings → Resources owns up to five named Resource sections. Every section
 is ordinary: Obsidian, Google Drive and Website are just the three a new graph
 starts with, and any of them can be renamed or removed.
 

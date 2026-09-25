@@ -20,144 +20,8 @@ from ui_kit import Tooltip, info_button, restore_button
 
 
 
-def _build_appearance_tab():
-    return dbc.Tab(label="Appearance", tab_id="tab-appearance", children=[
-        html.Div([
-            # --- Node Appearance group ---
-            html.H5("Node Appearance", className="mt-2 mb-1"),
-            dbc.Row([
-                dbc.Col([
-                    html.Div([
-                        dbc.Label("Shapes", className="mb-0"),
-                        restore_button("btn-restore-shapes"),
-                    ], className="d-flex align-items-center mt-2 mb-1"),
-                    html.Small("Shape for each node type.", className="text-muted d-block mb-2"),
-                    html.Div(id="setting-node-shapes-container"),
-                ], width=4),
-                dbc.Col([
-                    html.Div([
-                        dbc.Label("Type Colors", className="mb-0"),
-                        restore_button("btn-restore-type-colors"),
-                    ], className="d-flex align-items-center mt-2 mb-1"),
-                    html.Small("Open color for each node type.", className="text-muted d-block mb-2"),
-                    html.Div(id="setting-node-type-colors-container"),
-                ], width=3),
-                dbc.Col([
-                    html.Div([
-                        dbc.Label("Status Colors", className="mb-0"),
-                        restore_button("btn-restore-status-colors"),
-                    ], className="d-flex align-items-center mt-2 mb-1"),
-                    html.Small("Color for Done, Blocked, and Now.", className="text-muted d-block mb-2"),
-                    html.Div(id="setting-node-status-colors-container"),
-                ], width=5),
-            ]),
-
-            # --- Name Formatting group ---
-            html.Hr(className="my-3"),
-            html.H5("Name Formatting", className="mt-2 mb-1"),
-            html.Small(
-                "Choose how node names and aliases are capitalized when saved. "
-                "Changing this setting will not affect existing nodes.",
-                className="text-muted d-block mb-2",
-            ),
-            dbc.RadioItems(
-                id="setting-name-format-mode",
-                options=[
-                    {"label": "Keep as entered", "value": NAME_FORMAT_NONE},
-                    {"label": "Title Case", "value": NAME_FORMAT_TITLE},
-                    {"label": "Sentence case", "value": NAME_FORMAT_SENTENCE},
-                ],
-                value=NAME_FORMAT_TITLE,
-                inline=True,
-                className="mb-2",
-            ),
-            dbc.Collapse([
-                dbc.Label("Lowercase exceptions", className="mt-1"),
-                dbc.Textarea(id="setting-linter-exclusions", rows=2,
-                             placeholder="e.g. a, an, the, and, or, of"),
-                html.Small(
-                    "Comma-separated words that stay lowercase unless they begin a name.",
-                    className="text-muted d-block mb-1",
-                ),
-            ], id="setting-titlecase-options", is_open=True),
-
-        ], className="p-2")
-    ])
-
-
-def _build_contexts_tab():
-    return dbc.Tab(label="Contexts", tab_id="tab-contexts", children=[
-        html.Div([
-            # --- Context definitions ---
-            html.H5("Definitions", className="mt-2 mb-1"),
-            html.Small(
-                "Drag to reorder. Priority scales a context's tasks in the "
-                "rankings: 1 is normal, 2 doubles, 0.5 halves.",
-                className="text-muted d-block mb-2"),
-
-            # Column headings. The trailing spacer stands in for each row's
-            # remove button, so "Priority" sits over its input.
-            html.Div([
-                html.Span("Context", className="ctx-head-name"),
-                html.Span("Subcontexts", className="ctx-head-subs"),
-                html.Span("Priority", className="ctx-head-weight"),
-                html.Span(className="ctx-head-btn"),
-            ], className="ctx-head"),
-
-            # The rows are rendered from context-editor-store; the adder is
-            # static because a callback Input must be in the initial layout.
-            html.Div([
-                html.Div(id="setting-context-editor"),
-                dbc.Button([html.I(className="bi bi-plus"), " Add context"],
-                           id="btn-ctx-row-add", className="ctx-row-adder"),
-            ], className="ctx-editor-box"),
-            html.Div(id="ctx-editor-summary", className="mt-1"),
-
-            # Hidden input: assets/context_editor_sortable.js writes the DOM
-            # order here after a drag so Dash can fold it into the store.
-            dcc.Input(id="ctx-editor-drag-input", type="text", value="",
-                      style={"display": "none"}),
-            dcc.Store(id="context-editor-store", data=None),
-
-            # --- Dropdown order ---
-            # No rule here: the outlined row editor already closes the
-            # section above, so space alone separates the two.
-            html.H5("Dropdown Order", className="mt-2 mb-1"),
-            html.Small(
-                "Use the order defined above, or sort alphabetically.",
-                className="text-muted d-block mb-2"),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Contexts"),
-                    dbc.RadioItems(
-                        id="setting-context-sort-mode",
-                        options=[
-                            {"label": "Defined order", "value": CONTEXT_SORT_DEFINITION},
-                            {"label": "Alphabetical", "value": CONTEXT_SORT_ALPHABETICAL},
-                        ],
-                        value=CONTEXT_SORT_DEFINITION,
-                        inline=True,
-                    ),
-                ], width=6),
-                dbc.Col([
-                    dbc.Label("Subcontexts"),
-                    dbc.RadioItems(
-                        id="setting-subcontext-sort-mode",
-                        options=[
-                            {"label": "Defined order", "value": SUBCONTEXT_SORT_DEFINITION},
-                            {"label": "Alphabetical", "value": SUBCONTEXT_SORT_ALPHABETICAL},
-                        ],
-                        value=SUBCONTEXT_SORT_DEFINITION,
-                        inline=True,
-                    ),
-                ], width=6),
-            ]),
-        ], className="p-2")
-    ])
-
-
-def _build_scoring_tab():
-    return dbc.Tab(label="Scoring", tab_id="tab-scoring", children=[
+def _build_recommendations_tab():
+    return dbc.Tab(label="Recommendations", tab_id="tab-recommendations", children=[
         html.Div([
             # --- Scoring Profile section ---
             dbc.Row([
@@ -256,6 +120,18 @@ def _build_scoring_tab():
                 ], width=4),
             ], className="mt-1"),
 
+            # --- Now Cap section ---
+            html.H5("Maximum Now Nodes", className="mt-4 mb-1"),
+            html.Small(
+                "Set the maximum number of active projects you can have at once.",
+                className="text-muted d-block mb-2",
+            ),
+            dbc.Label("Maximum Now Nodes", html_for="setting-now-node-cap",
+                      className="visually-hidden"),
+            dbc.Input(id="setting-now-node-cap", type="number",
+                      min=1, max=50, step=1,
+                      style={"width": "128px"}),
+
             # The Home tab's stats readout: how big the graph is and how long
             # scoring it took. Named for what you get rather than for when it
             # runs -- "Startup Analysis" described the timing and left the
@@ -278,10 +154,42 @@ def _build_scoring_tab():
     ])
 
 
-def _build_time_tab():
-    return dbc.Tab(label="Time", tab_id="tab-time", children=[
+def _build_editing_tab():
+    """What happens when a node is entered or finished."""
+    return dbc.Tab(label="Editing", tab_id="tab-editing", children=[
         html.Div([
-            # --- Time Estimates section (merged with defaults) ---
+            # --- Name Formatting section ---
+            html.H5("Name Formatting", className="mt-2 mb-1"),
+            html.Small(
+                "Choose how node names and aliases are capitalized when saved. "
+                "Changing this setting will not affect existing nodes.",
+                className="text-muted d-block mb-2",
+            ),
+            dbc.RadioItems(
+                id="setting-name-format-mode",
+                options=[
+                    {"label": "Keep as entered", "value": NAME_FORMAT_NONE},
+                    {"label": "Title Case", "value": NAME_FORMAT_TITLE},
+                    {"label": "Sentence case", "value": NAME_FORMAT_SENTENCE},
+                ],
+                value=NAME_FORMAT_TITLE,
+                inline=True,
+                className="mb-2",
+            ),
+            dbc.Collapse([
+                dbc.Label("Lowercase exceptions", className="mt-1"),
+                dbc.Textarea(id="setting-linter-exclusions", rows=2,
+                             placeholder="e.g. a, an, the, and, or, of"),
+                html.Small(
+                    "Comma-separated words that stay lowercase unless they begin a name.",
+                    className="text-muted d-block mb-1",
+                ),
+            ], id="setting-titlecase-options", is_open=True),
+
+            # --- Time Estimates section ---
+            # The hour rates convert durations entered in days, weeks,
+            # months, or years, so they sit with the new-node defaults.
+            html.Hr(className="my-3"),
             html.H5("Time Estimates", className="mt-2 mb-1"),
             dbc.Row([
                 dbc.Col([
@@ -323,27 +231,9 @@ def _build_time_tab():
                 ], width=True),
             ], className="mt-1"),
 
-        ], className="p-2")
-    ])
-
-
-def _build_misc_tab():
-    return dbc.Tab(label="Misc", tab_id="tab-misc", children=[
-        html.Div([
-            # --- Now Cap section ---
-            html.H5("Maximum Now Nodes", className="mt-2 mb-1"),
-            html.Small(
-                "Set the maximum number of active projects you can have at once.",
-                className="text-muted d-block mb-2",
-            ),
-            dbc.Label("Maximum Now Nodes", html_for="setting-now-node-cap",
-                      className="visually-hidden"),
-            dbc.Input(id="setting-now-node-cap", type="number",
-                      min=1, max=50, step=1,
-                      style={"width": "128px"}),
-
             # --- Reflection section ---
-            html.H5("Reflection", className="mt-4 mb-1"),
+            html.Hr(className="my-3"),
+            html.H5("Reflection", className="mt-2 mb-1"),
             html.Small(
                 "When a node is marked Done, prompt for actuals — time, "
                 "value, interest, and effort.",
@@ -360,8 +250,114 @@ def _build_misc_tab():
     ])
 
 
-def _build_integrations_tab():
-    return dbc.Tab(label="Integrations", tab_id="tab-integrations", children=[
+def _build_appearance_tab():
+    return dbc.Tab(label="Appearance", tab_id="tab-appearance", children=[
+        html.Div([
+            # --- Node Appearance group ---
+            html.H5("Node Appearance", className="mt-2 mb-1"),
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        dbc.Label("Shapes", className="mb-0"),
+                        restore_button("btn-restore-shapes"),
+                    ], className="d-flex align-items-center mt-2 mb-1"),
+                    html.Small("Shape for each node type.", className="text-muted d-block mb-2"),
+                    html.Div(id="setting-node-shapes-container"),
+                ], width=4),
+                dbc.Col([
+                    html.Div([
+                        dbc.Label("Type Colors", className="mb-0"),
+                        restore_button("btn-restore-type-colors"),
+                    ], className="d-flex align-items-center mt-2 mb-1"),
+                    html.Small("Open color for each node type.", className="text-muted d-block mb-2"),
+                    html.Div(id="setting-node-type-colors-container"),
+                ], width=3),
+                dbc.Col([
+                    html.Div([
+                        dbc.Label("Status Colors", className="mb-0"),
+                        restore_button("btn-restore-status-colors"),
+                    ], className="d-flex align-items-center mt-2 mb-1"),
+                    html.Small("Color for Done, Blocked, and Now.", className="text-muted d-block mb-2"),
+                    html.Div(id="setting-node-status-colors-container"),
+                ], width=5),
+            ]),
+        ], className="p-2")
+    ])
+
+
+def _build_contexts_tab():
+    return dbc.Tab(label="Contexts", tab_id="tab-contexts", children=[
+        html.Div([
+            # --- Context definitions ---
+            html.H5("Definitions", className="mt-2 mb-1"),
+            html.Small(
+                "Drag to reorder. Priority scales a context's tasks in the "
+                "rankings: 1 is normal, 2 doubles, 0.5 halves.",
+                className="text-muted d-block mb-2"),
+
+            # Column headings. The trailing spacer stands in for each row's
+            # remove button, so "Priority" sits over its input.
+            html.Div([
+                html.Span("Context", className="ctx-head-name"),
+                html.Span("Subcontexts", className="ctx-head-subs"),
+                html.Span("Priority", className="ctx-head-weight"),
+                html.Span(className="ctx-head-btn"),
+            ], className="ctx-head"),
+
+            # The rows are rendered from context-editor-store; the adder is
+            # static because a callback Input must be in the initial layout.
+            html.Div([
+                html.Div(id="setting-context-editor"),
+                dbc.Button([html.I(className="bi bi-plus"), " Add context"],
+                           id="btn-ctx-row-add", className="ctx-row-adder"),
+            ], className="ctx-editor-box"),
+            html.Div(id="ctx-editor-summary", className="mt-1"),
+
+            # Hidden input: assets/context_editor_sortable.js writes the DOM
+            # order here after a drag so Dash can fold it into the store.
+            dcc.Input(id="ctx-editor-drag-input", type="text", value="",
+                      style={"display": "none"}),
+            dcc.Store(id="context-editor-store", data=None),
+
+            # --- Dropdown order ---
+            # No rule here: the outlined row editor already closes the
+            # section above, so space alone separates the two.
+            html.H5("Dropdown Order", className="mt-2 mb-1"),
+            html.Small(
+                "Use the order defined above, or sort alphabetically.",
+                className="text-muted d-block mb-2"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Contexts"),
+                    dbc.RadioItems(
+                        id="setting-context-sort-mode",
+                        options=[
+                            {"label": "Defined order", "value": CONTEXT_SORT_DEFINITION},
+                            {"label": "Alphabetical", "value": CONTEXT_SORT_ALPHABETICAL},
+                        ],
+                        value=CONTEXT_SORT_DEFINITION,
+                        inline=True,
+                    ),
+                ], width=6),
+                dbc.Col([
+                    dbc.Label("Subcontexts"),
+                    dbc.RadioItems(
+                        id="setting-subcontext-sort-mode",
+                        options=[
+                            {"label": "Defined order", "value": SUBCONTEXT_SORT_DEFINITION},
+                            {"label": "Alphabetical", "value": SUBCONTEXT_SORT_ALPHABETICAL},
+                        ],
+                        value=SUBCONTEXT_SORT_DEFINITION,
+                        inline=True,
+                    ),
+                ], width=6),
+            ]),
+        ], className="p-2")
+    ])
+
+
+def _build_resources_tab():
+    return dbc.Tab(label="Resources", tab_id="tab-resources", children=[
         html.Div([
             html.Div([
                 html.Small("Each resource gets its own field in the Node Editor, a labeled dot on Home, and an Open item in the right-click menu.",
@@ -465,13 +461,12 @@ def build_settings_modal():
             save_group,
         ]),
         dbc.ModalBody(
-            dbc.Tabs(id="settings-modal-tabs", active_tab="tab-appearance", children=[
-                _build_appearance_tab(),
+            dbc.Tabs(id="settings-modal-tabs", active_tab="tab-recommendations", children=[
+                _build_recommendations_tab(),
                 _build_contexts_tab(),
-                _build_scoring_tab(),
-                _build_time_tab(),
-                _build_integrations_tab(),
-                _build_misc_tab(),
+                _build_editing_tab(),
+                _build_appearance_tab(),
+                _build_resources_tab(),
             ]),
         ),
     ], id="settings-modal", dialog_style={"maxWidth": "900px"},

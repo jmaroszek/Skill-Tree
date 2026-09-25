@@ -225,7 +225,7 @@ When a book, course, or article is substantial enough that you want to track and
     <em>The Resources section of the node editor.</em>
 </p>
 
-The editor has one field for each kind of resource you keep. A new graph starts with **Obsidian**, **Google Drive** and **Website**. You can rename, remove or add kinds under Settings → Integrations, up to five in all. Every field takes a web URL or a local file.
+The editor has one field for each kind of resource you keep. A new graph starts with **Obsidian**, **Google Drive** and **Website**. You can rename, remove or add kinds under Settings → Resources, up to five in all. Every field takes a web URL or a local file.
 
 A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. A kind can also open its notes in Obsidian instead of your default app. Obsidian's field does this out of the box, with your vault as its root folder.
 
@@ -249,7 +249,7 @@ If you have any nodes marked "Now," a small *Now* section appears above the sugg
 
 Once a node graduates to the Now section, it no longer competes for a slot in the recommendation table, because you have already committed to it. This is also how you overrule the algorithm. There is no separate escape hatch: if you want to work on something the ranking buried, put it in Now.
 
-You can hold five projects in Now at once. The app refuses a sixth and tells you to clear one first. The cap is adjustable under Settings → Misc.
+You can hold five projects in Now at once. The app refuses a sixth and tells you to clear one first. The cap is adjustable under Settings → Recommendations.
 
 ### Working toward something you can't start
 
@@ -913,12 +913,11 @@ The Settings modal collects the personal choices and machine-specific informatio
 
 | Tab | What lives here |
 |---|---|
-| **Appearance** | Customize node shapes and colors by type, set status colors, and choose how node names and aliases are capitalized. |
+| **Recommendations** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles), set the maximum number of Now nodes, and optionally show the startup graph summary on the Home tab. |
 | **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
-| **Scoring** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and optionally show the startup graph summary on the Home tab. |
-| **Time** | Set your weekly, monthly, and yearly productive hour budgets, plus the time estimates and unit pre-filled for new nodes. |
-| **Integrations** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Turn on Open in Obsidian to send its notes to the Obsidian app. Removing a kind that holds links shows how many; they are deleted when you save. |
-| **Misc** | Set the maximum number of Now nodes and choose whether completing a node opens a reflection prompt. |
+| **Editing** | Choose how node names and aliases are capitalized. Set how many productive hours make up a day, week, month, and year, plus the time estimates and unit pre-filled for new nodes. Choose whether completing a node opens a reflection prompt. |
+| **Appearance** | Customize node shapes and colors by type, and set status colors. |
+| **Resources** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Turn on Open in Obsidian to send its notes to the Obsidian app. Removing a kind that holds links shows how many; they are deleted when you save. |
 
 Graph-layout behavior, scoring coefficients, forecast assumptions, and other implementation policy use maintained defaults behind the scenes rather than asking you to tune the model yourself.
 

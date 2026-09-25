@@ -154,7 +154,7 @@ DEFAULT_NODE_COLORS = {
     'Now': '#ffd000',
 }
 
-# Default soft cap on simultaneously-Now nodes, overridable via the Misc
+# Default soft cap on simultaneously-Now nodes, overridable via the Recommendations
 # settings tab (ConfigManager.get_now_node_cap). Setting Now is refused
 # once the cap is reached; clearing is always allowed. 5 keeps focus
 # fairly tight without blocking brief overlap during handoffs.

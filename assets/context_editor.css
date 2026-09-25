@@ -387,7 +387,7 @@ body.ctx-dragging * {
     z-index: var(--st-z-drag-clone) !important;
 }
 
-/* --- Settings ▸ Integrations: Add resource ------------------------------ */
+/* --- Settings ▸ Resources: Add resource --------------------------------- */
 
 /* Full width and dashed, like the subcontext adder chip: it reads as the next
    resource to be. The Contexts adder can stay borderless because its outlined

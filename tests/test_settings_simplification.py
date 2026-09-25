@@ -52,13 +52,13 @@ def test_context_priorities_live_in_contexts_with_plain_language():
         component for component in _walk(modal)
         if getattr(component, "tab_id", None) == "tab-contexts"
     )
-    scoring_tab = next(
+    recommendations_tab = next(
         component for component in _walk(modal)
-        if getattr(component, "tab_id", None) == "tab-scoring"
+        if getattr(component, "tab_id", None) == "tab-recommendations"
     )
 
     assert "setting-context-editor" in _by_id(contexts_tab)
-    assert "setting-context-editor" not in _by_id(scoring_tab)
+    assert "setting-context-editor" not in _by_id(recommendations_tab)
     copy = _text(contexts_tab)
     assert "scales a context's tasks in the rankings" in copy
     assert "Doubling a weight" not in copy
@@ -133,12 +133,12 @@ def test_graph_statistics_uses_concise_user_facing_description():
     to be guessed at; the toggle beside it already says "Run on startup".
     """
     modal = build_settings_modal()
-    scoring_tab = next(
+    recommendations_tab = next(
         component for component in _walk(modal)
-        if getattr(component, "tab_id", None) == "tab-scoring"
+        if getattr(component, "tab_id", None) == "tab-recommendations"
     )
-    copy = _text(scoring_tab)
-    components = list(_walk(scoring_tab))
+    copy = _text(recommendations_tab)
+    components = list(_walk(recommendations_tab))
     expected = ("Shows node and edge counts, and how long scoring took, "
                 "on the Home tab.")
     description_index = next(
@@ -172,14 +172,14 @@ def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():
         assert technical_phrase not in copy
 
 
-def test_integrations_hold_resource_cards_in_a_bounded_column():
+def test_resources_tab_holds_resource_cards_in_a_bounded_column():
     modal = build_settings_modal()
-    integrations_tab = next(
+    resources_tab = next(
         component for component in _walk(modal)
-        if getattr(component, "tab_id", None) == "tab-integrations"
+        if getattr(component, "tab_id", None) == "tab-resources"
     )
     containers = [
-        component for component in _walk(integrations_tab)
+        component for component in _walk(resources_tab)
         if getattr(component, "style", None) == {
             "width": "100%", "maxWidth": "640px"
         }
@@ -239,3 +239,32 @@ def test_technical_and_maintenance_controls_are_not_user_facing():
         "setting-node-types",
     }
     assert removed.isdisjoint(components)
+
+
+def _tab_ids(tab):
+    return set(_by_id(tab))
+
+
+def test_tabs_group_settings_by_what_they_adjust():
+    """Five tabs, no Misc: each answers one question about the app."""
+    modal = build_settings_modal()
+    tabs = {
+        component.tab_id: component for component in _walk(modal)
+        if getattr(component, "tab_id", None)
+    }
+    assert list(tabs) == [
+        "tab-recommendations", "tab-contexts", "tab-editing",
+        "tab-appearance", "tab-resources",
+    ]
+    assert [tab.label for tab in tabs.values()] == [
+        "Recommendations", "Contexts", "Editing", "Appearance", "Resources",
+    ]
+    assert _by_id(modal)["settings-modal-tabs"].active_tab == "tab-recommendations"
+
+    assert {"setting-hp-profile", "setting-now-node-cap",
+            "setting-show-scoring-perf"} <= _tab_ids(tabs["tab-recommendations"])
+    assert {"setting-name-format-mode", "setting-hpd", "setting-default-time-unit",
+            "setting-time-calibration-enabled"} <= _tab_ids(tabs["tab-editing"])
+    appearance = _tab_ids(tabs["tab-appearance"])
+    assert "setting-node-shapes-container" in appearance
+    assert "setting-name-format-mode" not in appearance
