@@ -52,8 +52,7 @@ def _build_appearance_tab():
             ]),
 
             # --- Name Formatting group ---
-            html.Hr(className="my-3"),
-            html.H5("Name Formatting", className="mt-2 mb-1"),
+            html.H5("Name Formatting", className="mt-4 mb-1"),
             html.Small(
                 "Choose how node names and aliases are capitalized when saved. "
                 "Changing this setting will not affect existing nodes.",
@@ -121,7 +120,7 @@ def _build_contexts_tab():
             # --- Dropdown order ---
             # No rule here: the outlined row editor already closes the
             # section above, so space alone separates the two.
-            html.H5("Dropdown Order", className="mt-3 mb-1"),
+            html.H5("Dropdown Order", className="mt-4 mb-1"),
             html.Small(
                 "Use the order defined above, or sort alphabetically.",
                 className="text-muted d-block mb-2"),
@@ -255,12 +254,11 @@ def _build_scoring_tab():
                 ], width=4),
             ], className="mt-1"),
 
-            html.Hr(className="my-3"),
             # The Home tab's stats readout: how big the graph is and how long
             # scoring it took. Named for what you get rather than for when it
             # runs -- "Startup Analysis" described the timing and left the
             # content to be guessed at.
-            html.H5("Graph Statistics", className="mt-2 mb-1"),
+            html.H5("Graph Statistics", className="mt-4 mb-1"),
             html.Small(
                 "Shows node and edge counts, and how long scoring took, "
                 "on the Home tab.",
@@ -343,8 +341,7 @@ def _build_misc_tab():
                       style={"width": "128px"}),
 
             # --- Reflection section ---
-            html.Hr(className="my-2"),
-            html.H5("Reflection", className="mt-2 mb-1"),
+            html.H5("Reflection", className="mt-4 mb-1"),
             html.Small(
                 "When a node is marked Done, prompt for actuals — time, "
                 "value, interest, and effort.",
@@ -385,8 +382,7 @@ def _build_integrations_tab():
                                className="text-muted d-block mt-1 mb-1"),
                 ], id="setting-obsidian-options", is_open=False),
 
-                html.Hr(className="my-3"),
-                html.H5("Google Drive", className="mt-2 mb-1"),
+                html.H5("Google Drive", className="mt-4 mb-1"),
                 html.Small("Link Drive files by URL or a local path.",
                            className="text-muted d-block mb-2"),
                 dbc.Checklist(id="setting-gdrive-enabled", switch=True,
