@@ -763,12 +763,12 @@ The reflection hub has three tabs:
 
 | Tab | Purpose |
 |---|---|
-| **Pending Queue** | Completed work awaiting reflection. |
-| **Reflection History** | Log of past reflections comparing estimates with actuals. |
+| **Queue** | Completed work awaiting reflection. |
+| **History** | Log of past reflections comparing estimates with actuals. |
 | **Excluded** | Archive of nodes permanently bypassed during reflection cycles. |
 
 
-## Pending Queue
+## Queue
 
 Click **Start Reflection** to open a step-by-step walkthrough. For each project, you record the information shown below.
 
@@ -778,9 +778,11 @@ Click **Start Reflection** to open a step-by-step walkthrough. For each project,
   <em>Reflection feature screen after you hit "start reflection" </em>
 </p>
 
-## Reflection History
+## History
 
 A log of your past reflections. The table is searchable and filterable. And it shows estimated vs actual ratings. 
+
+It starts with your newest completions first. Pick another order from the sort dropdown beside the filters. The arrow button next to it reverses the order. Hover it to see what comes first. You can also click a column header to sort by it, and click it again to reverse.
 
 <p align="center">
   <img src="../images/reflection-history.png" width=500>

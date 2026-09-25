@@ -5,11 +5,14 @@ from pathlib import Path
 from models import Node
 from review_hub_callbacks import (
     _build_history_table,
+    _next_history_sort,
     _rating_change_magnitude,
     _sort_history_nodes,
+    _visible_excluded_count,
     _visible_history_count,
 )
 from review_hub_layout import build_review_hub_modal
+from callback_helpers import build_calibration_dismissed_view
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -67,7 +70,10 @@ def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
 
     assert modal.dialog_style == {"maxWidth": "940px"}
     assert description.children == "Walk through completed nodes that haven't been reflected on yet"
-    assert empty.children == "All caught up"
+    assert empty.children[0].className == "bi bi-check-circle text-success me-2"
+    assert empty.children[1] == "All caught up"
+    tabs = modal.children[1].children.children
+    assert [tab.label for tab in tabs] == ["Queue", "History", "Excluded"]
 
 
 def test_review_history_summary_keeps_full_names_and_rating_comparison_accessible():
@@ -132,3 +138,30 @@ def test_history_show_more_batches_and_filter_resets():
     assert _visible_history_count('hub-history-show-more', 60, 73) == 73
     assert _visible_history_count('hub-history-search', 60, 7) == 7
     assert _visible_history_count('hub-history-sort', 40, 73) == 40
+
+
+def test_excluded_rows_reveal_twenty_at_a_time_and_clamp_after_restore():
+    names = [f'Node {index:02d}' for index in range(47)]
+    first, total = build_calibration_dismissed_view(names, limit=20)
+    assert total == 47
+    assert len(first.children) == 20
+    assert first.children[0].children[0].children == 'Node 00'
+    assert _visible_excluded_count('modal-review-hub', 40, total) == 20
+    assert _visible_excluded_count('hub-excluded-show-more', 20, total) == 40
+    assert _visible_excluded_count('hub-excluded-show-more', 40, total) == 47
+    assert _visible_excluded_count({'type': 'calibration-restore', 'index': 'Node 00'},
+                                   40, 39) == 39
+
+
+def test_history_pager_matches_the_events_triggered_divider():
+    modal = build_review_hub_modal()
+    history = modal.children[1].children.children[1]
+    pager = history.children[0].children[-1]
+    assert "events-triggered-divider" in pager.className
+    rule, sentence, _ = pager.children
+    assert rule.className == "events-triggered-rule"
+    status, more = sentence.children
+    assert status.id == "hub-history-page-status"
+    assert more.children[0] == " · "
+    assert more.children[1].children == "Show 20 more"
+    assert more.children[1].className == "events-triggered-toggle"

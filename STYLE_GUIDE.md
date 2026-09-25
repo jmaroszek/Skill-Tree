@@ -570,7 +570,9 @@ so match the inline ones unless your labels genuinely won't fit. Use a
 Once a choice grows past two or three options, switch to a `dbc.Select`
 instead of letting radios wrap or crowd a shared row. A choice that only
 changes how a list is viewed, like its sort, goes behind a menu button
-instead. See the sidebar list toolbar below.
+instead. See the sidebar list toolbar below. Reflection History is the
+exception. Its default order has no column header to click back to, so the
+sort criterion stays visible in a dropdown.
 
 Size carries the nesting. A radio that *is* the section's question runs at the
 default size. A radio that refines a choice already made above it drops to
@@ -764,8 +766,17 @@ summary columns are Name, estimated time, actual time, time difference, and
 rating difference. The name truncates to one line; focusable name and rating
 cells reveal the complete name and estimated/actual V/I/E comparison. Column
 headers sort by the underlying numeric values, with missing values last in
-either direction. The table initially shows 20 rows and reveals 20 more per
-click through a counted divider. The modal width is shared across its tabs.
+either direction. The filter row also holds a sort dropdown and a direction
+button. The dropdown adds Completed, the default order, which has no column.
+It stays in step with header clicks. At the default order its text is
+placeholder gray, like "All contexts" beside it. Any other order turns it the
+normal value color. The direction button's tooltip names the
+order in the criterion's terms, such as "Most over estimate first". The table initially shows 20 rows and reveals 20 more per
+click through a counted divider. The Excluded tab uses the same 20-row batches.
+Both pagers reuse the Events list's triggered divider: small gray text between
+two rules, a plain " · " in the sentence, and a soft "Show 20 more" that
+brightens on hover. Any "N hidden · Show" line should use that divider. The
+modal width is shared across its tabs.
 
 ## Badges
 

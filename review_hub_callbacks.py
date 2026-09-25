@@ -14,6 +14,14 @@ from graph_manager import GraphManager
 from callback_helpers import build_calibration_dismissed_view
 import style_tokens as tokens
 from models import STATUS_DONE
+from review_hub_layout import (
+    HISTORY_SORT_CRITERIA,
+    HISTORY_SORT_DEFAULT,
+    HISTORY_SORT_DEFAULT_DIRECTION,
+    HISTORY_SORT_DIRECTION_LABELS,
+    history_sort_direction_icon,
+    history_sort_key_class,
+)
 
 
 _manager = GraphManager()
@@ -22,14 +30,10 @@ _manager = GraphManager()
 # Sentinel string for missing comparisons in the History table.
 _DASH = "—"
 _HISTORY_BATCH_SIZE = 20
-_DEFAULT_HISTORY_SORT = {"key": "completed", "direction": "desc"}
-_SORT_COLUMNS = {
-    "name": "Name",
-    "estimated": "Est Time",
-    "actual": "Actual",
-    "delta_time": "Δ Time",
-    "delta_ratings": "Δ Ratings",
-}
+_EXCLUDED_BATCH_SIZE = 20
+# Every criterion but "completed" has a column header.
+_SORT_COLUMNS = {key: label for key, label in HISTORY_SORT_CRITERIA.items()
+                 if key != "completed"}
 
 
 def _fmt_hours(hours):
@@ -105,7 +109,7 @@ def _sort_history_nodes(nodes, sort):
         dated = [node for node in nodes if node.done_date]
         undated = [node for node in nodes if not node.done_date]
         dated.sort(key=lambda node: node.name.casefold())
-        dated.sort(key=lambda node: node.done_date, reverse=True)
+        dated.sort(key=lambda node: node.done_date, reverse=direction == "desc")
         undated.sort(key=lambda node: node.name.casefold())
         return dated + undated
 
@@ -116,6 +120,37 @@ def _sort_history_nodes(nodes, sort):
                reverse=direction == "desc")
     missing.sort(key=lambda node: node.name.casefold())
     return valid + missing
+
+
+def _next_history_sort(trigger, current, *, is_open=True, column_clicks=None,
+                       chosen_key=None, direction_clicks=None):
+    """The sort after one control fires, or None when nothing changes.
+
+    Choosing a criterion starts it in its default direction. Clicking the
+    active column's header, or the direction button, reverses the order.
+    """
+    current = current or HISTORY_SORT_DEFAULT
+    reversed_direction = 'asc' if current.get('direction') == 'desc' else 'desc'
+    if trigger == 'modal-review-hub':
+        return dict(HISTORY_SORT_DEFAULT) if is_open else None
+    if trigger == 'hub-history-sort-direction':
+        if not direction_clicks:
+            return None
+        return {'key': current.get('key', 'completed'), 'direction': reversed_direction}
+    if trigger == 'hub-history-sort-key':
+        # The echo from our own output lands here too; it changes nothing.
+        if chosen_key not in HISTORY_SORT_CRITERIA or chosen_key == current.get('key'):
+            return None
+        return {'key': chosen_key,
+                'direction': HISTORY_SORT_DEFAULT_DIRECTION[chosen_key]}
+    if not isinstance(trigger, dict) or not any(column_clicks or []):
+        return None
+    key = trigger.get('index')
+    if key not in _SORT_COLUMNS:
+        return None
+    if current.get('key') == key:
+        return {'key': key, 'direction': reversed_direction}
+    return {'key': key, 'direction': HISTORY_SORT_DEFAULT_DIRECTION[key]}
 
 
 def _visible_history_count(trigger, current, total):
@@ -131,11 +166,21 @@ def _visible_history_count(trigger, current, total):
     return min(wanted, total)
 
 
+def _visible_excluded_count(trigger, current, total):
+    if trigger == 'modal-review-hub':
+        wanted = _EXCLUDED_BATCH_SIZE
+    elif trigger == 'hub-excluded-show-more':
+        wanted = (current or _EXCLUDED_BATCH_SIZE) + _EXCLUDED_BATCH_SIZE
+    else:
+        wanted = current or _EXCLUDED_BATCH_SIZE
+    return min(wanted, total)
+
+
 def _history_sort_heading(key, sort):
     active = (sort or {}).get("key") == key
     direction = (sort or {}).get("direction", "asc")
     label = _SORT_COLUMNS[key]
-    default_direction = "desc" if key in ("delta_time", "delta_ratings") else "asc"
+    default_direction = HISTORY_SORT_DEFAULT_DIRECTION[key]
     next_direction = ("asc" if direction == "desc" else "desc") if active else default_direction
     aria_sort = ("ascending" if direction == "asc" else "descending") if active else "none"
     children = [label, html.Span(f", sort {next_direction}ending",
@@ -326,73 +371,74 @@ def register_review_hub_callbacks(app, services=None):
         hidden = {"display": "none"}
         return str(count), (shown if count else hidden), (hidden if count else shown), (shown if count else hidden)
 
-    # --- Excluded tab: populate when the hub opens ---
-    # Lifted from settings_callbacks.load_calibration_dismissed_list with the
-    # Settings collapse / toggle-label outputs dropped — the Hub's dbc.Tab
-    # provides the collapse equivalent and the count is implicit in the list
-    # itself.
+    # --- Excluded tab: load, reveal more, and restore in one callback ---
     @app.callback(
         Output('hub-excluded-list', 'children'),
+        Output('hub-excluded-page-status', 'children'),
+        Output('hub-excluded-pager', 'style'),
+        Output('hub-excluded-more-wrap', 'style'),
+        Output('hub-excluded-visible-count', 'data'),
         Input('modal-review-hub', 'is_open'),
-        prevent_initial_call=True,
-    )
-    def load_calibration_dismissed_list(is_open):
-        if not is_open:
-            return no_update
-        return build_calibration_dismissed_view(_manager)
-
-    # --- Excluded tab: restore a dismissed node ---
-    # Pattern-matched id matches build_calibration_dismissed_view's emitted
-    # buttons. Re-renders the list in place so a single click visibly removes
-    # the row.
-    @app.callback(
-        Output('hub-excluded-list', 'children', allow_duplicate=True),
+        Input('hub-excluded-show-more', 'n_clicks'),
         Input({'type': 'calibration-restore', 'index': ALL}, 'n_clicks'),
+        State('hub-excluded-visible-count', 'data'),
         prevent_initial_call=True,
     )
-    def restore_calibration_node(clicks):
-        trig = ctx.triggered_id
-        if not trig or not any(c for c in clicks if c):
-            return no_update
-        node = _manager.get_node(trig['index'])
-        if node and node.calibration_dismissed:
-            node.calibration_dismissed = 0
-            _manager.update_node(node)
-        return build_calibration_dismissed_view(_manager)
+    def populate_excluded_list(is_open, _more_clicks, restore_clicks,
+                               visible_count):
+        if not is_open:
+            return (no_update,) * 5
+        trigger = ctx.triggered_id
+        if isinstance(trigger, dict) and any(restore_clicks or []):
+            node = _manager.get_node(trigger['index'])
+            if node and node.calibration_dismissed:
+                node.calibration_dismissed = 0
+                _manager.update_node(node)
+        dismissed = sorted(n.name for n in _manager.get_all_nodes(include_dormant=True)
+                           if n.calibration_dismissed)
+        total = len(dismissed)
+        limit = _visible_excluded_count(trigger, visible_count, total)
+        view, _ = build_calibration_dismissed_view(dismissed, limit=limit)
+        noun = 'node' if total == 1 else 'nodes'
+        return (view, f'Showing {limit} of {total} {noun}' if total else '',
+                {'display': 'flex'} if total else {'display': 'none'},
+                {'display': 'inline'} if limit < total else {'display': 'none'},
+                limit)
 
     # --- History tab: sortable, progressively revealed results ---
+    # The dropdown, the direction button and the column headers all write the
+    # one sort store, and this callback also echoes the result back into the
+    # dropdown and the button so a header click keeps them in step.
     @app.callback(
         Output('hub-history-sort', 'data'),
+        Output('hub-history-sort-key', 'value'),
+        Output('hub-history-sort-key', 'className'),
+        Output('hub-history-sort-direction-icon', 'className'),
+        Output('hub-history-sort-direction-tooltip', 'children'),
         Input('modal-review-hub', 'is_open'),
         Input({'type': 'hub-history-sort-column', 'index': ALL}, 'n_clicks'),
-        Input('hub-history-sort-reset', 'n_clicks'),
+        Input('hub-history-sort-key', 'value'),
+        Input('hub-history-sort-direction', 'n_clicks'),
         State('hub-history-sort', 'data'),
         prevent_initial_call=True,
     )
-    def update_history_sort(is_open, clicks, reset_clicks, current_sort):
-        trigger = ctx.triggered_id
-        if trigger == 'modal-review-hub':
-            return dict(_DEFAULT_HISTORY_SORT) if is_open else no_update
-        if trigger == 'hub-history-sort-reset':
-            return dict(_DEFAULT_HISTORY_SORT) if reset_clicks else no_update
-        if not isinstance(trigger, dict) or not any(clicks or []):
-            return no_update
-        key = trigger.get('index')
-        if key not in _SORT_COLUMNS:
-            return no_update
-        if (current_sort or {}).get('key') == key:
-            direction = ('asc' if current_sort.get('direction') == 'desc' else 'desc')
-        else:
-            direction = 'desc' if key in ('delta_time', 'delta_ratings') else 'asc'
-        return {'key': key, 'direction': direction}
+    def update_history_sort(is_open, clicks, chosen_key, direction_clicks,
+                            current_sort):
+        sort = _next_history_sort(ctx.triggered_id, current_sort, is_open=is_open,
+                                  column_clicks=clicks, chosen_key=chosen_key,
+                                  direction_clicks=direction_clicks)
+        if sort is None:
+            return (no_update,) * 5
+        return (sort, sort['key'], history_sort_key_class(sort),
+                history_sort_direction_icon(sort['direction']),
+                HISTORY_SORT_DIRECTION_LABELS[sort['key']][sort['direction']])
 
     @app.callback(
         Output('hub-history-table-container', 'children'),
         Output('hub-history-page-status', 'children'),
         Output('hub-history-pager', 'style'),
-        Output('hub-history-show-more', 'style'),
+        Output('hub-history-more-wrap', 'style'),
         Output('hub-history-visible-count', 'data'),
-        Output('hub-history-sort-reset-wrap', 'style'),
         Input('modal-review-hub', 'is_open'),
         Input('review-hub-tabs', 'active_tab'),
         Input('hub-history-search', 'value'),
@@ -407,7 +453,7 @@ def register_review_hub_callbacks(app, services=None):
                                 ctx_filter, subctx_filter, sort, _more_clicks,
                                 visible_count):
         if not is_open:
-            return (no_update,) * 6
+            return (no_update,) * 5
         # Only nodes that are *currently* Done belong in History. The
         # reflect_*/actual_time_* columns persist when a node is un-marked
         # Done (so re-completing restores the reflection), so _node_has_actuals
@@ -416,23 +462,21 @@ def register_review_hub_callbacks(app, services=None):
                    if n.status == STATUS_DONE and _node_has_actuals(n)]
         nodes = _filter_history_nodes(history, search, ctx_filter, subctx_filter)
         nodes = _sort_history_nodes(nodes, sort)
-        reset_style = ({'display': 'none'} if (sort or {}).get('key') == 'completed'
-                       else {'display': 'block'})
         if not nodes:
             message = ('No reflections yet.' if not history
                        else 'No matching reflections.')
             return (_build_history_table([], sort, message), '',
                     {'display': 'none'}, {'display': 'none'},
-                    _HISTORY_BATCH_SIZE, reset_style)
+                    _HISTORY_BATCH_SIZE)
 
         limit = _visible_history_count(ctx.triggered_id, visible_count,
                                        len(nodes))
         noun = 'reflection' if len(nodes) == 1 else 'reflections'
         status = f'Showing {limit} of {len(nodes)} {noun}'
-        more_style = ({'display': 'inline-flex'} if limit < len(nodes)
+        more_style = ({'display': 'inline'} if limit < len(nodes)
                       else {'display': 'none'})
         return (_build_history_table(nodes[:limit], sort), status,
-                {'display': 'flex'}, more_style, limit, reset_style)
+                {'display': 'flex'}, more_style, limit)
 
     # --- History tab: open the focused-review modal in 'edit' mode ---
     # Triggered by clicking any row's ✎ button — pattern-matched id carries

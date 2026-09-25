@@ -37,26 +37,23 @@ from resource_links import get_sections
 SECTION_TITLE_STYLE = tokens.SECTION_TITLE_STYLE
 
 
-def build_calibration_dismissed_view(manager):
+def build_calibration_dismissed_view(dismissed_names, limit=None):
     """List of nodes marked "Don't ask again" during a calibration review,
     each row with a Restore button (pattern-matched id
     `{'type': 'calibration-restore', 'index': <name>}`). Returns a Dash
-    component tree suitable for any container — the caller decides where to
-    mount it. Used by the Review Hub's Excluded tab."""
-    dismissed = sorted(n.name for n in manager.get_all_nodes(include_dormant=True)
-                       if n.calibration_dismissed)
-    if not dismissed:
-        return html.Small("No nodes excluded from reflection.",
-                          className="text-muted d-block")
+    component tree for the Review Hub's Excluded tab. Names arrive sorted."""
+    if not dismissed_names:
+        return (html.Small("No nodes excluded from reflection.",
+                           className="text-muted d-block"), 0)
     rows = []
-    for name in dismissed:
+    for name in dismissed_names[:limit]:
         rows.append(html.Div([
             html.Span(name, className="text-truncate"),
             restore_button({'type': 'calibration-restore', 'index': name},
                            tooltip="Include in future reflections",
                            placement="right"),
         ], className="d-flex align-items-center mb-1"))
-    return html.Div(rows)
+    return html.Div(rows), len(dismissed_names)
 
 
 # A chip input sized to its text; below this it reads as an empty box.
