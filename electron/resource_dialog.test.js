@@ -28,6 +28,24 @@ test('native picker accepts only the local app and returns the selected file', a
   assert.equal(calls.length, 1);
 });
 
+test('native picker can choose a folder', async () => {
+  let handler;
+  const calls = [];
+  registerResourceDialog(
+    { handle: (_name, fn) => { handler = fn; } },
+    { showOpenDialog: async (...args) => {
+      calls.push(args);
+      return { canceled: false, filePaths: ['/Library/Notes'] };
+    } },
+    () => null,
+    8051,
+  );
+  const event = { senderFrame: { url: 'http://127.0.0.1:8051/' } };
+  assert.equal(await handler(event, { directory: true, markdown: true }), '/Library/Notes');
+  assert.deepEqual(calls[0][1].properties, ['openDirectory']);
+  assert.equal(calls[0][1].filters, undefined);
+});
+
 test('cancelled native picker returns an empty path', async () => {
   let handler;
   registerResourceDialog(

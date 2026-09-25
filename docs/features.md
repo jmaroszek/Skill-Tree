@@ -222,10 +222,12 @@ When a book, course, or article is substantial enough that you want to track and
 <p align="center">
     <img src="../images/node-editor-external-resources.png" width=400>
     <br>
-    <em>The Resources section with optional integrations enabled.</em>
+    <em>The Resources section of the node editor.</em>
 </p>
 
-**Website** links are available by default. Enable **Obsidian** or **Google Drive** under Settings → Integrations to add those fields to the node editor. An Obsidian link points to a note in your configured vault. A Google Drive link accepts either a web URL or a local path. The optional mounted Drive root lets you browse to a file and resolve relative paths. You can keep a Drive URL in the Google Drive field so its resource type is clear.
+The editor has one field for each kind of resource you keep. A new graph starts with **Obsidian**, **Google Drive** and **Website**. You can rename, remove or add kinds under Settings → Integrations, up to five in all. Every field takes a web URL or a local file.
+
+A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. A kind can also open its notes in Obsidian instead of your default app. Obsidian's field does this out of the box, with your vault as its root folder.
 
 For local paths, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
 
@@ -274,7 +276,7 @@ Reading a row from left to right:
 | Bar length | Proportional to the priority score. The #1 task is always a full bar; everything else is drawn as a fraction of it. The number at the bar's right end is the score. |
 | Time | Expected duration, using the intelligent methods discussed in [time](time.md) |
 | Ratings glyph | Three small bars showing your Value, Interest, and Effort ratings, so you can eyeball them without opening the node. |
-| Link dots | A dot for Website and one for each enabled integration. A dot lights up when the node has at least one link of that type, regardless of how many. |
+| Link dots | One dot for each kind of resource. A dot lights up when the node has at least one link of that kind, regardless of how many. |
 
 Left-click any row to see the node's description beside the table. Right-click it to open the [context menu](#context-menu).
 
@@ -297,9 +299,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. |
 | Add to Event… | Puts the node, or every selected node, to sleep under an event. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. |
-| Open Website | Opens the linked website. Only shown when the link is set. |
-| Open in Obsidian | Opens the linked Obsidian note. Shown when Obsidian is enabled and the link is set. |
-| Open in Drive | Opens the linked Google Drive file or URL. Shown when Google Drive is enabled and the link is set. |
+| Open *resource* | Opens the node's first link of that kind, such as Open Google Drive. There is one item for each kind the node has a link in. |
 | Delete… | Deletes the node (with confirmation). |
 
 </td>
@@ -917,7 +917,7 @@ The Settings modal collects the personal choices and machine-specific informatio
 | **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
 | **Scoring** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and optionally show the startup graph summary on the Home tab. |
 | **Time** | Set your weekly, monthly, and yearly productive hour budgets, plus the time estimates and unit pre-filled for new nodes. |
-| **Integrations** | Opt into Obsidian and Google Drive resources. Set an Obsidian vault path to open notes; optionally set a mounted Drive root for local files. Google Drive URLs also work without a mounted path. |
+| **Integrations** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Turn on Open in Obsidian to send its notes to the Obsidian app. Removing a kind that holds links shows how many; they are deleted when you save. |
 | **Misc** | Set the maximum number of Now nodes and choose whether completing a node opens a reflection prompt. |
 
 Graph-layout behavior, scoring coefficients, forecast assumptions, and other implementation policy use maintained defaults behind the scenes rather than asking you to tune the model yourself.

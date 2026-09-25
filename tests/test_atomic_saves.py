@@ -34,8 +34,8 @@ def sync(manager, name, needs=(), supports=()):
 def save(manager, name, **kwargs):
     args = dict(name=name, n_type="Learn", desc="edited", val=5, time_o=1,
                 time_m=2, time_p=4, interest=5, diff=5, status_done=[],
-                context="Mind", subctx=None, obs_path=None, drive_path=None,
-                website_path=None, e_needs_h=[], e_needs_s=[], e_supp_h=[],
+                context="Mind", subctx=None, resource_links=None,
+                e_needs_h=[], e_needs_s=[], e_supp_h=[],
                 e_supp_s=[], e_helps=[])
     args.update(kwargs)
     return handle_save(manager, **args)

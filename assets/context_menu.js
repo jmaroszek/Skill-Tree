@@ -25,11 +25,30 @@
 
         // Menu items are clicked through menus.onItem; these are the ones
         // whose label or visibility depends on the node.
-        var websiteItem = document.getElementById('ctx-menu-website');
-        var obsidianItem = document.getElementById('ctx-menu-obsidian');
-        var driveItem = document.getElementById('ctx-menu-drive');
-        var customItems = [document.getElementById('ctx-menu-custom-0'),
-                           document.getElementById('ctx-menu-custom-1')];
+        // The icon says where the first link will open: a globe for the
+        // browser, a journal for Obsidian, and a plain arrow for the default
+        // app. This mirrors resource_links.resolve_target closely enough for
+        // an icon; the server still decides on click.
+        var OBSIDIAN_SUFFIXES = ['md', 'canvas', 'base', 'pdf', 'png', 'jpg', 'jpeg',
+            'gif', 'bmp', 'svg', 'webp', 'avif', 'mp3', 'wav', 'm4a', 'ogg', 'flac',
+            '3gp', 'webm', 'mp4', 'ogv', 'mov', 'mkv'];
+        function _resourceIcon(link, kind) {
+            link = (link || '').trim();
+            if (/^(https?:\/\/|www\.)/i.test(link)) return 'globe';
+            var isPath = /^[a-z]:[\\/]|^[\\/]/i.test(link) || link.indexOf('\\') >= 0;
+            var suffix = /\.([a-z0-9]+)$/i.exec(link);
+            suffix = suffix ? suffix[1].toLowerCase() : '';
+            if (kind === 'obsidian' && OBSIDIAN_SUFFIXES.indexOf(suffix) >= 0) return 'journal-text';
+            if (!isPath && /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(link) &&
+                    !/\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|png|jpe?g|gif|zip)$/i.test(link)) {
+                return 'globe';
+            }
+            return 'box-arrow-up-right';
+        }
+
+        // One slot per possible Resource section (layout.py), in order.
+        var resourceItems = Array.from(
+            document.querySelectorAll('[id^="ctx-menu-resource-"]'));
         var linksDivider = document.getElementById('ctx-menu-links-divider');
         var toggleNowItem = document.getElementById('ctx-menu-toggle-now');
         var priorityItem = document.getElementById('ctx-menu-priority');
@@ -126,25 +145,25 @@
             if (typeof resourceLinks === 'string') {
                 try { resourceLinks = JSON.parse(resourceLinks); } catch (_) { resourceLinks = {}; }
             }
-            var menuItems = [
-                ['website', websiteItem], ['obsidian', obsidianItem],
-                ['drive', driveItem]
-            ];
-            document.querySelectorAll('#editor-custom-resources [data-resource-id]').forEach(function (section, i) {
-                if (i < customItems.length) menuItems.push([section.dataset.resourceId, customItems[i]]);
-            });
+            // The node editor always renders every section, in order, with
+            // its current name, so it is where the slots learn theirs.
+            var sections = Array.from(
+                document.querySelectorAll('#editor-resources [data-resource-id]'));
             var hasResources = false;
-            menuItems.forEach(function (entry) {
-                var section = document.querySelector('[data-resource-id="' + entry[0] + '"]');
-                var item = entry[1];
-                if (!item) return;
-                var label = section && section.querySelector('label');
-                if (label) item.querySelector('.ctx-menu-label').textContent = 'Open ' + label.textContent;
-                var visible = section && section.style.display !== 'none'
-                    && resourceLinks[entry[0]] && resourceLinks[entry[0]].length;
+            resourceItems.forEach(function (item, i) {
+                var section = sections[i];
+                var id = section && section.dataset.resourceId;
+                var visible = !!(id && resourceLinks[id] && resourceLinks[id].length);
                 item.style.display = visible ? '' : 'none';
-                if (visible) hasResources = true;
-                item.dataset.resourceId = entry[0];
+                if (!visible) return;
+                hasResources = true;
+                item.dataset.resourceId = id;
+                var label = section.querySelector('label');
+                item.querySelector('.ctx-menu-label').textContent =
+                    'Open ' + (label ? label.textContent : 'Resource');
+                item.querySelector('.ctx-menu-icon').className = 'bi bi-' +
+                    _resourceIcon(resourceLinks[id][0], section.dataset.resourceKind) +
+                    ' ctx-menu-icon';
             });
 
             // Collapse the upper divider when neither link is present, so the
@@ -357,9 +376,6 @@
             var nodeData = {
                 id: rowEl.getAttribute('data-node-menu'),
                 type: rowEl.getAttribute('data-type') || null,
-                obsidian_path: rowEl.getAttribute('data-obsidian-path') || null,
-                google_drive_path: rowEl.getAttribute('data-google-drive-path') || null,
-                website: rowEl.getAttribute('data-website') || null,
                 resource_links: rowEl.getAttribute('data-resource-links') || '{}',
                 status: rowEl.getAttribute('data-status') || null,
                 now: Number(rowEl.getAttribute('data-now') || 0),
@@ -397,10 +413,8 @@
 
         menus.onItem('ctx-menu-add-to-event', triggerAddToEvent);
 
-        ['ctx-menu-website', 'ctx-menu-obsidian', 'ctx-menu-drive',
-         'ctx-menu-custom-0', 'ctx-menu-custom-1'].forEach(function (id) {
-            menus.onItem(id, function () {
-                var item = document.getElementById(id);
+        resourceItems.forEach(function (item) {
+            menus.onItem(item.id, function () {
                 if (!_currentNodeData || !item || !item.dataset.resourceId) return;
                 fetch('/open-resource', {
                     method: 'POST',

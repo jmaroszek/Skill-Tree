@@ -11,8 +11,8 @@ function registerResourceDialog(ipcMain, dialog, getWindow, port) {
     const result = await dialog.showOpenDialog(getWindow(), {
       title: typeof opts.title === 'string' ? opts.title.slice(0, 100) : 'Select file',
       defaultPath: typeof opts.defaultPath === 'string' ? opts.defaultPath : undefined,
-      properties: ['openFile'],
-      filters: opts.markdown ? [
+      properties: [opts.directory ? 'openDirectory' : 'openFile'],
+      filters: !opts.directory && opts.markdown ? [
         { name: 'Markdown files', extensions: ['md'] },
         { name: 'All files', extensions: ['*'] },
       ] : undefined,

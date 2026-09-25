@@ -1,8 +1,8 @@
 """Regression tests for the populate_editor callback output arity.
 
-populate_editor declares 45 Outputs (35 form fields + editor-pristine-snapshot
+populate_editor declares 43 Outputs (33 form fields + editor-pristine-snapshot
 + node-value-mode + 8 habit-mode fields, incl. the weekday picker). Every
-return path must produce exactly 45 items, or Dash throws
+return path must produce exactly 43 items, or Dash throws
 SchemaLengthValidationError → HTTP 500.
 
 This test pins every return path at registration time by invoking the
@@ -32,7 +32,7 @@ def _populate_editor_fn():
     return cb
 
 
-POPULATE_EDITOR_NUM_OUTPUTS = 45
+POPULATE_EDITOR_NUM_OUTPUTS = 43
 
 
 def _make_state_args():
@@ -42,14 +42,14 @@ def _make_state_args():
     cur_context, cur_subctx, cur_status_done, cur_val, cur_interest, cur_diff,
     cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
     cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
-    cur_obs, cur_drive, cur_website,
+    cur_link_values, cur_link_ids,
     cur_time_mode, cur_priority_rank,
     cur_aliases, pending_nav, pristine_snapshot, cur_value_mode,
     cur_time_habit_mode, cur_habit_duration, cur_habit_duration_unit,
     cur_habit_int_o, cur_habit_int_m, cur_habit_int_p, cur_habit_int_unit,
     cur_habit_days, cur_dormancy, details_selected_node.
     """
-    return [None] * 39
+    return [None] * 38
 
 
 def _call_with_trigger(monkeypatch, trigger_id, inputs):
@@ -79,7 +79,7 @@ def test_details_new_subtask_prefills_parent_in_shared_editor(monkeypatch):
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
     assert result[0] == ""
     assert result[15] == ["Parent"]
-    assert result[35]["e_supp_h"] == ["Parent"]
+    assert result[33]["e_supp_h"] == ["Parent"]
 
 
 def test_details_new_subtask_waits_for_unsaved_changes_then_prefills_parent(monkeypatch):
@@ -93,21 +93,21 @@ def test_details_new_subtask_waits_for_unsaved_changes_then_prefills_parent(monk
     states = _make_state_args()
     states[0] = {"transform": "translateX(0px)"}
     states[2] = "Unsaved"
-    states[27] = NEW_NODE_SNAPSHOT
+    states[26] = NEW_NODE_SNAPSHOT
     states[-1] = "Parent"
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "details-add-choice-input")
     pending = fn(*([None] * 10 + ["new|123"] + states))
-    assert pending[33] == "__new_subtask__|Parent"
-    assert pending[34] is True
+    assert pending[31] == "__new_subtask__|Parent"
+    assert pending[32] is True
 
-    states[26] = pending[33]
+    states[25] = pending[31]
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-unsaved-discard")
     cleared = fn(*([None] * 11 + states))
     assert cleared[15] == ["Parent"]
-    assert cleared[35]["e_supp_h"] == ["Parent"]
+    assert cleared[33]["e_supp_h"] == ["Parent"]
 
 
-def test_populate_editor_search_unknown_node_returns_44_items(monkeypatch):
+def test_populate_editor_search_unknown_node_returns_all_items(monkeypatch):
     """search-node path where resolved_name does not match any DB node."""
     # Inputs in order: tapNodeData, btn-add, btn-unsaved-discard,
     # btn-unsaved-save, search-node, background-click-input, btn-new-node,
@@ -119,7 +119,7 @@ def test_populate_editor_search_unknown_node_returns_44_items(monkeypatch):
     )
 
 
-def test_populate_editor_fall_through_returns_44_items(monkeypatch):
+def test_populate_editor_fall_through_returns_all_items(monkeypatch):
     """Fall-through 'if not name or not data' path — no trigger, no data."""
     inputs = [None] * 10  # no cytoscape tap, no search, no trigger value
     result = _call_with_trigger(monkeypatch, "", inputs)
@@ -128,7 +128,7 @@ def test_populate_editor_fall_through_returns_44_items(monkeypatch):
     )
 
 
-def test_populate_editor_btn_add_path_returns_44_items(monkeypatch):
+def test_populate_editor_btn_add_path_returns_all_items(monkeypatch):
     """btn-add (toolbar toggle) returns the all-no_update branch — it preserves
     the form rather than clearing it. Still must produce the full output arity."""
     inputs = [None, 1, None, None, None, None, None, None, None, None]
@@ -136,8 +136,8 @@ def test_populate_editor_btn_add_path_returns_44_items(monkeypatch):
     assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
 
 
-def test_populate_editor_successful_lookup_returns_44_items(monkeypatch):
-    """Seed a node, search for it, and verify the happy path returns 44 items."""
+def test_populate_editor_successful_lookup_returns_all_items(monkeypatch):
+    """Seed a node, search for it, and verify the happy path returns every item."""
     mgr = GraphManager()
     mgr.add_node(Node(
         name="TestNode", type="Learn", description="", value=5,
@@ -197,8 +197,8 @@ def test_populate_editor_loads_a_dormant_node_found_by_search(monkeypatch):
     result = _call_with_trigger(monkeypatch, "search-node", inputs)
     assert result[0] == "Sleeper"
     assert result[2] == "asleep"
-    assert result[28] == "Sleeper"  # node-original-name
-    assert result[35]["dormancy"]["dormant"] is True
+    assert result[26] == "Sleeper"  # node-original-name
+    assert result[33]["dormancy"]["dormant"] is True
 
 
 def test_populate_editor_all_return_paths_use_22_not_21(monkeypatch):

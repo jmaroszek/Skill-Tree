@@ -51,7 +51,6 @@ SIDEBAR_WIDTH_NEG_PX = f"-{SIDEBAR_WIDTH}px"
 # slide stays smooth while the page is busy mounting the sidebar's contents.
 SIDEBAR_TRANSLATE_CLOSED = f"translateX(-{SIDEBAR_WIDTH}px)"
 
-DEFAULT_OBSIDIAN_VAULT = ""
 
 # Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
 DB_FILENAME = "skilltree.db"
@@ -1004,40 +1003,6 @@ class ConfigManager:
             return (val, 'days')
         else:
             return (round(hours, 2), 'hours')
-
-    @classmethod
-    def get_obsidian_vault(cls, default: Optional[str] = None):
-        val = cls._get_db_value("OBSIDIAN_VAULT")
-        return val if val else (default or DEFAULT_OBSIDIAN_VAULT)
-
-    @classmethod
-    def set_obsidian_vault(cls, path: str):
-        cls._set_db_value("OBSIDIAN_VAULT", path)
-
-    @classmethod
-    def get_gdrive_path(cls, default: Optional[str] = None):
-        val = cls._get_db_value("GDRIVE_ROOT_PATH")
-        return val if val else (default or "")
-
-    @classmethod
-    def set_gdrive_path(cls, path: str):
-        cls._set_db_value("GDRIVE_ROOT_PATH", path)
-
-    @classmethod
-    def get_obsidian_enabled(cls) -> bool:
-        return cls._get_db_value("OBSIDIAN_ENABLED") == "1"
-
-    @classmethod
-    def set_obsidian_enabled(cls, enabled: bool):
-        cls._set_db_value("OBSIDIAN_ENABLED", "1" if enabled else "0")
-
-    @classmethod
-    def get_gdrive_enabled(cls) -> bool:
-        return cls._get_db_value("GDRIVE_ENABLED") == "1"
-
-    @classmethod
-    def set_gdrive_enabled(cls, enabled: bool):
-        cls._set_db_value("GDRIVE_ENABLED", "1" if enabled else "0")
 
     @classmethod
     def get_hp_profile(cls) -> str:

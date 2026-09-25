@@ -147,28 +147,11 @@ def create_app(settings=None, services=None):
     # Fails at startup, not on the first page load, if a @prerendered
     # callback would also run in the browser.
     prerendered_specs(app)
-    app.server.add_url_rule('/open-obsidian', view_func=open_obsidian_route)
     app.server.add_url_rule('/open-resource', view_func=open_resource_route,
                             methods=['POST'])
     boot_id = uuid.uuid4().hex
     app.server.add_url_rule('/_server_boot_id', view_func=lambda: boot_id)
     return app
-
-
-def open_obsidian_route():
-    from flask import request, jsonify
-    from resource_links import get_sections, open_resource
-    
-    path = request.args.get('path')
-    if not path:
-        return jsonify({"ok": False, "error": "No path provided"})
-        
-    try:
-        section = next(row for row in get_sections() if row['id'] == 'obsidian')
-        open_resource(path, section)
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
 
 
 def open_resource_route():
@@ -185,7 +168,7 @@ def open_resource_route():
         return jsonify({"ok": False, "error": "Invalid Resource selection"}), 400
     if GraphManager().get_node(name) is None:
         return jsonify({"ok": False, "error": "Node not found"}), 404
-    section = next((s for s in get_sections() if s['id'] == section_id and s['enabled']), None)
+    section = next((s for s in get_sections() if s['id'] == section_id), None)
     links = get_node_links(name).get(section_id, [])
     if section is None or not 0 <= index < len(links):
         return jsonify({"ok": False, "error": "Resource link not found"}), 404

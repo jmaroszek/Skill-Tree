@@ -161,8 +161,7 @@ def test_the_editor_form_is_ready_without_a_load_time_callback(real_app):
     callbacks. The layout now carries them, and the editor doesn't populate
     itself on load: every path that opens it runs populate_editor."""
     props = _served_props(_served_layout(real_app))
-    for container in ('aliases-container', 'obsidian-links-container',
-                      'drive-links-container', 'website-links-container'):
+    for container in ('aliases-container', 'editor-resources'):
         assert props[container][1].get('children'), container
 
     populate = next(c for c in real_app._callback_list

@@ -63,13 +63,17 @@ manager reads one database per process, and the revision counters in
 | [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. |
 | Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
 
-The editor saves visible Resource sections in the same node transaction. Hidden
-sections are omitted from replacement, so their links survive. The old three
-Node columns remain as compatibility mirrors during this transition. Electron
-uses a context-isolated preload/IPC bridge for its native file dialog; the
-standalone-browser mode retains a tkinter subprocess picker. Both feed the same
-link storage and opener path. Context-menu opens resolve a saved node/section
-link on the Python server rather than accepting an arbitrary path from the page.
+Resource links live only in `NodeResourceLinks`, keyed by node and section
+([resource_links.py](../resource_links.py)); `GraphRepository` attaches them to
+each `Node` as `resource_links`. Every section is ordinary: its `kind` says how
+links open (`obsidian` or the OS default), and its optional root makes paths
+relative. The editor renders every section with one set of pattern-matched
+callbacks (`resource-link`, index `"<section>:<row>"`) and saves them through
+`handle_save` in the node transaction. Settings removes a section with its
+links only on Save. Electron uses a context-isolated preload/IPC bridge for its
+native file and folder dialogs; the standalone-browser mode retains a tkinter
+subprocess picker. Context-menu opens resolve a saved node/section link on the
+Python server rather than accepting an arbitrary path from the page.
 
 ## State flow: stores are the wiring
 

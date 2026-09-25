@@ -1,18 +1,14 @@
 /**
  * Hide the "open link" icon button whenever its paired input is empty.
  *
- * Applies to Resources rows rendered by `render_link_rows`
- * (obsidian / drive / website inputs in the node editor). The Python store only updates on
+ * Applies to the node editor's Resources rows, rendered by
+ * `render_resource_sections`. The Python store only updates on
  * add / remove / browse, so this JS watches live typing via the
  * `input` event and sweeps the DOM on mutations for initial render
  * and store-driven re-renders.
  */
 (function () {
-    var LINK_TYPES = [
-        'obsidian-link',
-        'drive-link',
-        'website-link',
-    ];
+    var LINK_TYPES = ['resource-link'];
 
     function isLinkInput(el) {
         if (!el || el.tagName !== 'INPUT') return false;
@@ -31,7 +27,7 @@
         for (var i = 0; i < buttons.length; i++) {
             var bid = buttons[i].id || '';
             // Match only the "open" button in this row (ids look like
-            // {"index":0,"type":"btn-obsidian-open"}).
+            // {"index":"drive:0","type":"resource-open"}).
             if (bid.indexOf('-open"') !== -1) {
                 openBtn = buttons[i];
                 break;

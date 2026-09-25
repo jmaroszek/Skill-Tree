@@ -183,8 +183,7 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
         'monte_carlo_trials': 4321,
         'estimate_correlation': .25,
     })
-    args.update(n_clicks=1, hp_profile='Explorer', hpw=25, hpm=100,
-                obs_path='', gdrive_path='')
+    args.update(n_clicks=1, hp_profile='Explorer', hpw=25, hpm=100)
     assert save(**args)[0] == 'Settings saved'
     assert ConfigManager.get_hp_profile() == 'Explorer'
     assert ConfigManager.get_hyperparams() == {

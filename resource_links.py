@@ -15,13 +15,34 @@ import webbrowser
 import database
 
 MAX_SECTIONS = 5
-BUILTIN_IDS = ("obsidian", "drive", "website")
+# How a section opens its links: "obsidian" sends Markdown notes to the
+# Obsidian app by URI; "mixed" hands URLs to the browser and files to the OS.
+KINDS = ("obsidian", "mixed")
 _WEB = re.compile(r"^https?://", re.IGNORECASE)
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
 _DOMAIN = re.compile(r"^(?:www\.)?[^/\\\s]+\.[a-z]{2,}(?:[/:?#]|$)", re.IGNORECASE)
 _FILE_SUFFIXES = {"txt", "md", "pdf", "png", "jpg", "jpeg", "gif", "webp",
                   "svg", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv",
                   "json", "yaml", "yml", "html", "htm", "py", "js", "zip"}
+# What Obsidian itself opens: notes, canvases, bases, PDFs, and the image,
+# audio and video formats it embeds. Anything else in an Obsidian section
+# goes to the default app instead.
+OBSIDIAN_SUFFIXES = {"md", "canvas", "base", "pdf",
+                     "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp", "avif",
+                     "mp3", "wav", "m4a", "ogg", "flac", "3gp", "webm",
+                     "mp4", "ogv", "mov", "mkv"}
+
+
+def in_obsidian_vault(path):
+    """True when a folder above `path` is a vault, which holds `.obsidian`."""
+    folder = os.path.dirname(os.path.abspath(path))
+    while True:
+        if os.path.isdir(os.path.join(folder, ".obsidian")):
+            return True
+        parent = os.path.dirname(folder)
+        if parent == folder:
+            return False
+        folder = parent
 
 
 def parse_links(value):
@@ -43,7 +64,7 @@ def get_sections():
     with database.get_connection() as conn:
         conn.row_factory = database.sqlite3.Row
         return [dict(row) for row in conn.execute(
-            "SELECT id, name, kind, root_path, enabled, position FROM ResourceSections ORDER BY position")]
+            "SELECT id, name, kind, root_path, position FROM ResourceSections ORDER BY position")]
 
 
 def get_node_links(node_name):
@@ -62,10 +83,11 @@ def get_node_links(node_name):
     return result
 
 
-def section_has_links(section_id):
+def section_link_counts():
+    """How many links each section holds, for the Settings removal warning."""
     with database.get_connection() as conn:
-        return conn.execute("SELECT 1 FROM NodeResourceLinks WHERE section_id=? LIMIT 1",
-                            (section_id,)).fetchone() is not None
+        return dict(conn.execute(
+            "SELECT section_id, COUNT(*) FROM NodeResourceLinks GROUP BY section_id"))
 
 
 def absolute_path(value):
@@ -109,10 +131,18 @@ def resolve_target(value, section):
         return "uri", value
     root = (section.get("root_path") or "").strip()
     if section.get("kind") == "obsidian":
-        path = value if absolute_path(value) else os.path.join(root, value)
         if not root and not absolute_path(value):
-            raise ValueError("Set an Obsidian vault path in Settings.")
-        return "uri", "obsidian://open?path=" + urllib.parse.quote(path, safe="")
+            raise ValueError("Set this resource's root folder to your Obsidian vault in Settings.")
+        path = os.path.normpath(value if absolute_path(value)
+                                else os.path.join(root, value.replace("/", os.sep)))
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
+        # Obsidian can only open its own file types, and only inside a vault
+        # it knows. Anything else still opens, in the default app.
+        suffix = path.rsplit(".", 1)[-1].lower() if "." in os.path.basename(path) else ""
+        if suffix in OBSIDIAN_SUFFIXES and in_obsidian_vault(path):
+            return "uri", "obsidian://open?path=" + urllib.parse.quote(path, safe="")
+        return "path", path
     if absolute_path(value) or os.path.exists(value):
         return "path", value
     if root:
@@ -149,12 +179,12 @@ def open_resource(value, section):
 
 @database.atomic
 def save_node_links(node_name, submitted):
-    """Replace submitted sections only; hidden sections retain their links."""
+    """Replace the submitted sections' links; other sections keep theirs."""
     sections = {row["id"]: row for row in get_sections()}
     with database.get_connection() as conn:
         for section_id, values in submitted.items():
             section = sections.get(section_id)
-            if section is None or not section["enabled"]:
+            if section is None:
                 continue
             cleaned = [normalize_link(value, section) for value in values if value and value.strip()]
             conn.execute("DELETE FROM NodeResourceLinks WHERE node_name=? AND section_id=?",
@@ -162,59 +192,47 @@ def save_node_links(node_name, submitted):
             conn.executemany(
                 "INSERT INTO NodeResourceLinks(node_name, section_id, position, target) VALUES (?, ?, ?, ?)",
                 [(node_name, section_id, i, target) for i, target in enumerate(cleaned)])
-            # Keep old columns as a compatibility mirror until every older
-            # consumer has moved to the named-section model.
-            column = {"obsidian": "obsidian_path", "drive": "google_drive_path",
-                      "website": "website"}.get(section_id)
-            if column:
-                conn.execute(f"UPDATE Nodes SET {column}=? WHERE name=?",
-                             (json.dumps(cleaned) if cleaned else None, node_name))
+
+
+def live_sections(rows):
+    """The draft rows that survive a save: everything not marked for removal."""
+    return [row for row in rows if not row.get("deleted")]
 
 
 @database.atomic
 def save_sections(rows):
-    """Validate and save the complete ordered section list."""
+    """Save the ordered section draft. Removed sections take their links along."""
     validate_sections(rows)
+    rows = live_sections(rows)
     ids = [row.get("id") for row in rows]
-    names = [(row.get("name") or "").strip() for row in rows]
     with database.get_connection() as conn:
-        current = {row[0]: row[1] for row in conn.execute(
-            "SELECT id, kind FROM ResourceSections")}
-        removed = set(current) - set(ids)
-        for section_id in removed:
+        current = {row[0] for row in conn.execute("SELECT id FROM ResourceSections")}
+        for section_id in current - set(ids):
+            conn.execute("DELETE FROM NodeResourceLinks WHERE section_id=?", (section_id,))
             conn.execute("DELETE FROM ResourceSections WHERE id=?", (section_id,))
         saved = []
         for i, row in enumerate(rows):
-            section_id = row.get("id") or uuid.uuid4().hex
-            kind = current.get(section_id, "mixed")
+            saved_row = {"id": row.get("id") or uuid.uuid4().hex,
+                         "name": (row.get("name") or "").strip(),
+                         "kind": row.get("kind") if row.get("kind") in KINDS else "mixed",
+                         "root_path": (row.get("root_path") or "").strip(),
+                         "position": i}
             conn.execute(
-                "INSERT INTO ResourceSections(id, name, kind, root_path, enabled, position) "
-                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
-                "name=excluded.name, root_path=excluded.root_path, "
-                "enabled=excluded.enabled, position=excluded.position",
-                (section_id, names[i], kind, (row.get("root_path") or "").strip(),
-                 int(bool(row.get("enabled"))), i))
-            saved.append({"id": section_id, "name": names[i], "kind": kind,
-                          "root_path": (row.get("root_path") or "").strip(),
-                          "enabled": int(bool(row.get("enabled"))), "position": i})
+                "INSERT INTO ResourceSections(id, name, kind, root_path, position) "
+                "VALUES (:id, :name, :kind, :root_path, :position) ON CONFLICT(id) DO UPDATE SET "
+                "name=excluded.name, kind=excluded.kind, root_path=excluded.root_path, "
+                "position=excluded.position", saved_row)
+            saved.append(saved_row)
     return saved
 
 
 def validate_sections(rows):
     """Reject invalid edits before an unrelated Settings save writes anything."""
-    if not 1 <= len(rows) <= MAX_SECTIONS:
-        raise ValueError("Keep between one and five Resource sections.")
+    rows = live_sections(rows)
+    if len(rows) > MAX_SECTIONS:
+        raise ValueError(f"Keep at most {MAX_SECTIONS} resources.")
     ids = [row.get("id") for row in rows]
     names = [(row.get("name") or "").strip() for row in rows]
     if (len(set(ids)) != len(ids) or any(not name for name in names) or
             len(set(name.casefold() for name in names)) != len(names)):
-        raise ValueError("Resource section names must be nonempty and unique.")
-    with database.get_connection() as conn:
-        current = {row[0]: row[1] for row in conn.execute(
-            "SELECT id, kind FROM ResourceSections")}
-        removed = set(current) - set(ids)
-        for section_id in removed:
-            if section_id in BUILTIN_IDS or conn.execute(
-                "SELECT 1 FROM NodeResourceLinks WHERE section_id=? LIMIT 1", (section_id,)
-            ).fetchone():
-                raise ValueError("Disable a section with links; only empty custom sections can be removed.")
+        raise ValueError("Each resource needs its own name.")

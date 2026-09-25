@@ -3,7 +3,7 @@ import sqlite3
 from typing import List, Dict, Optional
 import database
 from models import Node
-from resource_links import parse_links, normalize_link, get_sections
+from resource_links import save_node_links
 
 
 class GraphRepository:
@@ -32,23 +32,6 @@ class GraphRepository:
             node.resource_links = {key: list(values) for key, values in
                                    links.get(node.name, {}).items()}
         return nodes
-
-    @staticmethod
-    def _sync_legacy_links(cursor, node, columns):
-        """Honor programmatic Node writes to the three compatibility fields."""
-        sections = {row['id']: row for row in get_sections()}
-        for section_id, column in columns.items():
-            section = sections.get(section_id)
-            if section is None:
-                continue
-            links = [normalize_link(link, section)
-                     for link in parse_links(getattr(node, column))]
-            cursor.execute("DELETE FROM NodeResourceLinks WHERE node_name=? AND section_id=?",
-                           (node.name, section_id))
-            cursor.executemany(
-                "INSERT INTO NodeResourceLinks(node_name, section_id, position, target) "
-                "VALUES (?, ?, ?, ?)",
-                [(node.name, section_id, i, value) for i, value in enumerate(links)])
 
     def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
@@ -174,15 +157,17 @@ class GraphRepository:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, habit_days, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, habit_days, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
                 ''', data)
-                self._sync_legacy_links(cursor, node, {
-                    'obsidian': 'obsidian_path', 'drive': 'google_drive_path',
-                    'website': 'website'})
                 conn.commit()
             except sqlite3.IntegrityError:
                 raise ValueError(f"Node with name '{node.name}' already exists.")
+        # Links live in their own table. A new node may arrive with some (a
+        # script building a node); an update never rewrites them, since the
+        # editor saves them itself through save_node_links.
+        if node.resource_links:
+            save_node_links(node.name, node.resource_links)
 
 
     def write_node(self, node, lifecycle_event_types, clock):
@@ -191,16 +176,11 @@ class GraphRepository:
             data = node.to_dict()
             data.pop('priority_score', None)
             data.pop('time', None)
-            before = cursor.execute(
-                "SELECT obsidian_path, google_drive_path, website FROM Nodes WHERE name=?",
-                (node.name,)).fetchone()
             cursor.execute('''
                 UPDATE Nodes
                 SET type=:type, description=:description, value=:value, time_o=:time_o, time_m=:time_m, time_p=:time_p,
                     interest=:interest, difficulty=:difficulty,
                     context=:context, subcontext=:subcontext, status=:status,
-                    obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
-                    website=:website,
                     dormant=:dormant, time_mode=:time_mode, value_mode=:value_mode,
                     habit_duration=:habit_duration, habit_duration_unit=:habit_duration_unit,
                     habit_intensity_o=:habit_intensity_o, habit_intensity_m=:habit_intensity_m,
@@ -214,14 +194,6 @@ class GraphRepository:
                     reflect_difficulty=:reflect_difficulty
                 WHERE name=:name
             ''', data)
-            columns = {'obsidian': 'obsidian_path', 'drive': 'google_drive_path',
-                       'website': 'website'}
-            if before is not None:
-                changed = {section_id: column for index, (section_id, column)
-                           in enumerate(columns.items())
-                           if before[index] != getattr(node, column)}
-                if changed:
-                    self._sync_legacy_links(cursor, node, changed)
             if lifecycle_event_types:
                 occurred_at = clock()
                 cursor.executemany(

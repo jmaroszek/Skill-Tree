@@ -10,7 +10,6 @@ import dash
 from config import BADGE_PALETTE
 from models import STATUS_DONE, STATUS_BLOCKED
 from callback_helpers import (
-    parse_links, serialize_links,
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
     _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
@@ -72,41 +71,6 @@ class TestUpdateAliasRows:
         )
         assert aliases == ["Second"]
         assert is_open is dash.no_update
-
-
-# ============================================================================
-# parse_links
-# ============================================================================
-
-class TestParseLinks:
-    def test_none_returns_single_empty(self):
-        assert parse_links(None) == ['']
-
-    def test_empty_string_returns_single_empty(self):
-        assert parse_links('') == ['']
-
-    def test_json_array(self):
-        val = json.dumps(["path/a", "path/b"])
-        assert parse_links(val) == ["path/a", "path/b"]
-
-    def test_empty_json_array(self):
-        assert parse_links('[]') == ['']
-
-    def test_plain_string_fallback(self):
-        assert parse_links("some/path.md") == ["some/path.md"]
-
-    def test_invalid_json_falls_back(self):
-        assert parse_links("{not valid}") == ["{not valid}"]
-
-    def test_json_object_treated_as_plain(self):
-        # A JSON object isn't a list → falls back to wrapping the string
-        val = json.dumps({"key": "value"})
-        result = parse_links(val)
-        assert len(result) == 1
-
-    def test_numeric_string(self):
-        # "42" is valid JSON (a number) but not a list
-        assert parse_links("42") == ["42"]
 
 
 # ============================================================================
@@ -209,45 +173,6 @@ class TestResolveValueMode:
     def test_none_toggle_value_safe(self):
         assert resolve_value_mode('Learn', None) == 'manual'
         assert resolve_value_mode('Milestone', None) == 'inherited'
-
-
-# ============================================================================
-# serialize_links
-# ============================================================================
-
-class TestSerializeLinks:
-    def test_none_returns_none(self):
-        assert serialize_links(None) is None
-
-    def test_empty_list_returns_none(self):
-        assert serialize_links([]) is None
-
-    def test_all_whitespace_returns_none(self):
-        assert serialize_links(["  ", "", "   "]) is None
-
-    def test_single_value(self):
-        result = serialize_links(["path/a"])
-        assert json.loads(result) == ["path/a"]
-
-    def test_multiple_values(self):
-        result = serialize_links(["path/a", "path/b"])
-        assert json.loads(result) == ["path/a", "path/b"]
-
-    def test_strips_whitespace(self):
-        result = serialize_links(["  path/a  ", "path/b  "])
-        parsed = json.loads(result)
-        assert parsed == ["path/a", "path/b"]
-
-    def test_filters_empty_strings(self):
-        result = serialize_links(["path/a", "", "  ", "path/b"])
-        parsed = json.loads(result)
-        assert parsed == ["path/a", "path/b"]
-
-    def test_roundtrip(self):
-        original = ["notes/a.md", "notes/b.md", "http://example.com"]
-        serialized = serialize_links(original)
-        deserialized = parse_links(serialized)
-        assert deserialized == original
 
 
 # ============================================================================
@@ -481,8 +406,7 @@ class TestIsFormDirtyVsSnapshot:
     Snapshot-based design: populate_editor stores a pristine snapshot of the
     form values it just wrote; the dirty check compares current form State to
     that snapshot. This eliminates false-positives from display transformations
-    (e.g. strip_gdrive_prefix on Drive paths) and from the title-case linter
-    rewriting names/aliases on save.
+    and from the title-case linter rewriting names/aliases on save.
     """
 
     @staticmethod
@@ -527,7 +451,7 @@ class TestIsFormDirtyVsSnapshot:
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
         form = self._form_from_snapshot(snap)
-        form['obs_links'] = ['notes/alpha.md']
+        form['resource_links'] = {'obsidian': ['notes/alpha.md']}
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_time_change_detected(self):
@@ -588,7 +512,7 @@ class TestIsFormDirtyVsSnapshot:
         """No baseline snapshot — can't be dirty regardless of form values."""
         assert not is_form_dirty_vs_snapshot(None, {
             'name': 'Anything', 'desc': 'whatever',
-            'obs_links': ['a', 'b'], 'aliases': ['X'],
+            'resource_links': {'drive': ['a', 'b']}, 'aliases': ['X'],
         })
 
     def test_blank_new_node_form_is_not_dirty(self):
@@ -602,31 +526,18 @@ class TestIsFormDirtyVsSnapshot:
         form['name'] = 'Unsaved'
         assert is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, form)
 
-    def test_gdrive_prefix_does_not_cause_false_positive(self):
-        """Regression: render_drive_links strips the GDrive prefix for display,
-        so the form's State value is the stripped path. The snapshot must store
-        the stripped form too — otherwise every node with a Drive path under
-        the configured root would falsely flag as dirty."""
+    def test_resource_link_change_detected(self):
+        """Adding a link in any section counts as dirty; an empty row does not."""
         from graph_manager import GraphManager
-        from config import ConfigManager
         mgr = GraphManager()
-        # Configure a Drive root and seed a node whose path lives under it.
-        prefix = 'C:/GDrive/SkillTree/'
-        ConfigManager.set_gdrive_path(prefix)
-        try:
-            full_path = prefix + 'foo.pdf'
-            node = self._seed(
-                mgr, name='WithDrive',
-                google_drive_path=json.dumps([full_path]),
-            )
-            snap = build_editor_snapshot(mgr, node.name)
-            # The snapshot must hold the *stripped* path — what the input shows.
-            assert snap['drive_links'] == ['foo.pdf']
-            # Form State (post-render) also holds the stripped path. Not dirty.
-            form = self._form_from_snapshot(snap)
-            assert not is_form_dirty_vs_snapshot(snap, form)
-        finally:
-            ConfigManager.set_gdrive_path('')
+        node = self._seed(mgr, name='WithLinks', resource_links={'drive': ['a.pdf']})
+        snap = build_editor_snapshot(mgr, node.name)
+        assert snap['resource_links'] == {'drive': ['a.pdf']}
+        form = self._form_from_snapshot(snap)
+        form['resource_links'] = {'drive': ['a.pdf'], 'website': ['']}
+        assert not is_form_dirty_vs_snapshot(snap, form)
+        form['resource_links'] = {'drive': ['a.pdf', 'b.pdf']}
+        assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_post_save_alias_lint_does_not_cause_false_positive(self):
         """Regression: set_aliases title-case-lints aliases on save. After the
@@ -691,7 +602,7 @@ class TestSnapshotFromFormState:
             'time_unit': 'hours',
             'e_needs_h': [], 'e_needs_s': [],
             'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
-            'obs_links': [''], 'drive_links': [''], 'website_links': [''],
+            'resource_links': {},
             'time_mode': [],
             'habit_intensity_unit': 'min_per_session',
             'habit_days': [0, 1, 2, 3, 4, 5, 6],
@@ -751,16 +662,6 @@ class TestSnapshotFromFormState:
         post_lint_form['aliases'] = ['Alpha Alias']
         assert not is_form_dirty_vs_snapshot(snap, post_lint_form)
 
-    def test_gdrive_full_path_in_form_not_dirty(self):
-        """Regression: the user may have typed a full GDrive-prefixed path,
-        which handle_save strips before writing to DB. build_editor_snapshot
-        read back as stripped; form still held full path -> dirty.
-        snapshot_from_form_state stores what the form holds, so no drift."""
-        form = self._form(drive_links=['C:/GDrive/SkillTree/foo.pdf'])
-        snap = snapshot_from_form_state(form, form['name'], form['aliases'])
-        assert snap['drive_links'] == ['C:/GDrive/SkillTree/foo.pdf']
-        assert not is_form_dirty_vs_snapshot(snap, form)
-
     def test_new_node_after_save_has_real_snapshot(self):
         """Brand-new node save: form holds the typed values; snapshot must
         carry those values (not fall back to NEW_NODE_SNAPSHOT)."""
@@ -783,7 +684,7 @@ class TestSnapshotFromFormState:
         with the same sensible defaults the dirty check uses."""
         form = self._form(
             desc=None, context=None, subctx=None,
-            obs_links=None, drive_links=None, website_links=None,
+            resource_links=None,
             aliases=None, status_done=None, time_mode=None,
         )
         snap = snapshot_from_form_state(
@@ -794,7 +695,7 @@ class TestSnapshotFromFormState:
         # Defaults match the expectations of is_form_dirty_vs_snapshot.
         assert snap['desc'] == ''
         assert snap['aliases'] == ['']
-        assert snap['obs_links'] == ['']
+        assert snap['resource_links'] == {}
         assert snap['status_done'] == []
         assert snap['time_mode'] == []
         # Reconstitute the form the way Dash would (with the defaults the
@@ -802,7 +703,7 @@ class TestSnapshotFromFormState:
         form_for_check = dict(form)
         form_for_check.update({
             'desc': '', 'context': '', 'subctx': '',
-            'obs_links': [''], 'drive_links': [''], 'website_links': [''],
+            'resource_links': {},
             'aliases': [''], 'status_done': [], 'time_mode': [],
         })
         assert not is_form_dirty_vs_snapshot(snap, form_for_check)
@@ -847,7 +748,7 @@ class TestEditorFormValues:
             val=5, interest=5, diff=5,
             time_o=40, time_m=80, time_p=160, time_unit='hours',
             e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
-            obs_links=[''], drive_links=[''], website_links=[''],
+            resource_links={},
             time_mode=[], value_mode=[], priority_rank='none', aliases=[''],
             time_habit_mode=[],
             habit_duration=0, habit_duration_unit='weeks',
@@ -904,7 +805,7 @@ class TestEditorFormValues:
             time_o=snap['time_o'], time_m=snap['time_m'], time_p=snap['time_p'],
             time_unit=snap['time_unit'],
             e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
-            obs_links=[''], drive_links=[''], website_links=[''],
+            resource_links={},
             time_mode=[], value_mode=[], priority_rank='none', aliases=[''],
             dormancy=snap['dormancy'],
         )
@@ -935,8 +836,7 @@ class TestEditorFormValues:
             e_needs_h=snap['e_needs_h'], e_needs_s=snap['e_needs_s'],
             e_supp_h=snap['e_supp_h'], e_supp_s=snap['e_supp_s'],
             e_helps=snap['e_helps'],
-            obs_links=snap['obs_links'], drive_links=snap['drive_links'],
-            website_links=snap['website_links'],
+            resource_links=snap['resource_links'],
             time_mode=snap['time_mode'], time_habit_mode=snap['time_habit_mode'],
             habit_duration=snap['habit_duration'],
             habit_duration_unit=snap['habit_duration_unit'],

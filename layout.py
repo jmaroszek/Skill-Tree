@@ -30,6 +30,7 @@ from list_toolbar import SORT_MENUS, sort_menu_items
 import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select
+from resource_links import MAX_SECTIONS
 from ui_kit import (Tooltip, edit_button, info_button, panel_close_button,
                     step_button)
 
@@ -1050,11 +1051,10 @@ def build_app_layout(initial_elements, env="production"):
         _menu_item("Add to Event…", "ctx-menu-add-to-event", icon="calendar-event"),
         _menu_item("Mark Done", "ctx-menu-toggle-done", icon="check-circle"),
         _menu_divider("ctx-menu-links-divider"),
-        _menu_item("Open Website", "ctx-menu-website", icon="globe2"),
-        _menu_item("Open in Obsidian", "ctx-menu-obsidian", icon="journal-text"),
-        _menu_item("Open in Drive", "ctx-menu-drive", icon="folder2-open"),
-        _menu_item("Open Resource", "ctx-menu-custom-0", icon="folder2-open"),
-        _menu_item("Open Resource", "ctx-menu-custom-1", icon="folder2-open"),
+        # One slot per possible Resource section; context_menu.js names each
+        # after its section and shows only those the node has a link in.
+        *[_menu_item("Open Resource", f"ctx-menu-resource-{i}", icon="box-arrow-up-right")
+          for i in range(MAX_SECTIONS)],
         _menu_divider(),
         _menu_item("Delete…", "ctx-menu-delete", danger=True, icon="trash3"),
     ])

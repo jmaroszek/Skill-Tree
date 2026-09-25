@@ -125,7 +125,7 @@ def test_a_new_dormant_node_is_saved_in_one_transaction(mgr, em):
     with pytest.raises(ValueError):
         with database.transaction():
             handle_save(mgr, "Fresh", "Action", "", 5, 1.0, 2.0, 4.0, 5, 5,
-                        [], "Mind", None, "", "", "", [], [], [], [], [])
+                        [], "Mind", None, None, [], [], [], [], [])
             _apply(mgr, em, "Fresh", _form(), was_dormant=False)
     assert mgr.get_node("Fresh") is None
 
@@ -211,7 +211,7 @@ def test_saving_a_dormant_node_keeps_fields_the_form_does_not_show(mgr, em):
     mgr.update_node(stored)
 
     handle_save(mgr, "Voice", "Action", "edited", 5, 1.0, 2.0, 4.0, 5, 5,
-                [], "Mind", None, "", "", "", [], [], [], [], [])
+                [], "Mind", None, None, [], [], [], [], [])
     _apply(mgr, em, "Voice", _form(event="A"), was_dormant=True)
 
     after = mgr.get_node("Voice")

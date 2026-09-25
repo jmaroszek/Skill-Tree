@@ -249,7 +249,7 @@ class TestEventNodeAssociation:
         handle_save(
             mgr, "N1", "Learn", "edited", 5, 1.0, 2.0, 4.0, 5, 5,
             status_done=[], context="Mind", subctx=None,
-            obs_path="", drive_path="", website_path="",
+            resource_links=None,
             e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
         )
 

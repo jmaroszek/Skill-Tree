@@ -72,4 +72,4 @@ Tests run against a temporary per-test database and never touch your sandbox or 
 
 - **Database files** live in `%LOCALAPPDATA%\Skill Tree\Data\` on Windows, `~/Library/Application Support/Skill Tree/Data/` on macOS, and `$XDG_DATA_HOME/Skill Tree/Data/` (or `~/.local/share/Skill Tree/Data/`) on Linux. They are created on demand: `skilltree.db` (production) and `sandbox_skilltree.db` (sandbox).
 - **Logs** use the matching platform app-data `Logs` folder: `app.log` (production) and `sandbox_app.log` (sandbox), rotating at 5 MB. Backup and optional scoring-performance logs live there too.
-- Settings → Integrations has up to five named Resource sections. General sections can open URLs or any local file type; optional roots make files beneath them portable as relative paths. Obsidian uses an `obsidian://` URI and is optional.
+- Settings → Integrations has up to five named Resource sections. Each opens URLs and any local file type; an optional root folder makes files beneath it portable as relative paths. A section with Open in Obsidian sends its notes to Obsidian through an `obsidian://` URI instead of the default app.
