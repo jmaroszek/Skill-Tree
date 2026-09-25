@@ -324,3 +324,17 @@ def register_sidebars_callbacks(app, services=None):
         State('events-sidebar-container', 'style'),
         prevent_initial_call=True,
     )
+
+    # Moving the editor offscreen does not always send mouseleave to a hovered
+    # action button. Its tooltip is rendered in a portal outside the sidebar,
+    # so explicitly dismiss it when the sidebar closes (including after Delete).
+    app.clientside_callback(
+        ClientsideFunction(namespace='editor', function_name='dismiss_tooltips'),
+        Output('editor-revert-tooltip', 'is_open'),
+        Output('editor-save-tooltip', 'is_open'),
+        Output('editor-save-close-tooltip', 'is_open'),
+        Output('editor-delete-tooltip', 'is_open'),
+        Output('editor-new-node-tooltip', 'is_open'),
+        Input('sidebar-editor-container', 'style'),
+        prevent_initial_call=True,
+    )

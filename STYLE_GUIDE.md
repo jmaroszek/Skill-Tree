@@ -291,6 +291,10 @@ looks correct. `ui_kit` wraps a button and its tooltip in a `.ui-affordance`
 span with `display: contents`, which stays out of layout so the button remains
 a direct flex item of its row. A test guards this.
 
+The node editor's action tooltips also close when the editor slides offscreen.
+The slide can bypass the button's mouse-leave event, while Bootstrap renders
+the tooltip outside the sidebar.
+
 ### Flat ghost treatment
 
 Icon-only affordances use a flat ghost look — transparent fill, muted stroke,

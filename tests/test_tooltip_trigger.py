@@ -8,9 +8,16 @@ Everything goes through ``ui_kit.Tooltip``, which fixes the trigger in one place
 
 import dash_bootstrap_components as dbc
 from pathlib import Path
+import shutil
+import subprocess
+
+import dash
+import pytest
 
 from events_layout import build_dormant_nodes_table
 from models import Node
+from sidebars_callbacks import register_sidebars_callbacks
+from sidebars_layout import build_node_editor_content
 from ui_kit import Tooltip, add_button, edit_button, info_button
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,3 +78,45 @@ def test_no_module_builds_a_raw_dbc_tooltip():
     ]
 
     assert offenders == [], f"use ui_kit.Tooltip instead of dbc.Tooltip in {offenders}"
+
+
+def test_editor_action_tooltips_dismiss_when_sidebar_closes():
+    tips = {tip.id: tip for tip in _tooltips(build_node_editor_content())
+            if getattr(tip, 'id', None) and tip.id.startswith('editor-')}
+    expected = {
+        'editor-revert-tooltip', 'editor-save-tooltip',
+        'editor-save-close-tooltip', 'editor-delete-tooltip',
+        'editor-new-node-tooltip',
+    }
+    assert set(tips) == expected
+    assert all(tip.trigger == 'hover' for tip in tips.values())
+
+    app = dash.Dash(__name__)
+    register_sidebars_callbacks(app)
+    callback = next(c for c in app._callback_list
+                    if all(f'{tip}.is_open' in c['output'] for tip in expected))
+    assert callback['inputs'] == [{'id': 'sidebar-editor-container', 'property': 'style'}]
+
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('Node.js is required for the editor tooltip browser contract')
+    asset = ROOT / 'assets' / 'editor_sidebar.js'
+    script = r'''
+const assert = require('node:assert/strict');
+global.window = {dash_clientside: {no_update: 'NO'}};
+const events = [];
+global.MouseEvent = class { constructor(type) { this.type = type; } };
+global.document = {getElementById: id => ({
+    dispatchEvent: event => events.push([id, event.type]),
+})};
+require(process.argv[1]);
+const dismiss = window.dash_clientside.editor.dismiss_tooltips;
+assert.deepEqual(dismiss({transform: 'translateX(0px)'}), Array(5).fill('NO'));
+assert.deepEqual(events, []);
+assert.deepEqual(dismiss({transform: 'translateX(-350px)'}), Array(5).fill(false));
+assert.deepEqual(events, ['btn-revert', 'btn-save', 'btn-save-close',
+    'btn-delete', 'btn-new-node'].map(id => [id, 'mouseout']));
+'''
+    result = subprocess.run([node, '-e', script, str(asset)], capture_output=True,
+                            text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
