@@ -737,6 +737,14 @@ The Details subtasks Name column is fixed at 360px. Its link is a single-line
 ellipsis and its `title` contains the complete node name; long names must not
 move or crowd the Status, Relationship, and classification columns.
 
+Reflection History uses the same table tokens inside a 940px modal. Its
+summary columns are Name, estimated time, actual time, time difference, and
+rating difference. The name truncates to one line; focusable name and rating
+cells reveal the complete name and estimated/actual V/I/E comparison. Column
+headers sort by the underlying numeric values, with missing values last in
+either direction. The table initially shows 20 rows and reveals 20 more per
+click through a counted divider. The modal width is shared across its tabs.
+
 ## Badges
 
 Use `config.badge_style(name)` rather than `dbc.Badge(color=...)` so badges

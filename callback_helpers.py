@@ -45,13 +45,15 @@ def build_calibration_dismissed_view(manager):
     dismissed = sorted(n.name for n in manager.get_all_nodes(include_dormant=True)
                        if n.calibration_dismissed)
     if not dismissed:
-        return html.Small("Nothing excluded.", className="text-muted d-block")
+        return html.Small("No nodes excluded from reflection.",
+                          className="text-muted d-block")
     rows = []
     for name in dismissed:
         rows.append(html.Div([
             html.Span(name, className="text-truncate"),
             restore_button({'type': 'calibration-restore', 'index': name},
-                           tooltip="Restore defaults", placement="right"),
+                           tooltip="Include in future reflections",
+                           placement="right"),
         ], className="d-flex align-items-center mb-1"))
     return html.Div(rows)
 

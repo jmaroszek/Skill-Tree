@@ -806,6 +806,79 @@
     justify-content: center;
 }
 
+/* Reflection History is a compact summary. Full node names and rating
+   comparisons remain available through focusable tooltips. */
+.review-history-table-wrap {
+    overflow-x: auto;
+}
+
+.review-history-table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 700px;
+}
+
+.review-history-table .review-history-heading-name,
+.review-history-table .review-history-name-cell {
+    width: 42%;
+}
+
+.review-history-table .review-history-heading-estimated,
+.review-history-table .review-history-heading-actual,
+.review-history-table .review-history-heading-delta_time {
+    width: 12%;
+}
+
+.review-history-table .review-history-heading-delta_ratings {
+    width: 17%;
+}
+
+.review-history-table .review-history-name-cell {
+    overflow: hidden;
+}
+
+.review-history-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.review-history-name:focus-visible,
+.review-history-rating:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.review-history-sort-btn.btn-link {
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.review-history-sort-btn.btn-link:hover,
+.review-history-sort-btn.btn-link:focus-visible {
+    color: var(--st-text-primary);
+    text-decoration: underline;
+}
+
+.review-history-pager {
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+}
+
+.review-history-pager::before,
+.review-history-pager::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--bs-border-color);
+}
+
 /* Details subtasks and Reflection history use the same progressive row
    actions as Events > Dormant Nodes. Pointer users see the pencil only for
    the row under attention; keyboard focus and touch keep the action usable. */

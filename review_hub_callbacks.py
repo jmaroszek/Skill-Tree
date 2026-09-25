@@ -19,8 +19,17 @@ from models import STATUS_DONE
 _manager = GraphManager()
 
 
-# Sentinel string for missing-actual cells in the History table.
+# Sentinel string for missing comparisons in the History table.
 _DASH = "—"
+_HISTORY_BATCH_SIZE = 20
+_DEFAULT_HISTORY_SORT = {"key": "completed", "direction": "desc"}
+_SORT_COLUMNS = {
+    "name": "Name",
+    "estimated": "Est Time",
+    "actual": "Actual",
+    "delta_time": "Δ Time",
+    "delta_ratings": "Δ Ratings",
+}
 
 
 def _fmt_hours(hours):
@@ -47,8 +56,8 @@ def _fmt_vie_tuple(v, i, d):
 
 
 def _fmt_vie_delta(av, ai, ad, ev, ei, ed):
-    """Signed per-dimension Δ V/I/E. DASH if any actual missing."""
-    if av is None or ai is None or ad is None:
+    """Signed per-dimension Δ V/I/E. DASH if either tuple is incomplete."""
+    if any(v is None for v in (av, ai, ad, ev, ei, ed)):
         return _DASH
 
     def _signed(actual, est):
@@ -58,6 +67,98 @@ def _fmt_vie_delta(av, ai, ad, ev, ei, ed):
         return f"+{diff}" if diff > 0 else f"−{abs(diff)}"
 
     return f"{_signed(av, ev)}/{_signed(ai, ei)}/{_signed(ad, ed)}"
+
+
+def _rating_change_magnitude(node):
+    """Total absolute V/I/E change, or None for an incomplete comparison."""
+    pairs = (
+        (node.reflect_value, node.value),
+        (node.reflect_interest, node.interest),
+        (node.reflect_difficulty, node.difficulty),
+    )
+    if any(actual is None or estimated is None for actual, estimated in pairs):
+        return None
+    return sum(abs(int(actual) - int(estimated)) for actual, estimated in pairs)
+
+
+def _history_sort_value(node, key):
+    estimate = node.time
+    if key == "name":
+        return node.name.casefold()
+    if key == "estimated":
+        return estimate if estimate > 0 else None
+    if key == "actual":
+        return node.actual_time_point
+    if key == "delta_time":
+        return (node.actual_time_point - estimate
+                if node.actual_time_point is not None and estimate > 0 else None)
+    if key == "delta_ratings":
+        return _rating_change_magnitude(node)
+    return None
+
+
+def _sort_history_nodes(nodes, sort):
+    """Keep missing values last for both directions; use name for ties."""
+    key = (sort or {}).get("key", "completed")
+    direction = (sort or {}).get("direction", "desc")
+    if key not in _SORT_COLUMNS:
+        dated = [node for node in nodes if node.done_date]
+        undated = [node for node in nodes if not node.done_date]
+        dated.sort(key=lambda node: node.name.casefold())
+        dated.sort(key=lambda node: node.done_date, reverse=True)
+        undated.sort(key=lambda node: node.name.casefold())
+        return dated + undated
+
+    valid = [node for node in nodes if _history_sort_value(node, key) is not None]
+    missing = [node for node in nodes if _history_sort_value(node, key) is None]
+    valid.sort(key=lambda node: node.name.casefold())
+    valid.sort(key=lambda node: _history_sort_value(node, key),
+               reverse=direction == "desc")
+    missing.sort(key=lambda node: node.name.casefold())
+    return valid + missing
+
+
+def _visible_history_count(trigger, current, total):
+    """Reveal a fresh first batch after filters, otherwise advance by one."""
+    if trigger in ('modal-review-hub', 'hub-history-search',
+                   'hub-history-filter-context',
+                   'hub-history-filter-subcontext'):
+        wanted = _HISTORY_BATCH_SIZE
+    elif trigger == 'hub-history-show-more':
+        wanted = (current or _HISTORY_BATCH_SIZE) + _HISTORY_BATCH_SIZE
+    else:
+        wanted = current or _HISTORY_BATCH_SIZE
+    return min(wanted, total)
+
+
+def _history_sort_heading(key, sort):
+    active = (sort or {}).get("key") == key
+    direction = (sort or {}).get("direction", "asc")
+    label = _SORT_COLUMNS[key]
+    default_direction = "desc" if key in ("delta_time", "delta_ratings") else "asc"
+    next_direction = ("asc" if direction == "desc" else "desc") if active else default_direction
+    aria_sort = ("ascending" if direction == "asc" else "descending") if active else "none"
+    children = [label, html.Span(f", sort {next_direction}ending",
+                                 className="visually-hidden")]
+    if active:
+        children.append(html.I(
+            className=("bi bi-caret-down-fill" if direction == "desc"
+                       else "bi bi-caret-up-fill") + " ms-1",
+            **{"aria-hidden": "true"}))
+    button = dbc.Button(children,
+                        id={"type": "hub-history-sort-column", "index": key},
+                        color="link", className="review-history-sort-btn")
+    heading = html.Th(button,
+                      className=f"review-history-heading review-history-heading-{key}",
+                      **{"aria-sort": aria_sort})
+    if key == "delta_ratings":
+        return html.Th([button, Tooltip(
+            "Value / Interest / Effort. Sorted by total absolute change.",
+            target={"type": "hub-history-sort-column", "index": key},
+            trigger="hover focus",
+        )], className="review-history-heading review-history-heading-delta_ratings",
+            **{"aria-sort": aria_sort})
+    return heading
 
 
 def _node_has_actuals(node):
@@ -78,14 +179,14 @@ _CELL_PRIMARY = tokens.CELL_PRIMARY
 _CELL_MUTED = tokens.CELL_MUTED
 
 
-def _build_history_table(nodes):
+def _build_history_table(nodes, sort=None, empty_message="No matching reflections."):
     """Render the Review History as a `dbc.Table` matching the Details tab's
     Subtasks-table style. Edit buttons carry pattern-matched ids so the
     edit-handoff callback can resolve which row was clicked directly from
     `ctx.triggered_id`."""
     if not nodes:
         return html.Div(
-            html.P("No matching reflections.",
+            html.P(empty_message,
                    className="text-muted mb-0"),
             className="text-center py-3",
         )
@@ -94,6 +195,11 @@ def _build_history_table(nodes):
     for node in nodes:
         est_hours = getattr(node, 'time', 0) or 0
         act_hours = node.actual_time_point
+        name_id = {'type': 'hub-history-name', 'index': node.name}
+        ratings_id = {'type': 'hub-history-ratings', 'index': node.name}
+        estimated_ratings = _fmt_vie_tuple(node.value, node.interest, node.difficulty)
+        actual_ratings = _fmt_vie_tuple(node.reflect_value, node.reflect_interest,
+                                        node.reflect_difficulty)
         edit_id = {'type': 'hub-history-edit', 'index': node.name}
         edit_action = html.Div([
             dbc.Button(
@@ -113,20 +219,25 @@ def _build_history_table(nodes):
             ),
         ], className="review-history-actions")
         rows.append(html.Tr([
-            html.Td(node.name, style=_CELL_PRIMARY),
+            html.Td([
+                html.Span(node.name, id=name_id, tabIndex=0,
+                          className="review-history-name"),
+                Tooltip(node.name, target=name_id, trigger="hover focus"),
+            ], className="review-history-name-cell", style=_CELL_PRIMARY),
             html.Td(_fmt_hours(est_hours) if est_hours > 0 else _DASH,
                     style=_CELL_MUTED),
             html.Td(_fmt_hours(act_hours), style=_CELL_MUTED),
             html.Td(_fmt_delta_hours(act_hours, est_hours), style=_CELL_MUTED),
-            html.Td(_fmt_vie_tuple(node.value, node.interest, node.difficulty),
-                    style=_CELL_MUTED),
-            html.Td(_fmt_vie_tuple(node.reflect_value, node.reflect_interest,
-                                   node.reflect_difficulty),
-                    style=_CELL_MUTED),
-            html.Td(_fmt_vie_delta(node.reflect_value, node.reflect_interest,
-                                   node.reflect_difficulty,
-                                   node.value, node.interest, node.difficulty),
-                    style=_CELL_MUTED),
+            html.Td([
+                html.Span(_fmt_vie_delta(
+                    node.reflect_value, node.reflect_interest,
+                    node.reflect_difficulty,
+                    node.value, node.interest, node.difficulty),
+                    id=ratings_id, tabIndex=0, className="review-history-rating"),
+                Tooltip(f"Estimated V/I/E: {estimated_ratings} · "
+                        f"Actual V/I/E: {actual_ratings}",
+                        target=ratings_id, trigger="hover focus"),
+            ], style=_CELL_MUTED),
             html.Td(edit_action,
                     style={"verticalAlign": "middle", "width": "32px"}),
         ], className="review-history-row"))
@@ -138,13 +249,8 @@ def _build_history_table(nodes):
     return dbc.Table(
         [
             html.Thead(html.Tr([
-                html.Th("Name"),
-                html.Th("Est Time"),
-                html.Th("Actual"),
-                html.Th("Δ Time"),
-                html.Th("Est V/I/E"),
-                html.Th("Act V/I/E"),
-                html.Th("Δ V/I/E"),
+                *[_history_sort_heading(key, sort)
+                  for key in _SORT_COLUMNS],
                 html.Th(""),
             ])),
             html.Tbody(rows),
@@ -199,19 +305,26 @@ def register_review_hub_callbacks(app, services=None):
         return not is_open
 
     # --- Refresh the Pending tab's count when the hub opens ---
-    # Reuses _calibration_review_queue from callbacks.py (the same function
+    # Reuses _calibration_review_queue from editor_values.py (the same function
     # the queue-launch callback uses) so the count is always consistent with
     # what "Start review" would actually iterate through.
     @app.callback(
         Output('hub-pending-count', 'children'),
+        Output('hub-pending-summary', 'style'),
+        Output('hub-pending-empty', 'style'),
+        Output('btn-hub-pending-launch', 'style'),
         Input('modal-review-hub', 'is_open'),
+        Input('hub-excluded-list', 'children'),
         prevent_initial_call=True,
     )
-    def refresh_pending_count(is_open):
+    def refresh_pending_count(is_open, _excluded_list):
         if not is_open:
-            return no_update
+            return (no_update,) * 4
         from editor_values import _calibration_review_queue
-        return str(len(_calibration_review_queue(_manager)))
+        count = len(_calibration_review_queue(_manager))
+        shown = {"display": "block"}
+        hidden = {"display": "none"}
+        return str(count), (shown if count else hidden), (hidden if count else shown), (shown if count else hidden)
 
     # --- Excluded tab: populate when the hub opens ---
     # Lifted from settings_callbacks.load_calibration_dismissed_list with the
@@ -247,35 +360,79 @@ def register_review_hub_callbacks(app, services=None):
             _manager.update_node(node)
         return build_calibration_dismissed_view(_manager)
 
-    # --- History tab: rebuild the table on open, tab switch, or filter change ---
+    # --- History tab: sortable, progressively revealed results ---
+    @app.callback(
+        Output('hub-history-sort', 'data'),
+        Input('modal-review-hub', 'is_open'),
+        Input({'type': 'hub-history-sort-column', 'index': ALL}, 'n_clicks'),
+        Input('hub-history-sort-reset', 'n_clicks'),
+        State('hub-history-sort', 'data'),
+        prevent_initial_call=True,
+    )
+    def update_history_sort(is_open, clicks, reset_clicks, current_sort):
+        trigger = ctx.triggered_id
+        if trigger == 'modal-review-hub':
+            return dict(_DEFAULT_HISTORY_SORT) if is_open else no_update
+        if trigger == 'hub-history-sort-reset':
+            return dict(_DEFAULT_HISTORY_SORT) if reset_clicks else no_update
+        if not isinstance(trigger, dict) or not any(clicks or []):
+            return no_update
+        key = trigger.get('index')
+        if key not in _SORT_COLUMNS:
+            return no_update
+        if (current_sort or {}).get('key') == key:
+            direction = ('asc' if current_sort.get('direction') == 'desc' else 'desc')
+        else:
+            direction = 'desc' if key in ('delta_time', 'delta_ratings') else 'asc'
+        return {'key': key, 'direction': direction}
+
     @app.callback(
         Output('hub-history-table-container', 'children'),
+        Output('hub-history-page-status', 'children'),
+        Output('hub-history-pager', 'style'),
+        Output('hub-history-show-more', 'style'),
+        Output('hub-history-visible-count', 'data'),
+        Output('hub-history-sort-reset-wrap', 'style'),
         Input('modal-review-hub', 'is_open'),
         Input('review-hub-tabs', 'active_tab'),
         Input('hub-history-search', 'value'),
         Input('hub-history-filter-context', 'value'),
         Input('hub-history-filter-subcontext', 'value'),
+        Input('hub-history-sort', 'data'),
+        Input('hub-history-show-more', 'n_clicks'),
+        State('hub-history-visible-count', 'data'),
         prevent_initial_call=True,
     )
     def populate_review_history(is_open, _active_tab, search,
-                                ctx_filter, subctx_filter):
+                                ctx_filter, subctx_filter, sort, _more_clicks,
+                                visible_count):
         if not is_open:
-            return no_update
+            return (no_update,) * 6
         # Only nodes that are *currently* Done belong in History. The
         # reflect_*/actual_time_* columns persist when a node is un-marked
         # Done (so re-completing restores the reflection), so _node_has_actuals
         # alone would keep stale rows for nodes the user reverted to Open.
-        nodes = [n for n in _manager.get_all_nodes(include_dormant=True)
-                 if n.status == STATUS_DONE and _node_has_actuals(n)]
-        nodes = _filter_history_nodes(nodes, search, ctx_filter, subctx_filter)
-        # Most-recent-first by done_date; undated rows go to the bottom in
-        # name order so the table stays scannable even before any node has
-        # been Now-flipped.
-        dated = [n for n in nodes if n.done_date]
-        undated = [n for n in nodes if not n.done_date]
-        dated.sort(key=lambda n: n.done_date, reverse=True)
-        undated.sort(key=lambda n: n.name.lower())
-        return _build_history_table(dated + undated)
+        history = [n for n in _manager.get_all_nodes(include_dormant=True)
+                   if n.status == STATUS_DONE and _node_has_actuals(n)]
+        nodes = _filter_history_nodes(history, search, ctx_filter, subctx_filter)
+        nodes = _sort_history_nodes(nodes, sort)
+        reset_style = ({'display': 'none'} if (sort or {}).get('key') == 'completed'
+                       else {'display': 'block'})
+        if not nodes:
+            message = ('No reflections yet.' if not history
+                       else 'No matching reflections.')
+            return (_build_history_table([], sort, message), '',
+                    {'display': 'none'}, {'display': 'none'},
+                    _HISTORY_BATCH_SIZE, reset_style)
+
+        limit = _visible_history_count(ctx.triggered_id, visible_count,
+                                       len(nodes))
+        noun = 'reflection' if len(nodes) == 1 else 'reflections'
+        status = f'Showing {limit} of {len(nodes)} {noun}'
+        more_style = ({'display': 'inline-flex'} if limit < len(nodes)
+                      else {'display': 'none'})
+        return (_build_history_table(nodes[:limit], sort), status,
+                {'display': 'flex'}, more_style, limit, reset_style)
 
     # --- History tab: open the focused-review modal in 'edit' mode ---
     # Triggered by clicking any row's ✎ button — pattern-matched id carries
@@ -311,6 +468,11 @@ def register_review_hub_callbacks(app, services=None):
         # Modal copy reuses the same helper as the queue / single flows.
         from editor_values import _calibration_modal_text, _calibration_unit_for
         title, reference = _calibration_modal_text(node)
+        estimated_ratings = _fmt_vie_tuple(node.value, node.interest,
+                                           node.difficulty)
+        if estimated_ratings != _DASH:
+            reference = [reference, html.Br(),
+                         f"Estimated ratings (V/I/E): {estimated_ratings}"]
 
         # Display unit matches the actuals' magnitude (e.g. "2.8w" instead of
         # "56h") so the Best Estimate field reads in the same friendly units

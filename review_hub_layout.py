@@ -15,7 +15,7 @@ does not suppress callback exceptions, so any State or Input that references
 them needs the component present from the first paint.
 """
 
-from dash import html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 
 from context_picker import build_multi_context_picker
@@ -26,15 +26,16 @@ def _build_pending_tab():
         html.Div([
             html.P(
                 "Walk through completed nodes that haven't been "
-                "reflected on yet — one at a time, capturing actual "
-                "value, interest, effort, and time.",
+                "reflected on yet",
                 className="text-muted mb-3",
             ),
             html.Div([
                 html.Span("Nodes pending reflection: ", className="text-muted"),
                 html.Span(id="hub-pending-count", className="fw-bold ms-1",
                           children="0"),
-            ], className="mb-3"),
+            ], id="hub-pending-summary", className="mb-3"),
+            html.P("All caught up", id="hub-pending-empty",
+                   className="mb-0", style={"display": "none"}),
             dbc.Button("Start Reflection", id="btn-hub-pending-launch",
                        color="primary"),
         ], className="p-3")
@@ -47,9 +48,8 @@ def _build_history_tab():
             # No caption. "Already-reflected nodes" only restates the tab's own
             # name, and the pencil carries its own tooltip. The sibling tabs
             # keep theirs because they say something their names do not: the
-            # queue explains that it goes one node at a time and what you
-            # capture, and Excluded has to say excluded from WHAT, and how to
-            # undo it.
+            # queue identifies which completed nodes it handles, and Excluded
+            # says what can be restored.
             #
             # Search takes the width: a name is long and you type into it,
             # while the context picker shows at most two contexts and a "+N".
@@ -69,7 +69,19 @@ def _build_history_tab():
                     width=4,
                 ),
             ], className="mb-2 g-2"),
-            html.Div(id="hub-history-table-container"),
+            dcc.Store(id="hub-history-visible-count", data=20),
+            dcc.Store(id="hub-history-sort", data={"key": "completed", "direction": "desc"}),
+            html.Div(id="hub-history-sort-reset-wrap", children=[
+                dbc.Button("Newest completed first", id="hub-history-sort-reset",
+                           color="link", size="sm", className="p-0"),
+            ], className="mb-1", style={"display": "none"}),
+            html.Div(id="hub-history-table-container",
+                     className="review-history-table-wrap"),
+            html.Div([
+                html.Span(id="hub-history-page-status", className="text-muted small"),
+                dbc.Button("Show 20 more", id="hub-history-show-more",
+                           color="link", size="sm", className="ms-2"),
+            ], id="hub-history-pager", className="review-history-pager"),
         ], className="p-3")
     ])
 
@@ -99,5 +111,5 @@ def build_review_hub_modal():
                          _build_excluded_tab(),
                      ]),
         ),
-    ], id="modal-review-hub", dialog_style={"maxWidth": "1100px"},
+    ], id="modal-review-hub", dialog_style={"maxWidth": "940px"},
        is_open=False, centered=True, scrollable=True)
