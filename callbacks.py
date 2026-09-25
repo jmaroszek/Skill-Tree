@@ -446,7 +446,8 @@ def register_callbacks(app, services=None):
          Input('btn-new-node', 'n_clicks'),
          Input('btn-editor-new', 'n_clicks'),
          Input('edit-trigger-input', 'value'),
-         Input('details-edit-trigger-input', 'value')],
+         Input('details-edit-trigger-input', 'value'),
+         Input('details-add-choice-input', 'value')],
         [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
          State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
@@ -476,7 +477,8 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
          State('node-habit-days', 'value'),
-         State('node-dormancy-form', 'data')],
+         State('node-dormancy-form', 'data'),
+         State('details-selected-node-store', 'data')],
         # Nothing to populate on page load. The form's defaults and its empty
         # alias and link rows are in the layout, and every path that opens
         # the editor runs this callback, which sends the relationship options.
@@ -485,7 +487,7 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
-                        details_edit_trigger_val,
+                        details_edit_trigger_val, details_add_choice,
                         ed_style, original_name,
                         cur_name, cur_type, cur_desc, cur_context, cur_subctx, cur_status_done,
                         cur_val, cur_interest, cur_diff,
@@ -499,7 +501,8 @@ def register_callbacks(app, services=None):
                         cur_time_habit_mode,
                         cur_habit_duration, cur_habit_duration_unit,
                         cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
-                        cur_habit_int_unit, cur_habit_days, cur_dormancy):
+                        cur_habit_int_unit, cur_habit_days, cur_dormancy,
+                        details_selected_node):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
 
@@ -570,12 +573,20 @@ def register_callbacks(app, services=None):
             # the last-loaded node (matches the Goals/Events toggles).
             return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
 
-        if trigger_id in ('btn-new-node', 'btn-editor-new'):
+        if trigger_id in ('btn-new-node', 'btn-editor-new',
+                          'details-add-choice-input'):
+            if trigger_id == 'details-add-choice-input':
+                if not (details_add_choice or '').startswith('new|') or not details_selected_node:
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
+                if manager.get_node(details_selected_node) is None:
+                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
                 # Show unsaved modal; store 'new-node' as pending action
                 no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*22
-                no_change[33] = '__new_node__'  # pending-navigation-store (special sentinel)
+                no_change[33] = (f'__new_subtask__|{details_selected_node}'
+                                 if trigger_id == 'details-add-choice-input'
+                                 else '__new_node__')
                 no_change[34] = True            # modal-unsaved-changes
                 return no_change
             # No unsaved changes — clear and reset, including the search bar so it
@@ -584,6 +595,10 @@ def register_callbacks(app, services=None):
             # open here and _compute_sidebar_styles guards that case (search-node +
             # no value → leave the editor untouched), so it stays open.
             def_out[29] = None  # search-node value position
+            if trigger_id == 'details-add-choice-input':
+                def_out[15] = [details_selected_node]  # Supports > Hard
+                def_out[35] = {**NEW_NODE_SNAPSHOT,
+                               'e_supp_h': [details_selected_node]}
             return def_out
 
         if trigger_id == 'background-click-input':
@@ -601,10 +616,16 @@ def register_callbacks(app, services=None):
         # Handle unsaved-discard / unsaved-save with pending navigation
         if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
             if pending_nav:
-                if pending_nav in ('__new_node__', '__background__'):
+                if pending_nav in ('__new_node__', '__background__') or pending_nav.startswith('__new_subtask__|'):
                     # Discard/save done — reset form. __new_node__ leaves the editor
                     # open on a blank form; __background__ closes it (core_engine).
                     def_out[29] = None  # clear search bar
+                    if pending_nav.startswith('__new_subtask__|'):
+                        parent = pending_nav.split('|', 1)[1]
+                        if manager.get_node(parent) is not None:
+                            def_out[15] = [parent]
+                            def_out[35] = {**NEW_NODE_SNAPSHOT,
+                                           'e_supp_h': [parent]}
                     return def_out
                 # Navigate to the pending node after discarding/saving
                 node = manager.get_node(pending_nav)

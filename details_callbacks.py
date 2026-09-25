@@ -11,9 +11,8 @@ import dash_bootstrap_components as dbc
 import numpy as np
 from graph_manager import GraphManager
 from event_manager import EventManager
-from config import (ConfigManager, SUPPORTED_NODE_TYPES, badge_style,
-                    sort_subcontexts, sort_contexts)
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from config import ConfigManager, badge_style
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from details_layout import (build_details_subtasks_table,
                              build_no_selection_subtasks,
                              _build_suggestion_row, build_details_suggestions,
@@ -22,16 +21,11 @@ from simulation import SimulationCancelled
 from simulation_service import simulation_service
 from duration_ui import simulation_figure
 from prerender import prerendered
-from callback_helpers import (render_link_rows, render_alias_rows,
-                              alias_rows_label, update_alias_rows,
-                              strip_gdrive_prefix,
-                              spawn_local_file_picker, build_filters,
+from callback_helpers import (build_filters,
                               is_filters_active, select_explore_goals,
                               build_explain_summary, build_explain_chart,
                               format_value_rank,
-                              habit_to_hours, compute_habit_time_omp,
-                              habit_preview_text,
-                              resolve_time_mode, resolve_value_mode, get_trigger_id,
+                              get_trigger_id,
                               build_node_element, build_edge_element,
                               canvas_node_styles)
 from scoring import explain_score, focus_route_data
@@ -1005,131 +999,6 @@ def register_details_callbacks(app, services=None):
             return no_update
         return triggered["index"]
 
-    # --- Add Node Modal: Open ---
-    @app.callback(
-        Output("modal-details-add-node", "is_open", allow_duplicate=True),
-        Output("details-add-type", "options"),
-        Output("details-add-context", "options", allow_duplicate=True),
-        Output("details-add-subcontext", "options", allow_duplicate=True),
-        Output("details-add-existing-dropdown", "options"),
-        Output("details-add-existing-dropdown", "value"),
-        Output("details-add-name", "value"),
-        Output("details-add-desc", "value"),
-        Output("details-add-save-status", "children", allow_duplicate=True),
-        Output("details-add-time-unit", "value"),
-        Output("details-add-value", "value"),
-        Output("details-add-interest", "value"),
-        Output("details-add-difficulty", "value"),
-        Output("details-add-time-o", "value"),
-        Output("details-add-time-m", "value"),
-        Output("details-add-time-p", "value"),
-        Output("details-add-context", "value", allow_duplicate=True),
-        Output("details-add-subcontext", "value", allow_duplicate=True),
-        Output("details-add-mode", "value"),
-        # Relationship dropdowns
-        Output("details-add-needs-hard", "options"),
-        Output("details-add-needs-soft", "options"),
-        Output("details-add-supports-hard", "options"),
-        Output("details-add-supports-soft", "options"),
-        Output("details-add-helps", "options"),
-        Output("details-add-needs-hard", "value"),
-        Output("details-add-needs-soft", "value"),
-        Output("details-add-supports-hard", "value"),
-        Output("details-add-supports-soft", "value"),
-        Output("details-add-helps", "value"),
-        # Time mode reset
-        Output("details-add-time-mode", "value"),
-        # External resource stores reset
-        Output("details-add-obsidian-store", "data"),
-        Output("details-add-drive-store", "data"),
-        Output("details-add-website-store", "data"),
-        # Value mode reset
-        Output("details-add-value-mode", "value"),
-        # Habit-mode reset (7 new outputs)
-        Output("details-add-time-habit-mode", "value"),
-        Output("details-add-habit-duration", "value"),
-        Output("details-add-habit-duration-unit", "value"),
-        Output("details-add-habit-intensity-o", "value"),
-        Output("details-add-habit-intensity-m", "value"),
-        Output("details-add-habit-intensity-p", "value"),
-        Output("details-add-habit-intensity-unit", "value"),
-        Output("details-add-habit-days", "value"),
-        Input("btn-details-add-node", "n_clicks"),
-        State("details-selected-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    def open_add_node_modal(n_clicks, selected_node):
-        if not n_clicks:
-            return (no_update,) * 42
-
-        types = SUPPORTED_NODE_TYPES
-        contexts = sort_contexts(ConfigManager.get_contexts())
-        type_opts = [{"label": t, "value": t} for t in types]
-        ctx_opts = [{"label": c, "value": c} for c in contexts]
-
-        all_nodes = graph_manager.get_all_nodes(include_dormant=True)
-        subtree = graph_manager.get_goal_subtree(selected_node) if selected_node else set()
-        exclude = subtree | {selected_node} if selected_node else set()
-        node_opts = [{"label": n.name, "value": n.name}
-                     for n in sorted(all_nodes, key=lambda n: n.name)]
-        existing_opts = [opt for opt in node_opts if opt["value"] not in exclude]
-
-        _ted = ConfigManager.get_time_estimate_defaults()
-
-        return (
-            True, type_opts, ctx_opts, [{"label": "None", "value": ""}],
-            existing_opts, None, "", "", "", _ted.get('unit', 'weeks'),
-            5, 5, 5,
-            _ted.get('optimistic', 2),
-            _ted.get('expected', 4),
-            _ted.get('pessimistic', 6),
-            "", "",
-            "create",
-            # Relationship dropdown options + values (cleared)
-            node_opts, node_opts, node_opts, node_opts, node_opts,
-            [], [], [], [], [],
-            # Time mode reset
-            [],
-            # Reset external resource stores
-            [''], [''], [''],
-            # Value mode reset
-            [],
-            # Habit reset
-            [],            # details-add-time-habit-mode
-            0,             # details-add-habit-duration
-            'weeks',       # details-add-habit-duration-unit
-            0, 0, 0,       # details-add-habit-intensity o/m/p
-            'min_per_session',  # details-add-habit-intensity-unit
-            [0, 1, 2, 3, 4, 5, 6],  # details-add-habit-days
-        )
-
-    # --- Add Node Modal: Toggle mode ---
-    app.clientside_callback(
-        """
-        function(mode) {
-            if (mode === 'link') return [{display: 'none'}, {display: 'block'}];
-            return [{display: 'block'}, {display: 'none'}];
-        }
-        """,
-        Output("details-add-create-section", "style"),
-        Output("details-add-link-section", "style"),
-        Input("details-add-mode", "value"),
-    )
-
-    # --- Add Node Modal: Update subcontexts ---
-    @app.callback(
-        Output("details-add-subcontext", "options"),
-        Input("details-add-context", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def update_add_subcontexts(context):
-        base = [{"label": "None", "value": ""}]
-        if not context:
-            return base
-        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(context, []))
-        return base + [{"label": s, "value": s} for s in subs]
-
     # --- Explain modal: the arithmetic is a disclosure, closed by default ---
     @app.callback(
         Output("collapse-details-explain-summary", "is_open"),
@@ -1148,445 +1017,79 @@ def register_details_callbacks(app, services=None):
         Input("collapse-details-explain-summary", "is_open"),
     )
 
-    # --- Add Node Modal: Aliases (mirrors the main node editor) ---
-    @app.callback(
-        [Output("details-add-aliases-container", "children"),
-         Output("details-add-aliases-label", "children")],
-        Input("details-add-aliases-store", "data"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_details_add_aliases(aliases):
-        return (
-            render_alias_rows(
-                aliases, 'details-add-alias-input',
-                'btn-details-add-alias-remove',
-            ),
-            alias_rows_label(aliases),
-        )
-
-    @app.callback(
-        [Output("details-add-aliases-store", "data", allow_duplicate=True),
-         Output("collapse-details-add-aliases", "is_open", allow_duplicate=True)],
-        [Input("btn-details-add-alias-add", "n_clicks"),
-         Input({"type": "btn-details-add-alias-remove", "index": ALL}, "n_clicks")],
-        [State({"type": "details-add-alias-input", "index": ALL}, "value"),
-         State("details-add-aliases-store", "data"),
-         State("collapse-details-add-aliases", "is_open")],
-        prevent_initial_call=True,
-    )
-    def modify_details_add_aliases(add_clicks, remove_clicks, current_values,
-                                   store_data, aliases_open):
-        return update_alias_rows(
-            ctx.triggered_id, current_values, store_data, aliases_open,
-            "btn-details-add-alias-add", "btn-details-add-alias-remove",
-        )
-
-    # Reset the alias rows to a single blank each time the (create-only) modal
-    # opens, so a fresh add never inherits the previous node's aliases.
-    @app.callback(
-        Output("details-add-aliases-store", "data", allow_duplicate=True),
-        Input("modal-details-add-node", "is_open"),
-        prevent_initial_call=True,
-    )
-    def reset_details_add_aliases(is_open):
-        return [''] if is_open else no_update
-
-    # --- Add Node Modal: Mode toggles control OMP / Habit visibility ---
+    # --- Details > Subtasks: link an existing node ---
     app.clientside_callback(
         """
-        function(inherit_val, habit_val) {
-            var inherit_on = !!(inherit_val && inherit_val.indexOf('inherited') >= 0);
-            var habit_on = !!(habit_val && habit_val.indexOf('habit') >= 0);
-            if (inherit_on) return [{display: 'none'}, {display: 'none'}];
-            if (habit_on) return [{display: 'none'}, {display: 'block'}];
-            return [{display: 'block'}, {display: 'none'}];
+        function(choice, selectedNode, editorStyle, goalStyle, eventsStyle) {
+            var NO = window.dash_clientside.no_update;
+            if (!(choice || '').startsWith('new|') || !selectedNode) {
+                return [NO, NO, NO];
+            }
+            return window.dash_clientside.editor.open_on_add(
+                choice, editorStyle, goalStyle, eventsStyle);
         }
         """,
-        Output("details-add-time-omp", "style"),
-        Output("section-details-add-time-habit", "style"),
-        Input("details-add-time-mode", "value"),
-        Input("details-add-time-habit-mode", "value"),
+        Output("sidebar-editor-container", "style", allow_duplicate=True),
+        Output("details-goal-sidebar", "style", allow_duplicate=True),
+        Output("events-sidebar-container", "style", allow_duplicate=True),
+        Input("details-add-choice-input", "value"),
+        State("details-selected-node-store", "data"),
+        State("sidebar-editor-container", "style"),
+        State("details-goal-sidebar", "style"),
+        State("events-sidebar-container", "style"),
         prevent_initial_call=True,
     )
-
-    # --- Add Node Modal: Habit / Inherit mutual exclusivity ---
-    # Clientside to avoid the visible flash of the "other" toggle flipping
-    # on before the server bounces it off.
-    app.clientside_callback(
-        """
-        function(inherit_val, habit_val) {
-            var ctx = window.dash_clientside.callback_context;
-            var triggered = (ctx && ctx.triggered) || [];
-            var trig = triggered.length ? triggered[0].prop_id.split('.')[0] : null;
-            if (trig === 'details-add-time-mode' && inherit_val && inherit_val.indexOf('inherited') >= 0) {
-                return [inherit_val, []];
-            }
-            if (trig === 'details-add-time-habit-mode' && habit_val && habit_val.indexOf('habit') >= 0) {
-                return [[], habit_val];
-            }
-            return [inherit_val, habit_val];
-        }
-        """,
-        Output("details-add-time-mode", "value", allow_duplicate=True),
-        Output("details-add-time-habit-mode", "value", allow_duplicate=True),
-        Input("details-add-time-mode", "value"),
-        Input("details-add-time-habit-mode", "value"),
-        prevent_initial_call=True,
-    )
-
-    # --- Add Node Modal: Live total-hours preview for habit ---
-    @app.callback(
-        Output("details-add-habit-total-preview", "children"),
-        Input("details-add-habit-duration", "value"),
-        Input("details-add-habit-duration-unit", "value"),
-        Input("details-add-habit-intensity-m", "value"),
-        Input("details-add-habit-intensity-unit", "value"),
-        Input("details-add-habit-days", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def update_details_add_habit_preview(duration, dur_unit, intensity_m, int_unit, days):
-        return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
-
-    # --- Add Node Modal: Inherit-ratings toggle hides/shows V/I/E sliders ---
-    app.clientside_callback(
-        """
-        function(mode_val) {
-            if (mode_val && mode_val.indexOf('inherited') >= 0) {
-                return {display: 'none'};
-            }
-            return {display: 'block'};
-        }
-        """,
-        Output("details-add-ratings", "style"),
-        Input("details-add-value-mode", "value"),
-        prevent_initial_call=True,
-    )
-
-    # --- Add Node Modal: Lock Inherit-value ON for Milestones ---
-    # Milestones are transparent checkpoints; their own value never enters
-    # scoring. Mirrors the main editor's Milestone value lock. Goals exempt.
-    app.clientside_callback(
-        """
-        function(value_mode_val, node_type) {
-            var no_update = window.dash_clientside.no_update;
-            var hidden = {display: "none"};
-            var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
-            var ctx = window.dash_clientside.callback_context;
-            var triggered = (ctx && ctx.triggered) || [];
-            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
-            var only_value_mode = ids.length === 1 && ids[0] === 'details-add-value-mode';
-
-            if (node_type !== 'Milestone') {
-                return [no_update, hidden, ""];
-            }
-            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
-            if (inherited_on) {
-                if (only_value_mode) return [no_update, no_update, no_update];
-                return [no_update, hidden, ""];
-            }
-            var msg = "Inherit is required for Milestone nodes — they are " +
-                      "checkpoints, so their own ratings don't affect scoring.";
-            if (only_value_mode) return [['inherited'], visible, msg];
-            return [['inherited'], hidden, ""];
-        }
-        """,
-        Output('details-add-value-mode', 'value', allow_duplicate=True),
-        Output('details-add-value-mode-warning', 'style'),
-        Output('details-add-value-mode-warning', 'children'),
-        Input('details-add-value-mode', 'value'),
-        Input('details-add-type', 'value'),
-        prevent_initial_call=True,
-    )
-
-    # --- Add Node Modal: Hide Effort slider on Goals; show caption instead ---
-    app.clientside_callback(
-        """
-        function(node_type) {
-            if (node_type === 'Goal') return [{display: 'none'}, {}];
-            return [{}, {display: 'none'}];
-        }
-        """,
-        Output("details-add-effort-row", "style"),
-        Output("details-add-effort-caption", "style"),
-        Input("details-add-type", "value"),
-    )
-
-    # --- Add Node Modal: Resource Link Renderers ---
-    @app.callback(
-        Output('details-add-obsidian-container', 'children'),
-        Input('details-add-obsidian-store', 'data'),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_details_add_obsidian(links):
-        return render_link_rows(links, 'details-add-obsidian-link', has_browse=True)
 
     @app.callback(
-        Output('details-add-drive-container', 'children'),
-        Input('details-add-drive-store', 'data'),
+        Output("modal-details-link-node", "is_open", allow_duplicate=True),
+        Output("details-add-existing-dropdown", "options"),
+        Output("details-add-existing-dropdown", "value"),
+        Output("details-add-link-edge-type", "value"),
+        Output("details-add-save-status", "children", allow_duplicate=True),
+        Input("details-add-choice-input", "value"),
+        State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
-    @prerendered
-    def render_details_add_drive(links):
-        return render_link_rows(strip_gdrive_prefix(links), 'details-add-drive-link', has_browse=True)
+    def open_link_node_modal(choice, selected_node):
+        if not (choice or "").startswith("existing|") or not selected_node:
+            return (no_update,) * 5
+        all_nodes = graph_manager.get_all_nodes(include_dormant=True)
+        subtree = graph_manager.get_goal_subtree(selected_node)
+        excluded = subtree | {selected_node}
+        options = [{"label": n.name, "value": n.name}
+                   for n in sorted(all_nodes, key=lambda n: n.name)
+                   if n.name not in excluded]
+        return True, options, None, "hard", ""
 
     @app.callback(
-        Output('details-add-website-container', 'children'),
-        Input('details-add-website-store', 'data'),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_details_add_website(links):
-        return render_link_rows(links, 'details-add-website-link', has_browse=False)
-
-    # --- Add Node Modal: Link Add/Remove/Browse for Obsidian ---
-    @app.callback(
-        Output('details-add-obsidian-store', 'data', allow_duplicate=True),
-        Input('btn-details-add-obsidian-add', 'n_clicks'),
-        Input({'type': 'btn-details-add-obsidian-link-remove', 'index': ALL}, 'n_clicks'),
-        Input({'type': 'btn-details-add-obsidian-browse', 'index': ALL}, 'n_clicks'),
-        State({'type': 'details-add-obsidian-link', 'index': ALL}, 'value'),
-        State('details-add-obsidian-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def modify_details_add_obsidian(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        links = list(current_values) if current_values else list(store_data or [''])
-        if trigger == 'btn-details-add-obsidian-add':
-            links.append('')
-        elif isinstance(trigger, dict):
-            if trigger.get('type') == 'btn-details-add-obsidian-link-remove':
-                idx = trigger['index']
-                if 0 <= idx < len(links) and len(links) > 1:
-                    links.pop(idx)
-            elif trigger.get('type') == 'btn-details-add-obsidian-browse':
-                if not any(browse_clicks):
-                    return no_update
-                idx = trigger['index']
-                vault = ConfigManager.get_obsidian_vault()
-                abs_path = spawn_local_file_picker(
-                    initial_dir=vault,
-                    title="Select Obsidian File",
-                    filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")],
-                )
-                if abs_path:
-                    vault_norm = os.path.normpath(vault)
-                    rel = abs_path[len(vault_norm):].lstrip(os.sep) if abs_path.startswith(vault_norm) else abs_path
-                    if 0 <= idx < len(links):
-                        links[idx] = rel
-        return links
-
-    # --- Add Node Modal: Link Add/Remove/Browse for Drive ---
-    @app.callback(
-        Output('details-add-drive-store', 'data', allow_duplicate=True),
-        Input('btn-details-add-drive-add', 'n_clicks'),
-        Input({'type': 'btn-details-add-drive-link-remove', 'index': ALL}, 'n_clicks'),
-        Input({'type': 'btn-details-add-drive-browse', 'index': ALL}, 'n_clicks'),
-        State({'type': 'details-add-drive-link', 'index': ALL}, 'value'),
-        State('details-add-drive-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def modify_details_add_drive(add_clicks, remove_clicks, browse_clicks, current_values, store_data):
-        from callback_helpers import expand_gdrive_prefix
-        trigger = ctx.triggered_id
-        links = list(current_values) if current_values else list(store_data or [''])
-        if trigger == 'btn-details-add-drive-add':
-            links.append('')
-        elif isinstance(trigger, dict):
-            if trigger.get('type') == 'btn-details-add-drive-link-remove':
-                idx = trigger['index']
-                if 0 <= idx < len(links) and len(links) > 1:
-                    links.pop(idx)
-            elif trigger.get('type') == 'btn-details-add-drive-browse':
-                if not any(browse_clicks):
-                    return no_update
-                idx = trigger['index']
-                gdrive = ConfigManager.get_gdrive_path() or ''
-                abs_path = spawn_local_file_picker(
-                    initial_dir=gdrive,
-                    title="Select Google Drive File",
-                    filetypes_list=[("All files", "*.*")],
-                )
-                if abs_path:
-                    if 0 <= idx < len(links):
-                        links[idx] = abs_path
-        # Store with full prefix for DB; UI shows stripped
-        return [expand_gdrive_prefix(p) if p else p for p in links]
-
-    # --- Add Node Modal: Link Add/Remove for Website ---
-    @app.callback(
-        Output('details-add-website-store', 'data', allow_duplicate=True),
-        Input('btn-details-add-website-add', 'n_clicks'),
-        Input({'type': 'btn-details-add-website-link-remove', 'index': ALL}, 'n_clicks'),
-        State({'type': 'details-add-website-link', 'index': ALL}, 'value'),
-        State('details-add-website-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def modify_details_add_website(add_clicks, remove_clicks, current_values, store_data):
-        trigger = ctx.triggered_id
-        links = list(current_values) if current_values else list(store_data or [''])
-        if trigger == 'btn-details-add-website-add':
-            links.append('')
-        elif isinstance(trigger, dict):
-            if trigger.get('type') == 'btn-details-add-website-link-remove':
-                idx = trigger['index']
-                if 0 <= idx < len(links) and len(links) > 1:
-                    links.pop(idx)
-        return links
-
-    # --- Add Node Modal: Cancel ---
-    @app.callback(
-        Output("modal-details-add-node", "is_open", allow_duplicate=True),
+        Output("modal-details-link-node", "is_open", allow_duplicate=True),
         Input("btn-details-add-cancel", "n_clicks"),
         prevent_initial_call=True,
     )
-    def cancel_add_node(n_clicks):
-        if n_clicks:
-            return False
-        return no_update
+    def cancel_link_node(n_clicks):
+        return False if n_clicks else no_update
 
-    # --- Add Node Modal: Save ---
     @app.callback(
-        Output("modal-details-add-node", "is_open", allow_duplicate=True),
+        Output("modal-details-link-node", "is_open", allow_duplicate=True),
         Output("details-refresh-trigger", "data", allow_duplicate=True),
         Output("details-add-save-status", "children"),
         Input("btn-details-add-save", "n_clicks"),
         State("details-selected-node-store", "data"),
-        State("details-add-mode", "value"),
-        # Link mode
         State("details-add-existing-dropdown", "value"),
         State("details-add-link-edge-type", "value"),
-        # Create mode
-        State("details-add-name", "value"),
-        State("details-add-type", "value"),
-        State("details-add-context", "value"),
-        State("details-add-subcontext", "value"),
-        State("details-add-desc", "value"),
-        State("details-add-value", "value"),
-        State("details-add-interest", "value"),
-        State("details-add-difficulty", "value"),
-        State("details-add-time-o", "value"),
-        State("details-add-time-m", "value"),
-        State("details-add-time-p", "value"),
-        State("details-add-time-unit", "value"),
-        State("details-add-time-mode", "value"),
-        State("details-add-value-mode", "value"),
-        # Habit-mode states
-        State("details-add-time-habit-mode", "value"),
-        State("details-add-habit-duration", "value"),
-        State("details-add-habit-duration-unit", "value"),
-        State("details-add-habit-intensity-o", "value"),
-        State("details-add-habit-intensity-m", "value"),
-        State("details-add-habit-intensity-p", "value"),
-        State("details-add-habit-intensity-unit", "value"),
-        State("details-add-habit-days", "value"),
-        # Relationships
-        State("details-add-needs-hard", "value"),
-        State("details-add-needs-soft", "value"),
-        State("details-add-supports-hard", "value"),
-        State("details-add-supports-soft", "value"),
-        State("details-add-helps", "value"),
-        # External resources
-        State({'type': 'details-add-obsidian-link', 'index': ALL}, 'value'),
-        State({'type': 'details-add-drive-link', 'index': ALL}, 'value'),
-        State({'type': 'details-add-website-link', 'index': ALL}, 'value'),
-        # Aliases
-        State({"type": "details-add-alias-input", "index": ALL}, "value"),
         prevent_initial_call=True,
     )
-    def save_add_node(n_clicks, selected_node, mode,
-                      link_node, link_edge_type,
-                      name, node_type, context, subcontext, desc,
-                      value, interest, difficulty,
-                      time_o, time_m, time_p, time_unit, time_mode_val,
-                      value_mode_val,
-                      time_habit_mode_val,
-                      habit_duration, habit_duration_unit,
-                      habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                      habit_days,
-                      needs_hard, needs_soft, supports_hard, supports_soft, helps,
-                      obsidian_vals, drive_vals, website_vals, alias_values):
-        from callback_helpers import serialize_links
+    def link_existing_node(n_clicks, selected_node, link_node, link_edge_type):
         if not n_clicks or not selected_node:
             return no_update, no_update, no_update
-
-        if mode == "link":
-            if not link_node:
-                return no_update, no_update, "Please select a node to link."
-            edge_type = EDGE_NEEDS_HARD if link_edge_type == "hard" else EDGE_NEEDS_SOFT
-            try:
-                graph_manager.add_edge(link_node, selected_node, edge_type)
-            except ValueError as e:
-                return no_update, no_update, str(e)
-            return False, f"link-{link_node}", ""
-        else:
-            if not name or not name.strip():
-                return no_update, no_update, "Node name is required."
-            if not node_type:
-                return no_update, no_update, "Node type is required."
-
-            multiplier = ConfigManager.get_time_multiplier(time_unit or "weeks")
-            t_o = float(time_o or 0) * multiplier
-            t_m = float(time_m or 0) * multiplier
-            t_p = float(time_p or 0) * multiplier
-
-            obs_path = serialize_links(obsidian_vals)
-            drive_path = serialize_links(drive_vals)
-            web_path = serialize_links(website_vals)
-
-            # Resolve time_mode via the shared helper — Goal/Milestone always
-            # inherit; otherwise habit > inherited > manual.
-            t_mode = resolve_time_mode(node_type, time_mode_val, time_habit_mode_val)
-            if t_mode == 'habit':
-                t_o, t_m, t_p = compute_habit_time_omp(
-                    habit_duration or 0, habit_duration_unit or 'weeks',
-                    habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
-                    habit_int_unit or 'min_per_session', habit_days,
-                )
-            # Mirror time_mode — Milestones always inherit value (transparent
-            # checkpoints); Goals keep their own value; otherwise the toggle wins.
-            v_mode = resolve_value_mode(node_type, value_mode_val)
-
-            new_node = Node(
-                name=name.strip(),
-                type=node_type,
-                description=(desc or "").strip(),
-                value=value or 5,
-                time_o=t_o, time_m=t_m, time_p=t_p,
-                interest=interest or 5,
-                difficulty=difficulty or 5,
-                status=STATUS_OPEN,
-                context=context or None,
-                subcontext=(subcontext or "").strip() or None,
-                obsidian_path=obs_path,
-                google_drive_path=drive_path,
-                website=web_path,
-                time_mode=t_mode,
-                value_mode=v_mode,
-                habit_duration=habit_duration or 0,
-                habit_duration_unit=habit_duration_unit or 'weeks',
-                habit_intensity_o=habit_int_o or 0,
-                habit_intensity_m=habit_int_m or 0,
-                habit_intensity_p=habit_int_p or 0,
-                habit_intensity_unit=habit_int_unit or 'min_per_session',
-                **({'habit_days': habit_days} if habit_days is not None else {}),
-            )
-
-            try:
-                with database.transaction():
-                    graph_manager.add_node(new_node)
-                    graph_manager.set_aliases(
-                        name.strip(), [a for a in (alias_values or []) if a and a.strip()])
-                    graph_manager.sync_edges(
-                        name.strip(), needs_hard or [], needs_soft or [],
-                        list(dict.fromkeys([selected_node, *(supports_hard or [])])),
-                        supports_soft or [], helps or [])
-            except ValueError as e:
-                return no_update, no_update, str(e)
-
-            return False, f"add-{name}", ""
+        if not link_node:
+            return no_update, no_update, "Please select a node to link."
+        edge_type = EDGE_NEEDS_HARD if link_edge_type == "hard" else EDGE_NEEDS_SOFT
+        try:
+            graph_manager.add_edge(link_node, selected_node, edge_type)
+        except ValueError as e:
+            return no_update, no_update, str(e)
+        return False, f"link-{link_node}", ""
 
     # --- Details Graph Layout: Toggle Panel ---
     @app.callback(

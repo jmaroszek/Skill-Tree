@@ -37,8 +37,8 @@ def test_event_modal_callbacks_do_nothing_with_the_right_arity():
         assert len(fn(*args)) == outputs, name
 
 
-def test_details_add_node_opener_does_nothing_with_the_right_arity():
-    fn, outputs = _callbacks(details_callbacks.register_details_callbacks)["open_add_node_modal"]
+def test_details_link_node_opener_does_nothing_with_the_right_arity():
+    fn, outputs = _callbacks(details_callbacks.register_details_callbacks)["open_link_node_modal"]
     assert len(fn(None, None)) == outputs
 
 
@@ -50,13 +50,26 @@ def _node(name, *, dormant=0):
     )
 
 
-def test_details_add_relationship_search_includes_dormant_nodes():
+def test_details_link_search_includes_dormant_nodes():
     manager = GraphManager()
     manager.add_node(_node("Voice"))
     manager.add_node(_node("Music", dormant=1))
-    fn, _ = _callbacks(details_callbacks.register_details_callbacks)["open_add_node_modal"]
+    fn, _ = _callbacks(details_callbacks.register_details_callbacks)["open_link_node_modal"]
 
-    result = fn(1, "Voice")
+    result = fn("existing|123", "Voice")
 
-    for options in result[19:24]:
-        assert "Music" in {option["value"] for option in options}
+    assert "Music" in {option["value"] for option in result[1]}
+
+
+def test_details_link_existing_node_adds_selected_edge():
+    manager = GraphManager()
+    manager.add_node(_node("Voice"))
+    manager.add_node(_node("Music"))
+    fn, _ = _callbacks(details_callbacks.register_details_callbacks)["link_existing_node"]
+
+    is_open, refresh, error = fn(1, "Voice", "Music", "soft")
+
+    assert (is_open, error) == (False, "")
+    assert refresh == "link-Music"
+    assert any(e["source"] == "Music" and e["target"] == "Voice"
+               and e["type"] == "Needs_Soft" for e in manager.get_edges())

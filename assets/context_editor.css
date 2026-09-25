@@ -27,6 +27,7 @@
 .ctx-head-name {
     width: var(--ctx-name-width);
     flex: 0 0 auto;
+    margin-right: var(--ctx-name-gap);
 }
 .ctx-head-subs {
     flex: 1 1 auto;
@@ -53,6 +54,9 @@
        touch shorter so a wrapped second line of them stays compact. */
     --ctx-control-height: 30px;
     --ctx-chip-height: 26px;
+    /* Extra space after the name column, on top of the row gap, so the name
+       reads as the label for its chips rather than the first of them. */
+    --ctx-name-gap: 0.4rem;
 }
 
 .ctx-editor-box {
@@ -92,10 +96,11 @@
 
 .ctx-row-name-wrap {
     flex: 0 0 auto;
+    margin-right: var(--ctx-name-gap);
 }
 
-/* No taller than the controls beside it. A rectangle at body size against
-   small pills sets it apart from the chips without bold. */
+/* No taller than the controls beside it. Shape, a type step and the column
+   gap set the name apart from its chips without bold. */
 .form-control.ctx-row-name {
     width: var(--ctx-name-width);
     height: var(--ctx-control-height);
@@ -110,6 +115,7 @@
 .ctx-row-name-static {
     width: var(--ctx-name-width);
     padding-left: calc(0.5rem + 1px);
+    margin-right: var(--ctx-name-gap);
     flex: 0 0 auto;
     font-size: var(--st-fs-base);
     color: var(--st-text-primary);
@@ -165,7 +171,8 @@
 }
 
 /* The chip input is sized in `ch` by the renderer so the pill hugs its text.
-   It drops every scrap of .form-control chrome — the pill is the control. */
+   It drops every scrap of .form-control chrome — the pill is the control.
+   One type step below the context name, so subcontexts read as its children. */
 .form-control.ctx-chip-input {
     border: none;
     background-color: transparent;
@@ -175,7 +182,7 @@
     height: auto;
     min-height: 0;
     line-height: 1.5;
-    font-size: var(--st-fs-base);
+    font-size: var(--st-fs-cap);
     color: var(--st-text-on-field);
 }
 

@@ -15,7 +15,6 @@ from ui_kit import (
     panel_close_button,
     progress_bar_color,
     restore_button)
-from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -25,22 +24,10 @@ from config import (
     badge_style,
     BADGE_PALETTE,
 )
-from context_picker import build_single_context_picker
 from styles import stylesheet
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from ui_kit import (Tooltip, add_button, info_button, nav_button, panel_close_button,
                     restore_button)
-
-# Weekday toggle-pill options for the habit per-session scheduler. Values are
-# weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
-# Apple-style day picker. Single-letter labels.
-WEEKDAY_OPTIONS = [
-    {"label": "S", "value": 6}, {"label": "M", "value": 0},
-    {"label": "T", "value": 1}, {"label": "W", "value": 2},
-    {"label": "T", "value": 3}, {"label": "F", "value": 4},
-    {"label": "S", "value": 5},
-]
-
 
 def _freeze_indicator(indicator_id: str):
     """Snowflake overlay shown on a canvas while its freeze toggle is on.
@@ -227,8 +214,6 @@ def build_details_tab_content():
       │  Subtasks table                     │  Simulation chart           │
       └─────────────────────────────────────┴─────────────────────────────┘
     """
-
-    _ted = ConfigManager.get_time_estimate_defaults()
 
     # ------------------------------------------------------------------ #
     #  LEFT PANEL HEADER  (search bar + nav + goals toggle)               #
@@ -548,7 +533,7 @@ def build_details_tab_content():
             html.Div([
                 html.H5("Subtasks", className="mb-0"),
                 add_button("btn-details-add-node", None,
-                           **{"aria-label": "Add subtask node"}),
+                           label="Add subtask node"),
             ], className="d-flex align-items-center"),
             html.Div(_build_toggles(), id="details-subtask-toggles-bottom"),
         ], className="d-flex align-items-center justify-content-between",
@@ -621,7 +606,7 @@ def build_details_tab_content():
     #  MODALS & SIDEBARS                                                  #
     # ------------------------------------------------------------------ #
     filters_sidebar = _build_filters_sidebar()
-    add_node_modal = _build_add_node_modal(_ted)
+    link_node_modal = _build_link_node_modal()
 
     explain_legend_items = []
     # Third copy of the same four values; now the one in the palette.
@@ -754,9 +739,11 @@ def build_details_tab_content():
                   style={'display': 'none'}),
         dcc.Input(id='details-edit-trigger-input', type='text', value='',
                   style={'display': 'none'}),
+        dcc.Input(id='details-add-choice-input', type='text', value='',
+                  style={'display': 'none'}),
         dcc.Input(id='goal-priority-trigger-input', type='text', value='',
                   style={'display': 'none'}),
-        add_node_modal,
+        link_node_modal,
         explain_modal,
 
         # Main content: upper (left panel + canvas) + lower (subtasks + sim)
@@ -1026,260 +1013,36 @@ def _build_filters_sidebar():
     )
 
 
-def _build_add_node_modal(ted):
-    """Builds the Add Node modal — mirrors the Goals tab modal with
-    Relationships and Resources sections."""
+def _build_link_node_modal():
+    """Link an existing node as a direct prerequisite of the Details node."""
     return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Add Subtask Node")),
+        dbc.ModalHeader(dbc.ModalTitle("Link Existing Node")),
         dbc.ModalBody([
-            dbc.RadioItems(
-                id="details-add-mode",
+            dbc.Label("Node"),
+            html.Div(dcc.Dropdown(
+                id="details-add-existing-dropdown",
+                placeholder="Search for a node...",
+            ), className="text-dark mb-3"),
+            dbc.Label("Relationship"),
+            dbc.Select(
+                id="details-add-link-edge-type",
                 options=[
-                    {"label": "Create New Node", "value": "create"},
-                    {"label": "Link Existing Node", "value": "link"},
+                    {"label": "Hard", "value": "hard"},
+                    {"label": "Soft", "value": "soft"},
                 ],
-                value="create",
-                inline=True,
-                className="mb-3",
+                value="hard",
             ),
-
-            # --- Link Existing mode ---
-            html.Div(id="details-add-link-section", style={"display": "none"}, children=[
-                dbc.Label("Select Node"),
-                html.Div(dcc.Dropdown(
-                    id="details-add-existing-dropdown",
-                    placeholder="Search for a node...",
-                ), className="text-dark mb-2"),
-                dbc.Label("Edge Type"),
-                dbc.Select(
-                    id="details-add-link-edge-type",
-                    options=[
-                        {"label": "Hard", "value": "hard"},
-                        {"label": "Soft", "value": "soft"},
-                    ],
-                    value="hard",
-                    className="mb-3",
-                ),
-            ]),
-
-            # --- Create New mode ---
-            html.Div(id="details-add-create-section", children=[
-                html.Div([
-                    dbc.Label("Name", className="mb-0"),
-                    add_button("btn-details-add-alias-add", "Add alias"),
-                ], className="d-flex align-items-center mb-1"),
-                dbc.Input(id="details-add-name", type="text", placeholder="Name node..."),
-                dbc.Collapse(
-                    html.Div([
-                        dbc.Label("Alias", id="details-add-aliases-label",
-                                  className="mt-1 mb-1"),
-                        html.Div(id='details-add-aliases-container'),
-                    ]),
-                    id="collapse-details-add-aliases", is_open=False,
-                ),
-                dcc.Store(id='details-add-aliases-store', data=['']),
-
-                dbc.Label("Type", className="mt-2"),
-                dbc.Select(id="details-add-type", options=[], value="Learn"),
-
-                dbc.Label("Description", className="mt-2"),
-                dbc.Textarea(id="details-add-desc", placeholder="Describe your project...",
-                             style={"height": "80px", "resize": "vertical"}),
-
-                dbc.Label("Context", className="mt-2"),
-                build_single_context_picker(
-                    "details-add-context-picker",
-                    "details-add-context",
-                    "details-add-subcontext",
-                    context_options=[{"label": "None", "value": ""}],
-                    subcontext_options=[{"label": "None", "value": ""}],
-                ),
-
-                html.Hr(className="my-2"),
-                html.Div([
-                    html.H5("Ratings", className="mb-0"),
-                    info_button("btn-details-ratings-info", "Ratings reference", placement="right"),
-                ], className="d-flex align-items-center mt-2 mb-1"),
-                html.Div([
-                    dbc.Checklist(
-                        options=[{"label": "Inherit", "value": "inherited"}],
-                        value=[],
-                        id="details-add-value-mode",
-                        switch=True,
-                        className="mb-0",
-                    ),
-                ], className="d-flex align-items-center mt-2 mb-2"),
-                Tooltip(
-                    "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
-                    target="details-add-value-mode", placement="left",
-                ),
-                # Locked-on notice for Milestones (mirrors the main editor).
-                html.Div(id="details-add-value-mode-warning",
-                         style=tokens.ERROR_TEXT_HIDDEN,
-                         className="mt-1 mb-2", children=""),
-
-                html.Div(id="details-add-ratings", children=[
-                    dbc.Label("Value", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-value"),
-
-                    dbc.Label("Interest", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-interest"),
-
-                    html.Div(id="details-add-effort-row", children=[
-                        dbc.Label("Effort", className="mt-2"),
-                        dcc.Slider(min=1, max=10, step=1, value=5, id="details-add-difficulty"),
-                    ]),
-                    html.Div(id="details-add-effort-caption", style={"display": "none"}, children=[
-                        dbc.Label("Effort", className="mt-2"),
-                        html.Div("Derived from subtasks", className="text-muted small"),
-                    ]),
-                ]),
-                html.Hr(className="my-2"),
-                html.Div([
-                    html.H5("Time Estimates", className="mb-0"),
-                    estimate_guidance("details-add"),
-                ], className="d-flex align-items-center mt-2 mb-2"),
-                html.Div([
-                    dbc.Checklist(
-                        options=[{"label": "Inherit", "value": "inherited"}],
-                        value=[],
-                        id="details-add-time-mode",
-                        switch=True,
-                        className="mb-0",
-                    ),
-                    dbc.Checklist(
-                        options=[{"label": "Habit", "value": "habit"}],
-                        value=[],
-                        id="details-add-time-habit-mode",
-                        switch=True,
-                        className="mb-0 ms-3 flex-grow-1",
-                    ),
-                    unit_select("details-add-time-unit",
-                                value=ted.get('unit', 'weeks'), compact=True)
-                ], className="d-flex align-items-center mb-2"),
-                html.Div(id="details-add-time-omp", children=[
-                    dbc.Row([
-                        dbc.Col([*bracket_label("Lower", "details-add-time-o-label"),
-                                 dbc.Input(id="details-add-time-o", type="number", min=0,
-                                           value=ted.get('optimistic', 2))]),
-                        dbc.Col([*bracket_label("Expected", "details-add-time-m-label"),
-                                 dbc.Input(id="details-add-time-m", type="number", min=0,
-                                           value=ted.get('expected', 4))]),
-                        dbc.Col([*bracket_label("Upper", "details-add-time-p-label"),
-                                 dbc.Input(id="details-add-time-p", type="number", min=0,
-                                           value=ted.get('pessimistic', 6))]),
-                    ]),
-                ]),
-                html.Div(id="section-details-add-time-habit",
-                         style={"display": "none"}, children=[
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Duration", className="mb-0"),
-                            dbc.Input(id="details-add-habit-duration",
-                                      type="number", min=0, value=0),
-                        ], width=7),
-                        dbc.Col([
-                            dbc.Label(" ", className="mb-0"),
-                            unit_select("details-add-habit-duration-unit",
-                                        units=DURATION_UNITS, value="weeks"),
-                        ], width=5),
-                    ], className="mb-2"),
-                    dbc.Label("Minutes per Session", className="mb-0 mt-2"),
-                    dbc.Row([
-                        dbc.Col([*bracket_label("Lower", "details-add-habit-intensity-o-label"),
-                                 dbc.Input(id="details-add-habit-intensity-o",
-                                           type="number", min=0, value=0)]),
-                        dbc.Col([*bracket_label("Expected", "details-add-habit-intensity-m-label"),
-                                 dbc.Input(id="details-add-habit-intensity-m",
-                                           type="number", min=0, value=0)]),
-                        dbc.Col([*bracket_label("Upper", "details-add-habit-intensity-p-label"),
-                                 dbc.Input(id="details-add-habit-intensity-p",
-                                           type="number", min=0, value=0)]),
-                    ]),
-                    dcc.Input(id="details-add-habit-intensity-unit", type="hidden",
-                              value="min_per_session"),
-                    dbc.Label("On these days", className="mb-1 mt-2 d-block"),
-                    dbc.Checklist(
-                        id="details-add-habit-days",
-                        options=WEEKDAY_OPTIONS,
-                        value=[0, 1, 2, 3, 4, 5, 6],
-                        className="habit-days-picker",
-                        inputClassName="btn-check",
-                        labelClassName="btn btn-outline-light btn-sm",
-                        labelCheckedClassName="active",
-                    ),
-                    html.Div(id="details-add-habit-total-preview",
-                             className="mt-2 small text-muted"),
-                ]),
-
-                # --- Relationships section (mirrors goals tab) ---
-                html.Hr(className="my-2"),
-                html.H5("Relationships", className="mt-2 mb-1"),
-                dbc.Label("Needs"),
-                html.Div([
-                    dcc.Dropdown(id="details-add-needs-hard", multi=True,
-                                 placeholder="Hard..."),
-                    dcc.Dropdown(id="details-add-needs-soft", multi=True,
-                                 placeholder="Soft...", className="mt-1"),
-                ], className="text-dark"),
-
-                dbc.Label("Supports", className="mt-2"),
-                html.Div([
-                    dcc.Dropdown(id="details-add-supports-hard", multi=True,
-                                 placeholder="Hard..."),
-                    dcc.Dropdown(id="details-add-supports-soft", multi=True,
-                                 placeholder="Soft...", className="mt-1"),
-                ], className="text-dark"),
-
-                dbc.Label("Helps", className="mt-2"),
-                html.Div(dcc.Dropdown(id="details-add-helps", multi=True,
-                                       placeholder="Synergistic Nodes..."),
-                         className="text-dark"),
-
-                # --- Resources section (mirrors goals tab) ---
-                html.Hr(className="my-2"),
-                html.H5("Resources", className="mt-2 mb-1"),
-                dcc.Store(id='details-add-obsidian-store', data=['']),
-                dcc.Store(id='details-add-drive-store', data=['']),
-                dcc.Store(id='details-add-website-store', data=['']),
-
-                html.Div([
-                    html.Div([
-                        dbc.Label("Obsidian", className="mb-0"),
-                        add_button("btn-details-add-obsidian-add", "Add Obsidian link"),
-                    ], className="d-flex align-items-center mt-2 mb-1"),
-                    html.Div(id='details-add-obsidian-container'),
-                ], id='details-add-obsidian-resources',
-                   style={} if ConfigManager.get_obsidian_enabled() else {"display": "none"}),
-
-                html.Div([
-                    html.Div([
-                        dbc.Label("Google Drive", className="mb-0"),
-                        add_button("btn-details-add-drive-add", "Add Google Drive link"),
-                    ], className="d-flex align-items-center mt-3 mb-1"),
-                    html.Div(id='details-add-drive-container'),
-                ], id='details-add-drive-resources',
-                   style={} if ConfigManager.get_gdrive_enabled() else {"display": "none"}),
-
-                html.Div([
-                    dbc.Label("Website", className="mb-0"),
-                    add_button("btn-details-add-website-add", "Add Website link"),
-                ], className="d-flex align-items-center mt-3 mb-1"),
-                html.Div(id='details-add-website-container'),
-            ]),
-
             html.Div(id="details-add-save-status", className="text-danger mt-2",
                      style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
         ]),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-details-add-cancel",
                        color="secondary", className="me-2"),
-            dbc.Button("Add", id="btn-details-add-save", color="success",
+            dbc.Button("Link", id="btn-details-add-save", color="success",
                        style={"backgroundColor": done_color(),
                               "borderColor": done_color()}),
         ]),
-    ], id="modal-details-add-node", size="lg", is_open=False, centered=True,
-       scrollable=True)
+    ], id="modal-details-link-node", is_open=False, centered=True)
 
 
 def build_no_selection_subtasks():

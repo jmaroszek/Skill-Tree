@@ -107,7 +107,7 @@ def test_settings_save_supports_drive_urls_without_a_root_path():
     assert expand_gdrive_prefix("https://drive.google.com/file") == (
         "https://drive.google.com/file")
     assert registry.callbacks["refresh_resource_visibility"](None, None, None) == (
-        {}, {}, {}, {})
+        {}, {})
 
     args["obs_path"] = ""
     warning = save(**args)[0]

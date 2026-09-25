@@ -1081,6 +1081,12 @@ def build_app_layout(initial_elements, env="production"):
         _menu_item("Existing nodes…", "dormant-add-existing", icon="box-arrow-in-down"),
     ])
 
+    details_add_menu = _floating_menu("details-add-menu", [
+        _menu_heading("Add subtask"),
+        _menu_item("New node", "details-add-new", icon="plus-lg"),
+        _menu_item("Existing node…", "details-add-existing", icon="box-arrow-in-down"),
+    ])
+
     # --- Goals / Events sidebars: sort menus (the ⇅ button beside search) ---
     # sort_menu.js opens each under its button and writes the choice to the
     # hidden input; list_toolbar.py moves it into the sort store.
@@ -1237,6 +1243,7 @@ def build_app_layout(initial_elements, env="production"):
         goal_rank_popover,
         event_context_menu,
         dormant_add_menu,
+        details_add_menu,
         *sort_menus,
         dcc.Input(id='event-ctx-action-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='ctx-obsidian-path-store', data=None),

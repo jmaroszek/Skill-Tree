@@ -119,8 +119,9 @@ def _build_contexts_tab():
             dcc.Store(id="context-editor-store", data=None),
 
             # --- Dropdown order ---
-            html.Hr(className="my-3"),
-            html.H5("Dropdown Order", className="mt-2 mb-1"),
+            # No rule here: the outlined row editor already closes the
+            # section above, so space alone separates the two.
+            html.H5("Dropdown Order", className="mt-3 mb-1"),
             html.Small(
                 "Use the order defined above, or sort alphabetically.",
                 className="text-muted d-block mb-2"),
@@ -364,24 +365,40 @@ def _build_integrations_tab():
     return dbc.Tab(label="Integrations", tab_id="tab-integrations", children=[
         html.Div([
             html.Div([
+                # What every integration has in common is said once, up top;
+                # each section then says only what is particular to it.
+                html.Small("Each integration you turn on adds a link field to the "
+                           "Resources section of the node editor.",
+                           className="text-muted d-block mt-2 mb-3"),
+                # Same section rhythm as the other tabs: heading, description,
+                # control, then any options it reveals.
                 html.H5("Obsidian", className="mt-2 mb-1"),
+                html.Small("Link notes in your vault and open them in Obsidian.",
+                           className="text-muted d-block mb-2"),
                 dbc.Checklist(id="setting-obsidian-enabled", switch=True,
                               options=[{"label": "Show Obsidian resources", "value": "enabled"}],
-                              value=[], className="mb-1"),
-                dbc.Label("Vault path", html_for="setting-obsidian-path"),
-                dbc.Input(id="setting-obsidian-path", type="text", className="mb-2"),
-                html.Small("A vault path is needed to open Obsidian notes.",
-                           className="text-muted d-block mb-2"),
-                html.Hr(className="my-2"),
+                              value=[], className="mb-2"),
+                dbc.Collapse([
+                    dbc.Label("Vault path", html_for="setting-obsidian-path", className="mt-1"),
+                    dbc.Input(id="setting-obsidian-path", type="text"),
+                    html.Small("Needed to open notes.",
+                               className="text-muted d-block mt-1 mb-1"),
+                ], id="setting-obsidian-options", is_open=False),
+
+                html.Hr(className="my-3"),
                 html.H5("Google Drive", className="mt-2 mb-1"),
+                html.Small("Link Drive files by URL or a local path.",
+                           className="text-muted d-block mb-2"),
                 dbc.Checklist(id="setting-gdrive-enabled", switch=True,
                               options=[{"label": "Show Google Drive resources", "value": "enabled"}],
-                              value=[], className="mb-1"),
-                dbc.Label("Mounted Drive root path (optional)", html_for="setting-gdrive-path"),
-                dbc.Input(id="setting-gdrive-path", type="text", className="mb-2"),
-                html.Small("Google Drive resources accept a URL or a local path. "
-                           "A root path helps browse mounted files and resolve relative paths.",
-                           className="text-muted d-block"),
+                              value=[], className="mb-2"),
+                dbc.Collapse([
+                    dbc.Label("Mounted Drive root path (optional)", html_for="setting-gdrive-path",
+                              className="mt-1"),
+                    dbc.Input(id="setting-gdrive-path", type="text"),
+                    html.Small("Used to browse mounted files and resolve relative paths.",
+                               className="text-muted d-block mt-1 mb-1"),
+                ], id="setting-gdrive-options", is_open=False),
             ], style={"width": "100%", "maxWidth": "640px"}),
         ], className="p-2")
     ])

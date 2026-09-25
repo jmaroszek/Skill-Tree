@@ -8,8 +8,8 @@
     var DEFAULT_TOP = '120px';
 
     // Two independent rubrics share this behavior. The estimation popup is
-    // triggered from the main node editor and the Add Subtask modal (Details
-    // tab); the reflection popup is triggered only from the Reflection modal.
+    // triggered from the node editor; the reflection popup is triggered from
+    // the Reflection modal.
     // Each entry maps a trigger button to the popup/header/close/edit ids it
     // controls. Modals render lazily, so we watch continuously and wire up each
     // element as it appears.
@@ -19,7 +19,7 @@
             headerId: 'ratings-popup-header',
             closeId: 'btn-ratings-close',
             editId: 'btn-ratings-edit',
-            triggerIds: ['btn-ratings-info', 'btn-details-ratings-info'],
+            triggerIds: ['btn-ratings-info'],
         },
         {
             popupId: 'reflection-ratings-popup',

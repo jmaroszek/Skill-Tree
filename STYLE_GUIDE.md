@@ -400,7 +400,8 @@ gets a section of its own where it can, so hiding it leaves the rest of the
 menu identical for every node. The Events sidebar menu follows the same
 grouping: Edit; Trigger Now…; Delete…. When one `+` can add things in more
 than one way, it opens a menu rather than sitting beside a second button:
-the Events tab's Dormant Nodes `+` offers New node and Existing nodes…. A
+the Events tab's Dormant Nodes `+` offers New node and Existing nodes…; the
+Details Subtasks `+` offers New node and Existing node…. A
 text link next to a `+` reads like save-status feedback. A choice menu, such as a sidebar sort
 menu, gives every row a check glyph and shows only the current row's
 (`.ctx-menu-item-checked`). Labels name the command in full rather
@@ -633,7 +634,11 @@ Optional resource integrations live in Settings → Integrations. The node edito
 and Add Node modal keep their resource inputs mounted and hide their sections
 when disabled, so saving a node never clears links the user cannot see. Website
 stays visible. Google Drive inputs accept both URLs and local paths, with the
-mounted root path optional.
+mounted root path optional. Each integration section follows the settings
+rhythm: heading, one-line description, the enable switch, then its path field
+in a `dbc.Collapse` that opens only while the switch is on. One line at the top
+of the tab says what all integrations share (each adds a field to the node
+editor's Resources section), so the sections don't repeat it.
 
 ### Row editor (Settings ▸ Contexts)
 
@@ -646,7 +651,11 @@ in `context_rules.py` and its rows in `build_context_editor_rows`.
 - **One row, one centre line.** The rows sit straight on the modal inside an
   outline, with no panel fill. `--st-bg-panel` is a cool grey that clashes
   with the modal's neutral `#303030`. The name, priority and row buttons share
-  one 30px control height, and chips are 26px. Column headings use
+  one 30px control height, and chips are 26px. Chip text is one step smaller
+  (`--st-fs-cap`) than the name, and the name column carries extra trailing
+  space (`--ctx-name-gap`), so a name reads as the label for its chips. The
+  name stays regular weight; bold was tried and was too much. Column
+  headings use
   `--st-text-secondary`, not the dim caption colour. The row's remove `×` is a
   progressive-disclosure row action. Enter leaves a name or priority field.
 - **Drag handles are three lines.** Every drag handle in the app is `bi-list`:

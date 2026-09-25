@@ -586,7 +586,7 @@ Two columns stand out: the **relationship** to the selected node — Hard, Soft,
   <em> Details Tab with Stoicism Goal. </em>
 </p>
 
-If a subtask has a *direct* edge to the selected node, an **×** appears at the end of its row. Click it to open the **Remove Subtask** modal: choose **Remove Edge** to sever just the link (the node stays in the graph), or **Delete Node** to remove the node entirely. The **+** next to the "Subtasks" header opens a modal for adding a new subtask — either creating a fresh node or linking an existing one.
+If a subtask has a *direct* edge to the selected node, an **×** appears at the end of its row. Click it to open the **Remove Subtask** modal: choose **Remove Edge** to sever just the link (the node stays in the graph), or **Delete Node** to remove the node entirely. The **+** next to the "Subtasks" header opens a menu. **New node** opens the node editor with a Hard relationship to the selected node prefilled under Supports; you can change it to Soft before saving. **Existing node…** opens a small modal to choose a node and a Hard or Soft relationship.
 
 If the subtree contains any Milestones, they get their own horizontal strip of tiles above the table. Milestones are checkpoints rather than work, so they're kept visually separate from the subtasks you actually grind through.
 

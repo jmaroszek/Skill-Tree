@@ -2,8 +2,7 @@
  * Hide the "open link" icon button whenever its paired input is empty.
  *
  * Applies to Resources rows rendered by `render_link_rows`
- * (obsidian / drive / website inputs in the node editor and in the
- * details-tab add-node form). The Python store only updates on
+ * (obsidian / drive / website inputs in the node editor). The Python store only updates on
  * add / remove / browse, so this JS watches live typing via the
  * `input` event and sweeps the DOM on mutations for initial render
  * and store-driven re-renders.
@@ -13,9 +12,6 @@
         'obsidian-link',
         'drive-link',
         'website-link',
-        'details-add-obsidian-link',
-        'details-add-drive-link',
-        'details-add-website-link',
     ];
 
     function isLinkInput(el) {

@@ -1,6 +1,5 @@
-"""UI contracts shared by every surface that creates or edits a node."""
+"""UI contracts for the one node editor."""
 
-import pytest
 from dash.development.base_component import Component
 
 
@@ -61,19 +60,15 @@ def _text(component):
 
 
 def _editor_surfaces():
-    from details_layout import build_details_tab_content
     from sidebars_layout import node_editor_content
 
     return (
         (node_editor_content, "node-name", "btn-alias-add", "aliases-label"),
-        (build_details_tab_content(), "details-add-name",
-         "btn-details-add-alias-add", "details-add-aliases-label"),
     )
 
 
-@pytest.mark.parametrize("surface_index", range(2))
-def test_alias_add_button_sits_beside_name_label(surface_index):
-    surface, name_id, add_id, aliases_label_id = _editor_surfaces()[surface_index]
+def test_alias_add_button_sits_beside_name_label():
+    surface, name_id, add_id, aliases_label_id = _editor_surfaces()[0]
     button, button_parent = _find(surface, add_id)
     _name_input, input_parent = _find(surface, name_id)
     aliases_label, _label_parent = _find(surface, aliases_label_id)

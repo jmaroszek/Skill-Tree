@@ -12,6 +12,7 @@ unwrapped callback directly with trigger contexts that exercise each branch.
 import dash
 
 import callbacks
+from callback_helpers import NEW_NODE_SNAPSHOT
 from callbacks import register_callbacks
 from graph_manager import GraphManager
 from models import Node
@@ -46,9 +47,9 @@ def _make_state_args():
     cur_aliases, pending_nav, pristine_snapshot, cur_value_mode,
     cur_time_habit_mode, cur_habit_duration, cur_habit_duration_unit,
     cur_habit_int_o, cur_habit_int_m, cur_habit_int_p, cur_habit_int_unit,
-    cur_habit_days, cur_dormancy.
+    cur_habit_days, cur_dormancy, details_selected_node.
     """
-    return [None] * 38
+    return [None] * 39
 
 
 def _call_with_trigger(monkeypatch, trigger_id, inputs):
@@ -56,12 +57,54 @@ def _call_with_trigger(monkeypatch, trigger_id, inputs):
 
     Input order: tapNodeData, btn-add, btn-unsaved-discard, btn-unsaved-save,
     search-node, background-click-input, btn-new-node, btn-editor-new,
-    edit-trigger-input, details-edit-trigger-input.
+    edit-trigger-input, details-edit-trigger-input, details-add-choice-input.
     """
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger_id)
     fn = _populate_editor_fn()
-    args = list(inputs) + _make_state_args()
+    args = list(inputs) + ([None] if len(inputs) == 10 else []) + _make_state_args()
     return fn(*args)
+
+
+def test_details_new_subtask_prefills_parent_in_shared_editor(monkeypatch):
+    manager = GraphManager()
+    manager.add_node(Node(
+        name="Parent", type="Goal", description="", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind",
+    ))
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "details-add-choice-input")
+    states = _make_state_args()
+    states[-1] = "Parent"
+    result = _populate_editor_fn()(*([None] * 10 + ["new|123"] + states))
+    assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
+    assert result[0] == ""
+    assert result[15] == ["Parent"]
+    assert result[35]["e_supp_h"] == ["Parent"]
+
+
+def test_details_new_subtask_waits_for_unsaved_changes_then_prefills_parent(monkeypatch):
+    manager = GraphManager()
+    manager.add_node(Node(
+        name="Parent", type="Goal", description="", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind",
+    ))
+    fn = _populate_editor_fn()
+    states = _make_state_args()
+    states[0] = {"transform": "translateX(0px)"}
+    states[2] = "Unsaved"
+    states[27] = NEW_NODE_SNAPSHOT
+    states[-1] = "Parent"
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "details-add-choice-input")
+    pending = fn(*([None] * 10 + ["new|123"] + states))
+    assert pending[33] == "__new_subtask__|Parent"
+    assert pending[34] is True
+
+    states[26] = pending[33]
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-unsaved-discard")
+    cleared = fn(*([None] * 11 + states))
+    assert cleared[15] == ["Parent"]
+    assert cleared[35]["e_supp_h"] == ["Parent"]
 
 
 def test_populate_editor_search_unknown_node_returns_44_items(monkeypatch):

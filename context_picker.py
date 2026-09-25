@@ -20,7 +20,6 @@ from config import ConfigManager, sort_contexts, sort_subcontexts
 _PICKERS = (
     ("node-context-picker", "node-context", "node-subcontext", "single"),
     ("filter-context-picker", "filter-context", "filter-subcontext", "multi"),
-    ("details-add-context-picker", "details-add-context", "details-add-subcontext", "single"),
     (
         "hub-history-context-picker",
         "hub-history-filter-context",

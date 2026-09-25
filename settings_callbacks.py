@@ -426,6 +426,16 @@ def register_settings_callbacks(app, services=None):
     def toggle_titlecase_options(format_mode):
         return format_mode == NAME_FORMAT_TITLE
 
+    # --- Settings: Show each integration's paths only while it is on ---
+    @app.callback(
+        Output("setting-obsidian-options", "is_open"),
+        Output("setting-gdrive-options", "is_open"),
+        Input("setting-obsidian-enabled", "value"),
+        Input("setting-gdrive-enabled", "value"),
+    )
+    def toggle_integration_options(obsidian_enabled, gdrive_enabled):
+        return "enabled" in (obsidian_enabled or []), "enabled" in (gdrive_enabled or [])
+
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
         Output('context-editor-store', 'data'),
@@ -784,13 +794,10 @@ def register_settings_callbacks(app, services=None):
             logger.exception("Failed to save settings")
             return "Error saving settings.", dash.no_update, False, 0, dash.no_update
 
-    # Keep both node-creation surfaces in sync after Settings is saved. Their
-    # inputs stay mounted while hidden so editing a node never drops its links.
+    # Refresh the node editor's resource sections after Settings is saved.
     @app.callback(
         Output('editor-obsidian-resources', 'style'),
         Output('editor-drive-resources', 'style'),
-        Output('details-add-obsidian-resources', 'style'),
-        Output('details-add-drive-resources', 'style'),
         Input('settings-save-status', 'children'),
         Input('modal-migration', 'is_open'),
         Input('settings-modal', 'is_open'),
@@ -799,7 +806,7 @@ def register_settings_callbacks(app, services=None):
     def refresh_resource_visibility(_save_status, _migration_open, _settings_open):
         obsidian_style = {} if ConfigManager.get_obsidian_enabled() else {'display': 'none'}
         drive_style = {} if ConfigManager.get_gdrive_enabled() else {'display': 'none'}
-        return obsidian_style, drive_style, obsidian_style, drive_style
+        return obsidian_style, drive_style
 
     # --- Migration Modal ---
     @app.callback(

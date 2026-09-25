@@ -103,7 +103,7 @@ def panel_close_button(button_id, label="Close", large=False,
     return _icon_button(button_id, "x-lg", label, classes, **kwargs)
 
 
-def add_button(button_id, tooltip, placement="right", large=False, **kwargs):
+def add_button(button_id, tooltip, placement="right", large=False, label=None, **kwargs):
     """The ``+`` that reveals or appends a repeatable field.
 
     A plain text ``+``, which is the treatment the node editor already had and
@@ -115,10 +115,14 @@ def add_button(button_id, tooltip, placement="right", large=False, **kwargs):
 
     A ``+`` means *add a field*; a chevron means *disclose existing content*.
     Do not substitute one for the other. ``large`` is the sidebar-header size.
+    ``label`` names the button for screen readers when it has no tooltip;
+    dbc.Button rejects ``aria-label``, so it goes in a visually-hidden span.
     """
     size_class = "adder-btn-lg" if large else ""
+    children = "+" if label is None else [
+        "+", html.Span(label, className="visually-hidden")]
     button = dbc.Button(
-        "+",
+        children,
         id=button_id,
         color="link",
         className=f"adder-btn {size_class}".strip(),
