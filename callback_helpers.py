@@ -29,6 +29,7 @@ from config import (
 import style_tokens as tokens
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from ui_kit import restore_button
+from resource_links import get_sections
 
 
 # Re-exported so existing importers keep working; the definition lives in
@@ -399,7 +400,7 @@ def node_fill_color(node, colors):
 #   - The hover tooltip (callbacks.display_hover_data): type, context,
 #     subcontext, value, interest, difficulty, time, time_mode, value_mode.
 #   - The node context menu (assets/context_menu.js): type, status, now,
-#     dormant, website, obsidian_path, google_drive_path.
+#     dormant, resource_links.
 #   - Tap handlers read only the id; the editor re-reads the node itself.
 # The stylesheet reads id, label, color, shape and now_color, which are set
 # below. Add a field here when something new reads it from element data.
@@ -408,7 +409,7 @@ CANVAS_NODE_FIELDS = (
     'value', 'interest', 'difficulty',
     'time', 'time_mode', 'value_mode',
     'now', 'dormant',
-    'website', 'obsidian_path', 'google_drive_path',
+    'website', 'obsidian_path', 'google_drive_path', 'resource_links',
 )
 
 
@@ -429,7 +430,9 @@ def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=
         'shape': styles.shapes.get(node.type, 'rectangle'),
     }
     for field in CANVAS_NODE_FIELDS:
-        data[field] = node.time if field == 'time' else getattr(node, field)
+        data[field] = (node.time if field == 'time' else
+                       getattr(node, field, {}) if field == 'resource_links'
+                       else getattr(node, field))
     if dormant is None:
         dormant = bool(node.dormant)
     else:
@@ -472,6 +475,7 @@ def node_menu_attributes(node):
         "data-website": node.website or "",
         "data-obsidian-path": node.obsidian_path or "",
         "data-google-drive-path": node.google_drive_path or "",
+        "data-resource-links": json.dumps(getattr(node, 'resource_links', {})),
     }
 
 
@@ -1003,6 +1007,7 @@ NEW_NODE_SNAPSHOT = {
     'e_needs_h': [], 'e_needs_s': [],
     'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
     'obs_links': [''], 'drive_links': [''], 'website_links': [''],
+    'custom_links': {},
     'time_mode': [],
     'time_habit_mode': [],
     'habit_duration': 0,
@@ -1088,6 +1093,9 @@ def build_editor_snapshot(manager, node_name):
         'obs_links': parse_links(node.obsidian_path),
         'drive_links': strip_gdrive_prefix(parse_links(node.google_drive_path)),
         'website_links': parse_links(node.website),
+        'custom_links': {section_id: values for section_id, values in
+                         getattr(node, 'resource_links', {}).items()
+                         if section_id not in ('obsidian', 'drive', 'website')},
         'time_mode': ['inherited'] if node.time_mode == 'inherited' else [],
         'time_habit_mode': ['habit'] if node.time_mode == 'habit' else [],
         'habit_duration': node.habit_duration or 0,
@@ -1140,6 +1148,7 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'obs_links': form_values.get('obs_links') or [''],
         'drive_links': form_values.get('drive_links') or [''],
         'website_links': form_values.get('website_links') or [''],
+        'custom_links': form_values.get('custom_links') or {},
         'time_mode': form_values.get('time_mode') or [],
         'time_habit_mode': form_values.get('time_habit_mode') or [],
         'habit_duration': form_values.get('habit_duration') or 0,
@@ -1172,6 +1181,7 @@ def editor_form_values(
     habit_intensity_o=0, habit_intensity_m=0, habit_intensity_p=0,
     habit_intensity_unit='min_per_session',
     habit_days=None,
+    custom_links=None,
 ):
     """Assemble the canonical editor form-values dict for the dirty check.
 
@@ -1199,6 +1209,7 @@ def editor_form_values(
         'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
         'obs_links': obs_links, 'drive_links': drive_links,
         'website_links': website_links,
+        'custom_links': custom_links or {},
         'time_mode': time_mode,
         'time_habit_mode': time_habit_mode,
         'habit_duration': habit_duration,
@@ -1268,6 +1279,11 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
     for k in ('e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps',
               'obs_links', 'drive_links', 'website_links', 'aliases'):
         if _norm_list(form_values.get(k)) != _norm_list(snapshot.get(k)):
+            return True
+    left = form_values.get('custom_links') or {}
+    right = snapshot.get('custom_links') or {}
+    for section_id in set(left) | set(right):
+        if _norm_list(left.get(section_id)) != _norm_list(right.get(section_id)):
             return True
 
     if _norm_dormancy(form_values.get('dormancy')) != _norm_dormancy(snapshot.get('dormancy')):
@@ -1390,6 +1406,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
     rows = []
     rank = 0
+    visible_resource_sections = [section for section in get_sections() if section['enabled']]
     for s in suggs:
         is_selected = (s.name == selected_node_id)
         step_target = pinned_steps.get(s.name)
@@ -1516,13 +1533,9 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         })
 
         dots = html.Span([
-            html.Span(_suggestion_dot(bool(getattr(s, 'obsidian_path', None)),
-                                      "Obsidian", tokens.TEXT_PRIMARY),
-                      className="resource-dot-obsidian"),
-            html.Span(_suggestion_dot(bool(getattr(s, 'google_drive_path', None)),
-                                      "Drive", tokens.TEXT_PRIMARY),
-                      className="resource-dot-drive"),
-            _suggestion_dot(bool(getattr(s, 'website', None)), "Website", tokens.TEXT_PRIMARY),
+            _suggestion_dot(bool(getattr(s, 'resource_links', {}).get(section['id'])),
+                            section['name'], tokens.TEXT_PRIMARY)
+            for section in visible_resource_sections
         ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
@@ -1775,6 +1788,55 @@ def render_link_rows(links, link_type, has_browse=False, has_open=True):
     return rows
 
 
+def custom_link_values(values, ids, store=None):
+    """Collect currently mounted custom inputs, retaining unseen section data."""
+    result = {key: list(items) for key, items in (store or {}).items()}
+    for value, component_id in zip(values or [], ids or []):
+        section_id, _, index = component_id['index'].rpartition(':')
+        items = result.setdefault(section_id, [])
+        position = int(index)
+        while len(items) <= position:
+            items.append('')
+        items[position] = value or ''
+    return result
+
+
+def render_custom_resource_sections(store):
+    sections = []
+    for section in get_sections():
+        if section['id'] in ('obsidian', 'drive', 'website'):
+            continue
+        values = (store or {}).get(section['id']) or ['']
+        rows = []
+        for index, value in enumerate(values):
+            key = f"{section['id']}:{index}"
+            children = [dbc.Input(id={'type': 'custom-resource-link', 'index': key},
+                                  value=value, type='text', placeholder='Enter path or URL...'),
+                        dbc.Button(html.I(className='bi bi-folder2-open'),
+                                   id={'type': 'custom-resource-browse', 'index': key},
+                                   title='Browse', className='editor-icon-btn'),
+                        dbc.Button(html.I(className='bi bi-box-arrow-up-right'),
+                                   id={'type': 'custom-resource-open', 'index': key},
+                                   title='Open', className='editor-icon-btn')]
+            if len(values) > 1:
+                children.append(dbc.Button(html.I(className='bi bi-x-lg'),
+                           id={'type': 'custom-resource-remove', 'index': key},
+                           title='Remove', className='editor-icon-btn editor-icon-btn-danger'))
+            rows.append(html.Div(children, className='d-flex editor-field-group mb-1'))
+        sections.append(html.Div([
+            html.Div([dbc.Label(section['name'], className='mb-0'),
+                      dbc.Button(html.I(className='bi bi-plus-lg'),
+                                 id={'type': 'custom-resource-add', 'index': section['id']},
+                                 title=f"Add {section['name']} link",
+                                 className='editor-icon-btn')],
+                     className='d-flex align-items-center mt-3 mb-1'),
+            html.Div(rows),
+        ], style={} if section['enabled'] else {'display': 'none'},
+           **{'data-resource-root': section['root_path'],
+              'data-resource-id': section['id']}))
+    return sections
+
+
 def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-remove"):
     """Build the alias input rows (one unified field per alias, trailing ×).
 
@@ -1828,44 +1890,46 @@ def update_alias_rows(trigger, current_values, stored_values, aliases_open,
 
 
 def spawn_local_file_picker(initial_dir, title, filetypes_list):
-    """Launch a blocking Windows file-picker dialog in a subprocess. Returns the selected path or ''."""
+    """Standalone-browser fallback picker. Electron uses its native dialog."""
     import logging
-    import tempfile
     import sys
     import subprocess
-    import os
 
     _logger = logging.getLogger(__name__)
-    filetypes_str = str(filetypes_list)
-    script = f'''import os
+    script = '''import json
+import os
+import sys
 import tkinter as tk
 from tkinter import filedialog
-import ctypes
 
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
-    pass
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
 
 root = tk.Tk()
 root.withdraw()
 root.attributes('-topmost', True)
-
-abs_path = filedialog.askopenfilename(
-    initialdir=r"{initial_dir}",
-    title="{title}",
-    filetypes={filetypes_str}
-)
-
-if abs_path:
-    print(os.path.normpath(abs_path), end="")
+try:
+    abs_path = filedialog.askopenfilename(
+        initialdir=sys.argv[1], title=sys.argv[2],
+        filetypes=json.loads(sys.argv[3]))
+    if abs_path:
+        print(os.path.normpath(abs_path), end="")
+finally:
+    root.destroy()
 '''
     try:
-        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-            f.write(script)
-            tmp_path = f.name
-        result = subprocess.run([sys.executable, tmp_path], capture_output=True, text=True)
-        os.remove(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-c", script, initial_dir or "", title,
+             json.dumps(filetypes_list)], capture_output=True, text=True,
+            check=False,
+        )
+        if result.returncode:
+            _logger.error("File picker failed: %s", result.stderr.strip())
+            return ""
         return result.stdout.strip()
     except Exception as e:
         _logger.error(f"Error launching file picker: {e}")

@@ -10,11 +10,12 @@
 // The Python app is unchanged except for a --no-browser flag (so it serves
 // without opening a browser tab, since we load it ourselves).
 
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const treeKill = require('tree-kill');
 const http = require('http');
 const path = require('path');
+const { registerResourceDialog } = require('./resource_dialog');
 
 const SANDBOX = process.argv.includes('--sandbox');
 const PORT = SANDBOX ? 8051 : 8050;
@@ -27,6 +28,7 @@ const ICON = path.join(REPO, 'assets', 'skill_tree.ico');
 
 let pyProc = null;
 let mainWindow = null;
+registerResourceDialog(ipcMain, dialog, () => mainWindow, PORT);
 
 app.setAppUserModelId('com.skilltree.app');
 // Separate Electron profile per environment so a sandbox window and a

@@ -27,7 +27,7 @@ class AppSettings:
 
 
 def _configure_logging(environment) -> None:
-    """Send INFO+ logs to stderr and a rotating LocalAppData file.
+    """Send INFO+ logs to stderr and a rotating per-user app-data file.
 
     Sandbox and production write to separate log files so the two never
     interleave. File rotates at 5 MB with 3 backups kept (~20 MB ceiling).
@@ -148,6 +148,8 @@ def create_app(settings=None, services=None):
     # callback would also run in the browser.
     prerendered_specs(app)
     app.server.add_url_rule('/open-obsidian', view_func=open_obsidian_route)
+    app.server.add_url_rule('/open-resource', view_func=open_resource_route,
+                            methods=['POST'])
     boot_id = uuid.uuid4().hex
     app.server.add_url_rule('/_server_boot_id', view_func=lambda: boot_id)
     return app
@@ -155,25 +157,43 @@ def create_app(settings=None, services=None):
 
 def open_obsidian_route():
     from flask import request, jsonify
-    import os
-    import urllib.parse
-    import subprocess
-    from config import ConfigManager
+    from resource_links import get_sections, open_resource
     
     path = request.args.get('path')
     if not path:
         return jsonify({"ok": False, "error": "No path provided"})
         
-    vault = ConfigManager.get_obsidian_vault()
-    abs_path = os.path.join(vault, path.strip())
-    encoded = urllib.parse.quote(abs_path, safe='')
-    uri = f'obsidian://open?path={encoded}'
-    
     try:
-        subprocess.Popen(['cmd', '/c', 'start', '', uri], shell=False)
+        section = next(row for row in get_sections() if row['id'] == 'obsidian')
+        open_resource(path, section)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+def open_resource_route():
+    """Open one saved link selected from a node's context menu."""
+    from flask import request, jsonify
+    from graph_manager import GraphManager
+    from resource_links import get_sections, get_node_links, open_resource
+
+    payload = request.get_json(silent=True) or {}
+    name = payload.get('node')
+    section_id = payload.get('section')
+    index = payload.get('index', 0)
+    if not isinstance(name, str) or not isinstance(section_id, str) or not isinstance(index, int):
+        return jsonify({"ok": False, "error": "Invalid Resource selection"}), 400
+    if GraphManager().get_node(name) is None:
+        return jsonify({"ok": False, "error": "Node not found"}), 404
+    section = next((s for s in get_sections() if s['id'] == section_id and s['enabled']), None)
+    links = get_node_links(name).get(section_id, [])
+    if section is None or not 0 <= index < len(links):
+        return jsonify({"ok": False, "error": "Resource link not found"}), 404
+    try:
+        open_resource(links[index], section)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 def _parse_port(argv) -> int:

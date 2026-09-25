@@ -1053,6 +1053,8 @@ def build_app_layout(initial_elements, env="production"):
         _menu_item("Open Website", "ctx-menu-website", icon="globe2"),
         _menu_item("Open in Obsidian", "ctx-menu-obsidian", icon="journal-text"),
         _menu_item("Open in Drive", "ctx-menu-drive", icon="folder2-open"),
+        _menu_item("Open Resource", "ctx-menu-custom-0", icon="folder2-open"),
+        _menu_item("Open Resource", "ctx-menu-custom-1", icon="folder2-open"),
         _menu_divider(),
         _menu_item("Delete…", "ctx-menu-delete", danger=True, icon="trash3"),
     ])

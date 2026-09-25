@@ -16,6 +16,7 @@ Per-tab filter sidebars (e.g. the Details tab's mini-graph filter at
 
 from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
 from dash import html, dcc
+from resource_links import get_sections
 import dash_bootstrap_components as dbc
 from config import (
     ConfigManager,
@@ -417,30 +418,45 @@ def build_node_editor_content():
                 dcc.Store(id='obsidian-links-store', data=['']),
                 dcc.Store(id='drive-links-store', data=['']),
                 dcc.Store(id='website-links-store', data=['']),
+                dcc.Store(id='custom-resource-links-store', data={}),
+                dcc.Input(id='electron-file-picked-input', value='', type='text',
+                          style={'display': 'none'}),
 
                 html.Div([
                     html.Div([
-                        dbc.Label("Obsidian", className="mb-0"),
-                        add_button("btn-obsidian-add", "Add Obsidian link")
+                        dbc.Label(next(s['name'] for s in get_sections() if s['id'] == 'obsidian'),
+                                  id='editor-obsidian-label', className="mb-0"),
+                        add_button("btn-obsidian-add", "Add link")
                     ], className="d-flex align-items-center mt-2 mb-1"),
                     html.Div(id='obsidian-links-container'),
                 ], id='editor-obsidian-resources',
-                   style={} if ConfigManager.get_obsidian_enabled() else {"display": "none"}),
+                   style={} if ConfigManager.get_obsidian_enabled() else {"display": "none"},
+                   **{'data-resource-id': 'obsidian',
+                      'data-resource-root': next(s['root_path'] for s in get_sections() if s['id'] == 'obsidian')}),
 
                 html.Div([
                     html.Div([
-                        dbc.Label("Google Drive", className="mb-0"),
-                        add_button("btn-drive-add", "Add Google Drive link")
+                        dbc.Label(next(s['name'] for s in get_sections() if s['id'] == 'drive'),
+                                  id='editor-drive-label', className="mb-0"),
+                        add_button("btn-drive-add", "Add link")
                     ], className="d-flex align-items-center mt-3 mb-1"),
                     html.Div(id='drive-links-container'),
                 ], id='editor-drive-resources',
-                   style={} if ConfigManager.get_gdrive_enabled() else {"display": "none"}),
+                   style={} if ConfigManager.get_gdrive_enabled() else {"display": "none"},
+                   **{'data-resource-id': 'drive',
+                      'data-resource-root': next(s['root_path'] for s in get_sections() if s['id'] == 'drive')}),
 
                 html.Div([
-                    dbc.Label("Website", className="mb-0"),
-                    add_button("btn-website-add", "Add Website link")
-                ], className="d-flex align-items-center mt-3 mb-1"),
-                html.Div(id='website-links-container'),
+                    html.Div([
+                        dbc.Label(next(s['name'] for s in get_sections() if s['id'] == 'website'),
+                                  id='editor-website-label', className="mb-0"),
+                        add_button("btn-website-add", "Add link")
+                    ], className="d-flex align-items-center mt-3 mb-1"),
+                    html.Div(id='website-links-container'),
+                ], id='editor-website-resources',
+                   **{'data-resource-id': 'website',
+                      'data-resource-root': next(s['root_path'] for s in get_sections() if s['id'] == 'website')}),
+                html.Div(id='editor-custom-resources'),
 
                 # The five actions stay pinned to the bottom of the panel while the
                 # fields above them scroll. `position: sticky` keeps them in normal

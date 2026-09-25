@@ -116,6 +116,8 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-website",
         "ctx-menu-obsidian",
         "ctx-menu-drive",
+        "ctx-menu-custom-0",
+        "ctx-menu-custom-1",
         "ctx-menu-delete",
     ]
     assert _labels(_find(menu, "ctx-menu-details")) == ["View Details"]

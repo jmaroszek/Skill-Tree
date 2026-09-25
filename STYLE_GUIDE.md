@@ -631,15 +631,15 @@ The selected `value` list holds the chosen options directly, so selection
 state needs no extra callback. Compare these lists as sets in dirty-checks
 (`is_form_dirty_vs_snapshot`) since the order is not significant.
 
-Optional resource integrations live in Settings → Integrations. The node editor
-and Add Node modal keep their resource inputs mounted and hide their sections
-when disabled, so saving a node never clears links the user cannot see. Website
-stays visible. Google Drive inputs accept both URLs and local paths, with the
-mounted root path optional. Each integration section follows the settings
-rhythm: heading, one-line description, the enable switch, then its path field
-in a `dbc.Collapse` that opens only while the switch is on. One line at the top
-of the tab says what all integrations share (each adds a field to the node
-editor's Resources section), so the sections don't repeat it.
+Settings → Integrations owns up to five named Resource sections. Obsidian,
+Google Drive, and Website keep their existing names initially; names shown in
+the node editor and Home dot tooltips can be edited. Obsidian keeps its vault
+and URI opener. Other sections accept web URLs and local files; an optional
+root folder makes paths beneath it relative. An enabled section shows its root
+field in a `dbc.Collapse`. Disabled sections retain their mounted editor inputs
+and saved links, so saving a node never clears unseen resources. Only empty
+custom sections can be removed. The node context menu shows the first saved
+link of each enabled section, using that section's current name.
 
 ### Row editor (Settings ▸ Contexts)
 

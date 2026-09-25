@@ -15,6 +15,7 @@ from config import (
     NAME_FORMAT_SENTENCE,
 )
 import style_tokens as tokens
+from resource_links import get_sections, section_has_links, MAX_SECTIONS, BUILTIN_IDS
 from ui_kit import Tooltip, info_button, restore_button
 
 
@@ -363,13 +364,17 @@ def _build_integrations_tab():
     return dbc.Tab(label="Integrations", tab_id="tab-integrations", children=[
         html.Div([
             html.Div([
-                # What every integration has in common is said once, up top;
-                # each section then says only what is particular to it.
-                html.Small("Each integration you turn on adds a link field to the "
-                           "Resources section of the node editor.",
+                html.Small("Name up to five Resource sections. Enabled sections appear "
+                           "in the node editor and as labeled dots on Home.",
                            className="text-muted d-block mt-2 mb-3"),
-                # Same section rhythm as the other tabs: heading, description,
-                # control, then any options it reveals.
+                dcc.Store(id="resource-section-settings-store", data=get_sections()),
+                html.Div(id="resource-section-settings-rows"),
+                dbc.Button("Add section", id="btn-resource-section-add", size="sm",
+                           color="secondary", outline=True,
+                           disabled=len(get_sections()) >= MAX_SECTIONS),
+                # Legacy fields remain mounted for existing settings callbacks.
+                # The named-section controls above are the visible source.
+                html.Div([
                 html.H5("Obsidian", className="mt-2 mb-1"),
                 html.Small("Link notes in your vault and open them in Obsidian.",
                            className="text-muted d-block mb-2"),
@@ -397,9 +402,42 @@ def _build_integrations_tab():
                     html.Small("Used to browse mounted files and resolve relative paths.",
                                className="text-muted d-block mt-1 mb-1"),
                 ], id="setting-gdrive-options", is_open=False),
+                ], style={"display": "none"}),
             ], style={"width": "100%", "maxWidth": "640px"}),
         ], className="p-2")
     ])
+
+
+def build_resource_setting_rows(sections):
+    rows = []
+    for section in sections:
+        section_id = section["id"]
+        rows.append(html.Div([
+            html.Div([
+                dbc.Input(id={"type": "resource-section-name", "index": section_id},
+                          value=section["name"], type="text", maxLength=60,
+                          placeholder="Section name"),
+                dbc.Button(html.I(className="bi bi-x-lg"),
+                           id={"type": "resource-section-remove", "index": section_id},
+                           title="Remove empty section", color="link", size="sm",
+                           disabled=section_id in BUILTIN_IDS or section_has_links(section_id)),
+            ], className="d-flex gap-2 mb-2"),
+            dbc.Checklist(id={"type": "resource-section-enabled", "index": section_id},
+                          options=[{"label": "Show in Resources", "value": "enabled"}],
+                          value=["enabled"] if section["enabled"] else [], switch=True,
+                          className="mb-2"),
+            dbc.Collapse([
+                dbc.Label("Root folder (optional)" if section["kind"] != "obsidian"
+                          else "Vault path", className="mb-1"),
+                dbc.Input(id={"type": "resource-section-root", "index": section_id},
+                          value=section["root_path"], type="text"),
+                html.Small("Files under this folder are saved with relative paths.",
+                           className="text-muted d-block mt-1"),
+            ], id={"type": "resource-section-options", "index": section_id},
+               is_open=bool(section["enabled"])),
+            html.Hr(className="my-3"),
+        ]))
+    return rows
 
 
 def build_settings_modal():

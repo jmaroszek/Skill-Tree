@@ -3,6 +3,7 @@ Callback definitions for the Settings tab.
 """
 
 import json
+import uuid
 import logging
 import dash
 from dash import html, Input, Output, State, ALL, MATCH, ctx
@@ -27,10 +28,27 @@ from callback_helpers import (
     get_trigger_id, build_context_editor_rows, sync_time_fields)
 import context_rules
 import style_tokens as tokens
+from resource_links import (get_sections, save_sections, validate_sections,
+                            section_has_links, MAX_SECTIONS)
+from settings_layout import build_resource_setting_rows
 
 logger = logging.getLogger(__name__)
 
 manager = GraphManager()
+
+
+def _section_form_rows(store, names, name_ids, roots, root_ids, enabled, enabled_ids):
+    """Overlay mounted form values on the ordered section draft."""
+    rows = [dict(row) for row in (store or get_sections())]
+    by_id = {row["id"]: row for row in rows}
+    for values, ids, field in ((names, name_ids, "name"),
+                               (roots, root_ids, "root_path"),
+                               (enabled, enabled_ids, "enabled")):
+        for value, component_id in zip(values or [], ids or []):
+            row = by_id.get(component_id["index"])
+            if row is not None:
+                row[field] = ("enabled" in (value or [])) if field == "enabled" else value
+    return rows
 
 
 def _display_types():
@@ -428,6 +446,67 @@ def register_settings_callbacks(app, services=None):
 
     # --- Settings: Show each integration's paths only while it is on ---
     @app.callback(
+        Output('resource-section-settings-store', 'data'),
+        Input('settings-modal', 'is_open'),
+        prevent_initial_call=True,
+    )
+    def load_resource_sections(is_open):
+        return get_sections() if is_open else dash.no_update
+
+    @app.callback(
+        Output('resource-section-settings-rows', 'children'),
+        Output('btn-resource-section-add', 'disabled'),
+        Input('resource-section-settings-store', 'data'),
+    )
+    def render_resource_section_settings(rows):
+        rows = rows or get_sections()
+        return build_resource_setting_rows(rows), len(rows) >= MAX_SECTIONS
+
+    @app.callback(
+        Output({'type': 'resource-section-options', 'index': ALL}, 'is_open'),
+        Input({'type': 'resource-section-enabled', 'index': ALL}, 'value'),
+    )
+    def toggle_resource_section_options(values):
+        return ['enabled' in (value or []) for value in values]
+
+    @app.callback(
+        Output('resource-section-settings-store', 'data', allow_duplicate=True),
+        Input('btn-resource-section-add', 'n_clicks'),
+        Input({'type': 'resource-section-remove', 'index': ALL}, 'n_clicks'),
+        State('resource-section-settings-store', 'data'),
+        State({'type': 'resource-section-name', 'index': ALL}, 'value'),
+        State({'type': 'resource-section-name', 'index': ALL}, 'id'),
+        State({'type': 'resource-section-root', 'index': ALL}, 'value'),
+        State({'type': 'resource-section-root', 'index': ALL}, 'id'),
+        State({'type': 'resource-section-enabled', 'index': ALL}, 'value'),
+        State({'type': 'resource-section-enabled', 'index': ALL}, 'id'),
+        prevent_initial_call=True,
+    )
+    def modify_resource_sections(_add, _remove, store, names, name_ids,
+                                 roots, root_ids, enabled, enabled_ids):
+        rows = _section_form_rows(store, names, name_ids, roots, root_ids,
+                                  enabled, enabled_ids)
+        trigger = ctx.triggered_id
+        if trigger == 'btn-resource-section-add' and len(rows) < MAX_SECTIONS:
+            used_names = {(row.get('name') or '').casefold() for row in rows}
+            name = 'New Resources'
+            suffix = 2
+            while name.casefold() in used_names:
+                name = f'New Resources {suffix}'
+                suffix += 1
+            rows.append({'id': uuid.uuid4().hex, 'name': name,
+                         'kind': 'mixed', 'root_path': '', 'enabled': 1,
+                         'position': len(rows)})
+        elif isinstance(trigger, dict) and trigger.get('type') == 'resource-section-remove':
+            section_id = trigger['index']
+            if section_id in ('obsidian', 'drive', 'website') or section_has_links(section_id):
+                return dash.no_update
+            rows = [row for row in rows if row['id'] != section_id]
+        else:
+            return dash.no_update
+        return rows
+
+    @app.callback(
         Output("setting-obsidian-options", "is_open"),
         Output("setting-gdrive-options", "is_open"),
         Input("setting-obsidian-enabled", "value"),
@@ -583,6 +662,13 @@ def register_settings_callbacks(app, services=None):
         State('setting-time-calibration-enabled', 'value'),
         State('setting-now-node-cap', 'value'),
         *_CTX_EDIT_STATES,
+        State('resource-section-settings-store', 'data'),
+        State({'type': 'resource-section-name', 'index': ALL}, 'value'),
+        State({'type': 'resource-section-name', 'index': ALL}, 'id'),
+        State({'type': 'resource-section-root', 'index': ALL}, 'value'),
+        State({'type': 'resource-section-root', 'index': ALL}, 'id'),
+        State({'type': 'resource-section-enabled', 'index': ALL}, 'value'),
+        State({'type': 'resource-section-enabled', 'index': ALL}, 'id'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks, obs_path, gdrive_path,
@@ -595,11 +681,31 @@ def register_settings_callbacks(app, services=None):
                       context_sort_mode_val, time_calibration_val,
                       now_node_cap_val, editor_store,
                       ctx_name_vals, ctx_name_ids, ctx_weight_vals, ctx_weight_ids,
-                      ctx_sub_vals, ctx_sub_ids):
+                       ctx_sub_vals, ctx_sub_ids,
+                       section_store=None, section_names=None, section_name_ids=None,
+                       section_roots=None, section_root_ids=None,
+                       section_enabled=None, section_enabled_ids=None):
         if not n_clicks:
             return (dash.no_update,) * 5
 
         try:
+            sections = _section_form_rows(
+                section_store, section_names, section_name_ids,
+                section_roots, section_root_ids, section_enabled,
+                section_enabled_ids)
+            try:
+                validate_sections(sections)
+            except ValueError as exc:
+                return (html.Span(str(exc), className="text-danger"),
+                        dash.no_update, False, 0, dash.no_update)
+            if section_store is not None:
+                builtins = {row['id']: row for row in sections}
+                obs = builtins['obsidian']
+                drive = builtins['drive']
+                obs_path = obs.get('root_path') or ''
+                gdrive_path = drive.get('root_path') or ''
+                obsidian_enabled_val = ['enabled'] if obs.get('enabled') else []
+                gdrive_enabled_val = ['enabled'] if drive.get('enabled') else []
             obs_path = (obs_path or "").strip()
             gdrive_path = (gdrive_path or "").strip()
             obsidian_enabled = "enabled" in (obsidian_enabled_val or [])
@@ -732,6 +838,7 @@ def register_settings_callbacks(app, services=None):
                     'gdrive_path': gdrive_path,
                     'obsidian_enabled': obsidian_enabled,
                     'gdrive_enabled': gdrive_enabled,
+                    'resource_sections': sections,
                     'contexts': new_contexts,
                     'subcontexts': new_subcontexts,
                     'context_weights': new_ctx_weights,
@@ -762,6 +869,7 @@ def register_settings_callbacks(app, services=None):
             ConfigManager.set_gdrive_path(gdrive_path)
             ConfigManager.set_obsidian_enabled(obsidian_enabled)
             ConfigManager.set_gdrive_enabled(gdrive_enabled)
+            save_sections(sections)
             if new_contexts:
                 ConfigManager.set_contexts(new_contexts)
             ConfigManager.set_subcontexts(new_subcontexts)
@@ -807,6 +915,25 @@ def register_settings_callbacks(app, services=None):
         obsidian_style = {} if ConfigManager.get_obsidian_enabled() else {'display': 'none'}
         drive_style = {} if ConfigManager.get_gdrive_enabled() else {'display': 'none'}
         return obsidian_style, drive_style
+
+    @app.callback(
+        Output('editor-obsidian-label', 'children'),
+        Output('editor-drive-label', 'children'),
+        Output('editor-website-label', 'children'),
+        Output('editor-website-resources', 'style'),
+        Output('editor-obsidian-resources', 'data-resource-root'),
+        Output('editor-drive-resources', 'data-resource-root'),
+        Output('editor-website-resources', 'data-resource-root'),
+        Input('settings-save-status', 'children'),
+        Input('modal-migration', 'is_open'),
+    )
+    def refresh_resource_names(_status, _migration_open):
+        sections = {row['id']: row for row in get_sections()}
+        return (sections['obsidian']['name'], sections['drive']['name'],
+                sections['website']['name'],
+                {} if sections['website']['enabled'] else {'display': 'none'},
+                sections['obsidian']['root_path'], sections['drive']['root_path'],
+                sections['website']['root_path'])
 
     # --- Migration Modal ---
     @app.callback(
@@ -880,6 +1007,8 @@ def register_settings_callbacks(app, services=None):
                 ConfigManager.set_gdrive_path(pending_state.get('gdrive_path', ''))
                 ConfigManager.set_obsidian_enabled(pending_state.get('obsidian_enabled', False))
                 ConfigManager.set_gdrive_enabled(pending_state.get('gdrive_enabled', False))
+                if 'resource_sections' in pending_state:
+                    save_sections(pending_state['resource_sections'])
                 new_contexts = pending_state.get('contexts', [])
                 if new_contexts:
                     ConfigManager.set_contexts(new_contexts)

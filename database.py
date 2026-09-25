@@ -43,6 +43,14 @@ class ReadSnapshot:
             self.nodes = {row["name"]: dict(row) for row in conn.execute("SELECT * FROM Nodes")}
             self.edges = [dict(row) for row in conn.execute("SELECT * FROM Edges")]
             self.settings = dict(conn.execute("SELECT key, value FROM Settings").fetchall())
+            self.resource_sections = [dict(row) for row in conn.execute(
+                "SELECT id, name, kind, root_path, enabled, position "
+                "FROM ResourceSections ORDER BY position")]
+            self.resource_links = {}
+            for row in conn.execute(
+                    "SELECT node_name, section_id, target FROM NodeResourceLinks "
+                    "ORDER BY node_name, section_id, position"):
+                self.resource_links.setdefault(row[0], {}).setdefault(row[1], []).append(row[2])
             self.trigger_names = {row[0] for row in conn.execute(
                 "SELECT DISTINCT etn.node_name FROM EventTriggerNodes etn "
                 "JOIN Events e ON e.name=etn.event_name WHERE e.status='Pending'")}
@@ -216,7 +224,7 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 def _utc_now_ts() -> int:
@@ -367,6 +375,32 @@ def _migrate(cursor, from_version: int) -> None:
                         (path_key, str(legacy_vault)),
                     )
 
+    # --- v10: named Resource sections and ordered per-node links. Keep the
+    # legacy columns as a compatibility mirror; this migration never removes
+    # or rewrites user links.
+    if from_version < 10:
+        from resource_links import parse_links, normalize_link
+        definitions = (
+            ("obsidian", "Obsidian", "obsidian", "OBSIDIAN_VAULT", "OBSIDIAN_ENABLED", "obsidian_path"),
+            ("drive", "Google Drive", "mixed", "GDRIVE_ROOT_PATH", "GDRIVE_ENABLED", "google_drive_path"),
+            ("website", "Website", "mixed", None, None, "website"),
+        )
+        for position, (section_id, name, kind, root_key, enabled_key, column) in enumerate(definitions):
+            root_row = cursor.execute("SELECT value FROM Settings WHERE key=?", (root_key,)).fetchone() if root_key else None
+            enabled_row = cursor.execute("SELECT value FROM Settings WHERE key=?", (enabled_key,)).fetchone() if enabled_key else None
+            root = root_row[0] if root_row else ""
+            enabled = int(enabled_row[0] == "1") if enabled_key else 1
+            cursor.execute("INSERT OR IGNORE INTO ResourceSections "
+                           "(id, name, kind, root_path, enabled, position) VALUES (?, ?, ?, ?, ?, ?)",
+                           (section_id, name, kind, root, enabled, position))
+            for node_name, raw in cursor.execute(
+                    f"SELECT name, {column} FROM Nodes WHERE {column} IS NOT NULL").fetchall():
+                for index, value in enumerate(parse_links(raw)):
+                    stored = normalize_link(value, {"root_path": root, "kind": kind})
+                    cursor.execute("INSERT OR IGNORE INTO NodeResourceLinks "
+                                   "(node_name, section_id, position, target) VALUES (?, ?, ?, ?)",
+                                   (node_name, section_id, index, stored))
+
 
 def init_db():
     """Initializes the SQLite database with the required tables.
@@ -454,6 +488,27 @@ def init_db():
         CREATE TABLE IF NOT EXISTS Settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ResourceSections (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('obsidian', 'mixed')),
+            root_path TEXT NOT NULL DEFAULT '',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            position INTEGER NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS NodeResourceLinks (
+            node_name TEXT NOT NULL,
+            section_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            target TEXT NOT NULL,
+            PRIMARY KEY (node_name, section_id, position),
+            FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE,
+            FOREIGN KEY (section_id) REFERENCES ResourceSections(id) ON DELETE CASCADE
         )
     ''')
 

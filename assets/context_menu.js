@@ -28,6 +28,8 @@
         var websiteItem = document.getElementById('ctx-menu-website');
         var obsidianItem = document.getElementById('ctx-menu-obsidian');
         var driveItem = document.getElementById('ctx-menu-drive');
+        var customItems = [document.getElementById('ctx-menu-custom-0'),
+                           document.getElementById('ctx-menu-custom-1')];
         var linksDivider = document.getElementById('ctx-menu-links-divider');
         var toggleNowItem = document.getElementById('ctx-menu-toggle-now');
         var priorityItem = document.getElementById('ctx-menu-priority');
@@ -120,23 +122,35 @@
             priorityItem.style.display = showPriority ? '' : 'none';
             if (priorityDivider) priorityDivider.style.display = showPriority ? '' : 'none';
 
-            var hasWebsite = _getFirstLink(nodeData.website);
-            websiteItem.style.display = hasWebsite ? '' : 'none';
-
-            var obsidianSection = document.getElementById('editor-obsidian-resources');
-            var hasObsidian = obsidianSection && obsidianSection.style.display !== 'none'
-                && _getFirstLink(nodeData.obsidian_path);
-            obsidianItem.style.display = hasObsidian ? '' : 'none';
-
-            var driveSection = document.getElementById('editor-drive-resources');
-            var hasDrive = driveSection && driveSection.style.display !== 'none'
-                && _getFirstLink(nodeData.google_drive_path);
-            driveItem.style.display = hasDrive ? '' : 'none';
+            var resourceLinks = nodeData.resource_links || {};
+            if (typeof resourceLinks === 'string') {
+                try { resourceLinks = JSON.parse(resourceLinks); } catch (_) { resourceLinks = {}; }
+            }
+            var menuItems = [
+                ['website', websiteItem], ['obsidian', obsidianItem],
+                ['drive', driveItem]
+            ];
+            document.querySelectorAll('#editor-custom-resources [data-resource-id]').forEach(function (section, i) {
+                if (i < customItems.length) menuItems.push([section.dataset.resourceId, customItems[i]]);
+            });
+            var hasResources = false;
+            menuItems.forEach(function (entry) {
+                var section = document.querySelector('[data-resource-id="' + entry[0] + '"]');
+                var item = entry[1];
+                if (!item) return;
+                var label = section && section.querySelector('label');
+                if (label) item.querySelector('.ctx-menu-label').textContent = 'Open ' + label.textContent;
+                var visible = section && section.style.display !== 'none'
+                    && resourceLinks[entry[0]] && resourceLinks[entry[0]].length;
+                item.style.display = visible ? '' : 'none';
+                if (visible) hasResources = true;
+                item.dataset.resourceId = entry[0];
+            });
 
             // Collapse the upper divider when neither link is present, so the
             // remaining (lower) Hr doesn't sit doubled-up against this one.
             if (linksDivider) {
-                linksDivider.style.display = (hasWebsite || hasObsidian || hasDrive) ? '' : 'none';
+                linksDivider.style.display = hasResources ? '' : 'none';
             }
 
             menus.open(menu, x, y);
@@ -192,16 +206,6 @@
             _setHiddenInput('dormant-existing-trigger-input', JSON.stringify(targetIds));
         }
 
-        function openInObsidian(path) {
-            if (!path) return;
-            fetch('/open-obsidian?path=' + encodeURIComponent(path))
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (!data.ok) alert('Could not open Obsidian: ' + (data.error || 'unknown'));
-                })
-                .catch(function (err) { console.error('Open in Obsidian failed:', err); });
-        }
-        
         // --- Group Delete via Delete key ---
         // Writes to the request input, which a Dash callback picks up to
         // open the native-style confirm modal. The modal's "Delete" button
@@ -356,6 +360,7 @@
                 obsidian_path: rowEl.getAttribute('data-obsidian-path') || null,
                 google_drive_path: rowEl.getAttribute('data-google-drive-path') || null,
                 website: rowEl.getAttribute('data-website') || null,
+                resource_links: rowEl.getAttribute('data-resource-links') || '{}',
                 status: rowEl.getAttribute('data-status') || null,
                 now: Number(rowEl.getAttribute('data-now') || 0),
             };
@@ -392,18 +397,21 @@
 
         menus.onItem('ctx-menu-add-to-event', triggerAddToEvent);
 
-        menus.onItem('ctx-menu-website', function () {
-            var link = _currentNodeData && _getFirstLink(_currentNodeData.website);
-            if (link) window.open(link, '_blank');
-        });
-
-        menus.onItem('ctx-menu-obsidian', function () {
-            if (_currentNodeData) openInObsidian(_getFirstLink(_currentNodeData.obsidian_path));
-        });
-
-        menus.onItem('ctx-menu-drive', function () {
-            var link = _currentNodeData && _getFirstLink(_currentNodeData.google_drive_path);
-            if (link) window.open(link, '_blank');
+        ['ctx-menu-website', 'ctx-menu-obsidian', 'ctx-menu-drive',
+         'ctx-menu-custom-0', 'ctx-menu-custom-1'].forEach(function (id) {
+            menus.onItem(id, function () {
+                var item = document.getElementById(id);
+                if (!_currentNodeData || !item || !item.dataset.resourceId) return;
+                fetch('/open-resource', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node: _currentNodeData.id,
+                        section: item.dataset.resourceId, index: 0 }),
+                }).then(function (response) { return response.json(); })
+                  .then(function (data) {
+                      if (!data.ok) alert('Could not open Resource: ' + (data.error || 'unknown'));
+                  }).catch(function (err) { console.error('Open Resource failed:', err); });
+            });
         });
 
         menus.onItem('ctx-menu-delete', function () {

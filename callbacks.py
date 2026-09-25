@@ -18,9 +18,8 @@ from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
 from core_response import CoreResponse
 from canvas_view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
 from next_view import perf_stats_text
-import os
-import subprocess
-import urllib.parse
+from resource_links import (get_sections, get_node_links, save_node_links,
+                            open_resource, store_path)
 
 from typing import List, Set
 
@@ -46,8 +45,9 @@ from callback_helpers import (
     node_options, build_filters, is_filters_active,
     format_traversal_ui,
     render_link_rows, render_alias_rows, alias_rows_label, update_alias_rows,
+    render_custom_resource_sections, custom_link_values,
     spawn_local_file_picker,
-    strip_gdrive_prefix, expand_gdrive_prefix,
+    strip_gdrive_prefix,
     should_open_editor, resolve_active_node_id, left_sidebar_is_open,
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
@@ -478,7 +478,10 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-unit', 'value'),
          State('node-habit-days', 'value'),
          State('node-dormancy-form', 'data'),
-         State('details-selected-node-store', 'data')],
+         State('details-selected-node-store', 'data'),
+         State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+         State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+         State('custom-resource-links-store', 'data')],
         # Nothing to populate on page load. The form's defaults and its empty
         # alias and link rows are in the layout, and every path that opens
         # the editor runs this callback, which sends the relationship options.
@@ -502,7 +505,8 @@ def register_callbacks(app, services=None):
                         cur_habit_duration, cur_habit_duration_unit,
                         cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
                         cur_habit_int_unit, cur_habit_days, cur_dormancy,
-                        details_selected_node):
+                         details_selected_node, custom_values=None,
+                         custom_ids=None, custom_store=None):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
         trigger_id = get_trigger_id()
 
@@ -552,6 +556,7 @@ def register_callbacks(app, services=None):
                 e_supp_h=cur_supp_h, e_supp_s=cur_supp_s, e_helps=cur_helps,
                 obs_links=cur_obs, drive_links=cur_drive,
                 website_links=cur_website,
+                 custom_links=custom_link_values(custom_values, custom_ids, custom_store),
                 time_mode=cur_time_mode,
                 time_habit_mode=cur_time_habit_mode,
                 habit_duration=cur_habit_duration,
@@ -820,7 +825,10 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-unit', 'value'),
          State('node-habit-days', 'value'),
          State('node-dormancy-form', 'data'),
-         State('node-original-name', 'data')],
+          State('node-original-name', 'data'),
+          State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+          State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+          State('custom-resource-links-store', 'data')],
         prevent_initial_call=True,
     )
     def sync_original_name_after_save(_save_clicks, _save_close_clicks,
@@ -836,7 +844,9 @@ def register_callbacks(app, services=None):
                                       cur_habit_duration, cur_habit_duration_unit,
                                       cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
                                       cur_habit_int_unit, cur_habit_days,
-                                      cur_dormancy, cur_original_name):
+                                       cur_dormancy, cur_original_name,
+                                       custom_values=None, custom_ids=None,
+                                       custom_store=None):
         if not cur_name or not cur_name.strip():
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         linted = ConfigManager.apply_name_formatting(cur_name.strip())
@@ -875,6 +885,7 @@ def register_callbacks(app, services=None):
             'e_needs_h': cur_needs_h, 'e_needs_s': cur_needs_s,
             'e_supp_h': cur_supp_h, 'e_supp_s': cur_supp_s, 'e_helps': cur_helps,
             'obs_links': cur_obs, 'drive_links': cur_drive, 'website_links': cur_website,
+             'custom_links': custom_link_values(custom_values, custom_ids, custom_store),
             'time_mode': cur_time_mode,
             'time_habit_mode': cur_time_habit_mode,
             'habit_duration': cur_habit_duration,
@@ -1532,7 +1543,10 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-unit', 'value'),
          State('node-habit-days', 'value'),
          State('canvas-payload-stamp', 'data'),
-         State('node-dormancy-form', 'data')],
+          State('node-dormancy-form', 'data'),
+          State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+          State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+          State('custom-resource-links-store', 'data')],
         prevent_initial_call='initial_duplicate'
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
@@ -1557,7 +1571,8 @@ def register_callbacks(app, services=None):
                      time_habit_mode_val,
                      habit_duration, habit_duration_unit,
                      habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                     habit_days, canvas_stamp, dormancy):
+                      habit_days, canvas_stamp, dormancy,
+                      custom_values=None, custom_ids=None, custom_store=None):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         The existing Dash wiring preserves mutation and refresh ordering. Sidebar
@@ -1788,6 +1803,14 @@ def register_callbacks(app, services=None):
                                       habit_intensity_p=habit_int_p or 0,
                                       habit_intensity_unit=habit_int_unit or 'min_per_session',
                                       habit_days=habit_days)
+
+                    resources = custom_link_values(custom_values, custom_ids, custom_store)
+                    resources.update({
+                        'obsidian': obs_link_values or [],
+                        'drive': drive_link_values or [],
+                        'website': website_link_values or [],
+                    })
+                    save_node_links(name, resources)
 
                     # Save aliases
                     clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
@@ -2414,7 +2437,10 @@ def register_callbacks(app, services=None):
          State('node-habit-intensity-p', 'value'),
          State('node-habit-intensity-unit', 'value'),
          State('node-habit-days', 'value'),
-         State('node-dormancy-form', 'data')],
+          State('node-dormancy-form', 'data'),
+          State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+          State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+          State('custom-resource-links-store', 'data')],
         prevent_initial_call=True
     )
     def toggle_unsaved_modal(_close, _add, _cancel, _save, _discard,
@@ -2430,7 +2456,8 @@ def register_callbacks(app, services=None):
                               time_habit_mode_val,
                               habit_duration, habit_duration_unit,
                               habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                              habit_days, dormancy):
+                               habit_days, dormancy,
+                               custom_values=None, custom_ids=None, custom_store=None):
         trig = get_trigger_id()
         if trig == 'btn-add':
             # btn-add is the toolbar toggle: only its close half (editor already
@@ -2451,6 +2478,7 @@ def register_callbacks(app, services=None):
             e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
             obs_links=obs_link_values, drive_links=drive_link_values,
             website_links=website_link_values,
+            custom_links=custom_link_values(custom_values, custom_ids, custom_store),
             time_mode=time_mode_val,
             time_habit_mode=time_habit_mode_val,
             habit_duration=habit_duration,
@@ -2750,7 +2778,131 @@ def register_callbacks(app, services=None):
     )
     @prerendered
     def render_website_links(links):
-        return render_link_rows(links, 'website-link', has_browse=False)
+        return render_link_rows(links, 'website-link', has_browse=True)
+
+    @app.callback(
+        Output('custom-resource-links-store', 'data'),
+        Input('node-original-name', 'data'),
+        prevent_initial_call=True,
+    )
+    def load_custom_resource_links(node_name):
+        links = get_node_links(node_name)
+        return {key: values for key, values in links.items()
+                if key not in ('obsidian', 'drive', 'website')}
+
+    @app.callback(
+        Output('editor-custom-resources', 'children'),
+        Input('custom-resource-links-store', 'data'),
+        Input('settings-save-status', 'children'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+    )
+    def render_custom_links(store, _settings_status, current_values, current_ids):
+        if ctx.triggered_id == 'settings-save-status':
+            store = custom_link_values(current_values, current_ids, store)
+        return render_custom_resource_sections(store)
+
+    @app.callback(
+        Output('custom-resource-links-store', 'data', allow_duplicate=True),
+        Input({'type': 'custom-resource-add', 'index': ALL}, 'n_clicks'),
+        Input({'type': 'custom-resource-remove', 'index': ALL}, 'n_clicks'),
+        Input({'type': 'custom-resource-browse', 'index': ALL}, 'n_clicks'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+        State('custom-resource-links-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def modify_custom_links(_adds, _removes, _browses, values, ids, store):
+        links = custom_link_values(values, ids, store)
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict):
+            return dash.no_update
+        action = trigger['type']
+        if action == 'custom-resource-add':
+            links.setdefault(trigger['index'], ['']).append('')
+        else:
+            section_id, _, index_text = trigger['index'].rpartition(':')
+            index = int(index_text)
+            items = links.setdefault(section_id, [''])
+            if action == 'custom-resource-remove' and len(items) > 1 and index < len(items):
+                items.pop(index)
+            elif action == 'custom-resource-browse':
+                section = next((s for s in get_sections() if s['id'] == section_id), None)
+                if section is None:
+                    return dash.no_update
+                picked = spawn_local_file_picker(section['root_path'],
+                                                 f"Select {section['name']} File",
+                                                 [('All files', '*.*')])
+                if not picked:
+                    return dash.no_update
+                items[index] = store_path(picked, section['root_path'])
+            else:
+                return dash.no_update
+        return links
+
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        Input({'type': 'custom-resource-open', 'index': ALL}, 'n_clicks'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+        prevent_initial_call=True,
+    )
+    def open_custom_link(clicks, values, ids):
+        trigger = ctx.triggered_id
+        if not isinstance(trigger, dict) or not any(clicks or []):
+            return dash.no_update
+        key = trigger['index']
+        section_id = key.rpartition(':')[0]
+        section = next((s for s in get_sections() if s['id'] == section_id), None)
+        value = next((value for value, item_id in zip(values, ids)
+                      if item_id['index'] == key), '')
+        if section is None:
+            return 'Resource section no longer exists.'
+        try:
+            open_resource(value, section)
+            return dash.no_update
+        except Exception as exc:
+            return f"Error opening {section['name']}: {exc}"
+
+    @app.callback(
+        Output('obsidian-links-store', 'data', allow_duplicate=True),
+        Output('drive-links-store', 'data', allow_duplicate=True),
+        Output('website-links-store', 'data', allow_duplicate=True),
+        Output('custom-resource-links-store', 'data', allow_duplicate=True),
+        Input('electron-file-picked-input', 'value'),
+        State({'type': 'obsidian-link', 'index': ALL}, 'value'),
+        State({'type': 'drive-link', 'index': ALL}, 'value'),
+        State({'type': 'website-link', 'index': ALL}, 'value'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'value'),
+        State({'type': 'custom-resource-link', 'index': ALL}, 'id'),
+        State('custom-resource-links-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def receive_electron_file_pick(payload, obs_values, drive_values, website_values,
+                                   custom_values, custom_ids, custom_store):
+        try:
+            selected = json.loads(payload)
+            section_id = selected['section']
+            section = next(s for s in get_sections() if s['id'] == section_id)
+            value = store_path(selected['path'], section['root_path'])
+            if section_id == 'obsidian':
+                values = list(obs_values or [''])
+                values[int(selected['index'])] = value
+                return values, dash.no_update, dash.no_update, dash.no_update
+            if section_id == 'drive':
+                values = list(drive_values or [''])
+                values[int(selected['index'])] = value
+                return dash.no_update, values, dash.no_update, dash.no_update
+            if section_id == 'website':
+                values = list(website_values or [''])
+                values[int(selected['index'])] = value
+                return dash.no_update, dash.no_update, values, dash.no_update
+            links = custom_link_values(custom_values, custom_ids, custom_store)
+            _, _, index_text = selected['index'].rpartition(':')
+            links[section_id][int(index_text)] = value
+            return dash.no_update, dash.no_update, dash.no_update, links
+        except (KeyError, ValueError, TypeError, IndexError, StopIteration):
+            return (dash.no_update,) * 4
 
     # --- Multi-Link Add/Remove Callbacks ---
     @app.callback(
@@ -2783,11 +2935,7 @@ def register_callbacks(app, services=None):
                     filetypes_list=[("Markdown files", "*.md"), ("All files", "*.*")]
                 )
                 if abs_path:
-                    vault_norm = os.path.normpath(vault)
-                    if abs_path.startswith(vault_norm):
-                        rel = abs_path[len(vault_norm):].lstrip(os.sep)
-                    else:
-                        rel = abs_path
+                    rel = store_path(abs_path, vault)
                     if 0 <= idx < len(links):
                         links[idx] = rel
                 else:
@@ -2824,7 +2972,7 @@ def register_callbacks(app, services=None):
                 )
                 if abs_path:
                     if 0 <= idx < len(links):
-                        links[idx] = abs_path
+                        links[idx] = store_path(abs_path, ConfigManager.get_gdrive_path())
                 else:
                     return dash.no_update
         return links
@@ -2832,12 +2980,14 @@ def register_callbacks(app, services=None):
     @app.callback(
         Output('website-links-store', 'data', allow_duplicate=True),
         [Input('btn-website-add', 'n_clicks'),
-         Input({'type': 'btn-website-link-remove', 'index': ALL}, 'n_clicks')],
+         Input({'type': 'btn-website-link-remove', 'index': ALL}, 'n_clicks'),
+         Input({'type': 'btn-website-browse', 'index': ALL}, 'n_clicks')],
         [State({'type': 'website-link', 'index': ALL}, 'value'),
          State('website-links-store', 'data')],
         prevent_initial_call=True,
     )
-    def modify_website_links(add_clicks, remove_clicks, current_values, store_data):
+    def modify_website_links(add_clicks, remove_clicks, browse_clicks,
+                             current_values, store_data):
         trigger = ctx.triggered_id
         links = list(current_values) if current_values else list(store_data or [''])
         if trigger == 'btn-website-add':
@@ -2846,29 +2996,25 @@ def register_callbacks(app, services=None):
             idx = trigger['index']
             if 0 <= idx < len(links) and len(links) > 1:
                 links.pop(idx)
+        elif isinstance(trigger, dict) and trigger.get('type') == 'btn-website-browse':
+            idx = trigger['index']
+            section = next(s for s in get_sections() if s['id'] == 'website')
+            picked = spawn_local_file_picker(section['root_path'], 'Select File',
+                                             [('All files', '*.*')])
+            if not picked:
+                return dash.no_update
+            if 0 <= idx < len(links):
+                links[idx] = store_path(picked, section['root_path'])
         return links
 
     # --- Multi-Link Open Callbacks ---
-    def _open_url_or_path(url):
-        """Open a URL or local file path. Returns error message or no_update."""
-        import webbrowser
-        if not url or not url.strip():
-            return "No URL/Path set for this link."
-        url = url.strip()
-        if os.path.exists(url) or url.startswith(('G:\\', 'C:\\', 'D:\\', '\\\\')):
-            try:
-                os.startfile(url)
-                return dash.no_update
-            except Exception as e:
-                return f"Error opening local file: {str(e)}"
-        else:
-            if not url.startswith('http://') and not url.startswith('https://'):
-                url = 'https://' + url
-            try:
-                webbrowser.open_new_tab(url)
-                return dash.no_update
-            except Exception as e:
-                return f"Error opening URL: {str(e)}"
+    def _open_url_or_path(value, section_id):
+        section = next(s for s in get_sections() if s['id'] == section_id)
+        try:
+            open_resource(value, section)
+            return dash.no_update
+        except Exception as exc:
+            return f"Error opening {section['name']}: {exc}"
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -2884,18 +3030,7 @@ def register_callbacks(app, services=None):
             return dash.no_update
         idx = trigger['index']
         if 0 <= idx < len(values):
-            rel_path = values[idx]
-            if not rel_path or not rel_path.strip():
-                return "No Obsidian file path set."
-            vault = ConfigManager.get_obsidian_vault()
-            abs_path = os.path.join(vault, rel_path.strip())
-            encoded = urllib.parse.quote(abs_path, safe='')
-            uri = f'obsidian://open?path={encoded}'
-            try:
-                subprocess.Popen(['cmd', '/c', 'start', '', uri], shell=False)
-                return dash.no_update
-            except Exception as e:
-                return f"Error opening Obsidian: {str(e)}"
+            return _open_url_or_path(values[idx], 'obsidian')
         return dash.no_update
 
     @app.callback(
@@ -2912,7 +3047,7 @@ def register_callbacks(app, services=None):
             return dash.no_update
         idx = trigger['index']
         if 0 <= idx < len(values):
-            return _open_url_or_path(expand_gdrive_prefix(values[idx]))
+            return _open_url_or_path(values[idx], 'drive')
         return dash.no_update
 
     @app.callback(
@@ -2929,7 +3064,7 @@ def register_callbacks(app, services=None):
             return dash.no_update
         idx = trigger['index']
         if 0 <= idx < len(values):
-            return _open_url_or_path(values[idx])
+            return _open_url_or_path(values[idx], 'website')
         return dash.no_update
 
     # --- Edit Trigger: switch to canvas tab ---
