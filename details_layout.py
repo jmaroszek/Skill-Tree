@@ -843,9 +843,9 @@ def build_details_suggestions(goal_rows, explore_rows, filters_active=False):
     if goal_rows:
         sections.append(_section("Priority Goals", goal_rows))
     if explore_rows:
-        sections.append(_section("Explore", explore_rows))
+        sections.append(_section("Goals", explore_rows))
     elif goal_rows and filters_active:
-        sections.append(_section("Explore", [
+        sections.append(_section("Goals", [
             html.P("No areas match the current filters.",
                    className="text-muted small mb-0")
         ]))

@@ -272,14 +272,14 @@ def test_details_suggestions_use_explore_copy_and_filter_aware_empty_state():
 
     row = html.Div("Area")
     section = build_details_suggestions([], [row])[0]
-    assert section.children[0].children == "Explore"
+    assert section.children[0].children == "Goals"
     assert build_details_suggestions([], []).children == "No areas to explore yet."
     assert build_details_suggestions(
         [], [], filters_active=True
     ).children == "No areas match the current filters."
 
     sections = build_details_suggestions([row], [], filters_active=True)
-    assert sections[1].children[0].children == "Explore"
+    assert sections[1].children[0].children == "Goals"
     assert sections[1].children[1].children[0].children == (
         "No areas match the current filters."
     )

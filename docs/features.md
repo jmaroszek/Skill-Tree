@@ -524,7 +524,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 | Path | How it works |
 |---|---|
 | Search | Type a name into the search bar atop the left panel. Best when you have a specific project in mind. |
-| Suggestions | When nothing is selected, the left panel shows two kinds of starting point: up to three unfinished **Priority Goals**, followed by **Explore** Goals. Explore follows the Goals sidebar's Priority sort and shows the same priority number. It honors the active filters, and it skips Goals with no unfinished hard subtasks. It also skips a Goal nested inside one already listed, while an unrelated Goal is still available. Each card looks like a Now card on the Home tab. A colored bar shows the node's type, and the line under the name shows its context. The corner shows a Priority Goal's rank, or another Goal's priority number. |
+| Suggestions | When nothing is selected, the left panel shows two kinds of starting point: up to three unfinished **Priority Goals**, followed by **Goals**. The Goals section follows the Goals sidebar's Priority sort and shows the same priority number. It honors the active filters, and it skips Goals with no unfinished hard subtasks. It also skips a Goal nested inside one already listed, while an unrelated Goal is still available. Each card looks like a Now card on the Home tab. A colored bar shows the node's type, and the line under the name shows its context. The corner shows a Priority Goal's rank, or another Goal's priority number. |
 | Context Menu | Right-click a node and pick **View Details** in the context menu. The app jumps here with the project loaded.|
 
 </td>
