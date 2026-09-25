@@ -362,6 +362,10 @@ A panel that loads on first view shows the shared loading cover: `dbc.Spinner(sp
 
 Analyze renders on its first visit, starting while its tab is still hidden when the pointer or focus reaches it. On every reveal, `assets/analyze_first_paint.js` hides only the `.dash-graph` drawings. It resizes their Plotly roots against the visible columns, then reveals them on the next frame. Keep Analyze graphs responsive, and give their wrappers an explicit figure height. That lets the sizing gate hold the finished page layout without exposing Plotly's hidden-tab fallback width. The Analyze subtabs follow the same rule: their panes carry the `analyze-subpane` class, and showing one runs the sizing gate again.
 
+Tab bars on a full page center under the main tab switcher, as the Analyze subtabs do. Their divider line still spans the full width. Tab bars inside a modal stay left-aligned, because the modal's edge anchors them.
+
+An Analyze chart takes half the width (`dbc.Col(width=6)`) unless it has a real reason to be wider. Bars stretched across a full-width page are hard to compare. A chart alone in its row leaves the right half empty rather than stretching to fill it.
+
 Plotly hover boxes on Analyze use one style, set in the shared layout helper: the raised card background, the panel border and primary text. By default Plotly fills each box with its mark's colour, which made a Goal-yellow bar's tooltip a loud mustard block.
 
 ## Borders & Dividers

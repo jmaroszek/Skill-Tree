@@ -185,7 +185,7 @@ def _compute_estimation_accuracy(nodes):
     return rows
 
 
-_REFLECTION_MIN_N = 2  # min reflected nodes per context for the drift heatmap
+_REFLECTION_MIN_N = 4  # min reflected nodes per context for the drift chart
 
 
 def _compute_reflection_drift(nodes):
@@ -196,7 +196,7 @@ def _compute_reflection_drift(nodes):
 
     Only currently-Done nodes count. reflect_* columns persist when a node is
     un-marked Done (so re-completing restores the reflection), so without this
-    gate a reverted node would keep skewing the drift heatmap."""
+    gate a reverted node would keep skewing the drift chart."""
     by_ctx = defaultdict(lambda: {'dv': [], 'di': [], 'dd': [], 'count': 0})
     for n in nodes:
         if n.status != STATUS_DONE:
@@ -299,9 +299,9 @@ def _compute_throughput(nodes, granularity='quarter',
     keys_sorted = sorted(buckets.keys())
     cur, last = keys_sorted[0], keys_sorted[-1]
     full_keys = []
-    # Cap the synthesised fill so a wide date range at month granularity
-    # can't run away with the chart (e.g. 5 years * 12 = 60 bars max).
-    while cur <= last and len(full_keys) < 120:
+    # Every bucket is emitted. The chart shows only the latest few, so
+    # capping here would drop the recent end of a long range.
+    while cur <= last:
         full_keys.append(cur)
         cur = _next_key(cur)
 
@@ -334,47 +334,6 @@ def _completed_hours(n):
     if actual > 0 and any(v is not None for v in captured):
         return actual
     return n.time
-
-
-PLAN_VS_ACTUAL_DAYS = 365  # completion window for the Plan vs. Actual chart
-
-
-def _compute_plan_vs_actual(nodes, today, days=PLAN_VS_ACTUAL_DAYS):
-    """Each context's share of the open work against its share of the work
-    finished in the last ``days`` days.
-
-    Planned hours are what Hours by Context charts: the estimate of every
-    unfinished node. Completed hours count currently-Done nodes whose
-    ``done_date`` falls in the window, using captured actual time where there
-    is one. Returns ``(rows, completed_total)``. Rows are sorted by planned
-    share, largest first, and carry both shares as percentages plus the hours
-    behind them. Contexts with neither kind of hours are left out."""
-    from datetime import timedelta
-    start = (today - timedelta(days=days)).isoformat()
-    end = today.isoformat()
-    planned, completed = defaultdict(float), defaultdict(float)
-    for n in nodes:
-        ctx = n.context or 'No Context'
-        if n.status != STATUS_DONE:
-            planned[ctx] += n.time
-        elif n.done_date and start <= n.done_date <= end:
-            completed[ctx] += _completed_hours(n)
-
-    plan_total, done_total = sum(planned.values()), sum(completed.values())
-    rows = []
-    for ctx in set(planned) | set(completed):
-        p, c = planned[ctx], completed[ctx]
-        if p <= 0 and c <= 0:
-            continue
-        rows.append({
-            'context': ctx,
-            'planned_hours': p,
-            'completed_hours': c,
-            'planned_pct': 100 * p / plan_total if plan_total else 0.0,
-            'completed_pct': 100 * c / done_total if done_total else 0.0,
-        })
-    rows.sort(key=lambda r: (-r['planned_pct'], r['context'].casefold()))
-    return rows, done_total
 
 
 _MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
