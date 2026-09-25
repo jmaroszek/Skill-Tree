@@ -123,11 +123,21 @@ def _history_sections(al):
         html.Div(id="analyze-time-content"),
         html.Hr(className="my-3"),
 
-        _plain_header("Rating Accuracy"),
-        html.Div(id="analyze-drift-content"),
-        html.Hr(className="my-3"),
+        dbc.Row([
+            dbc.Col([
+                _plain_header("Rating Accuracy"),
+                html.Div(id="analyze-drift-content"),
+            ], width=6),
+            dbc.Col([
+                _throughput_header(al),
+                html.Div(id="analyze-throughput-content"),
+            ], width=6),
+        ], className="g-3"),
+    ]
 
-        _gear_header_custom(
+
+def _throughput_header(al):
+    return (_gear_header_custom(
             "Throughput",
             "btn-analyze-throughput-gear", "popover-analyze-throughput",
             [
@@ -153,9 +163,7 @@ def _history_sections(al):
                           style={'width': '140px'}),
             ],
             popover_style={'maxWidth': '200px', 'minWidth': '180px'},
-        ),
-        html.Div(id="analyze-throughput-content"),
-    ]
+        ))
 
 
 def _structure_sections(al):

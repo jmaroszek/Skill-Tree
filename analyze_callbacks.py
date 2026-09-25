@@ -715,7 +715,7 @@ def _render_reflection_drift_chart(rows):
     rng = max(1, math.ceil(max((abs(v) for v in drift_vals), default=1)))
 
     fig = make_subplots(rows=1, cols=3, shared_yaxes=True,
-                        horizontal_spacing=0.09,
+                        horizontal_spacing=0.14,
                         subplot_titles=[label for _, label in metric_keys])
     for col, (attr, label) in enumerate(metric_keys, start=1):
         xs, colors, hovers = [], [], []
@@ -738,10 +738,11 @@ def _render_reflection_drift_chart(rows):
             opacity=0.9, hovertext=hovers, hoverinfo='text',
         ), row=1, col=col)
         fig.update_xaxes(
-            range=[-rng * 1.05, rng * 1.05], tickmode='array',
+            range=[-rng * 1.15, rng * 1.15], tickmode='array',
             tickvals=[-rng, 0, rng],
             ticktext=[f'−{rng}', '0', f'+{rng}'],
             zeroline=True, zerolinecolor='#6c757d', zerolinewidth=1,
+            showline=True, linecolor='#6c757d', linewidth=1, mirror=True,
             fixedrange=True, row=1, col=col)
 
     fig.update_layout(**_base_layout(
@@ -1169,8 +1170,7 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
                "reflected on finished work. Red bars mean you overrated the "
                "work going in; blue bars mean you underrated it.",
                className="text-muted small"),
-        dbc.Row(dbc.Col(_render_reflection_drift_chart(drift_rows), width=6),
-                className="g-3"),
+        _render_reflection_drift_chart(drift_rows),
     ]
 
     gran = al.get('throughput_granularity', 'quarter')
@@ -1188,9 +1188,7 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
                if wider else "Narrow the dates to see earlier ones."))
     throughput_content = [
         html.P(throughput_note, className="text-muted small"),
-        dbc.Row(dbc.Col(_render_throughput_chart(throughput_rows,
-                                                 granularity=gran), width=6),
-                className="g-3"),
+        _render_throughput_chart(throughput_rows, granularity=gran),
     ]
 
     # Bottleneck and Hub share the gear's "nodes shown" limit and render
