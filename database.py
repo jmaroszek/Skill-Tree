@@ -43,6 +43,14 @@ class ReadSnapshot:
             self.nodes = {row["name"]: dict(row) for row in conn.execute("SELECT * FROM Nodes")}
             self.edges = [dict(row) for row in conn.execute("SELECT * FROM Edges")]
             self.settings = dict(conn.execute("SELECT key, value FROM Settings").fetchall())
+            self.resource_sections = [dict(row) for row in conn.execute(
+                "SELECT id, name, kind, root_path, position "
+                "FROM ResourceSections ORDER BY position")]
+            self.resource_links = {}
+            for row in conn.execute(
+                    "SELECT node_name, section_id, target FROM NodeResourceLinks "
+                    "ORDER BY node_name, section_id, position"):
+                self.resource_links.setdefault(row[0], {}).setdefault(row[1], []).append(row[2])
             self.trigger_names = {row[0] for row in conn.execute(
                 "SELECT DISTINCT etn.node_name FROM EventTriggerNodes etn "
                 "JOIN Events e ON e.name=etn.event_name WHERE e.status='Pending'")}
@@ -216,7 +224,7 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 11
 
 
 def _utc_now_ts() -> int:
@@ -339,7 +347,7 @@ def _migrate(cursor, from_version: int) -> None:
 
     # --- v9: existing resource links remain available after integrations
     # become opt-in. A fresh database has no links or paths, so both start off.
-    if from_version < 9:
+    if from_version < 9 and _has_column(cursor, "Nodes", "obsidian_path"):
         for setting_key, path_key, node_column in (
             ("OBSIDIAN_ENABLED", "OBSIDIAN_VAULT", "obsidian_path"),
             ("GDRIVE_ENABLED", "GDRIVE_ROOT_PATH", "google_drive_path"),
@@ -366,6 +374,69 @@ def _migrate(cursor, from_version: int) -> None:
                         "INSERT OR IGNORE INTO Settings (key, value) VALUES (?, ?)",
                         (path_key, str(legacy_vault)),
                     )
+
+    # --- v10: named Resource sections and ordered per-node links. A fresh
+    # database gets the three starting sections and nothing to copy.
+    if from_version < 10:
+        from resource_links import parse_links, normalize_link
+        has_legacy = _has_column(cursor, "Nodes", "obsidian_path")
+        for position, (section_id, name, kind, root_key, column) in enumerate(
+                _LEGACY_RESOURCE_SECTIONS):
+            root_row = cursor.execute("SELECT value FROM Settings WHERE key=?", (root_key,)).fetchone() if root_key else None
+            root = root_row[0] if root_row else ""
+            cursor.execute("INSERT OR IGNORE INTO ResourceSections "
+                           "(id, name, kind, root_path, position) VALUES (?, ?, ?, ?, ?)",
+                           (section_id, name, kind, root, position))
+            if not has_legacy:
+                continue
+            for node_name, raw in cursor.execute(
+                    f"SELECT name, {column} FROM Nodes WHERE {column} IS NOT NULL").fetchall():
+                for index, value in enumerate(parse_links(raw)):
+                    stored = normalize_link(value, {"root_path": root, "kind": kind})
+                    cursor.execute("INSERT OR IGNORE INTO NodeResourceLinks "
+                                   "(node_name, section_id, position, target) VALUES (?, ?, ?, ?)",
+                                   (node_name, section_id, index, stored))
+
+    # --- v11: the named sections become the only copy. v10 kept the three
+    # legacy link columns as a mirror and gave each section an on/off switch.
+    # Any legacy link the table lacks is copied first; then the mirror
+    # columns, the switch, and the old integration settings go.
+    if from_version < 11:
+        from resource_links import parse_links, normalize_link
+        if _has_column(cursor, "Nodes", "obsidian_path"):
+            for section_id, _name, kind, _root_key, column in _LEGACY_RESOURCE_SECTIONS:
+                section = cursor.execute(
+                    "SELECT root_path FROM ResourceSections WHERE id=?", (section_id,)
+                ).fetchone()
+                if section is None:
+                    continue
+                for node_name, raw in cursor.execute(
+                        f"SELECT name, {column} FROM Nodes WHERE {column} IS NOT NULL").fetchall():
+                    if cursor.execute(
+                            "SELECT 1 FROM NodeResourceLinks WHERE node_name=? AND section_id=?",
+                            (node_name, section_id)).fetchone():
+                        continue
+                    for index, value in enumerate(parse_links(raw)):
+                        cursor.execute(
+                            "INSERT OR IGNORE INTO NodeResourceLinks "
+                            "(node_name, section_id, position, target) VALUES (?, ?, ?, ?)",
+                            (node_name, section_id, index,
+                             normalize_link(value, {"root_path": section[0], "kind": kind})))
+            for _section_id, _name, _kind, _root_key, column in _LEGACY_RESOURCE_SECTIONS:
+                cursor.execute(f"ALTER TABLE Nodes DROP COLUMN {column}")
+        if _has_column(cursor, "ResourceSections", "enabled"):
+            cursor.execute("ALTER TABLE ResourceSections DROP COLUMN enabled")
+        cursor.execute("DELETE FROM Settings WHERE key IN "
+                       "('OBSIDIAN_ENABLED', 'OBSIDIAN_VAULT', 'GDRIVE_ENABLED', 'GDRIVE_ROOT_PATH')")
+
+
+# The three link columns Nodes carried before v11, and the sections v10 made
+# of them: (section id, name, kind, root-path setting key, Nodes column).
+_LEGACY_RESOURCE_SECTIONS = (
+    ("obsidian", "Obsidian", "obsidian", "OBSIDIAN_VAULT", "obsidian_path"),
+    ("drive", "Google Drive", "mixed", "GDRIVE_ROOT_PATH", "google_drive_path"),
+    ("website", "Website", "mixed", None, "website"),
+)
 
 
 def init_db():
@@ -395,7 +466,7 @@ def init_db():
     # follow-up ALTER TABLE migrations. (This consolidates an earlier era where
     # the table was created with a partial column set and incrementally extended
     # by ALTERs; folding them in keeps the schema self-describing.) Column
-    # groups: core attributes, links, lifecycle flags, scoring modes, habit-mode
+    # groups: core attributes, lifecycle flags, scoring modes, habit-mode
     # breakdown, time-calibration actuals, and retrospective reflection ratings.
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Nodes (
@@ -411,9 +482,6 @@ def init_db():
             context TEXT,
             subcontext TEXT,
             status TEXT NOT NULL,
-            obsidian_path TEXT,
-            google_drive_path TEXT,
-            website TEXT,
             dormant INTEGER NOT NULL DEFAULT 0,
             -- Scoring modes: 'manual' | 'inherited' (time also allows 'habit').
             -- 'inherited' makes the dimension flow up from children in scoring.
@@ -454,6 +522,26 @@ def init_db():
         CREATE TABLE IF NOT EXISTS Settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ResourceSections (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('obsidian', 'mixed')),
+            root_path TEXT NOT NULL DEFAULT '',
+            position INTEGER NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS NodeResourceLinks (
+            node_name TEXT NOT NULL,
+            section_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            target TEXT NOT NULL,
+            PRIMARY KEY (node_name, section_id, position),
+            FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE,
+            FOREIGN KEY (section_id) REFERENCES ResourceSections(id) ON DELETE CASCADE
         )
     ''')
 

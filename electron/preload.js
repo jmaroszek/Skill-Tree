@@ -1,4 +1,9 @@
 'use strict';
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('skillTreeDesktop', {
+  pickFile: options => ipcRenderer.invoke('skilltree:pick-file', options),
+});
 
 // Minimal preload: tag the document so the app's CSS/JS can adapt when it's
 // running inside the Electron shell (used from Phase 2 onward for the draggable

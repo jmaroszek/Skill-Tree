@@ -12,8 +12,6 @@ from graph_analytics import (
     _REFLECTION_MIN_N,
     _compute_reflection_drift,
     _compute_throughput,
-    _compute_plan_vs_actual,
-    PLAN_VS_ACTUAL_DAYS,
     _compute_goal_comparison,
     _compute_context_coverage,
 )
@@ -26,6 +24,7 @@ from datetime import date
 from dash import html, dcc, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from collections import defaultdict
 import database
 from graph_manager import GraphManager
@@ -689,14 +688,18 @@ def _render_context_accuracy_boxplot(rows):
     return _card([title, _graph(fig)])
 
 
-def _render_reflection_drift_chart(rows, height=None):
-    """Per-context mean drift (``reflect_X - X``) for V/I/D as a diverging
-    heatmap. Red cells mean the user overrated initially (reflection is
-    lower); blue cells mean the user underrated initially. Symmetric scale
-    around 0 so cell colour reads as direction × magnitude at a glance.
+_DRIFT_UNDER = '#c0392b'  # overrated going in: the reflection came in lower
+_DRIFT_OVER = '#2185d0'   # underrated going in
+
+
+def _render_reflection_drift_chart(rows):
+    """Per-context mean drift (``reflect_X - X``) for V/I/D as three
+    diverging bar panels on one shared scale. A bar left of zero (red) means
+    the user overrated the work going in; right of zero (blue), underrated.
+    Length carries the size, which a colour cell near zero could not.
     Only contexts with at least ``_REFLECTION_MIN_N`` reflected nodes get a
-    row, most-reflected first."""
-    title = html.H6("Reflection Drift by Context", className="text-muted mb-1")
+    row, most-reflected first, with the count in the label."""
+    title = html.H6("Rating Drift by Context", className="text-muted mb-1")
     if not rows:
         return _card([title, html.P(
             f"Not enough reflected nodes per context yet — a context "
@@ -706,54 +709,59 @@ def _render_reflection_drift_chart(rows, height=None):
     metric_keys = [('d_value', 'Value'), ('d_interest', 'Interest'),
                    ('d_difficulty', 'Effort')]
     contexts = [r['context'] for r in rows]
+    labels = [f"{_trunc(r['context'])} ({r['count']})" for r in rows]
 
-    z, hover = [], []
-    for r in rows:
-        ctx = r['context']
-        z_row, hover_row = [], []
-        for attr, label in metric_keys:
-            v = r[attr]
-            z_row.append(v if v is not None else None)
-            if v is None:
-                hover_row.append(f"<b>{ctx}</b><br>{label}: no data")
-            else:
-                sign = '+' if v > 0 else ''
-                hover_row.append(
-                    f"<b>{ctx}</b><br>"
-                    f"{label} drift: {sign}{v}<br>"
-                    f"{r['count']} reflected node{'s' if r['count'] != 1 else ''}"
-                )
-        z.append(z_row)
-        hover.append(hover_row)
-
-    # Symmetric range so 0 maps to the colorscale midpoint. Cap at +/-3 to
-    # keep colour resolution useful for the typical drift range; larger
-    # magnitudes still saturate cleanly to the endpoints.
     drift_vals = [r[a] for r in rows for a, _ in metric_keys if r[a] is not None]
-    abs_max = max((abs(v) for v in drift_vals), default=1)
-    rng = max(1.0, min(3.0, round(abs_max + 0.5)))
+    rng = max(1, math.ceil(max((abs(v) for v in drift_vals), default=1)))
 
-    if height is None:
-        height = max(200, len(contexts) * 32 + 80)
+    fig = make_subplots(rows=1, cols=3, shared_yaxes=True,
+                        horizontal_spacing=0.14,
+                        subplot_titles=[label for _, label in metric_keys])
+    for col, (attr, label) in enumerate(metric_keys, start=1):
+        xs, colors, hovers = [], [], []
+        for r in rows:
+            v = r[attr]
+            n = r['count']
+            nodes_txt = f"{n} reflected node{'s' if n != 1 else ''}"
+            if v is None:
+                xs.append(0)
+                colors.append(_DRIFT_UNDER)
+                hovers.append(f"<b>{r['context']}</b><br>{label}: no data")
+                continue
+            xs.append(v)
+            colors.append(_DRIFT_UNDER if v < 0 else _DRIFT_OVER)
+            sign = '+' if v > 0 else ''
+            hovers.append(f"<b>{r['context']}</b><br>"
+                          f"{label} drift: {sign}{v}<br>{nodes_txt}")
+        fig.add_trace(go.Bar(
+            y=contexts, x=xs, orientation='h', marker_color=colors,
+            opacity=0.9, hovertext=hovers, hoverinfo='text',
+        ), row=1, col=col)
+        fig.update_xaxes(
+            range=[-rng * 1.15, rng * 1.15], tickmode='array',
+            tickvals=[-rng, 0, rng],
+            ticktext=[f'−{rng}', '0', f'+{rng}'],
+            zeroline=True, zerolinecolor='#6c757d', zerolinewidth=1,
+            showline=True, linecolor='#6c757d', linewidth=1, mirror=True,
+            fixedrange=True, row=1, col=col)
 
-    fig = go.Figure(go.Heatmap(
-        z=z, x=[label for _, label in metric_keys], y=contexts,
-        colorscale=[[0, '#c0392b'], [0.5, _BG], [1, '#2185d0']],
-        hovertext=hover, hoverinfo='text',
-        showscale=True,
-        colorbar=dict(title="Δ", len=0.5),
-        zmin=-rng, zmax=rng, zmid=0,
-    ))
     fig.update_layout(**_base_layout(
-        height=height,
-        margin=dict(l=10, r=20, t=10, b=30),
-        # Plotly heatmaps put the first y at the top: most-reflected first.
-        yaxis=dict(automargin=True, ticklabelstandoff=8,
-                   categoryorder='array', categoryarray=contexts,
-                   **_label_axis(contexts)),
-        xaxis=dict(side='bottom'),
+        height=max(180, len(contexts) * 30 + 90),
+        margin=dict(l=10, r=20, t=28, b=30),
+        bargap=0.3,
     ))
+    # Plotly draws category rows bottom-up: reverse so most-reflected leads.
+    fig.update_yaxes(automargin=True, ticklabelstandoff=8, fixedrange=True,
+                     categoryorder='array', categoryarray=contexts[::-1],
+                     tickmode='array', tickvals=contexts, ticktext=labels)
+    fig.update_annotations(font=dict(size=12, color=_TEXT))
     return _card([title, _graph(fig)])
+
+
+# The most bars the half-width Throughput chart draws. A long history at
+# month granularity keeps its latest buckets; earlier ones need quarters,
+# years, or a narrower date range.
+_THROUGHPUT_MAX_BARS = 24
 
 
 def _render_throughput_chart(quarter_rows, granularity='quarter'):
@@ -827,81 +835,6 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
                    categoryarray=q_labels),
         yaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
                    automargin=True),
-    ))
-    return _card([title, _graph(fig)])
-
-
-_PLANNED_DOT = '#adb5bd'    # --st-text-soft: the plan is the reference
-_COMPLETED_DOT = '#4f9ed9'  # the Time Estimation charts' blue
-
-
-def _render_plan_vs_actual(rows, completed_total):
-    """Dot plot, one row per context: a hollow dot at its share of the open
-    work, a filled dot at its share of the work finished in the window, and a
-    line between them. The gap is the finding, so it is also written beside
-    each row in percentage points."""
-    title = html.H6("Share of Hours by Context", className="text-muted mb-1")
-    if not rows or completed_total <= 0:
-        return _card([title, html.P(
-            f"No nodes completed in the last {PLAN_VS_ACTUAL_DAYS} days yet. "
-            "Mark nodes Done to populate this chart.",
-            className="text-muted small")])
-
-    fmt = ConfigManager.format_time_friendly
-    contexts = [r['context'] for r in rows]
-
-    line_x, line_y = [], []
-    for r in rows:
-        line_x += [r['planned_pct'], r['completed_pct'], None]
-        line_y += [r['context'], r['context'], None]
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=line_x, y=line_y, mode='lines', hoverinfo='skip', showlegend=False,
-        line=dict(color=_BORDER, width=2),
-    ))
-    fig.add_trace(go.Scatter(
-        x=[r['planned_pct'] for r in rows], y=contexts, mode='markers',
-        name='Planned (open work)',
-        marker=dict(size=12, color=_BG, line=dict(color=_PLANNED_DOT, width=2)),
-        hovertext=[f"<b>{r['context']}</b><br>Planned: {r['planned_pct']:.0f}% "
-                   f"of open work ({fmt(r['planned_hours'])})" for r in rows],
-        hoverinfo='text',
-    ))
-    fig.add_trace(go.Scatter(
-        x=[r['completed_pct'] for r in rows], y=contexts, mode='markers',
-        name=f'Completed (last {PLAN_VS_ACTUAL_DAYS} days)',
-        marker=dict(size=12, color=_COMPLETED_DOT, line=dict(color=_BG, width=1)),
-        hovertext=[f"<b>{r['context']}</b><br>Completed: {r['completed_pct']:.0f}% "
-                   f"of finished work ({fmt(r['completed_hours'])})" for r in rows],
-        hoverinfo='text',
-    ))
-
-    def _gap(r):
-        d = round(r['completed_pct'] - r['planned_pct'])
-        return f"{'+' if d > 0 else '−' if d < 0 else ''}{abs(d)} pts"
-
-    x_max = max(max(r['planned_pct'], r['completed_pct']) for r in rows)
-    # Annotations rather than a text trace: xshift clears the dot, where a
-    # text mark would start under it.
-    gap_labels = [dict(
-        x=max(r['planned_pct'], r['completed_pct']), y=r['context'],
-        text=_gap(r), showarrow=False, xanchor='left', xshift=10,
-        font=dict(color=_PLANNED_DOT, size=11),
-    ) for r in rows]
-
-    fig.update_layout(**_base_layout(
-        height=max(220, len(rows) * 36 + 90), showlegend=True,
-        annotations=gap_labels,
-        margin=dict(l=10, r=20, t=10, b=40),
-        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
-        xaxis=dict(title="Share of hours", ticksuffix='%',
-                   range=[0, x_max * 1.15 + 3], gridcolor='#343a40'),
-        # Scatter y categories draw bottom-up; reverse so the largest plan
-        # share sits at the top, like Hours by Context.
-        yaxis=dict(automargin=True, ticklabelstandoff=8, autorange='reversed',
-                   categoryorder='array', categoryarray=contexts,
-                   showgrid=False, **_label_axis(contexts)),
     ))
     return _card([title, _graph(fig)])
 
@@ -1061,7 +994,6 @@ def register_analyze_callbacks(app, services=None):
         Output("analyze-time-content", "children"),
         Output("analyze-drift-content", "children"),
         Output("analyze-throughput-content", "children"),
-        Output("analyze-plan-actual-content", "children"),
         Output("analyze-graph-content", "children"),
         Output("analyze-sections", "hidden"),
         Output("analyze-loading-cover", "hidden"),
@@ -1088,7 +1020,7 @@ def register_analyze_callbacks(app, services=None):
     def refresh_analyze_tab(_arrived, _prewarm, bottlenecks, goals,
                             thru_gran, thru_start, thru_end, _save_output,
                             active_tab, rendered_signature):
-        skip = (no_update,) * 11
+        skip = (no_update,) * 10
         fired = set(ctx.triggered_prop_ids)
         # A dcc.Store whose data starts as None reports a change with no
         # value when it mounts. That isn't an arrival.
@@ -1117,7 +1049,7 @@ def register_analyze_callbacks(app, services=None):
             error = html.P("The analysis couldn't be computed. "
                            "See the app log for details.",
                            className="text-danger small")
-            return error, "", "", "", "", "", "", "", False, True, None
+            return error, "", "", "", "", "", "", False, True, None
         return (*sections, False, True, signature)
 
 
@@ -1157,10 +1089,10 @@ def _analyze_signature():
 
 def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
                              thru_end):
-    """The eight section bodies of the Analyze tab, in output order: the
+    """The seven section bodies of the Analyze tab, in output order: the
     overview strip; Goals and Contexts (Plan); Time Estimation Accuracy,
-    Rating Accuracy, Throughput and Plan vs. Actual (History); Graph
-    Structure (Structure)."""
+    Rating Accuracy and Throughput (History); Graph Structure
+    (Structure)."""
     # Persist any limit changes made via the gear popovers before rendering.
     al = ConfigManager.get_analyze_limits()
     if bottlenecks is not None:
@@ -1179,7 +1111,7 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
 
     if not nodes:
         empty = html.P("No nodes in the graph yet.", className="text-muted small")
-        return empty, "", "", "", "", "", "", ""
+        return empty, "", "", "", "", "", ""
 
     hard_fwd, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
 
@@ -1198,7 +1130,6 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
         end_date=al.get('throughput_end'),
     )
     hub_data = _compute_hub_score(nodes, edges, limits)
-    plan_actual_rows, completed_total = _compute_plan_vs_actual(nodes, date.today())
 
     # Goal names for heatmap axis ordering
     goal_names_ordered = [g['name'] for g in goal_rows]
@@ -1217,7 +1148,8 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     contexts_content = [
         html.P("Where your active time is allocated. Each segment is a "
                "subcontext.", className="text-muted small"),
-        _render_hours_by_context(ctx_coverage),
+        dbc.Row(dbc.Col(_render_hours_by_context(ctx_coverage), width=6),
+                className="g-3"),
     ]
 
     time_content = [
@@ -1235,8 +1167,8 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
 
     drift_content = [
         html.P("How your Value, Interest, and Effort ratings changed when you "
-               "reflected on finished work. Red cells mean you overrated the "
-               "work going in; blue cells mean you underrated it.",
+               "reflected on finished work. Red bars mean you overrated the "
+               "work going in; blue bars mean you underrated it.",
                className="text-muted small"),
         dbc.Row(dbc.Col(_render_reflection_drift_chart(drift_rows), width=6),
                 className="g-3"),
@@ -1245,20 +1177,21 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     gran = al.get('throughput_granularity', 'quarter')
     gran_label = {'month': 'month', 'quarter': 'quarter',
                   'year': 'year'}[gran]
+    throughput_note = (f"Hours of completed work per calendar {gran_label}, "
+                       "stacked by context. Hover a segment for the node "
+                       "list.")
+    if len(throughput_rows) > _THROUGHPUT_MAX_BARS:
+        throughput_rows = throughput_rows[-_THROUGHPUT_MAX_BARS:]
+        wider = {'month': 'quarters', 'quarter': 'years'}.get(gran)
+        throughput_note += (
+            f" Showing the latest {_THROUGHPUT_MAX_BARS} {gran_label}s. "
+            + (f"Switch to {wider} or narrow the dates to see earlier ones."
+               if wider else "Narrow the dates to see earlier ones."))
     throughput_content = [
-        html.P(f"Hours of completed work per calendar {gran_label}, "
-               "stacked by context. Hover a segment for the node "
-               "list.",
-               className="text-muted small"),
-        _render_throughput_chart(throughput_rows, granularity=gran),
-    ]
-
-    plan_actual_content = [
-        html.P("Each context's share of your open work (hollow) against its "
-               f"share of the work you finished in the last {PLAN_VS_ACTUAL_DAYS} "
-               "days (filled). The gap shows where your time went against "
-               "the plan.", className="text-muted small"),
-        _render_plan_vs_actual(plan_actual_rows, completed_total),
+        html.P(throughput_note, className="text-muted small"),
+        dbc.Row(dbc.Col(_render_throughput_chart(throughput_rows,
+                                                 granularity=gran), width=6),
+                className="g-3"),
     ]
 
     # Bottleneck and Hub share the gear's "nodes shown" limit and render
@@ -1268,8 +1201,8 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     gs_height = max(180, gs_count * 28 + 60)
     graph_content = [
         html.P("Bottlenecks: open nodes that gate the most unfinished work. "
-               "Hubs: concepts with prerequisites feeding in and dependents "
-               "flowing out.",
+               "Hubs: nodes with the most flow passing through them, where "
+               "many prerequisites feed in and many dependents flow out.",
                className="text-muted small"),
         dbc.Row([
             dbc.Col(_render_bottleneck_chart(bottlenecks,
@@ -1280,5 +1213,4 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     ]
 
     return (overview_content, goals_content, contexts_content, time_content,
-            drift_content, throughput_content, plan_actual_content,
-            graph_content)
+            drift_content, throughput_content, graph_content)

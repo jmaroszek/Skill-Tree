@@ -108,7 +108,7 @@ def _plan_sections(al):
     return [
         _gear_header("Goals", "btn-analyze-goals-limit", "popover-analyze-goals",
                      "Goals shown", "setting-analyze-goals",
-                     5, 200, al.get('goals', 75)),
+                     5, 200, al.get('goals', 20)),
         html.Div(id="analyze-goals-content"),
         html.Hr(className="my-3"),
 
@@ -155,10 +155,6 @@ def _history_sections(al):
             popover_style={'maxWidth': '200px', 'minWidth': '180px'},
         ),
         html.Div(id="analyze-throughput-content"),
-        html.Hr(className="my-3"),
-
-        _plain_header("Plan vs. Actual"),
-        html.Div(id="analyze-plan-actual-content"),
     ]
 
 
@@ -166,6 +162,6 @@ def _structure_sections(al):
     return [
         _gear_header("Graph Structure", "btn-analyze-bottlenecks-limit",
                      "popover-analyze-bottlenecks", "Nodes shown",
-                     "setting-analyze-bottlenecks", 5, 100, al.get('bottlenecks', 10)),
+                     "setting-analyze-bottlenecks", 5, 100, al.get('bottlenecks', 15)),
         html.Div(id="analyze-graph-content"),
     ]

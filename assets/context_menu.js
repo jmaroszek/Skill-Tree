@@ -25,9 +25,30 @@
 
         // Menu items are clicked through menus.onItem; these are the ones
         // whose label or visibility depends on the node.
-        var websiteItem = document.getElementById('ctx-menu-website');
-        var obsidianItem = document.getElementById('ctx-menu-obsidian');
-        var driveItem = document.getElementById('ctx-menu-drive');
+        // The icon says where the first link will open: a globe for the
+        // browser, a journal for Obsidian, and a plain arrow for the default
+        // app. This mirrors resource_links.resolve_target closely enough for
+        // an icon; the server still decides on click.
+        var OBSIDIAN_SUFFIXES = ['md', 'canvas', 'base', 'pdf', 'png', 'jpg', 'jpeg',
+            'gif', 'bmp', 'svg', 'webp', 'avif', 'mp3', 'wav', 'm4a', 'ogg', 'flac',
+            '3gp', 'webm', 'mp4', 'ogv', 'mov', 'mkv'];
+        function _resourceIcon(link, kind) {
+            link = (link || '').trim();
+            if (/^(https?:\/\/|www\.)/i.test(link)) return 'globe';
+            var isPath = /^[a-z]:[\\/]|^[\\/]/i.test(link) || link.indexOf('\\') >= 0;
+            var suffix = /\.([a-z0-9]+)$/i.exec(link);
+            suffix = suffix ? suffix[1].toLowerCase() : '';
+            if (kind === 'obsidian' && OBSIDIAN_SUFFIXES.indexOf(suffix) >= 0) return 'journal-text';
+            if (!isPath && /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(link) &&
+                    !/\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|png|jpe?g|gif|zip)$/i.test(link)) {
+                return 'globe';
+            }
+            return 'box-arrow-up-right';
+        }
+
+        // One slot per possible Resource section (layout.py), in order.
+        var resourceItems = Array.from(
+            document.querySelectorAll('[id^="ctx-menu-resource-"]'));
         var linksDivider = document.getElementById('ctx-menu-links-divider');
         var toggleNowItem = document.getElementById('ctx-menu-toggle-now');
         var priorityItem = document.getElementById('ctx-menu-priority');
@@ -120,23 +141,35 @@
             priorityItem.style.display = showPriority ? '' : 'none';
             if (priorityDivider) priorityDivider.style.display = showPriority ? '' : 'none';
 
-            var hasWebsite = _getFirstLink(nodeData.website);
-            websiteItem.style.display = hasWebsite ? '' : 'none';
-
-            var obsidianSection = document.getElementById('editor-obsidian-resources');
-            var hasObsidian = obsidianSection && obsidianSection.style.display !== 'none'
-                && _getFirstLink(nodeData.obsidian_path);
-            obsidianItem.style.display = hasObsidian ? '' : 'none';
-
-            var driveSection = document.getElementById('editor-drive-resources');
-            var hasDrive = driveSection && driveSection.style.display !== 'none'
-                && _getFirstLink(nodeData.google_drive_path);
-            driveItem.style.display = hasDrive ? '' : 'none';
+            var resourceLinks = nodeData.resource_links || {};
+            if (typeof resourceLinks === 'string') {
+                try { resourceLinks = JSON.parse(resourceLinks); } catch (_) { resourceLinks = {}; }
+            }
+            // The node editor always renders every section, in order, with
+            // its current name, so it is where the slots learn theirs.
+            var sections = Array.from(
+                document.querySelectorAll('#editor-resources [data-resource-id]'));
+            var hasResources = false;
+            resourceItems.forEach(function (item, i) {
+                var section = sections[i];
+                var id = section && section.dataset.resourceId;
+                var visible = !!(id && resourceLinks[id] && resourceLinks[id].length);
+                item.style.display = visible ? '' : 'none';
+                if (!visible) return;
+                hasResources = true;
+                item.dataset.resourceId = id;
+                var label = section.querySelector('label');
+                item.querySelector('.ctx-menu-label').textContent =
+                    'Open ' + (label ? label.textContent : 'Resource');
+                item.querySelector('.ctx-menu-icon').className = 'bi bi-' +
+                    _resourceIcon(resourceLinks[id][0], section.dataset.resourceKind) +
+                    ' ctx-menu-icon';
+            });
 
             // Collapse the upper divider when neither link is present, so the
             // remaining (lower) Hr doesn't sit doubled-up against this one.
             if (linksDivider) {
-                linksDivider.style.display = (hasWebsite || hasObsidian || hasDrive) ? '' : 'none';
+                linksDivider.style.display = hasResources ? '' : 'none';
             }
 
             menus.open(menu, x, y);
@@ -192,16 +225,6 @@
             _setHiddenInput('dormant-existing-trigger-input', JSON.stringify(targetIds));
         }
 
-        function openInObsidian(path) {
-            if (!path) return;
-            fetch('/open-obsidian?path=' + encodeURIComponent(path))
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (!data.ok) alert('Could not open Obsidian: ' + (data.error || 'unknown'));
-                })
-                .catch(function (err) { console.error('Open in Obsidian failed:', err); });
-        }
-        
         // --- Group Delete via Delete key ---
         // Writes to the request input, which a Dash callback picks up to
         // open the native-style confirm modal. The modal's "Delete" button
@@ -353,9 +376,7 @@
             var nodeData = {
                 id: rowEl.getAttribute('data-node-menu'),
                 type: rowEl.getAttribute('data-type') || null,
-                obsidian_path: rowEl.getAttribute('data-obsidian-path') || null,
-                google_drive_path: rowEl.getAttribute('data-google-drive-path') || null,
-                website: rowEl.getAttribute('data-website') || null,
+                resource_links: rowEl.getAttribute('data-resource-links') || '{}',
                 status: rowEl.getAttribute('data-status') || null,
                 now: Number(rowEl.getAttribute('data-now') || 0),
             };
@@ -392,18 +413,19 @@
 
         menus.onItem('ctx-menu-add-to-event', triggerAddToEvent);
 
-        menus.onItem('ctx-menu-website', function () {
-            var link = _currentNodeData && _getFirstLink(_currentNodeData.website);
-            if (link) window.open(link, '_blank');
-        });
-
-        menus.onItem('ctx-menu-obsidian', function () {
-            if (_currentNodeData) openInObsidian(_getFirstLink(_currentNodeData.obsidian_path));
-        });
-
-        menus.onItem('ctx-menu-drive', function () {
-            var link = _currentNodeData && _getFirstLink(_currentNodeData.google_drive_path);
-            if (link) window.open(link, '_blank');
+        resourceItems.forEach(function (item) {
+            menus.onItem(item.id, function () {
+                if (!_currentNodeData || !item || !item.dataset.resourceId) return;
+                fetch('/open-resource', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node: _currentNodeData.id,
+                        section: item.dataset.resourceId, index: 0 }),
+                }).then(function (response) { return response.json(); })
+                  .then(function (data) {
+                      if (!data.ok) alert('Could not open Resource: ' + (data.error || 'unknown'));
+                  }).catch(function (err) { console.error('Open Resource failed:', err); });
+            });
         });
 
         menus.onItem('ctx-menu-delete', function () {

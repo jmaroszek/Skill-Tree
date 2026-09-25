@@ -3,25 +3,49 @@ import sqlite3
 from typing import List, Dict, Optional
 import database
 from models import Node
+from resource_links import save_node_links
 
 
 class GraphRepository:
     def __init__(self, connection_factory):
         self.get_connection = connection_factory
 
+    def _with_resources(self, nodes):
+        """Attach one batch of named links without a query per node."""
+        snapshot = database.current_snapshot()
+        if snapshot is not None:
+            links = snapshot.resource_links
+        else:
+            links = {}
+            if nodes:
+                names = [node.name for node in nodes]
+                with self.get_connection() as conn:
+                    for start in range(0, len(names), 500):
+                        batch = names[start:start + 500]
+                        placeholders = ','.join('?' for _ in batch)
+                        for name, section_id, target in conn.execute(
+                                "SELECT node_name, section_id, target FROM NodeResourceLinks "
+                                f"WHERE node_name IN ({placeholders}) "
+                                "ORDER BY node_name, section_id, position", batch):
+                            links.setdefault(name, {}).setdefault(section_id, []).append(target)
+        for node in nodes:
+            node.resource_links = {key: list(values) for key, values in
+                                   links.get(node.name, {}).items()}
+        return nodes
+
     def get_node(self, name: str) -> Optional[Node]:
         """Retrieves a specific node by name."""
         snapshot = database.current_snapshot()
         if snapshot is not None:
             row = snapshot.nodes.get(name)
-            return Node(**row) if row is not None else None
+            return self._with_resources([Node(**row)])[0] if row is not None else None
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM Nodes WHERE name=?", (name,))
             row = cursor.fetchone()
             if row:
-                return Node(**dict(row))
+                return self._with_resources([Node(**dict(row))])[0]
             return None
 
 
@@ -84,8 +108,8 @@ class GraphRepository:
         """Retrieves all nodes. Excludes dormant nodes by default."""
         snapshot = database.current_snapshot()
         if snapshot is not None:
-            return [Node(**row) for row in snapshot.nodes.values()
-                    if include_dormant or not row['dormant']]
+            return self._with_resources([Node(**row) for row in snapshot.nodes.values()
+                    if include_dormant or not row['dormant']])
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -93,7 +117,7 @@ class GraphRepository:
                 cursor.execute("SELECT * FROM Nodes")
             else:
                 cursor.execute("SELECT * FROM Nodes WHERE dormant = 0")
-            return [Node(**dict(row)) for row in cursor.fetchall()]
+            return self._with_resources([Node(**dict(row)) for row in cursor.fetchall()])
 
 
     def get_now_nodes(self) -> List[Node]:
@@ -110,7 +134,7 @@ class GraphRepository:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM Nodes WHERE "now" > 0 AND dormant = 0 ORDER BY "now" ASC, name ASC')
-            return [Node(**dict(row)) for row in cursor.fetchall()]
+            return self._with_resources([Node(**dict(row)) for row in cursor.fetchall()])
 
 
     def get_edges(self) -> List[Dict[str, str]]:
@@ -133,12 +157,17 @@ class GraphRepository:
                 data.pop('priority_score', None)
                 data.pop('time', None)  # time is a computed property
                 cursor.execute('''
-                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, obsidian_path, google_drive_path, website, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, habit_days, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
-                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :obsidian_path, :google_drive_path, :website, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
+                    INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, habit_days, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
+                    VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
                 ''', data)
                 conn.commit()
             except sqlite3.IntegrityError:
                 raise ValueError(f"Node with name '{node.name}' already exists.")
+        # Links live in their own table. A new node may arrive with some (a
+        # script building a node); an update never rewrites them, since the
+        # editor saves them itself through save_node_links.
+        if node.resource_links:
+            save_node_links(node.name, node.resource_links)
 
 
     def write_node(self, node, lifecycle_event_types, clock):
@@ -152,8 +181,6 @@ class GraphRepository:
                 SET type=:type, description=:description, value=:value, time_o=:time_o, time_m=:time_m, time_p=:time_p,
                     interest=:interest, difficulty=:difficulty,
                     context=:context, subcontext=:subcontext, status=:status,
-                    obsidian_path=:obsidian_path, google_drive_path=:google_drive_path,
-                    website=:website,
                     dormant=:dormant, time_mode=:time_mode, value_mode=:value_mode,
                     habit_duration=:habit_duration, habit_duration_unit=:habit_duration_unit,
                     habit_intensity_o=:habit_intensity_o, habit_intensity_m=:habit_intensity_m,
@@ -189,3 +216,4 @@ class GraphRepository:
             cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE NodeLifecycleEvents SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
+            cursor.execute("UPDATE NodeResourceLinks SET node_name=? WHERE node_name=?", (new_name, old_name))

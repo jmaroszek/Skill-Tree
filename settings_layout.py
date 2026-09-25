@@ -15,6 +15,7 @@ from config import (
     NAME_FORMAT_SENTENCE,
 )
 import style_tokens as tokens
+from resource_links import get_sections
 from ui_kit import Tooltip, info_button, restore_button
 
 
@@ -363,43 +364,88 @@ def _build_integrations_tab():
     return dbc.Tab(label="Integrations", tab_id="tab-integrations", children=[
         html.Div([
             html.Div([
-                # What every integration has in common is said once, up top;
-                # each section then says only what is particular to it.
-                html.Small("Each integration you turn on adds a link field to the "
-                           "Resources section of the node editor.",
+                html.Small("Each resource gets its own field in the Node Editor, a labeled dot on Home, and an Open item in the right-click menu.",
                            className="text-muted d-block mt-2 mb-3"),
-                # Same section rhythm as the other tabs: heading, description,
-                # control, then any options it reveals.
-                html.H5("Obsidian", className="mt-2 mb-1"),
-                html.Small("Link notes in your vault and open them in Obsidian.",
-                           className="text-muted d-block mb-2"),
-                dbc.Checklist(id="setting-obsidian-enabled", switch=True,
-                              options=[{"label": "Show Obsidian resources", "value": "enabled"}],
-                              value=[], className="mb-2"),
-                dbc.Collapse([
-                    dbc.Label("Vault path", html_for="setting-obsidian-path", className="mt-1"),
-                    dbc.Input(id="setting-obsidian-path", type="text"),
-                    html.Small("Needed to open notes.",
-                               className="text-muted d-block mt-1 mb-1"),
-                ], id="setting-obsidian-options", is_open=False),
-
-                html.Hr(className="my-3"),
-                html.H5("Google Drive", className="mt-2 mb-1"),
-                html.Small("Link Drive files by URL or a local path.",
-                           className="text-muted d-block mb-2"),
-                dbc.Checklist(id="setting-gdrive-enabled", switch=True,
-                              options=[{"label": "Show Google Drive resources", "value": "enabled"}],
-                              value=[], className="mb-2"),
-                dbc.Collapse([
-                    dbc.Label("Mounted Drive root path (optional)", html_for="setting-gdrive-path",
-                              className="mt-1"),
-                    dbc.Input(id="setting-gdrive-path", type="text"),
-                    html.Small("Used to browse mounted files and resolve relative paths.",
-                               className="text-muted d-block mt-1 mb-1"),
-                ], id="setting-gdrive-options", is_open=False),
+                dcc.Store(id="resource-section-settings-store", data=get_sections()),
+                html.Div(id="resource-section-settings-rows"),
+                # Static: a callback Input with a string id must be in the
+                # initial layout, so the adder sits outside the rendered rows.
+                dbc.Button([html.I(className="bi bi-plus"), " Add resource"],
+                           id="btn-resource-section-add", className="resource-adder"),
+                html.Small(id="resource-section-limit-msg", className="text-warning d-block mt-2"),
             ], style={"width": "100%", "maxWidth": "640px"}),
         ], className="p-2")
     ])
+
+
+def _resource_root_field(section_id, root_path):
+    """A root-folder input with a trailing folder browse, as in the node editor."""
+    return html.Div([
+        dbc.Input(id={"type": "resource-section-root", "index": section_id},
+                  value=root_path, type="text", placeholder="Choose a folder..."),
+        dbc.Button(html.I(className="bi bi-folder2-open"),
+                   id={"type": "resource-section-root-browse", "index": section_id},
+                   title="Browse", className="editor-icon-btn"),
+    ], className="d-flex editor-field-group")
+
+
+def _removed_resource_card(section, link_count):
+    """A removed resource, held until Save so it can be undone."""
+    note = (f"removed — its {link_count} link{'s' if link_count != 1 else ''} "
+            "will be deleted" if link_count else "removed")
+    return html.Div([
+        html.Span(section["name"], className="resource-card-name-removed"),
+        html.Span(note, className="resource-card-note"),
+        dbc.Button(html.I(className="bi bi-arrow-counterclockwise"),
+                   id={"type": "resource-section-undelete", "index": section["id"]},
+                   title="Keep this resource", className="editor-icon-btn"),
+    ], className="resource-card resource-card-removed")
+
+
+def build_resource_setting_rows(sections, link_counts=None):
+    """One outlined card per Resource section, in order.
+
+    A card holds the name (with its remove) and two switches on one line:
+    Root folder, which reveals the folder field, and Open in Obsidian, which
+    sends the section's notes to the Obsidian app instead of the default one.
+    A removed section stays as a struck card until Save, naming the links it
+    will take along.
+    """
+    link_counts = link_counts or {}
+    cards = []
+    for section in sections:
+        section_id = section["id"]
+        if section.get("deleted"):
+            cards.append(_removed_resource_card(section, link_counts.get(section_id, 0)))
+            continue
+        root_path = section.get("root_path") or ""
+        use_root = section.get("use_root", bool(root_path))
+        cards.append(html.Div([
+            html.Div([
+                dbc.Input(id={"type": "resource-section-name", "index": section_id},
+                          value=section["name"], type="text", maxLength=60,
+                          placeholder="Resource name"),
+                dbc.Button(html.I(className="bi bi-x-lg"),
+                           id={"type": "resource-section-remove", "index": section_id},
+                           title="Remove", className="editor-icon-btn editor-icon-btn-danger"),
+            ], className="d-flex editor-field-group"),
+            html.Div([
+                dbc.Checklist(id={"type": "resource-section-root-enabled", "index": section_id},
+                              options=[{"label": "Root folder", "value": "enabled"}],
+                              value=["enabled"] if use_root else [], switch=True),
+                dbc.Checklist(id={"type": "resource-section-obsidian", "index": section_id},
+                              options=[{"label": "Open in Obsidian", "value": "obsidian"}],
+                              value=["obsidian"] if section.get("kind") == "obsidian" else [],
+                              switch=True),
+            ], className="resource-card-switches"),
+            dbc.Collapse([
+                _resource_root_field(section_id, root_path),
+                html.Small("Files under this folder are saved with relative paths.",
+                           className="text-muted d-block mt-1"),
+            ], id={"type": "resource-section-root-options", "index": section_id},
+               is_open=use_root),
+        ], className="resource-card"))
+    return cards
 
 
 def build_settings_modal():

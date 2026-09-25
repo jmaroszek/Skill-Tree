@@ -157,7 +157,7 @@ class TestHandleSavePreservesCalibration:
 
         # Simulate an editor save (no actual-time fields in the form).
         handle_save(mgr, "Existing", "Learn", "edited desc", 6, 1, 2, 4, 5, 5,
-                    [], "Mind", None, "", "", "",
+                    [], "Mind", None, None,
                     [], [], [], [], [])
 
         saved = mgr.get_node("Existing")

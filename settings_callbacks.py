@@ -3,6 +3,7 @@ Callback definitions for the Settings tab.
 """
 
 import json
+import uuid
 import logging
 import dash
 from dash import html, Input, Output, State, ALL, MATCH, ctx
@@ -24,13 +25,56 @@ from config import (
 from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import (
-    get_trigger_id, build_context_editor_rows, sync_time_fields)
+    get_trigger_id, build_context_editor_rows, sync_time_fields,
+    spawn_local_file_picker)
 import context_rules
 import style_tokens as tokens
+from resource_links import (get_sections, save_sections, validate_sections,
+                            section_link_counts, live_sections, MAX_SECTIONS)
+from settings_layout import build_resource_setting_rows
 
 logger = logging.getLogger(__name__)
 
 manager = GraphManager()
+
+
+def _section_form_rows(store, names, name_ids, roots, root_ids,
+                       use_roots, use_root_ids, obsidian, obsidian_ids):
+    """Overlay mounted form values on the ordered section draft.
+
+    Only live cards mount their fields, so a removed section keeps its stored
+    values. A section whose Root folder switch is off saves no root, whatever
+    its hidden field still holds.
+    """
+    rows = [dict(row) for row in (store or get_sections())]
+    by_id = {row["id"]: row for row in rows}
+    for values, ids, field in ((names, name_ids, "name"),
+                               (roots, root_ids, "root_path"),
+                               (use_roots, use_root_ids, "use_root"),
+                               (obsidian, obsidian_ids, "kind")):
+        for value, component_id in zip(values or [], ids or []):
+            row = by_id.get(component_id["index"])
+            if row is None:
+                continue
+            if field == "use_root":
+                row[field] = "enabled" in (value or [])
+            elif field == "kind":
+                row[field] = "obsidian" if "obsidian" in (value or []) else "mixed"
+            else:
+                row[field] = value
+    for row in rows:
+        if row.get("use_root") is False:
+            row["root_path"] = ""
+    return rows
+
+
+# The mounted Resource-card fields, as the State list every callback that
+# reads the draft passes to _section_form_rows (after the store).
+_SECTION_FORM_STATES = [
+    State({'type': f'resource-section-{field}', 'index': ALL}, prop)
+    for field in ('name', 'root', 'root-enabled', 'obsidian')
+    for prop in ('value', 'id')
+]
 
 
 def _display_types():
@@ -426,24 +470,107 @@ def register_settings_callbacks(app, services=None):
     def toggle_titlecase_options(format_mode):
         return format_mode == NAME_FORMAT_TITLE
 
-    # --- Settings: Show each integration's paths only while it is on ---
+    # --- Settings: Resource cards ---
+    # The draft reloads when Settings opens and after a save lands, so a
+    # removed card stops showing once its removal is real.
     @app.callback(
-        Output("setting-obsidian-options", "is_open"),
-        Output("setting-gdrive-options", "is_open"),
-        Input("setting-obsidian-enabled", "value"),
-        Input("setting-gdrive-enabled", "value"),
+        Output('resource-section-settings-store', 'data'),
+        Input('settings-modal', 'is_open'),
+        Input('settings-save-status', 'children'),
+        prevent_initial_call=True,
     )
-    def toggle_integration_options(obsidian_enabled, gdrive_enabled):
-        return "enabled" in (obsidian_enabled or []), "enabled" in (gdrive_enabled or [])
+    def load_resource_sections(is_open, save_status):
+        if ctx.triggered_id == 'settings-save-status':
+            if not str(save_status or '').startswith('Settings saved'):
+                return dash.no_update
+            return get_sections()
+        return get_sections() if is_open else dash.no_update
+
+    @app.callback(
+        Output('resource-section-settings-rows', 'children'),
+        Output('resource-section-limit-msg', 'children'),
+        Input('resource-section-settings-store', 'data'),
+    )
+    def render_resource_section_settings(rows):
+        rows = rows if rows is not None else get_sections()
+        # The limit note stays up while you're still at the limit, and
+        # clears once a removal makes room.
+        full = len(live_sections(rows)) >= MAX_SECTIONS
+        return (build_resource_setting_rows(rows, section_link_counts()),
+                dash.no_update if full else '')
+
+    @app.callback(
+        Output({'type': 'resource-section-root-options', 'index': ALL}, 'is_open'),
+        Input({'type': 'resource-section-root-enabled', 'index': ALL}, 'value'),
+    )
+    def toggle_resource_root_options(values):
+        return ['enabled' in (value or []) for value in values]
+
+    # Browser fallback. In the desktop window assets/resource_picker.js
+    # answers the click with the native folder dialog, and Dash never sees it.
+    @app.callback(
+        Output({'type': 'resource-section-root', 'index': MATCH}, 'value'),
+        Input({'type': 'resource-section-root-browse', 'index': MATCH}, 'n_clicks'),
+        State({'type': 'resource-section-root', 'index': MATCH}, 'value'),
+        prevent_initial_call=True,
+    )
+    def browse_resource_root(n_clicks, current):
+        if not n_clicks:
+            return dash.no_update
+        picked = spawn_local_file_picker(current or '', 'Select folder', None,
+                                         directory=True)
+        return picked or dash.no_update
+
+    @app.callback(
+        Output('resource-section-settings-store', 'data', allow_duplicate=True),
+        Output('resource-section-limit-msg', 'children', allow_duplicate=True),
+        Input('btn-resource-section-add', 'n_clicks'),
+        Input({'type': 'resource-section-remove', 'index': ALL}, 'n_clicks'),
+        Input({'type': 'resource-section-undelete', 'index': ALL}, 'n_clicks'),
+        State('resource-section-settings-store', 'data'),
+        *_SECTION_FORM_STATES,
+        prevent_initial_call=True,
+    )
+    def modify_resource_sections(_add, _remove, _undelete, store, *form):
+        # Re-rendered cards mount fresh buttons; only a click counts.
+        if not ctx.triggered[0].get('value'):
+            return dash.no_update, dash.no_update
+        rows = _section_form_rows(store, *form)
+        trigger = ctx.triggered_id
+        limit_note = f'You can have up to {MAX_SECTIONS} resources. Remove one to add another.'
+        if trigger == 'btn-resource-section-add':
+            if len(live_sections(rows)) >= MAX_SECTIONS:
+                return dash.no_update, limit_note
+            used_names = {(row.get('name') or '').casefold()
+                          for row in live_sections(rows)}
+            name = 'New Resource'
+            suffix = 2
+            while name.casefold() in used_names:
+                name = f'New Resource {suffix}'
+                suffix += 1
+            rows.append({'id': uuid.uuid4().hex, 'name': name, 'kind': 'mixed',
+                         'root_path': '', 'position': len(rows), 'new': True})
+            return rows, dash.no_update
+        if not isinstance(trigger, dict):
+            return dash.no_update, dash.no_update
+        row = next((row for row in rows if row['id'] == trigger['index']), None)
+        if row is None:
+            return dash.no_update, dash.no_update
+        if trigger['type'] == 'resource-section-undelete':
+            if len(live_sections(rows)) >= MAX_SECTIONS:
+                return dash.no_update, limit_note
+            row.pop('deleted', None)
+        elif row.get('new'):
+            # Never saved, so there is nothing to hold for an undo.
+            rows.remove(row)
+        else:
+            row['deleted'] = True
+        return rows, dash.no_update
 
     # --- Settings: Load when Settings tab activates ---
     @app.callback(
         Output('context-editor-store', 'data'),
         Output('setting-hp-profile', 'value'),
-        Output('setting-obsidian-path', 'value'),
-        Output('setting-gdrive-path', 'value'),
-        Output('setting-obsidian-enabled', 'value'),
-        Output('setting-gdrive-enabled', 'value'),
         Output('setting-node-shapes-container', 'children'),
         Output('setting-node-status-colors-container', 'children'),
         Output('setting-node-type-colors-container', 'children'),
@@ -467,11 +594,9 @@ def register_settings_callbacks(app, services=None):
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 24
+            return (dash.no_update,) * 20
 
         editor_state = _editor_state(manager)
-        obs_path = ConfigManager.get_obsidian_vault()
-        gdrive_path = ConfigManager.get_gdrive_path()
         profile = ConfigManager.get_hp_profile()
         if profile not in PROFILES:
             profile = "Sage"
@@ -509,10 +634,6 @@ def register_settings_callbacks(app, services=None):
         return (
             editor_state,
             profile,
-            obs_path,
-            gdrive_path,
-            ["enabled"] if ConfigManager.get_obsidian_enabled() else [],
-            ["enabled"] if ConfigManager.get_gdrive_enabled() else [],
             shape_rows,
             status_color_rows,
             type_color_rows,
@@ -561,10 +682,6 @@ def register_settings_callbacks(app, services=None):
         Output('settings-clear-interval', 'n_intervals'),
         Output('context-editor-store', 'data', allow_duplicate=True),
         Input('btn-settings-save', 'n_clicks'),
-        State('setting-obsidian-path', 'value'),
-        State('setting-gdrive-path', 'value'),
-        State('setting-obsidian-enabled', 'value'),
-        State('setting-gdrive-enabled', 'value'),
         State({"type": "setting-shape", "index": ALL}, "value"),
         State({"type": "setting-shape", "index": ALL}, "id"),
         State({"type": "setting-color", "index": ALL}, "value"),
@@ -583,10 +700,11 @@ def register_settings_callbacks(app, services=None):
         State('setting-time-calibration-enabled', 'value'),
         State('setting-now-node-cap', 'value'),
         *_CTX_EDIT_STATES,
+        State('resource-section-settings-store', 'data'),
+        *_SECTION_FORM_STATES,
         prevent_initial_call=True,
     )
-    def save_settings(n_clicks, obs_path, gdrive_path,
-                      obsidian_enabled_val, gdrive_enabled_val,
+    def save_settings(n_clicks,
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm,
                       def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
@@ -595,18 +713,24 @@ def register_settings_callbacks(app, services=None):
                       context_sort_mode_val, time_calibration_val,
                       now_node_cap_val, editor_store,
                       ctx_name_vals, ctx_name_ids, ctx_weight_vals, ctx_weight_ids,
-                      ctx_sub_vals, ctx_sub_ids):
+                       ctx_sub_vals, ctx_sub_ids,
+                       section_store=None, section_names=None, section_name_ids=None,
+                       section_roots=None, section_root_ids=None,
+                       section_use_roots=None, section_use_root_ids=None,
+                       section_obsidian=None, section_obsidian_ids=None):
         if not n_clicks:
             return (dash.no_update,) * 5
 
         try:
-            obs_path = (obs_path or "").strip()
-            gdrive_path = (gdrive_path or "").strip()
-            obsidian_enabled = "enabled" in (obsidian_enabled_val or [])
-            gdrive_enabled = "enabled" in (gdrive_enabled_val or [])
-            if obsidian_enabled and not obs_path:
-                return (html.Span("Set an Obsidian vault path before enabling it.",
-                                  className="text-danger"),
+            sections = _section_form_rows(
+                section_store, section_names, section_name_ids,
+                section_roots, section_root_ids,
+                section_use_roots, section_use_root_ids,
+                section_obsidian, section_obsidian_ids)
+            try:
+                validate_sections(sections)
+            except ValueError as exc:
+                return (html.Span(str(exc), className="text-danger"),
                         dash.no_update, False, 0, dash.no_update)
             # Perf-toggle is independent of any migrated setting — persist
             # it immediately so the user's choice survives regardless of
@@ -728,10 +852,7 @@ def register_settings_callbacks(app, services=None):
                     'hp_profile': profile_name,
                     'ts': new_ts,
                     'ted': new_ted,
-                    'obs_path': obs_path,
-                    'gdrive_path': gdrive_path,
-                    'obsidian_enabled': obsidian_enabled,
-                    'gdrive_enabled': gdrive_enabled,
+                    'resource_sections': sections,
                     'contexts': new_contexts,
                     'subcontexts': new_subcontexts,
                     'context_weights': new_ctx_weights,
@@ -758,10 +879,7 @@ def register_settings_callbacks(app, services=None):
             ConfigManager.set_hyperparams(new_hp)
             ConfigManager.set_time_settings(new_ts)
             ConfigManager.set_time_estimate_defaults(new_ted)
-            ConfigManager.set_obsidian_vault(obs_path)
-            ConfigManager.set_gdrive_path(gdrive_path)
-            ConfigManager.set_obsidian_enabled(obsidian_enabled)
-            ConfigManager.set_gdrive_enabled(gdrive_enabled)
+            save_sections(sections)
             if new_contexts:
                 ConfigManager.set_contexts(new_contexts)
             ConfigManager.set_subcontexts(new_subcontexts)
@@ -793,20 +911,6 @@ def register_settings_callbacks(app, services=None):
         except Exception:
             logger.exception("Failed to save settings")
             return "Error saving settings.", dash.no_update, False, 0, dash.no_update
-
-    # Refresh the node editor's resource sections after Settings is saved.
-    @app.callback(
-        Output('editor-obsidian-resources', 'style'),
-        Output('editor-drive-resources', 'style'),
-        Input('settings-save-status', 'children'),
-        Input('modal-migration', 'is_open'),
-        Input('settings-modal', 'is_open'),
-        prevent_initial_call=True,
-    )
-    def refresh_resource_visibility(_save_status, _migration_open, _settings_open):
-        obsidian_style = {} if ConfigManager.get_obsidian_enabled() else {'display': 'none'}
-        drive_style = {} if ConfigManager.get_gdrive_enabled() else {'display': 'none'}
-        return obsidian_style, drive_style
 
     # --- Migration Modal ---
     @app.callback(
@@ -876,10 +980,8 @@ def register_settings_callbacks(app, services=None):
                     ConfigManager.set_time_settings(pending_state['ts'])
                 if 'ted' in pending_state:
                     ConfigManager.set_time_estimate_defaults(pending_state['ted'])
-                ConfigManager.set_obsidian_vault(pending_state['obs_path'])
-                ConfigManager.set_gdrive_path(pending_state.get('gdrive_path', ''))
-                ConfigManager.set_obsidian_enabled(pending_state.get('obsidian_enabled', False))
-                ConfigManager.set_gdrive_enabled(pending_state.get('gdrive_enabled', False))
+                if 'resource_sections' in pending_state:
+                    save_sections(pending_state['resource_sections'])
                 new_contexts = pending_state.get('contexts', [])
                 if new_contexts:
                     ConfigManager.set_contexts(new_contexts)

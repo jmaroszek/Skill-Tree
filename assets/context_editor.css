@@ -386,3 +386,74 @@ body.ctx-dragging * {
     box-shadow: var(--st-shadow-panel);
     z-index: var(--st-z-drag-clone) !important;
 }
+
+/* --- Settings ▸ Integrations: Add resource ------------------------------ */
+
+/* Full width and dashed, like the subcontext adder chip: it reads as the next
+   resource to be. The Contexts adder can stay borderless because its outlined
+   box frames it; this one sits loose on the modal, so it carries its own. */
+.btn.resource-adder {
+    --bs-btn-bg: transparent;
+    --bs-btn-color: var(--st-text-soft);
+    --bs-btn-border-color: var(--st-text-dim);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-color: var(--st-text-primary);
+    --bs-btn-hover-border-color: var(--st-text-soft);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-color: var(--st-text-primary);
+    --bs-btn-active-border-color: var(--st-text-soft);
+    --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-color: var(--st-text-dim);
+    --bs-btn-disabled-border-color: var(--st-text-dim);
+    --bs-btn-focus-shadow-rgb: 0, 0, 0;
+    box-shadow: none;
+    width: 100%;
+    border-style: dashed;
+    border-radius: var(--st-radius);
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    font-size: var(--st-fs-base);
+}
+
+/* One outlined card per resource, the same outline as the Contexts row
+   editor, so each resource reads as a unit instead of rows split by rules. */
+.resource-card {
+    border: 1px solid var(--st-border-panel);
+    border-radius: var(--st-radius);
+    padding: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+/* The card's two switches share one line. */
+.resource-card-switches {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 1.5rem;
+    margin: 0.5rem 0 0;
+}
+.resource-card .collapse,
+.resource-card .collapsing {
+    margin-top: 0.5rem;
+}
+/* A removed resource is held until Save, like a removed context. */
+.resource-card-removed {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background-color: var(--st-danger-wash);
+}
+.resource-card-name-removed {
+    text-decoration: line-through;
+    color: var(--st-danger-text);
+}
+.resource-card-note {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--st-danger-text);
+    font-size: var(--st-fs-sm);
+}
+.resource-card-removed > .btn.editor-icon-btn {
+    --bs-btn-color: var(--st-text-soft);
+    --bs-btn-hover-color: var(--st-text-primary);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    height: 30px;
+}

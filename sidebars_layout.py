@@ -413,34 +413,12 @@ def build_node_editor_content():
                 html.Hr(className="my-2"),
                 html.H5("Resources", className="mt-2 mb-1"),
 
-                # Stores hold JSON arrays of links for each resource type
-                dcc.Store(id='obsidian-links-store', data=['']),
-                dcc.Store(id='drive-links-store', data=['']),
-                dcc.Store(id='website-links-store', data=['']),
-
-                html.Div([
-                    html.Div([
-                        dbc.Label("Obsidian", className="mb-0"),
-                        add_button("btn-obsidian-add", "Add Obsidian link")
-                    ], className="d-flex align-items-center mt-2 mb-1"),
-                    html.Div(id='obsidian-links-container'),
-                ], id='editor-obsidian-resources',
-                   style={} if ConfigManager.get_obsidian_enabled() else {"display": "none"}),
-
-                html.Div([
-                    html.Div([
-                        dbc.Label("Google Drive", className="mb-0"),
-                        add_button("btn-drive-add", "Add Google Drive link")
-                    ], className="d-flex align-items-center mt-3 mb-1"),
-                    html.Div(id='drive-links-container'),
-                ], id='editor-drive-resources',
-                   style={} if ConfigManager.get_gdrive_enabled() else {"display": "none"}),
-
-                html.Div([
-                    dbc.Label("Website", className="mb-0"),
-                    add_button("btn-website-add", "Add Website link")
-                ], className="d-flex align-items-center mt-3 mb-1"),
-                html.Div(id='website-links-container'),
+                # The loaded node's links by section id. The rows below are
+                # rendered from it and read back through their pattern ids.
+                dcc.Store(id='resource-links-store', data={}),
+                dcc.Input(id='electron-file-picked-input', value='', type='text',
+                          style={'display': 'none'}),
+                html.Div(id='editor-resources'),
 
                 # The five actions stay pinned to the bottom of the panel while the
                 # fields above them scroll. `position: sticky` keeps them in normal

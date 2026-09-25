@@ -11,7 +11,7 @@ import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_BLOCKED, STATUS_OPEN
 from graph_manager import GraphManager
 from context_rules import compute_orphaned_subcontext_pairs
-from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS, DEFAULT_OBSIDIAN_VAULT
+from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS
 from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, time_cost_term,
                      TIME_REF_HOURS)
@@ -233,15 +233,15 @@ class TestNodeCRUD:
     def test_get_nonexistent_returns_none(self, mgr):
         assert mgr.get_node("DoesNotExist") is None
 
-    def test_update_preserves_optional_fields(self, mgr):
-        mgr.add_node(_make_node("A", obsidian_path="notes/a.md", google_drive_path="https://drive.google.com/x"))
-        result = mgr.get_node("A")
-        assert result.obsidian_path == "notes/a.md"
-        assert result.google_drive_path == "https://drive.google.com/x"
-        mgr.update_node(_make_node("A", value=9, obsidian_path="notes/a.md", google_drive_path="https://drive.google.com/x"))
+    def test_update_preserves_resource_links(self, mgr):
+        links = {"obsidian": ["notes/a.md"], "drive": ["https://drive.google.com/x"]}
+        mgr.add_node(_make_node("A", resource_links=links))
+        assert mgr.get_node("A").resource_links == links
+        # An update carries no links of its own and must not clear them.
+        mgr.update_node(_make_node("A", value=9))
         result = mgr.get_node("A")
         assert result.value == 9
-        assert result.obsidian_path == "notes/a.md"
+        assert result.resource_links == links
 
     def test_add_node_rejects_none_context(self, mgr):
         with pytest.raises(ValueError, match="must have a context"):
@@ -1566,13 +1566,6 @@ class TestConfigManager:
         ConfigManager.set_hyperparams(custom)
         result = ConfigManager.get_hyperparams()
         assert result['w_v'] == 2.0
-
-    def test_obsidian_vault_default(self):
-        assert ConfigManager.get_obsidian_vault() == DEFAULT_OBSIDIAN_VAULT
-
-    def test_obsidian_vault_set_and_get(self):
-        ConfigManager.set_obsidian_vault("/custom/path")
-        assert ConfigManager.get_obsidian_vault() == "/custom/path"
 
     def test_sync_shapes_to_types_adds_new(self):
         ConfigManager.set_node_shapes({"Learn": "ellipse", "Goal": "star"})

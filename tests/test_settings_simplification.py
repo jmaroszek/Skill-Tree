@@ -172,7 +172,7 @@ def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():
         assert technical_phrase not in copy
 
 
-def test_integrations_are_opt_in_and_path_fields_are_bounded():
+def test_integrations_hold_resource_cards_in_a_bounded_column():
     modal = build_settings_modal()
     integrations_tab = next(
         component for component in _walk(modal)
@@ -186,13 +186,10 @@ def test_integrations_are_opt_in_and_path_fields_are_bounded():
     ]
 
     assert len(containers) == 1
-    assert {
-        "setting-obsidian-path", "setting-gdrive-path",
-        "setting-obsidian-enabled", "setting-gdrive-enabled",
-    }.issubset(_by_id(containers[0]))
-    assert _by_id(integrations_tab)["setting-obsidian-enabled"].value == []
-    assert _by_id(integrations_tab)["setting-gdrive-enabled"].value == []
-    assert "URL or a local path" in _text(integrations_tab)
+    ids = _by_id(containers[0])
+    assert {"resource-section-settings-store", "resource-section-settings-rows",
+            "btn-resource-section-add"} <= set(ids)
+    assert " Add resource" in ids["btn-resource-section-add"].children
 
 
 def test_type_and_status_colors_show_their_hex():

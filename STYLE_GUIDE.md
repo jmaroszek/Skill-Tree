@@ -362,6 +362,8 @@ A panel that loads on first view shows the shared loading cover: `dbc.Spinner(sp
 
 Analyze renders on its first visit, starting while its tab is still hidden when the pointer or focus reaches it. On every reveal, `assets/analyze_first_paint.js` hides only the `.dash-graph` drawings. It resizes their Plotly roots against the visible columns, then reveals them on the next frame. Keep Analyze graphs responsive, and give their wrappers an explicit figure height. That lets the sizing gate hold the finished page layout without exposing Plotly's hidden-tab fallback width. The Analyze subtabs follow the same rule: their panes carry the `analyze-subpane` class, and showing one runs the sizing gate again.
 
+An Analyze chart takes half the width (`dbc.Col(width=6)`) unless it has a real reason to be wider. Bars stretched across a full-width page are hard to compare. A chart alone in its row leaves the right half empty rather than stretching to fill it.
+
 Plotly hover boxes on Analyze use one style, set in the shared layout helper: the raised card background, the panel border and primary text. By default Plotly fills each box with its mark's colour, which made a Goal-yellow bar's tooltip a loud mustard block.
 
 ## Borders & Dividers
@@ -370,7 +372,7 @@ Plotly hover boxes on Analyze use one style, set in the shared layout helper: th
 - Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
 - Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars and modals
-- **Settings sections**: a tab whose sections are long (Appearance, Integrations) separates them with `html.Hr(className="my-3")`; a tab of short sections uses space alone, with the next `H5` taking `mt-4`
+- **Settings sections**: a tab whose sections are long (Appearance) separates them with `html.Hr(className="my-3")`; a tab of short sections uses space alone, with the next `H5` taking `mt-4`
 - **Standalone section dividers**: `html.Hr(className="my-3")` — more spacious, for filter panels and major sections
 - **Context menu dividers**: `_menu_divider()` in `layout.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
 - Never use bare `html.Hr()` — always specify a margin class
@@ -541,7 +543,7 @@ button-width short, which reads as a narrower field.
 
 ```python
 html.Div([
-    dbc.Input(id={"type": "obsidian-link", "index": i}, type="text"),  # no flex/border styles
+    dbc.Input(id={"type": "resource-link", "index": key}, type="text"),  # no flex/border styles
     dbc.Button(html.I(className="bi bi-folder2-open"),
                id=..., className="editor-icon-btn"),
     dbc.Button(html.I(className="bi bi-x-lg"),
@@ -631,15 +633,35 @@ The selected `value` list holds the chosen options directly, so selection
 state needs no extra callback. Compare these lists as sets in dirty-checks
 (`is_form_dirty_vs_snapshot`) since the order is not significant.
 
-Optional resource integrations live in Settings → Integrations. The node editor
-and Add Node modal keep their resource inputs mounted and hide their sections
-when disabled, so saving a node never clears links the user cannot see. Website
-stays visible. Google Drive inputs accept both URLs and local paths, with the
-mounted root path optional. Each integration section follows the settings
-rhythm: heading, one-line description, the enable switch, then its path field
-in a `dbc.Collapse` that opens only while the switch is on. One line at the top
-of the tab says what all integrations share (each adds a field to the node
-editor's Resources section), so the sections don't repeat it.
+Settings → Integrations owns up to five named Resource sections. Every section
+is ordinary: Obsidian, Google Drive and Website are just the three a new graph
+starts with, and any of them can be renamed or removed.
+
+- **One card each.** A section is an outlined `.resource-card`, the same
+  outline as the Contexts row editor, so each reads as a unit without rules
+  between them. The card opens with its name in an `.editor-field-group`
+  carrying a trailing remove `×` (`editor-icon-btn-danger`).
+- **Switches on one line.** `Root folder` and `Open in Obsidian` share
+  `.resource-card-switches`. Root folder starts on only when a root is set,
+  reveals the folder field, and saves no root when off. A folder field ends in
+  a folder-browse icon: the native folder dialog in the desktop window,
+  tkinter in a browser. There is no show/hide switch; a section you don't want
+  is removed.
+- **Removal is held.** Removing a saved section turns its card into a struck
+  `.resource-card-removed` on `--st-danger-wash`, naming how many links it
+  will delete, with an undo until Save. A section that was never saved simply
+  disappears.
+- **Adder.** `+ Add resource` is a full-width dashed `.resource-adder` below the
+  cards, so it reads as the next card to be. New sections are named
+  `New Resource`, then `New Resource 2`.
+  It stays enabled at the five-resource limit; a click then shows a
+  `text-warning` note below it, which clears once a removal makes room.
+- **Editor rows.** The node editor renders every section the same way, with
+  the `add_button` `+` beside its name and browse / open / remove icons in each
+  row. The node context menu has one slot per section and shows the first
+  saved link of each, under the section's current name. Its icon says where
+  that link opens: `globe` for a web page, `journal-text` for Obsidian, and
+  `box-arrow-up-right` for the default app.
 
 ### Row editor (Settings ▸ Contexts)
 

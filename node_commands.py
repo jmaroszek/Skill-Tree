@@ -3,10 +3,11 @@ import json
 import database
 from config import ConfigManager
 from models import STATUS_DONE, STATUS_OPEN
+from resource_links import save_node_links
 
 @database.atomic
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
-                status_done, context, subctx, obs_path, drive_path, website_path,
+                status_done, context, subctx, resource_links,
                 e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
                 time_mode='manual', value_mode='manual',
                 habit_duration=0.0, habit_duration_unit='weeks',
@@ -17,7 +18,9 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     Caller is responsible for converting habit-mode inputs to time_o/m/p
     before calling — this function just persists what it's given. The
     habit_* fields are stored alongside time_o/m/p so the editor can
-    repopulate the habit form on re-open.
+    repopulate the habit form on re-open. ``resource_links`` maps section id
+    to links; only the sections it names are rewritten, and None leaves every
+    link alone.
     """
     from models import Node
 
@@ -35,9 +38,6 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         value=val, time_o=time_o or 0, time_m=time_m or 0, time_p=time_p or 0,
         interest=interest, difficulty=diff,
         status=target_status, context=ctx, subcontext=sub,
-        obsidian_path=(obs_path or '').strip() or None,
-        google_drive_path=(drive_path or '').strip() or None,
-        website=(website_path or '').strip() or None,
         time_mode=time_mode,
         value_mode=value_mode,
         habit_duration=habit_duration or 0,
@@ -73,6 +73,8 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     else:
         manager.add_node(node)
         msg = f"Added node '{name}'"
+    if resource_links is not None:
+        save_node_links(name, resource_links)
     manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps)
     return msg
 

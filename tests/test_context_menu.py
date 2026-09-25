@@ -113,9 +113,11 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-add-to-event",
         "ctx-menu-toggle-done",
         "ctx-menu-links-divider",
-        "ctx-menu-website",
-        "ctx-menu-obsidian",
-        "ctx-menu-drive",
+        "ctx-menu-resource-0",
+        "ctx-menu-resource-1",
+        "ctx-menu-resource-2",
+        "ctx-menu-resource-3",
+        "ctx-menu-resource-4",
         "ctx-menu-delete",
     ]
     assert _labels(_find(menu, "ctx-menu-details")) == ["View Details"]
@@ -185,12 +187,9 @@ def test_event_cards_say_whether_they_can_still_trigger():
 
 def test_next_rows_carry_context_menu_state_and_all_link_types():
     manager = GraphManager()
-    suggestion = _node(
-        "Suggestion",
-        obsidian_path='["note.md"]',
-        google_drive_path='["https://drive.example/file"]',
-        website='["https://example.com"]',
-    )
+    links = {"obsidian": ["note.md"], "drive": ["https://drive.example/file"],
+             "website": ["https://example.com"]}
+    suggestion = _node("Suggestion", resource_links=links)
     manager.add_node(suggestion)
 
     suggestion_row = _find(
@@ -199,7 +198,7 @@ def test_next_rows_carry_context_menu_state_and_all_link_types():
     )
     assert getattr(suggestion_row, "data-node-menu") == "Suggestion"
     assert getattr(suggestion_row, "data-type") == "Learn"
-    assert getattr(suggestion_row, "data-website") == '["https://example.com"]'
+    assert json.loads(getattr(suggestion_row, "data-resource-links")) == links
     assert getattr(suggestion_row, "data-status") == "Open"
     assert getattr(suggestion_row, "data-now") == "0"
 
@@ -211,7 +210,7 @@ def test_next_rows_carry_context_menu_state_and_all_link_types():
         {"type": "now-row", "index": "Suggestion"},
     )
     assert getattr(now_row, "data-node-menu") == "Suggestion"
-    assert getattr(now_row, "data-website") == '["https://example.com"]'
+    assert json.loads(getattr(now_row, "data-resource-links")) == links
     assert getattr(now_row, "data-status") == "Open"
     assert getattr(now_row, "data-now") == "1"
 
@@ -236,7 +235,8 @@ def test_goal_cards_open_the_shared_node_menu():
     import sidebars_callbacks
 
     manager = GraphManager()
-    manager.add_node(_node("Fitness", type="Goal", website='["https://example.com"]'))
+    manager.add_node(_node("Fitness", type="Goal",
+                           resource_links={"website": ["https://example.com"]}))
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     sidebars_callbacks.register_sidebars_callbacks(app)
@@ -247,7 +247,8 @@ def test_goal_cards_open_the_shared_node_menu():
     card = _find(cards, {"type": "goal-card", "index": "Fitness"})
     assert getattr(card, "data-node-menu") == "Fitness"
     assert getattr(card, "data-type") == "Goal"
-    assert getattr(card, "data-website") == '["https://example.com"]'
+    assert json.loads(getattr(card, "data-resource-links")) == {
+        "website": ["https://example.com"]}
     assert getattr(card, "data-goal-name") == "Fitness"
 
 

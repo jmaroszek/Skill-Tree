@@ -37,9 +37,10 @@ manager reads one database per process, and the revision counters in
 
 | Module | Role |
 |---|---|
-| [app.py](../app.py) | Entry point. Sets `config.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Also defines the `/open-obsidian` Flask route. |
+| [app.py](../app.py) | Entry point. Sets `config.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Its Resource routes use the shared opener. |
 | [models.py](../models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
-| [database.py](../database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `config.ENVIRONMENT`, stored under `%LOCALAPPDATA%\Skill Tree\Data`; `init_db` on first connection. |
+| [database.py](../database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `config.ENVIRONMENT`, stored beneath the platform's per-user app-data directory; `init_db` on first connection. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
+| [resource_links.py](../resource_links.py) | Named Resource settings, per-node ordered links, relative-path storage, and the shared Windows/macOS/Linux file and URI opener. Web URLs use `webbrowser`. |
 | [config.py](../config.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
 | [graph_manager.py](../graph_manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
 | [app_services.py](../app_services.py) | Graph/event manager ownership for callback registration. |
@@ -51,6 +52,7 @@ manager reads one database per process, and the revision counters in
 | [simulation.py](../simulation.py) | Monte Carlo time simulation. Pure NumPy. |
 | [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, time calibration, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
 | [callback_helpers.py](../callback_helpers.py) | Shared component, filter, link, and form-state helpers, plus compatibility exports. |
+
 | [goal_ranking.py](../goal_ranking.py), [graph_analytics.py](../graph_analytics.py) | Shared goal ranking/explanations and analytics data preparation. |
 | [node_commands.py](../node_commands.py), [context_rules.py](../context_rules.py), [editor_values.py](../editor_values.py), [next_view.py](../next_view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
 | [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named 28-field response contract. |
@@ -60,6 +62,18 @@ manager reads one database per process, and the revision counters in
 | [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
 | [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. |
 | Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
+
+Resource links live only in `NodeResourceLinks`, keyed by node and section
+([resource_links.py](../resource_links.py)); `GraphRepository` attaches them to
+each `Node` as `resource_links`. Every section is ordinary: its `kind` says how
+links open (`obsidian` or the OS default), and its optional root makes paths
+relative. The editor renders every section with one set of pattern-matched
+callbacks (`resource-link`, index `"<section>:<row>"`) and saves them through
+`handle_save` in the node transaction. Settings removes a section with its
+links only on Save. Electron uses a context-isolated preload/IPC bridge for its
+native file and folder dialogs; the standalone-browser mode retains a tkinter
+subprocess picker. Context-menu opens resolve a saved node/section link on the
+Python server rather than accepting an arbitrary path from the page.
 
 ## State flow: stores are the wiring
 

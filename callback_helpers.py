@@ -28,7 +28,8 @@ from config import (
 )
 import style_tokens as tokens
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from ui_kit import restore_button
+from ui_kit import add_button, restore_button
+from resource_links import get_sections
 
 
 # Re-exported so existing importers keep working; the definition lives in
@@ -217,71 +218,6 @@ def normalize_name_for_comparison(name):
     return " ".join(w for w in words if w not in stop_words)
 
 
-# --- Google Drive Path Helpers ---
-
-def _gdrive_prefix():
-    """Return the configured Google Drive root path, normalized with a trailing separator."""
-    import os
-    prefix = (ConfigManager.get_gdrive_path() or '').strip()
-    if prefix and not prefix.endswith(os.sep) and not prefix.endswith('/'):
-        prefix += os.sep
-    return prefix
-
-
-def strip_gdrive_prefix(links):
-    """Strip the configured GDrive root prefix from each path in a list."""
-    prefix = _gdrive_prefix()
-    if not prefix:
-        return links
-    result = []
-    for p in (links or []):
-        if p and p.startswith(prefix):
-            result.append(p[len(prefix):])
-        else:
-            result.append(p)
-    return result
-
-
-def expand_gdrive_prefix(path):
-    """Prepend the configured GDrive root prefix to a relative path if it lacks one."""
-    import os
-    if not path or not path.strip():
-        return path
-    path = path.strip()
-    prefix = _gdrive_prefix()
-    if not prefix:
-        return path
-    # Already absolute — don't double-prefix
-    if os.path.isabs(path) or path.startswith('http://') or path.startswith('https://'):
-        return path
-    return prefix + path
-
-
-# --- Serialization Helpers ---
-
-def parse_links(db_value):
-    """Parse a DB field that may contain a JSON array or a plain string into a list."""
-    if not db_value:
-        return ['']
-    try:
-        parsed = json.loads(db_value)
-        if isinstance(parsed, list):
-            return parsed if parsed else ['']
-    except (ValueError, TypeError):
-        pass
-    return [db_value]
-
-
-def serialize_links(values_list):
-    """Serialize a list of link input values into a JSON string for DB storage."""
-    if not values_list:
-        return None
-    links = [v.strip() for v in values_list if v and v.strip()]
-    if not links:
-        return None
-    return json.dumps(links)
-
-
 # --- Callback Utilities ---
 
 def get_trigger_id():
@@ -401,7 +337,7 @@ def node_fill_color(node, colors):
 #   - The hover tooltip (callbacks.display_hover_data): type, context,
 #     subcontext, value, interest, difficulty, time, time_mode, value_mode.
 #   - The node context menu (assets/context_menu.js): type, status, now,
-#     dormant, website, obsidian_path, google_drive_path.
+#     dormant, resource_links.
 #   - Tap handlers read only the id; the editor re-reads the node itself.
 # The stylesheet reads id, label, color, shape and now_color, which are set
 # below. Add a field here when something new reads it from element data.
@@ -409,8 +345,7 @@ CANVAS_NODE_FIELDS = (
     'type', 'status', 'context', 'subcontext',
     'value', 'interest', 'difficulty',
     'time', 'time_mode', 'value_mode',
-    'now', 'dormant',
-    'website', 'obsidian_path', 'google_drive_path',
+    'now', 'dormant', 'resource_links',
 )
 
 
@@ -471,9 +406,7 @@ def node_menu_attributes(node):
         "data-type": node.type,
         "data-status": node.status,
         "data-now": str(int(bool(node.now))),
-        "data-website": node.website or "",
-        "data-obsidian-path": node.obsidian_path or "",
-        "data-google-drive-path": node.google_drive_path or "",
+        "data-resource-links": json.dumps(node.resource_links),
     }
 
 
@@ -1004,7 +937,7 @@ NEW_NODE_SNAPSHOT = {
     'time_o': 2, 'time_m': 4, 'time_p': 6, 'time_unit': 'weeks',
     'e_needs_h': [], 'e_needs_s': [],
     'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
-    'obs_links': [''], 'drive_links': [''], 'website_links': [''],
+    'resource_links': {},
     'time_mode': [],
     'time_habit_mode': [],
     'habit_duration': 0,
@@ -1024,9 +957,9 @@ def build_editor_snapshot(manager, node_name):
     """Build a snapshot of the editor form state for an existing node.
 
     The snapshot dict mirrors exactly what populate_editor writes into the form
-    fields, *including* any post-display transformations (e.g. Drive paths after
-    strip_gdrive_prefix). The dirty check compares form State against this
-    snapshot so display transformations don't produce false-positives.
+    fields, *including* any post-display transformations. The dirty check
+    compares form State against this snapshot so display transformations don't
+    produce false-positives.
 
     Returns None if the node doesn't exist.
     """
@@ -1084,12 +1017,7 @@ def build_editor_snapshot(manager, node_name):
         'e_supp_h': supp_h,
         'e_supp_s': supp_s,
         'e_helps': helps,
-        # Drive paths are stripped of the configured GDrive root prefix in
-        # render_drive_links before display, so the form's State value is the
-        # stripped form. Snapshot must match.
-        'obs_links': parse_links(node.obsidian_path),
-        'drive_links': strip_gdrive_prefix(parse_links(node.google_drive_path)),
-        'website_links': parse_links(node.website),
+        'resource_links': node.resource_links,
         'time_mode': ['inherited'] if node.time_mode == 'inherited' else [],
         'time_habit_mode': ['habit'] if node.time_mode == 'habit' else [],
         'habit_duration': node.habit_duration or 0,
@@ -1139,9 +1067,7 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'e_supp_h': form_values.get('e_supp_h') or [],
         'e_supp_s': form_values.get('e_supp_s') or [],
         'e_helps': form_values.get('e_helps') or [],
-        'obs_links': form_values.get('obs_links') or [''],
-        'drive_links': form_values.get('drive_links') or [''],
-        'website_links': form_values.get('website_links') or [''],
+        'resource_links': form_values.get('resource_links') or {},
         'time_mode': form_values.get('time_mode') or [],
         'time_habit_mode': form_values.get('time_habit_mode') or [],
         'habit_duration': form_values.get('habit_duration') or 0,
@@ -1166,7 +1092,7 @@ def editor_form_values(
     val, interest, diff,
     time_o, time_m, time_p, time_unit,
     e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-    obs_links, drive_links, website_links,
+    resource_links,
     time_mode, value_mode, priority_rank, aliases,
     dormancy,
     time_habit_mode=None,
@@ -1199,8 +1125,7 @@ def editor_form_values(
         'time_unit': time_unit,
         'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
         'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
-        'obs_links': obs_links, 'drive_links': drive_links,
-        'website_links': website_links,
+        'resource_links': resource_links or {},
         'time_mode': time_mode,
         'time_habit_mode': time_habit_mode,
         'habit_duration': habit_duration,
@@ -1268,8 +1193,13 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
 
     # Multi-value list fields — drop empties, sort, compare.
     for k in ('e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps',
-              'obs_links', 'drive_links', 'website_links', 'aliases'):
+              'aliases'):
         if _norm_list(form_values.get(k)) != _norm_list(snapshot.get(k)):
+            return True
+    left = form_values.get('resource_links') or {}
+    right = snapshot.get('resource_links') or {}
+    for section_id in set(left) | set(right):
+        if _norm_list(left.get(section_id)) != _norm_list(right.get(section_id)):
             return True
 
     if _norm_dormancy(form_values.get('dormancy')) != _norm_dormancy(snapshot.get('dormancy')):
@@ -1392,6 +1322,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
     rows = []
     rank = 0
+    resource_sections = get_sections()
     for s in suggs:
         is_selected = (s.name == selected_node_id)
         step_target = pinned_steps.get(s.name)
@@ -1518,13 +1449,9 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         })
 
         dots = html.Span([
-            html.Span(_suggestion_dot(bool(getattr(s, 'obsidian_path', None)),
-                                      "Obsidian", tokens.TEXT_PRIMARY),
-                      className="resource-dot-obsidian"),
-            html.Span(_suggestion_dot(bool(getattr(s, 'google_drive_path', None)),
-                                      "Drive", tokens.TEXT_PRIMARY),
-                      className="resource-dot-drive"),
-            _suggestion_dot(bool(getattr(s, 'website', None)), "Website", tokens.TEXT_PRIMARY),
+            _suggestion_dot(bool(s.resource_links.get(section['id'])),
+                            section['name'], tokens.TEXT_PRIMARY)
+            for section in resource_sections
         ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
@@ -1738,43 +1665,53 @@ def format_traversal_ui(tapped_node, active_node_id, manager):
 
 # --- Link Row UI Helper ---
 
-def render_link_rows(links, link_type, has_browse=False, has_open=True):
-    """Build a list of input rows for a resource type.
+def resource_link_values(values, ids):
+    """The editor's mounted resource inputs as {section_id: [links]}."""
+    mounted = {}
+    for value, component_id in zip(values or [], ids or []):
+        section_id, _, index = component_id['index'].rpartition(':')
+        mounted.setdefault(section_id, {})[int(index)] = value or ''
+    return {section_id: [by_index.get(i, '') for i in range(max(by_index) + 1)]
+            for section_id, by_index in mounted.items()}
 
-    link_type: e.g. 'obsidian-link', 'drive-link', 'goal-add-obsidian-link'
-    The browse/open/remove button IDs are derived from link_type automatically.
+
+def render_resource_sections(links):
+    """The node editor's Resources: one labeled block of link rows per section.
+
+    Each row is an input plus trailing browse / open / remove icons in one
+    .editor-field-group. A section always shows at least one (empty) row. The
+    row index rides in the id ("<section>:<i>") so one set of pattern-matched
+    callbacks serves every section.
     """
-    link_list = links or ['']
-    prefix = link_type.replace('-link', '')  # e.g. 'obsidian', 'goal-add-obsidian'
-    rows = []
-    for i, path in enumerate(link_list):
-        # The input and its trailing icon button(s) share one bordered shell
-        # (.editor-field-group) so the row spans full width and lines up with
-        # the other editor fields. Buttons are flat ghost icons (.editor-icon-btn).
-        children = [dbc.Input(
-            id={"type": link_type, "index": i}, type="text",
-            value=path or '', placeholder="Enter path or URL...",
-        )]
-        if has_browse:
-            children.append(dbc.Button(
-                html.I(className="bi bi-folder2-open"),
-                id={"type": f"btn-{prefix}-browse", "index": i},
-                title="Browse", className="editor-icon-btn",
-            ))
-        if has_open:
-            children.append(dbc.Button(
-                html.I(className="bi bi-box-arrow-up-right"),
-                id={"type": f"btn-{prefix}-open", "index": i},
-                title="Open", className="editor-icon-btn",
-            ))
-        if len(link_list) > 1:
-            children.append(dbc.Button(
-                html.I(className="bi bi-x-lg"),
-                id={"type": f"btn-{link_type}-remove", "index": i},
-                title="Remove", className="editor-icon-btn editor-icon-btn-danger",
-            ))
-        rows.append(html.Div(children, className="d-flex editor-field-group mb-1"))
-    return rows
+    blocks = []
+    for section in get_sections():
+        section_id = section['id']
+        values = (links or {}).get(section_id) or ['']
+        rows = []
+        for index, value in enumerate(values):
+            key = f"{section_id}:{index}"
+            children = [dbc.Input(id={'type': 'resource-link', 'index': key},
+                                  value=value, type='text', placeholder='Enter path or URL...'),
+                        dbc.Button(html.I(className='bi bi-folder2-open'),
+                                   id={'type': 'resource-browse', 'index': key},
+                                   title='Browse', className='editor-icon-btn'),
+                        dbc.Button(html.I(className='bi bi-box-arrow-up-right'),
+                                   id={'type': 'resource-open', 'index': key},
+                                   title='Open', className='editor-icon-btn')]
+            if len(values) > 1:
+                children.append(dbc.Button(html.I(className='bi bi-x-lg'),
+                           id={'type': 'resource-remove', 'index': key},
+                           title='Remove', className='editor-icon-btn editor-icon-btn-danger'))
+            rows.append(html.Div(children, className='d-flex editor-field-group mb-1'))
+        blocks.append(html.Div([
+            html.Div([dbc.Label(section['name'], className='mb-0'),
+                      add_button({'type': 'resource-add', 'index': section_id}, "Add link")],
+                     className='d-flex align-items-center mt-2 mb-1'),
+            html.Div(rows),
+        ], **{'data-resource-root': section['root_path'],
+              'data-resource-id': section_id,
+              'data-resource-kind': section['kind']}))
+    return blocks
 
 
 def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-remove"):
@@ -1782,7 +1719,7 @@ def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-
 
     Shared by the main node editor and the add-node modals (dormant / subtask);
     callers pass the prefixed pattern-matching id types so each surface keeps
-    its own component namespace. Mirrors render_link_rows' visual style.
+    its own component namespace. Mirrors render_resource_sections' visual style.
     """
     alias_list = aliases or ['']
     rows = []
@@ -1829,45 +1766,55 @@ def update_alias_rows(trigger, current_values, stored_values, aliases_open,
     return aliases, collapse_update
 
 
-def spawn_local_file_picker(initial_dir, title, filetypes_list):
-    """Launch a blocking Windows file-picker dialog in a subprocess. Returns the selected path or ''."""
+def spawn_local_file_picker(initial_dir, title, filetypes_list, directory=False):
+    """Standalone-browser fallback picker. Electron uses its native dialog.
+
+    ``directory`` picks a folder instead of a file; ``filetypes_list`` is then
+    ignored.
+    """
     import logging
-    import tempfile
     import sys
     import subprocess
-    import os
 
     _logger = logging.getLogger(__name__)
-    filetypes_str = str(filetypes_list)
-    script = f'''import os
+    script = '''import json
+import os
+import sys
 import tkinter as tk
 from tkinter import filedialog
-import ctypes
 
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
-    pass
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
 
 root = tk.Tk()
 root.withdraw()
 root.attributes('-topmost', True)
-
-abs_path = filedialog.askopenfilename(
-    initialdir=r"{initial_dir}",
-    title="{title}",
-    filetypes={filetypes_str}
-)
-
-if abs_path:
-    print(os.path.normpath(abs_path), end="")
+try:
+    if sys.argv[4] == "1":
+        abs_path = filedialog.askdirectory(initialdir=sys.argv[1], title=sys.argv[2])
+    else:
+        abs_path = filedialog.askopenfilename(
+            initialdir=sys.argv[1], title=sys.argv[2],
+            filetypes=json.loads(sys.argv[3]))
+    if abs_path:
+        print(os.path.normpath(abs_path), end="")
+finally:
+    root.destroy()
 '''
     try:
-        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-            f.write(script)
-            tmp_path = f.name
-        result = subprocess.run([sys.executable, tmp_path], capture_output=True, text=True)
-        os.remove(tmp_path)
+        result = subprocess.run(
+            [sys.executable, "-c", script, initial_dir or "", title,
+             json.dumps(filetypes_list or []), "1" if directory else "0"],
+            capture_output=True, text=True,
+            check=False,
+        )
+        if result.returncode:
+            _logger.error("File picker failed: %s", result.stderr.strip())
+            return ""
         return result.stdout.strip()
     except Exception as e:
         _logger.error(f"Error launching file picker: {e}")

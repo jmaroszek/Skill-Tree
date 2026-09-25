@@ -120,9 +120,6 @@ class Node:
     status: str             # [Open, Blocked, Done]
     context: Optional[str] = None
     subcontext: Optional[str] = None
-    obsidian_path: Optional[str] = None
-    google_drive_path: Optional[str] = None
-    website: Optional[str] = None
     dormant: int = 0
     time_mode: str = 'manual'  # 'manual', 'inherited', or 'habit'
     value_mode: str = 'manual'  # 'manual' or 'inherited'
@@ -166,6 +163,10 @@ class Node:
     reflect_interest: Optional[int] = None
     reflect_difficulty: Optional[int] = None
     priority_score: Optional[float] = None
+    # Resource links by section id, in order: {"drive": ["Notes/a.gdoc"]}.
+    # They live in NodeResourceLinks, not the Nodes row; GraphRepository
+    # attaches them on read and writes them when a node is added.
+    resource_links: dict = field(default_factory=dict, compare=False, repr=False)
 
     def __post_init__(self):
         self.value = int(self.value) if self.value is not None else 5
@@ -292,13 +293,16 @@ class Node:
 
     def to_dict(self):
         # Shallow-copy the field values rather than dataclasses.asdict(),
-        # which recursively deep-copies every field. All Node fields are
-        # immutable primitives (str/int/float/None) and __post_init__ adds no
-        # non-field attributes, so __dict__ holds exactly the fields and a
-        # shallow copy is observationally identical to asdict — but ~7x faster.
+        # which recursively deep-copies every field. Every Node field but
+        # resource_links is an immutable primitive (str/int/float/None), and
+        # __post_init__ adds no non-field attributes, so __dict__ holds exactly
+        # the fields. Only resource_links needs its own copy; the rest match
+        # asdict — but ~7x faster.
         # to_dict runs once per node on every canvas render (generate_elements),
         # so this is a hot path.
         d = dict(self.__dict__)
+        d['resource_links'] = {key: list(values)
+                               for key, values in self.resource_links.items()}
         d['time'] = self.time  # include the derived blended PERT estimate
         return d
 

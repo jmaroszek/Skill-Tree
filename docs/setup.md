@@ -44,7 +44,7 @@ pip install -r requirements.txt
 
 ## 3. Run the app
 
-Launch in **sandbox mode** first — it uses a separate database (`%LOCALAPPDATA%\Skill Tree\Data\sandbox_skilltree.db`) so you can experiment without touching real data.
+Launch in **sandbox mode** first — it uses a separate database (`%LOCALAPPDATA%\Skill Tree\Data\sandbox_skilltree.db` on Windows) so you can experiment without touching real data.
 
 ```bash
 python app.py --sandbox --port 8051
@@ -70,6 +70,6 @@ Tests run against a temporary per-test database and never touch your sandbox or 
 
 ## Notes
 
-- **Database files** live in `%LOCALAPPDATA%\Skill Tree\Data\` and are created on demand: `skilltree.db` (production) and `sandbox_skilltree.db` (sandbox). A fresh Windows account starts with an empty graph.
-- **Logs** are written to `%LOCALAPPDATA%\Skill Tree\Logs\app.log` (production) and `sandbox_app.log` (sandbox), rotating at 5 MB. Backup and optional scoring-performance logs live in the same `Logs` folder.
-- The "Open in Obsidian" feature shells out to an `obsidian://` URI and is optional — the app runs fine without Obsidian installed.
+- **Database files** live in `%LOCALAPPDATA%\Skill Tree\Data\` on Windows, `~/Library/Application Support/Skill Tree/Data/` on macOS, and `$XDG_DATA_HOME/Skill Tree/Data/` (or `~/.local/share/Skill Tree/Data/`) on Linux. They are created on demand: `skilltree.db` (production) and `sandbox_skilltree.db` (sandbox).
+- **Logs** use the matching platform app-data `Logs` folder: `app.log` (production) and `sandbox_app.log` (sandbox), rotating at 5 MB. Backup and optional scoring-performance logs live there too.
+- Settings → Integrations has up to five named Resource sections. Each opens URLs and any local file type; an optional root folder makes files beneath it portable as relative paths. A section with Open in Obsidian sends its notes to Obsidian through an `obsidian://` URI instead of the default app.
