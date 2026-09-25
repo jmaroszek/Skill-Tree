@@ -1170,7 +1170,8 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
                "reflected on finished work. Red bars mean you overrated the "
                "work going in; blue bars mean you underrated it.",
                className="text-muted small"),
-        _render_reflection_drift_chart(drift_rows),
+        dbc.Row(dbc.Col(_render_reflection_drift_chart(drift_rows), width=6),
+                className="g-3"),
     ]
 
     gran = al.get('throughput_granularity', 'quarter')
@@ -1188,7 +1189,9 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
                if wider else "Narrow the dates to see earlier ones."))
     throughput_content = [
         html.P(throughput_note, className="text-muted small"),
-        _render_throughput_chart(throughput_rows, granularity=gran),
+        dbc.Row(dbc.Col(_render_throughput_chart(throughput_rows,
+                                                 granularity=gran), width=6),
+                className="g-3"),
     ]
 
     # Bottleneck and Hub share the gear's "nodes shown" limit and render
