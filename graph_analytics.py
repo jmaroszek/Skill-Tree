@@ -97,7 +97,7 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
             'count': len(work),
         })
     results.sort(key=lambda r: (-r['hours'], -r['count'], r['names'][0].casefold()))
-    return results[:limits.get('bottlenecks', 10)]
+    return results[:limits.get('bottlenecks', 15)]
 
 
 def _compute_hub_score(nodes, edges, limits):
@@ -155,7 +155,7 @@ def _compute_hub_score(nodes, edges, limits):
         })
 
     results.sort(key=lambda r: (-r['score'], r['name'].casefold()))
-    return results[:limits.get('bottlenecks', 10)]
+    return results[:limits.get('bottlenecks', 15)]
 
 
 def _compute_estimation_accuracy(nodes):
@@ -357,7 +357,7 @@ def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
 
     # Rank and cap
     ranked = _rank_goals(all_goals, nodes, edges, priority_goals, hp)
-    goals = ranked[:limits.get('goals', 75)]
+    goals = ranked[:limits.get('goals', 20)]
     total_goal_count = len(all_goals)
 
     def _walk_back(goal_name, adjacency):
