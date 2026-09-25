@@ -547,7 +547,8 @@ def build_details_tab_content():
         html.Div([
             html.Div([
                 html.H5("Subtasks", className="mb-0"),
-                add_button("btn-details-add-node", "Add subtask node"),
+                add_button("btn-details-add-node", None,
+                           **{"aria-label": "Add subtask node"}),
             ], className="d-flex align-items-center"),
             html.Div(_build_toggles(), id="details-subtask-toggles-bottom"),
         ], className="d-flex align-items-center justify-content-between",

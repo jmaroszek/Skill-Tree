@@ -124,6 +124,8 @@ def add_button(button_id, tooltip, placement="right", large=False, **kwargs):
         className=f"adder-btn {size_class}".strip(),
         **kwargs,
     )
+    if tooltip is None:
+        return button
     return html.Span(
         [button, Tooltip(tooltip, target=button_id, placement=placement)],
         className="ui-affordance",
