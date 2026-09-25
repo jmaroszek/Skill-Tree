@@ -370,7 +370,7 @@ Plotly hover boxes on Analyze use one style, set in the shared layout helper: th
 - Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
 - Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars and modals
-- **Settings sections have no dividers**: separate them with space alone — the next `H5` takes `mt-4`
+- **Settings sections**: a tab whose sections are long (Appearance, Integrations) separates them with `html.Hr(className="my-3")`; a tab of short sections uses space alone, with the next `H5` taking `mt-4`
 - **Standalone section dividers**: `html.Hr(className="my-3")` — more spacious, for filter panels and major sections
 - **Context menu dividers**: `_menu_divider()` in `layout.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
 - Never use bare `html.Hr()` — always specify a margin class
