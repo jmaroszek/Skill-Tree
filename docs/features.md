@@ -810,7 +810,7 @@ Below the strip, the charts are split across three subtabs:
 | Subtab | What it shows |
 |---|---|
 | **Plan** | Your unfinished work: Goal progress, shared prerequisites, and hours by context. It is complete from your first day. |
-| **History** | Your finished work: estimate accuracy, rating accuracy, throughput, and plan vs. actual. It fills in as you complete and reflect on nodes. |
+| **History** | Your finished work: estimate accuracy, rating accuracy, and throughput. It fills in as you complete and reflect on nodes. |
 | **Structure** | The shape of your graph: bottlenecks and hubs. |
 
 The app remembers the last subtab you opened.
@@ -842,7 +842,7 @@ This section lives on the Plan subtab.
 
 ## Time Estimation Accuracy
 
-This section and the three after it live on the History subtab.
+This section and the two after it live on the History subtab.
 
 When you mark a node Done and complete a [reflection](#reflection), the actual time gets captured alongside your original estimate. These two charts compare them.
 
@@ -858,12 +858,14 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 
 ## Rating Accuracy
 
-**Reflection Drift by Context** does for your ratings what the charts above do for time. When you reflect on a finished node, you can re-rate its Value, Interest, and Effort. Each cell shows the average change between your original rating and your reflection. Red cells mean you overrated the work going in. Blue cells mean you underrated it. A context needs at least two reflected nodes to get a row.
+**Rating Drift by Context** does for your ratings what the charts above do for time. When you reflect on a finished node, you can re-rate its Value, Interest, and Effort. The chart has one panel for each of the three. Each bar shows the average change between your original rating and your reflection. A red bar left of zero means you overrated the work going in. A blue bar right of zero means you underrated it. All three panels share one scale, so bar lengths compare directly.
+
+A context needs at least four reflected nodes to get a row. Averages over fewer nodes are mostly noise. The number beside each context is how many reflected nodes it has.
 
 <p align="center">
   <img src="../images/analyze-reflection-drift.png" width=600>
   <br>
-  <em> Reflection Drift by Context </em>
+  <em> Rating Drift by Context </em>
 </p>
 
 ## Throughput
@@ -884,15 +886,9 @@ The gear icon by the title opens three controls: **Granularity** (months, quarte
 <em> Throughput Visualization Filters </em>
 </p>
 
-Where Hours-by-Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding. The next chart shows those mismatches directly.
+The chart shows at most 24 bars. If your range holds more, it keeps the latest 24 and says so. Switch to a coarser granularity or narrow the dates to see earlier ones.
 
-## Plan vs. Actual
-
-Hours by Context shows where you *plan* to spend your time. Throughput shows where you *actually* spent it. This chart puts the two side by side.
-
-Each context gets one row with two dots. The hollow dot is that context's share of your open work. The filled dot is its share of the hours you finished in the last 365 days. The number beside each row is the gap, in percentage points. A filled dot to the right of the hollow one means the context is getting more of your time than the plan gives it. A filled dot to the left means it is getting less.
-
-Finished hours use the actual time you recorded when you reflected, and fall back to the estimate otherwise. The chart needs completed nodes to say anything, so it fills in over time, like the rest of the History subtab.
+Where Hours by Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
 
 ## Graph Structure
 
@@ -900,7 +896,7 @@ The Structure subtab answers two questions about the shape of your network. A ge
 
 **Bottlenecks** ranks open nodes by the hours of unfinished work they gate through hard edges. Goals and Milestones are not work, so they don't count toward the total. Blocked nodes are left out. The work a blocked node gates is already inside the bar of an open node upstream. When several open nodes gate exactly the same work, they share one bar. A large bottleneck may not be the highest-ROI item by itself. But clearing it changes the frontier: whole new chains become eligible, and the Home Tab has more candidates to choose from.
 
-**Hubs** ranks concepts by how connected they are. A hub has prerequisites feeding in *and* dependents flowing out. Only Learn and Action prerequisites count as inputs. A Resource linked to a topic is reading material, not a concept feeding into it. Goals are left out, because the edges into a Goal are its members. The score is the geometric mean of a node's inputs and outputs, plus half a point for each synergy partner. A node with no inputs or no outputs gets no credit from the first part. So the chart surfaces the connective concepts that tie your graph together.
+**Hubs** ranks the nodes with the most flow passing through them. A hub has many prerequisites feeding in *and* many dependents flowing out. Only Learn and Action prerequisites count as inputs. A Resource linked to a topic is reading material, not a concept feeding into it. Goals are left out, because the edges into a Goal are its members. The score is the geometric mean of a node's inputs and outputs, plus half a point for each synergy partner. A node with no inputs or no outputs gets no credit from the first part. So the chart surfaces the connective concepts that tie your graph together.
 
 <p align="center">
   <img src="../images/analyze-graph-structure.png">

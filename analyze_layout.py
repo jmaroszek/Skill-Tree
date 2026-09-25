@@ -155,10 +155,6 @@ def _history_sections(al):
             popover_style={'maxWidth': '200px', 'minWidth': '180px'},
         ),
         html.Div(id="analyze-throughput-content"),
-        html.Hr(className="my-3"),
-
-        _plain_header("Plan vs. Actual"),
-        html.Div(id="analyze-plan-actual-content"),
     ]
 
 

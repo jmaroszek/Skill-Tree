@@ -16,7 +16,6 @@ from analyze_callbacks import (
     _compute_hub_score, _compute_goal_comparison, _compute_context_coverage,
     _compute_throughput, _compute_reflection_drift,
 )
-from graph_analytics import _compute_plan_vs_actual
 
 
 def _throughput_node_names(rows):
@@ -760,33 +759,31 @@ class TestThroughputStatusGate:
 
 
 class TestReflectionDriftStatusGate:
-    """reflect_* columns persist across un-Done, so the drift heatmap must
+    """reflect_* columns persist across un-Done, so the drift chart must
     only count currently-Done reflected nodes."""
 
     def test_undone_reflected_node_not_counted(self):
         nodes = [
-            _make_node("A", status="Done", context="Mind", value=5, reflect_value=8),
-            _make_node("B", status="Done", context="Mind", value=5, reflect_value=7),
+            _make_node(n, status="Done", context="Mind", value=5, reflect_value=v)
+            for n, v in (("A", 8), ("B", 7), ("C", 6), ("D", 7))
+        ] + [
             # Reverted to Open but still carrying a reflection — must be ignored.
-            _make_node("C", status="Open", context="Mind", value=5, reflect_value=2),
+            _make_node("E", status="Open", context="Mind", value=5, reflect_value=2),
         ]
         rows = _compute_reflection_drift(nodes)
         mind = next(r for r in rows if r["context"] == "Mind")
-        assert mind["count"] == 2                      # C excluded from the total
-        assert mind["d_value"] == 2.5                  # mean over A,B only ((3+2)/2)
+        assert mind["count"] == 4                      # E excluded from the total
+        assert mind["d_value"] == 2.0                  # mean over A-D ((3+2+1+2)/4)
 
     def test_context_drops_below_min_after_revert(self):
-        # Two Done reflected nodes => context qualifies (MIN_N == 2).
-        done = [
-            _make_node("A", status="Done", context="Body", value=5, reflect_value=6),
-            _make_node("B", status="Done", context="Body", value=5, reflect_value=6),
-        ]
+        names = ("A", "B", "C", "D")
+        # Four Done reflected nodes => context qualifies (MIN_N == 4).
+        done = [_make_node(n, status="Done", context="Body", value=5,
+                           reflect_value=6) for n in names]
         assert any(r["context"] == "Body" for r in _compute_reflection_drift(done))
-        # Revert one: only one reflected Done node remains => context drops out.
-        reverted = [
-            _make_node("A", status="Done", context="Body", value=5, reflect_value=6),
-            _make_node("B", status="Open", context="Body", value=5, reflect_value=6),
-        ]
+        # Revert one: only three reflected Done nodes remain => context drops out.
+        reverted = done[:3] + [_make_node("D", status="Open", context="Body",
+                                          value=5, reflect_value=6)]
         assert all(r["context"] != "Body" for r in _compute_reflection_drift(reverted))
 
 
@@ -828,7 +825,7 @@ class TestAnalyzeRefreshGate:
         from dash import no_update
         GraphManager().add_node(_make_node("A"))
         for store in ('analyze-active-store', 'analyze-prewarm-store'):
-            assert refresh(store, 'tab-next', None, value=None) == (no_update,) * 11
+            assert refresh(store, 'tab-next', None, value=None) == (no_update,) * 10
 
     def test_click_after_hover_reuses_the_prewarm_render(self, refresh, monkeypatch):
         import analyze_callbacks
@@ -847,7 +844,7 @@ class TestAnalyzeRefreshGate:
         """A reflection edit changes the charts without moving the signature."""
         import analyze_callbacks
         GraphManager().add_node(_make_node("A"))
-        signature = refresh('analyze-prewarm-store', 'tab-next', None)[10]
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[-1]
         calls = []
         real = analyze_callbacks._render_analyze_sections
         monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections',
@@ -858,28 +855,28 @@ class TestAnalyzeRefreshGate:
     def test_prewarm_renders_while_hidden_and_uncovers(self, refresh):
         GraphManager().add_node(_make_node("A"))
         out = refresh('analyze-prewarm-store', 'tab-next', None)
-        assert out[8:10] == (False, True)
-        assert out[10]
+        assert out[-3:-1] == (False, True)
+        assert out[-1]
 
     def test_arrival_skips_a_current_render(self, refresh):
         from dash import no_update
         GraphManager().add_node(_make_node("A"))
-        signature = refresh('analyze-prewarm-store', 'tab-next', None)[10]
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[-1]
         assert refresh('analyze-active-store', 'tab-analyze',
-                       signature) == (no_update,) * 11
+                       signature) == (no_update,) * 10
 
     def test_arrival_rerenders_after_a_graph_change(self, refresh):
         from dash import no_update
         GraphManager().add_node(_make_node("A"))
-        signature = refresh('analyze-prewarm-store', 'tab-next', None)[10]
+        signature = refresh('analyze-prewarm-store', 'tab-next', None)[-1]
         GraphManager().add_node(_make_node("B"))
         out = refresh('analyze-active-store', 'tab-analyze', signature)
         assert out[0] is not no_update
-        assert out[10] != signature
+        assert out[-1] != signature
 
     def test_settings_changes_off_tab_do_nothing(self, refresh):
         from dash import no_update
-        assert refresh('save-output', 'tab-next', None) == (no_update,) * 11
+        assert refresh('save-output', 'tab-next', None) == (no_update,) * 10
 
     def test_failed_render_uncovers_and_retries(self, refresh, monkeypatch):
         import analyze_callbacks
@@ -887,8 +884,8 @@ class TestAnalyzeRefreshGate:
             raise RuntimeError("boom")
         monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections', boom)
         out = refresh('analyze-active-store', 'tab-analyze', None)
-        assert out[8:10] == (False, True)
-        assert out[10] is None
+        assert out[-3:-1] == (False, True)
+        assert out[-1] is None
 
 
 class TestHoursByContextColors:
@@ -944,34 +941,3 @@ class TestHoursByContextColors:
                 assert not (a == _SLATE and b == _NO_SUBCONTEXT_COLOR), ctx
 
 
-class TestComputePlanVsActual:
-    TODAY = date(2026, 9, 24)
-
-    def test_shares_of_open_and_recently_finished_work(self):
-        nodes = [
-            _make_node("OpenA", context="A", time_o=10, time_m=10, time_p=10),
-            _make_node("OpenB", context="B", time_o=30, time_m=30, time_p=30),
-            _make_node("DoneA", context="A", status="Done", done_date="2026-08-01",
-                       time_o=5, time_m=5, time_p=5),
-        ]
-        rows, total = _compute_plan_vs_actual(nodes, self.TODAY)
-        by = {r['context']: r for r in rows}
-        assert [r['context'] for r in rows] == ['B', 'A']
-        assert by['A']['planned_pct'] == pytest.approx(25)
-        assert by['A']['completed_pct'] == pytest.approx(100)
-        assert by['B']['completed_pct'] == 0
-        assert total == pytest.approx(5)
-
-    def test_completions_outside_the_window_are_ignored(self):
-        nodes = [_make_node("Open", context="A"),
-                 _make_node("Old", context="A", status="Done", done_date="2024-01-01")]
-        _, total = _compute_plan_vs_actual(nodes, self.TODAY)
-        assert total == 0
-
-    def test_captured_actual_time_wins_over_the_estimate(self):
-        nodes = [_make_node("Open", context="A"),
-                 _make_node("Done", context="B", status="Done", done_date="2026-09-01",
-                            actual_time_lower=40, actual_time_point=40,
-                            actual_time_upper=40)]
-        _, total = _compute_plan_vs_actual(nodes, self.TODAY)
-        assert total == pytest.approx(40)
