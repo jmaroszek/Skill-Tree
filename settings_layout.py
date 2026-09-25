@@ -162,7 +162,7 @@ def _build_scoring_tab():
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        html.H5("Scoring Profile", className="mt-2 mb-1"),
+                        html.H5("Scoring Profile", className="mb-0"),
                         info_button("btn-hp-profile-info"),
                         dbc.Popover(
                             [
@@ -243,7 +243,7 @@ def _build_scoring_tab():
                             placement="bottom",
                             style={"maxWidth": "640px", "minWidth": "560px"},
                         ),
-                    ], className="d-flex align-items-center mb-1"),
+                    ], className="d-flex align-items-center mt-2 mb-1"),
                     dbc.Select(id="setting-hp-profile", options=[
                         {"label": "Sage", "value": "Sage"},
                         {"label": "Explorer", "value": "Explorer"},
@@ -349,7 +349,7 @@ def _build_misc_tab():
                 className="text-muted d-block mb-2"),
             dbc.Checklist(
                 id="setting-time-calibration-enabled",
-                options=[{"label": "Prompt on Completion",
+                options=[{"label": "Prompt on Done",
                           "value": "enabled"}],
                 value=["enabled"],
                 switch=True,
