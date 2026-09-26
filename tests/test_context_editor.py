@@ -449,6 +449,25 @@ class TestSave:
         assert pending is dash.no_update and editor is dash.no_update
         assert ConfigManager.get_contexts() == CONTEXTS
 
+    def test_a_failed_save_changes_nothing(self, seeded, monkeypatch):
+        """Settings used to be written one at a time, so a failure part-way
+        through left the earlier ones saved: here the perf switch and a
+        context rename that had already moved the nodes."""
+        fns = _callbacks()
+        rows = _rows()
+        _row(rows, "Wisdom")["name"] = "Philosophy"
+
+        def broken(_params):
+            raise RuntimeError("disk full")
+        monkeypatch.setattr(ConfigManager, "set_time_estimate_defaults", broken)
+        status, pending, *_rest, editor = _save(fns, rows)
+
+        assert status.startswith("Couldn't save settings")
+        assert pending is dash.no_update and editor is dash.no_update
+        assert ConfigManager.get_show_scoring_perf() is True  # the default
+        assert ConfigManager.get_contexts() == CONTEXTS
+        assert seeded.get_node("Kant").context == "Wisdom"
+
 
 class TestMigrationDialog:
     def _pending(self, fns, seeded):
@@ -469,9 +488,9 @@ class TestMigrationDialog:
         seeded.add_node(_node("Run", "Health", "Stress"))
         pending = self._pending(fns, seeded)
 
-        is_open, _body, _map, editor = self._answer(fns, "btn-migration-skip", pending)
+        is_open, _body, _map, editor, error = self._answer(fns, "btn-migration-skip", pending)
 
-        assert is_open is False
+        assert is_open is False and error == ""
         assert ConfigManager.get_contexts() == ["Body", "People"]
         assert seeded.get_node("Run").context == "Body"
         assert seeded.get_node("Kant").context == "Wisdom"  # left for the user
@@ -481,12 +500,33 @@ class TestMigrationDialog:
         fns = _callbacks()
         pending = self._pending(fns, seeded)
 
-        is_open, _body, _map, editor = self._answer(fns, "btn-migration-cancel", pending)
+        is_open, _body, _map, editor, error = self._answer(fns, "btn-migration-cancel", pending)
 
-        assert is_open is False
+        assert is_open is False and error == ""
         assert ConfigManager.get_contexts() == CONTEXTS
         assert seeded.get_node("Kant").context == "Wisdom"
         assert [r["name"] for r in editor["rows"]] == CONTEXTS
+
+    def test_a_failed_apply_saves_nothing_and_keeps_the_dialog(self, seeded, monkeypatch):
+        """The renames, settings and rehoming commit together or not at all.
+
+        A failure used to be logged and ignored: whatever ran before it stayed
+        saved, and the per-node rehoming still ran after it.
+        """
+        fns = _callbacks()
+        seeded.add_node(_node("Run", "Health", "Stress"))
+        pending = self._pending(fns, seeded)
+
+        def broken(_rows):
+            raise RuntimeError("disk full")
+        monkeypatch.setattr(settings_callbacks, "save_sections", broken)
+        is_open, body, mapping, editor, error = self._answer(
+            fns, "btn-migration-apply", pending)
+
+        assert "nothing was saved" in error
+        assert (is_open, body, mapping, editor) == (dash.no_update,) * 4
+        assert ConfigManager.get_contexts() == CONTEXTS
+        assert seeded.get_node("Run").context == "Health"  # rename rolled back
 
 
 class TestStructuralEdits:

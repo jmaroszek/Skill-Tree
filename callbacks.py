@@ -1871,11 +1871,14 @@ def register_callbacks(app, services=None):
                             return tuple(out)
 
                     flipped = 0
-                    for node in nodes:
-                        if node.status != new_status:
-                            node.status = new_status
-                            manager.update_node(node)
-                            flipped += 1
+                    # One transaction, so a failure part-way through leaves
+                    # every selected node as it was.
+                    with database.transaction():
+                        for node in nodes:
+                            if node.status != new_status:
+                                node.status = new_status
+                                manager.update_node(node)
+                                flipped += 1
 
                     if len(nodes) == 1 and new_status == STATUS_DONE and flipped == 1:
                         completion_check_node = nodes[0].name
@@ -1893,12 +1896,13 @@ def register_callbacks(app, services=None):
             try:
                 target_names = list(pending_undo_done) if isinstance(pending_undo_done, list) else [pending_undo_done]
                 flipped = 0
-                for nm in target_names:
-                    node = manager.get_node(nm)
-                    if node and node.status == STATUS_DONE:
-                        node.status = STATUS_OPEN
-                        manager.update_node(node)
-                        flipped += 1
+                with database.transaction():
+                    for nm in target_names:
+                        node = manager.get_node(nm)
+                        if node and node.status == STATUS_DONE:
+                            node.status = STATUS_OPEN
+                            manager.update_node(node)
+                            flipped += 1
                 if flipped == 1:
                     msg = f"Un-marked '{target_names[0]}' (Done → Open)"
                 else:

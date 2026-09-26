@@ -185,8 +185,12 @@ def handle_toggle_done(manager, tapped_node):
     return ""
 
 
+@database.atomic
 def handle_group_delete(manager, group_delete_data):
-    """Delete multiple nodes from a JSON-encoded list. Returns a status message."""
+    """Delete multiple nodes from a JSON-encoded list. Returns a status message.
+
+    All or nothing: one transaction, so a failure part-way through deletes none.
+    """
     # JS sends '["name1","name2"]|timestamp'. Names may contain "|".
     names = bridge_payloads.names(group_delete_data)
     for node_name in names:

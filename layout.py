@@ -468,6 +468,9 @@ def build_migration_modal():
         dbc.ModalBody(id="migration-modal-body"),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-migration-cancel", color="secondary", className="me-auto"),
+            # A refused Apply or Skip says why here. The choices above stay put
+            # for another try, and nothing has been saved.
+            html.Span(id="migration-error", className="text-danger me-2"),
             dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
             dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
         ])

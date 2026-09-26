@@ -6,6 +6,7 @@ import json
 import uuid
 import logging
 import dash
+import database
 from dash import html, Input, Output, State, ALL, MATCH, ctx
 import dash_bootstrap_components as dbc
 from graph_manager import GraphManager
@@ -722,195 +723,200 @@ def register_settings_callbacks(app, services=None):
             return (dash.no_update,) * 5
 
         try:
-            sections = _section_form_rows(
-                section_store, section_names, section_name_ids,
-                section_roots, section_root_ids,
-                section_use_roots, section_use_root_ids,
-                section_obsidian, section_obsidian_ids)
-            try:
-                validate_sections(sections)
-            except ValueError as exc:
-                return (html.Span(str(exc), className="text-danger"),
-                        dash.no_update, False, 0, dash.no_update)
-            # Perf-toggle is independent of any migrated setting — persist
-            # it immediately so the user's choice survives regardless of
-            # whether a type/context migration is pending.
-            ConfigManager.set_show_scoring_perf(
-                bool(show_scoring_perf_val and "enabled" in show_scoring_perf_val)
-            )
-            ConfigManager.set_time_calibration_enabled(
-                bool(time_calibration_val and "enabled" in time_calibration_val)
-            )
-            if now_node_cap_val is not None:
-                ConfigManager.set_now_node_cap(max(1, min(50, int(now_node_cap_val))))
-            if subcontext_sort_mode_val:
-                ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
-            if context_sort_mode_val:
-                ConfigManager.set_context_sort_mode(context_sort_mode_val)
-            profile_name = hp_profile if hp_profile in PROFILES else "Sage"
-            new_hp = dict(PROFILES[profile_name])
+            # One transaction: a failure anywhere below saves none of it.
+            # Every setter and manager call joins it, and the early
+            # returns commit only what was written before them.
+            with database.transaction():
+                sections = _section_form_rows(
+                    section_store, section_names, section_name_ids,
+                    section_roots, section_root_ids,
+                    section_use_roots, section_use_root_ids,
+                    section_obsidian, section_obsidian_ids)
+                try:
+                    validate_sections(sections)
+                except ValueError as exc:
+                    return (html.Span(str(exc), className="text-danger"),
+                            dash.no_update, False, 0, dash.no_update)
+                # Perf-toggle is independent of any migrated setting — persist
+                # it immediately so the user's choice survives regardless of
+                # whether a type/context migration is pending.
+                ConfigManager.set_show_scoring_perf(
+                    bool(show_scoring_perf_val and "enabled" in show_scoring_perf_val)
+                )
+                ConfigManager.set_time_calibration_enabled(
+                    bool(time_calibration_val and "enabled" in time_calibration_val)
+                )
+                if now_node_cap_val is not None:
+                    ConfigManager.set_now_node_cap(max(1, min(50, int(now_node_cap_val))))
+                if subcontext_sort_mode_val:
+                    ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
+                if context_sort_mode_val:
+                    ConfigManager.set_context_sort_mode(context_sort_mode_val)
+                profile_name = hp_profile if hp_profile in PROFILES else "Sage"
+                new_hp = dict(PROFILES[profile_name])
 
-            # Keep simulation policy values that are no longer exposed in the
-            # modal while updating the two user-supplied capacity values.
-            new_ts = dict(ConfigManager.get_time_settings())
-            new_ts.update({
-                'hours_per_week': float(hpw) if hpw is not None else 40,
-                'hours_per_month': float(hpm) if hpm is not None else 160,
-            })
+                # Keep simulation policy values that are no longer exposed in the
+                # modal while updating the two user-supplied capacity values.
+                new_ts = dict(ConfigManager.get_time_settings())
+                new_ts.update({
+                    'hours_per_week': float(hpw) if hpw is not None else 40,
+                    'hours_per_month': float(hpm) if hpm is not None else 160,
+                })
 
-            from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
-            new_ted = {
-                'optimistic': float(def_time_o) if def_time_o is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic'],
-                'expected': float(def_time_m) if def_time_m is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['expected'],
-                'pessimistic': float(def_time_p) if def_time_p is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic'],
-                'unit': def_time_unit or DEFAULT_TIME_ESTIMATE_DEFAULTS['unit'],
-            }
-
-            # The editor rows are the taxonomy. They are diffed against the
-            # config as it stands right now, not against the snapshot the
-            # store took when the modal opened. With no store at all the
-            # editor never loaded — Save beat the modal's first render — so
-            # there is no edit to apply. Seeding the rows from the config
-            # makes that a no-op rather than an empty taxonomy that would
-            # wipe every subcontext and priority.
-            if editor_store is None:
-                editor_store = {'rows': context_rules.taxonomy_to_rows(
-                    ConfigManager.get_contexts(), ConfigManager.get_subcontexts(),
-                    ConfigManager.get_context_weights())}
-            rows = context_rules.normalize_rows(_live_rows(
-                editor_store, ctx_name_vals, ctx_name_ids, ctx_weight_vals,
-                ctx_weight_ids, ctx_sub_vals, ctx_sub_ids))
-            errors = context_rules.validate_rows(rows)
-            if errors:
-                return ("Contexts need a fix before saving — see the note "
-                        "under the rows."), dash.no_update, False, 0, dash.no_update
-
-            old_contexts = ConfigManager.get_contexts()
-            old_subcontexts = ConfigManager.get_subcontexts()
-            plan = context_rules.plan_taxonomy_change(
-                rows, old_contexts, old_subcontexts)
-            new_contexts = plan['contexts']
-            new_subcontexts = plan['subcontexts']
-            new_ctx_weights = {name: _clamp(w, 0.0, 10.0, 1.0)
-                               for name, w in plan['weights'].items()}
-            new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
-
-            # Annotate dormant orphans with their event names so the migration
-            # modal can show "(dormant — in event: X)" — gives the user context
-            # for nodes that aren't currently on the canvas but still hold the
-            # stale config value.
-            from event_manager import EventManager
-            _em = EventManager()
-
-            def _annotate(node):
-                base = {'name': node.name}
-                if node.dormant:
-                    base['dormant'] = True
-                    event = _em.get_event_for_node(node.name)
-                    base['events'] = [event] if event else []
-                return base
-
-            # Only removals can strand a node. Renames and moves are carried
-            # onto the nodes below, so they never reach this dialog.
-            orphans = {}
-            ctx_orphans = manager.find_orphaned_nodes(
-                'context', plan['deleted_contexts'], [])
-            if ctx_orphans:
-                # Carry each node's current subcontext so the modal can pre-fill
-                # per-node defaults that preserve subcontexts during a rename.
-                orphans['context'] = {
-                    k: [{**_annotate(n), 'subcontext': n.subcontext} for n in v]
-                    for k, v in ctx_orphans.items()
-                }
-            sub_orphans = manager.find_nodes_by_pairs(plan['deleted_pairs'])
-            if sub_orphans:
-                orphans['subcontext'] = {
-                    k: [{**_annotate(n), 'context': n.context} for n in v]
-                    for k, v in sub_orphans.items()
+                from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
+                new_ted = {
+                    'optimistic': float(def_time_o) if def_time_o is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic'],
+                    'expected': float(def_time_m) if def_time_m is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['expected'],
+                    'pessimistic': float(def_time_p) if def_time_p is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic'],
+                    'unit': def_time_unit or DEFAULT_TIME_ESTIMATE_DEFAULTS['unit'],
                 }
 
-            new_name_formatting = {
-                'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
-                         else NAME_FORMAT_TITLE),
-                'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
-            }
+                # The editor rows are the taxonomy. They are diffed against the
+                # config as it stands right now, not against the snapshot the
+                # store took when the modal opened. With no store at all the
+                # editor never loaded — Save beat the modal's first render — so
+                # there is no edit to apply. Seeding the rows from the config
+                # makes that a no-op rather than an empty taxonomy that would
+                # wipe every subcontext and priority.
+                if editor_store is None:
+                    editor_store = {'rows': context_rules.taxonomy_to_rows(
+                        ConfigManager.get_contexts(), ConfigManager.get_subcontexts(),
+                        ConfigManager.get_context_weights())}
+                rows = context_rules.normalize_rows(_live_rows(
+                    editor_store, ctx_name_vals, ctx_name_ids, ctx_weight_vals,
+                    ctx_weight_ids, ctx_sub_vals, ctx_sub_ids))
+                errors = context_rules.validate_rows(rows)
+                if errors:
+                    return ("Contexts need a fix before saving — see the note "
+                            "under the rows."), dash.no_update, False, 0, dash.no_update
 
-            if orphans:
-                pending_shapes = {}
+                old_contexts = ConfigManager.get_contexts()
+                old_subcontexts = ConfigManager.get_subcontexts()
+                plan = context_rules.plan_taxonomy_change(
+                    rows, old_contexts, old_subcontexts)
+                new_contexts = plan['contexts']
+                new_subcontexts = plan['subcontexts']
+                new_ctx_weights = {name: _clamp(w, 0.0, 10.0, 1.0)
+                                   for name, w in plan['weights'].items()}
+                new_sub_flat = [s for subs in new_subcontexts.values() for s in subs]
+
+                # Annotate dormant orphans with their event names so the migration
+                # modal can show "(dormant — in event: X)" — gives the user context
+                # for nodes that aren't currently on the canvas but still hold the
+                # stale config value.
+                from event_manager import EventManager
+                _em = EventManager()
+
+                def _annotate(node):
+                    base = {'name': node.name}
+                    if node.dormant:
+                        base['dormant'] = True
+                        event = _em.get_event_for_node(node.name)
+                        base['events'] = [event] if event else []
+                    return base
+
+                # Only removals can strand a node. Renames and moves are carried
+                # onto the nodes below, so they never reach this dialog.
+                orphans = {}
+                ctx_orphans = manager.find_orphaned_nodes(
+                    'context', plan['deleted_contexts'], [])
+                if ctx_orphans:
+                    # Carry each node's current subcontext so the modal can pre-fill
+                    # per-node defaults that preserve subcontexts during a rename.
+                    orphans['context'] = {
+                        k: [{**_annotate(n), 'subcontext': n.subcontext} for n in v]
+                        for k, v in ctx_orphans.items()
+                    }
+                sub_orphans = manager.find_nodes_by_pairs(plan['deleted_pairs'])
+                if sub_orphans:
+                    orphans['subcontext'] = {
+                        k: [{**_annotate(n), 'context': n.context} for n in v]
+                        for k, v in sub_orphans.items()
+                    }
+
+                new_name_formatting = {
+                    'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
+                             else NAME_FORMAT_TITLE),
+                    'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
+                }
+
+                if orphans:
+                    pending_shapes = {}
+                    if shape_ids and shape_values:
+                        for sid, sval in zip(shape_ids, shape_values):
+                            if sval:
+                                pending_shapes[sid["index"]] = sval
+                    pending_colors = {}
+                    if color_ids and color_values:
+                        for cid, cval in zip(color_ids, color_values):
+                            if cval:
+                                pending_colors[cid["index"]] = cval
+
+                    pending = {
+                        'hp': new_hp,
+                        'hp_profile': profile_name,
+                        'ts': new_ts,
+                        'ted': new_ted,
+                        'resource_sections': sections,
+                        'contexts': new_contexts,
+                        'subcontexts': new_subcontexts,
+                        'context_weights': new_ctx_weights,
+                        'shapes': pending_shapes,
+                        'colors': pending_colors,
+                        'name_formatting': new_name_formatting,
+                        'orphans': orphans,
+                        'new_values': {
+                            'context': new_contexts,
+                            'subcontext': new_sub_flat,
+                        },
+                        # Applied by handle_migration on Apply *and* on Skip:
+                        # skipping declines to rehome the orphans, not to make the
+                        # rename the user asked for.
+                        'ctx_renames': plan['ctx_renames'],
+                        'pair_moves': plan['pair_moves'],
+                    }
+                    return ("Migration required — check the migration dialog.",
+                            pending, False, 0, dash.no_update)
+
+                manager.apply_taxonomy_migration(plan['ctx_renames'], plan['pair_moves'])
+
+                ConfigManager.set_hp_profile(profile_name)
+                ConfigManager.set_hyperparams(new_hp)
+                ConfigManager.set_time_settings(new_ts)
+                ConfigManager.set_time_estimate_defaults(new_ted)
+                save_sections(sections)
+                if new_contexts:
+                    ConfigManager.set_contexts(new_contexts)
+                ConfigManager.set_subcontexts(new_subcontexts)
+                # Weights ride along with their row, so a rename keeps its
+                # priority and a removal drops it without any reconciliation.
+                ConfigManager.set_context_weights(new_ctx_weights)
+
                 if shape_ids and shape_values:
+                    new_shapes = {}
                     for sid, sval in zip(shape_ids, shape_values):
                         if sval:
-                            pending_shapes[sid["index"]] = sval
-                pending_colors = {}
+                            new_shapes[sid["index"]] = sval
+                    if new_shapes:
+                        ConfigManager.set_node_shapes(new_shapes)
+
                 if color_ids and color_values:
+                    new_colors = {}
                     for cid, cval in zip(color_ids, color_values):
                         if cval:
-                            pending_colors[cid["index"]] = cval
+                            new_colors[cid["index"]] = cval
+                    if new_colors:
+                        ConfigManager.set_node_colors(new_colors)
 
-                pending = {
-                    'hp': new_hp,
-                    'hp_profile': profile_name,
-                    'ts': new_ts,
-                    'ted': new_ted,
-                    'resource_sections': sections,
-                    'contexts': new_contexts,
-                    'subcontexts': new_subcontexts,
-                    'context_weights': new_ctx_weights,
-                    'shapes': pending_shapes,
-                    'colors': pending_colors,
-                    'name_formatting': new_name_formatting,
-                    'orphans': orphans,
-                    'new_values': {
-                        'context': new_contexts,
-                        'subcontext': new_sub_flat,
-                    },
-                    # Applied by handle_migration on Apply *and* on Skip:
-                    # skipping declines to rehome the orphans, not to make the
-                    # rename the user asked for.
-                    'ctx_renames': plan['ctx_renames'],
-                    'pair_moves': plan['pair_moves'],
-                }
-                return ("Migration required — check the migration dialog.",
-                        pending, False, 0, dash.no_update)
+                ConfigManager.set_name_formatting(new_name_formatting)
 
-            manager.apply_taxonomy_migration(plan['ctx_renames'], plan['pair_moves'])
-
-            ConfigManager.set_hp_profile(profile_name)
-            ConfigManager.set_hyperparams(new_hp)
-            ConfigManager.set_time_settings(new_ts)
-            ConfigManager.set_time_estimate_defaults(new_ted)
-            save_sections(sections)
-            if new_contexts:
-                ConfigManager.set_contexts(new_contexts)
-            ConfigManager.set_subcontexts(new_subcontexts)
-            # Weights ride along with their row, so a rename keeps its
-            # priority and a removal drops it without any reconciliation.
-            ConfigManager.set_context_weights(new_ctx_weights)
-
-            if shape_ids and shape_values:
-                new_shapes = {}
-                for sid, sval in zip(shape_ids, shape_values):
-                    if sval:
-                        new_shapes[sid["index"]] = sval
-                if new_shapes:
-                    ConfigManager.set_node_shapes(new_shapes)
-
-            if color_ids and color_values:
-                new_colors = {}
-                for cid, cval in zip(color_ids, color_values):
-                    if cval:
-                        new_colors[cid["index"]] = cval
-                if new_colors:
-                    ConfigManager.set_node_colors(new_colors)
-
-            ConfigManager.set_name_formatting(new_name_formatting)
-
-            return (_save_message(plan), dash.no_update, False, 0,
-                    _editor_state(manager))
+                return (_save_message(plan), dash.no_update, False, 0,
+                        _editor_state(manager))
 
         except Exception:
             logger.exception("Failed to save settings")
-            return "Error saving settings.", dash.no_update, False, 0, dash.no_update
+            return ("Couldn't save settings. Nothing was changed; the log has the "
+                    "details."), dash.no_update, False, 0, dash.no_update
 
     # --- Migration Modal ---
     @app.callback(
@@ -918,6 +924,7 @@ def register_settings_callbacks(app, services=None):
         Output('migration-modal-body', 'children'),
         Output('migration-mapping-store', 'data'),
         Output('context-editor-store', 'data', allow_duplicate=True),
+        Output('migration-error', 'children'),
         Input('pending-settings-store', 'data'),
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-skip', 'n_clicks'),
@@ -955,72 +962,78 @@ def register_settings_callbacks(app, services=None):
                 orphans_for_ui, new_values, subcontexts_by_context,
                 rename_map=rename_map,
             )
-            return True, children, mapping, dash.no_update
+            return True, children, mapping, dash.no_update, ""
 
         if trigger_id == 'btn-migration-cancel':
             # Nothing was written, so put the editor back to what is stored.
-            return False, [], None, _editor_state(manager)
+            return False, [], None, _editor_state(manager), ""
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             try:
-                # The renames and moves the editor already resolved go on
-                # first, on Skip as well as Apply: skipping declines to rehome
-                # the stranded nodes, not to make the rename that was asked
-                # for. Doing it here rather than at Save is what makes Cancel
-                # leave the graph untouched.
-                manager.apply_taxonomy_migration(
-                    pending_state.get('ctx_renames', {}),
-                    pending_state.get('pair_moves', []),
-                )
+                # One transaction: the renames, the settings and any rehoming
+                # are saved together or not at all.
+                with database.transaction():
+                    # The renames and moves the editor already resolved go on
+                    # first, on Skip as well as Apply: skipping declines to rehome
+                    # the stranded nodes, not to make the rename that was asked
+                    # for. Doing it here rather than at Save is what makes Cancel
+                    # leave the graph untouched.
+                    manager.apply_taxonomy_migration(
+                        pending_state.get('ctx_renames', {}),
+                        pending_state.get('pair_moves', []),
+                    )
 
-                ConfigManager.set_hp_profile(
-                    pending_state.get('hp_profile', 'Sage'))
-                ConfigManager.set_hyperparams(pending_state['hp'])
-                if 'ts' in pending_state:
-                    ConfigManager.set_time_settings(pending_state['ts'])
-                if 'ted' in pending_state:
-                    ConfigManager.set_time_estimate_defaults(pending_state['ted'])
-                if 'resource_sections' in pending_state:
-                    save_sections(pending_state['resource_sections'])
-                new_contexts = pending_state.get('contexts', [])
-                if new_contexts:
-                    ConfigManager.set_contexts(new_contexts)
-                ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
-                # Each weight came off its own row, so it is already keyed by
-                # the post-rename name and a removed context simply is not in
-                # the dict. Reassigning a stranded node below does not move a
-                # weight with it — the surviving context's own priority is the
-                # one the user set, and it stands.
-                ConfigManager.set_context_weights(
-                    pending_state.get('context_weights', {}) or {})
+                    ConfigManager.set_hp_profile(
+                        pending_state.get('hp_profile', 'Sage'))
+                    ConfigManager.set_hyperparams(pending_state['hp'])
+                    if 'ts' in pending_state:
+                        ConfigManager.set_time_settings(pending_state['ts'])
+                    if 'ted' in pending_state:
+                        ConfigManager.set_time_estimate_defaults(pending_state['ted'])
+                    if 'resource_sections' in pending_state:
+                        save_sections(pending_state['resource_sections'])
+                    new_contexts = pending_state.get('contexts', [])
+                    if new_contexts:
+                        ConfigManager.set_contexts(new_contexts)
+                    ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
+                    # Each weight came off its own row, so it is already keyed by
+                    # the post-rename name and a removed context simply is not in
+                    # the dict. Reassigning a stranded node below does not move a
+                    # weight with it — the surviving context's own priority is the
+                    # one the user set, and it stands.
+                    ConfigManager.set_context_weights(
+                        pending_state.get('context_weights', {}) or {})
 
-                pending_shapes = pending_state.get('shapes', {})
-                if pending_shapes:
-                    ConfigManager.set_node_shapes(pending_shapes)
-                pending_colors = pending_state.get('colors', {})
-                if pending_colors:
-                    ConfigManager.set_node_colors(pending_colors)
-                if 'name_formatting' in pending_state:
-                    ConfigManager.set_name_formatting(pending_state['name_formatting'])
+                    pending_shapes = pending_state.get('shapes', {})
+                    if pending_shapes:
+                        ConfigManager.set_node_shapes(pending_shapes)
+                    pending_colors = pending_state.get('colors', {})
+                    if pending_colors:
+                        ConfigManager.set_node_colors(pending_colors)
+                    if 'name_formatting' in pending_state:
+                        ConfigManager.set_name_formatting(pending_state['name_formatting'])
+
+                    if trigger_id == 'btn-migration-apply' and mapping_data:
+                        new_subcontexts = pending_state.get('subcontexts', {})
+
+                        ctx_nodes = mapping_data.get('ctx_nodes', []) if isinstance(mapping_data, dict) else []
+                        _apply_per_node_migrations(manager, ctx_nodes, cgc_node_values,
+                                                    cgs_node_values, new_subcontexts)
+
+                        sub_nodes = mapping_data.get('sub_nodes', []) if isinstance(mapping_data, dict) else []
+                        _apply_per_node_migrations(manager, sub_nodes, sgc_node_values,
+                                                    sgs_node_values, new_subcontexts)
             except Exception:
-                logger.exception("Failed to save pending settings")
-
-            if trigger_id == 'btn-migration-apply' and mapping_data:
-                new_subcontexts = pending_state.get('subcontexts', {})
-
-                ctx_nodes = mapping_data.get('ctx_nodes', []) if isinstance(mapping_data, dict) else []
-                _apply_per_node_migrations(manager, ctx_nodes, cgc_node_values,
-                                            cgs_node_values, new_subcontexts)
-
-                sub_nodes = mapping_data.get('sub_nodes', []) if isinstance(mapping_data, dict) else []
-                _apply_per_node_migrations(manager, sub_nodes, sgc_node_values,
-                                            sgs_node_values, new_subcontexts)
+                logger.exception("Failed to apply the settings migration")
+                return (dash.no_update,) * 4 + (
+                    "Couldn't apply the changes, so nothing was saved. The log "
+                    "has the details.",)
 
             # Re-seed the rows from what was just saved, so the next edit
             # diffs against it and the node counts reflect the rehoming.
-            return False, [], None, _editor_state(manager)
+            return False, [], None, _editor_state(manager), ""
 
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return (dash.no_update,) * 5
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
