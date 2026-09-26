@@ -1,0 +1,157 @@
+name: Release
+
+# A tag like v1.0.0 builds every installer and opens a draft GitHub Release
+# with them and their checksums. Publishing the draft is a person's decision.
+#
+# A push that touches packaging runs the same builds as a trial: the
+# installers are kept as workflow artifacts and nothing is published.
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["**"]
+    paths:
+      - ".github/workflows/release.yml"
+      - "electron/**"
+      - "packaging/**"
+      - "requirements*.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x64, os: windows-latest, target: --win --x64 }
+          - { name: mac-arm64, os: macos-14, target: --mac --arm64 }
+          - { name: mac-x64, os: macos-15-intel, target: --mac --x64 }
+          # The oldest supported Ubuntu: the server binary needs the glibc it
+          # was built against, so building here lets it run on newer ones.
+          - { name: linux-x64, os: ubuntu-22.04, target: --linux --x64 }
+    env:
+      TAGGED: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      WINDOWS_SIGN_COMMAND: ${{ secrets.WINDOWS_SIGN_COMMAND }}
+      WINDOWS_SIGN_SETUP: ${{ secrets.WINDOWS_SIGN_SETUP }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: electron/package-lock.json
+
+      - name: The tag matches version.py
+        if: env.TAGGED == 'true'
+        shell: bash
+        run: |
+          version=$(python -c "from version import __version__; print(__version__)")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version.py ($version)."
+            exit 1
+          fi
+
+      # A released Windows installer is always signed; trial builds needn't be.
+      - name: Windows signing is configured
+        if: runner.os == 'Windows' && env.TAGGED == 'true' && env.WINDOWS_SIGN_COMMAND == ''
+        shell: bash
+        run: |
+          echo "::error::Set the WINDOWS_SIGN_COMMAND secret before tagging a release."
+          exit 1
+
+      - name: Install the signing tool
+        if: runner.os == 'Windows' && env.WINDOWS_SIGN_SETUP != ''
+        shell: pwsh
+        run: Invoke-Expression $env:WINDOWS_SIGN_SETUP
+
+      - name: Install build tools
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Build the server
+        run: python -m PyInstaller packaging/skilltree-server.spec --noconfirm
+
+      - name: Smoke-test the server
+        run: python packaging/smoke_test.py dist/skilltree-server/skilltree-server
+
+      - name: Sign the server
+        if: runner.os == 'Windows'
+        run: node electron/build/sign-windows.js dist/skilltree-server/skilltree-server.exe
+
+      - name: Install the shell's packages
+        working-directory: electron
+        run: npm ci
+
+      - name: Build the installers
+        working-directory: electron
+        env:
+          # macOS: no Developer ID yet, so don't hunt for one (ad-hoc, see
+          # electron-builder.yml).
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder ${{ matrix.target }} --publish never
+
+      # The copy inside the app is the one users run. On macOS it has been
+      # re-signed, which must not have broken it.
+      - name: Smoke-test the packaged server
+        shell: bash
+        run: |
+          server=$(find electron/dist -type f \( -name skilltree-server -o -name skilltree-server.exe \) -path "*server/*" | head -n 1)
+          echo "Packaged server: $server"
+          python packaging/smoke_test.py "$server"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            electron/dist/*.exe
+            electron/dist/*.dmg
+            electron/dist/*.zip
+            electron/dist/*.AppImage
+            electron/dist/*.deb
+            electron/dist/*.blockmap
+            electron/dist/latest.yml
+            electron/dist/latest-linux.yml
+
+  release:
+    name: Draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          pattern: installers-*
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: installers
+        run: sha256sum -- * | tee SHA256SUMS
+
+      - name: Open a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" installers/* \
+            --draft --title "Skill Tree ${GITHUB_REF_NAME#v}" --generate-notes
