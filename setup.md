@@ -40,8 +40,11 @@ recommended way to install.
 
 ## Launching
 
-- Desktop icon → `Code\Terminal\Batch\skill_tree.bat` → Electron (production, port 8050).
-- `Code\Terminal\Batch\skill_tree_sandbox.bat` → Electron against the sandbox DB (port 8051).
+- Desktop icon → `Code\Terminal\Batch\skill_tree.bat` → Electron (production).
+- `Code\Terminal\Batch\skill_tree_sandbox.bat` → Electron against the sandbox DB.
+
+The shell starts the server on a free port and reads the port from the server's
+`SKILLTREE_READY` line, so nothing else on the machine can collide with it.
 
 Both spawn the env's `pythonw` server under the hood; closing the window stops it.
 Production and sandbox use separate Electron profiles, so they can run side by side.

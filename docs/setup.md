@@ -47,18 +47,21 @@ pip install -r requirements-dev.txt
 Launch in **sandbox mode** first — it uses a separate database (`%LOCALAPPDATA%\Skill Tree\Data\sandbox_skilltree.db` on Windows) so you can experiment without touching real data.
 
 ```bash
-python app.py --sandbox --port 8051
+python app.py --sandbox --dev
 ```
 
-The app opens automatically at <http://127.0.0.1:8051>. The SQLite database is created automatically on first launch (an empty graph), so there's no migration or seed step.
+A browser tab opens on the app. The SQLite database is created automatically on first launch (an empty graph), so there's no migration or seed step. `--dev` adds Flask's debugger and hot reload: edits to Python, CSS and JS apply without a restart. Leave it off to run the app the way users get it.
 
-To run against the primary database instead, omit `--sandbox` (defaults to port 8050):
+To run against the primary database instead, omit `--sandbox`:
 
 ```bash
 python app.py
 ```
 
-Sandbox (8051) and production (8050) use distinct ports and databases, so both can run side by side.
+- **Ports.** Sandbox uses 8051 and production 8050, so both can run side by side. `--port N` picks another, and if the port is taken by something else the app moves to a free one. The desktop shell always takes a free port.
+- **The access link.** The server only answers the window or tab it opened: the first URL carries a token, which it swaps for a cookie. After a restart, use the new tab it opens. With `--no-browser` it prints the link instead. The link is also in `<Data>/sandbox_skilltree.instance.json` (or `skilltree.instance.json`) while it runs.
+- **One server per database.** A second launch opens the running one instead of starting another.
+- **A throwaway data folder.** Set `SKILLTREE_HOME` to an absolute folder, and Data and Logs go there instead of the per-user folder.
 
 ## 4. Run the tests (optional)
 

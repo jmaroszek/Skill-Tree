@@ -15,7 +15,7 @@ test('native picker accepts only the local app and returns the selected file', a
       return { canceled: false, filePaths: ['/Library/file.md'] };
     } },
     () => window,
-    8051,
+    () => 8051,
   );
   const event = { senderFrame: { url: 'http://127.0.0.1:8051/' } };
   assert.equal(await handler(event, { markdown: true, defaultPath: '/Library' }),
@@ -38,7 +38,7 @@ test('native picker can choose a folder', async () => {
       return { canceled: false, filePaths: ['/Library/Notes'] };
     } },
     () => null,
-    8051,
+    () => 8051,
   );
   const event = { senderFrame: { url: 'http://127.0.0.1:8051/' } };
   assert.equal(await handler(event, { directory: true, markdown: true }), '/Library/Notes');
@@ -52,7 +52,19 @@ test('cancelled native picker returns an empty path', async () => {
     { handle: (_name, fn) => { handler = fn; } },
     { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
     () => null,
-    8051,
+    () => 8051,
   );
   assert.equal(await handler({ senderFrame: { url: 'http://127.0.0.1:8051/' } }), '');
+});
+
+test('native picker refuses everyone until the server has a port', async () => {
+  let handler;
+  registerResourceDialog(
+    { handle: (_name, fn) => { handler = fn; } },
+    { showOpenDialog: async () => assert.fail('no dialog before the server is ready') },
+    () => null,
+    () => null,
+  );
+  await assert.rejects(() => handler({ senderFrame: { url: 'http://127.0.0.1:8051/' } }, {}),
+    /local Skill Tree/);
 });

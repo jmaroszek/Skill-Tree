@@ -6,11 +6,7 @@ import ctypes
 import platform
 import importlib
 import uuid
-import webbrowser
 import threading
-import socket
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 
@@ -38,6 +34,8 @@ VENDOR_STYLESHEETS = [
 class AppSettings:
     environment: str = "production"
     configure_logging: bool = True
+    # --dev: the page polls for server restarts and reloads itself.
+    dev: bool = False
 
 
 def _configure_logging(environment) -> None:
@@ -51,23 +49,29 @@ def _configure_logging(environment) -> None:
     formatter = logging.Formatter(fmt, datefmt='%Y-%m-%d %H:%M:%S')
 
     log_dir = get_log_dir()
-    log_dir.mkdir(parents=True, exist_ok=True)
     log_name = 'sandbox_app.log' if environment == 'sandbox' else 'app.log'
-
-    file_handler = RotatingFileHandler(
-        log_dir / log_name,
-        maxBytes=5_000_000,
-        backupCount=3,
-        encoding='utf-8',
-    )
-    file_handler.setFormatter(formatter)
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            log_dir / log_name,
+            maxBytes=5_000_000,
+            backupCount=3,
+            encoding='utf-8',
+        )
+        file_handler.setFormatter(formatter)
+    except OSError as exc:
+        # An app folder that can't be written. Keep going on stderr alone, so
+        # the launcher can refuse with a reason (exit 7), not a traceback.
+        file_handler = None
+        unwritable = exc
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     # basicConfig elsewhere is a no-op once handlers exist; clear any prior
     # handlers in case this module is re-imported (test harness, REPL).
     root.handlers.clear()
-    root.addHandler(file_handler)
+    if file_handler is not None:
+        root.addHandler(file_handler)
     # The native-window launch runs under pythonw.exe, which has no console:
     # sys.stderr is None there, and a StreamHandler aimed at it would make every
     # log call fail. Only attach the console handler when a real stderr exists.
@@ -75,6 +79,8 @@ def _configure_logging(environment) -> None:
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(formatter)
         root.addHandler(stream_handler)
+    if file_handler is None:
+        root.warning("Can't write the log in %s (%s).", log_dir, unwritable)
 
 
 def report_callback_error(err):
@@ -170,7 +176,10 @@ def create_app(settings=None, services=None):
     except Exception:
         pass
     app = dash.Dash(__name__, external_stylesheets=VENDOR_STYLESHEETS,
-                    assets_path_ignore=["vendor"], on_error=report_callback_error)
+                    assets_path_ignore=["vendor"],
+                    # Polls every 2 s for a restart; only the dev loop restarts.
+                    assets_ignore="" if settings.dev else r"hard_reload_on_restart\.js$",
+                    on_error=report_callback_error)
     app.title = "Skill Tree (Sandbox)" if settings.environment == "sandbox" else "Skill Tree"
     app.index_string = build_index_string()
     app.skill_tree_services = services
@@ -195,8 +204,10 @@ def create_app(settings=None, services=None):
     prerendered_specs(app)
     app.server.add_url_rule('/open-resource', view_func=open_resource_route,
                             methods=['POST'])
-    boot_id = uuid.uuid4().hex
-    app.server.add_url_rule('/_server_boot_id', view_func=lambda: boot_id)
+    if settings.dev:
+        # hard_reload_on_restart.js reloads the page when this changes.
+        boot_id = uuid.uuid4().hex
+        app.server.add_url_rule('/_server_boot_id', view_func=lambda: boot_id)
     return app
 
 
@@ -226,94 +237,37 @@ def open_resource_route():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
-def _parse_port(argv) -> int:
-    """Return the requested app port, defaulting to the project standard."""
-    port = 8050
-    if "--port" in argv:
-        i = argv.index("--port")
-        if i + 1 < len(argv):
-            try:
-                port = int(argv[i + 1])
-            except ValueError:
-                pass
-    return port
-
-
-def _port_is_free(port: int) -> bool:
-    """True when nothing is bound to the loopback port.
-
-    A bind attempt answers this instantly and authoritatively. A connect
-    probe can't: on Windows a connection to a *closed* port isn't refused
-    promptly (the SYN is dropped, so a raw connect only fails after ~2s),
-    which means a connect-with-timeout would burn its full timeout on every
-    normal launch — the common case where no server is running yet. bind()
-    never waits.
-    """
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        probe.bind(("127.0.0.1", port))
-        return True
-    except OSError:
-        return False
-    finally:
-        probe.close()
-
-
-def _existing_skill_tree_server(port: int) -> bool:
-    """True when a Skill Tree server is already answering on this port.
-
-    Only reached once the port is known to be occupied, so the connection
-    succeeds immediately and the short timeout is never spent waiting on a
-    dropped SYN — it only guards against a foreign process that accepts the
-    connection but stalls before responding.
-    """
-    try:
-        with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/_server_boot_id",
-            timeout=0.35,
-        ) as response:
-            body = response.read(128).decode("utf-8", errors="ignore").strip()
-            return response.status == 200 and bool(body)
-    except (OSError, urllib.error.URLError, TimeoutError):
-        return False
-
-
-def _existing_instance_running(port: int) -> bool:
-    """True when this launch should exit because our app is already running.
-
-    Fast path: a free port means no instance exists, so return immediately
-    with no network round-trip. Only when the port is occupied do we confirm
-    (via the boot-id endpoint) that the occupant is actually a Skill Tree
-    server rather than some unrelated process holding the port.
-    """
-    if _port_is_free(port):
-        return False
-    return _existing_skill_tree_server(port)
-
-
 def main(argv=None):
-    argv = sys.argv[1:] if argv is None else argv
-    environment = "sandbox" if "--sandbox" in argv else "production"
+    """Launch: own this database, build the app, then serve it (server_runtime)."""
+    import server_runtime
+    options = server_runtime.parse_args(sys.argv[1:] if argv is None else argv)
+    # With --dev in the sandbox, Werkzeug's reloader runs this again in a child
+    # process, and restarts that child on every edit. The parent keeps the lock.
+    reloader_child = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+    config.ENVIRONMENT = options.environment
+    _configure_logging(options.environment)
+    lock = server_runtime.InstanceLock(database.get_db_path())
+    if not reloader_child:
+        try:
+            owned = lock.acquire()
+        except OSError as exc:
+            _refuse(f"Skill Tree can't write to its data folder "
+                    f"{lock.lock_path.parent} ({exc}).",
+                    database.DatabaseUnwritableError.exit_code)
+        if not owned:
+            sys.exit(server_runtime.hand_over(lock, options))
+    token = server_runtime.launch_token()
+    if not options.dev:
+        # Nothing this process starts needs it.
+        os.environ.pop(server_runtime.TOKEN_ENV, None)
     try:
-        app = create_app(AppSettings(environment=environment))
+        app = create_app(AppSettings(environment=options.environment,
+                                     configure_logging=False, dev=options.dev))
     except database.DatabaseError as exc:
-        # A database this build won't open (newer, damaged, or an SQLite too
-        # old for it). The file is untouched. Say why, and exit with a code the
-        # desktop shell can tell apart.
-        _logger.critical("%s", exc)
-        if sys.stderr is not None:
-            print(f"Skill Tree can't start: {exc}", file=sys.stderr)
-        sys.exit(exc.exit_code)
-    # Optional --port flag so a sandbox instance can run alongside production
-    # without colliding on 8050.
-    _port = _parse_port(argv)
-    # --no-browser: just run the server, don't auto-open a browser. Used when the
-    # Electron desktop shell hosts the page and loads the URL itself.
-    _no_browser = "--no-browser" in argv
-
-    if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and _existing_instance_running(_port):
-        _logger.info("Skill Tree is already running on port %d; exiting duplicate launch.", _port)
-        sys.exit(0)
+        # A database this build won't open (newer, damaged, busy, read-only,
+        # or an SQLite too old for it). The file is untouched.
+        lock.release()
+        _refuse(str(exc), exc.exit_code)
 
     # The first canvas render detects communities with NetworkX, hundreds of
     # modules that the server needn't load before it can answer. Loading them
@@ -321,27 +275,19 @@ def main(argv=None):
     threading.Thread(target=importlib.import_module, args=("networkx",),
                      name="warm-networkx", daemon=True).start()
 
-    if _no_browser:
-        # Server-only mode for the Electron desktop shell: no browser tab.
-        # threaded=True handles Dash's concurrent callbacks.
-        app.run(debug=False, dev_tools_ui=False, dev_tools_hot_reload=False,
-                use_reloader=False, port=_port, threaded=True)
+    if options.dev:
+        server_runtime.run_dev(app, options, lock, token, reloader_child)
     else:
-        if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-            threading.Timer(0.5, webbrowser.open, args=[f"http://127.0.0.1:{_port}"]).start()
-        # Sandbox launches turn on hot reload so edits to assets (CSS/JS) and to
-        # Python source apply in the browser without a manual kill-and-relaunch —
-        # the fast edit loop. Cost: the reloader re-execs the module in a child
-        # process, so every import and the startup status recompute run twice
-        # (~2.4s of duplicated boot). That's worth it in the throwaway sandbox but
-        # not in production, where this path stays single-boot with no reload.
-        # The duplicate-launch guard above is reloader-safe: it only runs in the
-        # parent (WERKZEUG_RUN_MAIN unset) and is skipped in the child the
-        # reloader spawns (WERKZEUG_RUN_MAIN=="true"). debug=True also keeps the
-        # in-browser error pages.
-        _hot_reload = (environment == "sandbox")
-        app.run(debug=True, dev_tools_ui=False, dev_tools_hot_reload=_hot_reload,
-                use_reloader=_hot_reload, port=_port)
+        server_runtime.serve(app, options, lock, token)
+
+
+def _refuse(message, exit_code):
+    """Say why Skill Tree can't start, and exit with a code the shell can tell
+    apart (docs/app_architecture.md lists them)."""
+    _logger.critical("%s", message)
+    if sys.stderr is not None:
+        print(f"Skill Tree can't start: {message}", file=sys.stderr)
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

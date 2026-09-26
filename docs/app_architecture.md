@@ -88,7 +88,8 @@ Python server rather than accepting an arbitrary path from the page.
 
 ### 1. Startup ([app.py](../app.py))
 
-`main()` parses `--sandbox` and calls `create_app(AppSettings(...))`. The factory
+`main()` parses the launch flags (`server_runtime.parse_args`), takes this
+database's instance lock, and calls `create_app(AppSettings(...))`. The factory
 selects `config.ENVIRONMENT` before opening SQLite, configures logging if enabled,
 initializes the schema, seeds required types, and runs the existing status-repair
 safety net. It then constructs Dash, sets the page template that carries the
@@ -116,7 +117,36 @@ cases apart:
 
 Only code 4 may lead to an offer to restore a backup. `database._refusal_for` maps
 SQLite's error names, so a file that is only busy or read-only is never called
-damaged. Restoring over it would discard good data.
+damaged. Restoring over it would discard good data. Code 8 comes from
+`server_runtime`: another Skill Tree owns this database (below).
+
+**How the server runs** ([server_runtime.py](../server_runtime.py)):
+
+- **One server per database.** `InstanceLock` holds an OS lock on `<db>.lock` for
+  the life of the process, and the OS drops it even on a crash. The lock is taken
+  before `init_db`, so two processes never migrate one file. The owner writes
+  `<db>.instance.json` (pid, port, token), readable only by its user. A second launch
+  hands over instead of serving: a browser launch opens the owner's link, and a
+  desktop launch prints `SKILLTREE_RUNNING port=<n> token=<t>` and exits 8.
+- **The handshake.** Werkzeug's `make_server` binds 127.0.0.1, on any free port for
+  `--desktop` or else 8050/8051 (a free port if that one is taken). When it can
+  answer, the server prints `SKILLTREE_READY port=<n>` on stdout. The shell reads
+  that line rather than guessing a port.
+- **Access.** `AccessGuard` runs ahead of Dash on every request. The Host header
+  must be `127.0.0.1:<port>` or `localhost:<port>`, which defeats DNS rebinding.
+  The request must also carry this launch's token in the `skilltree_<environment>`
+  cookie. `/?token=<t>` sets that cookie (HttpOnly, SameSite=Strict) and
+  redirects to `/`. The desktop shell makes the token and passes it in
+  `SKILLTREE_TOKEN`; a browser launch makes its own and opens that link.
+- **Stopping.** The desktop shell holds the server's stdin. When it closes, because
+  the shell quit or crashed, the server finishes its requests and exits, so no
+  server outlives its window. SIGTERM and Ctrl+C do the same.
+- **`--dev`** replaces all this serving with Flask's debug server on the fixed port,
+  with hot reload in the sandbox, verbose request logs, and
+  `hard_reload_on_restart.js`. The reloader's parent holds the lock and hands the
+  token to each child it restarts. Werkzeug's debugger sits outside Flask, so its
+  console skips `AccessGuard` and relies on its own PIN. That is one reason
+  `--dev` is for developers only, and the desktop shell never passes it.
 
 ### 2. Graph mutation → render (the central loop)
 

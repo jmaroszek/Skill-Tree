@@ -163,3 +163,23 @@ def test_a_restore_whose_upgrade_is_refused_says_to_restart(monkeypatch):
 
     with pytest.raises(data_transfer.TransferRefused, match="Restart Skill Tree"):
         data_transfer.restore_backup(saved)
+
+
+def test_an_unwritable_app_folder_is_refused_with_a_reason(monkeypatch, tmp_path, capsys):
+    """The Logs and Data folders can't be created: say so, exit 7, no traceback."""
+    import logging
+    import app_paths
+    blocker = tmp_path / "not-a-folder"
+    blocker.write_text("a file where the app folder should be")
+    monkeypatch.setenv(app_paths.HOME_ENV, str(blocker))
+    monkeypatch.setattr(database, "get_db_path",
+                        lambda: str(app_paths.get_data_dir() / "skilltree.db"))
+    root = logging.getLogger()
+    saved = root.handlers[:], root.level
+    try:
+        with pytest.raises(SystemExit) as exited:
+            app_module.main(["--no-browser"])
+    finally:
+        root.handlers[:], _ = saved[0], root.setLevel(saved[1])
+    assert exited.value.code == database.DatabaseUnwritableError.exit_code
+    assert "can't write to its data folder" in capsys.readouterr().err

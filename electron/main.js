@@ -3,22 +3,22 @@
 // Electron desktop shell for Skill Tree.
 //
 // Responsibilities:
-//   1. Spawn the existing Dash/Flask app as a local server (pythonw, no console).
-//   2. Wait for it to answer on /_server_boot_id, then open a native window at it.
-//   3. Own the lifecycle: closing the window kills the Python server.
-//
-// The Python app is unchanged except for a --no-browser flag (so it serves
-// without opening a browser tab, since we load it ourselves).
+//   1. Start the Python server (`app.py --desktop`, pythonw, no console) with
+//      a fresh access token, and wait for its READY line, which names the
+//      port it picked (server_process.js).
+//   2. Open a native window there. The first URL carries the token, which
+//      the server swaps for a cookie; nothing else on the machine has it.
+//   3. Own the lifecycle: quitting closes the server's stdin and the server
+//      shuts itself down. If the shell crashes, stdin closes all the same.
 
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
-const { spawn } = require('child_process');
-const treeKill = require('tree-kill');
-const http = require('http');
 const path = require('path');
 const { registerResourceDialog } = require('./resource_dialog');
+const {
+  appUrl, exitMessage, newToken, startServer, stopServer,
+} = require('./server_process');
 
 const SANDBOX = process.argv.includes('--sandbox');
-const PORT = SANDBOX ? 8051 : 8050;
 
 // The Skill Tree conda environment's windowless interpreter.
 const PYTHONW = 'C:\\Users\\jonah\\anaconda3\\envs\\skill-tree\\pythonw.exe';
@@ -26,9 +26,10 @@ const PYTHONW = 'C:\\Users\\jonah\\anaconda3\\envs\\skill-tree\\pythonw.exe';
 const REPO = path.resolve(__dirname, '..');
 const ICON = path.join(REPO, 'assets', 'skill_tree.ico');
 
-let pyProc = null;
+let server = null;   // { proc, port }; proc is null when showing another shell's server
 let mainWindow = null;
-registerResourceDialog(ipcMain, dialog, () => mainWindow, PORT);
+let quitting = false;
+registerResourceDialog(ipcMain, dialog, () => mainWindow, () => server && server.port);
 
 app.setAppUserModelId('com.skilltree.app');
 // Separate Electron profile per environment so a sandbox window and a
@@ -36,30 +37,42 @@ app.setAppUserModelId('com.skilltree.app');
 app.setPath('userData', path.join(app.getPath('appData'),
   SANDBOX ? 'SkillTree-Sandbox' : 'SkillTree'));
 
-function startServer() {
-  const args = ['app.py', '--port', String(PORT), '--no-browser'];
+async function launch() {
+  const token = newToken();
+  const args = ['app.py', '--desktop'];
   if (SANDBOX) args.push('--sandbox');
-  pyProc = spawn(PYTHONW, args, { cwd: REPO, windowsHide: true });
-  pyProc.stdout.on('data', d => process.stdout.write(`[py] ${d}`));
-  pyProc.stderr.on('data', d => process.stderr.write(`[py] ${d}`));
-  pyProc.on('exit', code => console.log(`[shell] python server exited: ${code}`));
-}
-
-// Poll the existing boot-id endpoint until the server answers, so the window
-// never loads a dead URL. Gives up after ~18s and opens anyway.
-function waitForServer(onReady, tries = 0) {
-  const req = http.get(`http://127.0.0.1:${PORT}/_server_boot_id`, res => {
-    res.resume();
-    if (res.statusCode === 200) onReady(); else schedule();
-  });
-  req.on('error', schedule);
-  function schedule() {
-    if (tries >= 120) { onReady(); return; }
-    setTimeout(() => waitForServer(onReady, tries + 1), 150);
+  let started;
+  try {
+    started = await startServer({
+      command: PYTHONW, args, cwd: REPO,
+      env: { ...process.env, SKILLTREE_TOKEN: token },
+      log: chunk => process.stdout.write(`[py] ${chunk}`),
+    });
+  } catch (err) {
+    let message;
+    if (err.timedOut) message = "Skill Tree's server didn't start in time.";
+    else if (err.exitCode !== undefined) message = exitMessage(err.exitCode, err.stderrTail);
+    else message = `Skill Tree couldn't start its server: ${err.message}`;
+    dialog.showErrorBox('Skill Tree', message);
+    app.quit();
+    return;
   }
+  if (started.alreadyRunning) {
+    // Another Skill Tree owns this data: show it rather than refuse.
+    server = { proc: null, port: started.port };
+    createWindow(appUrl(started.port, started.token));
+    return;
+  }
+  server = started;
+  started.proc.on('exit', code => {
+    if (quitting) return;
+    dialog.showErrorBox('Skill Tree', exitMessage(code));
+    app.quit();
+  });
+  createWindow(appUrl(started.port, token));
 }
 
-function createWindow() {
+function createWindow(url) {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -86,7 +99,7 @@ function createWindow() {
   // cover, until the page paints.
   mainWindow.maximize();
   mainWindow.show();
-  mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
+  mainWindow.loadURL(url);
   mainWindow.on('closed', () => { mainWindow = null; });
   // F12 / Ctrl+Shift+I toggles DevTools (there's no app menu to provide it).
   mainWindow.webContents.on('before-input-event', (e, input) => {
@@ -95,11 +108,10 @@ function createWindow() {
   });
 }
 
-function shutdown() {
-  if (pyProc && pyProc.pid) {
-    treeKill(pyProc.pid);
-    pyProc = null;
-  }
+async function shutdown() {
+  quitting = true;
+  if (server && server.proc) await stopServer(server.proc);
+  server = null;
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -114,10 +126,14 @@ if (!gotLock) {
   });
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);   // drop the default File/Edit/View/Window menu
-    startServer();
-    waitForServer(createWindow);
+    launch();
   });
 }
 
-app.on('before-quit', shutdown);
-app.on('window-all-closed', () => { shutdown(); app.quit(); });
+// Quit waits for the server to finish what it is doing and exit.
+app.on('before-quit', event => {
+  if (quitting) return;
+  event.preventDefault();
+  shutdown().then(() => app.quit());
+});
+app.on('window-all-closed', () => app.quit());
