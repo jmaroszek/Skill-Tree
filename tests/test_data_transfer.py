@@ -14,6 +14,9 @@ from graph_state import revisions
 from models import Event, Node, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
 from resource_links import save_node_links
 
+# Written around the Resource sections new databases used to start with.
+pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
+
 
 def _node(name, **overrides):
     fields = dict(name=name, type="Learn", description=f"about {name}", value=6,

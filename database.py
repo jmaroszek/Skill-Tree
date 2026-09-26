@@ -387,13 +387,14 @@ def _migrate(cursor, from_version: int) -> None:
                         (path_key, str(legacy_vault)),
                     )
 
-    # --- v10: named Resource sections and ordered per-node links. A fresh
-    # database gets the three starting sections and nothing to copy.
+    # --- v10: named Resource sections and ordered per-node links. An older
+    # database turns its three link columns into sections. A new one gets a
+    # single neutral section; users name their own in Settings > Resources.
     if from_version < 10:
         from resource_links import parse_links, normalize_link
         has_legacy = _has_column(cursor, "Nodes", "obsidian_path")
-        for position, (section_id, name, kind, root_key, column) in enumerate(
-                _LEGACY_RESOURCE_SECTIONS):
+        seeds = _LEGACY_RESOURCE_SECTIONS if has_legacy else _NEW_RESOURCE_SECTIONS
+        for position, (section_id, name, kind, root_key, column) in enumerate(seeds):
             root_row = cursor.execute("SELECT value FROM Settings WHERE key=?", (root_key,)).fetchone() if root_key else None
             root = root_row[0] if root_row else ""
             cursor.execute("INSERT OR IGNORE INTO ResourceSections "
@@ -448,6 +449,10 @@ _LEGACY_RESOURCE_SECTIONS = (
     ("obsidian", "Obsidian", "obsidian", "OBSIDIAN_VAULT", "obsidian_path"),
     ("drive", "Google Drive", "mixed", "GDRIVE_ROOT_PATH", "google_drive_path"),
     ("website", "Website", "mixed", None, "website"),
+)
+# What a new database starts with: web pages and files, one list.
+_NEW_RESOURCE_SECTIONS = (
+    ("links", "Links", "mixed", None, None),
 )
 
 

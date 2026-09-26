@@ -7,6 +7,10 @@ import resource_links as resources
 from graph_manager import GraphManager
 from models import Node
 from settings_callbacks import register_settings_callbacks
+import pytest
+
+# Written around the Resource sections new databases used to start with.
+pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
 
 
 def _node(name, **fields):

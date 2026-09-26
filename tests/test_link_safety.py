@@ -19,6 +19,9 @@ import pytest
 import resource_links as resources
 from resource_links import NeedsConfirmation
 
+# Written around the Resource sections new databases used to start with.
+pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
+
 MIXED = {"id": "files", "name": "Files", "kind": "mixed", "root_path": ""}
 
 

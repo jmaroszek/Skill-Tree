@@ -7,6 +7,9 @@ from graph_manager import GraphManager
 from models import Node
 from dash.development.base_component import Component
 
+# Written around the Resource sections new databases used to start with.
+pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
+
 
 def _node(name, **fields):
     return Node(name=name, type="Resource", description="", value=5,
@@ -282,3 +285,15 @@ def test_section_draft_reads_switches_from_the_cards():
                               [['enabled']], ids, [[]], ids)
     assert rows[0]['root_path'] == 'C:/Library'
     assert rows[0]['kind'] == 'mixed'
+
+
+def test_a_new_database_starts_with_one_neutral_links_section(tmp_path, monkeypatch):
+    """Not the author's Obsidian and Google Drive (P5.2). A brand-new file, so
+    the legacy fixture this module uses doesn't apply."""
+    import database
+    path = str(tmp_path / "brand_new.db")
+    monkeypatch.setattr(database, "get_db_path", lambda: path)
+    database._initialized = False
+    database.init_db()
+    assert [(s["id"], s["name"], s["kind"]) for s in resources.get_sections()] == [
+        ("links", "Links", "mixed")]

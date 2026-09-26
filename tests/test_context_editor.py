@@ -456,6 +456,8 @@ class TestSave:
         fns = _callbacks()
         rows = _rows()
         _row(rows, "Wisdom")["name"] = "Philosophy"
+        # The save turns the switch off before it fails; it must stay on.
+        ConfigManager.set_show_scoring_perf(True)
 
         def broken(_params):
             raise RuntimeError("disk full")
@@ -464,7 +466,7 @@ class TestSave:
 
         assert status.startswith("Couldn't save settings")
         assert pending is dash.no_update and editor is dash.no_update
-        assert ConfigManager.get_show_scoring_perf() is True  # the default
+        assert ConfigManager.get_show_scoring_perf() is True
         assert ConfigManager.get_contexts() == CONTEXTS
         assert seeded.get_node("Kant").context == "Wisdom"
 
