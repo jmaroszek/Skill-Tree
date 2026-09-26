@@ -35,6 +35,10 @@ win:
       arch: [x64]
   icon: ../assets/skill_tree.ico
   artifactName: Skill-Tree-Setup-${version}.${ext}
+  # Signed through whatever service WINDOWS_SIGN_COMMAND names; unsigned
+  # without it (build/sign-windows.js).
+  signtoolOptions:
+    sign: build/sign-windows.js
 
 nsis:
   oneClick: false
