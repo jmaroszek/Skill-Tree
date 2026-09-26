@@ -37,10 +37,10 @@ python -m venv .venv
 # macOS / Linux:
 source .venv/bin/activate
 
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
-`requirements.txt` mirrors `environment.yml`. If you bump a dependency, update both files.
+`requirements-dev.txt` installs the runtime set in `requirements.txt` plus the test tools. Both mirror `environment.yml`. If you bump a dependency, update all three files.
 
 ## 3. Run the app
 
@@ -66,7 +66,7 @@ Sandbox (8051) and production (8050) use distinct ports and databases, so both c
 pytest
 ```
 
-Tests run against a temporary per-test database and never touch your sandbox or production data.
+Tests run against a temporary per-test database and never touch your sandbox or production data. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
 
 ## Notes
 

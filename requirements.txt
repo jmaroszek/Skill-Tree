@@ -1,5 +1,6 @@
-# Skill Tree — pip dependencies (for venv users).
+# Skill Tree — runtime pip dependencies (what the app needs to run).
 # Mirrors environment.yml; keep the two in sync when bumping a version.
+# Test and packaging tools live in requirements-dev.txt.
 # Conda users should prefer environment.yml instead.
 # Requires Python 3.13.
 
@@ -9,8 +10,6 @@ dash-cytoscape==1.0.2
 networkx==3.4.2
 numpy==2.2.6
 plotly==6.6.0
-pytest==9.0.3
-scipy==1.15.2
 
 # The Electron desktop shell needs Node.js (a conda dependency — see
 # environment.yml) plus its npm packages; see setup.md. Node is not

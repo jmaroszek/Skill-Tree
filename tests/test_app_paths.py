@@ -4,6 +4,7 @@ import app_paths
 
 
 def test_paths_use_local_app_data(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_paths.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
     root = tmp_path / "Skill Tree"

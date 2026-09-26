@@ -1,0 +1,6 @@
+# Skill Tree — development dependencies: the runtime set plus test tooling.
+# CI installs this file. Add packaging tools here as they come into use.
+-r requirements.txt
+
+pytest==9.0.3
+hypothesis==6.168.1
