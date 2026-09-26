@@ -12,6 +12,7 @@ import time as _time
 
 from dash import html, ctx, Input, Output, State, ALL, no_update, ClientsideFunction
 
+import bridge_payloads
 import database
 from graph_manager import GraphManager
 from config import ConfigManager, SIDEBAR_TRANSLATE_CLOSED
@@ -248,10 +249,13 @@ def register_sidebars_callbacks(app, services=None):
     def handle_goal_priority_change(payload):
         if not payload:
             return no_update
-        parts = payload.split('|')
-        if len(parts) < 2:
+        # "name|rank|<ms>" from both the rank popover and the node menu, rank
+        # being 1-3 or "clear". The goal's name may itself contain "|", so the
+        # rank is read from the right.
+        parts = bridge_payloads.fields(payload, 2)
+        if parts is None:
             return no_update
-        goal_name, action = parts[0], parts[1]
+        goal_name, action = parts
         if not goal_name:
             return no_update
         priority_goals = ConfigManager.get_priority_goals()

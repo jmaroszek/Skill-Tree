@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
+import bridge_payloads
 import database
 
 import dash
@@ -263,7 +264,7 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
     it is batched with another trigger like tapNodeData.
     """
     if ('edit-trigger-input' in all_triggered_ids or 'details-edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
-        return edit_trigger_data.split('|')[0]
+        return bridge_payloads.strip_stamp(edit_trigger_data)
     if trigger_id in ('background-click-input', 'btn-editor-new'):
         return None
     if trigger_id == 'search-node' and search_val:

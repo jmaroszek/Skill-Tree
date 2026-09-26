@@ -2,6 +2,7 @@
 Callback definitions for the Events tab.
 """
 
+import bridge_payloads
 import database
 import json
 import time
@@ -554,10 +555,11 @@ def register_event_callbacks(app, services=None):
     def handle_event_context_action(action_value, active_tab):
         if not action_value:
             return (no_update,) * (_N_DETAIL + 2)
-        parts = action_value.split("|")
-        if len(parts) < 2:
+        # "name|action|<ms>". The event's name may itself contain "|".
+        parts = bridge_payloads.fields(action_value, 2)
+        if parts is None:
             return (no_update,) * (_N_DETAIL + 2)
-        event_name, action = parts[0], parts[1]
+        event_name, action = parts
         event = event_manager.get_event(event_name)
         if not event:
             return (no_update,) * (_N_DETAIL + 2)
@@ -1114,11 +1116,8 @@ def register_event_callbacks(app, services=None):
             # context_menu.js writes a JSON list of node names plus "|<ms>".
             if not trigger_val:
                 return (no_update,) * _N
-            try:
-                picked = json.loads(trigger_val.split("|")[0])
-            except ValueError:
-                return (no_update,) * _N
-            if not isinstance(picked, list):
+            picked = bridge_payloads.names(trigger_val)
+            if not picked:
                 return (no_update,) * _N
         elif ctx.triggered_id == "dormant-add-choice-input":
             # The Events tab's "+" menu, "Existing nodes…".

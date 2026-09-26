@@ -1,5 +1,5 @@
 """Editor node operations sharing the existing atomic manager transactions."""
-import json
+import bridge_payloads
 import database
 from config import ConfigManager
 from models import STATUS_DONE, STATUS_OPEN
@@ -187,9 +187,8 @@ def handle_toggle_done(manager, tapped_node):
 
 def handle_group_delete(manager, group_delete_data):
     """Delete multiple nodes from a JSON-encoded list. Returns a status message."""
-    # JS sends '["name1","name2"]|timestamp' — strip the timestamp suffix
-    raw = group_delete_data.split('|')[0] if isinstance(group_delete_data, str) else ''
-    names = json.loads(raw) if raw else []
+    # JS sends '["name1","name2"]|timestamp'. Names may contain "|".
+    names = bridge_payloads.names(group_delete_data)
     for node_name in names:
         manager.delete_node(node_name)
     return f"Deleted {len(names)} node(s)" if names else ""

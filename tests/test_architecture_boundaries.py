@@ -13,7 +13,7 @@ import pytest
 CORE_MODULES = [
     'goal_ranking', 'graph_analytics', 'context_rules', 'node_commands',
     'editor_values', 'graph_manager', 'graph_repository', 'graph_queries',
-    'graph_scoring', 'graph_rules', 'graph_state', 'layout',
+    'graph_scoring', 'graph_rules', 'graph_state', 'layout', 'bridge_payloads',
 ]
 
 # View-preparation modules. They legitimately build Dash components, so they may

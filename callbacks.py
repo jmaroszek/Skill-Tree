@@ -35,6 +35,7 @@ from config import (ConfigManager, sort_subcontexts, sort_contexts,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
                     DEFAULT_EVENTS_GRAPH_LAYOUT, SUPPORTED_NODE_TYPES)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+import bridge_payloads
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     prior_node_for_completion, apply_dormancy, conflicting_node_name,
@@ -660,7 +661,7 @@ def register_callbacks(app, services=None):
             # Context menu / Events-table Edit: node ID carried in the trigger value
             edit_val = edit_trigger_val if trigger_id == 'edit-trigger-input' else details_edit_trigger_val
             if edit_val:
-                edit_node_name = edit_val.split('|')[0]
+                edit_node_name = bridge_payloads.strip_stamp(edit_val)
                 node = manager.get_node(edit_node_name)
                 if node:
                     name = node.name
@@ -1841,12 +1842,7 @@ def register_callbacks(app, services=None):
                 msg = f"Error: {e}"
         elif trigger_id == 'toggle-done-trigger-input' and toggle_done_trigger_data:
             try:
-                raw = toggle_done_trigger_data.split('|')[0]
-                try:
-                    parsed = json.loads(raw)
-                    node_names = parsed if isinstance(parsed, list) else [raw]
-                except (ValueError, json.JSONDecodeError):
-                    node_names = [raw]
+                node_names = bridge_payloads.names(toggle_done_trigger_data)
 
                 nodes = [n for n in (manager.get_node(nm) for nm in node_names) if n]
                 if nodes:
@@ -2491,16 +2487,11 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def toggle_group_delete_modal(request_value, _cancel, _confirm):
-        import json as _json
         trigger_id = get_trigger_id()
         if trigger_id == 'group-delete-request-input':
             if not request_value:
                 return dash.no_update, dash.no_update, dash.no_update
-            raw = request_value.split('|')[0]
-            try:
-                names = _json.loads(raw) if raw else []
-            except Exception:
-                return dash.no_update, dash.no_update, dash.no_update
+            names = bridge_payloads.names(request_value)
             if not names:
                 return dash.no_update, dash.no_update, dash.no_update
             if len(names) == 1:
@@ -2855,7 +2846,7 @@ def register_callbacks(app, services=None):
     def handle_edit_trigger(value, current_tab):
         if not value:
             return dash.no_update
-        node_name = value.split('|')[0]
+        node_name = bridge_payloads.strip_stamp(value)
         if not node_name:
             return dash.no_update
         if current_tab == 'tab-canvas':
@@ -3215,11 +3206,7 @@ def register_callbacks(app, services=None):
         import time as _time
         if not trigger_data:
             return no_update, no_update
-        try:
-            raw = trigger_data.split('|')[0]
-            names = json.loads(raw) if raw else []
-        except (ValueError, json.JSONDecodeError):
-            return no_update, no_update
+        names = bridge_payloads.names(trigger_data)
         if not names:
             return no_update, no_update
         nodes = [n for n in (manager.get_node(name) for name in names) if n]
