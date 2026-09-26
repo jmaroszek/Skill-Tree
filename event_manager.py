@@ -160,8 +160,16 @@ class EventManager:
 
     # --- Event CRUD ---
 
+    @staticmethod
+    def _check_name(name):
+        import graph_rules
+        problem = graph_rules.name_problem(name, "Event name")
+        if problem:
+            raise ValueError(problem)
+
     @database.atomic
     def add_event(self, event: Event):
+        self._check_name(event.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -180,15 +188,20 @@ class EventManager:
 
     @database.atomic
     def update_event(self, old_name: str, event: Event):
+        if old_name != event.name:
+            self._check_name(event.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if old_name != event.name:
-                cursor.execute(
-                    "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, "
-                    "trigger_mode=? WHERE name=?",
-                    (event.name, event.description, event.status, event.trigger_date,
-                     self._normalize_mode(event.trigger_mode), old_name)
-                )
+                try:
+                    cursor.execute(
+                        "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, "
+                        "trigger_mode=? WHERE name=?",
+                        (event.name, event.description, event.status, event.trigger_date,
+                         self._normalize_mode(event.trigger_mode), old_name)
+                    )
+                except sqlite3.IntegrityError:
+                    raise ValueError(f"Event with name '{event.name}' already exists.")
                 cursor.execute(
                     "UPDATE EventNodes SET event_name=? WHERE event_name=?",
                     (event.name, old_name)

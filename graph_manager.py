@@ -128,6 +128,9 @@ class GraphManager:
     @database.atomic
     def add_node(self, node: Node):
         """Add a new node to the database."""
+        problem = graph_rules.name_problem(node.name, "Node name")
+        if problem:
+            raise ValueError(problem)
         if not node.context:
             raise ValueError(
                 f"Node '{node.name}' must have a context. "
@@ -334,6 +337,9 @@ class GraphManager:
     @database.atomic
     def rename_node(self, old_name: str, new_name: str):
         """Rename a node and its SQL/settings references in one transaction."""
+        problem = graph_rules.name_problem(new_name, "Node name")
+        if problem:
+            raise ValueError(problem)
         self._repository.rename_node(old_name, new_name)
         ConfigManager.rename_node_references(old_name, new_name)
         self._bump_version()
@@ -360,6 +366,9 @@ class GraphManager:
             for alias in aliases:
                 if alias and alias.strip():
                     clean = ConfigManager.apply_name_formatting(alias.strip())
+                    problem = graph_rules.name_problem(clean, "Alias")
+                    if problem:
+                        raise ValueError(problem)
                     owner = cursor.execute("SELECT node_name FROM Aliases WHERE alias=?", (clean,)).fetchone()
                     if owner and owner[0] != node_name:
                         raise ValueError(f"Alias '{clean}' already belongs to '{owner[0]}'.")
