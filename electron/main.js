@@ -3,25 +3,29 @@
 // Electron desktop shell for Skill Tree.
 //
 // Responsibilities:
-//   1. Start the Python server (`app.py --desktop`, pythonw, no console) with
-//      a fresh access token, and wait for its READY line, which names the
-//      port it picked (server_process.js).
+//   1. Start the server with a fresh access token, and wait for its READY
+//      line, which names the port it picked (server_process.js). A packaged
+//      app runs the bundled PyInstaller build; a checkout runs app.py
+//      (shell.js says which).
 //   2. Open a native window there. The first URL carries the token, which
 //      the server swaps for a cookie; nothing else on the machine has it.
 //   3. Own the lifecycle: quitting closes the server's stdin and the server
 //      shuts itself down. If the shell crashes, stdin closes all the same.
 
-const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { registerResourceDialog } = require('./resource_dialog');
 const {
   appUrl, exitMessage, newToken, startServer, stopServer,
 } = require('./server_process');
+const {
+  isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, windowChrome,
+} = require('./shell');
 
-const SANDBOX = process.argv.includes('--sandbox');
+// The sandbox database is a developer's; a packaged app ignores the flag.
+const SANDBOX = !app.isPackaged && process.argv.includes('--sandbox');
 
-// The Skill Tree conda environment's windowless interpreter.
-const PYTHONW = 'C:\\Users\\jonah\\anaconda3\\envs\\skill-tree\\pythonw.exe';
 // electron/ lives inside the repo, so the app root is one level up.
 const REPO = path.resolve(__dirname, '..');
 const ICON = path.join(REPO, 'assets', 'skill_tree.ico');
@@ -39,12 +43,15 @@ app.setPath('userData', path.join(app.getPath('appData'),
 
 async function launch() {
   const token = newToken();
-  const args = ['app.py', '--desktop'];
-  if (SANDBOX) args.push('--sandbox');
+  const { command, args, cwd } = serverCommand({
+    isPackaged: app.isPackaged, platform: process.platform,
+    resourcesPath: process.resourcesPath, repo: REPO, env: process.env,
+    exists: fs.existsSync, sandbox: SANDBOX,
+  });
   let started;
   try {
     started = await startServer({
-      command: PYTHONW, args, cwd: REPO,
+      command, args, cwd,
       env: { ...process.env, SKILLTREE_TOKEN: token },
       log: chunk => process.stdout.write(`[py] ${chunk}`),
     });
@@ -79,18 +86,19 @@ function createWindow(url) {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#1a1d21',   // matches the app; avoids a white flash
-    icon: ICON,
+    // Packaged builds carry their icon in the executable.
+    icon: process.platform === 'win32' && !app.isPackaged ? ICON : undefined,
     show: false,
-    // Integrated title bar: hide the OS caption but keep the native window
-    // buttons as an overlay in the top-right; the app's toolbar fills the rest.
-    titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#1a1d21', symbolColor: '#dee2e6', height: 40 },
+    // The app's toolbar is the title bar on Windows and macOS (shell.js).
+    ...windowChrome(process.platform),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
+  guardWindow(mainWindow.webContents);
   // Maximize before the page loads, so its first frame is drawn at full size.
   // Maximizing after the first paint (on ready-to-show) resized a page whose
   // main thread was busy with startup. It couldn't re-lay-out until the work
@@ -101,10 +109,40 @@ function createWindow(url) {
   mainWindow.show();
   mainWindow.loadURL(url);
   mainWindow.on('closed', () => { mainWindow = null; });
-  // F12 / Ctrl+Shift+I toggles DevTools (there's no app menu to provide it).
+  // F12 / Ctrl+Shift+I toggles DevTools (Windows and Linux have no menu to provide it).
   mainWindow.webContents.on('before-input-event', (e, input) => {
     const ctrlShiftI = input.control && input.shift && input.key.toLowerCase() === 'i';
     if (input.key === 'F12' || ctrlShiftI) mainWindow.webContents.toggleDevTools();
+  });
+}
+
+// The window shows the app and nothing else. Web and mail links open in the
+// system's apps; anything else is refused (the server's own resource opener
+// handles files and custom schemes, and asks first).
+function guardWindow(contents) {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (isExternalUrl(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', (event, url) => {
+    if (isAppUrl(url, server && server.port)) return;
+    event.preventDefault();
+    if (isExternalUrl(url)) shell.openExternal(url);
+  });
+  // A crashed or killed page leaves a blank window. The graph is saved as
+  // the user works, so reloading loses nothing.
+  contents.on('render-process-gone', (event, details) => {
+    if (quitting || details.reason === 'clean-exit') return;
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'warning',
+      message: "Skill Tree's window stopped unexpectedly.",
+      detail: `Reason: ${details.reason}. Your graph is saved as you work, so reloading loses nothing.`,
+      buttons: ['Reload', 'Quit'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice === 0) contents.reload();
+    else app.quit();
   });
 }
 
@@ -125,7 +163,11 @@ if (!gotLock) {
     }
   });
   app.whenReady().then(() => {
-    Menu.setApplicationMenu(null);   // drop the default File/Edit/View/Window menu
+    // macOS takes its clipboard shortcuts from the menu. Elsewhere the toolbar
+    // is the whole title bar, and the shortcuts work without one.
+    Menu.setApplicationMenu(process.platform === 'darwin'
+      ? Menu.buildFromTemplate(macMenuTemplate(app.name))
+      : null);
     launch();
   });
 }

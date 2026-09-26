@@ -48,3 +48,12 @@ The shell starts the server on a free port and reads the port from the server's
 
 Both spawn the env's `pythonw` server under the hood; closing the window stops it.
 Production and sandbox use separate Electron profiles, so they can run side by side.
+
+The shell (`electron/shell.js`) finds the interpreter in this order:
+1. `SKILLTREE_PYTHON`, if set.
+2. A conda env named `skill-tree` under `%USERPROFILE%` (anaconda3, miniconda3,
+   miniforge3 or mambaforge).
+3. `pythonw` (Windows) or `python3` on `PATH`.
+
+A packaged build runs its bundled server instead (`packaging/skilltree-server.spec`)
+and ignores `--sandbox`.

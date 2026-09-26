@@ -654,6 +654,26 @@
     background-color: rgba(173, 181, 189, 0.28);
 }
 
+/* macOS draws its traffic lights on the left, so the toolbar starts after
+   them (titlebar-area-x, ~78px) and needs no room on the right. */
+.electron-shell.platform-darwin #main-toolbar {
+    padding-left: env(titlebar-area-x, 78px);
+    padding-right: 0;
+}
+.electron-shell.platform-darwin .main-toolbar-actions::after {
+    display: none;
+}
+
+/* Linux keeps the desktop's own title bar (electron/shell.js), so the
+   toolbar is an ordinary bar again. */
+.electron-shell.platform-linux #main-toolbar {
+    -webkit-app-region: no-drag;
+    padding-right: 0;
+}
+.electron-shell.platform-linux .main-toolbar-actions::after {
+    display: none;
+}
+
 /* --- Flat "ghost" toolbar icons --- */
 /* The top toolbar's icon buttons default to filled gray (btn-secondary), which
    reads as chunky buttons next to the flat native window controls. Override
