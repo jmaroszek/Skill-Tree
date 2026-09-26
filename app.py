@@ -3,6 +3,7 @@ import logging
 import sys
 import os
 import ctypes
+import platform
 import importlib
 import uuid
 import webbrowser
@@ -16,6 +17,7 @@ from logging.handlers import RotatingFileHandler
 import config
 from app_paths import get_log_dir
 import database
+from version import __version__
 
 _logger = logging.getLogger(__name__)
 
@@ -77,6 +79,8 @@ def create_app(settings=None, services=None):
     config.ENVIRONMENT = settings.environment
     if settings.configure_logging:
         _configure_logging(settings.environment)
+    _logger.info("Skill Tree %s starting (%s; Python %s on %s).", __version__,
+                 settings.environment, platform.python_version(), platform.platform())
 
     from config import ConfigManager
     from app_services import AppServices
@@ -85,6 +89,9 @@ def create_app(settings=None, services=None):
     ConfigManager.ensure_action_type()
     ConfigManager.ensure_goal_type()
     ConfigManager.ensure_milestone_type()
+    # Diagnostics, and any future migration, can tell which build last opened
+    # this data.
+    ConfigManager.set_last_app_version(__version__)
     with database.get_connection() as conn:
         node_count = conn.execute("SELECT COUNT(*) FROM Nodes").fetchone()[0]
         edge_count = conn.execute("SELECT COUNT(*) FROM Edges").fetchone()[0]

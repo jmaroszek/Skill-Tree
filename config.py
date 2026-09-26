@@ -1266,6 +1266,15 @@ class ConfigManager:
         cls._set_db_value("SHOW_SCORING_PERF", "1" if enabled else "0")
 
     @classmethod
+    def get_last_app_version(cls) -> Optional[str]:
+        """The app version that most recently opened this database, if any."""
+        return cls._get_db_value("LAST_APP_VERSION")
+
+    @classmethod
+    def set_last_app_version(cls, version: str):
+        cls._set_db_value("LAST_APP_VERSION", version)
+
+    @classmethod
     def get_time_calibration_enabled(cls) -> bool:
         """Whether to prompt for actual time spent when a node is marked Done."""
         val = cls._get_db_value("TIME_CALIBRATION_ENABLED")

@@ -60,6 +60,13 @@ def test_the_served_page_opens_behind_the_startup_cover(isolated_app_import):
     assert page.index('window.SkillTree.canvases') < page.index('startup_cover.js')
 
 
+def test_app_records_the_version_that_opened_the_database(isolated_app_import):
+    from config import ConfigManager
+    from version import __version__
+
+    assert ConfigManager.get_last_app_version() == __version__
+
+
 def test_app_title_reflects_environment(isolated_app_import):
     app_module = isolated_app_import
     assert app_module.app.title in {"Skill Tree", "Skill Tree (Sandbox)"}
