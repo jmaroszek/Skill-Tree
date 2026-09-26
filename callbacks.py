@@ -19,7 +19,7 @@ from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
 from core_response import CoreResponse
 from canvas_view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
 from next_view import perf_stats_text
-from resource_links import get_sections, open_resource, store_path
+from resource_links import NeedsConfirmation, get_sections, open_resource, store_path
 
 from typing import List, Set
 
@@ -2836,30 +2836,58 @@ def register_callbacks(app, services=None):
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
+        Output('confirm-open-link', 'message'),
+        Output('confirm-open-link', 'displayed'),
+        Output('pending-open-link', 'data'),
         Input({'type': 'resource-open', 'index': ALL}, 'n_clicks'),
         State({'type': 'resource-link', 'index': ALL}, 'value'),
         State({'type': 'resource-link', 'index': ALL}, 'id'),
         prevent_initial_call=True,
     )
     def open_resource_link(_clicks, values, ids):
+        unchanged = (dash.no_update,) * 3
         trigger = ctx.triggered_id
         if not isinstance(trigger, dict) or not ctx.triggered[0].get('value'):
-            return dash.no_update
+            return (dash.no_update,) + unchanged
         key = trigger['index']
         section_id = key.rpartition(':')[0]
         section = next((s for s in get_sections() if s['id'] == section_id), None)
         if section is None:
-            return 'That resource no longer exists.'
+            return ('That resource no longer exists.',) + unchanged
         value = next((value for value, item_id in zip(values, ids)
                       if item_id['index'] == key), '')
         try:
             open_resource(value, section)
+            return (dash.no_update,) + unchanged
+        except NeedsConfirmation as ask:
+            return dash.no_update, str(ask), True, {"section": section_id, "link": value}
+        except Exception as exc:
+            return (_open_failed(section, exc),) + unchanged
+
+    # A yes in the dialog above.
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        Input('confirm-open-link', 'submit_n_clicks'),
+        State('pending-open-link', 'data'),
+        prevent_initial_call=True,
+    )
+    def open_confirmed_link(submitted, pending):
+        if not submitted or not isinstance(pending, dict):
+            return dash.no_update
+        section = next((s for s in get_sections() if s['id'] == pending.get('section')), None)
+        if section is None:
+            return 'That resource no longer exists.'
+        try:
+            open_resource(pending.get('link', ''), section, confirmed=True)
             return dash.no_update
         except Exception as exc:
-            # A missing file or an unset root folder is expected, and its text
-            # says what to fix. The log keeps it for anything stranger.
-            logger.warning("Opening a %s link failed: %s", section['name'], exc)
-            return f"Error opening {section['name']}: {exc}"
+            return _open_failed(section, exc)
+
+    def _open_failed(section, exc):
+        # A missing file or an unset root folder is expected, and its text
+        # says what to fix. The log keeps it for anything stranger.
+        logger.warning("Opening a %s link failed: %s", section['name'], exc)
+        return f"Error opening {section['name']}: {exc}"
 
     # The desktop window's native picker (assets/resource_picker.js) reports
     # its choice here; the browser fallback runs in modify_resource_links.

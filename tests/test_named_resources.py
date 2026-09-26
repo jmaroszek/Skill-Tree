@@ -193,7 +193,8 @@ def test_saved_resource_route_uses_shared_opener(monkeypatch):
     manager.add_node(_node("Reading", resource_links={"website": ["https://example.com"]}))
     opened = []
     monkeypatch.setattr(resources, 'open_resource',
-                        lambda value, section: opened.append((value, section['id'])))
+                        lambda value, section, confirmed=False:
+                        opened.append((value, section['id'])))
     app = app_module.create_app(app_module.AppSettings(
         environment=config.ENVIRONMENT, configure_logging=False))
     client = app.server.test_client()

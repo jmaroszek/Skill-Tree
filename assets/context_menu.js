@@ -413,18 +413,31 @@
 
         menus.onItem('ctx-menu-add-to-event', triggerAddToEvent);
 
+        // A link that starts another app, or reaches another computer, comes
+        // back with a question (resource_links.NeedsConfirmation). A yes sends
+        // the same request again, confirmed.
+        function openResource(request) {
+            fetch('/open-resource', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request),
+            }).then(function (response) { return response.json(); })
+              .then(function (data) {
+                  if (data.confirm) {
+                      if (window.confirm(data.confirm)) {
+                          openResource(Object.assign({}, request, { confirmed: true }));
+                      }
+                  } else if (!data.ok) {
+                      alert('Could not open Resource: ' + (data.error || 'unknown'));
+                  }
+              }).catch(function (err) { console.error('Open Resource failed:', err); });
+        }
+
         resourceItems.forEach(function (item) {
             menus.onItem(item.id, function () {
                 if (!_currentNodeData || !item || !item.dataset.resourceId) return;
-                fetch('/open-resource', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ node: _currentNodeData.id,
-                        section: item.dataset.resourceId, index: 0 }),
-                }).then(function (response) { return response.json(); })
-                  .then(function (data) {
-                      if (!data.ok) alert('Could not open Resource: ' + (data.error || 'unknown'));
-                  }).catch(function (err) { console.error('Open Resource failed:', err); });
+                openResource({ node: _currentNodeData.id,
+                    section: item.dataset.resourceId, index: 0 });
             });
         });
 

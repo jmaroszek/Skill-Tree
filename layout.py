@@ -1310,6 +1310,9 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='pending-navigation-store', data=None),
         # Written by core_engine only when an editor save commits.
         dcc.Store(id='editor-save-result-store', data=None),
+        # A saved link that needs a yes before it opens (resource_links.NeedsConfirmation).
+        dcc.ConfirmDialog(id='confirm-open-link', message=''),
+        dcc.Store(id='pending-open-link', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='details-explain-trigger-input', type='text', value='', style={'display': 'none'}),
         # Set by context_menu.js when "Add to event…" is clicked. Carries a

@@ -19,7 +19,12 @@ MAX_SECTIONS = 5
 # Obsidian app by URI; "mixed" hands URLs to the browser and files to the OS.
 KINDS = ("obsidian", "mixed")
 _WEB = re.compile(r"^https?://", re.IGNORECASE)
-_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
+# Any "scheme:" prefix of two or more characters. One letter is a Windows
+# drive, and a digit after the colon is a port (example.com:8080).
+_ANY_SCHEME = re.compile(r"^([a-z][a-z0-9+.-]+):(?!\d)", re.IGNORECASE)
+# Links that open without asking. Any other scheme runs whatever app registered
+# it, and some such handlers have been exploitable (ms-msdt on Windows).
+SAFE_SCHEMES = {"http", "https", "mailto", "obsidian"}
 _DOMAIN = re.compile(r"^(?:www\.)?[^/\\\s]+\.[a-z]{2,}(?:[/:?#]|$)", re.IGNORECASE)
 _FILE_SUFFIXES = {"txt", "md", "pdf", "png", "jpg", "jpeg", "gif", "webp",
                   "svg", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv",
@@ -90,8 +95,42 @@ def section_link_counts():
             "SELECT section_id, COUNT(*) FROM NodeResourceLinks GROUP BY section_id"))
 
 
+class NeedsConfirmation(Exception):
+    """This link starts another app or reaches another computer. The message
+    is the question to put to the user; open_resource(confirmed=True) goes
+    ahead once they agree."""
+
+
 def absolute_path(value):
     return os.path.isabs(value) or ntpath.isabs(value)
+
+
+def link_scheme(value):
+    """The link's scheme, lowercased, or None for a path (C: is a drive)."""
+    match = _ANY_SCHEME.match((value or "").strip())
+    return match.group(1).lower() if match else None
+
+
+def network_host(path):
+    """The computer a network path names (\\\\host\\share, //host/share), or None."""
+    text = str(path).replace("/", "\\")
+    if text[:8].upper() == "\\\\?\\UNC\\":
+        text = "\\\\" + text[8:]
+    elif text.startswith(("\\\\?\\", "\\\\.\\")):   # local device paths
+        return None
+    if not text.startswith("\\\\"):
+        return None
+    return text[2:].split("\\", 1)[0] or None
+
+
+def _ask_before_network(path, confirmed):
+    """Windows signs in to the computer a network path names, handing it the
+    user's password hash, as soon as anything looks at the path. So ask first."""
+    host = network_host(path)
+    if host and not confirmed:
+        raise NeedsConfirmation(
+            f"This link is a file on another computer, {host}. Opening it "
+            "connects to that computer with your sign-in. Open it?")
 
 
 def store_path(value, root):
@@ -115,21 +154,34 @@ def store_path(value, root):
 
 def normalize_link(value, section):
     value = (value or "").strip()
-    if not value or _WEB.match(value) or _SCHEME.match(value):
+    if not value or _WEB.match(value) or link_scheme(value):
         return value
     return store_path(value, section.get("root_path", ""))
 
 
-def resolve_target(value, section):
-    """Return ('web'|'path'|'uri', target); never mistake a drive for a URI."""
+def resolve_target(value, section, confirmed=False):
+    """Return ('web'|'path'|'uri', target); never mistake a drive for a URI.
+
+    Raises NeedsConfirmation, before touching the filesystem, for a scheme
+    outside SAFE_SCHEMES or a path on another computer, unless ``confirmed``.
+    """
     value = (value or "").strip()
     if not value:
         raise ValueError("No file path or URL set.")
     if _WEB.match(value):
         return "web", value
-    if _SCHEME.match(value):
+    scheme = link_scheme(value)
+    if scheme:
+        if scheme not in SAFE_SCHEMES and not confirmed:
+            raise NeedsConfirmation(
+                f"This is a {scheme}: link, which opens in whatever app handles "
+                f"{scheme}: links. Only open it if you trust where it came from. "
+                "Open it?")
         return "uri", value
+    _ask_before_network(value, confirmed)
     root = (section.get("root_path") or "").strip()
+    if root and not absolute_path(value):
+        _ask_before_network(root, confirmed)
     if section.get("kind") == "obsidian":
         if not root and not absolute_path(value):
             raise ValueError("Set this resource's root folder to your Obsidian vault in Settings.")
@@ -163,8 +215,9 @@ def open_path(target):
         subprocess.Popen(["xdg-open", target], shell=False)
 
 
-def open_resource(value, section):
-    kind, target = resolve_target(value, section)
+def open_resource(value, section, confirmed=False):
+    """Open a saved link. NeedsConfirmation first when it needs a yes."""
+    kind, target = resolve_target(value, section, confirmed)
     if kind == "web":
         if not webbrowser.open_new_tab(target):
             raise OSError("No browser accepted the URL.")

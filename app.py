@@ -215,7 +215,8 @@ def open_resource_route():
     """Open one saved link selected from a node's context menu."""
     from flask import request, jsonify
     from graph_manager import GraphManager
-    from resource_links import get_sections, get_node_links, open_resource
+    from resource_links import (NeedsConfirmation, get_sections, get_node_links,
+                                open_resource)
 
     payload = request.get_json(silent=True) or {}
     name = payload.get('node')
@@ -230,8 +231,11 @@ def open_resource_route():
     if section is None or not 0 <= index < len(links):
         return jsonify({"ok": False, "error": "Resource link not found"}), 404
     try:
-        open_resource(links[index], section)
+        open_resource(links[index], section, confirmed=payload.get('confirmed') is True)
         return jsonify({"ok": True})
+    except NeedsConfirmation as ask:
+        # The page asks, and sends the request again with confirmed: true.
+        return jsonify({"ok": False, "confirm": str(ask)})
     except Exception as exc:
         _logger.warning("Opening a %s link failed: %s", section['name'], exc)
         return jsonify({"ok": False, "error": str(exc)}), 400
