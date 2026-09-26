@@ -22,6 +22,7 @@ const {
 const {
   isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, windowChrome,
 } = require('./shell');
+const { latestRelease, readPreferences, updateMode } = require('./updates');
 
 // The sandbox database is a developer's; a packaged app ignores the flag.
 const SANDBOX = !app.isPackaged && process.argv.includes('--sandbox');
@@ -77,6 +78,43 @@ async function launch() {
     app.quit();
   });
   createWindow(appUrl(started.port, token));
+  // Well after startup, so the window never waits on the network.
+  setTimeout(checkForUpdates, 15000);
+}
+
+// One check per launch (updates.js says which kind, or none).
+function checkForUpdates() {
+  const mode = updateMode({
+    isPackaged: app.isPackaged, platform: process.platform, env: process.env,
+    preferences: readPreferences(app.getPath('userData')),
+  });
+  if (mode === 'install') {
+    // Downloads in the background; installs when the app next quits.
+    const { autoUpdater } = require('electron-updater');
+    autoUpdater.checkForUpdatesAndNotify().catch(err => {
+      console.warn(`[shell] update check failed: ${err.message}`);
+    });
+  } else if (mode === 'notify') {
+    latestRelease({ current: app.getVersion(), fetchJson: fetchReleaseJson }).then(release => {
+      if (!release || !mainWindow) return;
+      const choice = dialog.showMessageBoxSync(mainWindow, {
+        type: 'info',
+        message: `Skill Tree ${release.version} is available.`,
+        detail: `You have ${app.getVersion()}. Download it from the release page and install `
+          + 'it over this one. Your graph stays where it is.',
+        buttons: ['Download', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (choice === 0) shell.openExternal(release.url);
+    });
+  }
+}
+
+async function fetchReleaseJson(url) {
+  const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+  if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
+  return response.json();
 }
 
 function createWindow(url) {

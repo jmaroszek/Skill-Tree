@@ -21,6 +21,7 @@ files:
   - resource_dialog.js
   - server_process.js
   - shell.js
+  - updates.js
   - package.json
 
 # The PyInstaller build becomes resources/server (electron/shell.js looks
