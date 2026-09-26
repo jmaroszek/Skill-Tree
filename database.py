@@ -485,9 +485,9 @@ def _inspect_database():
     return version, has_tables
 
 
-def _damaged_message(detail):
+def _damaged_message(detail, path=None):
     backups = Path(get_db_path()).parent / "Backups"
-    return (f"The Skill Tree data file {get_db_path()} is damaged ({detail}). "
+    return (f"The Skill Tree data file {path or get_db_path()} is damaged ({detail}). "
             f"Nothing was changed. Backups are in {backups}; restore the newest "
             "one that opens.")
 
@@ -498,11 +498,11 @@ def check_integrity(path=None):
     try:
         rows = [row[0] for row in conn.execute("PRAGMA quick_check").fetchall()]
     except sqlite3.DatabaseError as exc:
-        raise DatabaseCorruptError(_damaged_message(str(exc))) from exc
+        raise DatabaseCorruptError(_damaged_message(str(exc), path)) from exc
     finally:
         conn.close()
     if rows != ["ok"]:
-        raise DatabaseCorruptError(_damaged_message("; ".join(rows[:3])))
+        raise DatabaseCorruptError(_damaged_message("; ".join(rows[:3]), path))
 
 
 def init_db():

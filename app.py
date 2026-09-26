@@ -151,6 +151,7 @@ def create_app(settings=None, services=None):
     from sidebars_callbacks import register_sidebars_callbacks
     from context_picker import register_context_picker_callbacks
     from list_toolbar import register_list_toolbar_callbacks
+    from data_callbacks import register_data_callbacks
 
     cyto.load_extra_layouts()
     try:
@@ -175,7 +176,8 @@ def create_app(settings=None, services=None):
     for register in (register_callbacks, register_event_callbacks,
                      register_details_callbacks, register_next_callbacks,
                      register_settings_callbacks, register_review_hub_callbacks,
-                     register_analyze_callbacks, register_sidebars_callbacks):
+                     register_analyze_callbacks, register_sidebars_callbacks,
+                     register_data_callbacks):
         register(app, services)
     register_context_picker_callbacks(app)
     register_list_toolbar_callbacks(app)

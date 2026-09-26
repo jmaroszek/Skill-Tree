@@ -703,6 +703,7 @@ def register_settings_callbacks(app, services=None):
         *_CTX_EDIT_STATES,
         State('resource-section-settings-store', 'data'),
         *_SECTION_FORM_STATES,
+        State('setting-backup-extra-dir', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks,
@@ -718,7 +719,8 @@ def register_settings_callbacks(app, services=None):
                        section_store=None, section_names=None, section_name_ids=None,
                        section_roots=None, section_root_ids=None,
                        section_use_roots=None, section_use_root_ids=None,
-                       section_obsidian=None, section_obsidian_ids=None):
+                       section_obsidian=None, section_obsidian_ids=None,
+                       backup_extra_dir=None):
         if not n_clicks:
             return (dash.no_update,) * 5
 
@@ -750,6 +752,8 @@ def register_settings_callbacks(app, services=None):
                     ConfigManager.set_now_node_cap(max(1, min(50, int(now_node_cap_val))))
                 if subcontext_sort_mode_val:
                     ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
+                if backup_extra_dir is not None:
+                    ConfigManager.set_backup_extra_dir(backup_extra_dir)
                 if context_sort_mode_val:
                     ConfigManager.set_context_sort_mode(context_sort_mode_val)
                 profile_name = hp_profile if hp_profile in PROFILES else "Sage"

@@ -16,7 +16,9 @@ from config import (
 )
 import style_tokens as tokens
 from resource_links import get_sections
-from ui_kit import Tooltip, info_button, restore_button
+import backup
+from ui_kit import (Tooltip, cancel_action, danger_action, info_button,
+                    primary_action, restore_button)
 
 
 
@@ -374,6 +376,76 @@ def _build_resources_tab():
     ])
 
 
+def _build_data_tab():
+    """Backups, restore, export and import: everything about the data file.
+
+    These act at once, unlike the other tabs, so their buttons sit in the tab
+    rather than behind the Settings save. data_callbacks.py handles them.
+    """
+    return dbc.Tab(label="Data", tab_id="tab-data", children=[
+        html.Div([
+            # --- Backups ---
+            html.H5("Backups", className="mt-2 mb-1"),
+            html.Small([
+                "Skill Tree copies your graph once a day when it has changed, "
+                f"and keeps the last {backup.KEEP['daily']} copies in ",
+                html.Code(str(backup.backup_dir())), "."],
+                className="text-muted d-block mb-2"),
+            html.Div([
+                primary_action("Back up now", "btn-backup-now", size="sm", className="me-2"),
+                cancel_action("Open backups folder", "btn-open-backup-folder", size="sm"),
+            ], className="d-flex align-items-center mb-3"),
+            dbc.Label("Also copy each backup to"),
+            dbc.Input(id="setting-backup-extra-dir", type="text",
+                      placeholder="Optional: a synced folder, such as Dropbox or OneDrive"),
+            html.Small("A second copy in a synced folder survives the loss of this "
+                       "computer. Saved with the other settings.",
+                       className="text-muted d-block mt-1"),
+
+            # --- Restore ---
+            html.Hr(className="my-3"),
+            html.H5("Restore", className="mt-2 mb-1"),
+            html.Small("Replace your current graph with a backup. Your current graph "
+                       "is backed up first, so a restore can itself be undone.",
+                       className="text-muted d-block mb-2"),
+            html.Div([
+                dcc.Dropdown(id="restore-backup-select", options=[], clearable=False,
+                             placeholder="Choose a backup", style={"minWidth": "340px"}),
+                danger_action("Restore…", "btn-restore-backup", size="sm", className="ms-2"),
+            ], className="d-flex align-items-center"),
+            dbc.Collapse(html.Div([
+                html.Div(id="restore-confirm-text", className="mb-2"),
+                cancel_action("Cancel", "btn-restore-cancel", size="sm", className="me-2"),
+                danger_action("Restore", "btn-restore-confirm", size="sm"),
+            ], className="mt-2"), id="restore-confirm", is_open=False),
+
+            # --- Export & import ---
+            html.Hr(className="my-3"),
+            html.H5("Export & Import", className="mt-2 mb-1"),
+            html.Small("An export is one file holding your whole graph and its "
+                       "settings. Use it to move to another computer, or to keep a "
+                       "copy outside Skill Tree.",
+                       className="text-muted d-block mb-2"),
+            html.Div([
+                primary_action("Export graph (.json)", "btn-export-json", size="sm",
+                               className="me-2"),
+                cancel_action("Export database file", "btn-export-db", size="sm"),
+            ], className="d-flex align-items-center mb-2"),
+            dcc.Download(id="download-export-json"),
+            dcc.Download(id="download-export-db"),
+            dcc.Upload(
+                cancel_action("Import graph (.json)…", "btn-import-json", size="sm"),
+                id="upload-import", accept=".json,application/json", multiple=False),
+            html.Small("Import fills an empty graph, such as a new installation.",
+                       className="text-muted d-block mt-1"),
+
+            html.Div(id="data-status", className="mt-3"),
+            dcc.Store(id="data-reload-trigger"),
+            dcc.Store(id="data-reload-sink"),
+        ], className="p-2", style={"width": "100%", "maxWidth": "640px"}),
+    ])
+
+
 def _resource_root_field(section_id, root_path):
     """A root-folder input with a trailing folder browse, as in the node editor."""
     return html.Div([
@@ -467,6 +539,7 @@ def build_settings_modal():
                 _build_editing_tab(),
                 _build_appearance_tab(),
                 _build_resources_tab(),
+                _build_data_tab(),
             ]),
         ),
     ], id="settings-modal", dialog_style={"maxWidth": "900px"},
