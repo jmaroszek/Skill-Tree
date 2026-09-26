@@ -1081,6 +1081,10 @@ class ConfigManager:
         if old_name in pg:
             cls.set_priority_goals([new_name if g == old_name else g for g in pg])
 
+        order = cls.get_goal_order()
+        if old_name in order:
+            cls.set_goal_order([new_name if g == old_name else g for g in order])
+
     @classmethod
     def delete_node_references(cls, name: str) -> None:
         """Prune every config entry that stores a node name.
@@ -1097,6 +1101,10 @@ class ConfigManager:
         pg = cls.get_priority_goals()
         if name in pg:
             cls.set_priority_goals([g for g in pg if g != name])
+
+        order = cls.get_goal_order()
+        if name in order:
+            cls.set_goal_order([g for g in order if g != name])
 
     # --- Pending Event Notifications (shown on next app load) ---
 
