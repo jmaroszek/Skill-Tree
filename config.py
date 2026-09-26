@@ -17,7 +17,6 @@ import copy
 import json
 import database
 from typing import Optional
-from app_paths import get_log_dir
 from database import get_connection
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
@@ -61,14 +60,6 @@ SIDEBAR_TRANSLATE_CLOSED = f"translateX(-{SIDEBAR_WIDTH}px)"
 
 # Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
 DB_FILENAME = "skilltree.db"
-
-# --- Daily backup script (backup.py, invoked by Windows Task Scheduler) ---
-BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
-# Stored with the other application logs under LocalAppData.
-BACKUP_LOG_FILE = str(get_log_dir() / 'backup.log')
-# How many backup files to keep. The script skips days where the graph did not
-# change, so this counts distinct states rather than calendar days.
-BACKUP_KEEP = 30
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 SUPPORTED_NODE_TYPES = ("Learn", "Action", "Resource", "Goal", "Milestone")
@@ -1332,6 +1323,18 @@ class ConfigManager:
     @classmethod
     def set_show_scoring_perf(cls, enabled: bool):
         cls._set_db_value("SHOW_SCORING_PERF", "1" if enabled else "0")
+
+    @classmethod
+    def get_backup_extra_dir(cls) -> str:
+        """A second folder each new backup is also copied to, or ''.
+
+        Typically a synced folder, so a copy survives the loss of the machine.
+        """
+        return cls._get_db_value("BACKUP_EXTRA_DIR") or ""
+
+    @classmethod
+    def set_backup_extra_dir(cls, path: str):
+        cls._set_db_value("BACKUP_EXTRA_DIR", (path or "").strip())
 
     @classmethod
     def get_last_app_version(cls) -> Optional[str]:

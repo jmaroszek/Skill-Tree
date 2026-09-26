@@ -117,6 +117,9 @@ def create_app(settings=None, services=None):
     # Diagnostics, and any future migration, can tell which build last opened
     # this data.
     ConfigManager.set_last_app_version(__version__)
+    # At most once a day, and never fatal: a failure is logged.
+    import backup
+    backup.run_daily_backup()
     with database.get_connection() as conn:
         node_count = conn.execute("SELECT COUNT(*) FROM Nodes").fetchone()[0]
         edge_count = conn.execute("SELECT COUNT(*) FROM Edges").fetchone()[0]
@@ -280,7 +283,16 @@ def _existing_instance_running(port: int) -> bool:
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     environment = "sandbox" if "--sandbox" in argv else "production"
-    app = create_app(AppSettings(environment=environment))
+    try:
+        app = create_app(AppSettings(environment=environment))
+    except database.DatabaseError as exc:
+        # A database this build won't open (newer, damaged, or an SQLite too
+        # old for it). The file is untouched. Say why, and exit with a code the
+        # desktop shell can tell apart.
+        _logger.critical("%s", exc)
+        if sys.stderr is not None:
+            print(f"Skill Tree can't start: {exc}", file=sys.stderr)
+        sys.exit(exc.exit_code)
     # Optional --port flag so a sandbox instance can run alongside production
     # without colliding on 8050.
     _port = _parse_port(argv)

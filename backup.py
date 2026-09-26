@@ -1,24 +1,77 @@
-"""Daily production-DB backup script invoked by Windows Task Scheduler."""
+"""Copies of the database: daily, before migrations and restores, and on demand.
 
+Backups sit beside the database, in its Backups folder, one file per copy,
+named ``<database>_<YYYYmmdd-HHMMSS>_<kind>.db`` so that names sort by time and
+the sandbox's copies never mix with production's. VACUUM INTO writes a compact
+copy that is byte-stable: an unchanged graph gives an identical file, so a
+daily copy identical to the newest backup is dropped rather than using up a
+retention slot.
+
+The app makes the daily backup at startup. Run as a script
+(``python backup.py``) it makes the same backup of the production database,
+for anyone who still schedules it.
+"""
 import hashlib
-import sqlite3
+import logging
 import os
+import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import List, Optional
 
 import database
-from config import BACKUP_DIR, BACKUP_KEEP, BACKUP_LOG_FILE
+
+logger = logging.getLogger(__name__)
+
+# Copies of each kind to keep. Daily copies skip the days the graph didn't
+# change, so thirty of them are thirty different states, not thirty days.
+KEEP = {
+    "daily": 30,
+    "manual": 10,
+    "pre-migration": 10,
+    "before-restore": 10,
+    "before-import": 10,
+}
+_STAMP = "%Y%m%d-%H%M%S"
 
 
-def log(message):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    Path(BACKUP_LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
-    with open(BACKUP_LOG_FILE, "a") as f:
-        f.write(f"[{timestamp}] {message}\n")
+def backup_dir() -> Path:
+    """The Backups folder beside the database (Data/Backups for the app)."""
+    return Path(database.get_db_path()).parent / "Backups"
 
 
-def _digest(path):
-    """SHA-256 of a file, read in chunks so a large DB never lands in memory."""
+def _stem() -> str:
+    """'skilltree' or 'sandbox_skilltree', the database's own name."""
+    return Path(database.get_db_path()).stem
+
+
+def describe(path) -> Optional[dict]:
+    """``{"path", "kind", "when"}`` for one of this database's backups."""
+    path = Path(path)
+    prefix = _stem() + "_"
+    if path.suffix != ".db" or not path.name.startswith(prefix):
+        return None
+    stamp, _, kind = path.stem[len(prefix):].partition("_")
+    try:
+        when = datetime.strptime(stamp, _STAMP)
+    except ValueError:
+        return None
+    return {"path": path, "kind": kind, "when": when}
+
+
+def list_backups(kind=None, directory=None) -> List[dict]:
+    """This database's backups, oldest first, optionally of one kind."""
+    directory = Path(directory) if directory else backup_dir()
+    if not directory.is_dir():
+        return []
+    found = [info for info in map(describe, directory.glob(f"{_stem()}_*.db"))
+             if info and (kind is None or info["kind"] == kind)]
+    return sorted(found, key=lambda info: info["when"])
+
+
+def _digest(path) -> str:
+    """SHA-256 of a file, read in chunks so a large database never sits in memory."""
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
@@ -26,76 +79,107 @@ def _digest(path):
     return h.hexdigest()
 
 
-def _existing_backups():
-    """Backup filenames, oldest first. YYYY-MM-DD naming sorts chronologically."""
-    names = [
-        f for f in os.listdir(BACKUP_DIR)
-        if f.startswith("skilltree_") and f.endswith(".db")
-    ]
-    names.sort()
-    return names
+def _read_only_uri(path) -> str:
+    # as_uri() percent-encodes the path, so a folder named with "?", "#" or
+    # "%" can't be misread as part of the URI.
+    return f"{Path(path).resolve().as_uri()}?mode=ro"
 
 
-def run_backup():
-    # config.ENVIRONMENT defaults to "production" at import time, so
-    # database.get_db_path() returns the production DB regardless of
-    # anything else in the process. Backup never targets the sandbox.
-    db_source = database.get_db_path()
+def copy_database(destination) -> None:
+    """Write a consistent, compact copy of the database to ``destination``."""
+    destination = Path(destination)
+    destination.unlink(missing_ok=True)  # VACUUM INTO needs a new file
+    # Under the coordination lock the copy can't interleave with this
+    # process's own writes. SQLite's own locking covers everyone else.
+    with database.state_lock:
+        conn = sqlite3.connect(_read_only_uri(database.get_db_path()), uri=True)
+        try:
+            conn.execute("VACUUM INTO ?", (str(destination),))
+        finally:
+            conn.close()
+
+
+def create_backup(kind="manual", *, dedupe=False) -> Optional[Path]:
+    """Copy the database into the Backups folder and return the new file.
+
+    Returns None when there is no database yet or, with ``dedupe``, when the
+    copy is identical to the newest backup, which already covers it.
+    """
+    if kind not in KEEP:
+        raise ValueError(f"Unknown backup kind {kind!r}")
+    if not Path(database.get_db_path()).exists():
+        return None
+    directory = backup_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    final = directory / f"{_stem()}_{datetime.now().strftime(_STAMP)}_{kind}.db"
+    tmp = final.with_name(final.name + ".tmp")
+    copy_database(tmp)
+    existing = list_backups()
+    if dedupe and existing and _digest(tmp) == _digest(existing[-1]["path"]):
+        tmp.unlink()
+        return None
+    os.replace(tmp, final)
+    _prune(kind, directory)
+    logger.info("Backed up the database to %s", final)
+    return final
+
+
+def _prune(kind, directory) -> None:
+    backups = list_backups(kind, directory)
+    for info in backups[:max(0, len(backups) - KEEP[kind])]:
+        try:
+            info["path"].unlink()
+        except OSError as exc:
+            logger.warning("Could not remove old backup %s: %s", info["path"], exc)
+
+
+def mirror(path) -> Optional[Path]:
+    """Copy a backup into the extra folder chosen in Settings, if there is one.
+
+    A missing or unreachable folder (a cloud drive that isn't mounted, say) is
+    logged and skipped: the local backup already exists.
+    """
+    from config import ConfigManager
+    extra = (ConfigManager.get_backup_extra_dir() or "").strip()
+    if not path or not extra:
+        return None
+    target_dir = Path(extra)
+    if not target_dir.is_dir():
+        logger.warning("Extra backup folder %s is not available; skipped", target_dir)
+        return None
     try:
-        if not os.path.exists(db_source):
-            log(f"FAILED: Source database not found at {db_source}. Check for typos!")
-            return
+        target = target_dir / Path(path).name
+        shutil.copy2(path, target)
+        info = describe(path)
+        if info:
+            _prune(info["kind"], target_dir)
+        return target
+    except OSError as exc:
+        logger.warning("Could not copy the backup to %s: %s", target_dir, exc)
+        return None
 
-        if not os.path.exists(BACKUP_DIR):
-            log(f"FAILED: Backup directory not found: {BACKUP_DIR}")
-            return
 
-        timestamp = datetime.now().strftime("%Y-%m-%d")
-        backup_path = os.path.join(BACKUP_DIR, f"skilltree_{timestamp}.db")
-        tmp_path = f"{backup_path}.tmp"
-
-        # Clean any stale .tmp from a prior crashed run; VACUUM INTO requires
-        # the target path to not exist.
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-        conn = sqlite3.connect(f"file:{db_source}?mode=ro", uri=True)
-        conn.execute(f"VACUUM INTO '{tmp_path}'")
-        conn.close()
-
-        # VACUUM INTO is byte-stable: an unchanged graph vacuums to an
-        # identical file every run. So comparing digests against the newest
-        # backup tells us whether anything actually changed, and idle days
-        # cost no retention slot.
-        backups = _existing_backups()
-        if backups:
-            newest = os.path.join(BACKUP_DIR, backups[-1])
-            if _digest(tmp_path) == _digest(newest):
-                os.remove(tmp_path)
-                log(f"SKIPPED: Database unchanged since {backups[-1]}")
-                return
-
-        # Atomic swap: if VACUUM above failed, the previous good backup is
-        # still intact at backup_path. os.replace is atomic on the same
-        # filesystem on Windows (Python >= 3.3).
-        os.replace(tmp_path, backup_path)
-
-        log(f"SUCCESS: Created backup at {backup_path}")
-
-        # Keep at most BACKUP_KEEP backups
-        backups = _existing_backups()
-        if len(backups) > BACKUP_KEEP:
-            for old_backup in backups[:-BACKUP_KEEP]:
-                old_backup_path = os.path.join(BACKUP_DIR, old_backup)
-                try:
-                    os.remove(old_backup_path)
-                    log(f"INFO: Pruned old backup {old_backup}")
-                except Exception as e_rm:
-                    log(f"WARNING: Failed to delete old backup {old_backup}: {e_rm}")
-
-    except Exception as e:
-        log(f"CRITICAL ERROR: {str(e)}")
+def run_daily_backup(now=None) -> Optional[Path]:
+    """The day's automatic backup: at most one per calendar day, skipped when
+    nothing changed since the newest backup. Never raises; a failed backup is
+    logged and must not stop the app."""
+    try:
+        today = (now or datetime.now()).date()
+        if any(info["when"].date() == today for info in list_backups("daily")):
+            return None
+        path = create_backup("daily", dedupe=True)
+        mirror(path)
+        return path
+    except Exception:
+        logger.exception("Daily backup failed")
+        return None
 
 
 if __name__ == "__main__":
-    run_backup()
+    from app_paths import get_log_dir
+    log_dir = get_log_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        filename=str(log_dir / "backup.log"), level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s")
+    run_daily_backup()
