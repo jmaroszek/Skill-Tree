@@ -1,5 +1,6 @@
 """Backups, safe migrations and the startup integrity check (P2.1-P2.3)."""
 import sqlite3
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -62,8 +63,10 @@ class TestBackups:
         assert _names_in(path) == ["Sleep"]
 
     def test_a_folder_with_quotes_and_uri_characters_is_fine(self, db_in):
-        """backup.py used to build its SQL by string formatting."""
-        db_in("O'Brien's #1 data?")
+        """backup.py used to build its SQL by string formatting, and the backup
+        opens its source through a file: URI, where # ? and % mean something.
+        Windows forbids ? in a file name, so only the others can occur there."""
+        db_in("O'Brien's #1 100% data" + ("" if sys.platform == "win32" else "?"))
         GraphManager().add_node(_node("Sleep"))
         assert _names_in(backup.create_backup("manual")) == ["Sleep"]
 
