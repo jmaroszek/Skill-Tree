@@ -11,11 +11,14 @@ exclusively to this awakening — it does NOT touch the orthogonal Node.now
 flag.
 """
 
+import logging
 import sqlite3
 from datetime import date, timedelta
 import database
 from models import Node, Event, STATUS_DONE, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
 from typing import Any, List, Dict, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 # Columns hydrated onto Event. Listed explicitly rather than via SELECT * so a
@@ -253,10 +256,7 @@ class EventManager:
                 gm._update_node_state(name)
                 node = gm.get_node(name)
                 if node and node.status == STATUS_DONE:
-                    try:
-                        self.auto_trigger_by_node_completion(name)
-                    except Exception:
-                        pass
+                    self._fire_completion_events_after_commit(name)
 
         return result
 
@@ -738,10 +738,7 @@ class EventManager:
             gm._update_node_state(node_name)
             node = gm.get_node(node_name)
             if node and node.status == STATUS_DONE:
-                try:
-                    self.auto_trigger_by_node_completion(node_name)
-                except Exception:
-                    pass
+                self._fire_completion_events_after_commit(node_name)
 
         # Even a no-op firing changes the event's own status, and the sidebar
         # reads that. Only a woken node is scoring-relevant.
@@ -792,10 +789,7 @@ class EventManager:
             gm._update_node_state(node_name)
             node = gm.get_node(node_name)
             if node and node.status == STATUS_DONE:
-                try:
-                    self.auto_trigger_by_node_completion(node_name)
-                except Exception:
-                    pass
+                self._fire_completion_events_after_commit(node_name)
 
         # The Now intent a delayed node carried used to be applied at trigger
         # time, while the node was still dormant — and Now skips dormant
@@ -891,6 +885,23 @@ class EventManager:
                 "when": today,
             })
         return triggered
+
+    def _fire_completion_events_after_commit(self, node_name: str) -> None:
+        """Fire the events watching a woken Done node, once the wake commits.
+
+        A dormant node stored as Done joins the live graph when it wakes, and
+        that can satisfy another event's trigger. It runs after the commit,
+        as GraphManager.update_node fires completions, so a failure there is
+        logged instead of silently rolling the wake back with it. Catching the
+        error inside this transaction would not have been enough: the failed
+        nested write marks the whole transaction for rollback.
+        """
+        def fire():
+            try:
+                self.auto_trigger_by_node_completion(node_name)
+            except Exception:
+                logger.exception("Chained event trigger failed for %s", node_name)
+        database.on_commit(fire, key=("completion-events", node_name))
 
     @database.atomic
     def auto_trigger_by_node_completion(self, node_name: str) -> List[str]:
