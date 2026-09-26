@@ -266,6 +266,8 @@ and one with a table is `xl` or a `dialog_style` max-width. Every modal has a
 glyph (`×`, `←`, `↺`, `☰`, `▸`) and never a colour emoji. The app used to have
 eight close controls written as a Unicode multiplication sign in five style
 variants, several of them `html.Span` and therefore not keyboard-reachable.
+The icon font is vendored at 1.11.3 in `assets/vendor/bootstrap-icons/`, so an
+icon added in a later release renders blank until that copy is updated.
 
 Build them through [`ui_kit.py`](ui_kit.py). Each returns a real `<button>` with
 the icon, a visually-hidden label, and a tooltip carrying the shared delay:

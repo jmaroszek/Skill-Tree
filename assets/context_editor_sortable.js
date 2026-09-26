@@ -23,8 +23,9 @@
  */
 
 /* ---------- Load SortableJS (shared with the event and goal sortables) ---------- */
+// Served from assets/vendor, not a CDN, so drag-to-reorder works offline.
 (function () {
-    var src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js';
+    var src = '/assets/vendor/sortablejs/Sortable.min.js';
     if (window.Sortable || document.querySelector('script[src="' + src + '"]')) return;
     var s = document.createElement('script');
     s.src = src;

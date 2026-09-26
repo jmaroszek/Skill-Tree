@@ -22,6 +22,18 @@ from version import __version__
 _logger = logging.getLogger(__name__)
 
 
+# The theme, its Lato font and the icon font, served from assets/vendor rather
+# than CDNs, so the app looks right offline and makes no third-party requests.
+# Dash leaves the vendor folder out of its automatic includes
+# (assets_path_ignore); listing the files here puts them ahead of the app's own
+# CSS, which overrides them.
+VENDOR_STYLESHEETS = [
+    "/assets/vendor/lato/lato.css",
+    "/assets/vendor/bootswatch-darkly/bootstrap.min.css",
+    "/assets/vendor/bootstrap-icons/bootstrap-icons.min.css",
+]
+
+
 @dataclass(frozen=True)
 class AppSettings:
     environment: str = "production"
@@ -137,7 +149,6 @@ def create_app(settings=None, services=None):
 
     import dash
     import dash_cytoscape as cyto
-    import dash_bootstrap_components as dbc
     from layout import build_app_layout, build_index_string
     from canvases import install_client_registry
     from prerender import prerender_layout, prerendered_specs
@@ -158,10 +169,8 @@ def create_app(settings=None, services=None):
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
-    app = dash.Dash(__name__, external_stylesheets=[
-        dbc.themes.DARKLY,
-        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
-    ], on_error=report_callback_error)
+    app = dash.Dash(__name__, external_stylesheets=VENDOR_STYLESHEETS,
+                    assets_path_ignore=["vendor"], on_error=report_callback_error)
     app.title = "Skill Tree (Sandbox)" if settings.environment == "sandbox" else "Skill Tree"
     app.index_string = build_index_string()
     app.skill_tree_services = services
