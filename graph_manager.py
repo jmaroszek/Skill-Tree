@@ -699,6 +699,15 @@ class GraphManager:
             cursor.execute(
                 "UPDATE Nodes SET status=?, done_date=NULL WHERE name=?", (new_status, node_name),
             )
+            if current_status == STATUS_DONE:
+                # The node lost its completion because a prerequisite did.
+                # History records that like a manual reopen.
+                cursor.execute(
+                    "INSERT INTO NodeLifecycleEvents "
+                    "(node_name, event_type, occurred_at, source) "
+                    "VALUES (?, 'reopened', ?, 'live')",
+                    (node_name, _utc_now_ts()),
+                )
             changed = True
             cursor.execute(
                 "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'",
@@ -823,11 +832,23 @@ class GraphManager:
             if derived[name] != stored[name]
         ]
         if changed_names:
+            # Re-derivation only ever un-marks Done, so no repaired node ends
+            # up Done. Each one sheds its completion date the way the cascade
+            # sheds it, and a completion it loses is recorded as a reopen.
+            reopened = [name for name in changed_names if stored[name] == STATUS_DONE]
             with self.get_connection() as conn:            # connection 3
                 conn.executemany(
-                    "UPDATE Nodes SET status=? WHERE name=?",
+                    "UPDATE Nodes SET status=?, done_date=NULL WHERE name=?",
                     [(derived[name], name) for name in changed_names],
                 )
+                if reopened:
+                    occurred_at = _utc_now_ts()
+                    conn.executemany(
+                        "INSERT INTO NodeLifecycleEvents "
+                        "(node_name, event_type, occurred_at, source) "
+                        "VALUES (?, 'reopened', ?, 'live')",
+                        [(name, occurred_at) for name in reopened],
+                    )
                 conn.commit()
             logger.warning(
                 "recompute_all_statuses: repaired %d drifted node(s): %s",
