@@ -6,10 +6,16 @@ from pathlib import Path
 
 
 APP_DIR_NAME = "Skill Tree"
+# An absolute folder here replaces the per-user one on every OS: for tests and
+# agents that must not touch real data, and for a portable install.
+HOME_ENV = "SKILLTREE_HOME"
 
 
 def get_app_root() -> Path:
     """Return the platform's per-user application data directory."""
+    override = os.environ.get(HOME_ENV, "")
+    if override and Path(override).is_absolute():
+        return Path(override)
     if sys.platform == "win32":
         local_app_data = os.environ.get("LOCALAPPDATA")
         return (Path(local_app_data) if local_app_data else
