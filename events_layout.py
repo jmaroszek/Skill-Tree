@@ -9,7 +9,8 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
 from datetime import date, timedelta
-from config import ConfigManager, TOAST_CLEAR_INTERVAL_MS, badge_style
+from config import (ConfigManager, EVENT_CLOCK_INTERVAL_MS,
+                    TOAST_CLEAR_INTERVAL_MS, badge_style)
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
@@ -408,6 +409,8 @@ def build_events_tab_content():
         # a new port or a cleared profile. A drag writes it there first.
         dcc.Store(id='event-order-store', data=ConfigManager.get_event_order()),
         dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
+        # Fires event_callbacks.run_event_clock while the app sits open.
+        dcc.Interval(id='event-clock', interval=EVENT_CLOCK_INTERVAL_MS, n_intervals=0),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
         html.Div([

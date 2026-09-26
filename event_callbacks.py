@@ -365,6 +365,23 @@ def register_event_callbacks(app, services=None):
         events = event_manager.get_all_events()
         return [_html.Option(value=e.name) for e in events]
 
+    # --- Event clock ---
+    # Date triggers and wake dates come due by the calendar. core_engine checks
+    # them whenever it runs, which is on nearly every interaction. This checks
+    # them while the app sits open, so a node due overnight is awake before the
+    # first click of the morning. A refresh goes out only when something fired.
+    @app.callback(
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Input("event-clock", "n_intervals"),
+        prevent_initial_call=True,
+    )
+    def run_event_clock(_n):
+        woken = event_manager.check_pending_activations()
+        fired = event_manager.check_scheduled_triggers()
+        if not woken and not fired:
+            return no_update
+        return f"event-clock-{int(time.time() * 1000)}"
+
     # --- Event Reordering (drag-and-drop) ---
     @app.callback(
         Output("event-order-store", "data"),

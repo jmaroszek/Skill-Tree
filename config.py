@@ -34,6 +34,12 @@ TOOLTIP_NODE_HIDE_DELAY_MS = 300  # Cytoscape node cursor-tooltip lingers slight
 TOAST_CLEAR_INTERVAL_MS = 3000
 LOCATE_TOAST_CLEAR_INTERVAL_MS = 4000  # Locate-node banner lingers slightly longer
 
+# --- Event clock ---
+# How often an open app checks for date triggers and wake dates that have come
+# due. They are due by the calendar, not by any click, so without this a node
+# due overnight stayed asleep until the first interaction of the morning.
+EVENT_CLOCK_INTERVAL_MS = 5 * 60 * 1000
+
 # --- Loading spinner ---
 # The one spinner every loading cover shows (Nodes canvas, Analyze, Goals sidebar).
 LOADING_SPINNER_STYLE = {"width": "2rem", "height": "2rem", "color": "#1e90ff"}
