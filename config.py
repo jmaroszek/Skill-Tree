@@ -13,6 +13,7 @@ ConfigManager is effectively a singleton: all state lives in SQLite,
 so a single import is shared across all callback modules.
 """
 
+import copy
 import json
 import database
 from typing import Optional
@@ -581,8 +582,10 @@ class ConfigManager:
     """Classmethod-only facade over the Settings key/value table.
 
     Getters read SQLite or the current operation's detached read snapshot,
-    falling back to DEFAULT_* constants. Setters write back and invalidate
-    that snapshot. There is no settings cache retained between operations.
+    falling back to copies of the DEFAULT_* constants, so a caller that edits
+    what it gets back can't change the defaults for the rest of the process.
+    Setters write back and invalidate that snapshot. There is no settings
+    cache retained between operations.
     """
 
     @staticmethod
@@ -614,7 +617,7 @@ class ConfigManager:
     @classmethod
     def get_node_types(cls):
         val = cls._get_db_value("NODE_TYPES")
-        return json.loads(val) if val else DEFAULT_NODE_TYPES
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_NODE_TYPES)
 
     @classmethod
     def set_node_types(cls, types: list):
@@ -632,7 +635,7 @@ class ConfigManager:
     @classmethod
     def get_contexts(cls):
         val = cls._get_db_value("CONTEXTS")
-        return json.loads(val) if val else DEFAULT_CONTEXTS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_CONTEXTS)
 
     @classmethod
     def set_contexts(cls, contexts: list):
@@ -642,7 +645,7 @@ class ConfigManager:
     def get_subcontexts(cls):
         val = cls._get_db_value("SUBCONTEXTS")
         if not val:
-            return DEFAULT_SUBCONTEXTS
+            return copy.deepcopy(DEFAULT_SUBCONTEXTS)
         try:
             data = json.loads(val)
             if isinstance(data, list):
@@ -691,7 +694,7 @@ class ConfigManager:
             if 'Active' in stored and 'Now' not in stored:
                 stored['Now'] = stored.pop('Active')
             return {**DEFAULT_NODE_COLORS, **stored}
-        return DEFAULT_NODE_COLORS
+        return dict(DEFAULT_NODE_COLORS)
 
     @classmethod
     def set_node_colors(cls, colors: dict):
@@ -700,7 +703,7 @@ class ConfigManager:
     @classmethod
     def get_node_shapes(cls):
         val = cls._get_db_value("NODE_SHAPES")
-        return json.loads(val) if val else DEFAULT_NODE_SHAPES
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_NODE_SHAPES)
 
     @classmethod
     def set_node_shapes(cls, shapes: dict):
@@ -776,7 +779,7 @@ class ConfigManager:
     @classmethod
     def get_graph_layout_defaults(cls):
         val = cls._get_db_value("GRAPH_LAYOUT_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_GRAPH_LAYOUT
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_GRAPH_LAYOUT)
 
     @classmethod
     def set_graph_layout_defaults(cls, params: dict):
@@ -785,7 +788,7 @@ class ConfigManager:
     @classmethod
     def get_details_graph_layout_defaults(cls):
         val = cls._get_db_value("DETAILS_GRAPH_LAYOUT_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_DETAILS_GRAPH_LAYOUT
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_DETAILS_GRAPH_LAYOUT)
 
     @classmethod
     def set_details_graph_layout_defaults(cls, params: dict):
@@ -794,7 +797,7 @@ class ConfigManager:
     @classmethod
     def get_events_graph_layout_defaults(cls):
         val = cls._get_db_value("EVENTS_GRAPH_LAYOUT_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_EVENTS_GRAPH_LAYOUT
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_EVENTS_GRAPH_LAYOUT)
 
     @classmethod
     def set_events_graph_layout_defaults(cls, params: dict):
@@ -803,7 +806,7 @@ class ConfigManager:
     @classmethod
     def get_analyze_limits(cls):
         val = cls._get_db_value("ANALYZE_LIMITS")
-        return json.loads(val) if val else DEFAULT_ANALYZE_LIMITS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_ANALYZE_LIMITS)
 
     @classmethod
     def set_analyze_limits(cls, params: dict):
@@ -840,7 +843,7 @@ class ConfigManager:
     @classmethod
     def get_time_settings(cls):
         val = cls._get_db_value("TIME_SETTINGS")
-        return json.loads(val) if val else DEFAULT_TIME_SETTINGS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_TIME_SETTINGS)
 
     @classmethod
     def set_time_settings(cls, params: dict):
@@ -871,7 +874,7 @@ class ConfigManager:
     @classmethod
     def get_time_estimate_defaults(cls):
         val = cls._get_db_value("TIME_ESTIMATE_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_TIME_ESTIMATE_DEFAULTS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_TIME_ESTIMATE_DEFAULTS)
 
     @classmethod
     def set_time_estimate_defaults(cls, params: dict):
