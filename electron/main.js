@@ -22,7 +22,9 @@ const {
 const {
   isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, windowChrome,
 } = require('./shell');
-const { latestRelease, readPreferences, updateMode } = require('./updates');
+const {
+  checkNow, latestRelease, readPreferences, updateMode, writePreferences,
+} = require('./updates');
 
 // The sandbox database is a developer's; a packaged app ignores the flag.
 const SANDBOX = !app.isPackaged && process.argv.includes('--sandbox');
@@ -35,6 +37,7 @@ let server = null;   // { proc, port }; proc is null when showing another shell'
 let mainWindow = null;
 let quitting = false;
 registerResourceDialog(ipcMain, dialog, () => mainWindow, () => server && server.port);
+registerUpdateSettings();
 
 app.setAppUserModelId('com.skilltree.app');
 // Separate Electron profile per environment so a sandbox window and a
@@ -109,6 +112,33 @@ function checkForUpdates() {
       if (choice === 0) shell.openExternal(release.url);
     });
   }
+}
+
+// Settings > About's update controls reach the shell through these
+// (preload.js, about_callbacks.py). Only the app's own page may call them.
+function registerUpdateSettings() {
+  const userData = () => app.getPath('userData');
+  const guard = event => {
+    const url = event.senderFrame && event.senderFrame.url;
+    if (!isAppUrl(url, server && server.port)) throw new Error('Not the Skill Tree page.');
+  };
+  ipcMain.handle('skilltree:updates-get', event => {
+    guard(event);
+    return readPreferences(userData()).checkForUpdates !== false;
+  });
+  ipcMain.handle('skilltree:updates-set', (event, on) => {
+    guard(event);
+    return writePreferences(userData(), { checkForUpdates: !!on }).checkForUpdates;
+  });
+  ipcMain.handle('skilltree:updates-check', event => {
+    guard(event);
+    const mode = updateMode({ isPackaged: app.isPackaged, platform: process.platform, env: process.env });
+    return checkNow({
+      isPackaged: app.isPackaged, platform: process.platform, env: process.env,
+      current: app.getVersion(), fetchJson: fetchReleaseJson,
+      autoUpdater: mode === 'install' ? require('electron-updater').autoUpdater : null,
+    });
+  });
 }
 
 async function fetchReleaseJson(url) {

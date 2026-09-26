@@ -30,6 +30,13 @@ function readPreferences(userDataDir) {
   }
 }
 
+function writePreferences(userDataDir, changes) {
+  const prefs = { ...readPreferences(userDataDir), ...changes };
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.writeFileSync(path.join(userDataDir, 'preferences.json'), JSON.stringify(prefs, null, 2));
+  return prefs;
+}
+
 function updateMode({ isPackaged, platform, env, preferences = {} }) {
   if (!isPackaged || preferences.checkForUpdates === false) return 'off';
   if (platform === 'win32' || (platform === 'linux' && env.APPIMAGE)) return 'install';
@@ -83,6 +90,31 @@ async function latestRelease({ current, fetchJson }) {
   return { version: String(tag).replace(/^v/, ''), url };
 }
 
+// Settings > About's "Check now": says what it found, as { message, url? }.
+// It runs even with automatic checks off, since the user asked.
+async function checkNow({ isPackaged, platform, env, current, fetchJson, autoUpdater }) {
+  const mode = updateMode({ isPackaged, platform, env });
+  const latest = { message: 'You have the latest version.' };
+  if (mode === 'off') {
+    return { message: 'This is a development copy; it updates from its checkout.' };
+  }
+  try {
+    if (mode === 'install') {
+      const result = await autoUpdater.checkForUpdates();
+      const version = result && result.updateInfo && result.updateInfo.version;
+      if (!version || !isNewer(version, current)) return latest;
+      return { message: `Skill Tree ${version} is downloading. It installs when you quit Skill Tree.` };
+    }
+    const release = await fetchJson(RELEASES_API);
+    const found = await latestRelease({ current, fetchJson: async () => release });
+    if (!found) return latest;
+    return { message: `Skill Tree ${found.version} is available.`, url: found.url };
+  } catch (err) {
+    return { message: `Couldn't reach GitHub to check (${err.message}).` };
+  }
+}
+
 module.exports = {
-  RELEASES_API, RELEASES_PAGE, isNewer, latestRelease, readPreferences, updateMode,
+  RELEASES_API, RELEASES_PAGE, checkNow, isNewer, latestRelease, readPreferences,
+  updateMode, writePreferences,
 };

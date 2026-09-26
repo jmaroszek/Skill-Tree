@@ -61,3 +61,36 @@ test('preferences come from a small file, and a missing or broken one means defa
   fs.writeFileSync(path.join(dir, 'preferences.json'), 'not json');
   assert.deepEqual(readPreferences(dir), {});
 });
+
+test('the update switch is saved beside the other preferences', () => {
+  const { writePreferences } = require('./updates');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'st-prefs-'));
+  fs.writeFileSync(path.join(dir, 'preferences.json'), '{"other": 1}');
+  writePreferences(dir, { checkForUpdates: false });
+  assert.deepEqual(readPreferences(dir), { other: 1, checkForUpdates: false });
+});
+
+test('"Check now" says what it found, even with automatic checks off', async () => {
+  const { checkNow } = require('./updates');
+  const base = { isPackaged: true, env: {}, current: '1.0.0' };
+  const releases = tag => async () => ({
+    tag_name: tag, html_url: `https://github.com/jmaroszek/Skill-Tree/releases/tag/${tag}` });
+
+  assert.deepEqual(await checkNow({ ...base, platform: 'darwin', fetchJson: releases('v1.1.0') }), {
+    message: 'Skill Tree 1.1.0 is available.',
+    url: 'https://github.com/jmaroszek/Skill-Tree/releases/tag/v1.1.0',
+  });
+  assert.deepEqual(await checkNow({ ...base, platform: 'darwin', fetchJson: releases('v1.0.0') }),
+    { message: 'You have the latest version.' });
+  assert.match((await checkNow({ ...base, platform: 'linux',
+    fetchJson: async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com'); } })).message,
+  /Couldn't reach GitHub/);
+
+  const updater = version => ({ checkForUpdates: async () => ({ updateInfo: { version } }) });
+  assert.deepEqual(await checkNow({ ...base, platform: 'win32', autoUpdater: updater('1.2.0') }),
+    { message: 'Skill Tree 1.2.0 is downloading. It installs when you quit Skill Tree.' });
+  assert.deepEqual(await checkNow({ ...base, platform: 'win32', autoUpdater: updater('1.0.0') }),
+    { message: 'You have the latest version.' });
+  assert.match((await checkNow({ ...base, isPackaged: false, platform: 'win32' })).message,
+    /development copy/);
+});
