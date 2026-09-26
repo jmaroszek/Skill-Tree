@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 
 import config
-from app_paths import get_log_dir
+from app_paths import get_log_dir, resource_path
 import database
 from version import __version__
 
@@ -176,6 +176,8 @@ def create_app(settings=None, services=None):
     except Exception:
         pass
     app = dash.Dash(__name__, external_stylesheets=VENDOR_STYLESHEETS,
+                    # Explicit, so a frozen build finds them in its bundle.
+                    assets_folder=str(resource_path("assets")),
                     assets_path_ignore=["vendor"],
                     # Polls every 2 s for a restart; only the dev loop restarts.
                     assets_ignore="" if settings.dev else r"hard_reload_on_restart\.js$",

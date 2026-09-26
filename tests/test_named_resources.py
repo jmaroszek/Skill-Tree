@@ -132,7 +132,7 @@ def test_open_path_platform_command(monkeypatch, platform, expected):
     monkeypatch.setattr(resources.sys, "platform", platform)
     monkeypatch.setattr(resources.subprocess, "Popen", lambda args, **kw: calls.append((args, kw)))
     resources.open_path("obsidian://open?path=x")
-    assert calls == [([expected, "obsidian://open?path=x"], {"shell": False})]
+    assert calls == [([expected, "obsidian://open?path=x"], {"shell": False, "env": None})]
 
 
 def test_open_path_windows(monkeypatch):

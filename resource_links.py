@@ -205,20 +205,46 @@ def resolve_target(value, section, confirmed=False):
     raise ValueError("Use an absolute file path or set a root folder for relative paths.")
 
 
+def _launch_env():
+    """The environment for starting the user's own apps, or None to inherit.
+
+    A frozen (PyInstaller) build on Linux points LD_LIBRARY_PATH into its
+    bundle, and a system program started with it, such as xdg-open or the
+    browser it opens, can load the bundle's libraries and fail. PyInstaller
+    keeps the original value in LD_LIBRARY_PATH_ORIG.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    env = dict(os.environ)
+    original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    if original is None:
+        env.pop("LD_LIBRARY_PATH", None)
+    else:
+        env["LD_LIBRARY_PATH"] = original
+    return env
+
+
+def _frozen_linux():
+    return getattr(sys, "frozen", False) and sys.platform.startswith("linux")
+
+
 def open_path(target):
     """Ask the OS to open a file, folder, or registered custom URI."""
     if sys.platform == "win32":
         os.startfile(target)
     elif sys.platform == "darwin":
-        subprocess.Popen(["open", target], shell=False)
+        subprocess.Popen(["open", target], shell=False, env=_launch_env())
     else:
-        subprocess.Popen(["xdg-open", target], shell=False)
+        subprocess.Popen(["xdg-open", target], shell=False, env=_launch_env())
 
 
 def open_resource(value, section, confirmed=False):
     """Open a saved link. NeedsConfirmation first when it needs a yes."""
     kind, target = resolve_target(value, section, confirmed)
-    if kind == "web":
+    if kind == "web" and _frozen_linux():
+        # webbrowser can't be given the clean environment open_path uses.
+        open_path(target)
+    elif kind == "web":
         if not webbrowser.open_new_tab(target):
             raise OSError("No browser accepted the URL.")
     else:

@@ -27,6 +27,13 @@ def get_app_root() -> Path:
     return base / APP_DIR_NAME
 
 
+def resource_path(*parts) -> Path:
+    """A file shipped with the app: beside the code, or inside a frozen
+    (PyInstaller) bundle, which unpacks to sys._MEIPASS."""
+    base = getattr(sys, "_MEIPASS", None) if getattr(sys, "frozen", False) else None
+    return Path(base or Path(__file__).resolve().parent).joinpath(*parts)
+
+
 def get_data_dir() -> Path:
     return get_app_root() / "Data"
 
