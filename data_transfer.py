@@ -131,7 +131,8 @@ def import_data(bundle) -> dict:
 # --- Restore ----------------------------------------------------------------
 
 def _user_version(path) -> int:
-    conn = sqlite3.connect(backup._read_only_uri(path), uri=True)
+    conn = sqlite3.connect(backup._read_only_uri(path), uri=True,
+                           timeout=database.BUSY_TIMEOUT_S)
     try:
         return conn.execute("PRAGMA user_version").fetchone()[0]
     finally:
@@ -151,25 +152,59 @@ def restore_backup(path) -> None:
     try:
         database.check_integrity(str(path))
         version = _user_version(path)
-    except (database.DatabaseError, sqlite3.DatabaseError) as exc:
-        logger.warning("Refused to restore %s: %s", path, exc)
-        raise TransferRefused("That backup is damaged and can't be restored.") from exc
+    except sqlite3.DatabaseError as exc:
+        refusal = database._refusal_for(exc, str(path))
+        raise _refused_backup(path, refusal or exc) from exc
+    except database.DatabaseError as exc:
+        raise _refused_backup(path, exc) from exc
     if version > database.SCHEMA_VERSION:
         raise TransferRefused("That backup was made by a newer version of Skill Tree.")
-    backup.create_backup("before-restore")
-    with database.state_lock:
-        source = sqlite3.connect(backup._read_only_uri(path), uri=True)
-        target = sqlite3.connect(database.get_db_path())
-        try:
-            source.backup(target)
-        finally:
-            source.close()
-            target.close()
-        # The restored copy may predate the current schema.
-        database._initialized = False
-        database.init_db()
+    try:
+        # Nothing is restored unless the current graph was backed up first.
+        backup.create_backup("before-restore")
+        with database.state_lock:
+            _copy_into_live_database(path)
+            # The restored copy may predate the current schema.
+            database._initialized = False
+            database.init_db()
+    except sqlite3.Error as exc:
+        refusal = database._refusal_for(exc)
+        if refusal is None:
+            raise
+        logger.warning("Couldn't restore %s: %s", path, exc)
+        raise TransferRefused(str(refusal)) from exc
+    except database.DatabaseError as exc:
+        # The copy is in place; only its upgrade was refused. Startup retries it.
+        logger.error("Restored %s, but couldn't upgrade it: %s", path, exc)
+        raise TransferRefused(f"The backup was restored, but it couldn't be "
+                              f"prepared for this version: {exc} Restart "
+                              "Skill Tree to finish.") from exc
     _after_replacing_the_graph()
     logger.info("Restored the database from %s", path)
+
+
+def _copy_into_live_database(path):
+    source = sqlite3.connect(backup._read_only_uri(path), uri=True,
+                             timeout=database.BUSY_TIMEOUT_S)
+    target = sqlite3.connect(database.get_db_path(), timeout=database.BUSY_TIMEOUT_S)
+    try:
+        # One step, so a failure leaves the live database as it was.
+        source.backup(target)
+    finally:
+        source.close()
+        target.close()
+
+
+def _refused_backup(path, problem):
+    """Why a backup can't be restored, in terms of the backup, not the live file."""
+    logger.warning("Refused to restore %s: %s", path, problem)
+    if isinstance(problem, database.DatabaseLockedError):
+        return TransferRefused("That backup is in use by another program. Close it "
+                               "and try again.")
+    if isinstance(problem, database.DatabaseUnwritableError):
+        return TransferRefused("That backup can't be opened. Skill Tree may lack "
+                               "permission to read it.")
+    return TransferRefused("That backup is damaged and can't be restored.")
 
 
 def _after_replacing_the_graph():

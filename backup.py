@@ -92,7 +92,8 @@ def copy_database(destination) -> None:
     # Under the coordination lock the copy can't interleave with this
     # process's own writes. SQLite's own locking covers everyone else.
     with database.state_lock:
-        conn = sqlite3.connect(_read_only_uri(database.get_db_path()), uri=True)
+        conn = sqlite3.connect(_read_only_uri(database.get_db_path()), uri=True,
+                               timeout=database.BUSY_TIMEOUT_S)
         try:
             conn.execute("VACUUM INTO ?", (str(destination),))
         finally:

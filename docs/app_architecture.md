@@ -100,6 +100,24 @@ of this. Switching databases after startup is rejected; tests replace
 browser does next, and why the page stays covered while it does, is in Startup
 readiness below.
 
+**Refusals.** `database.init_db` refuses a database it can't safely open by raising
+a `DatabaseError` subclass. The file is left untouched. `main()` logs the message
+and exits with the class's `exit_code`, which is how the desktop shell tells the
+cases apart:
+
+| Code | Refusal | The user's way out |
+|---|---|---|
+| 2 | `DatabaseError`: any other SQLite failure while opening | Report it with the log |
+| 3 | `NewerDatabaseError`: saved by a newer version | Install the newer version |
+| 4 | `DatabaseCorruptError`: SQLite calls the file damaged | Restore a backup |
+| 5 | `SQLiteTooOldError` | A build with a newer SQLite |
+| 6 | `DatabaseLockedError`: another program holds the file | Close that program |
+| 7 | `DatabaseUnwritableError`: read-only, no permission, or disk full | Fix it and relaunch |
+
+Only code 4 may lead to an offer to restore a backup. `database._refusal_for` maps
+SQLite's error names, so a file that is only busy or read-only is never called
+damaged. Restoring over it would discard good data.
+
 ### 2. Graph mutation → render (the central loop)
 
 Compound node saves use `database.transaction()`: nested manager/config writes

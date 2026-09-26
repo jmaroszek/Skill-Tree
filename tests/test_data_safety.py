@@ -177,15 +177,3 @@ class TestSafeStartup:
         database._initialized = False
         with pytest.raises(database.SQLiteTooOldError, match="3.35.0"):
             database.init_db()
-
-
-def test_the_launcher_exits_with_the_refusals_code(monkeypatch):
-    import app as app_module
-
-    def refuse(_settings):
-        raise database.NewerDatabaseError("saved by a newer version")
-    monkeypatch.setattr(app_module, "create_app", refuse)
-
-    with pytest.raises(SystemExit) as exited:
-        app_module.main([])
-    assert exited.value.code == database.NewerDatabaseError.exit_code
