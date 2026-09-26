@@ -409,8 +409,9 @@ def _build_data_tab():
                        "is backed up first, so a restore can itself be undone.",
                        className="text-muted d-block mb-2"),
             html.Div([
-                dcc.Dropdown(id="restore-backup-select", options=[], clearable=False,
-                             placeholder="Choose a backup", style={"minWidth": "340px"}),
+                html.Div(dcc.Dropdown(id="restore-backup-select", options=[],
+                                      clearable=False, placeholder="Choose a backup"),
+                         className="text-dark", style={"minWidth": "340px"}),
                 danger_action("Restore…", "btn-restore-backup", size="sm", className="ms-2"),
             ], className="d-flex align-items-center"),
             dbc.Collapse(html.Div([
