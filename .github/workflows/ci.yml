@@ -47,3 +47,33 @@ jobs:
 
       - name: Electron shell tests
         run: node --test "electron/*.test.js"
+
+  # The frozen server the desktop app ships: build it, then run it the way the
+  # shell does. A package whose data files PyInstaller misses, or a lazy import
+  # it can't see, fails here rather than in a release.
+  frozen-server:
+    name: Frozen server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Build
+        run: python -m PyInstaller packaging/skilltree-server.spec --noconfirm
+
+      - name: Smoke test
+        shell: bash
+        run: python packaging/smoke_test.py dist/skilltree-server/skilltree-server
