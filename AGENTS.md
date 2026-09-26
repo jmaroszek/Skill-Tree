@@ -52,6 +52,7 @@ Don't duplicate these in this file — they're the source of truth for their res
 - [`docs/time.md`](docs/time.md) — what the lower/expected/upper bracket means, the weighting rule that produces `t(n)`, and the Monte Carlo simulator behind the Time Simulation panel.
 - [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.
+- `docs/production_readiness_plan.md` is the **private, gitignored** checklist for making the app downloadable by others (packaging, data safety, hardening). If it is in your checkout, read it before production-readiness work and check off items as you finish them. If it is missing (cloud container, worktree), ask the user for the latest copy. Never commit it.
 
 ## Tech stack (one-liner)
 
