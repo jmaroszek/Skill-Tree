@@ -60,6 +60,18 @@ from ui_kit import (progress_bar_color)
 
 logger = logging.getLogger(__name__)
 
+
+def _unexpected_error_message(action):
+    """Log the exception being handled, and describe it for the user.
+
+    Call this from an ``except`` block. The traceback goes to the log file,
+    where a bug report can pick it up, and the user sees what failed rather
+    than the exception's text.
+    """
+    logger.exception("%s failed", action)
+    return (f"Error: {action} failed unexpectedly. The details are in the log, "
+            "which a bug report should include.")
+
 manager = GraphManager()
 event_manager = EventManager()
 
@@ -1813,13 +1825,18 @@ def register_callbacks(app, services=None):
                 return _core_engine_save_error_tuple(
                     msg, _editor_kept_open(next_ed_style), next_goal_style,
                     next_events_sidebar_style)
-            except Exception as e:
-                msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Saving the node")
+                return _core_engine_save_error_tuple(
+                    msg, _editor_kept_open(next_ed_style), next_goal_style,
+                    next_events_sidebar_style)
         elif trigger_id == 'btn-node-delete-confirm' and name:
             try:
                 msg = handle_delete(manager, name)
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Deleting the node")
         elif trigger_id == 'btn-toggle-done-node' and tapped_node:
             try:
                 node_id = tapped_node.get('id')
@@ -1838,8 +1855,10 @@ def register_callbacks(app, services=None):
                 if _pre_node and _pre_node.status != STATUS_DONE:
                     completion_check_node = node_id
                 msg = handle_toggle_done(manager, tapped_node)
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Changing the node's status")
         elif trigger_id == 'toggle-done-trigger-input' and toggle_done_trigger_data:
             try:
                 node_names = bridge_payloads.names(toggle_done_trigger_data)
@@ -1887,8 +1906,10 @@ def register_callbacks(app, services=None):
                         msg = f"Toggled status of '{nodes[0].name}' to {new_status}"
                     else:
                         msg = f"Set {flipped} node(s) to {new_status}"
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Changing the nodes' status")
         elif trigger_id == 'btn-undo-done-confirm' and pending_undo_done:
             # Modal confirmed: perform the previously-gated Done → Open toggle
             # on every node in pending_undo_done. Cascade re-blocks downstream
@@ -1907,13 +1928,17 @@ def register_callbacks(app, services=None):
                     msg = f"Un-marked '{target_names[0]}' (Done → Open)"
                 else:
                     msg = f"Un-marked {flipped} node(s) (Done → Open)"
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Reopening the nodes")
         elif trigger_id == 'group-delete-input' and group_delete_data:
             try:
                 msg = handle_group_delete(manager, group_delete_data)
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Deleting the nodes")
         # Every mutation above has committed, so the view is all reads. One
         # snapshot serves them: naming the community filter's options alone
         # used to open a connection per node, about 0.3 s per render.
@@ -2348,7 +2373,10 @@ def register_callbacks(app, services=None):
                                     if canvas_wanted(active_tab, canvas_stamp)
                                     else CANVAS_DEFERRED)
                 except Exception as exc:
-                    save_msg_out = f"Error marking '{target}' Done: {exc}"
+                    save_msg_out = (
+                        f"Error marking '{target}' Done: {exc}"
+                        if isinstance(exc, ValueError)
+                        else _unexpected_error_message(f"Marking '{target}' Done"))
                     # Re-prepend so the user can retry from the modal.
                     candidates.insert(0, target)
 
@@ -2608,6 +2636,15 @@ def register_callbacks(app, services=None):
         return dash.no_update
 
 
+    # The unexpected-error modal opens from app.report_callback_error, through
+    # set_props, so only its Close needs a callback.
+    app.clientside_callback(
+        "function(n) { return false; }",
+        Output("modal-app-error", "is_open", allow_duplicate=True),
+        Input("btn-close-app-error", "n_clicks"),
+        prevent_initial_call=True,
+    )
+
     @app.callback(
         Output("modal-error", "is_open"),
         Output("error-modal-body", "children"),
@@ -2809,6 +2846,9 @@ def register_callbacks(app, services=None):
             open_resource(value, section)
             return dash.no_update
         except Exception as exc:
+            # A missing file or an unset root folder is expected, and its text
+            # says what to fix. The log keeps it for anything stranger.
+            logger.warning("Opening a %s link failed: %s", section['name'], exc)
             return f"Error opening {section['name']}: {exc}"
 
     # The desktop window's native picker (assets/resource_picker.js) reports

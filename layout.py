@@ -485,6 +485,19 @@ def build_error_modal():
     ], id="modal-error", size="sm", is_open=False, centered=True)
 
 
+def build_app_error_modal():
+    """What the user sees when a callback fails unexpectedly.
+
+    app.report_callback_error opens it. Without it the failed action simply
+    didn't happen, with nothing on screen to say so.
+    """
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Something went wrong", className="text-danger")),
+        dbc.ModalBody(id="app-error-body", style={"color": tokens.TEXT_PRIMARY}),
+        dbc.ModalFooter(dbc.Button("Close", id="btn-close-app-error", color="secondary")),
+    ], id="modal-app-error", size="sm", is_open=False, centered=True)
+
+
 def build_unsaved_changes_modal():
     return dbc.Modal([
         # close_button=False removes the header X so the modal can only be resolved
@@ -1310,6 +1323,7 @@ def build_app_layout(initial_elements, env="production"):
         *build_context_picker_support(),
         build_migration_modal(),
         build_error_modal(),
+        build_app_error_modal(),
         build_unsaved_changes_modal(),
         build_delete_confirm_modal(),
         build_undo_done_confirm_modal(),

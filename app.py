@@ -65,6 +65,31 @@ def _configure_logging(environment) -> None:
         root.addHandler(stream_handler)
 
 
+def report_callback_error(err):
+    """Dash's on_error hook: any exception a callback lets escape lands here.
+
+    Without it a failed callback leaves the page as it was, and nobody learns
+    why. Log the traceback with what triggered it, open the error modal
+    (layout.build_app_error_modal), and leave every output unchanged.
+    """
+    try:
+        from dash import ctx
+        trigger = ", ".join(ctx.triggered_prop_ids) or "page load"
+    except Exception:
+        trigger = "unknown"
+    _logger.error("Callback failed (triggered by %s)", trigger, exc_info=err)
+    try:
+        from dash import set_props
+        set_props("app-error-body", {"children": (
+            "That action didn't finish because of an unexpected error. The "
+            f"details are in the log, in {get_log_dir()}. If it keeps "
+            "happening, please report it and include that log.")})
+        set_props("modal-app-error", {"is_open": True})
+    except Exception:
+        _logger.exception("Could not show the callback error")
+    return None
+
+
 def create_app(settings=None, services=None):
     """Build one app after selecting its database and running startup repairs.
 
@@ -132,7 +157,7 @@ def create_app(settings=None, services=None):
     app = dash.Dash(__name__, external_stylesheets=[
         dbc.themes.DARKLY,
         "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
-    ])
+    ], on_error=report_callback_error)
     app.title = "Skill Tree (Sandbox)" if settings.environment == "sandbox" else "Skill Tree"
     app.index_string = build_index_string()
     app.skill_tree_services = services
@@ -183,6 +208,7 @@ def open_resource_route():
         open_resource(links[index], section)
         return jsonify({"ok": True})
     except Exception as exc:
+        _logger.warning("Opening a %s link failed: %s", section['name'], exc)
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
