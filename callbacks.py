@@ -13,6 +13,7 @@ from editor_values import (
 import functools
 import json
 import logging
+import time
 import database
 from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
 from core_response import CoreResponse
@@ -461,7 +462,7 @@ def register_callbacks(app, services=None):
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks'),
-         Input('btn-unsaved-save', 'n_clicks'),
+         Input('editor-save-result-store', 'data'),
          Input('search-node', 'value'),
          Input('background-click-input', 'value'),
          Input('btn-new-node', 'n_clicks'),
@@ -506,7 +507,7 @@ def register_callbacks(app, services=None):
         # a dozen follow-on callbacks, all before the editor could be seen.
         prevent_initial_call=True,
     )
-    def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
+    def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice,
                         ed_style, original_name,
                         cur_name, cur_type, cur_desc, cur_context, cur_subctx, cur_status_done,
@@ -631,6 +632,15 @@ def register_callbacks(app, services=None):
                 return no_change
             def_out[27] = None  # clear search bar (search-node value position)
             return def_out
+
+        # The unsaved-changes dialog's Save moves on only once the save has
+        # committed, which core_engine reports here. It used to move on at
+        # the click, so a refused save (a name clash, a cycle) still swapped
+        # the form out and lost the edits the error was about.
+        if trigger_id == 'editor-save-result-store':
+            if (save_result or {}).get('via') != 'btn-unsaved-save':
+                return [dash.no_update] * len(def_out)
+            trigger_id = 'btn-unsaved-save'
 
         # Handle unsaved-discard / unsaved-save with pending navigation
         if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
@@ -808,8 +818,7 @@ def register_callbacks(app, services=None):
          Output('node-name', 'value', allow_duplicate=True),
          Output('aliases-store', 'data', allow_duplicate=True),
          Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
-        [Input('btn-save', 'n_clicks'),
-         Input('btn-save-close', 'n_clicks')],
+        Input('editor-save-result-store', 'data'),
         [State('node-name', 'value'),
          State('node-type', 'value'),
          State('node-desc', 'value'),
@@ -839,7 +848,7 @@ def register_callbacks(app, services=None):
           State('node-original-name', 'data')],
         prevent_initial_call=True,
     )
-    def sync_original_name_after_save(_save_clicks, _save_close_clicks,
+    def sync_original_name_after_save(save_result,
                                       cur_name, cur_type, cur_desc,
                                       cur_context, cur_subctx, cur_status_done,
                                       cur_val, cur_interest, cur_diff,
@@ -853,24 +862,19 @@ def register_callbacks(app, services=None):
                                       cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
                                       cur_habit_int_unit, cur_habit_days,
                                        cur_dormancy, cur_original_name):
-        if not cur_name or not cur_name.strip():
+        # core_engine writes the result only once a save has committed, with
+        # the name it saved under. This used to fire on the Save click and
+        # poll the database for the form's name, which a refused save could
+        # also find: saving a new node under an existing node's name found
+        # that node, so the editor adopted it and the next Save overwrote it.
+        # The unsaved-changes dialog's Save moves on to another node instead,
+        # and populate_editor handles that.
+        if (not isinstance(save_result, dict)
+                or save_result.get('via') not in ('btn-save', 'btn-save-close')):
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        linted = ConfigManager.apply_name_formatting(cur_name.strip())
-        # core_engine is triggered by the same Save click and runs
-        # concurrently with this callback. On a rename (or brand-new node)
-        # the node doesn't exist under its linted name until core_engine
-        # commits the write, so a single get_node here loses the race and
-        # leaves node-original-name stale — which silently breaks every
-        # feature keyed off it (locate, Now toggle, dirty checks). Poll
-        # briefly for the write to land before concluding the save failed.
-        import time as _time
-        _deadline = _time.monotonic() + 3.0
-        while not manager.get_node(linted):
-            if _time.monotonic() >= _deadline:
-                # Save genuinely failed to persist — leave state alone rather
-                # than stomping a stale snapshot on a non-existent node.
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-            _time.sleep(0.05)
+        linted = save_result.get('name')
+        if not linted or manager.get_node(linted) is None:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         # Build the post-save snapshot directly from what the form holds, not
         # from a DB round-trip. A DB-derived snapshot (via build_editor_snapshot)
         # re-applies display transforms — most notably _friendly_time_estimates,
@@ -1478,7 +1482,8 @@ def register_callbacks(app, services=None):
          Output('time-calibration-reference', 'children'),
          Output('time-calibration-pending-store', 'data'),
          Output('time-calibration-unit', 'value', allow_duplicate=True),
-         Output('time-calibration-title', 'children', allow_duplicate=True)],
+         Output('time-calibration-title', 'children', allow_duplicate=True),
+         Output('editor-save-result-store', 'data')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -1651,6 +1656,7 @@ def register_callbacks(app, services=None):
 
         msg = ""
         completion_check_node = None  # Set when a node transitions to Done
+        save_result = no_update  # set once an editor save commits
 
         # Check for any delayed event nodes or scheduled events that are due
         from event_manager import EventManager
@@ -1820,6 +1826,9 @@ def register_callbacks(app, services=None):
                     # is the only surface that shows the list. This block used
                     # to rewrite the ranking from the editor's hidden select on
                     # every Goal save.
+                # Reached only when the transaction committed.
+                save_result = {"name": name, "via": trigger_id,
+                               "ts": int(time.time() * 1000)}
             except (ValueError, TypeError) as e:
                 msg = f"Error: {e}"
                 return _core_engine_save_error_tuple(
@@ -1998,6 +2007,7 @@ def register_callbacks(app, services=None):
             calibration_pending=tc_pending,
             calibration_unit=tc_unit,
             calibration_title=tc_title,
+            save_result=save_result,
         )
 
     # The filters-sidebar toggle and editor-sidebar fast-path clientside

@@ -1308,6 +1308,8 @@ def build_app_layout(initial_elements, env="production"):
         ),
         dcc.Input(id='background-click-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='pending-navigation-store', data=None),
+        # Written by core_engine only when an editor save commits.
+        dcc.Store(id='editor-save-result-store', data=None),
         dcc.Input(id='details-navigate-trigger-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='details-explain-trigger-input', type='text', value='', style={'display': 'none'}),
         # Set by context_menu.js when "Add to event…" is clicked. Carries a

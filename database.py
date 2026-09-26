@@ -2,12 +2,15 @@ import sqlite3
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
+import logging
 import threading
 import time
 from pathlib import Path
 from typing import Optional
 
 from app_paths import get_data_dir
+
+logger = logging.getLogger(__name__)
 
 
 # Snapshot of the resolved DB path on first call. Reading config.ENVIRONMENT
@@ -147,6 +150,10 @@ def transaction():
             conn.execute("PRAGMA defer_foreign_keys = ON")
             yield _ConnectionLease(session)
             if session["failed"]:
+                # A nested write failed and its caller caught the error, so
+                # the block finished normally. Nothing is saved; say so, since
+                # the caller may go on to report success.
+                logger.warning("Rolled back a transaction whose nested write failed")
                 conn.rollback()
             else:
                 conn.commit()

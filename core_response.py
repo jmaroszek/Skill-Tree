@@ -32,3 +32,7 @@ class CoreResponse(NamedTuple):
     calibration_pending: object = no_update
     calibration_unit: object = no_update
     calibration_title: object = no_update
+    # {"name", "via", "ts"} after a save commits, and only then. Callbacks
+    # that act on a finished save listen here instead of to the Save buttons,
+    # which fire whether or not the save goes through.
+    save_result: object = no_update
