@@ -1291,6 +1291,16 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     kind of element.
     """
     if not suggs:
+        nodes = manager.get_all_nodes()
+        if not nodes:
+            return html.P("Your graph is empty. Add a goal with the node editor, the "
+                          "first icon at the top left, and Skill Tree will start "
+                          "suggesting what to work on.", className="text-muted")
+        # Goals and Milestones are where the work leads, never suggestions.
+        if not any(n.type not in ("Goal", "Milestone") and n.status != STATUS_DONE
+                   for n in nodes):
+            return html.P("Nothing to suggest yet. Add things to learn or do, and "
+                          "connect your goals to them with Needs.", className="text-muted")
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
 
     max_score = manager.get_priority_normalizer()

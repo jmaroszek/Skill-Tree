@@ -133,8 +133,8 @@ class GraphManager:
             raise ValueError(problem)
         if not node.context:
             raise ValueError(
-                f"Node '{node.name}' must have a context. "
-                "Uncategorized nodes are no longer permitted."
+                f"'{node.name}' must have a context: choose the area of life "
+                "it belongs to."
             )
         self._repository.insert_node(node)
         self._bump_version()
@@ -144,8 +144,8 @@ class GraphManager:
         """Updates an existing node."""
         if not node.context:
             raise ValueError(
-                f"Node '{node.name}' must have a context. "
-                "Uncategorized nodes are no longer permitted."
+                f"'{node.name}' must have a context: choose the area of life "
+                "it belongs to."
             )
         prior = self.get_node(node.name)
         # --- Auto-stamp lifecycle snapshots and clear Now on completion ---

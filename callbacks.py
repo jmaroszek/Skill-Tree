@@ -1150,6 +1150,9 @@ def register_callbacks(app, services=None):
         Output('time-validation-error', 'style'),
         Output('btn-save', 'disabled'),
         Output('btn-save-close', 'disabled'),
+        # The time fields sit below the fold; hovering Save says why it's off.
+        Output('btn-save', 'title'),
+        Output('btn-save-close', 'title'),
         Input('node-time-o', 'value'),
         Input('node-time-m', 'value'),
         Input('node-time-p', 'value'),
@@ -1174,7 +1177,7 @@ def register_callbacks(app, services=None):
 
         if (time_mode_val and 'inherited' in time_mode_val) or \
            (habit_mode_val and 'habit' in habit_mode_val):
-            return "", hidden, False, False
+            return "", hidden, False, False, "", ""
 
         o = float(time_o or 0)
         m = float(time_m or 0)
@@ -1189,8 +1192,8 @@ def register_callbacks(app, services=None):
         }
 
         if pattern == (False, False, False):
-            return ("Enter at least an Expected estimate, or both Lower and Upper.",
-                    visible, True, True)
+            msg = "Enter at least an Expected estimate, or both Lower and Upper."
+            return msg, visible, True, True, msg, msg
 
         if pattern not in valid_patterns:
             if pattern == (True, False, False):
@@ -1203,7 +1206,7 @@ def register_callbacks(app, services=None):
                 msg = "Expected + Upper is not a valid pair — also enter Lower, or drop Upper."
             else:
                 msg = "Invalid time-estimate combination."
-            return msg, visible, True, True
+            return msg, visible, True, True, msg, msg
 
         errors = []
         if has_o and has_m and o > m:
@@ -1214,8 +1217,9 @@ def register_callbacks(app, services=None):
             errors.append("Lower must be ≤ Upper")
 
         if errors:
-            return "; ".join(errors), visible, True, True
-        return "", hidden, False, False
+            msg = "; ".join(errors)
+            return msg, visible, True, True, msg, msg
+        return "", hidden, False, False, "", ""
 
     # --- Duplicate Node Detection (fires on blur, no auto-fill) ---
     @app.callback(

@@ -31,8 +31,8 @@ import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select
 from resource_links import MAX_SECTIONS
-from ui_kit import (Tooltip, edit_button, info_button, panel_close_button,
-                    step_button)
+from ui_kit import (Tooltip, cancel_action, edit_button, info_button,
+                    panel_close_button, primary_action, step_button)
 
 
 # --- Graph View (Canvas only) ---
@@ -154,6 +154,9 @@ def build_next_view():
     return html.Div([
         dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
     
+        # A new user's checklist (onboarding_callbacks.py); empty once done.
+        html.Div(id="getting-started"),
+
         # "Now" section — currently-Now nodes (cap = ConfigManager.get_now_node_cap()).
         # Heading + rows are emitted together by populate_now_section. The
         # section collapses to zero height when there are no Now nodes, so
@@ -496,6 +499,40 @@ def build_app_error_modal():
         dbc.ModalBody(id="app-error-body", style={"color": tokens.TEXT_PRIMARY}),
         dbc.ModalFooter(dbc.Button("Close", id="btn-close-app-error", color="secondary")),
     ], id="modal-app-error", size="sm", is_open=False, centered=True)
+
+
+def build_welcome_modal():
+    """The first launch, with an empty graph (onboarding.should_welcome).
+
+    The layout is built per page load, so answering it once keeps it closed.
+    onboarding_callbacks.py handles the choices.
+    """
+    import onboarding
+    return html.Div([
+        dbc.Modal([
+            dbc.ModalHeader(dbc.ModalTitle("Welcome to Skill Tree"), close_button=False),
+            dbc.ModalBody([
+                html.P("Skill Tree helps you decide what to work on next. You add your "
+                       "goals and the things that lead to them, connect them, and it "
+                       "ranks what's worth doing now."),
+                html.P("Contexts are the areas of your life that nodes belong to, and "
+                       "every node has one. Start with a suggested set (Mind, Body, "
+                       "Social, Life, STEM, Humanities, Creation, Money), or with a "
+                       "single one called General, and change them any time in "
+                       "Settings > Contexts."),
+                html.P(["Coming from another computer? Import your export in ",
+                        html.Em("Settings > Data"), "."], className="mb-0"),
+            ]),
+            dbc.ModalFooter([
+                cancel_action("Import a graph…", "btn-welcome-import", className="me-auto"),
+                cancel_action("Start with just General", "btn-welcome-empty"),
+                primary_action("Use the suggested contexts", "btn-welcome-suggested"),
+            ]),
+        ], id="welcome-modal", is_open=onboarding.should_welcome(), centered=True,
+            size="lg", backdrop="static", keyboard=False),
+        dcc.Store(id="welcome-reload-trigger"),
+        dcc.Store(id="welcome-reload-sink"),
+    ])
 
 
 def build_unsaved_changes_modal():
@@ -1329,6 +1366,7 @@ def build_app_layout(initial_elements, env="production"):
         build_migration_modal(),
         build_error_modal(),
         build_app_error_modal(),
+        build_welcome_modal(),
         build_unsaved_changes_modal(),
         build_delete_confirm_modal(),
         build_undo_done_confirm_modal(),

@@ -1337,6 +1337,37 @@ class ConfigManager:
         cls._set_db_value("BACKUP_EXTRA_DIR", (path or "").strip())
 
     @classmethod
+    def get_welcome_done(cls) -> bool:
+        """Whether the first-launch welcome has been answered (onboarding.py)."""
+        return cls._get_db_value("WELCOME_DONE") == "1"
+
+    @classmethod
+    def set_welcome_done(cls, done: bool):
+        cls._set_db_value("WELCOME_DONE", "1" if done else "0")
+
+    @classmethod
+    def get_getting_started_progress(cls) -> list:
+        """Getting Started steps already done, so they never un-tick."""
+        raw = cls._get_db_value("GETTING_STARTED_PROGRESS")
+        try:
+            keys = json.loads(raw) if raw else []
+        except ValueError:
+            return []
+        return [k for k in keys if isinstance(k, str)] if isinstance(keys, list) else []
+
+    @classmethod
+    def set_getting_started_progress(cls, keys):
+        cls._set_db_value("GETTING_STARTED_PROGRESS", json.dumps(sorted(set(keys))))
+
+    @classmethod
+    def get_getting_started_dismissed(cls) -> bool:
+        return cls._get_db_value("GETTING_STARTED_DISMISSED") == "1"
+
+    @classmethod
+    def set_getting_started_dismissed(cls, dismissed: bool):
+        cls._set_db_value("GETTING_STARTED_DISMISSED", "1" if dismissed else "0")
+
+    @classmethod
     def get_last_app_version(cls) -> Optional[str]:
         """The app version that most recently opened this database, if any."""
         return cls._get_db_value("LAST_APP_VERSION")
