@@ -134,6 +134,27 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
         manager.update_node(node)
 
 
+def conflicting_node_name(manager, name, original_name=None):
+    """The existing node a save under ``name`` would collide with, or None.
+
+    ``name`` is only new when it differs from the name of the node being edited
+    (``original_name``), so keeping a node's name never conflicts. A new or
+    changed name conflicts with any other node that already uses it, compared
+    case-insensitively. Saving under that name would otherwise update the other
+    node in place, replacing its fields, links, aliases and relationships with
+    this form's.
+    """
+    name = (name or "").strip()
+    own = (original_name or "").strip()
+    if not name or name == own:
+        return None
+    wanted = name.casefold()
+    for node in manager.get_all_nodes(include_dormant=True):
+        if node.name != own and node.name.casefold() == wanted:
+            return node.name
+    return None
+
+
 def prior_node_for_completion(manager, name, original_name):
     """The DB row a save is about to overwrite, for Done-transition detection.
 

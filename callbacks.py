@@ -37,7 +37,7 @@ from config import (ConfigManager, sort_subcontexts, sort_contexts,
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
-    prior_node_for_completion, apply_dormancy,
+    prior_node_for_completion, apply_dormancy, conflicting_node_name,
 )
 from callback_helpers import (
     get_trigger_id, get_all_triggered_ids,
@@ -153,6 +153,17 @@ def _build_undo_done_body(target_names, downstream_done):
     if overflow is not None:
         children.append(overflow)
     return children
+
+
+def _editor_kept_open(ed_style):
+    """The editor style for a refused save: open, so the form stays on screen.
+
+    Save & Close computes a closed style before the save runs. A save that is
+    then refused must not slide the form away with the user's input in it.
+    """
+    if not isinstance(ed_style, dict):
+        return ed_style
+    return {**ed_style, 'transform': "translateX(0px)"}
 
 
 def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_style):
@@ -1711,6 +1722,15 @@ def register_callbacks(app, services=None):
             if not n_type:
                 msg = "Error: Node type is required."
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
+            # A new node, or a rename, may not take another node's name: the
+            # save would update that node in place and wipe its relationships.
+            clash = conflicting_node_name(manager, name, original_name)
+            if clash:
+                msg = (f"Error: A node named '{clash}' already exists. Choose a "
+                       f"different name, or search for '{clash}' to edit it.")
+                return _core_engine_save_error_tuple(
+                    msg, _editor_kept_open(next_ed_style), next_goal_style,
+                    next_events_sidebar_style)
             # Done is hidden while Dormant is on; a sleeping node isn't finished.
             if (dormancy or {}).get('dormant'):
                 status_done = []
@@ -1789,7 +1809,9 @@ def register_callbacks(app, services=None):
                     # every Goal save.
             except (ValueError, TypeError) as e:
                 msg = f"Error: {e}"
-                return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
+                return _core_engine_save_error_tuple(
+                    msg, _editor_kept_open(next_ed_style), next_goal_style,
+                    next_events_sidebar_style)
             except Exception as e:
                 msg = f"Error: {e}"
         elif trigger_id == 'btn-node-delete-confirm' and name:
