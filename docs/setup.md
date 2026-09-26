@@ -71,6 +71,23 @@ pytest
 
 Tests run against a temporary per-test database and never touch your sandbox or production data. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
 
+## 5. Build the desktop installers (optional)
+
+The desktop app is the Electron shell plus a PyInstaller build of the server.
+Each platform builds its own:
+
+```bash
+pip install -r requirements-build.txt
+python -m PyInstaller packaging/skilltree-server.spec --noconfirm   # -> dist/skilltree-server/
+python packaging/smoke_test.py dist/skilltree-server/skilltree-server
+cd electron && npm ci && npm run dist                                # -> electron/dist/
+```
+
+- `npm run dist` makes the installer for the machine it runs on: an NSIS installer on
+  Windows, a dmg and zip on macOS, and an AppImage and deb on Linux
+  (`electron/electron-builder.yml`).
+- CI builds and smoke-tests the server on every push.
+
 ## Notes
 
 - **Database files** live in `%LOCALAPPDATA%\Skill Tree\Data\` on Windows, `~/Library/Application Support/Skill Tree/Data/` on macOS, and `$XDG_DATA_HOME/Skill Tree/Data/` (or `~/.local/share/Skill Tree/Data/`) on Linux. They are created on demand: `skilltree.db` (production) and `sandbox_skilltree.db` (sandbox).
