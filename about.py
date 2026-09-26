@@ -18,6 +18,8 @@ from version import __version__
 REPO_URL = "https://github.com/jmaroszek/Skill-Tree"
 ISSUES_NEW_URL = f"{REPO_URL}/issues/new"
 RELEASES_URL = f"{REPO_URL}/releases"
+# The README's tour, until the website has its own help pages (P7.4).
+HELP_URL = f"{REPO_URL}#readme"
 
 
 def _home_relative(path) -> str:

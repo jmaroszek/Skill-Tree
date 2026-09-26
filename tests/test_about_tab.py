@@ -107,3 +107,22 @@ def test_the_folder_buttons_open_the_folders(monkeypatch, button, folder):
     monkeypatch.setattr(about_callbacks, "open_path", opened.append)
     _callbacks()[button](1)
     assert opened == [str(folder())]
+
+
+def _component(root, component_id):
+    if getattr(root, "id", None) == component_id:
+        return root
+    children = getattr(root, "children", None)
+    for child in children if isinstance(children, (list, tuple)) else [children]:
+        if hasattr(child, "children") or hasattr(child, "id"):
+            found = _component(child, component_id)
+            if found is not None:
+                return found
+    return None
+
+
+def test_the_toolbar_has_help_that_opens_outside_the_app():
+    help_button = _component(build_app_layout([], env="sandbox"), "btn-help")
+    assert help_button.href == about.HELP_URL
+    assert help_button.href.startswith("https://github.com/jmaroszek/Skill-Tree")
+    assert help_button.target == "_blank" and help_button.external_link is True
