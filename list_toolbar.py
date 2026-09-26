@@ -16,9 +16,10 @@ from __future__ import annotations
 import json
 from typing import NamedTuple
 
-from dash import Input, Output, dcc, html
+from dash import Input, Output, dcc, html, no_update
 import dash_bootstrap_components as dbc
 
+from config import ConfigManager
 from ui_kit import Tooltip
 import style_tokens as tokens
 
@@ -113,7 +114,10 @@ def build_list_toolbar(search_input, sort: SortMenu):
             target=sort.button_id,
             placement="top",
         ),
-        dcc.Store(id=sort.store_id, storage_type="local", data=sort.default),
+        # Saved in Settings, not the browser, so the choice survives a new
+        # port or a cleared profile.
+        dcc.Store(id=sort.store_id,
+                  data=ConfigManager.get_list_sort(sort.store_id, sort.default)),
     ], className="d-flex align-items-center",
        style={"gap": "4px", "padding": "0 12px", "marginBottom": tokens.SPACE_BLOCK})
 
@@ -135,18 +139,18 @@ def register_list_toolbar_callbacks(app) -> None:
     for sort in SORT_MENUS:
         values = [value for value, _ in sort.options]
 
-        # A menu choice lands in the hidden input; copy it into the store.
-        app.clientside_callback(
-            f"""function(value) {{
-                if ({json.dumps(values)}.indexOf(value) === -1) {{
-                    return window.dash_clientside.no_update;
-                }}
-                return value;
-            }}""",
+        # A menu choice lands in the hidden input. Save it, then hand it to
+        # the store the list renders from.
+        @app.callback(
             Output(sort.store_id, "data"),
             Input(sort.input_id, "value"),
             prevent_initial_call=True,
         )
+        def save_sort(value, _sort=sort, _values=tuple(values)):
+            if value not in _values:
+                return no_update
+            ConfigManager.set_list_sort(_sort.store_id, value)
+            return value
 
         # The tooltip names the current sort and the menu checks it. A stored
         # value that is no longer an option reads as the default.

@@ -404,7 +404,9 @@ def build_events_tab_content():
         # once the open slide finishes so render_events_list re-runs — but NOT
         # an input to core_engine, so opening doesn't wait on a graph regen.
         dcc.Store(id='events-ui-refresh-trigger', data=0),
-        dcc.Store(id='event-order-store', data=[], storage_type='local'),
+        # The manual order lives in Settings, not the browser, so it survives
+        # a new port or a cleared profile. A drag writes it there first.
+        dcc.Store(id='event-order-store', data=ConfigManager.get_event_order()),
         dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),

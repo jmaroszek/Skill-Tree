@@ -86,7 +86,9 @@ def test_each_sidebar_has_a_sort_button_menu_and_store(layout, sort):
 
     _find(layout, sort.input_id)
     store = _find(layout, sort.store_id)
-    assert store.storage_type == "local"
+    # The choice lives in Settings, not browser storage, which a new port or a
+    # cleared profile would lose.
+    assert getattr(store, "storage_type", "memory") == "memory"
     assert store.data == sort.default
     assert _find(layout, sort.tooltip_id).children == f"Sort: {sort.label(sort.default)}"
 

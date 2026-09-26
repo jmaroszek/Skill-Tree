@@ -217,7 +217,7 @@ def register_event_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     @prerendered
-    def render_events_list(refresh_trigger, ui_refresh, _arrived, event_order, search_text, show_triggered, sort_mode, selected_event):
+    def render_events_list(refresh_trigger, ui_refresh, _arrived, _order_changed, search_text, show_triggered, sort_mode, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
@@ -250,8 +250,10 @@ def register_event_callbacks(app, services=None):
                 key=lambda e: (-node_counts[e.name]["total"], (e.name or "").lower()),
             )
         else:
-            # Manual: apply drag-and-drop order from store
-            stored_order = event_order or []
+            # Manual: the saved drag order. It comes from the database, not
+            # the store: the store is loaded with the page, while renames and
+            # deletes keep the saved order current.
+            stored_order = ConfigManager.get_event_order()
             if stored_order:
                 event_map = {e.name: e for e in events}
                 ordered = [event_map[n] for n in stored_order if n in event_map]
@@ -375,6 +377,7 @@ def register_event_callbacks(app, services=None):
             try:
                 new_order = _json.loads(drag_order_json)
                 if isinstance(new_order, list) and new_order:
+                    ConfigManager.set_event_order(new_order)
                     return new_order
             except (ValueError, TypeError):
                 pass

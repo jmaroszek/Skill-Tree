@@ -889,6 +889,57 @@ class ConfigManager:
     def set_goal_order(cls, order: list):
         cls._set_db_value("GOAL_ORDER", json.dumps(order))
 
+    @classmethod
+    def get_event_order(cls) -> list:
+        """The Events list's manual (drag) order, as event names."""
+        val = cls._get_db_value("EVENT_ORDER")
+        try:
+            order = json.loads(val) if val else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return order if isinstance(order, list) else []
+
+    @classmethod
+    def set_event_order(cls, order: list):
+        cls._set_db_value("EVENT_ORDER", json.dumps(order))
+
+    @classmethod
+    def rename_event_references(cls, old_name: str, new_name: str) -> None:
+        """Carry an event rename into the settings that store event names."""
+        order = cls.get_event_order()
+        if old_name in order:
+            cls.set_event_order([new_name if e == old_name else e for e in order])
+
+    @classmethod
+    def delete_event_references(cls, name: str) -> None:
+        """Drop a deleted event from the settings that store event names."""
+        order = cls.get_event_order()
+        if name in order:
+            cls.set_event_order([e for e in order if e != name])
+
+    @classmethod
+    def get_list_sort(cls, list_id: str, default: str) -> str:
+        """The saved sort of one sidebar list, keyed by its store id."""
+        val = cls._get_db_value("LIST_SORTS")
+        try:
+            sorts = json.loads(val) if val else {}
+        except (json.JSONDecodeError, TypeError):
+            sorts = {}
+        value = sorts.get(list_id) if isinstance(sorts, dict) else None
+        return value if isinstance(value, str) else default
+
+    @classmethod
+    def set_list_sort(cls, list_id: str, value: str):
+        val = cls._get_db_value("LIST_SORTS")
+        try:
+            sorts = json.loads(val) if val else {}
+        except (json.JSONDecodeError, TypeError):
+            sorts = {}
+        if not isinstance(sorts, dict):
+            sorts = {}
+        sorts[list_id] = value
+        cls._set_db_value("LIST_SORTS", json.dumps(sorts, sort_keys=True))
+
     # One year of productivity = 13 months (≈ 52 weeks) by definition. Built
     # off hours_per_month so a user-tuned monthly rate flows through to years
     # consistently. Not a stored setting — derived on demand.

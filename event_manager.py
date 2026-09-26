@@ -219,6 +219,9 @@ class EventManager:
                 )
             self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
             conn.commit()
+        if old_name != event.name:
+            from config import ConfigManager
+            ConfigManager.rename_event_references(old_name, event.name)
         self._graph_changed(scoring=False)
 
     @database.atomic
@@ -257,6 +260,8 @@ class EventManager:
 
             cursor.execute("DELETE FROM Events WHERE name=?", (event_name,))
             conn.commit()
+        from config import ConfigManager
+        ConfigManager.delete_event_references(event_name)
         self._graph_changed()
 
         # Re-derive status for any newly-activated node so a Blocked-on-prereqs
