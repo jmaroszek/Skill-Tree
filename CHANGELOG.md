@@ -5,6 +5,8 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- A new app icon: a tree whose canopy is a cluster of connected nodes, replacing
+  the pixel-art tree.
 - Put the toolbar icons in Filter, Reflection, Settings, Help order.
 - Tidied the Settings window. Each resource card has a numbered heading. The Data
   and About tabs no longer print folder paths; their Open buttons remain. The
