@@ -1,4 +1,6 @@
 *.db
+# Databases saved by old versions, for the migration tests.
+!tests/fixtures/*.db
 *.sqlite3
 __pycache__/
 *.py[cod]
