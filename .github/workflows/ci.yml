@@ -77,6 +77,36 @@ jobs:
       - name: Browser journeys
         run: python -m pytest -q tests/e2e --durations=10
 
+  # What a user waits on, at 1,000 nodes (tools/perf_bench.py). The budgets
+  # catch a regression by a multiple, not noise; the job summary has the
+  # numbers for each platform.
+  perf:
+    name: Performance at 1,000 nodes (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-e2e.txt
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Measure
+        shell: bash
+        run: python tools/perf_bench.py --browser --budgets --summary "$GITHUB_STEP_SUMMARY"
+
   # The frozen server the desktop app ships: build it, then run it the way the
   # shell does. A package whose data files PyInstaller misses, or a lazy import
   # it can't see, fails here rather than in a release.

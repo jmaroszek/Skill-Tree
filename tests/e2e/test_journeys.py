@@ -1,5 +1,6 @@
 """What a new user does in their first hour, in a real browser (P6.5)."""
 import json
+import re
 
 import pytest
 
@@ -14,16 +15,21 @@ def _welcome(page, choice="#btn-welcome-suggested"):
 
 
 def _dropdown_pick(page, dropdown, option):
-    """Choose an option in a Dash dropdown by typing it. A callback that
-    resends a dropdown's options re-renders it and closes an open menu, so a
-    pick that loses its menu that way starts again."""
+    """Choose an option in a Dash dropdown: open it, search in its own
+    popover, and click the match there. Other dropdowns' options are in the
+    page too, and focus stays on the dropdown's button, where a multi-select
+    takes keys of its own, so nothing here goes by keyboard focus. A callback
+    that resends a dropdown's options re-renders it and closes an open menu;
+    a pick that loses its menu that way starts again."""
+    exactly = re.compile(rf"^\s*{re.escape(option)}\s*$")
     for _attempt in range(3):
         _idle(page)
         page.click(dropdown)
-        page.keyboard.press("ControlOrMeta+a")
-        page.keyboard.type(option)
         try:
-            page.locator("[role=option]", has_text=option).first.click(timeout=5000)
+            page.wait_for_selector(f"{dropdown}[aria-expanded=true]", timeout=5000)
+            popover = page.locator(f"[id={json.dumps(page.get_attribute(dropdown, 'aria-controls'))}]")
+            popover.locator("input.dash-dropdown-search").fill(option, timeout=5000)
+            popover.locator("[role=option]", has_text=exactly).first.click(timeout=5000)
         except PlaywrightTimeout:
             page.keyboard.press("Escape")
             continue

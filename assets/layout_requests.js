@@ -20,6 +20,14 @@
     window.dash_clientside = window.dash_clientside || {};
     var SkillTree = window.SkillTree = window.SkillTree || {};
 
+    // fCoSE's 'proof' quality cools slowly, and its cost grows with about the
+    // square of the node count. Nodes re-runs its layout on every node added
+    // or removed, and each run blocks the page. In the P6.6 benchmark
+    // (docs/performance.md) proof took 1.7 s at 403 nodes and 7.4 s at 831;
+    // 'default' took 2.4 s at 831. Past this many nodes a view lays out at
+    // 'default', whatever asked for the layout.
+    var LARGE_VIEW_NODES = 600;
+
     // Views without cross-links, trees or forests of them, use force-only
     // CoSE. fCoSE seeds positions from the top two eigenvectors of the view's
     // distance structure. A chain's distances run along one dimension, so the
@@ -34,7 +42,8 @@
         scaleIterations: true,
         padding: 20,
         physics: { edgeLength: 100, repulsion: 4500, gravity: 0.25 },
-        rootFromElements: false
+        rootFromElements: false,
+        largeView: LARGE_VIEW_NODES
     };
 
     var POLICY = {
@@ -229,6 +238,20 @@
         });
     }
 
+    function resolveLargeViews(cy, policy) {
+        if (!cy || typeof cy.layout !== 'function' || cy._skillTreeLargeViews) return;
+        cy._skillTreeLargeViews = true;
+        window.SkillTree.wrapLayout(cy, 'largeViews', function (next, options) {
+            if (options && options.name === 'fcose' && options.quality === 'proof') {
+                var count = options.eles ? options.eles.nodes().length : cy.nodes().length;
+                if (count > policy.largeView) {
+                    options = Object.assign({}, options, { quality: 'default' });
+                }
+            }
+            return next(options);
+        });
+    }
+
     function layoutOptions(policy, controls, topology, randomize) {
         var nodeCount = topology.nodes.length;
         var name = policy.treesUseCose && isForest(topology) ? 'cose' : 'fcose';
@@ -273,6 +296,7 @@
         var cy = liveCy(canvas);
         adopt(screen, cy);
         resolveRequestOptions(cy);
+        resolveLargeViews(cy, policy);
 
         var newView = false;
         if (isElementsUpdate) {
@@ -387,6 +411,7 @@
             SkillTree.onCytoReady('#' + canvas.cytoscapeId, function (cy) {
                 adopt(screenFor(canvas.key), cy);
                 resolveRequestOptions(cy);
+                resolveLargeViews(cy, policyFor(canvas.key));
             });
         });
     }

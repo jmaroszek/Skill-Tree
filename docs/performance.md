@@ -96,3 +96,58 @@ head start, Analyze's charts appeared about 0.8 s after the click. The Nodes
 canvas answer came back in about 30 ms; the rest of its 1.4 s is Cytoscape
 ingesting 567 nodes and running fCoSE. Its payload is 374 KB, down from
 747 KB, since elements carry only the fields something reads.
+
+## 1,000 nodes (P6.6)
+
+Measured on 2026-09-27 with `tools/perf_bench.py --browser`. It builds a
+graph with `tools/perf_graph.py`, using the app's own code: 1,000 nodes and
+about 1,770 edges, mostly within each node's context, with 25 goals, 10
+milestones, finished work, Now nodes, events and aliases. Done nodes are
+hidden by default, which leaves 831 on the Nodes canvas. The machine was a
+4-core Linux container, roughly 2.5 times slower here than the machine behind
+the startup figures above. CI's `perf` job runs the same check on each
+platform and prints its table in the job summary; the budgets there fail a
+run that is several times slower, not one that is noisy.
+
+The server's share of each interaction, median of five:
+
+| Operation | Seconds |
+|---|---:|
+| Home ranking after an edit | 0.46 |
+| Nodes canvas payload | 0.03 |
+| Editor save | 0.005 |
+| Done and back, cascading to 91 nodes | 0.008 |
+| Launch repair | 0.03 |
+| Export (JSON) | 0.02 |
+| Backup | 0.005 |
+| Time simulation, goal with 86 prerequisites | 0.02 |
+
+What a person sees, in Chromium:
+
+| | Before | After |
+|---|---:|---:|
+| Server boot to ready | 0.8 s | 0.8 s |
+| First load, until the cover lifts | about 5 s | about 5 s |
+| First Nodes visit, until the canvas is drawn | 10.6 s | 4.1 s |
+| A node added: its layout blocks the page for | 6.1 s | 1.6 s |
+| Editor save, click to message | 1.3 s | 1.3 s |
+
+The canvas was the problem. A CPU profile of the first visit put 8.2 s of its
+10.6 s in fCoSE's spring embedder. The payload had arrived in 0.3 s. At
+`proof` quality the embedder cools slowly, and its cost grows with about the
+square of the node count: 0.5 s at 226 nodes, 1.7 s at 403, 3.7 s at 637 and
+7.4 s at 831. Nodes re-runs the layout on every node added or removed, so
+every edit that changed the graph froze the page that long. Capping the
+iteration count did nothing, since fCoSE treats it as a suggestion; `default`
+quality cut the cost to a third. Past 600 nodes every canvas now lays out at
+`default` ([app_architecture.md](app_architecture.md), Layout requests).
+Smaller graphs keep `proof`, which is how the author's 567-node graph still
+lays out.
+
+The first load is dash-renderer and React mounting the page. The server had
+answered every startup callback by 0.5 s. That matches the startup section
+above, scaled for this machine, so 1,000 nodes add no new cost there.
+
+The time simulation now runs 10,000 trials over 97 open tasks in 27 ms,
+against about 1.9 s for 100 tasks in the September 7 measurement above.
+

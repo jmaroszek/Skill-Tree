@@ -576,6 +576,14 @@ No cross-linked view there has a seed flatter than ones fCoSE drew in two
 dimensions in the sandbox. The earlier cutoff of 24 nodes sent small
 cross-linked views to CoSE, and it would have left a chain of 25 to fCoSE.
 
+Past 600 nodes, a view lays out at fCoSE's `default` quality rather than
+`proof`. Proof cools slowly, and its cost grows with about the square of the
+node count. Nodes re-runs its layout on every add or remove, and each run
+blocks the page. In the 1,000-node benchmark ([performance.md](performance.md))
+proof took 7.4 s at 831 nodes; default took 2.2 s. A `cy.layout` hook applies
+the rule, so it holds whatever asked for the layout: the cold start, an
+auto-refresh, a Settle, or a control change.
+
 Every layout tweens to its final positions over 1000 ms. CoSE has to be asked
 for that tween with `animate: 'end'`, but dash-cytoscape declares
 `layout.animate` a boolean. In debug mode Dash checks prop types, and the

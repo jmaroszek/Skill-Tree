@@ -10,81 +10,21 @@ Skipped unless Playwright is installed:
     pytest tests/e2e
 PLAYWRIGHT_CHROMIUM points at a Chromium of your own, if you have one.
 """
-import json
 import os
-import signal
-import sqlite3
-import subprocess
 import sys
-import time
 from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
 
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
+from local_server import Server  # noqa: E402
+
 try:
     from playwright import sync_api
 except ImportError:     # test_journeys.py reports the skip
     sync_api = None
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-class Server:
-    """app.py in browser mode, the way a developer or an agent runs it."""
-
-    def __init__(self, home: Path):
-        self.home = home
-        self.proc = None
-        self.port = None
-        self.token = None
-
-    @property
-    def db_path(self) -> Path:
-        return self.home / "Data" / "sandbox_skilltree.db"
-
-    @property
-    def link(self) -> str:
-        return f"http://127.0.0.1:{self.port}/?token={self.token}"
-
-    def start(self):
-        env = {**os.environ, "SKILLTREE_HOME": str(self.home), "PYTHONUNBUFFERED": "1"}
-        env.pop("WERKZEUG_RUN_MAIN", None)
-        env.pop("SKILLTREE_TOKEN", None)
-        self.proc = subprocess.Popen(
-            [sys.executable, "app.py", "--sandbox", "--port", "0", "--no-browser"],
-            cwd=ROOT, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True)
-        deadline = time.monotonic() + 120
-        while time.monotonic() < deadline:
-            line = self.proc.stdout.readline()
-            if line.startswith("SKILLTREE_READY"):
-                break
-            if not line and self.proc.poll() is not None:
-                raise RuntimeError(f"the server exited with {self.proc.returncode}")
-        info = json.loads((self.home / "Data" / "sandbox_skilltree.instance.json").read_text())
-        self.port, self.token = info["port"], info["token"]
-        return self
-
-    def stop(self):
-        if self.proc and self.proc.poll() is None:
-            if sys.platform == "win32":
-                self.proc.terminate()
-            else:
-                self.proc.send_signal(signal.SIGTERM)
-            try:
-                self.proc.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-                self.proc.wait()
-
-    def query(self, sql, *args):
-        """Read the server's database directly, to check what the UI did."""
-        conn = sqlite3.connect(self.db_path)
-        try:
-            return conn.execute(sql, args).fetchall()
-        finally:
-            conn.close()
 
 
 @pytest.fixture(scope="session")
