@@ -106,8 +106,9 @@ cd electron && npm run dist                                          # -> electr
   serves.
 - `npm run dist` makes the installer for the machine it runs on: an NSIS installer on
   Windows, a dmg and zip on macOS, and an AppImage and deb on Linux
-  (`electron/electron-builder.yml`). On Windows it leaves out Chromium's WebGPU
-  shader compiler, which Skill Tree doesn't use (`electron/build/unused-files.js`).
+  (`electron/electron-builder.yml`). It keeps only Chromium's US English language
+  pack, and on Windows leaves out Chromium's WebGPU shader compiler, which Skill
+  Tree doesn't use (`electron/build/unused-files.js`).
 - CI builds and smoke-tests the server on every push.
 - `packaging/app_journey.py` drives a built app the way a new user would: the window,
   the welcome, a node saved, quitting, and a second start. It uses a throwaway data

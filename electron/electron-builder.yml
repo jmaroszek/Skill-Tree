@@ -33,6 +33,12 @@ extraResources:
 # Leaves out the parts of Electron that Skill Tree never uses.
 afterPack: build/unused-files.js
 
+# Skill Tree is in English, so Chromium's own strings are too. The other 54
+# language packs (47 MB) only localized Chromium's built-ins, and with them
+# the date order, decimal point and spellcheck language on Windows set to
+# another language. Those now follow US English.
+electronLanguages: [en-US]
+
 win:
   target:
     - target: nsis

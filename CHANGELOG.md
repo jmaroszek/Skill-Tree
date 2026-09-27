@@ -13,9 +13,12 @@ What changes in each release, newest first. Download releases from the
 - A failed update check now says so in one line instead of showing the raw error.
 - The Windows installer now asks whether to add a desktop shortcut (checked by
   default) and launches the installed app directly from its Finish page.
-- Skill Tree takes less space. On Windows it needs about 427 MB instead of
-  482 MB, and the installer is about 12 MB smaller. On macOS and Linux it is
-  about 30 MB smaller. Nothing about how it works has changed.
+- Skill Tree takes less space. On Windows it needs about 380 MB instead of
+  482 MB, and the installer is 116 MB instead of 136 MB. macOS and Linux get the
+  same trims.
+- Chromium's own built-in text is now English only, like the rest of the app. On
+  a Windows set to another language, date fields, decimal points and spellcheck
+  now follow US English.
 
 ## 1.0.0 (not yet released)
 
