@@ -235,7 +235,7 @@ def test_backup_export_and_restore(page, server):
 
     server.query("DELETE FROM Nodes WHERE name = 'Keep Me'")  # losing it by accident
     page.click("#restore-backup-select")
-    page.locator("[role=option]", has_text="made by hand").first.click()
+    page.locator("[role=option]", has_text="(manual)").first.click()
     page.click("#btn-restore-backup")
     page.click("#btn-restore-confirm")
     page.wait_for_selector("#startup-cover.is-lifted", state="attached", timeout=60000)

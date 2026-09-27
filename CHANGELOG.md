@@ -5,6 +5,11 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- Tidied the Settings window. Each resource card has a numbered heading. The Data
+  and About tabs no longer print folder paths; their Open buttons remain. The
+  diagnostics that "Report a problem" copies sit in their own box. Backups made
+  with Back up now are labelled "manual".
+- A failed update check now says so in one line instead of showing the raw error.
 - The Windows installer now asks whether to add a desktop shortcut (checked by
   default) and launches the installed app directly from its Finish page.
 

@@ -176,6 +176,21 @@ input[type=number] {
 /* The two narrower selects are sized in assets/dropdowns.css with the rest of
    the dropdown rules. */
 
+/* Settings > Data: the export and import graph buttons stack, so one width
+   keeps their edges lined up. */
+.btn.data-graph-btn {
+    min-width: 11rem;
+}
+
+/* Settings > About: the diagnostics sit in their own box, which shows what
+   the copy button in its corner will take. */
+.about-diagnostics-box {
+    background-color: var(--st-bg-panel);
+    border: 1px solid var(--st-border-panel);
+    border-radius: var(--st-radius);
+    padding: 0.6rem 0.75rem;
+}
+
 /* Event drag-and-drop styles */
 .event-sortable-ghost {
     opacity: 0.3;

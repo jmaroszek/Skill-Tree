@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 _KIND_LABELS = {
     "daily": "daily",
-    "manual": "made by hand",
+    "manual": "manual",
     "pre-migration": "before an upgrade",
     "before-restore": "before a restore",
     "before-import": "before an import",

@@ -91,8 +91,12 @@ async function latestRelease({ current, fetchJson }) {
 }
 
 // Settings > About's "Check now": says what it found, as { message, url? }.
-// It runs even with automatic checks off, since the user asked.
-async function checkNow({ isPackaged, platform, env, current, fetchJson, autoUpdater }) {
+// It runs even with automatic checks off, since the user asked. A failure's
+// details go to the log, never to the page: they are long and mean nothing
+// to the reader.
+async function checkNow({
+  isPackaged, platform, env, current, fetchJson, autoUpdater, log = console.error,
+}) {
   const mode = updateMode({ isPackaged, platform, env });
   const latest = { message: 'You have the latest version.' };
   if (mode === 'off') {
@@ -110,7 +114,8 @@ async function checkNow({ isPackaged, platform, env, current, fetchJson, autoUpd
     if (!found) return latest;
     return { message: `Skill Tree ${found.version} is available.`, url: found.url };
   } catch (err) {
-    return { message: `Couldn't reach GitHub to check (${err.message}).` };
+    log(`Update check failed: ${err && err.stack ? err.stack : err}`);
+    return { message: "Couldn't check for updates. Try again later." };
   }
 }
 

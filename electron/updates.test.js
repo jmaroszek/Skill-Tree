@@ -82,9 +82,11 @@ test('"Check now" says what it found, even with automatic checks off', async () 
   });
   assert.deepEqual(await checkNow({ ...base, platform: 'darwin', fetchJson: releases('v1.0.0') }),
     { message: 'You have the latest version.' });
-  assert.match((await checkNow({ ...base, platform: 'linux',
-    fetchJson: async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com'); } })).message,
-  /Couldn't reach GitHub/);
+  const logged = [];
+  assert.deepEqual(await checkNow({ ...base, platform: 'linux', log: line => logged.push(line),
+    fetchJson: async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com'); } }),
+  { message: "Couldn't check for updates. Try again later." });
+  assert.match(logged[0], /ENOTFOUND/);
 
   const updater = version => ({ checkForUpdates: async () => ({ updateInfo: { version } }) });
   assert.deepEqual(await checkNow({ ...base, platform: 'win32', autoUpdater: updater('1.2.0') }),

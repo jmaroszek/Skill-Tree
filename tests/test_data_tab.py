@@ -71,7 +71,7 @@ def test_back_up_now_makes_a_copy_and_lists_it(data):
     assert "Backed up" in str(status)
     (made,) = backup.list_backups("manual")
     assert options[0]["value"] == str(made["path"])
-    assert "made by hand" in options[0]["label"]
+    assert "(manual)" in options[0]["label"]
 
 
 def test_opening_the_tab_loads_backups_and_the_extra_folder(data, tmp_path):

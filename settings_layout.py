@@ -18,7 +18,6 @@ import style_tokens as tokens
 from resource_links import get_sections
 import about
 import backup
-from app_paths import get_data_dir, get_log_dir
 from version import __version__
 from ui_kit import (Tooltip, cancel_action, danger_action, info_button,
                     primary_action, restore_button)
@@ -393,17 +392,13 @@ def _build_about_tab():
 
             # --- Where things are ---
             html.H5("Your data", className="mt-2 mb-1"),
-            html.Small(["Your graph is kept on this computer, in ",
-                        html.Code(str(get_data_dir())),
-                        ", and never leaves it."],
+            html.Small("Your graph is kept on this computer and never leaves it.",
                        className="text-muted d-block mb-2"),
             html.Div([
                 cancel_action("Open data folder", "btn-open-data-folder", size="sm",
                               className="me-2"),
                 cancel_action("Open logs folder", "btn-open-log-folder", size="sm"),
-            ], className="d-flex align-items-center mb-1"),
-            html.Small(["Logs are in ", html.Code(str(get_log_dir())), "."],
-                       className="text-muted d-block mb-2"),
+            ], className="d-flex align-items-center mb-2"),
             html.Div(id="about-status", className="mb-2"),
 
             # --- Getting help ---
@@ -413,12 +408,13 @@ def _build_about_tab():
                        "Folders under your home folder show as ~, and your graph "
                        "itself is never included.",
                        className="text-muted d-block mb-2"),
+            # Boxed, so it's clear the copy button takes exactly this text.
             html.Div([
                 html.Pre(id="about-diagnostics", className="small mb-0 flex-grow-1",
                          style={"whiteSpace": "pre-wrap"}),
                 dcc.Clipboard(id="about-copy-diagnostics", target_id="about-diagnostics",
                               title="Copy diagnostics", className="ms-2"),
-            ], className="d-flex align-items-start mb-2"),
+            ], className="about-diagnostics-box d-flex align-items-start mb-2"),
             html.A("Report a problem on GitHub", id="about-report-link",
                    href=about.ISSUES_NEW_URL, target="_blank", rel="noopener"),
 
@@ -467,8 +463,7 @@ def _build_data_tab():
             html.H5("Backups", className="mt-2 mb-1"),
             html.Small([
                 "Skill Tree copies your graph once a day when it has changed, "
-                f"and keeps the last {backup.KEEP['daily']} copies in ",
-                html.Code(str(backup.backup_dir())), "."],
+                f"and keeps the last {backup.KEEP['daily']} copies."],
                 className="text-muted d-block mb-2"),
             html.Div([
                 primary_action("Back up now", "btn-backup-now", size="sm", className="me-2"),
@@ -508,13 +503,14 @@ def _build_data_tab():
                        className="text-muted d-block mb-2"),
             html.Div([
                 primary_action("Export graph (.json)", "btn-export-json", size="sm",
-                               className="me-2"),
+                               className="me-2 data-graph-btn"),
                 cancel_action("Export database file", "btn-export-db", size="sm"),
             ], className="d-flex align-items-center mb-2"),
             dcc.Download(id="download-export-json"),
             dcc.Download(id="download-export-db"),
             dcc.Upload(
-                cancel_action("Import graph (.json)…", "btn-import-json", size="sm"),
+                cancel_action("Import graph (.json)…", "btn-import-json", size="sm",
+                              className="data-graph-btn"),
                 id="upload-import", accept=".json,application/json", multiple=False),
             html.Small("Import fills an empty graph, such as a new installation.",
                        className="text-muted d-block mt-1"),
@@ -561,7 +557,7 @@ def build_resource_setting_rows(sections, link_counts=None):
     """
     link_counts = link_counts or {}
     cards = []
-    for section in sections:
+    for number, section in enumerate(sections, start=1):
         section_id = section["id"]
         if section.get("deleted"):
             cards.append(_removed_resource_card(section, link_counts.get(section_id, 0)))
@@ -569,6 +565,7 @@ def build_resource_setting_rows(sections, link_counts=None):
         root_path = section.get("root_path") or ""
         use_root = section.get("use_root", bool(root_path))
         cards.append(html.Div([
+            html.H5(f"Resource {number}", className="mb-2"),
             html.Div([
                 dbc.Input(id={"type": "resource-section-name", "index": section_id},
                           value=section["name"], type="text", maxLength=60,
