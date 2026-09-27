@@ -71,6 +71,16 @@ pytest
 
 Tests run against a temporary per-test database and never touch your sandbox or production data. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
 
+The browser journeys in `tests/e2e` start a real server and drive it in Chromium, the way a new user would. They skip unless Playwright is installed:
+
+```bash
+pip install -r requirements-e2e.txt
+python -m playwright install chromium
+pytest tests/e2e
+```
+
+Each journey gets its own server on a free port and a throwaway data folder.
+
 ## 5. Build the desktop installers (optional)
 
 The desktop app is the Electron shell plus a PyInstaller build of the server.

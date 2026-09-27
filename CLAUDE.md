@@ -52,6 +52,8 @@ pytest
 
 Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to a per-test `tmp_path`. Nothing touches sandbox or production DBs.
 
+The browser journeys in `tests/e2e` (a real server, driven in Chromium) skip unless Playwright is installed; see [`docs/setup.md`](docs/setup.md) section 4. Each starts its own server against a throwaway `SKILLTREE_HOME`.
+
 ## Key patterns to follow when editing
 
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.

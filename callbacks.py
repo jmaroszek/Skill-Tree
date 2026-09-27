@@ -1661,6 +1661,10 @@ def register_callbacks(app, services=None):
         msg = ""
         completion_check_node = None  # Set when a node transitions to Done
         save_result = no_update  # set once an editor save commits
+        # Names an editor save un-marked but kept Done, and the Done nodes
+        # after them that reopening would re-block. The undo-Done modal asks.
+        undo_pending = None
+        undo_downstream = []
 
         # Check for any delayed event nodes or scheduled events that are due
         from event_manager import EventManager
@@ -1759,16 +1763,24 @@ def register_callbacks(app, services=None):
                 status_done = []
             try:
                 with database.transaction():
+                    _prior_for_completion = prior_node_for_completion(
+                        manager, name, original_name)
+                    _was_done = bool(_prior_for_completion
+                                     and _prior_for_completion.status == STATUS_DONE)
                     # Track if this save marks the node Done. Only count a true
                     # Open/Blocked → Done transition (or a brand-new node created
                     # Done) — re-saving an already-Done node must not re-trigger
                     # the time-calibration modal.
                     if status_done and STATUS_DONE in (status_done or []):
-                        _prior_for_completion = prior_node_for_completion(
-                            manager, name, original_name)
-                        if not (_prior_for_completion
-                                and _prior_for_completion.status == STATUS_DONE):
+                        if not _was_done:
                             completion_check_node = name
+                    # Un-marking a Done node re-blocks the Done nodes after
+                    # it, and the node menu asks before doing that. The save
+                    # keeps it Done; below, once its relationships are saved,
+                    # it is either reopened or the user is asked.
+                    reopening = _was_done and STATUS_DONE not in (status_done or [])
+                    if reopening:
+                        status_done = [STATUS_DONE]
 
                     multiplier = ConfigManager.get_time_multiplier(time_unit)
                     t_o = float(time_o or 0) * multiplier
@@ -1823,6 +1835,17 @@ def register_callbacks(app, services=None):
                     from event_manager import EventManager
                     apply_dormancy(manager, EventManager(), name,
                                    dormancy_for_save(dormancy), was_dormant)
+
+                    # Still Done unless a new unfinished prerequisite has
+                    # already re-blocked it.
+                    _saved = manager.get_node(name) if reopening else None
+                    if _saved is not None and _saved.status == STATUS_DONE:
+                        undo_downstream = manager.get_downstream_done_dependents(name)
+                        if undo_downstream:
+                            undo_pending = [name]
+                        else:
+                            _saved.status = STATUS_OPEN
+                            manager.update_node(_saved)
 
                     # Priority rank is deliberately NOT written here. The
                     # Goals sidebar owns it, because ranking is a judgement
@@ -1996,10 +2019,10 @@ def register_callbacks(app, services=None):
                 events_style=next_events_sidebar_style,
             )
 
-        # Last 6 outputs: the undo-Done modal trio followed by the
-        # time-calibration modal trio. The undo-Done path either opens its
-        # modal earlier (return short-circuit in the toggle branch) or, as
-        # here, leaves it closed with the pending store cleared.
+        # The undo-Done modal: the node menu's toggles open it earlier (a
+        # return short-circuit in their branch), an editor save that
+        # un-marked a node opens it here, and otherwise it stays closed
+        # with the pending store cleared.
         return view._replace(
             message=msg,
             clear_disabled=False if msg else True,
@@ -2007,9 +2030,10 @@ def register_callbacks(app, services=None):
             editor_style=next_ed_style,
             goal_style=next_goal_style,
             events_style=next_events_sidebar_style,
-            undo_open=False,
-            undo_body='',
-            undo_pending=None,
+            undo_open=bool(undo_pending),
+            undo_body=(_build_undo_done_body(undo_pending, undo_downstream)
+                       if undo_pending else ''),
+            undo_pending=undo_pending,
             calibration_open=tc_modal_open,
             calibration_reference=tc_reference,
             calibration_pending=tc_pending,
@@ -2024,17 +2048,31 @@ def register_callbacks(app, services=None):
     @app.callback(
         Output('modal-undo-done-confirm', 'is_open', allow_duplicate=True),
         Output('pending-undo-done-store', 'data', allow_duplicate=True),
+        Output('node-status-done', 'value', allow_duplicate=True),
+        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
         Input('btn-undo-done-cancel', 'n_clicks'),
         Input('btn-undo-done-confirm', 'n_clicks'),
+        State('pending-undo-done-store', 'data'),
+        State('node-original-name', 'data'),
+        State('editor-pristine-snapshot', 'data'),
         prevent_initial_call=True,
     )
-    def close_undo_done_modal(_cancel, _confirm):
+    def close_undo_done_modal(_cancel, _confirm, pending, editing, snapshot):
         """Close the undo-Done modal and clear the pending store on either
         button. The actual toggle (on confirm) is performed by core_engine
         listening to btn-undo-done-confirm; this callback only manages the
         modal/store cleanup so the next toggle starts fresh.
+
+        An editor save that un-marked a node kept it Done and asked. Cancel
+        leaves it Done, so the editor's switch, and the saved-form snapshot
+        the unsaved-changes check compares against, go back on.
         """
-        return False, None
+        if (get_trigger_id() == 'btn-undo-done-cancel'
+                and editing and editing in (pending or [])):
+            kept = ({**snapshot, 'status_done': [STATUS_DONE]}
+                    if isinstance(snapshot, dict) else no_update)
+            return False, None, [STATUS_DONE], kept
+        return False, None, no_update, no_update
 
     # --- Time-Calibration Modal: Submit / Skip / Don't ask again ---
     # The modal serves three flows, distinguished by the 'mode' in
