@@ -111,6 +111,13 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npx electron-builder ${{ matrix.target }} --publish never
 
+      - name: Install Windows package and inspect shortcuts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem electron/dist/Skill-Tree-Setup-*.exe | Select-Object -First 1
+          ./packaging/windows_installer_smoke.ps1 -Installer $installer.FullName
+
       # The copy inside the app is the one users run. On macOS it has been
       # re-signed, which must not have broken it.
       - name: Smoke-test the packaged server
