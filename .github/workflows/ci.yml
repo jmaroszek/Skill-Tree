@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every platform the desktop app ships on: Windows, Apple Silicon and
+        # Intel macOS, and Linux.
+        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      # Several asset tests drive the JavaScript under Node and skip without it.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      # --durations names the slowest tests: the suite is far slower on
+      # Windows, and this shows where the time goes.
+      - name: Python tests
+        run: python -m pytest -q --durations=20
+
+      - name: Electron shell tests
+        run: node --test "electron/*.test.js"
+
+  # A real server and a real browser: what a new user does in their first
+  # hour (tests/e2e). The test job above skips these, having no browser.
+  e2e:
+    name: Browser journeys (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-e2e.txt
+
+      # --with-deps adds the system libraries Chromium needs on Linux.
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Browser journeys
+        run: python -m pytest -q tests/e2e --durations=10
+
+  # What a user waits on, at 1,000 nodes (tools/perf_bench.py). The budgets
+  # catch a regression by a multiple, not noise; the job summary has the
+  # numbers for each platform.
+  perf:
+    name: Performance at 1,000 nodes (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-e2e.txt
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Measure
+        shell: bash
+        run: python tools/perf_bench.py --browser --budgets --summary "$GITHUB_STEP_SUMMARY"
+
+  # The frozen server the desktop app ships: build it, then run it the way the
+  # shell does. A package whose data files PyInstaller misses, or a lazy import
+  # it can't see, fails here rather than in a release.
+  frozen-server:
+    name: Frozen server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Write the third-party notices
+        run: python packaging/third_party_notices.py
+
+      - name: Build
+        run: python -m PyInstaller packaging/skilltree-server.spec --noconfirm
+
+      - name: Smoke test
+        shell: bash
+        run: python packaging/smoke_test.py dist/skilltree-server/skilltree-server

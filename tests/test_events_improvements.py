@@ -317,3 +317,43 @@ class TestManualTriggerAnnouncement:
 
         assert result["now_pinned"] == []
         assert mgr.get_now_nodes() == []
+
+
+class TestChainedCompletionFailure:
+    """A woken node stored as Done fires the events watching it.
+
+    That chained firing used to run inside the wake's transaction, with its
+    exceptions swallowed. A failed nested write marks the whole transaction for
+    rollback, so a failure there silently undid the wake too. It now runs after
+    the wake commits, and a failure is logged.
+    """
+
+    def _chain(self, em, mgr):
+        mgr.add_node(_node("Finished", status="Done"))
+        mgr.add_node(_node("Reward"))
+        em.add_event(Event(name="Wake", description=""))
+        em.add_node_to_event("Wake", "Finished", delay_days=0)
+        em.add_event(Event(name="OnFinished", description="",
+                           trigger_nodes=["Finished"]))
+        em.add_node_to_event("OnFinished", "Reward", delay_days=0)
+
+    def test_the_chain_still_fires(self, em, mgr):
+        self._chain(em, mgr)
+
+        em.trigger_event("Wake")
+
+        assert mgr.get_node("Finished").dormant == 0
+        assert mgr.get_node("Reward").dormant == 0
+
+    def test_a_failing_chain_leaves_the_wake_committed_and_logs(self, em, mgr, caplog):
+        self._chain(em, mgr)
+
+        def broken(self, node_name):
+            with database.transaction():
+                raise RuntimeError("disk full")
+        with patch.object(EventManager, "auto_trigger_by_node_completion", broken):
+            em.trigger_event("Wake")
+
+        assert mgr.get_node("Finished").dormant == 0
+        assert em.get_event("Wake").status == "Triggered"
+        assert "Chained event trigger failed for Finished" in caplog.text

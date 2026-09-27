@@ -6,11 +6,13 @@
  * written to the hidden #event-drag-order-input so Dash can pick it up.
  */
 
-/* ---------- Load SortableJS from CDN (shared with goal_sortable.js) ---------- */
+/* ---------- Load SortableJS (shared with the goal and context sortables) ---------- */
+// Served from assets/vendor, not a CDN, so drag-to-reorder works offline.
 (function () {
-    if (window.Sortable) return;           // already loaded
+    var src = '/assets/vendor/sortablejs/Sortable.min.js';
+    if (window.Sortable || document.querySelector('script[src="' + src + '"]')) return;
     var s  = document.createElement('script');
-    s.src  = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js';
+    s.src  = src;
     s.async = false;
     document.head.appendChild(s);
 })();

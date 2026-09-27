@@ -16,6 +16,9 @@ from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacen
                      total_value, score_nodes, time_cost_term,
                      TIME_REF_HOURS)
 
+# Written around the Resource sections new databases used to start with.
+pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
+
 
 # --- Fixtures ---
 

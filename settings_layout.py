@@ -16,7 +16,12 @@ from config import (
 )
 import style_tokens as tokens
 from resource_links import get_sections
-from ui_kit import Tooltip, info_button, restore_button
+import about
+import backup
+from app_paths import get_data_dir, get_log_dir
+from version import __version__
+from ui_kit import (Tooltip, cancel_action, danger_action, info_button,
+                    primary_action, restore_button)
 
 
 
@@ -374,6 +379,153 @@ def _build_resources_tab():
     ])
 
 
+def _build_about_tab():
+    """The version, where the data lives, and how to get help.
+
+    about_callbacks.py fills in the diagnostics and the report link when the
+    tab opens. The Updates block belongs to the desktop shell and stays hidden
+    in a browser (the clientside callbacks in about_callbacks.py).
+    """
+    return dbc.Tab(label="About", tab_id="tab-about", children=[
+        html.Div([
+            html.H5("Skill Tree", className="mt-2 mb-1"),
+            html.Div(f"Version {__version__}", id="about-version", className="mb-3"),
+
+            # --- Where things are ---
+            html.H5("Your data", className="mt-2 mb-1"),
+            html.Small(["Your graph is kept on this computer, in ",
+                        html.Code(str(get_data_dir())),
+                        ", and never leaves it."],
+                       className="text-muted d-block mb-2"),
+            html.Div([
+                cancel_action("Open data folder", "btn-open-data-folder", size="sm",
+                              className="me-2"),
+                cancel_action("Open logs folder", "btn-open-log-folder", size="sm"),
+            ], className="d-flex align-items-center mb-1"),
+            html.Small(["Logs are in ", html.Code(str(get_log_dir())), "."],
+                       className="text-muted d-block mb-2"),
+            html.Div(id="about-status", className="mb-2"),
+
+            # --- Getting help ---
+            html.Hr(className="my-3"),
+            html.H5("Report a problem", className="mt-2 mb-1"),
+            html.Small("The report form on GitHub opens with these details filled in. "
+                       "Folders under your home folder show as ~, and your graph "
+                       "itself is never included.",
+                       className="text-muted d-block mb-2"),
+            html.Div([
+                html.Pre(id="about-diagnostics", className="small mb-0 flex-grow-1",
+                         style={"whiteSpace": "pre-wrap"}),
+                dcc.Clipboard(id="about-copy-diagnostics", target_id="about-diagnostics",
+                              title="Copy diagnostics", className="ms-2"),
+            ], className="d-flex align-items-start mb-2"),
+            html.A("Report a problem on GitHub", id="about-report-link",
+                   href=about.ISSUES_NEW_URL, target="_blank", rel="noopener"),
+
+            # --- Updates (the desktop app only) ---
+            html.Div([
+                html.Hr(className="my-3"),
+                html.H5("Updates", className="mt-2 mb-1"),
+                dbc.Switch(id="about-update-auto", value=True,
+                           label="Check for a new version when Skill Tree starts"),
+                html.Small("The check asks GitHub for the newest release and sends "
+                           "nothing about you or your graph.",
+                           className="text-muted d-block mb-2"),
+                cancel_action("Check now", "btn-check-updates", size="sm"),
+                html.Div(id="about-update-status", className="mt-2"),
+                html.A("Open the release page", id="about-update-link", target="_blank",
+                       rel="noopener", style={"display": "none"}),
+                dcc.Store(id="about-update-sink"),
+            ], id="about-updates", style={"display": "none"}),
+
+            # --- Where it comes from ---
+            html.Hr(className="my-3"),
+            html.Small(["Skill Tree is open source. Its code, license, release notes "
+                        "and downloads are at ",
+                        html.A("github.com/jmaroszek/Skill-Tree", href=about.REPO_URL,
+                               target="_blank", rel="noopener"), "."],
+                       className="text-muted d-block mb-2"),
+            # The licenses of what it's built on. Only a build has the file.
+            html.Div([
+                cancel_action("Third-party notices", "btn-open-notices", size="sm"),
+                html.Div(id="about-notices-status", className="mt-2"),
+            ], id="about-notices",
+               style={} if about.notices_path() else {"display": "none"}),
+        ], style={"width": "100%", "maxWidth": "640px"}),
+    ])
+
+
+def _build_data_tab():
+    """Backups, restore, export and import: everything about the data file.
+
+    These act at once, unlike the other tabs, so their buttons sit in the tab
+    rather than behind the Settings save. data_callbacks.py handles them.
+    """
+    return dbc.Tab(label="Data", tab_id="tab-data", children=[
+        html.Div([
+            # --- Backups ---
+            html.H5("Backups", className="mt-2 mb-1"),
+            html.Small([
+                "Skill Tree copies your graph once a day when it has changed, "
+                f"and keeps the last {backup.KEEP['daily']} copies in ",
+                html.Code(str(backup.backup_dir())), "."],
+                className="text-muted d-block mb-2"),
+            html.Div([
+                primary_action("Back up now", "btn-backup-now", size="sm", className="me-2"),
+                cancel_action("Open backups folder", "btn-open-backup-folder", size="sm"),
+            ], className="d-flex align-items-center mb-3"),
+            dbc.Label("Also copy each backup to"),
+            dbc.Input(id="setting-backup-extra-dir", type="text",
+                      placeholder="Optional: a synced folder, such as Dropbox or OneDrive"),
+            html.Small("A second copy in a synced folder survives the loss of this "
+                       "computer. Saved with the other settings.",
+                       className="text-muted d-block mt-1"),
+
+            # --- Restore ---
+            html.Hr(className="my-3"),
+            html.H5("Restore", className="mt-2 mb-1"),
+            html.Small("Replace your current graph with a backup. Your current graph "
+                       "is backed up first, so a restore can itself be undone.",
+                       className="text-muted d-block mb-2"),
+            html.Div([
+                html.Div(dcc.Dropdown(id="restore-backup-select", options=[],
+                                      clearable=False, placeholder="Choose a backup"),
+                         className="text-dark", style={"minWidth": "340px"}),
+                danger_action("Restore…", "btn-restore-backup", size="sm", className="ms-2"),
+            ], className="d-flex align-items-center"),
+            dbc.Collapse(html.Div([
+                html.Div(id="restore-confirm-text", className="mb-2"),
+                cancel_action("Cancel", "btn-restore-cancel", size="sm", className="me-2"),
+                danger_action("Restore", "btn-restore-confirm", size="sm"),
+            ], className="mt-2"), id="restore-confirm", is_open=False),
+
+            # --- Export & import ---
+            html.Hr(className="my-3"),
+            html.H5("Export & Import", className="mt-2 mb-1"),
+            html.Small("An export is one file holding your whole graph and its "
+                       "settings. Use it to move to another computer, or to keep a "
+                       "copy outside Skill Tree.",
+                       className="text-muted d-block mb-2"),
+            html.Div([
+                primary_action("Export graph (.json)", "btn-export-json", size="sm",
+                               className="me-2"),
+                cancel_action("Export database file", "btn-export-db", size="sm"),
+            ], className="d-flex align-items-center mb-2"),
+            dcc.Download(id="download-export-json"),
+            dcc.Download(id="download-export-db"),
+            dcc.Upload(
+                cancel_action("Import graph (.json)…", "btn-import-json", size="sm"),
+                id="upload-import", accept=".json,application/json", multiple=False),
+            html.Small("Import fills an empty graph, such as a new installation.",
+                       className="text-muted d-block mt-1"),
+
+            html.Div(id="data-status", className="mt-3"),
+            dcc.Store(id="data-reload-trigger"),
+            dcc.Store(id="data-reload-sink"),
+        ], className="p-2", style={"width": "100%", "maxWidth": "640px"}),
+    ])
+
+
 def _resource_root_field(section_id, root_path):
     """A root-folder input with a trailing folder browse, as in the node editor."""
     return html.Div([
@@ -467,6 +619,8 @@ def build_settings_modal():
                 _build_editing_tab(),
                 _build_appearance_tab(),
                 _build_resources_tab(),
+                _build_data_tab(),
+                _build_about_tab(),
             ]),
         ),
     ], id="settings-modal", dialog_style={"maxWidth": "900px"},

@@ -2,6 +2,7 @@
 Callback definitions for the Events tab.
 """
 
+import bridge_payloads
 import database
 import json
 import time
@@ -216,7 +217,7 @@ def register_event_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     @prerendered
-    def render_events_list(refresh_trigger, ui_refresh, _arrived, event_order, search_text, show_triggered, sort_mode, selected_event):
+    def render_events_list(refresh_trigger, ui_refresh, _arrived, _order_changed, search_text, show_triggered, sort_mode, selected_event):
         events = event_manager.get_all_events()
         if not events:
             return html.Div(
@@ -249,8 +250,10 @@ def register_event_callbacks(app, services=None):
                 key=lambda e: (-node_counts[e.name]["total"], (e.name or "").lower()),
             )
         else:
-            # Manual: apply drag-and-drop order from store
-            stored_order = event_order or []
+            # Manual: the saved drag order. It comes from the database, not
+            # the store: the store is loaded with the page, while renames and
+            # deletes keep the saved order current.
+            stored_order = ConfigManager.get_event_order()
             if stored_order:
                 event_map = {e.name: e for e in events}
                 ordered = [event_map[n] for n in stored_order if n in event_map]
@@ -362,6 +365,23 @@ def register_event_callbacks(app, services=None):
         events = event_manager.get_all_events()
         return [_html.Option(value=e.name) for e in events]
 
+    # --- Event clock ---
+    # Date triggers and wake dates come due by the calendar. core_engine checks
+    # them whenever it runs, which is on nearly every interaction. This checks
+    # them while the app sits open, so a node due overnight is awake before the
+    # first click of the morning. A refresh goes out only when something fired.
+    @app.callback(
+        Output("events-refresh-trigger", "data", allow_duplicate=True),
+        Input("event-clock", "n_intervals"),
+        prevent_initial_call=True,
+    )
+    def run_event_clock(_n):
+        woken = event_manager.check_pending_activations()
+        fired = event_manager.check_scheduled_triggers()
+        if not woken and not fired:
+            return no_update
+        return f"event-clock-{int(time.time() * 1000)}"
+
     # --- Event Reordering (drag-and-drop) ---
     @app.callback(
         Output("event-order-store", "data"),
@@ -374,6 +394,7 @@ def register_event_callbacks(app, services=None):
             try:
                 new_order = _json.loads(drag_order_json)
                 if isinstance(new_order, list) and new_order:
+                    ConfigManager.set_event_order(new_order)
                     return new_order
             except (ValueError, TypeError):
                 pass
@@ -554,10 +575,11 @@ def register_event_callbacks(app, services=None):
     def handle_event_context_action(action_value, active_tab):
         if not action_value:
             return (no_update,) * (_N_DETAIL + 2)
-        parts = action_value.split("|")
-        if len(parts) < 2:
+        # "name|action|<ms>". The event's name may itself contain "|".
+        parts = bridge_payloads.fields(action_value, 2)
+        if parts is None:
             return (no_update,) * (_N_DETAIL + 2)
-        event_name, action = parts[0], parts[1]
+        event_name, action = parts
         event = event_manager.get_event(event_name)
         if not event:
             return (no_update,) * (_N_DETAIL + 2)
@@ -1114,11 +1136,8 @@ def register_event_callbacks(app, services=None):
             # context_menu.js writes a JSON list of node names plus "|<ms>".
             if not trigger_val:
                 return (no_update,) * _N
-            try:
-                picked = json.loads(trigger_val.split("|")[0])
-            except ValueError:
-                return (no_update,) * _N
-            if not isinstance(picked, list):
+            picked = bridge_payloads.names(trigger_val)
+            if not picked:
                 return (no_update,) * _N
         elif ctx.triggered_id == "dormant-add-choice-input":
             # The Events tab's "+" menu, "Existing nodes…".

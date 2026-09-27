@@ -59,11 +59,12 @@ HYPERS = {
 # ---------------------------------------------------------------------------
 
 def test_config_roundtrip():
-    assert ConfigManager.get_show_scoring_perf() is True  # default
-    ConfigManager.set_show_scoring_perf(False)
+    # Off by default: it's a developer's readout (P5.2).
     assert ConfigManager.get_show_scoring_perf() is False
     ConfigManager.set_show_scoring_perf(True)
     assert ConfigManager.get_show_scoring_perf() is True
+    ConfigManager.set_show_scoring_perf(False)
+    assert ConfigManager.get_show_scoring_perf() is False
 
 
 # ---------------------------------------------------------------------------

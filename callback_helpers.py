@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
+import bridge_payloads
 import database
 
 import dash
@@ -263,7 +264,7 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
     it is batched with another trigger like tapNodeData.
     """
     if ('edit-trigger-input' in all_triggered_ids or 'details-edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
-        return edit_trigger_data.split('|')[0]
+        return bridge_payloads.strip_stamp(edit_trigger_data)
     if trigger_id in ('background-click-input', 'btn-editor-new'):
         return None
     if trigger_id == 'search-node' and search_val:
@@ -1033,6 +1034,27 @@ def build_editor_snapshot(manager, node_name):
     }
 
 
+def follow_done_status(node, switch, snapshot):
+    """(switch, snapshot) for an editor showing ``node`` after its status may
+    have changed outside the editor: the node menu's Toggle Done, the undo-Done
+    confirmation, or a cascade re-blocking it.
+
+    Returns (no_update, no_update) when the snapshot already agrees with the
+    database, or when there is nothing to judge by. The switch follows only
+    while it still shows what was loaded, so a flip the user hasn't saved
+    stays; the snapshot always takes the stored status, so the unsaved-changes
+    check compares the form with what is really there.
+    """
+    if node is None or not isinstance(snapshot, dict) or 'status_done' not in snapshot:
+        return dash.no_update, dash.no_update
+    stored = [STATUS_DONE] if node.status == STATUS_DONE else []
+    loaded = snapshot.get('status_done') or []
+    if loaded == stored:
+        return dash.no_update, dash.no_update
+    new_switch = stored if (switch or []) == loaded else dash.no_update
+    return new_switch, {**snapshot, 'status_done': stored}
+
+
 def snapshot_from_form_state(form_values, linted_name, linted_aliases):
     """Build a pristine snapshot directly from the form State just saved.
 
@@ -1290,6 +1312,16 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     kind of element.
     """
     if not suggs:
+        nodes = manager.get_all_nodes()
+        if not nodes:
+            return html.P("Your graph is empty. Add a goal with the node editor, the "
+                          "first icon at the top left, and Skill Tree will start "
+                          "suggesting what to work on.", className="text-muted")
+        # Goals and Milestones are where the work leads, never suggestions.
+        if not any(n.type not in ("Goal", "Milestone") and n.status != STATUS_DONE
+                   for n in nodes):
+            return html.P("Nothing to suggest yet. Add things to learn or do, and "
+                          "connect your goals to them with Needs.", className="text-muted")
         return html.P("No suggestions found based on current filters and graph state.", className="text-muted")
 
     max_score = manager.get_priority_normalizer()
@@ -1774,6 +1806,12 @@ def spawn_local_file_picker(initial_dir, title, filetypes_list, directory=False)
     import subprocess
 
     _logger = logging.getLogger(__name__)
+    if getattr(sys, "frozen", False):
+        # sys.executable is the Skill Tree server itself here: "-c <script>"
+        # would start another server. The desktop shell's native picker
+        # (assets/resource_picker.js) serves the frozen build.
+        _logger.warning("No file picker in this build; paste the path instead.")
+        return ""
     script = '''import json
 import os
 import sys

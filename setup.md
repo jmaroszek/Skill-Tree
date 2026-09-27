@@ -1,47 +1,51 @@
-# Setup — Skill Tree desktop app
+# Setup — the desktop shell, for developers
 
-Skill Tree runs as a native desktop app through an Electron shell (`electron/`)
-that spawns the Python/Dash server and hosts it in a window. This file covers
-getting that shell working. The Python app's own dependencies live in
-`environment.yml` / `requirements.txt`.
+People who just want to use Skill Tree install it from a release (the Windows
+installer, the macOS dmg, or the Linux AppImage or deb). This file is for
+running the desktop shell from a checkout. The shell (`electron/`) starts the
+Python/Dash server and shows it in a native window. The Python app's own setup
+is in [`docs/setup.md`](docs/setup.md).
 
 ## Prerequisites
 
-- The `skill-tree` conda environment (`conda env create -f environment.yml`).
-  It now includes **Node.js**, which the Electron shell needs.
+- The `skill-tree` conda environment (`conda env create -f environment.yml`), which
+  includes **Node.js**. Any Python 3.13 with `requirements.txt` installed, plus
+  Node.js 22, also works.
 
-## Install the desktop shell
-
-From an activated `skill-tree` env:
+## Install the shell's packages
 
 ```
-cd "Skill Tree\electron"
-.\setup.ps1
+cd electron
+npm ci
 ```
 
-`setup.ps1` runs `npm install` and makes sure the Electron binary is in place.
+On Windows, `.\setup.ps1` does the same, and falls back to unpacking Electron
+itself if its download left `node_modules/electron/dist` without `electron.exe`.
+Electron's own install used to hit that until 42.4.0 fixed its unzip step, so the
+fallback is rarely needed now.
 
-### Fixed: Electron's unzip step
+## Run it
 
-Electron's npm post-install used to **fail to extract its binary** here.
-`node_modules/electron/dist/` ended up with only a `locales/` folder — no
-`electron.exe` — even though the download itself succeeded and passed its
-checksum. The cause was the `extract-zip` package Electron bundled for that
-step, not the download and not antivirus.
+```
+cd electron
+npm start               # your real data
+npm run start:sandbox   # the sandbox database
+```
 
-Electron 42.4.0 replaced `extract-zip` with its own maintained
-`@electron-internal/extract-zip` fork, and the extraction now works. A bare
-`npm install` is enough. The same swap closed CVE-2026-56876, a symlink path
-traversal in `extract-zip` that had no fix of its own.
+- **Finding Python.** The shell (`electron/shell.js`) looks for the interpreter
+  in this order:
+  1. `SKILLTREE_PYTHON`, if set.
+  2. A conda env named `skill-tree` under `%USERPROFILE%` (anaconda3, miniconda3,
+     miniforge3 or mambaforge).
+  3. `pythonw` (Windows) or `python3` on `PATH`.
+- **Port.** The server takes a free port and says which in its `SKILLTREE_READY`
+  line, so nothing else on the machine can collide with it.
+- **Quitting.** Closing the window stops the server.
+- **Side by side.** Production and sandbox use separate Electron profiles, so
+  they can run together.
+- **Desktop shortcuts.** To launch from an icon, point a shortcut at a script
+  that runs `npm start` (or `npm run start:sandbox`) in `electron/`.
 
-`setup.ps1` keeps its `Expand-Archive` fallback as a safety net. It is a no-op
-whenever the binary is already in place, so running the script is still the
-recommended way to install.
-
-## Launching
-
-- Desktop icon → `Code\Terminal\Batch\skill_tree.bat` → Electron (production, port 8050).
-- `Code\Terminal\Batch\skill_tree_sandbox.bat` → Electron against the sandbox DB (port 8051).
-
-Both spawn the env's `pythonw` server under the hood; closing the window stops it.
-Production and sandbox use separate Electron profiles, so they can run side by side.
+A packaged build runs its bundled server instead (`packaging/skilltree-server.spec`)
+and ignores `--sandbox`. To build the installers, see
+[`docs/setup.md`](docs/setup.md#5-build-the-desktop-installers-optional).

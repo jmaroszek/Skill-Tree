@@ -1,0 +1,5 @@
+# Skill Tree — the browser journeys in tests/e2e: the dev set plus Playwright.
+# After installing, fetch its Chromium: python -m playwright install chromium
+-r requirements-dev.txt
+
+playwright==1.63.0

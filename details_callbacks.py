@@ -2,6 +2,7 @@
 Callback definitions for the Details tab.
 """
 
+import bridge_payloads
 import database
 import json
 import os
@@ -783,8 +784,8 @@ def register_details_callbacks(app, services=None):
     def context_menu_simulate_trigger(trigger_val, active_tab):
         if not trigger_val:
             return no_update
-        # Parse "nodeName|timestamp"
-        node_name = trigger_val.split('|')[0].strip()
+        # Parse "nodeName|timestamp"; the name may itself contain "|".
+        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
         if not node_name:
             return no_update
         # Select the node — which will auto-run simulation
@@ -845,7 +846,7 @@ def register_details_callbacks(app, services=None):
     def context_menu_details_navigate(trigger_val, active_tab):
         if not trigger_val:
             return no_update, no_update
-        node_name = trigger_val.split('|')[0].strip()
+        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
         if not node_name:
             return no_update, no_update
         # Re-sending the current tab would re-run everything keyed on it.
@@ -864,7 +865,7 @@ def register_details_callbacks(app, services=None):
     def context_menu_explain_open(trigger_val):
         if not trigger_val:
             return no_update, no_update
-        node_name = trigger_val.split('|')[0].strip()
+        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
         if not node_name:
             return no_update, no_update
         return node_name, True
@@ -1376,7 +1377,7 @@ def register_details_callbacks(app, services=None):
                                for (s, t, etype), r in edge_rank_items]
         # Serialize edge_rank keys for JSON compatibility in dcc.Store.
         edge_rank_str = {
-            f"{s}|{t}|{etype}": r
+            bridge_payloads.edge_key(s, t, etype): r
             for (s, t, etype), r in edge_rank_items
         }
         return (

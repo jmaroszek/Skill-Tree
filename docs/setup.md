@@ -37,28 +37,31 @@ python -m venv .venv
 # macOS / Linux:
 source .venv/bin/activate
 
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
-`requirements.txt` mirrors `environment.yml`. If you bump a dependency, update both files.
+`requirements-dev.txt` installs the runtime set in `requirements.txt` plus the test tools. Both mirror `environment.yml`. If you bump a dependency, update all three files.
 
 ## 3. Run the app
 
 Launch in **sandbox mode** first — it uses a separate database (`%LOCALAPPDATA%\Skill Tree\Data\sandbox_skilltree.db` on Windows) so you can experiment without touching real data.
 
 ```bash
-python app.py --sandbox --port 8051
+python app.py --sandbox --dev
 ```
 
-The app opens automatically at <http://127.0.0.1:8051>. The SQLite database is created automatically on first launch (an empty graph), so there's no migration or seed step.
+A browser tab opens on the app. The SQLite database is created automatically on first launch (an empty graph), so there's no migration or seed step. `--dev` adds Flask's debugger and hot reload: edits to Python, CSS and JS apply without a restart. Leave it off to run the app the way users get it.
 
-To run against the primary database instead, omit `--sandbox` (defaults to port 8050):
+To run against the primary database instead, omit `--sandbox`:
 
 ```bash
 python app.py
 ```
 
-Sandbox (8051) and production (8050) use distinct ports and databases, so both can run side by side.
+- **Ports.** Sandbox uses 8051 and production 8050, so both can run side by side. `--port N` picks another, and if the port is taken by something else the app moves to a free one. The desktop shell always takes a free port.
+- **The access link.** The server only answers the window or tab it opened: the first URL carries a token, which it swaps for a cookie. After a restart, use the new tab it opens. With `--no-browser` it prints the link instead. The link is also in `<Data>/sandbox_skilltree.instance.json` (or `skilltree.instance.json`) while it runs.
+- **One server per database.** A second launch opens the running one instead of starting another.
+- **A throwaway data folder.** Set `SKILLTREE_HOME` to an absolute folder, and Data and Logs go there instead of the per-user folder.
 
 ## 4. Run the tests (optional)
 
@@ -66,7 +69,51 @@ Sandbox (8051) and production (8050) use distinct ports and databases, so both c
 pytest
 ```
 
-Tests run against a temporary per-test database and never touch your sandbox or production data.
+Tests run against a temporary per-test database and never touch your sandbox or production data. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
+
+The browser journeys in `tests/e2e` start a real server and drive it in Chromium, the way a new user would. They skip unless Playwright is installed:
+
+```bash
+pip install -r requirements-e2e.txt
+python -m playwright install chromium
+pytest tests/e2e
+```
+
+Each journey gets its own server on a free port and a throwaway data folder.
+
+## 5. Build the desktop installers (optional)
+
+The desktop app is the Electron shell plus a PyInstaller build of the server.
+Each platform builds its own:
+
+```bash
+pip install -r requirements-build.txt
+(cd electron && npm ci)
+python packaging/third_party_notices.py                              # -> THIRD_PARTY_NOTICES.txt
+python -m PyInstaller packaging/skilltree-server.spec --noconfirm   # -> dist/skilltree-server/
+python packaging/smoke_test.py dist/skilltree-server/skilltree-server
+cd electron && npm run dist                                          # -> electron/dist/
+```
+
+- `third_party_notices.py` lists what the build ships that others wrote, with their
+  licenses: the server's Python packages, the shell's npm packages and the vendored
+  fonts, icons and scripts. Each platform writes its own, since some Python packages
+  are platform-specific. The server's build bundles it and Settings → About opens it.
+
+- `npm run dist` makes the installer for the machine it runs on: an NSIS installer on
+  Windows, a dmg and zip on macOS, and an AppImage and deb on Linux
+  (`electron/electron-builder.yml`).
+- CI builds and smoke-tests the server on every push.
+- `packaging/app_journey.py` drives a built app the way a new user would: the window,
+  the welcome, a node saved, quitting, and a second start. It uses a throwaway data
+  folder, so it never touches yours. The release workflow runs it on every platform:
+
+  ```bash
+  pip install -r requirements-e2e.txt
+  python packaging/app_journey.py "electron/dist/win-unpacked/Skill Tree.exe"     # Windows
+  python packaging/app_journey.py "electron/dist/mac-arm64/Skill Tree.app/Contents/MacOS/Skill Tree"
+  python packaging/app_journey.py electron/dist/linux-unpacked/skill-tree --headless  # needs xvfb-run
+  ```
 
 ## Notes
 

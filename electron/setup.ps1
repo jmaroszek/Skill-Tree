@@ -10,7 +10,7 @@
 # a safety net; it is skipped whenever the binary is already there. See setup.md.
 #
 #   conda activate skill-tree
-#   cd "C:\Users\jonah\Documents\Code\Skill Tree\electron"
+#   cd <your checkout>\electron
 #   .\setup.ps1
 
 $ErrorActionPreference = 'Stop'

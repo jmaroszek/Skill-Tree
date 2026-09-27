@@ -1,15 +1,24 @@
 {
   "name": "skill-tree-desktop",
+  "productName": "Skill Tree",
+  "desktopName": "skill-tree.desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "Electron desktop shell for the Skill Tree Dash app. Spawns the Python/Dash server and hosts it in a native window.",
+  "description": "Skill Tree desktop app: decide what to work on next, from a graph of your goals.",
+  "homepage": "https://github.com/jmaroszek/Skill-Tree",
+  "author": "Skill Tree contributors",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "start:sandbox": "electron . --sandbox"
+    "start:sandbox": "electron . --sandbox",
+    "dist": "electron-builder --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "tree-kill": "^1.2.2"
   },
   "devDependencies": {
     "electron": "^42.3.3",
-    "tree-kill": "^1.2.2"
+    "electron-builder": "^26.15.3"
   }
 }

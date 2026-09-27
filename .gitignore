@@ -1,9 +1,14 @@
 *.db
+# Databases saved by old versions, for the migration tests.
+!tests/fixtures/*.db
 *.sqlite3
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+# PyInstaller output (packaging/skilltree-server.spec)
+/build/
+/dist/
 .DS_Store
 .claude/
 data/
@@ -11,3 +16,8 @@ reviews/
 scripts/
 docs/production_roadmap.md
 docs/gate_edge_decision.md
+docs/production_readiness_plan.md
+/docs/personal/
+
+# Generated per platform at build time (packaging/third_party_notices.py).
+/THIRD_PARTY_NOTICES.txt

@@ -9,7 +9,8 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
 from datetime import date, timedelta
-from config import ConfigManager, TOAST_CLEAR_INTERVAL_MS, badge_style
+from config import (ConfigManager, EVENT_CLOCK_INTERVAL_MS,
+                    TOAST_CLEAR_INTERVAL_MS, badge_style)
 from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
@@ -404,8 +405,12 @@ def build_events_tab_content():
         # once the open slide finishes so render_events_list re-runs — but NOT
         # an input to core_engine, so opening doesn't wait on a graph regen.
         dcc.Store(id='events-ui-refresh-trigger', data=0),
-        dcc.Store(id='event-order-store', data=[], storage_type='local'),
+        # The manual order lives in Settings, not the browser, so it survives
+        # a new port or a cleared profile. A drag writes it there first.
+        dcc.Store(id='event-order-store', data=ConfigManager.get_event_order()),
         dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
+        # Fires event_callbacks.run_event_clock while the app sits open.
+        dcc.Interval(id='event-clock', interval=EVENT_CLOCK_INTERVAL_MS, n_intervals=0),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)
         dcc.Input(id='event-drag-order-input', type='text', value='', style={'display': 'none'}),
         html.Div([
@@ -839,7 +844,7 @@ def build_dormant_nodes_table(event_nodes, event=None):
 # --- Node editor: Event section ---
 # Before the node's event fires, the section edits a delay; after it fires,
 # it edits the wake date the node was given, because the delay has nothing
-# left to measure from (see docs/dormant_node_triggering.md).
+# left to measure from.
 
 def delay_fields(wrapper_id, value_id, unit_id, value, unit, visible):
     """The "[n] [unit] after it fires" row behind a Delay switch.

@@ -1,0 +1,37 @@
+name: Report a problem
+description: Something in Skill Tree didn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Settings > About > Report a problem fills in the
+        diagnostics below for you. Your graph itself is never sent anywhere.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen again?
+      placeholder: |
+        1. Open the Nodes tab
+        2. ...
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: From Settings > About. Folders under your home folder show as ~.
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (optional)
+      description: >
+        The end of app.log from the Logs folder (Settings > About > Open logs folder)
+        often shows what went wrong. Look it over before pasting; it can name nodes.
+      render: text

@@ -1,0 +1,86 @@
+# electron-builder: the installers for each platform.
+#
+# Build the server first, from the repo root, so it is in ../dist:
+#   python -m PyInstaller packaging/skilltree-server.spec --noconfirm
+# then, here:
+#   npm run dist
+# The release workflow (.github/workflows/release.yml) does both on each OS.
+
+appId: com.skilltree.app
+productName: Skill Tree
+copyright: Copyright © 2026 Skill Tree contributors
+
+directories:
+  output: dist
+  buildResources: build
+
+# Only what the shell runs. The Python app travels as the frozen server below.
+files:
+  - main.js
+  - preload.js
+  - resource_dialog.js
+  - server_process.js
+  - shell.js
+  - updates.js
+  - package.json
+
+# The PyInstaller build becomes resources/server (electron/shell.js looks
+# there). It stays outside the asar archive, since it has to run.
+extraResources:
+  - from: ../dist/skilltree-server
+    to: server
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: ../assets/skill_tree.ico
+  artifactName: Skill-Tree-Setup-${version}.${ext}
+  # Signed through whatever service WINDOWS_SIGN_COMMAND names; unsigned
+  # without it (build/sign-windows.js).
+  signtoolOptions:
+    sign: build/sign-windows.js
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  # The graph lives in %LOCALAPPDATA%\Skill Tree, not in the app's folders,
+  # so uninstalling never takes it. This only concerns the shell's cache.
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+    - target: zip
+  category: public.app-category.productivity
+  icon: build/icon.png
+  # Not signed with a Developer ID yet. Apple Silicon refuses to run
+  # unsigned code at all, so everything, the server included, is ad-hoc
+  # signed. Users open it the first time through Privacy & Security.
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  artifactName: Skill-Tree-${version}-mac-${arch}.${ext}
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+  icon: build/icon.png
+  executableName: skill-tree
+  # Docks group the running window under the launcher by this name.
+  syncDesktopName: true
+  synopsis: Decide what to work on next, from a graph of your goals
+  maintainer: Skill Tree contributors <https://github.com/jmaroszek/Skill-Tree>
+  artifactName: Skill-Tree-${version}-linux-${arch}.${ext}
+
+deb:
+  artifactName: skill-tree_${version}_${arch}.${ext}
+
+publish:
+  provider: github
+  owner: jmaroszek
+  repo: Skill-Tree
+  releaseType: draft

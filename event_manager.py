@@ -11,11 +11,14 @@ exclusively to this awakening — it does NOT touch the orthogonal Node.now
 flag.
 """
 
+import logging
 import sqlite3
 from datetime import date, timedelta
 import database
 from models import Node, Event, STATUS_DONE, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
 from typing import Any, List, Dict, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 # Columns hydrated onto Event. Listed explicitly rather than via SELECT * so a
@@ -157,8 +160,16 @@ class EventManager:
 
     # --- Event CRUD ---
 
+    @staticmethod
+    def _check_name(name):
+        import graph_rules
+        problem = graph_rules.name_problem(name, "Event name")
+        if problem:
+            raise ValueError(problem)
+
     @database.atomic
     def add_event(self, event: Event):
+        self._check_name(event.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -177,15 +188,20 @@ class EventManager:
 
     @database.atomic
     def update_event(self, old_name: str, event: Event):
+        if old_name != event.name:
+            self._check_name(event.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             if old_name != event.name:
-                cursor.execute(
-                    "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, "
-                    "trigger_mode=? WHERE name=?",
-                    (event.name, event.description, event.status, event.trigger_date,
-                     self._normalize_mode(event.trigger_mode), old_name)
-                )
+                try:
+                    cursor.execute(
+                        "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, "
+                        "trigger_mode=? WHERE name=?",
+                        (event.name, event.description, event.status, event.trigger_date,
+                         self._normalize_mode(event.trigger_mode), old_name)
+                    )
+                except sqlite3.IntegrityError:
+                    raise ValueError(f"Event with name '{event.name}' already exists.")
                 cursor.execute(
                     "UPDATE EventNodes SET event_name=? WHERE event_name=?",
                     (event.name, old_name)
@@ -203,6 +219,9 @@ class EventManager:
                 )
             self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
             conn.commit()
+        if old_name != event.name:
+            from config import ConfigManager
+            ConfigManager.rename_event_references(old_name, event.name)
         self._graph_changed(scoring=False)
 
     @database.atomic
@@ -241,6 +260,8 @@ class EventManager:
 
             cursor.execute("DELETE FROM Events WHERE name=?", (event_name,))
             conn.commit()
+        from config import ConfigManager
+        ConfigManager.delete_event_references(event_name)
         self._graph_changed()
 
         # Re-derive status for any newly-activated node so a Blocked-on-prereqs
@@ -253,10 +274,7 @@ class EventManager:
                 gm._update_node_state(name)
                 node = gm.get_node(name)
                 if node and node.status == STATUS_DONE:
-                    try:
-                        self.auto_trigger_by_node_completion(name)
-                    except Exception:
-                        pass
+                    self._fire_completion_events_after_commit(name)
 
         return result
 
@@ -738,10 +756,7 @@ class EventManager:
             gm._update_node_state(node_name)
             node = gm.get_node(node_name)
             if node and node.status == STATUS_DONE:
-                try:
-                    self.auto_trigger_by_node_completion(node_name)
-                except Exception:
-                    pass
+                self._fire_completion_events_after_commit(node_name)
 
         # Even a no-op firing changes the event's own status, and the sidebar
         # reads that. Only a woken node is scoring-relevant.
@@ -792,10 +807,7 @@ class EventManager:
             gm._update_node_state(node_name)
             node = gm.get_node(node_name)
             if node and node.status == STATUS_DONE:
-                try:
-                    self.auto_trigger_by_node_completion(node_name)
-                except Exception:
-                    pass
+                self._fire_completion_events_after_commit(node_name)
 
         # The Now intent a delayed node carried used to be applied at trigger
         # time, while the node was still dormant — and Now skips dormant
@@ -891,6 +903,23 @@ class EventManager:
                 "when": today,
             })
         return triggered
+
+    def _fire_completion_events_after_commit(self, node_name: str) -> None:
+        """Fire the events watching a woken Done node, once the wake commits.
+
+        A dormant node stored as Done joins the live graph when it wakes, and
+        that can satisfy another event's trigger. It runs after the commit,
+        as GraphManager.update_node fires completions, so a failure there is
+        logged instead of silently rolling the wake back with it. Catching the
+        error inside this transaction would not have been enough: the failed
+        nested write marks the whole transaction for rollback.
+        """
+        def fire():
+            try:
+                self.auto_trigger_by_node_completion(node_name)
+            except Exception:
+                logger.exception("Chained event trigger failed for %s", node_name)
+        database.on_commit(fire, key=("completion-events", node_name))
 
     @database.atomic
     def auto_trigger_by_node_completion(self, node_name: str) -> List[str]:

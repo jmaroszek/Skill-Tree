@@ -13,12 +13,13 @@ from editor_values import (
 import functools
 import json
 import logging
+import time
 import database
 from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
 from core_response import CoreResponse
 from canvas_view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
 from next_view import perf_stats_text
-from resource_links import get_sections, open_resource, store_path
+from resource_links import NeedsConfirmation, get_sections, open_resource, store_path
 
 from typing import List, Set
 
@@ -35,9 +36,10 @@ from config import (ConfigManager, sort_subcontexts, sort_contexts,
                     DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
                     DEFAULT_EVENTS_GRAPH_LAYOUT, SUPPORTED_NODE_TYPES)
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+import bridge_payloads
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
-    prior_node_for_completion, apply_dormancy,
+    prior_node_for_completion, apply_dormancy, conflicting_node_name,
 )
 from callback_helpers import (
     get_trigger_id, get_all_triggered_ids,
@@ -50,6 +52,7 @@ from callback_helpers import (
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, editor_form_values, dormancy_for_save,
+    follow_done_status,
     habit_to_hours, compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
@@ -58,6 +61,18 @@ import style_tokens as tokens
 from ui_kit import (progress_bar_color)
 
 logger = logging.getLogger(__name__)
+
+
+def _unexpected_error_message(action):
+    """Log the exception being handled, and describe it for the user.
+
+    Call this from an ``except`` block. The traceback goes to the log file,
+    where a bug report can pick it up, and the user sees what failed rather
+    than the exception's text.
+    """
+    logger.exception("%s failed", action)
+    return (f"Error: {action} failed unexpectedly. The details are in the log, "
+            "which a bug report should include.")
 
 manager = GraphManager()
 event_manager = EventManager()
@@ -118,6 +133,17 @@ def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_s
     return tuple(out)
 
 
+# The editor's own saves: each commits the whole form, so the form is what
+# the database holds afterwards.
+_EDITOR_SAVE_TRIGGERS = ('btn-save', 'btn-save-close', 'btn-unsaved-save')
+
+# What changes a node's Done status outside the editor: the node menu's
+# toggles, and the undo-Done confirmation, which also re-blocks the Done
+# nodes after the one it reopens. None of them loads another node into the
+# editor, which populate_editor would be doing at the same moment.
+_STATUS_CHANGING_TRIGGERS = ('btn-toggle-done-node', 'toggle-done-trigger-input',
+                             'btn-undo-done-confirm')
+
 # Output slot indices for the undo-Done modal outputs.
 _UNDO_DONE_MODAL_IDX = CoreResponse._fields.index('undo_open')
 _UNDO_DONE_BODY_IDX = CoreResponse._fields.index('undo_body')
@@ -153,6 +179,17 @@ def _build_undo_done_body(target_names, downstream_done):
     if overflow is not None:
         children.append(overflow)
     return children
+
+
+def _editor_kept_open(ed_style):
+    """The editor style for a refused save: open, so the form stays on screen.
+
+    Save & Close computes a closed style before the save runs. A save that is
+    then refused must not slide the form away with the user's input in it.
+    """
+    if not isinstance(ed_style, dict):
+        return ed_style
+    return {**ed_style, 'transform': "translateX(0px)"}
 
 
 def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_style):
@@ -437,7 +474,7 @@ def register_callbacks(app, services=None):
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks'),
-         Input('btn-unsaved-save', 'n_clicks'),
+         Input('editor-save-result-store', 'data'),
          Input('search-node', 'value'),
          Input('background-click-input', 'value'),
          Input('btn-new-node', 'n_clicks'),
@@ -482,7 +519,7 @@ def register_callbacks(app, services=None):
         # a dozen follow-on callbacks, all before the editor could be seen.
         prevent_initial_call=True,
     )
-    def populate_editor(data, add_clicks, discard_clicks, unsaved_save_clicks, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
+    def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice,
                         ed_style, original_name,
                         cur_name, cur_type, cur_desc, cur_context, cur_subctx, cur_status_done,
@@ -608,6 +645,15 @@ def register_callbacks(app, services=None):
             def_out[27] = None  # clear search bar (search-node value position)
             return def_out
 
+        # The unsaved-changes dialog's Save moves on only once the save has
+        # committed, which core_engine reports here. It used to move on at
+        # the click, so a refused save (a name clash, a cycle) still swapped
+        # the form out and lost the edits the error was about.
+        if trigger_id == 'editor-save-result-store':
+            if (save_result or {}).get('via') != 'btn-unsaved-save':
+                return [dash.no_update] * len(def_out)
+            trigger_id = 'btn-unsaved-save'
+
         # Handle unsaved-discard / unsaved-save with pending navigation
         if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
             if pending_nav:
@@ -649,7 +695,7 @@ def register_callbacks(app, services=None):
             # Context menu / Events-table Edit: node ID carried in the trigger value
             edit_val = edit_trigger_val if trigger_id == 'edit-trigger-input' else details_edit_trigger_val
             if edit_val:
-                edit_node_name = edit_val.split('|')[0]
+                edit_node_name = bridge_payloads.strip_stamp(edit_val)
                 node = manager.get_node(edit_node_name)
                 if node:
                     name = node.name
@@ -784,8 +830,7 @@ def register_callbacks(app, services=None):
          Output('node-name', 'value', allow_duplicate=True),
          Output('aliases-store', 'data', allow_duplicate=True),
          Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
-        [Input('btn-save', 'n_clicks'),
-         Input('btn-save-close', 'n_clicks')],
+        Input('editor-save-result-store', 'data'),
         [State('node-name', 'value'),
          State('node-type', 'value'),
          State('node-desc', 'value'),
@@ -815,7 +860,7 @@ def register_callbacks(app, services=None):
           State('node-original-name', 'data')],
         prevent_initial_call=True,
     )
-    def sync_original_name_after_save(_save_clicks, _save_close_clicks,
+    def sync_original_name_after_save(save_result,
                                       cur_name, cur_type, cur_desc,
                                       cur_context, cur_subctx, cur_status_done,
                                       cur_val, cur_interest, cur_diff,
@@ -829,24 +874,19 @@ def register_callbacks(app, services=None):
                                       cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
                                       cur_habit_int_unit, cur_habit_days,
                                        cur_dormancy, cur_original_name):
-        if not cur_name or not cur_name.strip():
+        # core_engine writes the result only once a save has committed, with
+        # the name it saved under. This used to fire on the Save click and
+        # poll the database for the form's name, which a refused save could
+        # also find: saving a new node under an existing node's name found
+        # that node, so the editor adopted it and the next Save overwrote it.
+        # The unsaved-changes dialog's Save moves on to another node instead,
+        # and populate_editor handles that.
+        if (not isinstance(save_result, dict)
+                or save_result.get('via') not in ('btn-save', 'btn-save-close')):
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        linted = ConfigManager.apply_name_formatting(cur_name.strip())
-        # core_engine is triggered by the same Save click and runs
-        # concurrently with this callback. On a rename (or brand-new node)
-        # the node doesn't exist under its linted name until core_engine
-        # commits the write, so a single get_node here loses the race and
-        # leaves node-original-name stale — which silently breaks every
-        # feature keyed off it (locate, Now toggle, dirty checks). Poll
-        # briefly for the write to land before concluding the save failed.
-        import time as _time
-        _deadline = _time.monotonic() + 3.0
-        while not manager.get_node(linted):
-            if _time.monotonic() >= _deadline:
-                # Save genuinely failed to persist — leave state alone rather
-                # than stomping a stale snapshot on a non-existent node.
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-            _time.sleep(0.05)
+        linted = save_result.get('name')
+        if not linted or manager.get_node(linted) is None:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         # Build the post-save snapshot directly from what the form holds, not
         # from a DB round-trip. A DB-derived snapshot (via build_editor_snapshot)
         # re-applies display transforms — most notably _friendly_time_estimates,
@@ -1122,6 +1162,9 @@ def register_callbacks(app, services=None):
         Output('time-validation-error', 'style'),
         Output('btn-save', 'disabled'),
         Output('btn-save-close', 'disabled'),
+        # The time fields sit below the fold; hovering Save says why it's off.
+        Output('btn-save', 'title'),
+        Output('btn-save-close', 'title'),
         Input('node-time-o', 'value'),
         Input('node-time-m', 'value'),
         Input('node-time-p', 'value'),
@@ -1146,7 +1189,7 @@ def register_callbacks(app, services=None):
 
         if (time_mode_val and 'inherited' in time_mode_val) or \
            (habit_mode_val and 'habit' in habit_mode_val):
-            return "", hidden, False, False
+            return "", hidden, False, False, "", ""
 
         o = float(time_o or 0)
         m = float(time_m or 0)
@@ -1161,8 +1204,8 @@ def register_callbacks(app, services=None):
         }
 
         if pattern == (False, False, False):
-            return ("Enter at least an Expected estimate, or both Lower and Upper.",
-                    visible, True, True)
+            msg = "Enter at least an Expected estimate, or both Lower and Upper."
+            return msg, visible, True, True, msg, msg
 
         if pattern not in valid_patterns:
             if pattern == (True, False, False):
@@ -1175,7 +1218,7 @@ def register_callbacks(app, services=None):
                 msg = "Expected + Upper is not a valid pair — also enter Lower, or drop Upper."
             else:
                 msg = "Invalid time-estimate combination."
-            return msg, visible, True, True
+            return msg, visible, True, True, msg, msg
 
         errors = []
         if has_o and has_m and o > m:
@@ -1186,8 +1229,9 @@ def register_callbacks(app, services=None):
             errors.append("Lower must be ≤ Upper")
 
         if errors:
-            return "; ".join(errors), visible, True, True
-        return "", hidden, False, False
+            msg = "; ".join(errors)
+            return msg, visible, True, True, msg, msg
+        return "", hidden, False, False, "", ""
 
     # --- Duplicate Node Detection (fires on blur, no auto-fill) ---
     @app.callback(
@@ -1454,7 +1498,10 @@ def register_callbacks(app, services=None):
          Output('time-calibration-reference', 'children'),
          Output('time-calibration-pending-store', 'data'),
          Output('time-calibration-unit', 'value', allow_duplicate=True),
-         Output('time-calibration-title', 'children', allow_duplicate=True)],
+         Output('time-calibration-title', 'children', allow_duplicate=True),
+         Output('editor-save-result-store', 'data'),
+         Output('node-status-done', 'value', allow_duplicate=True),
+         Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -1627,6 +1674,11 @@ def register_callbacks(app, services=None):
 
         msg = ""
         completion_check_node = None  # Set when a node transitions to Done
+        save_result = no_update  # set once an editor save commits
+        # Names an editor save un-marked but kept Done, and the Done nodes
+        # after them that reopening would re-block. The undo-Done modal asks.
+        undo_pending = None
+        undo_downstream = []
 
         # Check for any delayed event nodes or scheduled events that are due
         from event_manager import EventManager
@@ -1689,7 +1741,7 @@ def register_callbacks(app, services=None):
             active_node_id = None
 
         # --- Action Routing ---
-        if trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save'):
+        if trigger_id in _EDITOR_SAVE_TRIGGERS:
             if name and name.strip():
                 name = ConfigManager.apply_name_formatting(name.strip())
             if not name or not name.strip():
@@ -1711,21 +1763,38 @@ def register_callbacks(app, services=None):
             if not n_type:
                 msg = "Error: Node type is required."
                 return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
+            # A new node, or a rename, may not take another node's name: the
+            # save would update that node in place and wipe its relationships.
+            clash = conflicting_node_name(manager, name, original_name)
+            if clash:
+                msg = (f"Error: A node named '{clash}' already exists. Choose a "
+                       f"different name, or search for '{clash}' to edit it.")
+                return _core_engine_save_error_tuple(
+                    msg, _editor_kept_open(next_ed_style), next_goal_style,
+                    next_events_sidebar_style)
             # Done is hidden while Dormant is on; a sleeping node isn't finished.
             if (dormancy or {}).get('dormant'):
                 status_done = []
             try:
                 with database.transaction():
+                    _prior_for_completion = prior_node_for_completion(
+                        manager, name, original_name)
+                    _was_done = bool(_prior_for_completion
+                                     and _prior_for_completion.status == STATUS_DONE)
                     # Track if this save marks the node Done. Only count a true
                     # Open/Blocked → Done transition (or a brand-new node created
                     # Done) — re-saving an already-Done node must not re-trigger
                     # the time-calibration modal.
                     if status_done and STATUS_DONE in (status_done or []):
-                        _prior_for_completion = prior_node_for_completion(
-                            manager, name, original_name)
-                        if not (_prior_for_completion
-                                and _prior_for_completion.status == STATUS_DONE):
+                        if not _was_done:
                             completion_check_node = name
+                    # Un-marking a Done node re-blocks the Done nodes after
+                    # it, and the node menu asks before doing that. The save
+                    # keeps it Done; below, once its relationships are saved,
+                    # it is either reopened or the user is asked.
+                    reopening = _was_done and STATUS_DONE not in (status_done or [])
+                    if reopening:
+                        status_done = [STATUS_DONE]
 
                     multiplier = ConfigManager.get_time_multiplier(time_unit)
                     t_o = float(time_o or 0) * multiplier
@@ -1781,22 +1850,43 @@ def register_callbacks(app, services=None):
                     apply_dormancy(manager, EventManager(), name,
                                    dormancy_for_save(dormancy), was_dormant)
 
+                    # Still Done unless a new unfinished prerequisite has
+                    # already re-blocked it.
+                    _saved = manager.get_node(name) if reopening else None
+                    if _saved is not None and _saved.status == STATUS_DONE:
+                        undo_downstream = manager.get_downstream_done_dependents(name)
+                        if undo_downstream:
+                            undo_pending = [name]
+                        else:
+                            _saved.status = STATUS_OPEN
+                            manager.update_node(_saved)
+
                     # Priority rank is deliberately NOT written here. The
                     # Goals sidebar owns it, because ranking is a judgement
                     # about the whole list rather than about one node, and it
                     # is the only surface that shows the list. This block used
                     # to rewrite the ranking from the editor's hidden select on
                     # every Goal save.
+                # Reached only when the transaction committed.
+                save_result = {"name": name, "via": trigger_id,
+                               "ts": int(time.time() * 1000)}
             except (ValueError, TypeError) as e:
                 msg = f"Error: {e}"
-                return _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_events_sidebar_style)
-            except Exception as e:
-                msg = f"Error: {e}"
+                return _core_engine_save_error_tuple(
+                    msg, _editor_kept_open(next_ed_style), next_goal_style,
+                    next_events_sidebar_style)
+            except Exception:
+                msg = _unexpected_error_message("Saving the node")
+                return _core_engine_save_error_tuple(
+                    msg, _editor_kept_open(next_ed_style), next_goal_style,
+                    next_events_sidebar_style)
         elif trigger_id == 'btn-node-delete-confirm' and name:
             try:
                 msg = handle_delete(manager, name)
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Deleting the node")
         elif trigger_id == 'btn-toggle-done-node' and tapped_node:
             try:
                 node_id = tapped_node.get('id')
@@ -1815,16 +1905,13 @@ def register_callbacks(app, services=None):
                 if _pre_node and _pre_node.status != STATUS_DONE:
                     completion_check_node = node_id
                 msg = handle_toggle_done(manager, tapped_node)
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Changing the node's status")
         elif trigger_id == 'toggle-done-trigger-input' and toggle_done_trigger_data:
             try:
-                raw = toggle_done_trigger_data.split('|')[0]
-                try:
-                    parsed = json.loads(raw)
-                    node_names = parsed if isinstance(parsed, list) else [raw]
-                except (ValueError, json.JSONDecodeError):
-                    node_names = [raw]
+                node_names = bridge_payloads.names(toggle_done_trigger_data)
 
                 nodes = [n for n in (manager.get_node(nm) for nm in node_names) if n]
                 if nodes:
@@ -1853,11 +1940,18 @@ def register_callbacks(app, services=None):
                             return tuple(out)
 
                     flipped = 0
-                    for node in nodes:
-                        if node.status != new_status:
-                            node.status = new_status
-                            manager.update_node(node)
-                            flipped += 1
+                    # One transaction, so a failure part-way through leaves
+                    # every selected node as it was. Prerequisites go first,
+                    # so a chain selected in any order can be completed.
+                    if new_status == STATUS_DONE:
+                        order = manager.completion_order([n.name for n in nodes])
+                        nodes = sorted(nodes, key=lambda n: order.index(n.name))
+                    with database.transaction():
+                        for node in nodes:
+                            if node.status != new_status:
+                                node.status = new_status
+                                manager.update_node(node)
+                                flipped += 1
 
                     if len(nodes) == 1 and new_status == STATUS_DONE and flipped == 1:
                         completion_check_node = nodes[0].name
@@ -1866,8 +1960,10 @@ def register_callbacks(app, services=None):
                         msg = f"Toggled status of '{nodes[0].name}' to {new_status}"
                     else:
                         msg = f"Set {flipped} node(s) to {new_status}"
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Changing the nodes' status")
         elif trigger_id == 'btn-undo-done-confirm' and pending_undo_done:
             # Modal confirmed: perform the previously-gated Done → Open toggle
             # on every node in pending_undo_done. Cascade re-blocks downstream
@@ -1875,23 +1971,28 @@ def register_callbacks(app, services=None):
             try:
                 target_names = list(pending_undo_done) if isinstance(pending_undo_done, list) else [pending_undo_done]
                 flipped = 0
-                for nm in target_names:
-                    node = manager.get_node(nm)
-                    if node and node.status == STATUS_DONE:
-                        node.status = STATUS_OPEN
-                        manager.update_node(node)
-                        flipped += 1
+                with database.transaction():
+                    for nm in target_names:
+                        node = manager.get_node(nm)
+                        if node and node.status == STATUS_DONE:
+                            node.status = STATUS_OPEN
+                            manager.update_node(node)
+                            flipped += 1
                 if flipped == 1:
                     msg = f"Un-marked '{target_names[0]}' (Done → Open)"
                 else:
                     msg = f"Un-marked {flipped} node(s) (Done → Open)"
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Reopening the nodes")
         elif trigger_id == 'group-delete-input' and group_delete_data:
             try:
                 msg = handle_group_delete(manager, group_delete_data)
-            except Exception as e:
+            except ValueError as e:
                 msg = f"Error: {e}"
+            except Exception:
+                msg = _unexpected_error_message("Deleting the nodes")
         # Every mutation above has committed, so the view is all reads. One
         # snapshot serves them: naming the community filter's options alone
         # used to open a connection per node, about 0.3 s per render.
@@ -1932,10 +2033,17 @@ def register_callbacks(app, services=None):
                 events_style=next_events_sidebar_style,
             )
 
-        # Last 6 outputs: the undo-Done modal trio followed by the
-        # time-calibration modal trio. The undo-Done path either opens its
-        # modal earlier (return short-circuit in the toggle branch) or, as
-        # here, leaves it closed with the pending store cleared.
+        # The editor may be showing a node whose status just changed from
+        # the node menu or a cascade; its Done switch follows.
+        editor_done = editor_snapshot = no_update
+        if trigger_id in _STATUS_CHANGING_TRIGGERS and original_name:
+            editor_done, editor_snapshot = follow_done_status(
+                manager.get_node(original_name), status_done, pristine_snapshot)
+
+        # The undo-Done modal: the node menu's toggles open it earlier (a
+        # return short-circuit in their branch), an editor save that
+        # un-marked a node opens it here, and otherwise it stays closed
+        # with the pending store cleared.
         return view._replace(
             message=msg,
             clear_disabled=False if msg else True,
@@ -1943,14 +2051,18 @@ def register_callbacks(app, services=None):
             editor_style=next_ed_style,
             goal_style=next_goal_style,
             events_style=next_events_sidebar_style,
-            undo_open=False,
-            undo_body='',
-            undo_pending=None,
+            undo_open=bool(undo_pending),
+            undo_body=(_build_undo_done_body(undo_pending, undo_downstream)
+                       if undo_pending else ''),
+            undo_pending=undo_pending,
             calibration_open=tc_modal_open,
             calibration_reference=tc_reference,
             calibration_pending=tc_pending,
             calibration_unit=tc_unit,
             calibration_title=tc_title,
+            save_result=save_result,
+            editor_done=editor_done,
+            editor_snapshot=editor_snapshot,
         )
 
     # The filters-sidebar toggle and editor-sidebar fast-path clientside
@@ -1959,17 +2071,31 @@ def register_callbacks(app, services=None):
     @app.callback(
         Output('modal-undo-done-confirm', 'is_open', allow_duplicate=True),
         Output('pending-undo-done-store', 'data', allow_duplicate=True),
+        Output('node-status-done', 'value', allow_duplicate=True),
+        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
         Input('btn-undo-done-cancel', 'n_clicks'),
         Input('btn-undo-done-confirm', 'n_clicks'),
+        State('pending-undo-done-store', 'data'),
+        State('node-original-name', 'data'),
+        State('editor-pristine-snapshot', 'data'),
         prevent_initial_call=True,
     )
-    def close_undo_done_modal(_cancel, _confirm):
+    def close_undo_done_modal(_cancel, _confirm, pending, editing, snapshot):
         """Close the undo-Done modal and clear the pending store on either
         button. The actual toggle (on confirm) is performed by core_engine
         listening to btn-undo-done-confirm; this callback only manages the
         modal/store cleanup so the next toggle starts fresh.
+
+        An editor save that un-marked a node kept it Done and asked. Cancel
+        leaves it Done, so the editor's switch, and the saved-form snapshot
+        the unsaved-changes check compares against, go back on.
         """
-        return False, None
+        if (get_trigger_id() == 'btn-undo-done-cancel'
+                and editing and editing in (pending or [])):
+            kept = ({**snapshot, 'status_done': [STATUS_DONE]}
+                    if isinstance(snapshot, dict) else no_update)
+            return False, None, [STATUS_DONE], kept
+        return False, None, no_update, no_update
 
     # --- Time-Calibration Modal: Submit / Skip / Don't ask again ---
     # The modal serves three flows, distinguished by the 'mode' in
@@ -2326,7 +2452,10 @@ def register_callbacks(app, services=None):
                                     if canvas_wanted(active_tab, canvas_stamp)
                                     else CANVAS_DEFERRED)
                 except Exception as exc:
-                    save_msg_out = f"Error marking '{target}' Done: {exc}"
+                    save_msg_out = (
+                        f"Error marking '{target}' Done: {exc}"
+                        if isinstance(exc, ValueError)
+                        else _unexpected_error_message(f"Marking '{target}' Done"))
                     # Re-prepend so the user can retry from the modal.
                     candidates.insert(0, target)
 
@@ -2469,16 +2598,11 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def toggle_group_delete_modal(request_value, _cancel, _confirm):
-        import json as _json
         trigger_id = get_trigger_id()
         if trigger_id == 'group-delete-request-input':
             if not request_value:
                 return dash.no_update, dash.no_update, dash.no_update
-            raw = request_value.split('|')[0]
-            try:
-                names = _json.loads(raw) if raw else []
-            except Exception:
-                return dash.no_update, dash.no_update, dash.no_update
+            names = bridge_payloads.names(request_value)
             if not names:
                 return dash.no_update, dash.no_update, dash.no_update
             if len(names) == 1:
@@ -2590,6 +2714,15 @@ def register_callbacks(app, services=None):
             return None
         return dash.no_update
 
+
+    # The unexpected-error modal opens from app.report_callback_error, through
+    # set_props, so only its Close needs a callback.
+    app.clientside_callback(
+        "function(n) { return false; }",
+        Output("modal-app-error", "is_open", allow_duplicate=True),
+        Input("btn-close-app-error", "n_clicks"),
+        prevent_initial_call=True,
+    )
 
     @app.callback(
         Output("modal-error", "is_open"),
@@ -2772,27 +2905,58 @@ def register_callbacks(app, services=None):
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
+        Output('confirm-open-link', 'message'),
+        Output('confirm-open-link', 'displayed'),
+        Output('pending-open-link', 'data'),
         Input({'type': 'resource-open', 'index': ALL}, 'n_clicks'),
         State({'type': 'resource-link', 'index': ALL}, 'value'),
         State({'type': 'resource-link', 'index': ALL}, 'id'),
         prevent_initial_call=True,
     )
     def open_resource_link(_clicks, values, ids):
+        unchanged = (dash.no_update,) * 3
         trigger = ctx.triggered_id
         if not isinstance(trigger, dict) or not ctx.triggered[0].get('value'):
-            return dash.no_update
+            return (dash.no_update,) + unchanged
         key = trigger['index']
         section_id = key.rpartition(':')[0]
         section = next((s for s in get_sections() if s['id'] == section_id), None)
         if section is None:
-            return 'That resource no longer exists.'
+            return ('That resource no longer exists.',) + unchanged
         value = next((value for value, item_id in zip(values, ids)
                       if item_id['index'] == key), '')
         try:
             open_resource(value, section)
+            return (dash.no_update,) + unchanged
+        except NeedsConfirmation as ask:
+            return dash.no_update, str(ask), True, {"section": section_id, "link": value}
+        except Exception as exc:
+            return (_open_failed(section, exc),) + unchanged
+
+    # A yes in the dialog above.
+    @app.callback(
+        Output('save-output', 'children', allow_duplicate=True),
+        Input('confirm-open-link', 'submit_n_clicks'),
+        State('pending-open-link', 'data'),
+        prevent_initial_call=True,
+    )
+    def open_confirmed_link(submitted, pending):
+        if not submitted or not isinstance(pending, dict):
+            return dash.no_update
+        section = next((s for s in get_sections() if s['id'] == pending.get('section')), None)
+        if section is None:
+            return 'That resource no longer exists.'
+        try:
+            open_resource(pending.get('link', ''), section, confirmed=True)
             return dash.no_update
         except Exception as exc:
-            return f"Error opening {section['name']}: {exc}"
+            return _open_failed(section, exc)
+
+    def _open_failed(section, exc):
+        # A missing file or an unset root folder is expected, and its text
+        # says what to fix. The log keeps it for anything stranger.
+        logger.warning("Opening a %s link failed: %s", section['name'], exc)
+        return f"Error opening {section['name']}: {exc}"
 
     # The desktop window's native picker (assets/resource_picker.js) reports
     # its choice here; the browser fallback runs in modify_resource_links.
@@ -2833,7 +2997,7 @@ def register_callbacks(app, services=None):
     def handle_edit_trigger(value, current_tab):
         if not value:
             return dash.no_update
-        node_name = value.split('|')[0]
+        node_name = bridge_payloads.strip_stamp(value)
         if not node_name:
             return dash.no_update
         if current_tab == 'tab-canvas':
@@ -3193,11 +3357,7 @@ def register_callbacks(app, services=None):
         import time as _time
         if not trigger_data:
             return no_update, no_update
-        try:
-            raw = trigger_data.split('|')[0]
-            names = json.loads(raw) if raw else []
-        except (ValueError, json.JSONDecodeError):
-            return no_update, no_update
+        names = bridge_payloads.names(trigger_data)
         if not names:
             return no_update, no_update
         nodes = [n for n in (manager.get_node(name) for name in names) if n]

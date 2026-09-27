@@ -1,5 +1,5 @@
 """Editor node operations sharing the existing atomic manager transactions."""
-import json
+import bridge_payloads
 import database
 from config import ConfigManager
 from models import STATUS_DONE, STATUS_OPEN
@@ -134,6 +134,27 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
         manager.update_node(node)
 
 
+def conflicting_node_name(manager, name, original_name=None):
+    """The existing node a save under ``name`` would collide with, or None.
+
+    ``name`` is only new when it differs from the name of the node being edited
+    (``original_name``), so keeping a node's name never conflicts. A new or
+    changed name conflicts with any other node that already uses it, compared
+    case-insensitively. Saving under that name would otherwise update the other
+    node in place, replacing its fields, links, aliases and relationships with
+    this form's.
+    """
+    name = (name or "").strip()
+    own = (original_name or "").strip()
+    if not name or name == own:
+        return None
+    wanted = name.casefold()
+    for node in manager.get_all_nodes(include_dormant=True):
+        if node.name != own and node.name.casefold() == wanted:
+            return node.name
+    return None
+
+
 def prior_node_for_completion(manager, name, original_name):
     """The DB row a save is about to overwrite, for Done-transition detection.
 
@@ -164,11 +185,14 @@ def handle_toggle_done(manager, tapped_node):
     return ""
 
 
+@database.atomic
 def handle_group_delete(manager, group_delete_data):
-    """Delete multiple nodes from a JSON-encoded list. Returns a status message."""
-    # JS sends '["name1","name2"]|timestamp' — strip the timestamp suffix
-    raw = group_delete_data.split('|')[0] if isinstance(group_delete_data, str) else ''
-    names = json.loads(raw) if raw else []
+    """Delete multiple nodes from a JSON-encoded list. Returns a status message.
+
+    All or nothing: one transaction, so a failure part-way through deletes none.
+    """
+    # JS sends '["name1","name2"]|timestamp'. Names may contain "|".
+    names = bridge_payloads.names(group_delete_data)
     for node_name in names:
         manager.delete_node(node_name)
     return f"Deleted {len(names)} node(s)" if names else ""

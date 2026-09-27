@@ -2,12 +2,15 @@ import sqlite3
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
+import logging
 import threading
 import time
 from pathlib import Path
 from typing import Optional
 
 from app_paths import get_data_dir
+
+logger = logging.getLogger(__name__)
 
 
 # Snapshot of the resolved DB path on first call. Reading config.ENVIRONMENT
@@ -147,6 +150,10 @@ def transaction():
             conn.execute("PRAGMA defer_foreign_keys = ON")
             yield _ConnectionLease(session)
             if session["failed"]:
+                # A nested write failed and its caller caught the error, so
+                # the block finished normally. Nothing is saved; say so, since
+                # the caller may go on to report success.
+                logger.warning("Rolled back a transaction whose nested write failed")
                 conn.rollback()
             else:
                 conn.commit()
@@ -207,6 +214,11 @@ def get_db_path() -> str:
     return _db_path_cache
 
 
+# How long a connection waits for another program's lock before giving up
+# with SQLITE_BUSY. It is Python's own default, named so tests can shorten it.
+BUSY_TIMEOUT_S = 5.0
+
+
 def get_connection() -> sqlite3.Connection:
     """Creates and returns a new database connection with foreign keys enabled."""
     session = _session.get()
@@ -214,7 +226,7 @@ def get_connection() -> sqlite3.Connection:
         return _ConnectionLease(session)
     db_path = Path(get_db_path())
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, factory=_ClosingConnection)
+    conn = sqlite3.connect(db_path, timeout=BUSY_TIMEOUT_S, factory=_ClosingConnection)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
@@ -273,7 +285,7 @@ def _migrate(cursor, from_version: int) -> None:
             except Exception as exc:
                 # DROP COLUMN needs SQLite 3.35+. On older builds the column
                 # just lingers unused — every read path selects explicitly.
-                print(f"NOTE: left legacy Events.trigger_node in place ({exc}).")
+                logger.info("Left legacy Events.trigger_node in place (%s).", exc)
 
     # --- v6: the manual priority override is retired; the event intent it
     # carried becomes "add to Now on trigger" ---
@@ -294,7 +306,7 @@ def _migrate(cursor, from_version: int) -> None:
             except Exception as exc:
                 # DROP COLUMN needs SQLite 3.35+. On older builds the column
                 # lingers unused — every read path selects explicitly.
-                print(f"NOTE: left legacy EventNodes.{column} in place ({exc}).")
+                logger.info("Left legacy EventNodes.%s in place (%s).", column, exc)
         # The override's two Settings rows have no reader left.
         cursor.execute(
             "DELETE FROM Settings WHERE key IN ('OVERRIDE', 'EVENT_OVERRIDE_NODES')"
@@ -339,8 +351,8 @@ def _migrate(cursor, from_version: int) -> None:
             )
         ''')
         if cursor.rowcount:
-            print(f"NOTE: removed {cursor.rowcount} extra event membership(s); "
-                  "a node now belongs to one event.")
+            logger.info("Removed %d extra event membership(s); a node now "
+                        "belongs to one event.", cursor.rowcount)
         cursor.execute("DROP INDEX IF EXISTS idx_event_nodes_node")
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_event_nodes_node "
                        "ON EventNodes(node_name)")
@@ -375,13 +387,14 @@ def _migrate(cursor, from_version: int) -> None:
                         (path_key, str(legacy_vault)),
                     )
 
-    # --- v10: named Resource sections and ordered per-node links. A fresh
-    # database gets the three starting sections and nothing to copy.
+    # --- v10: named Resource sections and ordered per-node links. An older
+    # database turns its three link columns into sections. A new one gets a
+    # single neutral section; users name their own in Settings > Resources.
     if from_version < 10:
         from resource_links import parse_links, normalize_link
         has_legacy = _has_column(cursor, "Nodes", "obsidian_path")
-        for position, (section_id, name, kind, root_key, column) in enumerate(
-                _LEGACY_RESOURCE_SECTIONS):
+        seeds = _LEGACY_RESOURCE_SECTIONS if has_legacy else _NEW_RESOURCE_SECTIONS
+        for position, (section_id, name, kind, root_key, column) in enumerate(seeds):
             root_row = cursor.execute("SELECT value FROM Settings WHERE key=?", (root_key,)).fetchone() if root_key else None
             root = root_row[0] if root_row else ""
             cursor.execute("INSERT OR IGNORE INTO ResourceSections "
@@ -437,31 +450,181 @@ _LEGACY_RESOURCE_SECTIONS = (
     ("drive", "Google Drive", "mixed", "GDRIVE_ROOT_PATH", "google_drive_path"),
     ("website", "Website", "mixed", None, "website"),
 )
+# What a new database starts with: web pages and files, one list.
+_NEW_RESOURCE_SECTIONS = (
+    ("links", "Links", "mixed", None, None),
+)
+
+
+class DatabaseError(RuntimeError):
+    """A database this build refuses to open, with a message for the user.
+
+    ``exit_code`` is what the launcher exits with, so the desktop shell can
+    tell the cases apart without parsing text.
+    """
+    exit_code = 2
+
+
+class NewerDatabaseError(DatabaseError):
+    exit_code = 3
+
+
+class DatabaseCorruptError(DatabaseError):
+    exit_code = 4
+
+
+class SQLiteTooOldError(DatabaseError):
+    exit_code = 5
+
+
+class DatabaseLockedError(DatabaseError):
+    """Another program holds the file (a sync or backup tool, a DB viewer)."""
+    exit_code = 6
+
+
+class DatabaseUnwritableError(DatabaseError):
+    """The file or its folder is read-only, or the disk is full."""
+    exit_code = 7
+
+
+def _refusal_for(exc, path=None):
+    """The DatabaseError an SQLite failure amounts to, or None if it is none of
+    the known cases.
+
+    Only a file SQLite itself calls damaged is reported as damaged: the desktop
+    shell offers to restore a backup over it, which would throw away a good
+    database that was merely busy or read-only.
+    """
+    name = getattr(exc, "sqlite_errorname", "") or ""
+    path = path or get_db_path()
+    if name.startswith(("SQLITE_NOTADB", "SQLITE_CORRUPT")):
+        return DatabaseCorruptError(_damaged_message(str(exc), path))
+    if name.startswith(("SQLITE_BUSY", "SQLITE_LOCKED")):
+        return DatabaseLockedError(
+            f"The Skill Tree data file {path} is in use by another program "
+            "(perhaps a backup or sync tool, or a database viewer). Close it "
+            "and try again. Nothing was changed.")
+    if name.startswith("SQLITE_FULL"):
+        return DatabaseUnwritableError(
+            f"Skill Tree can't write its data file {path} because the disk is "
+            "full. Free some space and try again. Nothing was changed.")
+    if name.startswith(("SQLITE_READONLY", "SQLITE_CANTOPEN", "SQLITE_PERM")):
+        return DatabaseUnwritableError(
+            f"Skill Tree can't write its data file {path}. The file or its "
+            "folder may be read-only, or Skill Tree lacks permission to change "
+            "it. Nothing was changed.")
+    return None
+
+
+def _unreadable(exc, path=None):
+    """A refusal for any SQLite failure while merely opening or checking."""
+    return _refusal_for(exc, path) or DatabaseError(
+        f"Skill Tree couldn't open its data file {path or get_db_path()} "
+        f"({exc}). Nothing was changed.")
+
+
+# DROP COLUMN (the v11 step) and VACUUM INTO (backups) need these features.
+MIN_SQLITE_VERSION = (3, 35, 0)
+
+
+def _inspect_database():
+    """(user_version, whether any table exists), or DatabaseCorruptError."""
+    conn = get_connection()
+    try:
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        has_tables = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone() is not None
+    except sqlite3.DatabaseError as exc:  # e.g. "file is not a database"
+        raise _unreadable(exc) from exc
+    finally:
+        conn.close()
+    return version, has_tables
+
+
+def _damaged_message(detail, path=None):
+    backups = Path(get_db_path()).parent / "Backups"
+    return (f"The Skill Tree data file {path or get_db_path()} is damaged ({detail}). "
+            f"Nothing was changed. Backups are in {backups}; restore the newest "
+            "one that opens.")
+
+
+def check_integrity(path=None):
+    """Raise DatabaseCorruptError unless SQLite's quick_check passes."""
+    conn = sqlite3.connect(path, timeout=BUSY_TIMEOUT_S) if path else get_connection()
+    try:
+        rows = [row[0] for row in conn.execute("PRAGMA quick_check").fetchall()]
+    except sqlite3.DatabaseError as exc:
+        raise _unreadable(exc, path) from exc
+    finally:
+        conn.close()
+    if rows != ["ok"]:
+        raise DatabaseCorruptError(_damaged_message("; ".join(rows[:3]), path))
 
 
 def init_db():
-    """Initializes the SQLite database with the required tables.
+    """Create or upgrade the schema. Only the first call does any work.
 
-    Safe to call multiple times — only performs work on the first invocation.
+    Refuses (DatabaseError) a database this build can't safely open: one saved
+    by a newer version, or one failing SQLite's integrity check. Neither is
+    touched. An existing database that needs upgrading is backed up first, and
+    the whole upgrade (tables, migration steps, version stamp) is one
+    transaction, so a failure part-way leaves it exactly as it was.
     """
     global _initialized
     if _initialized:
         return
-    conn = get_connection()
-    cursor = conn.cursor()
+    if sqlite3.sqlite_version_info < MIN_SQLITE_VERSION:
+        raise SQLiteTooOldError(
+            "Skill Tree needs SQLite {} or newer, and this Python has {}.".format(
+                ".".join(map(str, MIN_SQLITE_VERSION)), sqlite3.sqlite_version))
+    try:
+        _open_and_upgrade()
+    except sqlite3.Error as exc:
+        refusal = _refusal_for(exc)
+        if refusal is None:
+            raise
+        raise refusal from exc
+    _initialized = True
 
+
+def _open_and_upgrade():
+    """init_db's work, with SQLite's own errors left for init_db to name."""
     # Schema version stamp. The baseline schema is v4, defined in full by the
-    # CREATE TABLE statements below (CREATE TABLE IF NOT EXISTS is a no-op on an
-    # existing DB, so the tables aren't rebuilt). Changes past v4 can't ride on
-    # CREATE TABLE for existing DBs, so they live in _migrate() as a version
-    # ladder. A stored value higher than SCHEMA_VERSION means the DB was last
-    # touched by a newer app build than this one — warn, since this app may not
-    # recognize columns a future version added.
-    current_v = cursor.execute("PRAGMA user_version").fetchone()[0]
+    # CREATE TABLE statements in _create_tables (CREATE TABLE IF NOT EXISTS is
+    # a no-op on an existing DB). Changes past v4 live in _migrate() as a
+    # version ladder.
+    current_v, has_tables = _inspect_database()
     if current_v > SCHEMA_VERSION:
-        print(f"WARNING: SQLite DB user_version={current_v} is newer than app's "
-              f"{SCHEMA_VERSION}. Some columns may be unrecognized.")
+        # Stamping it down, as this used to, would hide the newer version's
+        # columns from itself the next time it opened the file.
+        raise NewerDatabaseError(
+            f"The Skill Tree data file {get_db_path()} was saved by a newer "
+            f"version of Skill Tree (data format {current_v}; this version "
+            f"reads up to {SCHEMA_VERSION}). Install the newer version to open "
+            "it. Nothing was changed.")
+    if has_tables:
+        check_integrity()
+        if current_v < SCHEMA_VERSION:
+            import backup
+            backup.create_backup("pre-migration")
 
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.cursor()
+        _create_tables(cursor)
+        _migrate(cursor, current_v)
+        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _create_tables(cursor):
+    """The full current schema, for a new database; a no-op on an existing one."""
     # Full Nodes schema. Every column the app reads lives here — there are no
     # follow-up ALTER TABLE migrations. (This consolidates an earlier era where
     # the table was created with a partial column set and incrementally extended
@@ -632,16 +795,6 @@ def init_db():
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
-
-    conn.commit()
-
-    _migrate(cursor, current_v)
-
-    cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-    conn.commit()
-
-    conn.close()
-    _initialized = True
 
 
 if __name__ == "__main__":

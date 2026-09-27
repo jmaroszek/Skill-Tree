@@ -470,3 +470,37 @@ trigger(main.settleButtonId, 'n_clicks');
 cy.layout(api.main(100, 0, 50000, true, 2, false));
 assert.equal(cy.runs[3].randomize, true);
 ''')
+
+
+def test_large_views_lay_out_at_default_quality():
+    """fCoSE's 'proof' quality costs roughly the square of the node count, and
+    Nodes re-runs its layout on every node added or removed: 7.4 s at 831
+    nodes in the P6.6 benchmark, blocking the page each time. Above 600 nodes
+    a canvas uses 'default', about three times faster."""
+    _run(r'''
+const main = canvas('main');
+const big = fakeCy(601);
+cyReady['#' + main.cytoscapeId](big);
+big.layout({name: 'fcose', quality: 'proof', randomize: false});
+assert.equal(big.runs[0].quality, 'default');
+assert.equal(big.runs[0].randomize, false);
+
+const small = fakeCy(600);
+cyReady['#' + main.cytoscapeId](small);
+small.layout({name: 'fcose', quality: 'proof'});
+assert.equal(small.runs[0].quality, 'proof');
+
+// Only fCoSE at proof quality is touched.
+big.layout({name: 'cose'});
+assert.equal(big.runs[1].quality, undefined);
+big.layout({name: 'fcose', quality: 'draft'});
+assert.equal(big.runs[2].quality, 'draft');
+
+// Every canvas gets the same rule, through its own request path too.
+const details = canvas('details');
+const view = fakeCy(700);
+liveCy[details.cytoscapeId] = view;
+cyReady['#' + details.cytoscapeId](view);
+view.layout({name: 'fcose', quality: 'proof'});
+assert.equal(view.runs[0].quality, 'default');
+''')

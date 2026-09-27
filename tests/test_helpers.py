@@ -20,6 +20,10 @@ from callback_helpers import (
     alias_rows_label, update_alias_rows, sync_time_fields,
 )
 from styles import stylesheet, mini_stylesheet
+import pytest
+
+# Written around the Resource sections new databases used to start with.
+pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
 
 
 # ============================================================================

@@ -13,10 +13,10 @@ ConfigManager is effectively a singleton: all state lives in SQLite,
 so a single import is shared across all callback modules.
 """
 
+import copy
 import json
 import database
 from typing import Optional
-from app_paths import get_log_dir
 from database import get_connection
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 
@@ -32,6 +32,12 @@ TOOLTIP_NODE_HIDE_DELAY_MS = 300  # Cytoscape node cursor-tooltip lingers slight
 # --- Toast / banner clear timing ---
 TOAST_CLEAR_INTERVAL_MS = 3000
 LOCATE_TOAST_CLEAR_INTERVAL_MS = 4000  # Locate-node banner lingers slightly longer
+
+# --- Event clock ---
+# How often an open app checks for date triggers and wake dates that have come
+# due. They are due by the calendar, not by any click, so without this a node
+# due overnight stayed asleep until the first interaction of the morning.
+EVENT_CLOCK_INTERVAL_MS = 5 * 60 * 1000
 
 # --- Loading spinner ---
 # The one spinner every loading cover shows (Nodes canvas, Analyze, Goals sidebar).
@@ -54,14 +60,6 @@ SIDEBAR_TRANSLATE_CLOSED = f"translateX(-{SIDEBAR_WIDTH}px)"
 
 # Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
 DB_FILENAME = "skilltree.db"
-
-# --- Daily backup script (backup.py, invoked by Windows Task Scheduler) ---
-BACKUP_DIR = r'G:\My Drive\Code\Skill Tree'
-# Stored with the other application logs under LocalAppData.
-BACKUP_LOG_FILE = str(get_log_dir() / 'backup.log')
-# How many backup files to keep. The script skips days where the graph did not
-# change, so this counts distinct states rather than calendar days.
-BACKUP_KEEP = 30
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 SUPPORTED_NODE_TYPES = ("Learn", "Action", "Resource", "Goal", "Milestone")
@@ -463,7 +461,7 @@ DEFAULT_DUPLICATE_STOP_WORDS = frozenset(DEFAULT_TITLECASE_EXCLUSIONS)
 
 DEFAULT_NEXT_TABLE_ROWS = 10
 
-DEFAULT_SHOW_SCORING_PERF = True
+DEFAULT_SHOW_SCORING_PERF = False
 
 DEFAULT_TIME_CALIBRATION_ENABLED = True
 
@@ -581,8 +579,10 @@ class ConfigManager:
     """Classmethod-only facade over the Settings key/value table.
 
     Getters read SQLite or the current operation's detached read snapshot,
-    falling back to DEFAULT_* constants. Setters write back and invalidate
-    that snapshot. There is no settings cache retained between operations.
+    falling back to copies of the DEFAULT_* constants, so a caller that edits
+    what it gets back can't change the defaults for the rest of the process.
+    Setters write back and invalidate that snapshot. There is no settings
+    cache retained between operations.
     """
 
     @staticmethod
@@ -614,7 +614,7 @@ class ConfigManager:
     @classmethod
     def get_node_types(cls):
         val = cls._get_db_value("NODE_TYPES")
-        return json.loads(val) if val else DEFAULT_NODE_TYPES
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_NODE_TYPES)
 
     @classmethod
     def set_node_types(cls, types: list):
@@ -632,7 +632,7 @@ class ConfigManager:
     @classmethod
     def get_contexts(cls):
         val = cls._get_db_value("CONTEXTS")
-        return json.loads(val) if val else DEFAULT_CONTEXTS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_CONTEXTS)
 
     @classmethod
     def set_contexts(cls, contexts: list):
@@ -642,7 +642,7 @@ class ConfigManager:
     def get_subcontexts(cls):
         val = cls._get_db_value("SUBCONTEXTS")
         if not val:
-            return DEFAULT_SUBCONTEXTS
+            return copy.deepcopy(DEFAULT_SUBCONTEXTS)
         try:
             data = json.loads(val)
             if isinstance(data, list):
@@ -691,7 +691,7 @@ class ConfigManager:
             if 'Active' in stored and 'Now' not in stored:
                 stored['Now'] = stored.pop('Active')
             return {**DEFAULT_NODE_COLORS, **stored}
-        return DEFAULT_NODE_COLORS
+        return dict(DEFAULT_NODE_COLORS)
 
     @classmethod
     def set_node_colors(cls, colors: dict):
@@ -700,7 +700,7 @@ class ConfigManager:
     @classmethod
     def get_node_shapes(cls):
         val = cls._get_db_value("NODE_SHAPES")
-        return json.loads(val) if val else DEFAULT_NODE_SHAPES
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_NODE_SHAPES)
 
     @classmethod
     def set_node_shapes(cls, shapes: dict):
@@ -776,7 +776,7 @@ class ConfigManager:
     @classmethod
     def get_graph_layout_defaults(cls):
         val = cls._get_db_value("GRAPH_LAYOUT_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_GRAPH_LAYOUT
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_GRAPH_LAYOUT)
 
     @classmethod
     def set_graph_layout_defaults(cls, params: dict):
@@ -785,7 +785,7 @@ class ConfigManager:
     @classmethod
     def get_details_graph_layout_defaults(cls):
         val = cls._get_db_value("DETAILS_GRAPH_LAYOUT_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_DETAILS_GRAPH_LAYOUT
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_DETAILS_GRAPH_LAYOUT)
 
     @classmethod
     def set_details_graph_layout_defaults(cls, params: dict):
@@ -794,7 +794,7 @@ class ConfigManager:
     @classmethod
     def get_events_graph_layout_defaults(cls):
         val = cls._get_db_value("EVENTS_GRAPH_LAYOUT_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_EVENTS_GRAPH_LAYOUT
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_EVENTS_GRAPH_LAYOUT)
 
     @classmethod
     def set_events_graph_layout_defaults(cls, params: dict):
@@ -803,7 +803,7 @@ class ConfigManager:
     @classmethod
     def get_analyze_limits(cls):
         val = cls._get_db_value("ANALYZE_LIMITS")
-        return json.loads(val) if val else DEFAULT_ANALYZE_LIMITS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_ANALYZE_LIMITS)
 
     @classmethod
     def set_analyze_limits(cls, params: dict):
@@ -840,7 +840,7 @@ class ConfigManager:
     @classmethod
     def get_time_settings(cls):
         val = cls._get_db_value("TIME_SETTINGS")
-        return json.loads(val) if val else DEFAULT_TIME_SETTINGS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_TIME_SETTINGS)
 
     @classmethod
     def set_time_settings(cls, params: dict):
@@ -871,7 +871,7 @@ class ConfigManager:
     @classmethod
     def get_time_estimate_defaults(cls):
         val = cls._get_db_value("TIME_ESTIMATE_DEFAULTS")
-        return json.loads(val) if val else DEFAULT_TIME_ESTIMATE_DEFAULTS
+        return json.loads(val) if val else copy.deepcopy(DEFAULT_TIME_ESTIMATE_DEFAULTS)
 
     @classmethod
     def set_time_estimate_defaults(cls, params: dict):
@@ -885,6 +885,57 @@ class ConfigManager:
     @classmethod
     def set_goal_order(cls, order: list):
         cls._set_db_value("GOAL_ORDER", json.dumps(order))
+
+    @classmethod
+    def get_event_order(cls) -> list:
+        """The Events list's manual (drag) order, as event names."""
+        val = cls._get_db_value("EVENT_ORDER")
+        try:
+            order = json.loads(val) if val else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return order if isinstance(order, list) else []
+
+    @classmethod
+    def set_event_order(cls, order: list):
+        cls._set_db_value("EVENT_ORDER", json.dumps(order))
+
+    @classmethod
+    def rename_event_references(cls, old_name: str, new_name: str) -> None:
+        """Carry an event rename into the settings that store event names."""
+        order = cls.get_event_order()
+        if old_name in order:
+            cls.set_event_order([new_name if e == old_name else e for e in order])
+
+    @classmethod
+    def delete_event_references(cls, name: str) -> None:
+        """Drop a deleted event from the settings that store event names."""
+        order = cls.get_event_order()
+        if name in order:
+            cls.set_event_order([e for e in order if e != name])
+
+    @classmethod
+    def get_list_sort(cls, list_id: str, default: str) -> str:
+        """The saved sort of one sidebar list, keyed by its store id."""
+        val = cls._get_db_value("LIST_SORTS")
+        try:
+            sorts = json.loads(val) if val else {}
+        except (json.JSONDecodeError, TypeError):
+            sorts = {}
+        value = sorts.get(list_id) if isinstance(sorts, dict) else None
+        return value if isinstance(value, str) else default
+
+    @classmethod
+    def set_list_sort(cls, list_id: str, value: str):
+        val = cls._get_db_value("LIST_SORTS")
+        try:
+            sorts = json.loads(val) if val else {}
+        except (json.JSONDecodeError, TypeError):
+            sorts = {}
+        if not isinstance(sorts, dict):
+            sorts = {}
+        sorts[list_id] = value
+        cls._set_db_value("LIST_SORTS", json.dumps(sorts, sort_keys=True))
 
     # One year of productivity = 13 months (≈ 52 weeks) by definition. Built
     # off hours_per_month so a user-tuned monthly rate flows through to years
@@ -1078,6 +1129,10 @@ class ConfigManager:
         if old_name in pg:
             cls.set_priority_goals([new_name if g == old_name else g for g in pg])
 
+        order = cls.get_goal_order()
+        if old_name in order:
+            cls.set_goal_order([new_name if g == old_name else g for g in order])
+
     @classmethod
     def delete_node_references(cls, name: str) -> None:
         """Prune every config entry that stores a node name.
@@ -1094,6 +1149,10 @@ class ConfigManager:
         pg = cls.get_priority_goals()
         if name in pg:
             cls.set_priority_goals([g for g in pg if g != name])
+
+        order = cls.get_goal_order()
+        if name in order:
+            cls.set_goal_order([g for g in order if g != name])
 
     # --- Pending Event Notifications (shown on next app load) ---
 
@@ -1264,6 +1323,58 @@ class ConfigManager:
     @classmethod
     def set_show_scoring_perf(cls, enabled: bool):
         cls._set_db_value("SHOW_SCORING_PERF", "1" if enabled else "0")
+
+    @classmethod
+    def get_backup_extra_dir(cls) -> str:
+        """A second folder each new backup is also copied to, or ''.
+
+        Typically a synced folder, so a copy survives the loss of the machine.
+        """
+        return cls._get_db_value("BACKUP_EXTRA_DIR") or ""
+
+    @classmethod
+    def set_backup_extra_dir(cls, path: str):
+        cls._set_db_value("BACKUP_EXTRA_DIR", (path or "").strip())
+
+    @classmethod
+    def get_welcome_done(cls) -> bool:
+        """Whether the first-launch welcome has been answered (onboarding.py)."""
+        return cls._get_db_value("WELCOME_DONE") == "1"
+
+    @classmethod
+    def set_welcome_done(cls, done: bool):
+        cls._set_db_value("WELCOME_DONE", "1" if done else "0")
+
+    @classmethod
+    def get_getting_started_progress(cls) -> list:
+        """Getting Started steps already done, so they never un-tick."""
+        raw = cls._get_db_value("GETTING_STARTED_PROGRESS")
+        try:
+            keys = json.loads(raw) if raw else []
+        except ValueError:
+            return []
+        return [k for k in keys if isinstance(k, str)] if isinstance(keys, list) else []
+
+    @classmethod
+    def set_getting_started_progress(cls, keys):
+        cls._set_db_value("GETTING_STARTED_PROGRESS", json.dumps(sorted(set(keys))))
+
+    @classmethod
+    def get_getting_started_dismissed(cls) -> bool:
+        return cls._get_db_value("GETTING_STARTED_DISMISSED") == "1"
+
+    @classmethod
+    def set_getting_started_dismissed(cls, dismissed: bool):
+        cls._set_db_value("GETTING_STARTED_DISMISSED", "1" if dismissed else "0")
+
+    @classmethod
+    def get_last_app_version(cls) -> Optional[str]:
+        """The app version that most recently opened this database, if any."""
+        return cls._get_db_value("LAST_APP_VERSION")
+
+    @classmethod
+    def set_last_app_version(cls, version: str):
+        cls._set_db_value("LAST_APP_VERSION", version)
 
     @classmethod
     def get_time_calibration_enabled(cls) -> bool:

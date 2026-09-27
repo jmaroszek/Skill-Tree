@@ -55,7 +55,7 @@ def _make_state_args():
 def _call_with_trigger(monkeypatch, trigger_id, inputs):
     """Invoke populate_editor with a monkeypatched trigger_id and the given Input args.
 
-    Input order: tapNodeData, btn-add, btn-unsaved-discard, btn-unsaved-save,
+    Input order: tapNodeData, btn-add, btn-unsaved-discard, editor-save-result-store,
     search-node, background-click-input, btn-new-node, btn-editor-new,
     edit-trigger-input, details-edit-trigger-input, details-add-choice-input.
     """
@@ -110,7 +110,7 @@ def test_details_new_subtask_waits_for_unsaved_changes_then_prefills_parent(monk
 def test_populate_editor_search_unknown_node_returns_all_items(monkeypatch):
     """search-node path where resolved_name does not match any DB node."""
     # Inputs in order: tapNodeData, btn-add, btn-unsaved-discard,
-    # btn-unsaved-save, search-node, background-click-input, btn-new-node,
+    # editor-save-result-store, search-node, background-click-input, btn-new-node,
     # btn-editor-new, edit-trigger-input, details-edit-trigger-input
     inputs = [None, None, None, None, "Nonexistent Node Name", None, None, None, None, None]
     result = _call_with_trigger(monkeypatch, "search-node", inputs)

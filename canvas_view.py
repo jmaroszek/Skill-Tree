@@ -1,5 +1,6 @@
 """Canvas view preparation, independent of mutation routing and callback registration."""
 import dash
+import bridge_payloads
 from config import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
 from callback_helpers import format_traversal_ui, node_options
 from core_response import CoreResponse
@@ -197,8 +198,8 @@ def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, activ
                                   'border-width': 4},
                     })
                 for edge_key, rank in (focus_path_info.get('edge_rank') or {}).items():
-                    parts = edge_key.split('|')
-                    if len(parts) != 3:
+                    parts = bridge_payloads.parse_edge_key(edge_key)
+                    if parts is None:
                         continue
                     src, tgt, etype = parts
                     color = PATH_COLORS.get(int(rank))

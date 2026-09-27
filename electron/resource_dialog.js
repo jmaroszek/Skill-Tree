@@ -1,9 +1,11 @@
 'use strict';
 
-function registerResourceDialog(ipcMain, dialog, getWindow, port) {
+// getPort returns the server's port, which is only known once it is ready.
+function registerResourceDialog(ipcMain, dialog, getWindow, getPort) {
   ipcMain.handle('skilltree:pick-file', async (event, options) => {
     const senderUrl = new URL(event.senderFrame.url);
-    if (senderUrl.protocol !== 'http:' || senderUrl.hostname !== '127.0.0.1'
+    const port = getPort();
+    if (!port || senderUrl.protocol !== 'http:' || senderUrl.hostname !== '127.0.0.1'
         || senderUrl.port !== String(port)) {
       throw new Error('File picker is only available to the local Skill Tree page.');
     }

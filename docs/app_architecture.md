@@ -47,7 +47,7 @@ manager reads one database per process, and the revision counters in
 | [graph_repository.py](../graph_repository.py) | Row reads and node insert/update/rename SQL, including lifecycle history in the same transaction lease. |
 | [graph_queries.py](../graph_queries.py), [graph_scoring.py](../graph_scoring.py), [graph_rules.py](../graph_rules.py) | Graph queries, scoring orchestration, and pure prerequisite/endpoint rules respectively. |
 | [graph_state.py](../graph_state.py) | Shared commit-published graph/scoring revisions and per-manager `GraphCaches`; compatibility aliases for former private attributes. |
-| [event_manager.py](../event_manager.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. Owns the awake/dormant rule and the one-Event-per-node rule — see [dormant_node_triggering.md](dormant_node_triggering.md). |
+| [event_manager.py](../event_manager.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. Owns the awake/dormant rule and the one-Event-per-node rule. |
 | [scoring.py](../scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
 | [simulation.py](../simulation.py) | Monte Carlo time simulation. Pure NumPy. |
 | [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, time calibration, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
@@ -55,13 +55,21 @@ manager reads one database per process, and the revision counters in
 
 | [goal_ranking.py](../goal_ranking.py), [graph_analytics.py](../graph_analytics.py) | Shared goal ranking/explanations and analytics data preparation. |
 | [node_commands.py](../node_commands.py), [context_rules.py](../context_rules.py), [editor_values.py](../editor_values.py), [next_view.py](../next_view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
-| [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named 28-field response contract. |
+| [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named response contract (31 fields). |
+| [server_runtime.py](../server_runtime.py) | How the server runs: launch options, the per-database instance lock, the `SKILLTREE_READY`/`RUNNING`/`DAMAGED` lines the shell reads, the access guard, and the stdin watchdog. See How the server runs, under Startup. |
+| [app_paths.py](../app_paths.py), [version.py](../version.py) | The per-user Data and Logs folders on each OS, the `SKILLTREE_HOME` override, and `resource_path` for frozen builds; and the one version number. |
+| [backup.py](../backup.py), [data_transfer.py](../data_transfer.py) | Backups in `Data/Backups` by kind, with keep counts, and mending a damaged database from the newest good one; JSON export and import, the database-file export, and restore. Settings → Data drives both ([data_callbacks.py](../data_callbacks.py)). |
+| [about.py](../about.py), [onboarding.py](../onboarding.py) | Settings → About's diagnostics, report link and third-party notices; the welcome and the Getting Started steps. Their callbacks are [about_callbacks.py](../about_callbacks.py) and [onboarding_callbacks.py](../onboarding_callbacks.py). |
+| [bridge_payloads.py](../bridge_payloads.py) | The values page scripts write into hidden inputs (`value|timestamp`, JSON name lists, edge keys) and how to read them, so a name containing `|` reads back whole. |
+| [perf.py](../perf.py) | The scoring timings log behind Settings → Recommendations' Graph Statistics readout. |
 | [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. `layout.py` also builds the page template, which carries the startup cover. |
-| [styles.py](../styles.py) | Dash component style dicts. |
+| [styles.py](../styles.py), [style_tokens.py](../style_tokens.py), [ui_kit.py](../ui_kit.py) | Component style dicts, the design tokens they draw on, and small shared controls (close, add, info, restore). [STYLE_GUIDE.md](../STYLE_GUIDE.md) says how to use them. |
+| [context_picker.py](../context_picker.py), [list_toolbar.py](../list_toolbar.py), [duration_ui.py](../duration_ui.py) | Shared pieces of the UI: the context/subcontext picker, the Goals and Events sidebars' search-and-sort toolbar, and estimate guidance with the Time Simulation chart. |
 | [prerender.py](../prerender.py) | The `@prerendered` marker and the pass that runs marked callbacks' page-load calls into the layout while it is built. See Startup readiness. |
 | [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
-| [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. |
-| Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
+| `tools/`, `packaging/` | Developer tools: the synthetic graph and benchmark for performance checks, and the server launcher the browser journeys share (`tools/`). The server's PyInstaller spec, its smoke test, the packaged-app journey and the third-party notices (`packaging/`). |
+| [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. Third-party files live in `assets/vendor/` (the DARKLY theme and its Lato font, Bootstrap Icons, SortableJS), each with its license, so the app makes no network requests. Dash's automatic includes skip that folder; `app.VENDOR_STYLESHEETS` loads its CSS ahead of the app's own, and the sortables load `Sortable.min.js` on demand. |
+| Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py), [data_callbacks.py](../data_callbacks.py), [about_callbacks.py](../about_callbacks.py), [onboarding_callbacks.py](../onboarding_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
 
 Resource links live only in `NodeResourceLinks`, keyed by node and section
 ([resource_links.py](../resource_links.py)); `GraphRepository` attaches them to
@@ -88,7 +96,8 @@ Python server rather than accepting an arbitrary path from the page.
 
 ### 1. Startup ([app.py](../app.py))
 
-`main()` parses `--sandbox` and calls `create_app(AppSettings(...))`. The factory
+`main()` parses the launch flags (`server_runtime.parse_args`), takes this
+database's instance lock, and calls `create_app(AppSettings(...))`. The factory
 selects `config.ENVIRONMENT` before opening SQLite, configures logging if enabled,
 initializes the schema, seeds required types, and runs the existing status-repair
 safety net. It then constructs Dash, sets the page template that carries the
@@ -99,6 +108,67 @@ of this. Switching databases after startup is rejected; tests replace
 `database.get_db_path` before constructing an app with disposable data. What the
 browser does next, and why the page stays covered while it does, is in Startup
 readiness below.
+
+**Refusals.** `database.init_db` refuses a database it can't safely open by raising
+a `DatabaseError` subclass. The file is left untouched. `main()` logs the message
+and exits with the class's `exit_code`, which is how the desktop shell tells the
+cases apart:
+
+| Code | Refusal | The user's way out |
+|---|---|---|
+| 2 | `DatabaseError`: any other SQLite failure while opening | Report it with the log |
+| 3 | `NewerDatabaseError`: saved by a newer version | Install the newer version |
+| 4 | `DatabaseCorruptError`: SQLite calls the file damaged | Restore a backup |
+| 5 | `SQLiteTooOldError` | A build with a newer SQLite |
+| 6 | `DatabaseLockedError`: another program holds the file | Close that program |
+| 7 | `DatabaseUnwritableError`: read-only, no permission, or disk full | Fix it and relaunch |
+
+Only code 4 may lead to an offer to restore a backup. `database._refusal_for` maps
+SQLite's error names, so a file that is only busy or read-only is never called
+damaged. Restoring over it would discard good data. Code 8 comes from
+`server_runtime`: another Skill Tree owns this database (below).
+
+**Mending a damaged database.** Before exiting 4, the server names the newest
+backup that passes `quick_check` (`backup.newest_good_backup`) on stdout:
+`SKILLTREE_DAMAGED backup=<file name> when=<ISO time>`. The desktop shell offers
+it (`restorePrompt` in `electron/server_process.js`), and on a yes starts the
+server again with `--restore-backup <file name>`. The server then checks the
+database once more and restores only if it is still damaged: a healthy file, or
+one that is only busy, is never replaced. `backup.restore_over_damaged` accepts
+only a backup in this database's Backups folder that opens cleanly. It keeps a
+copy of the damaged file as `<db>.damaged-<time>` and moves any journal aside.
+SQLite would otherwise roll that journal into the restored copy. It copies the
+backup in beside the database and swaps it into place in one step, so the
+database never goes missing on the way. A restore that fails exits 4 again,
+without a second offer.
+
+**How the server runs** ([server_runtime.py](../server_runtime.py)):
+
+- **One server per database.** `InstanceLock` holds an OS lock on `<db>.lock` for
+  the life of the process, and the OS drops it even on a crash. The lock is taken
+  before `init_db`, so two processes never migrate one file. The owner writes
+  `<db>.instance.json` (pid, port, token), readable only by its user. A second launch
+  hands over instead of serving: a browser launch opens the owner's link, and a
+  desktop launch prints `SKILLTREE_RUNNING port=<n> token=<t>` and exits 8.
+- **The handshake.** Werkzeug's `make_server` binds 127.0.0.1, on any free port for
+  `--desktop` or else 8050/8051 (a free port if that one is taken). When it can
+  answer, the server prints `SKILLTREE_READY port=<n>` on stdout. The shell reads
+  that line rather than guessing a port.
+- **Access.** `AccessGuard` runs ahead of Dash on every request. The Host header
+  must be `127.0.0.1:<port>` or `localhost:<port>`, which defeats DNS rebinding.
+  The request must also carry this launch's token in the `skilltree_<environment>`
+  cookie. `/?token=<t>` sets that cookie (HttpOnly, SameSite=Strict) and
+  redirects to `/`. The desktop shell makes the token and passes it in
+  `SKILLTREE_TOKEN`; a browser launch makes its own and opens that link.
+- **Stopping.** The desktop shell holds the server's stdin. When it closes, because
+  the shell quit or crashed, the server finishes its requests and exits, so no
+  server outlives its window. SIGTERM and Ctrl+C do the same.
+- **`--dev`** replaces all this serving with Flask's debug server on the fixed port,
+  with hot reload in the sandbox, verbose request logs, and
+  `hard_reload_on_restart.js`. The reloader's parent holds the lock and hands the
+  token to each child it restarts. Werkzeug's debugger sits outside Flask, so its
+  console skips `AccessGuard` and relies on its own PIN. That is one reason
+  `--dev` is for developers only, and the desktop shell never passes it.
 
 ### 2. Graph mutation → render (the central loop)
 
@@ -156,6 +226,7 @@ Dormant is a form field of the one node editor, saved with Save.
 - On Save, `core_engine` runs `handle_save`, then `node_commands.apply_dormancy`, in one transaction. A refusal (no event chosen, a node its event already woke) raises `ValueError` and rolls back the whole save. Choosing a different event for a dormant node calls `move_node_to_event`.
 - `refresh_events_after_save` bumps `events-refresh-trigger` once the save message appears, which is after the commit. That redraws the Events tab table and refills the section from the database.
 - `sync_original_name_after_save` rewrites `node-original-name` only on a rename or a new node. A rewrite on every save would refill the section from the database, and after a refused save that would throw away the user's Dormant switch.
+- Follow-ups to a save act on `editor-save-result-store`, which `core_engine` writes only once a save has committed (`{name, via, ts}`), never on the Save click. `sync_original_name_after_save` adopts the saved name after Save or Save & Close. `populate_editor` moves the unsaved-changes dialog on to its pending node only after that dialog's own save. Both used to fire on the click, so a refused save still lost its form, and a refused duplicate name made the editor adopt the existing node.
 - The Events tab's **+** opens a floating menu (`assets/dormant_add_menu.js`) that writes `new|<ms>` or `existing|<ms>` to `dormant-add-choice-input`. **New node** writes `editor-dormant-preset` and clicks `btn-editor-new`; the populator applies the preset to the next blank form. **Existing nodes…** opens the **Add to Event** modal (`build_add_to_event_modal`), which puts nodes with no event to sleep in bulk. The context menu's "Add to Event…" opens the same modal through `dormant-existing-trigger-input`.
 - The Details Subtasks **+** uses the same menu pattern (`assets/details_add_menu.js`). **New node** opens the shared editor with the selected node in Supports > Hard and includes that relationship in the pristine snapshot. **Existing node…** opens a focused Hard/Soft linking modal. Both paths refresh Details after saving through the normal graph version or Details refresh signals.
 
@@ -526,6 +597,14 @@ profile. Its 56 chains are all 3–7 nodes, and no tree has more than 20 nodes.
 No cross-linked view there has a seed flatter than ones fCoSE drew in two
 dimensions in the sandbox. The earlier cutoff of 24 nodes sent small
 cross-linked views to CoSE, and it would have left a chain of 25 to fCoSE.
+
+Past 600 nodes, a view lays out at fCoSE's `default` quality rather than
+`proof`. Proof cools slowly, and its cost grows with about the square of the
+node count. Nodes re-runs its layout on every add or remove, and each run
+blocks the page. In the 1,000-node benchmark ([performance.md](performance.md))
+proof took 7.4 s at 831 nodes; default took 2.2 s. A `cy.layout` hook applies
+the rule, so it holds whatever asked for the layout: the cold start, an
+auto-refresh, a Settle, or a control change.
 
 Every layout tweens to its final positions over 1000 ms. CoSE has to be asked
 for that tween with `animate: 'end'`, but dash-cytoscape declares

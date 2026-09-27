@@ -11,6 +11,10 @@ from config import ConfigManager
 from graph_manager import GraphManager
 from models import Node
 import style_tokens as tokens
+import pytest
+
+# Written around the Resource sections new databases used to start with.
+pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
 
 
 def _node(name, **overrides):
