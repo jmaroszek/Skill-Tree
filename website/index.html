@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download Skill Tree</title>
+<meta name="description" content="Skill Tree: decide what to work on next, from a graph of your goals. Free for Windows, macOS and Linux.">
+<style>
+  :root {
+    --bg: #1a1d21; --panel: #23272e; --line: #353b45; --text: #e8eaed;
+    --muted: #a3aab5; --accent: #3a8fd9; --accent-text: #ffffff; --ok: #4caf50;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 2.2rem; margin: 0 0 8px; }
+  h2 { font-size: 1.15rem; margin: 40px 0 12px; }
+  p { margin: 0 0 12px; }
+  a { color: #7cb7ee; }
+  .lead { color: var(--muted); font-size: 1.1rem; }
+  .primary {
+    display: inline-block; margin: 20px 0 6px; padding: 14px 22px; border-radius: 8px;
+    background: var(--accent); color: var(--accent-text); text-decoration: none;
+    font-weight: 600; font-size: 1.05rem;
+  }
+  .primary[aria-disabled="true"] { background: var(--line); pointer-events: none; }
+  .small { color: var(--muted); font-size: 0.9rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-top: 1px solid var(--line);
+           vertical-align: top; }
+  thead th { border-top: none; color: var(--muted); font-weight: 500; font-size: 0.9rem; }
+  td .file { display: block; font-size: 0.85rem; color: var(--muted); word-break: break-all; }
+  tr.mine td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+  ul.links { padding-left: 20px; }
+  .notice { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+            padding: 12px 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Skill Tree</h1>
+  <p class="lead">Decide what to work on next, from a graph of your goals. Free, runs
+    entirely on your computer, and needs no account.</p>
+
+  <a id="primary" class="primary" href="https://github.com/jmaroszek/Skill-Tree/releases/latest"
+     aria-disabled="false">Download Skill Tree</a>
+  <p id="release" class="small">Finding the latest version…</p>
+
+  <h2>All downloads</h2>
+  <div id="downloads">
+    <p class="notice">The downloads are on
+      <a href="https://github.com/jmaroszek/Skill-Tree/releases/latest">the latest release's page</a>.</p>
+  </div>
+  <p class="small" style="margin-top: 10px">Each release lists the files' SHA-256 checksums in
+    <a id="checksums" href="https://github.com/jmaroszek/Skill-Tree/releases/latest">SHA256SUMS</a>.</p>
+
+  <h2>Before you install</h2>
+  <ul class="links">
+    <li><a href="https://github.com/jmaroszek/Skill-Tree/blob/main/docs/user/install.md">Installing</a>:
+      on macOS, the first start goes through Privacy &amp; Security → Open Anyway.</li>
+    <li><a href="https://github.com/jmaroszek/Skill-Tree/blob/main/docs/user/privacy.md">Privacy</a>:
+      your graph never leaves your computer.</li>
+    <li><a href="https://github.com/jmaroszek/Skill-Tree/blob/main/docs/user/troubleshooting.md">Troubleshooting</a>
+      and <a href="https://github.com/jmaroszek/Skill-Tree/issues/new?template=bug_report.yml">reporting a problem</a>.</li>
+    <li><a href="https://github.com/jmaroszek/Skill-Tree#readme">What it does</a>, and
+      <a href="https://github.com/jmaroszek/Skill-Tree">its source code</a>.</li>
+  </ul>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var REPO = 'jmaroszek/Skill-Tree';
+  // Each installer the release builds (electron/electron-builder.yml's
+  // artifactName patterns), with who it is for.
+  var KINDS = [
+    { key: 'windows', system: 'Windows', detail: '64-bit, Windows 10 or 11',
+      match: /^Skill-Tree-Setup-.+\.exe$/ },
+    { key: 'mac-arm64', system: 'macOS, Apple silicon', detail: 'M1 and later',
+      match: /^Skill-Tree-.+-mac-arm64\.dmg$/ },
+    { key: 'mac-x64', system: 'macOS, Intel', detail: 'Intel Macs',
+      match: /^Skill-Tree-.+-mac-x64\.dmg$/ },
+    { key: 'linux-deb', system: 'Linux (.deb)', detail: 'Ubuntu, Debian and relatives',
+      match: /^skill-tree_.+_amd64\.deb$/ },
+    { key: 'linux-appimage', system: 'Linux (AppImage)', detail: 'Any distribution',
+      match: /^Skill-Tree-.+-linux-x86_64\.AppImage$/ }
+  ];
+
+  // The installers in a release, in KINDS order; kinds it lacks are left out.
+  function pickAssets(release) {
+    var assets = (release && release.assets) || [];
+    var picked = [];
+    KINDS.forEach(function (kind) {
+      var asset = assets.filter(function (a) { return kind.match.test(a.name); })[0];
+      if (asset) picked.push({ kind: kind, asset: asset });
+    });
+    return picked;
+  }
+
+  function checksumsOf(release) {
+    return ((release && release.assets) || []).filter(function (a) {
+      return a.name === 'SHA256SUMS';
+    })[0];
+  }
+
+  // The kind to suggest for this visitor, or null to let them choose.
+  function guessKind(platform, userAgent, arm) {
+    var p = (platform || '').toLowerCase(), ua = (userAgent || '').toLowerCase();
+    // Phones and tablets: nothing to install there; let them see every choice.
+    if (/iphone|ipad|android/.test(ua)) return null;
+    if (p.indexOf('win') === 0 || ua.indexOf('windows') >= 0) return 'windows';
+    if (p.indexOf('mac') === 0 || ua.indexOf('mac os') >= 0) {
+      if (arm === true) return 'mac-arm64';
+      if (arm === false) return 'mac-x64';
+      return null;  // browsers often won't say which chip
+    }
+    if (p.indexOf('linux') >= 0 || ua.indexOf('linux') >= 0) {
+      return ua.indexOf('ubuntu') >= 0 || ua.indexOf('debian') >= 0 ? 'linux-deb' : 'linux-appimage';
+    }
+    return null;
+  }
+
+  function megabytes(bytes) { return Math.round(bytes / 1048576) + ' MB'; }
+
+  function render(release, arm) {
+    var picked = pickAssets(release);
+    if (!picked.length) return false;
+    var mine = guessKind(navigator.platform, navigator.userAgent, arm);
+    var version = String(release.tag_name || '').replace(/^v/, '');
+    var date = release.published_at ? new Date(release.published_at).toLocaleDateString() : '';
+
+    var table = document.createElement('table');
+    var head = table.createTHead().insertRow();
+    ['System', 'Download'].forEach(function (text) {
+      var th = document.createElement('th'); th.textContent = text; head.appendChild(th);
+    });
+    var body = table.createTBody();
+    picked.forEach(function (item) {
+      var row = body.insertRow();
+      if (item.kind.key === mine) row.className = 'mine';
+      var who = row.insertCell();
+      who.textContent = item.kind.system;
+      var detail = document.createElement('span');
+      detail.className = 'file'; detail.textContent = item.kind.detail;
+      who.appendChild(detail);
+      var cell = row.insertCell();
+      var link = document.createElement('a');
+      link.href = item.asset.browser_download_url;
+      link.textContent = 'Download (' + megabytes(item.asset.size) + ')';
+      cell.appendChild(link);
+      var file = document.createElement('span');
+      file.className = 'file'; file.textContent = item.asset.name;
+      cell.appendChild(file);
+    });
+    var holder = document.getElementById('downloads');
+    holder.textContent = '';
+    holder.appendChild(table);
+
+    var primary = document.getElementById('primary');
+    var chosen = picked.filter(function (item) { return item.kind.key === mine; })[0];
+    if (chosen) {
+      primary.href = chosen.asset.browser_download_url;
+      primary.textContent = 'Download for ' + chosen.kind.system;
+    } else {
+      primary.href = '#downloads';
+      primary.textContent = 'Choose your download below';
+    }
+    var sums = checksumsOf(release);
+    if (sums) document.getElementById('checksums').href = sums.browser_download_url;
+
+    var note = document.getElementById('release');
+    note.textContent = 'Version ' + version + (date ? ', released ' + date : '') + '. ';
+    var notes = document.createElement('a');
+    notes.href = release.html_url; notes.textContent = 'What’s new';
+    note.appendChild(notes);
+    return true;
+  }
+
+  function start() {
+    var archQuery = navigator.userAgentData && navigator.userAgentData.getHighEntropyValues
+      ? navigator.userAgentData.getHighEntropyValues(['architecture'])
+          .then(function (v) { return v.architecture === 'arm'; }, function () { return undefined; })
+      : Promise.resolve(undefined);
+    Promise.all([
+      fetch('https://api.github.com/repos/' + REPO + '/releases/latest',
+            { headers: { Accept: 'application/vnd.github+json' } })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }),
+      archQuery
+    ]).then(function (results) {
+      if (!render(results[0], results[1])) throw new Error('no installers');
+    }).catch(function () {
+      document.getElementById('release').textContent =
+        'The downloads are on the release page, which the button opens.';
+    });
+  }
+
+  window.SkillTreeDownloads = { KINDS: KINDS, pickAssets: pickAssets, guessKind: guessKind };
+  if (typeof document !== 'undefined' && document.getElementById) start();
+})();
+</script>
+</body>
+</html>
