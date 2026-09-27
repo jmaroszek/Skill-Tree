@@ -5,6 +5,7 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- Put the toolbar icons in Filter, Reflection, Settings, Help order.
 - Tidied the Settings window. Each resource card has a numbered heading. The Data
   and About tabs no longer print folder paths; their Open buttons remain. The
   diagnostics that "Report a problem" copies sit in their own box. Backups made
