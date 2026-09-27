@@ -2,7 +2,7 @@
   "name": "skill-tree-desktop",
   "productName": "Skill Tree",
   "desktopName": "skill-tree.desktop",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Skill Tree desktop app: decide what to work on next, from a graph of your goals.",
   "homepage": "https://github.com/jmaroszek/Skill-Tree",

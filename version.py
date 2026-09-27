@@ -4,4 +4,4 @@ electron/package.json carries the same string, and a test keeps the two equal,
 so an installer, its update feed and the server it runs always agree.
 """
 
-__version__ = "0.9.0"
+__version__ = "1.0.0"

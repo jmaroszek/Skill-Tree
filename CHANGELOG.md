@@ -5,6 +5,8 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+## 1.0.0 (not yet released)
+
 The first public release: Skill Tree as an app anyone can install.
 
 ### Install and run
