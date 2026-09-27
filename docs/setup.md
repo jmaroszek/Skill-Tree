@@ -88,10 +88,17 @@ Each platform builds its own:
 
 ```bash
 pip install -r requirements-build.txt
+(cd electron && npm ci)
+python packaging/third_party_notices.py                              # -> THIRD_PARTY_NOTICES.txt
 python -m PyInstaller packaging/skilltree-server.spec --noconfirm   # -> dist/skilltree-server/
 python packaging/smoke_test.py dist/skilltree-server/skilltree-server
-cd electron && npm ci && npm run dist                                # -> electron/dist/
+cd electron && npm run dist                                          # -> electron/dist/
 ```
+
+- `third_party_notices.py` lists what the build ships that others wrote, with their
+  licenses: the server's Python packages, the shell's npm packages and the vendored
+  fonts, icons and scripts. Each platform writes its own, since some Python packages
+  are platform-specific. The server's build bundles it and Settings → About opens it.
 
 - `npm run dist` makes the installer for the machine it runs on: an NSIS installer on
   Windows, a dmg and zip on macOS, and an AppImage and deb on Linux

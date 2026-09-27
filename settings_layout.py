@@ -445,6 +445,12 @@ def _build_about_tab():
                         html.A("github.com/jmaroszek/Skill-Tree", href=about.REPO_URL,
                                target="_blank", rel="noopener"), "."],
                        className="text-muted d-block mb-2"),
+            # The licenses of what it's built on. Only a build has the file.
+            html.Div([
+                cancel_action("Third-party notices", "btn-open-notices", size="sm"),
+                html.Div(id="about-notices-status", className="mt-2"),
+            ], id="about-notices",
+               style={} if about.notices_path() else {"display": "none"}),
         ], style={"width": "100%", "maxWidth": "640px"}),
     ])
 

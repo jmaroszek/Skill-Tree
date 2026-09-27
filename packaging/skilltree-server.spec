@@ -20,6 +20,9 @@ ROOT = Path(SPECPATH).resolve().parent
 # them in the bundle). dash, dash_bootstrap_components and plotly bring their
 # JS bundles through pyinstaller-hooks-contrib; dash_cytoscape has no hook.
 datas = [(str(ROOT / "assets"), "assets")]
+# Written per platform by third_party_notices.py; Settings > About opens it.
+if (ROOT / "THIRD_PARTY_NOTICES.txt").is_file():
+    datas.append((str(ROOT / "THIRD_PARTY_NOTICES.txt"), "."))
 datas += collect_data_files("dash_cytoscape")
 
 a = Analysis(

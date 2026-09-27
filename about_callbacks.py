@@ -54,6 +54,23 @@ def register_about_callbacks(app, services=None):
     def open_log_folder(n_clicks):
         return _open(get_log_dir()) if n_clicks else no_update
 
+    @app.callback(
+        Output("about-notices-status", "children"),
+        Input("btn-open-notices", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def open_notices(n_clicks):
+        path = about.notices_path()
+        if not n_clicks or path is None:
+            return no_update
+        try:
+            open_path(str(path))
+        except Exception as exc:
+            logger.warning("Could not open %s: %s", path, exc)
+            return html.Span(f"Couldn't open them. They are in {path}.",
+                             className="text-danger")
+        return no_update
+
     # --- Updates: the desktop shell's, through preload.js's bridge. In a
     # browser there's no bridge and the block stays hidden. ---
     app.clientside_callback(

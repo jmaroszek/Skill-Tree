@@ -144,6 +144,20 @@ quality cut the cost to a third. Past 600 nodes every canvas now lays out at
 Smaller graphs keep `proof`, which is how the author's 567-node graph still
 lays out.
 
+CI's first `perf` run (run 36286069199, after the change), in seconds:
+
+| | Linux | Windows | macOS arm64 | macOS Intel |
+|---|---:|---:|---:|---:|
+| Server boot to ready | 0.9 | 1.4 | 1.1 | 2.3 |
+| First load, until the cover lifts | 5.1 | 5.5 | 5.7 | 7.2 |
+| First Nodes visit, until the canvas is drawn | 3.5 | 4.1 | 4.2 | 5.8 |
+| Editor save, click to message | 1.2 | 1.3 | 1.3 | 2.0 |
+| Home ranking after an edit (server) | 0.48 | 0.58 | 0.54 | 0.89 |
+
+The Intel Mac runner is the slowest machine CI has, and a fair stand-in for an
+older laptop. Windows pays for SQLite's commits on NTFS (an editor save is 41 ms
+of server time there, against 4–8 ms elsewhere), which is still small.
+
 The first load is dash-renderer and React mounting the page. The server had
 answered every startup callback by 0.5 s. That matches the startup section
 above, scaled for this machine, so 1,000 nodes add no new cost there.

@@ -126,3 +126,46 @@ def test_the_toolbar_has_help_that_opens_outside_the_app():
     assert help_button.href == about.HELP_URL
     assert help_button.href.startswith("https://github.com/jmaroszek/Skill-Tree")
     assert help_button.target == "_blank" and help_button.external_link is True
+
+
+def test_about_opens_the_third_party_notices(monkeypatch, tmp_path):
+    notices = tmp_path / "THIRD_PARTY_NOTICES.txt"
+    notices.write_text("the notices")
+    monkeypatch.setattr(about, "resource_path", lambda *parts: tmp_path.joinpath(*parts))
+    opened = []
+    monkeypatch.setattr(about_callbacks, "open_path", opened.append)
+
+    _callbacks()["open_notices"](1)
+
+    assert opened == [str(notices)]
+    button = _component(build_app_layout([], env="sandbox"), "about-notices")
+    assert button.style.get("display") != "none"
+
+
+def test_a_build_without_notices_shows_no_button(monkeypatch, tmp_path):
+    """A developer's checkout hasn't generated them."""
+    monkeypatch.setattr(about, "resource_path", lambda *parts: tmp_path.joinpath(*parts))
+
+    assert about.notices_path() is None
+    button = _component(build_app_layout([], env="sandbox"), "about-notices")
+    assert button.style == {"display": "none"}
+
+
+def test_the_notices_cover_every_runtime_package_and_vendored_asset():
+    pytest.importorskip("packaging")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "third_party_notices", Path(__file__).parents[1] / "packaging" / "third_party_notices.py")
+    notices = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(notices)
+
+    text = notices.notices()
+
+    for line in (Path(__file__).parents[1] / "requirements.txt").read_text().splitlines():
+        name = line.split("#")[0].split("==")[0].strip()
+        if name and not name.startswith("-"):
+            pattern = "[-_]".join(map(re.escape, re.split(r"[-_]", name)))
+            assert re.search(rf"^{pattern} \d", text, re.IGNORECASE | re.MULTILINE), name
+    for vendored in ("Bootstrap Icons", "Bootswatch Darkly", "Lato font", "SortableJS"):
+        assert vendored in text
+    assert "(No license text" not in text

@@ -84,6 +84,15 @@ jobs:
       - name: Install build tools
         run: python -m pip install -r requirements-build.txt
 
+      - name: Install the shell's packages
+        working-directory: electron
+        run: npm ci
+
+      # Per platform: some Python dependencies are platform-specific. The
+      # server's build bundles the file, and Settings > About opens it.
+      - name: Write the third-party notices
+        run: python packaging/third_party_notices.py
+
       - name: Build the server
         run: python -m PyInstaller packaging/skilltree-server.spec --noconfirm
 
@@ -93,10 +102,6 @@ jobs:
       - name: Sign the server
         if: runner.os == 'Windows'
         run: node electron/build/sign-windows.js dist/skilltree-server/skilltree-server.exe
-
-      - name: Install the shell's packages
-        working-directory: electron
-        run: npm ci
 
       - name: Build the installers
         working-directory: electron

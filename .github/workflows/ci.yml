@@ -130,6 +130,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-build.txt
 
+      - name: Write the third-party notices
+        run: python packaging/third_party_notices.py
+
       - name: Build
         run: python -m PyInstaller packaging/skilltree-server.spec --noconfirm
 
