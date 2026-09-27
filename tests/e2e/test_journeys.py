@@ -14,24 +14,47 @@ def _welcome(page, choice="#btn-welcome-suggested"):
 
 
 def _dropdown_pick(page, dropdown, option):
-    """Choose an option in a Dash dropdown by typing it."""
-    page.click(dropdown)
-    page.keyboard.type(option)
-    page.locator("[role=option]", has_text=option).first.click()
-    page.keyboard.press("Escape")
-    _idle(page)
+    """Choose an option in a Dash dropdown by typing it. A callback that
+    resends a dropdown's options re-renders it and closes an open menu, so a
+    pick that loses its menu that way starts again."""
+    for _attempt in range(3):
+        _idle(page)
+        page.click(dropdown)
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.type(option)
+        try:
+            page.locator("[role=option]", has_text=option).first.click(timeout=5000)
+        except PlaywrightTimeout:
+            page.keyboard.press("Escape")
+            continue
+        page.keyboard.press("Escape")
+        _idle(page)
+        return
+    raise AssertionError(f"{option!r} never became choosable in {dropdown}")
 
 
 _EDITOR_LEFT = "document.querySelector('#sidebar-editor-container').getBoundingClientRect().left"
 
 
-def _idle(page):
+_QUIET = """quietMs => {
+    const now = performance.now();
+    if (document.querySelector('[data-dash-is-loading="true"]')
+            || window.__skillTreeQuietSince === undefined) {
+        window.__skillTreeQuietSince = now;
+        return false;
+    }
+    return now - window.__skillTreeQuietSince >= quietMs;
+}"""
+
+
+def _idle(page, quiet_ms=400):
     """Wait for Dash to finish updating: a component it is still writing
-    carries data-dash-is-loading. Typing into a field whose reset is still in
-    flight loses the typing."""
-    page.wait_for_timeout(150)
-    page.wait_for_function(
-        "!document.querySelector('[data-dash-is-loading=\"true\"]')", timeout=20000)
+    carries data-dash-is-loading. A chained callback starts only once the one
+    before it returns, so one quiet instant isn't enough; this waits for a
+    quiet stretch. Typing into a field whose reset is still coming loses the
+    typing."""
+    page.evaluate("window.__skillTreeQuietSince = undefined")
+    page.wait_for_function(_QUIET, arg=quiet_ms, polling=50, timeout=30000)
 
 
 def _open_editor(page):
@@ -86,6 +109,31 @@ def _reflect(page, actual_hours=None):
         page.click("#btn-time-calibration-submit")
     page.wait_for_selector("#btn-time-calibration-skip", state="hidden", timeout=15000)
     return True
+
+
+def _close_editor(page):
+    page.click("#btn-close-editor")
+    page.wait_for_function(f"{_EDITOR_LEFT} < -1", timeout=10000)
+
+
+_NODE_POSITION = """name => {
+    const el = document.getElementById('cytoscape-graph');
+    const cy = window.SkillTree.getCy(el);
+    const node = cy && cy.getElementById(name);
+    if (!node || !node.length || !node.visible()) return null;
+    const p = node.renderedPosition(), r = el.getBoundingClientRect();
+    return {x: r.left + p.x, y: r.top + p.y};
+}"""
+
+
+def _node_menu(page, name, item):
+    """Right-click a node on the Nodes canvas and choose from its menu."""
+    page.click("a.nav-link:has-text('Nodes')")
+    page.wait_for_function(_NODE_POSITION, arg=name, timeout=20000)
+    _idle(page)
+    at = page.evaluate(_NODE_POSITION, name)
+    page.mouse.click(at["x"], at["y"], button="right")
+    page.click(f"#{item}")
 
 
 def _set_done(page, name, done=True, actual_hours=None):
@@ -212,3 +260,149 @@ def test_nothing_leaves_this_computer(page):
         page.click(f"a.nav-link:has-text('{tab}')")
         page.wait_for_timeout(1200)
     assert page.hosts == {"127.0.0.1"}
+
+
+def test_rename_and_delete_carry_the_relationships(page, server):
+    _welcome(page)
+    _new_node(page, "Draft", "Learn")
+    _new_node(page, "Publish", "Action", needs_hard=["Draft"])
+
+    _open_in_editor(page, "Draft")
+    page.fill("#node-name", "First Draft")
+    page.click("#btn-save")
+    page.wait_for_function(
+        "document.querySelector('#save-output').innerText.includes(\"Updated node 'First Draft'\")",
+        timeout=15000)
+    assert server.query("SELECT source, target, type FROM Edges") == [
+        ("First Draft", "Publish", "Needs_Hard")]
+
+    _open_in_editor(page, "Publish")
+    page.click("#btn-delete")
+    page.click("#btn-node-delete-confirm")
+    page.wait_for_function(
+        "document.querySelector('#save-output').innerText.includes('Deleted')", timeout=15000)
+    assert server.query("SELECT name FROM Nodes") == [("First Draft",)]
+    assert server.query("SELECT COUNT(*) FROM Edges") == [(0,)]
+    assert page.console_errors == []
+
+
+def test_now_holds_what_is_in_progress_until_it_is_done(page, server):
+    _welcome(page)
+    _new_node(page, "Stretching", "Action")
+    page.locator("#node-now input").click()
+    page.wait_for_function(
+        "document.querySelector('#now-cards-container') !== null", timeout=15000)
+    assert server.query("SELECT now > 0 FROM Nodes WHERE name = 'Stretching'") == [(1,)]
+    assert "Stretching" in page.inner_text("#now-cards-container")
+
+    _set_done(page, "Stretching")
+    page.wait_for_timeout(1500)
+    assert server.query("SELECT now, status FROM Nodes") == [(0, "Done")]
+    assert page.console_errors == []
+
+
+def test_a_sleeping_node_wakes_with_its_event(page, server):
+    _welcome(page)
+    _new_node(page, "Pack Bags", "Action")
+    page.locator("#node-dormant input").click()
+    page.select_option("#node-dormant-event", "__new__")
+    page.fill("#node-dormant-event-name", "Trip Booked")
+    page.click("#btn-save")
+    page.wait_for_function(
+        "document.querySelector('#save-output').innerText.includes('Updated node')",
+        timeout=15000)
+    assert server.query("SELECT dormant FROM Nodes") == [(1,)]
+    assert server.query("SELECT event_name, node_name FROM EventNodes") == [
+        ("Trip Booked", "Pack Bags")]
+
+    page.keyboard.press("Escape")
+    page.click("a.nav-link:has-text('Events')")
+    page.click("[id*='\"type\":\"event-card\"']")
+    page.click("#btn-trigger-event")
+    page.click("#btn-trigger-confirm")
+    page.wait_for_timeout(2000)
+    assert server.query("SELECT dormant FROM Nodes") == [(0,)]
+    assert page.console_errors == []
+
+
+def test_an_export_fills_a_new_install(page, server, start_server, open_app, tmp_path):
+    """Moving to another computer: export here, import into a fresh install."""
+    _welcome(page)
+    _new_node(page, "Carry Over", "Learn")
+    _new_node(page, "Next Step", "Action", needs_hard=["Carry Over"])
+    page.keyboard.press("Escape")
+    page.click("#btn-settings-toggle")
+    page.click("a.nav-link:has-text('Data')")
+    with page.expect_download(timeout=15000) as download:
+        page.click("#btn-export-json")
+    exported = tmp_path / "moving.json"
+    download.value.save_as(exported)
+
+    fresh = start_server("elsewhere")
+    other = open_app(fresh)
+    _welcome(other, "#btn-welcome-import")
+    other.set_input_files("#upload-import input[type=file]", str(exported))
+    other.wait_for_function(
+        "document.querySelector('#suggestions-table') &&"
+        " document.querySelector('#suggestions-table').innerText.includes('Carry Over')",
+        timeout=60000)
+    assert set(fresh.query("SELECT name, status FROM Nodes")) == {
+        ("Carry Over", "Open"), ("Next Step", "Blocked")}
+    assert fresh.query("SELECT source, target, type FROM Edges") == [
+        ("Carry Over", "Next Step", "Needs_Hard")]
+    assert not other.is_visible("#welcome-modal")
+    assert other.console_errors == []
+
+
+def test_the_editor_follows_done_from_the_node_menu(page, server):
+    """The editor keeps the last node it held. Marked Done from its menu in
+    the meantime, it shows Done there too, so saving an edit keeps it Done."""
+    _welcome(page)
+    _new_node(page, "Warm Up", "Action")
+    _close_editor(page)
+
+    _node_menu(page, "Warm Up", "ctx-menu-toggle-done")
+    _reflect(page)
+    page.wait_for_timeout(1000)
+    assert server.query("SELECT status FROM Nodes") == [("Done",)]
+
+    _open_editor(page)
+    assert page.input_value("#node-name") == "Warm Up"
+    assert page.locator("#node-status-done input").is_checked()
+    page.fill("#node-desc", "every morning")
+    page.click("#btn-save")
+    page.wait_for_function(
+        "document.querySelector('#save-output').innerText.includes('Updated node')",
+        timeout=15000)
+    assert server.query("SELECT status, description FROM Nodes") == [
+        ("Done", "every morning")]
+    assert page.console_errors == []
+
+
+_INPUT_HOLDING = """([kind, value]) => {
+    const rows = document.querySelectorAll(`[id*='"type":"${kind}"']`);
+    const row = [...rows].find(el => el.value === value);
+    return row ? row.id : null;
+}"""
+
+
+def test_renaming_a_context_in_settings_moves_its_nodes(page, server):
+    _welcome(page)
+    _new_node(page, "Meditation", "Action")
+    _close_editor(page)
+    page.click("#btn-settings-toggle")
+    page.click("a.nav-link:has-text('Contexts')")
+    page.wait_for_function(_INPUT_HOLDING, arg=["ctx-row-name", "Mind"], timeout=15000)
+    row = page.evaluate(_INPUT_HOLDING, ["ctx-row-name", "Mind"])
+    page.fill(f"[id={json.dumps(row)}]", "Intellect")
+    _idle(page)
+    page.click("#btn-settings-save")
+    deadline = 20
+    while deadline and server.query("SELECT context FROM Nodes") != [("Intellect",)]:
+        page.wait_for_timeout(500)
+        deadline -= 0.5
+    assert server.query("SELECT context FROM Nodes") == [("Intellect",)]
+    contexts = json.loads(server.query(
+        "SELECT value FROM Settings WHERE key = 'CONTEXTS'")[0][0])
+    assert "Intellect" in contexts and "Mind" not in contexts
+    assert page.console_errors == []

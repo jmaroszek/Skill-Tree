@@ -52,6 +52,7 @@ from callback_helpers import (
     normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, editor_form_values, dormancy_for_save,
+    follow_done_status,
     habit_to_hours, compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
@@ -131,6 +132,17 @@ def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_s
     out = out._replace(events_style=next_events_style)
     return tuple(out)
 
+
+# The editor's own saves: each commits the whole form, so the form is what
+# the database holds afterwards.
+_EDITOR_SAVE_TRIGGERS = ('btn-save', 'btn-save-close', 'btn-unsaved-save')
+
+# What changes a node's Done status outside the editor: the node menu's
+# toggles, and the undo-Done confirmation, which also re-blocks the Done
+# nodes after the one it reopens. None of them loads another node into the
+# editor, which populate_editor would be doing at the same moment.
+_STATUS_CHANGING_TRIGGERS = ('btn-toggle-done-node', 'toggle-done-trigger-input',
+                             'btn-undo-done-confirm')
 
 # Output slot indices for the undo-Done modal outputs.
 _UNDO_DONE_MODAL_IDX = CoreResponse._fields.index('undo_open')
@@ -1487,7 +1499,9 @@ def register_callbacks(app, services=None):
          Output('time-calibration-pending-store', 'data'),
          Output('time-calibration-unit', 'value', allow_duplicate=True),
          Output('time-calibration-title', 'children', allow_duplicate=True),
-         Output('editor-save-result-store', 'data')],
+         Output('editor-save-result-store', 'data'),
+         Output('node-status-done', 'value', allow_duplicate=True),
+         Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -1727,7 +1741,7 @@ def register_callbacks(app, services=None):
             active_node_id = None
 
         # --- Action Routing ---
-        if trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save'):
+        if trigger_id in _EDITOR_SAVE_TRIGGERS:
             if name and name.strip():
                 name = ConfigManager.apply_name_formatting(name.strip())
             if not name or not name.strip():
@@ -2019,6 +2033,13 @@ def register_callbacks(app, services=None):
                 events_style=next_events_sidebar_style,
             )
 
+        # The editor may be showing a node whose status just changed from
+        # the node menu or a cascade; its Done switch follows.
+        editor_done = editor_snapshot = no_update
+        if trigger_id in _STATUS_CHANGING_TRIGGERS and original_name:
+            editor_done, editor_snapshot = follow_done_status(
+                manager.get_node(original_name), status_done, pristine_snapshot)
+
         # The undo-Done modal: the node menu's toggles open it earlier (a
         # return short-circuit in their branch), an editor save that
         # un-marked a node opens it here, and otherwise it stays closed
@@ -2040,6 +2061,8 @@ def register_callbacks(app, services=None):
             calibration_unit=tc_unit,
             calibration_title=tc_title,
             save_result=save_result,
+            editor_done=editor_done,
+            editor_snapshot=editor_snapshot,
         )
 
     # The filters-sidebar toggle and editor-sidebar fast-path clientside

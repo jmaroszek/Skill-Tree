@@ -1034,6 +1034,27 @@ def build_editor_snapshot(manager, node_name):
     }
 
 
+def follow_done_status(node, switch, snapshot):
+    """(switch, snapshot) for an editor showing ``node`` after its status may
+    have changed outside the editor: the node menu's Toggle Done, the undo-Done
+    confirmation, or a cascade re-blocking it.
+
+    Returns (no_update, no_update) when the snapshot already agrees with the
+    database, or when there is nothing to judge by. The switch follows only
+    while it still shows what was loaded, so a flip the user hasn't saved
+    stays; the snapshot always takes the stored status, so the unsaved-changes
+    check compares the form with what is really there.
+    """
+    if node is None or not isinstance(snapshot, dict) or 'status_done' not in snapshot:
+        return dash.no_update, dash.no_update
+    stored = [STATUS_DONE] if node.status == STATUS_DONE else []
+    loaded = snapshot.get('status_done') or []
+    if loaded == stored:
+        return dash.no_update, dash.no_update
+    new_switch = stored if (switch or []) == loaded else dash.no_update
+    return new_switch, {**snapshot, 'status_done': stored}
+
+
 def snapshot_from_form_state(form_values, linted_name, linted_aliases):
     """Build a pristine snapshot directly from the form State just saved.
 

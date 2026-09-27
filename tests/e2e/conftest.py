@@ -97,10 +97,23 @@ def browser():
 
 
 @pytest.fixture
-def server(tmp_path):
-    running = Server(tmp_path / "home").start()
-    yield running
-    running.stop()
+def start_server(tmp_path):
+    """start_server(folder) starts another install, with its own data folder."""
+    started = []
+
+    def starter(folder):
+        running = Server(tmp_path / folder).start()
+        started.append(running)
+        return running
+
+    yield starter
+    for running in started:
+        running.stop()
+
+
+@pytest.fixture
+def server(start_server):
+    return start_server("home")
 
 
 @pytest.fixture

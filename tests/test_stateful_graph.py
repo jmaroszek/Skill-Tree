@@ -14,7 +14,8 @@ every step:
 - done_date is set exactly on Done nodes;
 - no setting names a node that no longer exists;
 - no two nodes share a name, ignoring case;
-- every score is a finite number, and scoring twice gives the same scores.
+- every score is a finite number, and scoring twice gives the same scores;
+- a read snapshot, which callbacks share, holds what direct reads see.
 
 It runs 25 sequences by default, to keep CI quick. For a deep run:
     STATEFUL_EXAMPLES=300 pytest tests/test_stateful_graph.py
@@ -197,6 +198,22 @@ class GraphMachine(RuleBasedStateMachine):
         again = {n.name: n.priority_score for n in self.manager.calculate_priority_scores(now)}
         assert all(math.isfinite(score) for score in first.values())
         assert first == again
+
+    @invariant()
+    def a_snapshot_reads_what_direct_reads_see(self):
+        if not hasattr(self, "manager"):
+            return
+
+        def read():
+            nodes = sorted((vars(n) for n in self.manager.get_all_nodes(include_dormant=True)),
+                           key=lambda n: n["name"])
+            edges = sorted(self.manager.get_edges(),
+                           key=lambda e: (e["source"], e["target"], e["type"]))
+            return nodes, edges
+
+        direct = read()
+        with database.read_snapshot():
+            assert read() == direct
 
 
 GraphMachine.TestCase.settings = settings(
