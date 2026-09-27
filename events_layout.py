@@ -844,7 +844,7 @@ def build_dormant_nodes_table(event_nodes, event=None):
 # --- Node editor: Event section ---
 # Before the node's event fires, the section edits a delay; after it fires,
 # it edits the wake date the node was given, because the delay has nothing
-# left to measure from (see docs/dormant_node_triggering.md).
+# left to measure from.
 
 def delay_fields(wrapper_id, value_id, unit_id, value, unit, visible):
     """The "[n] [unit] after it fires" row behind a Delay switch.
