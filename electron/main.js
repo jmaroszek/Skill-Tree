@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { registerResourceDialog } = require('./resource_dialog');
 const {
-  appUrl, exitMessage, newToken, startServer, stopServer,
+  appUrl, exitMessage, newToken, restorePrompt, startServer, stopServer,
 } = require('./server_process');
 const {
   isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, windowChrome,
@@ -45,7 +45,7 @@ app.setAppUserModelId('com.skilltree.app');
 app.setPath('userData', path.join(app.getPath('appData'),
   SANDBOX ? 'SkillTree-Sandbox' : 'SkillTree'));
 
-async function launch() {
+async function launch(extraArgs = []) {
   const token = newToken();
   const { command, args, cwd } = serverCommand({
     isPackaged: app.isPackaged, platform: process.platform,
@@ -55,11 +55,22 @@ async function launch() {
   let started;
   try {
     started = await startServer({
-      command, args, cwd,
+      command, args: [...args, ...extraArgs], cwd,
       env: { ...process.env, SKILLTREE_TOKEN: token },
       log: chunk => process.stdout.write(`[py] ${chunk}`),
     });
   } catch (err) {
+    // A damaged database, and a backup that opens cleanly: offer it. The
+    // server puts it in place, keeping the damaged file, and starts as usual.
+    if (err.restoreOffer && !extraArgs.length) {
+      const { response } = await dialog.showMessageBox(restorePrompt(err.restoreOffer));
+      if (response === 0) {
+        launch(['--restore-backup', err.restoreOffer.backup]);
+        return;
+      }
+      app.quit();
+      return;
+    }
     let message;
     if (err.timedOut) message = "Skill Tree's server didn't start in time.";
     else if (err.exitCode !== undefined) message = exitMessage(err.exitCode, err.stderrTail);

@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  appUrl, exitMessage, newToken, parseServerLine, startServer, stopServer,
+  appUrl, exitMessage, newToken, parseServerLine, restorePrompt, startServer, stopServer,
 } = require('./server_process');
 
 // A stand-in server: node running a small script.
@@ -94,4 +94,39 @@ test('a server that ignores stdin closing is killed after the grace period', asy
     kill: pid => { killed = pid; started.proc.kill(); },
   });
   assert.equal(killed, started.proc.pid);
+});
+
+test("a damaged database's offer of a backup parses", () => {
+  assert.deepEqual(
+    parseServerLine('SKILLTREE_DAMAGED backup=skilltree_20260926-100000_daily.db when=2026-09-26T10:00:00'),
+    { type: 'damaged', backup: 'skilltree_20260926-100000_daily.db', when: '2026-09-26T10:00:00' });
+  assert.equal(parseServerLine('SKILLTREE_DAMAGED backup= when=x'), null);
+});
+
+test('a refusal over a damaged database carries the backup it offered', async () => {
+  const failed = await startServer(fake(`
+    console.log("SKILLTREE_DAMAGED backup=skilltree_20260926-100000_daily.db when=2026-09-26T10:00:00");
+    console.error("Skill Tree can't start: the database is damaged");
+    process.exit(4);
+  `)).then(() => assert.fail('it should refuse'), err => err);
+  assert.equal(failed.exitCode, 4);
+  assert.deepEqual(failed.restoreOffer,
+    { backup: 'skilltree_20260926-100000_daily.db', when: '2026-09-26T10:00:00' });
+});
+
+test('any other refusal offers nothing', async () => {
+  const failed = await startServer(fake('process.exit(6);')).then(
+    () => assert.fail('it should refuse'), err => err);
+  assert.equal(failed.restoreOffer, undefined);
+});
+
+test('the restore prompt says what happens to each file', () => {
+  const prompt = restorePrompt({ backup: 'skilltree_20260926-100000_daily.db',
+    when: '2026-09-26T10:00:00' });
+  assert.match(prompt.message, /damaged/);
+  assert.match(prompt.detail, /2026/);
+  assert.match(prompt.detail, /kept/);
+  assert.deepEqual(prompt.buttons, ['Restore the backup', 'Quit']);
+  assert.equal(prompt.defaultId, 0);
+  assert.equal(prompt.cancelId, 1);
 });

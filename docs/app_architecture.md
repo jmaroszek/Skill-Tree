@@ -120,6 +120,20 @@ SQLite's error names, so a file that is only busy or read-only is never called
 damaged. Restoring over it would discard good data. Code 8 comes from
 `server_runtime`: another Skill Tree owns this database (below).
 
+**Mending a damaged database.** Before exiting 4, the server names the newest
+backup that passes `quick_check` (`backup.newest_good_backup`) on stdout:
+`SKILLTREE_DAMAGED backup=<file name> when=<ISO time>`. The desktop shell offers
+it (`restorePrompt` in `electron/server_process.js`), and on a yes starts the
+server again with `--restore-backup <file name>`. The server then checks the
+database once more and restores only if it is still damaged: a healthy file, or
+one that is only busy, is never replaced. `backup.restore_over_damaged` accepts
+only a backup in this database's Backups folder that opens cleanly. It keeps a
+copy of the damaged file as `<db>.damaged-<time>` and moves any journal aside.
+SQLite would otherwise roll that journal into the restored copy. It copies the
+backup in beside the database and swaps it into place in one step, so the
+database never goes missing on the way. A restore that fails exits 4 again,
+without a second offer.
+
 **How the server runs** ([server_runtime.py](../server_runtime.py)):
 
 - **One server per database.** `InstanceLock` holds an OS lock on `<db>.lock` for

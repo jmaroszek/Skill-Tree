@@ -7,7 +7,10 @@
 // or, when another Skill Tree already owns this data, prints
 //   SKILLTREE_RUNNING port=<n> token=<t>
 // and exits with code 8. Any other exit before that is a refusal, and its
-// code says why (docs/app_architecture.md lists them).
+// code says why (docs/app_architecture.md lists them). Refusing a damaged
+// database (code 4), it first names the newest backup that opens cleanly:
+//   SKILLTREE_DAMAGED backup=<file name> when=<ISO time>
+// which the shell offers to restore, by starting it with --restore-backup.
 //
 // The shell keeps the server's stdin open. Closing it asks the server to
 // finish what it is doing and exit, and a crashed shell closes it too, so the
@@ -35,7 +38,26 @@ function parseServerLine(line) {
   if (ready) return { type: 'ready', port: Number(ready[1]) };
   const running = /^SKILLTREE_RUNNING port=(\d+) token=(\S*)\s*$/.exec(line);
   if (running) return { type: 'running', port: Number(running[1]), token: running[2] };
+  const damaged = /^SKILLTREE_DAMAGED backup=(\S+) when=(\S+)\s*$/.exec(line);
+  if (damaged) return { type: 'damaged', backup: damaged[1], when: damaged[2] };
   return null;
+}
+
+// The question to ask when the server refused a damaged database but named
+// a backup it can restore (a dialog.showMessageBox options object).
+function restorePrompt(offer) {
+  const when = new Date(offer.when);
+  const taken = Number.isNaN(when.getTime()) ? offer.when : when.toLocaleString();
+  return {
+    type: 'warning',
+    message: 'Your Skill Tree data file is damaged.',
+    detail: `The newest backup that opens cleanly was taken ${taken}. Restore it? `
+      + 'Whatever changed after that is lost. The damaged file is kept beside your '
+      + 'data, renamed, in case you want it.',
+    buttons: ['Restore the backup', 'Quit'],
+    defaultId: 0,
+    cancelId: 1,
+  };
 }
 
 // What to tell the user when the server exits before it is ready. The
@@ -68,6 +90,7 @@ function startServer({ command, args, cwd, env, timeoutMs = 90000, log = () => {
     let settled = false;
     let pending = '';
     let stderrTail = '';
+    let restoreOffer;
     const timer = setTimeout(() => {
       fail(Object.assign(new Error('The server did not start in time.'), { timedOut: true }));
       proc.kill();  // it is no use now, and must not outlive the shell
@@ -99,6 +122,8 @@ function startServer({ command, args, cwd, env, timeoutMs = 90000, log = () => {
           succeed({ proc, port: parsed.port });
         } else if (parsed && parsed.type === 'running') {
           succeed({ proc, port: parsed.port, token: parsed.token, alreadyRunning: true });
+        } else if (parsed && parsed.type === 'damaged') {
+          restoreOffer = { backup: parsed.backup, when: parsed.when };
         }
       }
     });
@@ -112,7 +137,9 @@ function startServer({ command, args, cwd, env, timeoutMs = 90000, log = () => {
     // 'close', not 'exit': it waits for stdout, so a READY or RUNNING line
     // printed just before exiting is read first.
     proc.on('close', code => {
-      fail(Object.assign(new Error(`The server exited with code ${code}.`), { exitCode: code }));
+      const err = Object.assign(new Error(`The server exited with code ${code}.`), { exitCode: code });
+      if (code === 4 && restoreOffer) err.restoreOffer = restoreOffer;
+      fail(err);
     });
   });
 }
@@ -147,5 +174,6 @@ function stopServer(proc, { graceMs = 5000, kill = defaultKill } = {}) {
 }
 
 module.exports = {
-  EXIT_MESSAGES, appUrl, exitMessage, newToken, parseServerLine, startServer, stopServer,
+  EXIT_MESSAGES, appUrl, exitMessage, newToken, parseServerLine, restorePrompt,
+  startServer, stopServer,
 };

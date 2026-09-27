@@ -28,6 +28,7 @@ import time
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,9 @@ class LaunchOptions:
     desktop: bool = False       # launched by the desktop shell
     open_browser: bool = True
     dev: bool = False           # debugger, hot reload, the restart poller
+    # A backup's file name, to put in place of a damaged database. The shell
+    # passes it once the user has accepted offer_restore()'s offer.
+    restore_backup: Optional[str] = None
 
 
 def parse_args(argv) -> LaunchOptions:
@@ -60,6 +64,10 @@ def parse_args(argv) -> LaunchOptions:
             requested = None
         if requested is not None and 0 <= requested <= 65535:
             port = requested
+    restore = None
+    if "--restore-backup" in argv:
+        i = argv.index("--restore-backup")
+        restore = argv[i + 1] if i + 1 < len(argv) else None
     return LaunchOptions(
         environment=environment,
         port=port,
@@ -67,12 +75,19 @@ def parse_args(argv) -> LaunchOptions:
         open_browser=not desktop and "--no-browser" not in argv,
         # The shell reads the READY line, which the debug server can't print.
         dev="--dev" in argv and not desktop,
+        restore_backup=restore,
     )
 
 
 def launch_token() -> str:
     """This launch's access token: the desktop shell's, or a new one."""
     return os.environ.get(TOKEN_ENV) or secrets.token_urlsafe(32)
+
+
+def offer_restore(info) -> None:
+    """Before refusing a damaged database: name the newest backup that opens
+    cleanly (backup.newest_good_backup), which the shell offers to restore."""
+    announce(f"SKILLTREE_DAMAGED backup={info['path'].name} when={info['when'].isoformat()}")
 
 
 def announce(line: str) -> None:

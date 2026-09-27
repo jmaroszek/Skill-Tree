@@ -85,6 +85,61 @@ def _read_only_uri(path) -> str:
     return f"{Path(path).resolve().as_uri()}?mode=ro"
 
 
+def opens_cleanly(path) -> bool:
+    """Whether SQLite reads ``path`` as a database that passes quick_check.
+    Read-only, so checking a backup never changes it."""
+    try:
+        conn = sqlite3.connect(_read_only_uri(path), uri=True,
+                               timeout=database.BUSY_TIMEOUT_S)
+    except sqlite3.Error:
+        return False
+    try:
+        return conn.execute("PRAGMA quick_check").fetchall() == [("ok",)]
+    except sqlite3.DatabaseError:
+        return False
+    finally:
+        conn.close()
+
+
+def newest_good_backup() -> Optional[dict]:
+    """The newest of this database's backups that opens cleanly, or None."""
+    for info in reversed(list_backups()):
+        if opens_cleanly(info["path"]):
+            return info
+    return None
+
+
+def restore_over_damaged(name) -> Path:
+    """Put the backup called ``name`` where the damaged database is. Returns
+    where the damaged file was kept.
+
+    Refuses (ValueError) a name that isn't one of this database's backups, or
+    a backup that is damaged itself, and then changes nothing. The damaged
+    file is kept, and any journal beside it is moved aside with it: SQLite
+    would roll a hot journal from the damaged file into the restored copy.
+    The database never goes missing on the way, since the backup is copied in
+    beside it and then swapped into its place in one step.
+    """
+    chosen = next((info for info in list_backups() if info["path"].name == name), None)
+    if chosen is None:
+        raise ValueError(f"there's no backup called {name!r} in {backup_dir()}")
+    if not opens_cleanly(chosen["path"]):
+        raise ValueError(f"the backup {name} is damaged too")
+    live = Path(database.get_db_path())
+    stamp = datetime.now().strftime(_STAMP)
+    staging = live.with_name(f"{live.name}.restoring")
+    shutil.copyfile(chosen["path"], staging)
+    kept = live.with_name(f"{live.name}.damaged-{stamp}")
+    if live.exists():
+        shutil.copyfile(live, kept)
+    for suffix in ("-journal", "-wal", "-shm"):
+        side = Path(f"{live}{suffix}")
+        if side.exists():
+            os.replace(side, side.with_name(f"{side.name}.damaged-{stamp}"))
+    os.replace(staging, live)
+    return kept
+
+
 def copy_database(destination) -> None:
     """Write a consistent, compact copy of the database to ``destination``."""
     destination = Path(destination)

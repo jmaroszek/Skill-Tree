@@ -265,6 +265,8 @@ def main(argv=None):
                     database.DatabaseUnwritableError.exit_code)
         if not owned:
             sys.exit(server_runtime.hand_over(lock, options))
+        if options.restore_backup:
+            _restore_backup(options.restore_backup)
     token = server_runtime.launch_token()
     if not options.dev:
         # Nothing this process starts needs it.
@@ -275,6 +277,8 @@ def main(argv=None):
     except database.DatabaseError as exc:
         # A database this build won't open (newer, damaged, busy, read-only,
         # or an SQLite too old for it). The file is untouched.
+        if isinstance(exc, database.DatabaseCorruptError):
+            _offer_backup(server_runtime)
         lock.release()
         _refuse(str(exc), exc.exit_code)
 
@@ -288,6 +292,43 @@ def main(argv=None):
         server_runtime.run_dev(app, options, lock, token, reloader_child)
     else:
         server_runtime.serve(app, options, lock, token)
+
+
+def _offer_backup(server_runtime):
+    """A damaged database: name the newest backup that opens cleanly, which
+    the desktop shell offers to put in its place (--restore-backup)."""
+    import backup
+    try:
+        good = backup.newest_good_backup()
+    except OSError:
+        return
+    if good is not None:
+        server_runtime.offer_restore(good)
+
+
+def _restore_backup(name):
+    """--restore-backup NAME: put that backup in place of a damaged database,
+    keeping the damaged file. A database that opens cleanly is never
+    replaced, and one that is only busy or unreadable is left for init_db to
+    refuse with its own reason."""
+    import backup
+    path = database.get_db_path()
+    try:
+        database.check_integrity(path)
+    except database.DatabaseCorruptError:
+        pass
+    except database.DatabaseError:
+        return
+    else:
+        _logger.warning("Not restoring %s: the database opens cleanly.", name)
+        return
+    try:
+        kept = backup.restore_over_damaged(name)
+    except (ValueError, OSError) as exc:
+        _refuse(f"Couldn't restore the backup: {exc}.",
+                database.DatabaseCorruptError.exit_code)
+    _logger.warning("Restored the backup %s over a damaged database; the damaged "
+                    "file is kept as %s.", name, kept)
 
 
 def _refuse(message, exit_code):
