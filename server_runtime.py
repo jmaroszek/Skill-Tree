@@ -74,7 +74,8 @@ def parse_args(argv) -> LaunchOptions:
         desktop=desktop,
         open_browser=not desktop and "--no-browser" not in argv,
         # The shell reads the READY line, which the debug server can't print.
-        dev="--dev" in argv and not desktop,
+        # A frozen build has no development bundles (packaging/unused_files.py).
+        dev="--dev" in argv and not desktop and not getattr(sys, "frozen", False),
         restore_backup=restore,
     )
 

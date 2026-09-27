@@ -1,4 +1,5 @@
 """What changes when the server runs as a frozen (PyInstaller) build (P3.8)."""
+import runpy
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import callback_helpers
 import resource_links
 
 ROOT = Path(__file__).resolve().parents[1]
+unused = runpy.run_path(str(ROOT / "packaging" / "unused_files.py"))["unused"]
 
 
 @pytest.fixture
@@ -34,6 +36,38 @@ def test_the_app_serves_assets_from_the_resource_path(monkeypatch):
     dash_app = app_module.create_app(app_module.AppSettings(
         environment="sandbox", configure_logging=False))
     assert Path(dash_app.config.assets_folder) == app_paths.resource_path("assets")
+
+
+def test_the_frozen_build_keeps_every_file_the_app_serves(monkeypatch):
+    """The spec leaves development builds out of the bundle
+    (packaging/unused_files.py). Every file the page loads, at once or on
+    demand, must stay: a missing one would break only the installed app."""
+    import app as app_module
+    monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
+    dash_app = app_module.create_app(app_module.AppSettings(
+        environment="sandbox", configure_logging=False))
+    dash_app.server.test_client().get("/")  # registers everything the page may load
+    served = {f"{package}/{path}" for package, paths in dash_app.registered_paths.items()
+              for path in paths}
+    # Loaded on demand: the charts' plotly.js, and dcc's chunk for dcc.Graph.
+    assert {"plotly/package_data/plotly.min.js", "dash/dcc/async-graph.js"} <= served
+    assert sorted(path for path in served if unused(path)) == []
+
+
+@pytest.mark.parametrize("path, left_out", [
+    ("dash/dash-renderer/build/dash_renderer.dev.js", True),
+    ("dash/dash-renderer/build/dash_renderer.min.js", False),
+    ("dash\\deps\\react-dom@18.3.1.js", True),  # Windows separators
+    ("dash/deps/react-dom@18.3.1.min.js", False),
+    ("dash_cytoscape/dash_cytoscape_extra.dev.js", True),
+    ("dash/dcc/dash_core_components.js.map", False),
+    ("plotly/package_data/widgetbundle.js", True),
+    ("plotly/package_data/templates/plotly_dark.json", False),
+    # The app's own files are never left out.
+    ("assets/custom.dev.js", False),
+])
+def test_what_the_frozen_build_leaves_out(path, left_out):
+    assert unused(path) is left_out
 
 
 def test_the_tkinter_picker_is_off_in_a_frozen_build(frozen, monkeypatch):

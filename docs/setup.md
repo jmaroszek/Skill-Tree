@@ -100,9 +100,14 @@ cd electron && npm run dist                                          # -> electr
   fonts, icons and scripts. Each platform writes its own, since some Python packages
   are platform-specific. The server's build bundles it and Settings → About opens it.
 
+- The spec leaves out files the server's packages ship but never serve: Dash's and
+  Dash Cytoscape's development builds, and plotly's Jupyter widget
+  (`packaging/unused_files.py`). A test checks the list against every file the app
+  serves.
 - `npm run dist` makes the installer for the machine it runs on: an NSIS installer on
   Windows, a dmg and zip on macOS, and an AppImage and deb on Linux
-  (`electron/electron-builder.yml`).
+  (`electron/electron-builder.yml`). On Windows it leaves out Chromium's WebGPU
+  shader compiler, which Skill Tree doesn't use (`electron/build/unused-files.js`).
 - CI builds and smoke-tests the server on every push.
 - `packaging/app_journey.py` drives a built app the way a new user would: the window,
   the welcome, a node saved, quitting, and a second start. It uses a throwaway data

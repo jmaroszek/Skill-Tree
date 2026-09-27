@@ -30,6 +30,9 @@ extraResources:
   - from: ../dist/skilltree-server
     to: server
 
+# Leaves out the parts of Electron that Skill Tree never uses.
+afterPack: build/unused-files.js
+
 win:
   target:
     - target: nsis

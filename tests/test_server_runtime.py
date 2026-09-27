@@ -37,6 +37,12 @@ def test_arguments(argv, expected):
     assert parse_args(argv) == expected
 
 
+def test_a_frozen_build_ignores_dev(monkeypatch):
+    """Its Dash has no development bundles to serve (packaging/unused_files.py)."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert parse_args(["--dev", "--sandbox"]).dev is False
+
+
 # --- One server per database (P3.3) ----------------------------------------
 
 def _db(tmp_path, name="skilltree.db"):

@@ -67,7 +67,7 @@ manager reads one database per process, and the revision counters in
 | [context_picker.py](../context_picker.py), [list_toolbar.py](../list_toolbar.py), [duration_ui.py](../duration_ui.py) | Shared pieces of the UI: the context/subcontext picker, the Goals and Events sidebars' search-and-sort toolbar, and estimate guidance with the Time Simulation chart. |
 | [prerender.py](../prerender.py) | The `@prerendered` marker and the pass that runs marked callbacks' page-load calls into the layout while it is built. See Startup readiness. |
 | [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
-| `tools/`, `packaging/` | Developer tools: the synthetic graph and benchmark for performance checks, and the server launcher the browser journeys share (`tools/`). The server's PyInstaller spec, its smoke test, the packaged-app journey and the third-party notices (`packaging/`). |
+| `tools/`, `packaging/` | Developer tools: the synthetic graph and benchmark for performance checks, and the server launcher the browser journeys share (`tools/`). The server's PyInstaller spec and the package files it leaves out, its smoke test, the packaged-app journey and the third-party notices (`packaging/`). |
 | [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. Third-party files live in `assets/vendor/` (the DARKLY theme and its Lato font, Bootstrap Icons, SortableJS), each with its license, so the app makes no network requests. Dash's automatic includes skip that folder; `app.VENDOR_STYLESHEETS` loads its CSS ahead of the app's own, and the sortables load `Sortable.min.js` on demand. |
 | Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py), [data_callbacks.py](../data_callbacks.py), [about_callbacks.py](../about_callbacks.py), [onboarding_callbacks.py](../onboarding_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
 
@@ -168,7 +168,8 @@ without a second offer.
   `hard_reload_on_restart.js`. The reloader's parent holds the lock and hands the
   token to each child it restarts. Werkzeug's debugger sits outside Flask, so its
   console skips `AccessGuard` and relies on its own PIN. That is one reason
-  `--dev` is for developers only, and the desktop shell never passes it.
+  `--dev` is for developers only, and the desktop shell never passes it. A frozen
+  build ignores it: it ships without Dash's development bundles.
 
 ### 2. Graph mutation → render (the central loop)
 
