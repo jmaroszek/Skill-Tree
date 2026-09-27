@@ -97,6 +97,16 @@ cd electron && npm ci && npm run dist                                # -> electr
   Windows, a dmg and zip on macOS, and an AppImage and deb on Linux
   (`electron/electron-builder.yml`).
 - CI builds and smoke-tests the server on every push.
+- `packaging/app_journey.py` drives a built app the way a new user would: the window,
+  the welcome, a node saved, quitting, and a second start. It uses a throwaway data
+  folder, so it never touches yours. The release workflow runs it on every platform:
+
+  ```bash
+  pip install -r requirements-e2e.txt
+  python packaging/app_journey.py "electron/dist/win-unpacked/Skill Tree.exe"     # Windows
+  python packaging/app_journey.py "electron/dist/mac-arm64/Skill Tree.app/Contents/MacOS/Skill Tree"
+  python packaging/app_journey.py electron/dist/linux-unpacked/skill-tree --headless  # needs xvfb-run
+  ```
 
 ## Notes
 

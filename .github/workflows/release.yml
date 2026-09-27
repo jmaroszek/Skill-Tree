@@ -115,6 +115,22 @@ jobs:
           echo "Packaged server: $server"
           python packaging/smoke_test.py "$server"
 
+      # The app a user runs, driven the way they would: the window, the
+      # welcome, a node saved, quitting, and a second start
+      # (packaging/app_journey.py). On Linux it runs on a virtual screen.
+      - name: Drive the packaged app
+        shell: bash
+        run: |
+          python -m pip install -r requirements-e2e.txt
+          case "$RUNNER_OS" in
+            Windows) app=$(find electron/dist -path "*unpacked*" -name "Skill Tree.exe" | head -n 1); flags="" ;;
+            macOS)   app=$(find electron/dist -path "*.app/Contents/MacOS/Skill Tree" -type f | head -n 1); flags="" ;;
+            Linux)   app=electron/dist/linux-unpacked/skill-tree; flags="--headless"
+                     command -v xvfb-run >/dev/null || { sudo apt-get update && sudo apt-get install -y xvfb; } ;;
+          esac
+          echo "Packaged app: $app"
+          python packaging/app_journey.py "$app" $flags
+
       - uses: actions/upload-artifact@v4
         with:
           name: installers-${{ matrix.name }}
