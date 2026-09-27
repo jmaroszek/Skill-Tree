@@ -45,7 +45,14 @@ class TestConflictRule:
 
     def test_keeping_the_name_never_conflicts(self, manager):
         # Even beside a case-variant duplicate an older database may hold.
-        manager.add_node(_node("sleep"))
+        # add_node refuses one now, so write it the way older versions did.
+        import database
+        with database.transaction() as conn:
+            conn.execute("INSERT INTO Nodes (name, type, description, value, time_o, "
+                         "time_m, time_p, interest, difficulty, context, status) "
+                         "SELECT 'sleep', type, description, value, time_o, time_m, "
+                         "time_p, interest, difficulty, context, status FROM Nodes "
+                         "WHERE name = 'Sleep'")
         assert conflicting_node_name(manager, "Sleep", "Sleep") is None
 
     def test_case_only_rename_of_the_node_itself(self, manager):

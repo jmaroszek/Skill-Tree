@@ -1904,7 +1904,11 @@ def register_callbacks(app, services=None):
 
                     flipped = 0
                     # One transaction, so a failure part-way through leaves
-                    # every selected node as it was.
+                    # every selected node as it was. Prerequisites go first,
+                    # so a chain selected in any order can be completed.
+                    if new_status == STATUS_DONE:
+                        order = manager.completion_order([n.name for n in nodes])
+                        nodes = sorted(nodes, key=lambda n: order.index(n.name))
                     with database.transaction():
                         for node in nodes:
                             if node.status != new_status:

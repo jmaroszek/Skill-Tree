@@ -125,12 +125,54 @@ class GraphManager:
 
     # --- Node Operations ---
 
+    def _name_taken(self, name: str, own: Optional[str] = None) -> Optional[str]:
+        """The existing node, other than ``own``, whose name is ``name`` ignoring
+        case (casefold, as the editor compares), or None."""
+        wanted = name.casefold()
+        with self.get_connection() as conn:
+            for (existing,) in conn.execute("SELECT name FROM Nodes"):
+                if existing != own and existing.casefold() == wanted:
+                    return existing
+        return None
+
+    def _unfinished_prerequisites(self, name: str) -> List[str]:
+        """The hard prerequisites of ``name`` that aren't Done."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT e.source FROM Edges e JOIN Nodes n ON n.name = e.source "
+                "WHERE e.target = ? AND e.type = ? AND n.status != ? ORDER BY e.source",
+                (name, EDGE_NEEDS_HARD, STATUS_DONE)).fetchall()
+        return [row[0] for row in rows]
+
+    def completion_order(self, names: List[str]) -> List[str]:
+        """``names`` with every hard prerequisite ahead of what it unlocks, so
+        completing them one by one never meets a blocked node. Otherwise the
+        order is kept."""
+        chosen = list(dict.fromkeys(names))
+        wanted = set(chosen)
+        prerequisites = {name: set() for name in chosen}
+        for edge in self.get_edges():
+            if (edge['type'] == EDGE_NEEDS_HARD and edge['source'] in wanted
+                    and edge['target'] in wanted):
+                prerequisites[edge['target']].add(edge['source'])
+        ordered, placed = [], set()
+        while len(ordered) < len(chosen):
+            ready = [n for n in chosen if n not in placed and prerequisites[n] <= placed]
+            if not ready:  # a cycle can't form among Needs edges; keep the rest as given
+                ready = [n for n in chosen if n not in placed]
+            ordered.append(ready[0])
+            placed.add(ready[0])
+        return ordered
+
     @database.atomic
     def add_node(self, node: Node):
         """Add a new node to the database."""
         problem = graph_rules.name_problem(node.name, "Node name")
         if problem:
             raise ValueError(problem)
+        taken = self._name_taken(node.name)
+        if taken:
+            raise ValueError(f"A node named '{taken}' already exists.")
         if not node.context:
             raise ValueError(
                 f"'{node.name}' must have a context: choose the area of life "
@@ -148,6 +190,18 @@ class GraphManager:
                 "it belongs to."
             )
         prior = self.get_node(node.name)
+        # A node is Done only once its hard prerequisites are: that is what
+        # Blocked means, and the launch repair (recompute_all_statuses) would
+        # put it back to Blocked otherwise. Goals are the user's to complete.
+        if (node.status == STATUS_DONE and node.type != "Goal"
+                and (prior is None or prior.status != STATUS_DONE)):
+            blockers = self._unfinished_prerequisites(node.name)
+            if blockers:
+                listed = ", ".join(f"'{b}'" for b in blockers[:3])
+                more = f" and {len(blockers) - 3} more" if len(blockers) > 3 else ""
+                raise ValueError(
+                    f"'{node.name}' can't be Done yet: it needs {listed}{more} first. "
+                    "Finish those, or remove the requirement.")
         # --- Auto-stamp lifecycle snapshots and clear Now on completion ---
         # start_date is refreshed to today on every fresh off→on Now flip, so
         # it remains the convenient latest-start snapshot used by existing UI.
@@ -340,6 +394,9 @@ class GraphManager:
         problem = graph_rules.name_problem(new_name, "Node name")
         if problem:
             raise ValueError(problem)
+        taken = self._name_taken(new_name, own=old_name)
+        if taken:
+            raise ValueError(f"A node named '{taken}' already exists.")
         self._repository.rename_node(old_name, new_name)
         ConfigManager.rename_node_references(old_name, new_name)
         self._bump_version()
