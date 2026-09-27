@@ -45,6 +45,9 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  include: build/installer.nsh
+  createStartMenuShortcut: true
+  createDesktopShortcut: true
   # The graph lives in %LOCALAPPDATA%\Skill Tree, not in the app's folders,
   # so uninstalling never takes it. This only concerns the shell's cache.
   deleteAppDataOnUninstall: false

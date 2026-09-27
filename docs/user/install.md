@@ -24,8 +24,9 @@ means Apple silicon; "Processor: Intel" means Intel.
 
 1. Run `Skill-Tree-Setup-<version>.exe`.
 2. Choose where to install it, or keep the default. It installs for you alone and
-   doesn't need an administrator.
-3. Start Skill Tree from the Start menu.
+   doesn't need an administrator. The desktop shortcut option is checked by
+   default; clear it if you don't want an icon on your desktop.
+3. Start Skill Tree from the Start menu or the desktop shortcut.
 
 If Windows shows "Windows protected your PC", choose **More info**, then
 **Run anyway**. The installer is signed, but Windows can still warn about a

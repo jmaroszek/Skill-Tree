@@ -5,6 +5,9 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- The Windows installer now asks whether to add a desktop shortcut (checked by
+  default) and launches the installed app directly from its Finish page.
+
 ## 1.0.0 (not yet released)
 
 The first public release: Skill Tree as an app anyone can install.
