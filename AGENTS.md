@@ -14,11 +14,11 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 
 Five types — each answers a different question. Picking the right one matters; misclassification muddies the rankings.
 
-- **Goal** — a *domain, area, or capacity* the user is developing. "What am I trying to achieve here." Container-flavored, almost never atomic. "Done" = all Hard children Done (cascade). Examples: Sleep, Strength, Stoicism, Character.
+- **Goal** — a *domain, area, or capacity* the user is developing. "What am I trying to achieve here." Container-flavored, almost never atomic. "Done" = the user judges it met. When its last Hard child is marked Done, the app suggests marking the Goal Done too (the auto-Done modal), but never does it on its own. The status cascade never changes a Goal's status. Examples: Sleep, Strength, Stoicism, Character.
 - **Learn** — a *topic or body of knowledge* the user wants to integrate. Can be atomic (Sleep Pressure, Stretching) or a container with sub-Learns (Sleep Theory, Biology of Stress). "Done" = "I understand this enough to apply or explain it."
 - **Action** — a *discrete practice or experiment* with a definite end. The user runs them as 6-week PIMLI cycles. "Done" = the cycle is complete. Time-on-task is the actual doing.
 - **Resource** — *external material* (book, course, notes). "Done" = absorbed.
-- **Milestone** — a *measurable, verifiable single-event achievement* (weight target, time, count). **Excluded from scoring** — the work happens upstream in capacity Goals; the Milestone is the checkpoint, not the practice. Use minimal time estimates (1/1/1) since the field doesn't apply.
+- **Milestone** — a *measurable, verifiable single-event achievement* (weight target, time, count). **Excluded from scoring** — the work happens upstream in capacity Goals; the Milestone is the checkpoint, not the practice. `Node` forces its time and value to inherited, so it has no estimate to set. Value passes through a Milestone as a free hop: A→M→B scores like A→B.
 
 **Decision tree (first yes wins):**
 1. External material to consume? → Resource
@@ -34,7 +34,7 @@ Five types — each answers a different question. Picking the right one matters;
 - Goal-flavored Milestone (measurable target treated as Goal) → convert to Milestone
 - Goal-flavored Action (fixed-period practice treated as Goal) → convert to Action
 
-User-facing version of this lives in the README's "Choosing the right node type" section — keep both in sync if the framework evolves.
+The user-facing version of this is Node Types in [`docs/modeling.md`](docs/modeling.md). Keep both in sync if the framework evolves.
 
 ## Edge-type semantics
 
@@ -42,16 +42,20 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 
 - **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop).
 - **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
-- **`Helps`** (Synergy) — *mutual multiplicative reinforcement*, not a lesser Soft. Doing both is significantly more valuable than the sum of doing each alone (e.g., concepts that blend unusually well). Bidirectional, non-transitive (no chains). Synergy contributes via two paths: a small **pair bonus** `d_Syn_pair * tv(partner)` pre-completion, and a **multiplicative kick on intrinsic value** `iv * (1 + d_Syn_mul * sqrt(count_done_partners))` once partners are Done. The sqrt is a diminishing-returns cap so a hub of N synergy partners gives ~`sqrt(N)`× the boost, not N× — keeps "more partners = more boost" without unbounded inflation. Multiplier applies to intrinsic only — not to the cascade or the pair bonus. See [`scoring.py`](scoring.py)'s `total_value` for the implementation.
+- **`Helps`** (Synergy) — *mutual multiplicative reinforcement*, not a lesser Soft. Doing both is significantly more valuable than the sum of doing each alone (e.g., concepts that blend unusually well). Bidirectional, non-transitive (no chains). Synergy contributes via two paths: a small **pair bonus** pre-completion (`d_Syn_pair` of each unfinished partner's total value, times `m_cross` when the partner is in another context), and a **multiplicative kick on intrinsic value** `iv * (1 + d_Syn_mul * sqrt(count_done_partners))` once partners are Done. The sqrt is a diminishing-returns cap so a hub of N synergy partners gives ~`sqrt(N)`× the boost, not N× — keeps "more partners = more boost" without unbounded inflation. Multiplier applies to intrinsic only — not to the cascade or the pair bonus. See [`scoring.py`](scoring.py)'s `total_value` for the implementation.
+
+**Edge direction — easy to get backwards.** `A --Needs_Hard/Soft--> B` means **A unlocks B**: A is the prerequisite, B is the dependent, and B stays Blocked until A is Done. Read the arrow as "leads to / unlocks," *not* "depends on." Value cascades **forward** along arrows (completing A flows discounted value to everything it unlocks); **eligibility runs backward** (a node is Blocked by its *incoming* hard prereqs). Mixing up these two directions has caused repeated bugs. [`docs/scoring.md`](docs/scoring.md) has the forward cascade (The DAG Cascade) and how a Goal is ranked by the hard subtree that leads into it (Goal Scoring).
 
 ## Where to look
 
 Don't duplicate these in this file — they're the source of truth for their respective topics:
 
 - [`docs/app_architecture.md`](docs/app_architecture.md) — module responsibilities, tab-callback pattern, Cytoscape pipeline, JS-Dash bridge, persistence and caching.
+- [`docs/modeling.md`](docs/modeling.md) — how to build a good graph: node types, relationships, contexts. Read it before a hands-on graph review.
 - [`docs/scoring.md`](docs/scoring.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
 - [`docs/time.md`](docs/time.md) — what the lower/expected/upper bracket means, the weighting rule that produces `t(n)`, and the Monte Carlo simulator behind the Time Simulation panel.
-- [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
+- [`README.md`](README.md) — why the app exists, and the map to the five user documents.
+- [`docs/features.md`](docs/features.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.
 - [`docs/user/`](docs/user/) — install, privacy and troubleshooting, for people using the app. Keep them true when the behavior they describe changes. User-visible changes go in [`CHANGELOG.md`](CHANGELOG.md) under Unreleased.
 - `docs/production_readiness_plan.md` is the **private, gitignored** checklist for making the app downloadable by others (packaging, data safety, hardening). If it is in your checkout, read it before production-readiness work and check off items as you finish them. If it is missing (cloud container, worktree), ask the user for the latest copy. Never commit it.
@@ -64,8 +68,8 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 
 - Every tab module exposes exactly one public function: `register_*_callbacks(app)`. `app.py` imports and calls each. New tab = one more `register_*` call.
 - Node `name` is the primary key; edges have composite PK `(source, target, type)` so the same pair can carry both a prerequisite and a synergy.
-- Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`callbacks.py`](callbacks.py). That function is the single source of truth for what Cytoscape sees.
-- Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip.
+- Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`callbacks.py`](callbacks.py). That function is the single source of truth for what the Nodes canvas shows.
+- Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip. Goals are exempt: they keep whatever status the user set.
 - The JS-Dash bridge uses native HTML `value` setters (via `Object.getOwnPropertyDescriptor`) to get React to notice programmatic input changes — plain `el.value = ...` is silently ignored.
 - `ConfigManager` is classmethod-only and round-trips everything through the `Settings` SQLite table. There is no persistent settings cache. Read operations may share a `database.read_snapshot()`; it expires at the end of the operation and is invalidated by local writes, so subsequent operations see fresh state across tab modules.
 
@@ -75,7 +79,7 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 pytest
 ```
 
-Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to a per-test `tmp_path`. Nothing touches sandbox or production DBs.
+Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to a per-test `tmp_path`. Nothing writes to the sandbox or production DBs. Two scoring tests in `test_scoring_differential.py` read each one when it exists: they take a read-only snapshot into `tmp_path` and score the copy. They skip when the file is missing.
 
 The browser journeys in `tests/e2e` (a real server, driven in Chromium) skip unless Playwright is installed; see [`docs/setup.md`](docs/setup.md) section 4. Each starts its own server against a throwaway `SKILLTREE_HOME`.
 
@@ -83,5 +87,9 @@ The browser journeys in `tests/e2e` (a real server, driven in Chromium) skip unl
 
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.
 - Prefer extracting pure logic to [`callback_helpers.py`](callback_helpers.py) (stateless) or [`graph_manager.py`](graph_manager.py) (DB-backed) rather than growing the already-large `*_callbacks.py` files further.
+- The node editor's fields are declared once, as `EDITOR_FORM` in [`callback_helpers.py`](callback_helpers.py). A callback that reads the form takes that dict as one State and receives a dict of values. A new editor field goes there, not into each callback's State list.
+- Build canvas elements with `build_node_element` / `build_edge_element` in [`callback_helpers.py`](callback_helpers.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
+- Behavior that belongs on every canvas loops over `CANVASES` in [`canvases.py`](canvases.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
 - For anything time/duration-related, let the `Node.time` property weight the bracket; don't compute a single "time" from `time_o/m/p` yourself.
+- When you add a scoring-relevant field to `Node`, also add it to `graph_manager._SCORING_RELEVANT_FIELDS`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).

@@ -18,7 +18,7 @@ Just enough to keep the right mental model — *not* a modeling manual. The conc
 
 **Edge types** — **`Needs_Hard`** (blocking prerequisite), **`Needs_Soft`** (non-blocking but helpful prep), **`Helps`** (bidirectional synergy — *not* a weaker Soft; it reinforces rather than sequences, and does not cascade).
 
-**Edge direction — the one thing I tend to get backwards.** `A --Needs_Hard/Soft--> B` means **A unlocks B**: A is the prerequisite, B is the dependent, and B stays Blocked until A is Done. Read the arrow as "leads to / unlocks," *not* "depends on." Value cascades **forward** along arrows (completing A flows discounted value to everything it unlocks); **eligibility runs backward** (a node is Blocked by its *incoming* hard prereqs). Mixing up these two directions has caused repeated bugs — [`docs/scoring.md`](docs/scoring.md) has the cascade math, the sink/leaf consequences, and the inverted-graph trick for ranking Goals by their prerequisite subtree.
+**Edge direction — the one thing I tend to get backwards.** `A --Needs_Hard/Soft--> B` means **A unlocks B**: A is the prerequisite, B is the dependent, and B stays Blocked until A is Done. Read the arrow as "leads to / unlocks," *not* "depends on." Value cascades **forward** along arrows (completing A flows discounted value to everything it unlocks); **eligibility runs backward** (a node is Blocked by its *incoming* hard prereqs). Mixing up these two directions has caused repeated bugs. [`docs/scoring.md`](docs/scoring.md) has the forward cascade (The DAG Cascade) and how a Goal is ranked by the hard subtree that leads into it (Goal Scoring).
 
 ## Where to look
 
@@ -27,7 +27,8 @@ Don't duplicate these in this file — they're the source of truth for their res
 - [`docs/app_architecture.md`](docs/app_architecture.md) — the layering, module map, `dcc.Store` wiring, and the cross-file flows (mutation→render, right-click→editor, status cascade, scoring) plus versioning/caching.
 - [`docs/scoring.md`](docs/scoring.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
 - [`docs/time.md`](docs/time.md) — what the lower/expected/upper bracket means, the weighting rule that produces `t(n)`, and the Monte Carlo simulator behind the Time Simulation panel.
-- [`README.md`](README.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
+- [`README.md`](README.md) — why the app exists, and the map to the five user documents.
+- [`docs/features.md`](docs/features.md) — full feature tour written for non-technical readers, grounded in the sandbox dataset.
 - [`STYLE_GUIDE.md`](STYLE_GUIDE.md) — UI conventions (colors, typography, spacing, component styles). Consult before touching any UI; update it when you establish new patterns.
 - [`docs/user/`](docs/user/) — install, privacy and troubleshooting, for people using the app. Keep them true when the behavior they describe changes. User-visible changes go in [`CHANGELOG.md`](CHANGELOG.md) under Unreleased.
 - `docs/production_readiness_plan.md` is the **private, gitignored** checklist for making the app downloadable by others (packaging, data safety, hardening). If it is in your checkout, read it before production-readiness work and check off items as you finish them. If it is missing (cloud container, worktree), ask the user for the latest copy. Never commit it.
@@ -41,7 +42,7 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 - Every tab module exposes exactly one public function: `register_*_callbacks(app)`. `app.py` imports and calls each. New tab = one more `register_*` call.
 - Node `name` is the primary key; edges have composite PK `(source, target, type)` so the same pair can carry both a prerequisite and a synergy.
 - Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`callbacks.py`](callbacks.py). That function is the single source of truth for what the Nodes canvas shows.
-- Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip.
+- Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip. Goals are exempt: they keep whatever status the user set.
 - The JS-Dash bridge uses native HTML `value` setters (via `Object.getOwnPropertyDescriptor`) to get React to notice programmatic input changes — plain `el.value = ...` is silently ignored.
 - `ConfigManager` is classmethod-only and round-trips everything through the `Settings` SQLite table. There is no persistent settings cache. Read operations may share a `database.read_snapshot()`; it expires at the end of the operation and is invalidated by local writes, so subsequent operations see fresh state across tab modules.
 
@@ -51,7 +52,7 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 pytest
 ```
 
-Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to a per-test `tmp_path`. Nothing touches sandbox or production DBs.
+Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to a per-test `tmp_path`. Nothing writes to the sandbox or production DBs. Two scoring tests in `test_scoring_differential.py` read each one when it exists: they take a read-only snapshot into `tmp_path` and score the copy. They skip when the file is missing.
 
 The browser journeys in `tests/e2e` (a real server, driven in Chromium) skip unless Playwright is installed; see [`docs/setup.md`](docs/setup.md) section 4. Each starts its own server against a throwaway `SKILLTREE_HOME`.
 
@@ -59,6 +60,7 @@ The browser journeys in `tests/e2e` (a real server, driven in Chromium) skip unl
 
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.
 - Prefer extracting pure logic to [`callback_helpers.py`](callback_helpers.py) (stateless) or [`graph_manager.py`](graph_manager.py) (DB-backed) rather than growing the already-large `*_callbacks.py` files further.
+- The node editor's fields are declared once, as `EDITOR_FORM` in [`callback_helpers.py`](callback_helpers.py). A callback that reads the form takes that dict as one State and receives a dict of values. A new editor field goes there, not into each callback's State list.
 - Build canvas elements with `build_node_element` / `build_edge_element` in [`callback_helpers.py`](callback_helpers.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
 - Behavior that belongs on every canvas loops over `CANVASES` in [`canvases.py`](canvases.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.

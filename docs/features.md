@@ -284,6 +284,14 @@ Left-click any row to see the node's description beside the table. Right-click i
 
 Importantly, only Learn, Action, and Resource nodes appear as suggestions. Goals and Milestones are excluded — you'll complete them naturally by clearing their subtasks. 
 
+### Variety
+
+Next gently favors variety. A task is discounted when higher-ranked tasks already speak for its area. The default [scoring profile](scoring.md#scoring-profiles), Sage, asks for 5% more priority before it suggests a second task from the same context. From the same subcontext it asks 15% in total. The premium grows with each further repeat. Each profile strikes its own balance between merit and variety.
+
+The discount is part of the score. It doesn't reshuffle a finished list. The number on a bar is the number the list sorts on, so the column always descends. Explain and the subtask tables show that same number. The discount is measured against the whole graph, so filtering the list never changes a score. Under a filter the top bar can therefore read below 100.
+
+Pinned rows still lead the list whatever they score. Adding unrelated projects to a context doesn't lower any task's score. Goals aren't affected: the Goals sidebar has its own way of keeping one area from crowding the rest. The math is in [scoring](scoring.md#suggestion-variety).
+
 ## Context Menu
 Right-click any node — on this tab or anywhere else a node appears — to open the context menu. The menu is the same everywhere, including the [goals sidebar](#goals-sidebar). Options that don't apply to a node are hidden.
 

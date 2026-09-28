@@ -5,6 +5,24 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- The dividers that resize the Details and Events panels work as soon as the tab
+  appears, and the Details divider stays under the pointer as you drag it.
+- Selecting a node on the Nodes tab is faster on large graphs. It no longer
+  works out the contents of a panel the tab stopped showing long ago.
+- Web pages served from your own computer, such as another app's local server,
+  can no longer send changes to Skill Tree.
+- A save that completes a node always fires the events waiting on it.
+- A node that is already Done when its event fires stays out of Now, and Add to
+  Event no longer lists finished nodes.
+- An event fires once. Pressing Trigger on an event that had already fired, in a
+  window that hadn't caught up, now says so instead of pushing its delayed nodes'
+  wake dates later.
+- Importing a graph checks it first. A file the app couldn't have built itself,
+  such as one whose prerequisites loop or whose edges name missing nodes, is
+  refused with the problem named, and nothing changes.
+- A link to a program, script, installer or shortcut (an `.exe`, `.bat` or `.lnk`
+  file, for example) now asks before it opens. Opening one runs it, and links can
+  arrive in someone else's export.
 - A new app icon: a tree whose canopy is a cluster of connected nodes, replacing
   the pixel-art tree.
 - Put the toolbar icons in Filter, Reflection, Settings, Help order.

@@ -110,12 +110,3 @@ Follow the map at the footer of each page. By the end, you will know how to use 
 | Resource | What's there |
 |---|---|
 | [setup.md](docs/setup.md) | How to clone the repo and get the app running locally. |
-
-
-### Variety in Next suggestions
-
-Next gently favors variety. A task is discounted when higher-ranked tasks already speak for its area. Sage asks for 5% more priority for a second recommendation in the same context, or 15% more in the same subcontext (total). The effect accumulates for further repetitions, and each scoring profile supplies its own balance between merit and variety.
-
-The discount is part of the score rather than a reshuffle of the finished list. The number on a bar is the number the list sorts on, so the column always descends. It is also the number Explain and the subtask tables show for that task. The discount is measured against the whole graph, so narrowing the list with filters never changes a score. Under a filter the top bar can therefore read below 100.
-
-Pins still lead the list whatever they score. Adding unrelated projects to a context does not reduce a task score. Goal ranking keeps its separate density setting.

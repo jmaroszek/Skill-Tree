@@ -50,12 +50,13 @@ manager reads one database per process, and the revision counters in
 | [event_manager.py](../event_manager.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. Owns the awake/dormant rule and the one-Event-per-node rule. |
 | [scoring.py](../scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
 | [simulation.py](../simulation.py) | Monte Carlo time simulation. Pure NumPy. |
-| [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, time calibration, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
-| [callback_helpers.py](../callback_helpers.py) | Shared component, filter, link, and form-state helpers, plus compatibility exports. |
+| [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, the node editor's open/save/unsaved-changes flow, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
+| [calibration_callbacks.py](../calibration_callbacks.py), [resource_link_callbacks.py](../resource_link_callbacks.py) | Split out of the core engine and registered beside the tab modules: the time-calibration and reflection modal (after a completion, a review, or an edit from the Review Hub), and the node editor's Resources section. |
+| [callback_helpers.py](../callback_helpers.py) | Shared component, filter, link, and form-state helpers, plus compatibility exports. `EDITOR_FORM` declares the node editor's fields once; a callback that reads the form takes it as one grouped State and receives a dict. |
 
 | [goal_ranking.py](../goal_ranking.py), [graph_analytics.py](../graph_analytics.py) | Shared goal ranking/explanations and analytics data preparation. |
 | [node_commands.py](../node_commands.py), [context_rules.py](../context_rules.py), [editor_values.py](../editor_values.py), [next_view.py](../next_view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
-| [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named response contract (31 fields). |
+| [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named response contract (26 fields). |
 | [server_runtime.py](../server_runtime.py) | How the server runs: launch options, the per-database instance lock, the `SKILLTREE_READY`/`RUNNING`/`DAMAGED` lines the shell reads, the access guard, and the stdin watchdog. See How the server runs, under Startup. |
 | [app_paths.py](../app_paths.py), [version.py](../version.py) | The per-user Data and Logs folders on each OS, the `SKILLTREE_HOME` override, and `resource_path` for frozen builds; and the one version number. |
 | [backup.py](../backup.py), [data_transfer.py](../data_transfer.py) | Backups in `Data/Backups` by kind, with keep counts, and mending a damaged database from the newest good one; JSON export and import, the database-file export, and restore. Settings → Data drives both ([data_callbacks.py](../data_callbacks.py)). |
@@ -63,7 +64,7 @@ manager reads one database per process, and the revision counters in
 | [bridge_payloads.py](../bridge_payloads.py) | The values page scripts write into hidden inputs (`value|timestamp`, JSON name lists, edge keys) and how to read them, so a name containing `|` reads back whole. |
 | [perf.py](../perf.py) | The scoring timings log behind Settings → Recommendations' Graph Statistics readout. |
 | [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. `layout.py` also builds the page template, which carries the startup cover. |
-| [styles.py](../styles.py), [style_tokens.py](../style_tokens.py), [ui_kit.py](../ui_kit.py) | Component style dicts, the design tokens they draw on, and small shared controls (close, add, info, restore). [STYLE_GUIDE.md](../STYLE_GUIDE.md) says how to use them. |
+| [styles.py](../styles.py), [style_tokens.py](../style_tokens.py), [ui_kit.py](../ui_kit.py) | Component style dicts, the design tokens they draw on, and small shared controls (close, add, info, restore, and the split handles that resize neighbouring panels). [STYLE_GUIDE.md](../STYLE_GUIDE.md) says how to use them. |
 | [context_picker.py](../context_picker.py), [list_toolbar.py](../list_toolbar.py), [duration_ui.py](../duration_ui.py) | Shared pieces of the UI: the context/subcontext picker, the Goals and Events sidebars' search-and-sort toolbar, and estimate guidance with the Time Simulation chart. |
 | [prerender.py](../prerender.py) | The `@prerendered` marker and the pass that runs marked callbacks' page-load calls into the layout while it is built. See Startup readiness. |
 | [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
@@ -76,12 +77,15 @@ Resource links live only in `NodeResourceLinks`, keyed by node and section
 each `Node` as `resource_links`. Every section is ordinary: its `kind` says how
 links open (`obsidian` or the OS default), and its optional root makes paths
 relative. The editor renders every section with one set of pattern-matched
-callbacks (`resource-link`, index `"<section>:<row>"`) and saves them through
+callbacks (`resource-link`, index `"<section>:<row>"`, in
+[resource_link_callbacks.py](../resource_link_callbacks.py)) and saves them through
 `handle_save` in the node transaction. Settings removes a section with its
 links only on Save. Electron uses a context-isolated preload/IPC bridge for its
 native file and folder dialogs; the standalone-browser mode retains a tkinter
 subprocess picker. Context-menu opens resolve a saved node/section link on the
-Python server rather than accepting an arbitrary path from the page.
+Python server rather than accepting an arbitrary path from the page. Before
+opening a local file that could run a program (an `.exe`, a script, a shortcut
+and the like; `RUNNABLE_SUFFIXES`), the opener asks first.
 
 ## State flow: stores are the wiring
 
@@ -160,6 +164,12 @@ without a second offer.
   cookie. `/?token=<t>` sets that cookie (HttpOnly, SameSite=Strict) and
   redirects to `/`. The desktop shell makes the token and passes it in
   `SKILLTREE_TOKEN`; a browser launch makes its own and opens that link.
+  A request that changes something (anything but GET or HEAD) and names an
+  Origin must name the server's own, `http://127.0.0.1:<port>` or
+  `http://localhost:<port>`. SameSite doesn't separate ports, so this is what
+  stops another page served from this machine, such as a different local dev
+  server, from posting to Dash with the cookie. `null` is refused too. A
+  request with no Origin at all isn't a page's, and still needs the cookie.
 - **Stopping.** The desktop shell holds the server's stdin. When it closes, because
   the shell quit or crashed, the server finishes its requests and exits, so no
   server outlives its window. SIGTERM and Ctrl+C do the same.
