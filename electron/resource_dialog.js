@@ -1,5 +1,17 @@
 'use strict';
 
+// Do not let an imported UNC root make a native dialog visit another host.
+// Import also clears device-local roots, so a newly selected local root is
+// still a convenient starting folder for later Browse clicks.
+function localStartingPath(value) {
+  if (typeof value !== 'string' || !value) return undefined;
+  if (value.startsWith('\\\\') || value.startsWith('//')) return undefined;
+  if (process.platform === 'win32') {
+    return /^[A-Za-z]:[\\/]/.test(value) ? value : undefined;
+  }
+  return value.startsWith('/') ? value : undefined;
+}
+
 // getPort returns the server's port, which is only known once it is ready.
 function registerResourceDialog(ipcMain, dialog, getWindow, getPort) {
   ipcMain.handle('skilltree:pick-file', async (event, options) => {
@@ -12,7 +24,7 @@ function registerResourceDialog(ipcMain, dialog, getWindow, getPort) {
     const opts = options && typeof options === 'object' ? options : {};
     const result = await dialog.showOpenDialog(getWindow(), {
       title: typeof opts.title === 'string' ? opts.title.slice(0, 100) : 'Select file',
-      defaultPath: typeof opts.defaultPath === 'string' ? opts.defaultPath : undefined,
+      defaultPath: localStartingPath(opts.defaultPath),
       properties: [opts.directory ? 'openDirectory' : 'openFile'],
       filters: !opts.directory && opts.markdown ? [
         { name: 'Markdown files', extensions: ['md'] },

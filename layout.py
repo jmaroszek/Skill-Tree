@@ -996,6 +996,41 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
     <head>
         {%metas%}
         <title>{%title%}</title>
+        <script>
+        (function () {
+            var params = new URLSearchParams(location.search);
+            var launchToken = params.get('token');
+            if (launchToken) {
+                sessionStorage.setItem('skilltree_launch_token', launchToken);
+                history.replaceState(null, '', location.pathname + location.hash);
+            }
+            var token = sessionStorage.getItem('skilltree_launch_token');
+            if (!token) return;
+            var headerName = 'X-Skill-Tree-Token';
+            var originalFetch = window.fetch;
+            if (originalFetch) {
+                window.fetch = function (input, init) {
+                    var target = input instanceof Request ? input.url : String(input);
+                    if (new URL(target, location.href).origin === location.origin) {
+                        var request = new Request(input, init);
+                        request.headers.set(headerName, token);
+                        return originalFetch.call(this, request);
+                    }
+                    return originalFetch.apply(this, arguments);
+                };
+            }
+            var originalOpen = XMLHttpRequest.prototype.open;
+            var originalSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.open = function (method, url) {
+                this._skillTreeOwnOrigin = new URL(url, location.href).origin === location.origin;
+                return originalOpen.apply(this, arguments);
+            };
+            XMLHttpRequest.prototype.send = function () {
+                if (this._skillTreeOwnOrigin) this.setRequestHeader(headerName, token);
+                return originalSend.apply(this, arguments);
+            };
+        })();
+        </script>
         {%favicon%}
         {%css%}
     </head>

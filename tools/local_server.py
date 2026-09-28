@@ -3,7 +3,7 @@ database: the browser journeys (tests/e2e) and the performance check
 (tools/perf_bench.py) share this.
 
     server = Server(home).start()      # app.py --sandbox --port 0 --no-browser
-    page.goto(server.link)             # the token link; the server swaps it for a cookie
+    page.goto(server.link)             # the token link seeds origin-scoped sessionStorage
     server.query("SELECT name FROM Nodes")
     server.stop()
 

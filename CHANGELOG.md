@@ -5,6 +5,13 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- The local server keeps its launch key in the tab instead of a cookie shared
+  with other services on the same computer. Reopen the app's link after a restart.
+- Imported exports can no longer redirect later backups to another folder;
+  the backup folder already chosen on this computer stays in place.
+- Import keeps resource links but clears their device-specific root folders;
+  choose each folder on this computer after import. Browse still starts at a
+  locally saved root, while network roots cannot start the dialog silently.
 - The dividers that resize the Details and Events panels work as soon as the tab
   appears, and the Details divider stays under the pointer as you drag it.
 - Selecting a node on the Nodes tab is faster on large graphs. It no longer

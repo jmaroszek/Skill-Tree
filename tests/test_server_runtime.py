@@ -147,21 +147,33 @@ def _get(client, path="/", host=f"127.0.0.1:{PORT}", **kwargs):
 
 def test_without_the_token_the_server_refuses(guarded):
     response = _get(guarded)
-    assert response.status_code == 403
-    assert "link" in response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "the app" not in response.get_data(as_text=True)
+    assert "sessionStorage" in response.get_data(as_text=True)
+    assert _get(guarded, "/_dash-layout").status_code == 403
 
 
-def test_the_token_link_sets_a_strict_cookie_and_drops_the_token(guarded):
+def test_the_token_link_serves_the_page_without_a_bearer_cookie(guarded):
     response = _get(guarded, "/?token=t0ken")
-    assert response.status_code in (302, 303)
-    assert response.headers["Location"].endswith("/")
-    cookie = response.headers["Set-Cookie"]
-    assert cookie.startswith("skilltree_sandbox=t0ken")
-    assert "HttpOnly" in cookie and "SameSite=Strict" in cookie and "Path=/" in cookie
+    assert response.status_code == 200
+    assert response.get_data(as_text=True) == "the app"
+    assert "t0ken" not in response.headers.get("Set-Cookie", "")
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Cache-Control"] == "no-store"
 
-    assert _get(guarded).status_code == 200            # the cookie now rides along
-    posted = guarded.post("/_dash-update-component", headers={"Host": f"127.0.0.1:{PORT}"})
+    assert _get(guarded).status_code == 200  # only the unprivileged bootstrap
+    assert _get(guarded, "/_dash-layout").status_code == 403
+    headers = {"Host": f"127.0.0.1:{PORT}", "X-Skill-Tree-Token": "t0ken"}
+    assert guarded.get("/_dash-layout", headers=headers).status_code == 404
+    posted = guarded.post("/_dash-update-component", headers=headers)
     assert posted.status_code == 200
+
+
+def test_a_stolen_legacy_cookie_cannot_authorize_data(guarded):
+    guarded.set_cookie("skilltree_sandbox", "t0ken", domain="127.0.0.1")
+    assert _get(guarded, "/_dash-layout").status_code == 403
+    assert guarded.post("/_dash-update-component", headers={"Host": f"127.0.0.1:{PORT}"}
+                        ).status_code == 403
 
 
 @pytest.mark.parametrize("token", ["wrong", "", "t0ken-and-more", "töken"])
@@ -173,19 +185,20 @@ def test_a_wrong_token_is_refused_and_sets_nothing(guarded, token):
 
 @pytest.mark.parametrize("host", ["evil.example", f"evil.example:{PORT}",
                                   "127.0.0.1:9999", "127.0.0.1", "0.0.0.0:8123"])
-def test_another_host_name_is_refused_even_with_the_cookie(guarded, host):
+def test_another_host_name_is_refused_even_with_the_token(guarded, host):
     """A DNS-rebinding page reaches 127.0.0.1 under its own host name."""
-    _get(guarded, "/?token=t0ken")
-    assert _get(guarded, host=host).status_code == 403
+    assert guarded.get("/_dash-layout", headers={
+        "Host": host, "X-Skill-Tree-Token": "t0ken"}).status_code == 403
 
 
 def test_localhost_is_the_same_server(guarded):
-    assert _get(guarded, "/?token=t0ken", host=f"localhost:{PORT}").status_code in (302, 303)
-    assert _get(guarded, host=f"localhost:{PORT}").status_code == 200
+    assert _get(guarded, "/?token=t0ken", host=f"localhost:{PORT}").status_code == 200
+    assert guarded.post("/_dash-update-component", headers={
+        "Host": f"localhost:{PORT}", "X-Skill-Tree-Token": "t0ken"}).status_code == 200
 
 
 def _post(client, origin=None, host=f"127.0.0.1:{PORT}"):
-    headers = {"Host": host}
+    headers = {"Host": host, "X-Skill-Tree-Token": "t0ken"}
     if origin is not None:
         headers["Origin"] = origin
     return client.post("/_dash-update-component", headers=headers)
@@ -193,25 +206,18 @@ def _post(client, origin=None, host=f"127.0.0.1:{PORT}"):
 
 @pytest.mark.parametrize("origin", ["http://127.0.0.1:9999", "http://localhost:3000",
                                     "null", "https://127.0.0.1:8123", "http://evil.example"])
-def test_a_change_from_another_page_is_refused_even_with_the_cookie(guarded, origin):
-    """Every port of 127.0.0.1 is one site to a browser, so SameSite=Strict
-    still sends the cookie with a request from a page on another local port."""
-    _get(guarded, "/?token=t0ken")
+def test_a_change_from_another_page_is_refused_even_with_the_token(guarded, origin):
     assert _post(guarded, origin).status_code == 403
 
 
 @pytest.mark.parametrize("origin", [f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}", None])
 def test_the_apps_own_page_and_non_browser_clients_get_through(guarded, origin):
-    _get(guarded, "/?token=t0ken")
     assert _post(guarded, origin).status_code == 200
 
 
-def test_a_read_from_elsewhere_still_only_needs_the_cookie(guarded):
-    """Origin matters for requests that can change something. A read without
-    the cookie is refused as before, and the page can't see a response."""
-    _get(guarded, "/?token=t0ken")
+def test_a_read_without_a_header_is_refused(guarded):
     headers = {"Host": f"127.0.0.1:{PORT}", "Origin": "http://127.0.0.1:9999"}
-    assert guarded.get("/", headers=headers).status_code == 200
+    assert guarded.get("/_dash-layout", headers=headers).status_code == 403
 
 
 def test_the_real_app_is_guarded_before_dash_does_any_work(monkeypatch):
@@ -222,12 +228,13 @@ def test_the_real_app_is_guarded_before_dash_does_any_work(monkeypatch):
     AccessGuard("t0ken", PORT, "sandbox").install(dash_app.server)
     client = dash_app.server.test_client()
 
-    for path in ("/", "/_dash-layout", "/_dash-dependencies", "/assets/theme.css"):
+    for path in ("/_dash-layout", "/_dash-dependencies"):
         assert _get(client, path).status_code == 403, path
+    assert "startup-cover" not in _get(client).get_data(as_text=True)
+    assert _get(client, "/assets/theme.css").status_code == 200
     assert client.post("/open-resource", json={}, headers={"Host": f"127.0.0.1:{PORT}"}
                        ).status_code == 403
-    _get(client, "/?token=t0ken")
-    page = _get(client)
+    page = _get(client, "/?token=t0ken")
     assert page.status_code == 200 and 'id="startup-cover"' in page.get_data(as_text=True)
 
 
@@ -313,9 +320,9 @@ def _line_starting(proc, prefix, timeout=90):
     raise AssertionError(f"no {prefix} line; exit code {proc.poll()}")
 
 
-def _request(port, path, cookie=None):
+def _request(port, path, token=None):
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
-    conn.request("GET", path, headers={"Cookie": cookie} if cookie else {})
+    conn.request("GET", path, headers={"X-Skill-Tree-Token": token} if token else {})
     response = conn.getresponse()
     body = response.read().decode("utf-8", "replace")
     conn.close()
@@ -329,13 +336,15 @@ def test_the_desktop_server_handshake_end_to_end(tmp_path):
         port = int(ready.split("port=")[1])
         assert port not in (8050, 8051)          # any free port, not the defaults
 
-        refused, _ = _request(port, "/")
-        assert refused.status == 403
-        login, _ = _request(port, "/?token=desk-token")
-        assert login.status in (302, 303)
-        cookie = login.getheader("Set-Cookie").split(";")[0]
-        page, body = _request(port, "/", cookie)
+        bootstrap, bootstrap_body = _request(port, "/")
+        assert bootstrap.status == 200 and "startup-cover" not in bootstrap_body
+        assert _request(port, "/_dash-layout")[0].status == 403
+        login, body = _request(port, "/?token=desk-token")
+        assert login.status == 200 and "Skill Tree (Sandbox)" in body
+        assert "desk-token" not in (login.getheader("Set-Cookie") or "")
+        page, body = _request(port, "/", "desk-token")
         assert page.status == 200 and "Skill Tree (Sandbox)" in body
+        assert _request(port, "/_dash-layout", "desk-token")[0].status == 200
 
         info = json.loads((tmp_path / "Data" / "sandbox_skilltree.instance.json").read_text())
         assert info["port"] == port and info["pid"] == server.pid

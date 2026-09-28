@@ -227,7 +227,7 @@ When a book, course, or article is substantial enough that you want to track and
 
 The editor has one field for each kind of resource you keep. A new graph starts with one kind, **Links**; the editor above has three. You can rename, remove or add kinds under Settings → Resources, up to five in all. Every field takes a web URL or a local file.
 
-A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. A kind can also open its notes in Obsidian instead of your default app. Give that kind your vault as its root folder.
+A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. After importing a graph, choose the root folder on the new computer; imported device paths are cleared. A kind can also open its notes in Obsidian instead of your default app. Give that kind your vault as its root folder.
 
 For local paths, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
 

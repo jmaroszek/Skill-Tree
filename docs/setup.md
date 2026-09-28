@@ -59,7 +59,8 @@ python app.py
 ```
 
 - **Ports.** Sandbox uses 8051 and production 8050, so both can run side by side. `--port N` picks another, and if the port is taken by something else the app moves to a free one. The desktop shell always takes a free port.
-- **The access link.** The server only answers the window or tab it opened: the first URL carries a token, which it swaps for a cookie. After a restart, use the new tab it opens. With `--no-browser` it prints the link instead. The link is also in `<Data>/sandbox_skilltree.instance.json` (or `skilltree.instance.json`) while it runs.
+- **The access link.** The server only answers the window or tab it opened: the first URL carries a token, which that tab keeps in origin-scoped session storage for later requests. After a restart, use the new tab it opens. With `--no-browser` it prints the link instead. The link is also in `<Data>/sandbox_skilltree.instance.json` (or `skilltree.instance.json`) while it runs.
+- **Imported resource roots.** Import keeps the links in each resource section but clears its root folder. Choose the folder on this computer in Settings → Resources before opening relative file links.
 - **One server per database.** A second launch opens the running one instead of starting another.
 - **A throwaway data folder.** Set `SKILLTREE_HOME` to an absolute folder, and Data and Logs go there instead of the per-user folder.
 
@@ -113,6 +114,14 @@ cd electron && npm run dist                                          # -> electr
   pack, and on Windows leaves out Chromium's WebGPU shader compiler, which Skill
   Tree doesn't use (`electron/build/unused-files.js`).
 - CI builds and smoke-tests the server on every push.
+- Signed Windows tag builds use the GitHub `release-signing` environment. It
+  requires a reviewer, permits only `v*` tags, and the `protect-release-tags`
+  ruleset limits release-tag creation, deletion and retargeting. Put
+  `WINDOWS_SIGN_COMMAND` and optional `WINDOWS_SIGN_SETUP` secrets **only in that
+  environment**. Remove any repository or organization copies that branch
+  workflows could read. Branch trial builds use the separate `trial-build`
+  environment, which has no signing secrets. Recreate these protections if the
+  release workflow moves to another repository.
 - `packaging/app_journey.py` drives a built app the way a new user would: the window,
   the welcome, a node saved, quitting, and a second start. It uses a throwaway data
   folder, so it never touches yours. The release workflow runs it on every platform:

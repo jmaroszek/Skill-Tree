@@ -23,9 +23,46 @@ test('native picker accepts only the local app and returns the selected file', a
   assert.equal(calls[0][0], window);
   assert.deepEqual(calls[0][1].properties, ['openFile']);
   assert.deepEqual(calls[0][1].filters[0].extensions, ['md']);
+  assert.equal(calls[0][1].defaultPath,
+               process.platform === 'win32' ? undefined : '/Library');
   await assert.rejects(() => handler(
     { senderFrame: { url: 'https://example.com/' } }, {}), /local Skill Tree/);
   assert.equal(calls.length, 1);
+});
+
+test('imported network roots never reach the native picker', async () => {
+  let handler;
+  let options;
+  registerResourceDialog(
+    { handle: (_name, fn) => { handler = fn; } },
+    { showOpenDialog: async (_window, opts) => {
+      options = opts;
+      return { canceled: true, filePaths: [] };
+    } },
+    () => null,
+    () => 8051,
+  );
+  const event = { senderFrame: { url: 'http://127.0.0.1:8051/' } };
+  await handler(event, { defaultPath: '\\\\attacker\\share', directory: true });
+  assert.equal(options.defaultPath, undefined);
+});
+
+test('a local root still starts the native picker there', async () => {
+  let handler;
+  let options;
+  registerResourceDialog(
+    { handle: (_name, fn) => { handler = fn; } },
+    { showOpenDialog: async (_window, opts) => {
+      options = opts;
+      return { canceled: true, filePaths: [] };
+    } },
+    () => null,
+    () => 8051,
+  );
+  const local = process.platform === 'win32' ? 'C:\\Library' : '/Library';
+  await handler({ senderFrame: { url: 'http://127.0.0.1:8051/' } },
+                { defaultPath: local });
+  assert.equal(options.defaultPath, local);
 });
 
 test('native picker can choose a folder', async () => {

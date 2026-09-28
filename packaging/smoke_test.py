@@ -5,8 +5,7 @@
 Starts the server the way the desktop shell does, against a throwaway data
 folder, and checks:
 - the READY handshake;
-- that the server refuses a request without the token and accepts the token
-  link;
+- that graph data needs the token header and the token link opens the page;
 - that every script and stylesheet the page names is served (a frozen build
   missing a package's data files fails here);
 - that a second launch hands over instead of serving;
@@ -53,9 +52,9 @@ def line_starting(proc, prefix, timeout):
          f"stderr: {proc.stderr.read()[-2000:] if proc.poll() is not None else ''}", proc)
 
 
-def get(port, path, cookie=None):
+def get(port, path, token=None):
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=60)
-    conn.request("GET", path, headers={"Cookie": cookie} if cookie else {})
+    conn.request("GET", path, headers={"X-Skill-Tree-Token": token} if token else {})
     response = conn.getresponse()
     body = response.read()
     conn.close()
@@ -79,24 +78,23 @@ def main(argv):
         port = int(ready.split("port=")[1])
         print(f"ready on port {port} after {time.monotonic() - started:.1f}s")
 
-        refused, _ = get(port, "/")
+        refused, _ = get(port, "/_dash-layout")
         if refused.status != 403:
-            fail(f"a request without the token got {refused.status}, not 403", server)
+            fail(f"graph data without the token got {refused.status}, not 403", server)
         login, _ = get(port, f"/?token={token}")
-        cookie = (login.getheader("Set-Cookie") or "").split(";")[0]
-        if login.status not in (302, 303) or not cookie:
-            fail(f"the token link got {login.status} without a cookie", server)
+        if login.status != 200 or token in (login.getheader("Set-Cookie") or ""):
+            fail(f"the token link got {login.status} or issued a bearer cookie", server)
 
-        page, body = get(port, "/", cookie)
+        page, body = get(port, "/", token)
         html = body.decode("utf-8", "replace")
         if page.status != 200 or 'id="startup-cover"' not in html:
             fail(f"the page got {page.status} or isn't Skill Tree's", server)
         urls = re.findall(r'<(?:script|link)\b[^>]*?(?:src|href)="(/[^"]+)"', html)
         for path in ["/_dash-layout", "/_dash-dependencies"] + urls:
-            response, content = get(port, path, cookie)
+            response, content = get(port, path, token)
             if response.status != 200 or not content:
                 fail(f"{path} got {response.status} ({len(content)} bytes)", server)
-        layout = json.loads(get(port, "/_dash-layout", cookie)[1])
+        layout = json.loads(get(port, "/_dash-layout", token)[1])
         if not layout:
             fail("the layout is empty", server)
         print(f"served the page and its {len(urls)} scripts and stylesheets")

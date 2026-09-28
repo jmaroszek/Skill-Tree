@@ -1,8 +1,12 @@
 """The v11 move to named sections only, and saving sections from Settings."""
 
 import inspect
+import subprocess
+import sys
+from types import SimpleNamespace
 
 import database
+from callback_helpers import spawn_local_file_picker
 import resource_links as resources
 from graph_manager import GraphManager
 from models import Node
@@ -11,6 +15,24 @@ import pytest
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
+
+
+def test_browser_fallback_picker_does_not_pass_an_imported_root(monkeypatch):
+    captured = []
+    monkeypatch.delattr(sys, "frozen", raising=False)
+
+    def fake_run(command, **_kwargs):
+        captured.append(command)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    spawn_local_file_picker(r"\\attacker\share", "Select folder", None, directory=True)
+    spawn_local_file_picker(r"\\?\UNC\attacker\share", "Select file", [("All", "*.*")])
+
+    assert len(captured) == 2
+    for command in captured:
+        assert "attacker" not in repr(command)
+        assert command[3] == ""
 
 
 def _node(name, **fields):

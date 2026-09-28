@@ -160,16 +160,18 @@ without a second offer.
   that line rather than guessing a port.
 - **Access.** `AccessGuard` runs ahead of Dash on every request. The Host header
   must be `127.0.0.1:<port>` or `localhost:<port>`, which defeats DNS rebinding.
-  The request must also carry this launch's token in the `skilltree_<environment>`
-  cookie. `/?token=<t>` sets that cookie (HttpOnly, SameSite=Strict) and
-  redirects to `/`. The desktop shell makes the token and passes it in
+  `/?token=<t>` serves the page; its earliest script stores the token in
+  origin-scoped `sessionStorage`, removes it from the address bar, and attaches
+  it as `X-Skill-Tree-Token` to same-origin fetch and XHR requests. Plain `/`
+  serves only a bootstrap page that reopens the token link from that tab's
+  storage. Static assets are public; graph-bearing Dash and custom endpoints
+  require the header. The desktop shell makes the token and passes it in
   `SKILLTREE_TOKEN`; a browser launch makes its own and opens that link.
   A request that changes something (anything but GET or HEAD) and names an
   Origin must name the server's own, `http://127.0.0.1:<port>` or
-  `http://localhost:<port>`. SameSite doesn't separate ports, so this is what
-  stops another page served from this machine, such as a different local dev
-  server, from posting to Dash with the cookie. `null` is refused too. A
-  request with no Origin at all isn't a page's, and still needs the cookie.
+  `http://localhost:<port>`. `null` is refused too. A request with no Origin
+  still needs the header. The page has `Referrer-Policy: no-referrer` so the
+  launch URL never travels to another origin as a referrer.
 - **Stopping.** The desktop shell holds the server's stdin. When it closes, because
   the shell quit or crashed, the server finishes its requests and exits, so no
   server outlives its window. SIGTERM and Ctrl+C do the same.

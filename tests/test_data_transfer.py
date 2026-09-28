@@ -91,6 +91,49 @@ class TestExportImport:
         assert conn.execute("SELECT COUNT(*) FROM Nodes").fetchone()[0] == 4
         conn.close()
 
+    def test_import_cannot_choose_a_new_extra_backup_destination(self, monkeypatch, tmp_path):
+        bundle = data_transfer.export_data()
+        bundle["tables"]["Settings"].append({
+            "key": "BACKUP_EXTRA_DIR", "value": r"\\attacker\private-backups"})
+        _fresh_database(monkeypatch, tmp_path)
+        assert ConfigManager.get_backup_extra_dir() == ""
+
+        data_transfer.import_data(bundle)
+
+        assert ConfigManager.get_backup_extra_dir() == ""
+        source = tmp_path / "private.db"
+        source.write_bytes(b"private graph")
+        assert backup.mirror(source) is None
+
+    def test_import_keeps_the_locally_chosen_backup_destination(self, monkeypatch, tmp_path):
+        bundle = data_transfer.export_data()
+        bundle["tables"]["Settings"].append({
+            "key": "BACKUP_EXTRA_DIR", "value": r"\\attacker\private-backups"})
+        _fresh_database(monkeypatch, tmp_path)
+        local = tmp_path / "chosen-backups"
+        local.mkdir()
+        ConfigManager.set_backup_extra_dir(str(local))
+
+        data_transfer.import_data(bundle)
+
+        assert ConfigManager.get_backup_extra_dir() == str(local)
+        source = tmp_path / "private.db"
+        source.write_bytes(b"private graph")
+        assert backup.mirror(source) == local / source.name
+        assert (local / source.name).read_bytes() == b"private graph"
+
+    def test_import_drops_device_local_resource_roots(self, monkeypatch, tmp_path):
+        bundle = data_transfer.export_data()
+        bundle["tables"]["ResourceSections"][0]["root_path"] = r"\\attacker\share"
+        _fresh_database(monkeypatch, tmp_path)
+
+        data_transfer.import_data(bundle)
+
+        with database.get_connection() as conn:
+            roots = [row[0] for row in conn.execute(
+                "SELECT root_path FROM ResourceSections")]
+        assert roots and all(root == "" for root in roots)
+
     def test_import_needs_an_empty_graph(self):
         bundle = data_transfer.export_data()
         GraphManager().add_node(_node("Existing"))

@@ -1,5 +1,7 @@
 """Named Resource sections: storage, opening, the editor rows and Settings cards."""
 
+import sys
+
 import pytest
 import resource_links as resources
 from callback_helpers import build_editor_snapshot, is_form_dirty_vs_snapshot
@@ -213,7 +215,7 @@ def test_saved_resource_route_uses_shared_opener(monkeypatch):
         'node': 'Reading', 'section': 'website', 'index': 1}).status_code == 404
 
 
-def test_browser_picker_passes_paths_as_arguments(monkeypatch):
+def test_browser_picker_passes_a_local_root_as_an_argument(monkeypatch):
     import callback_helpers
     import subprocess
     calls = []
@@ -225,7 +227,7 @@ def test_browser_picker_passes_paths_as_arguments(monkeypatch):
 
     monkeypatch.setattr(subprocess, 'run',
                         lambda args, **kwargs: calls.append(args) or Result())
-    root = 'C:/Library/has"quote'
+    root = 'C:/Library/has"quote' if sys.platform == 'win32' else '/tmp/Library/has"quote'
     assert callback_helpers.spawn_local_file_picker(
         root, 'Select file', [('All files', '*.*')]) == 'C:/chosen/book.pdf'
     assert calls[0][1] == '-c'

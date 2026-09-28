@@ -1813,6 +1813,7 @@ def spawn_local_file_picker(initial_dir, title, filetypes_list, directory=False)
     ignored.
     """
     import logging
+    import re
     import sys
     import subprocess
 
@@ -1823,6 +1824,14 @@ def spawn_local_file_picker(initial_dir, title, filetypes_list, directory=False)
         # (assets/resource_picker.js) serves the frozen build.
         _logger.warning("No file picker in this build; paste the path instead.")
         return ""
+    # Import clears device-local roots. For older data, never pass a UNC or
+    # extended path to Tk before the user has chosen it in the dialog.
+    if not isinstance(initial_dir, str) or initial_dir.startswith(("\\\\", "//")):
+        initial_dir = ""
+    elif sys.platform == "win32":
+        initial_dir = initial_dir if re.match(r"^[A-Za-z]:[\\/]", initial_dir) else ""
+    else:
+        initial_dir = initial_dir if initial_dir.startswith("/") else ""
     script = '''import json
 import os
 import sys
@@ -1840,12 +1849,14 @@ root = tk.Tk()
 root.withdraw()
 root.attributes('-topmost', True)
 try:
+    options = {'title': sys.argv[2]}
+    if sys.argv[1]:
+        options['initialdir'] = sys.argv[1]
     if sys.argv[4] == "1":
-        abs_path = filedialog.askdirectory(initialdir=sys.argv[1], title=sys.argv[2])
+        abs_path = filedialog.askdirectory(**options)
     else:
         abs_path = filedialog.askopenfilename(
-            initialdir=sys.argv[1], title=sys.argv[2],
-            filetypes=json.loads(sys.argv[3]))
+            **options, filetypes=json.loads(sys.argv[3]))
     if abs_path:
         print(os.path.normpath(abs_path), end="")
 finally:
@@ -1853,7 +1864,7 @@ finally:
 '''
     try:
         result = subprocess.run(
-            [sys.executable, "-c", script, initial_dir or "", title,
+            [sys.executable, "-c", script, initial_dir, title,
              json.dumps(filetypes_list or []), "1" if directory else "0"],
             capture_output=True, text=True,
             check=False,

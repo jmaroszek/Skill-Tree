@@ -32,6 +32,10 @@ jobs:
   build:
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    # Signing secrets must live only in the release-signing environment, whose
+    # deployment policy allows protected v* tags. A branch can edit its own
+    # workflow, so a job condition alone cannot protect repository secrets.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'windows-x64' && 'release-signing' || 'trial-build' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -45,8 +49,8 @@ jobs:
           - { name: linux-x64, os: ubuntu-22.04, target: --linux --x64 }
     env:
       TAGGED: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      WINDOWS_SIGN_COMMAND: ${{ secrets.WINDOWS_SIGN_COMMAND }}
-      WINDOWS_SIGN_SETUP: ${{ secrets.WINDOWS_SIGN_SETUP }}
+      WINDOWS_SIGN_COMMAND: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'windows-x64' && secrets.WINDOWS_SIGN_COMMAND || '' }}
+      WINDOWS_SIGN_SETUP: ${{ startsWith(github.ref, 'refs/tags/v') && matrix.name == 'windows-x64' && secrets.WINDOWS_SIGN_SETUP || '' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -79,7 +83,7 @@ jobs:
           exit 1
 
       - name: Install the signing tool
-        if: runner.os == 'Windows' && env.WINDOWS_SIGN_SETUP != ''
+        if: runner.os == 'Windows' && env.TAGGED == 'true' && env.WINDOWS_SIGN_SETUP != ''
         shell: pwsh
         run: Invoke-Expression $env:WINDOWS_SIGN_SETUP
 
@@ -102,7 +106,7 @@ jobs:
         run: python packaging/smoke_test.py dist/skilltree-server/skilltree-server
 
       - name: Sign the server
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.TAGGED == 'true'
         run: node electron/build/sign-windows.js dist/skilltree-server/skilltree-server.exe
 
       - name: Build the installers

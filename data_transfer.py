@@ -160,7 +160,9 @@ def import_data(bundle) -> dict:
     """Load an export into this database, which must hold no graph yet.
 
     The export's settings and resource sections replace the ones a new
-    database starts with, so the graph arrives as it was. Everything commits
+    database starts with, except for device-local paths: the extra backup
+    folder stays as configured here and imported resource roots are cleared.
+    Everything commits
     in one transaction; a bad row rejects the whole import, and so does a
     graph the editor couldn't have built (_validated_graph). Returns the
     number of rows loaded per table.
@@ -178,12 +180,20 @@ def import_data(bundle) -> dict:
     counts = {}
     try:
         with database.transaction() as conn:
+            local_backup_dir = conn.execute(
+                "SELECT value FROM Settings WHERE key = 'BACKUP_EXTRA_DIR'"
+            ).fetchone()
             conn.execute("DELETE FROM ResourceSections")
             conn.execute("DELETE FROM Settings")
             for table in TABLES:
                 columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
                 rows = tables.get(table, [])
+                inserted = 0
                 for row in rows:
+                    if table == "Settings" and row.get("key") == "BACKUP_EXTRA_DIR":
+                        continue
+                    if table == "ResourceSections":
+                        row = {**row, "root_path": ""}
                     keys = [key for key in row if key in columns]
                     if not keys:
                         continue
@@ -191,7 +201,13 @@ def import_data(bundle) -> dict:
                         f"INSERT INTO {table} ({', '.join(keys)}) "
                         f"VALUES ({', '.join('?' for _ in keys)})",
                         [row[key] for key in keys])
-                counts[table] = len(rows)
+                    inserted += 1
+                counts[table] = inserted
+            if local_backup_dir is not None:
+                conn.execute(
+                    "INSERT INTO Settings (key, value) VALUES ('BACKUP_EXTRA_DIR', ?)",
+                    (local_backup_dir[0],),
+                )
     except sqlite3.DatabaseError as exc:
         raise TransferRefused(f"That export couldn't be imported ({exc}). "
                               "Nothing was changed.") from exc

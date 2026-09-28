@@ -104,7 +104,9 @@ before every upgrade, restore or import. Settings → Data has **Back up now**,
 
 **Moving to another computer.** In Settings → Data, choose **Export graph (.json)**.
 Install Skill Tree on the other computer, and on its welcome screen choose
-**Import a graph…**.
+**Import a graph…**. The import keeps your resource links but clears their root
+folders. Choose those folders again in Settings → Resources. Choose an extra
+backup folder on this computer in Settings → Data if you want one.
 
 ## Uninstalling
 

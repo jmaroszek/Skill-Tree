@@ -241,6 +241,22 @@ _REFUSED_PAGE = """<!doctype html>
 <h1 style="font-weight:400">Skill Tree</h1>
 <p>{message}</p></body></html>"""
 
+_SESSION_BOOTSTRAP = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Skill Tree</title></head>
+<body style="background:#222;color:#dee2e6;font-family:sans-serif;margin:3rem">
+<p id="message">Opening Skill Tree&hellip;</p>
+<script>
+try {
+  const token = sessionStorage.getItem('skilltree_launch_token');
+  if (token) location.replace('/?token=' + encodeURIComponent(token));
+  else document.getElementById('message').textContent =
+    'Use the window or link Skill Tree opened for this launch.';
+} catch (_) {
+  document.getElementById('message').textContent =
+    'Use the window or link Skill Tree opened for this launch.';
+}
+</script></body></html>"""
+
 
 class AccessGuard:
     """Only this launch's own window may use the server.
@@ -250,38 +266,44 @@ class AccessGuard:
     - The Host header is 127.0.0.1 or localhost, on this port. A web page
       that rebinds its own domain to 127.0.0.1 still sends its domain, and
       fails here.
-    - The request carries this launch's token in a cookie. The window gets
-      the cookie by opening ``/?token=<token>`` once; the reply sets it
-      (HttpOnly, SameSite=Strict) and redirects to ``/`` so the token leaves
-      the address bar. Other local users, and other sites' pages, don't have
-      it.
+    - The launch link serves the page once with its token. That page keeps the
+      token in origin-scoped sessionStorage and sends it in a request header.
+      A cookie would also be sent to a different listener on the same host,
+      since browser cookies are not scoped by port.
     - A request that could change something (anything but GET or HEAD) and
       says where it comes from must come from this server's own page. A
-      browser counts every port of 127.0.0.1 as one site, so SameSite still
-      sends the cookie with a request from a page on another local port.
-      Such a request names that page in its Origin header, and fails here.
+      browser counts every port of 127.0.0.1 as one site. Such a request names
+      that page in its Origin header, and fails here.
     """
 
     def __init__(self, token: str, port: int, environment: str):
         self._token = token.encode("utf-8")
         self._hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
         self._origins = {f"http://{host}" for host in self._hosts}
-        # Cookies ignore ports, so a sandbox and a production server on
-        # 127.0.0.1 would overwrite each other's under one name.
-        self.cookie = f"skilltree_{environment}"
+        self._legacy_cookie = f"skilltree_{environment}"
 
     def install(self, flask_app) -> None:
         flask_app.before_request_funcs.setdefault(None, []).insert(0, self.check)
+        flask_app.after_request(self._protect_launch_response)
+
+    def _protect_launch_response(self, response):
+        from flask import request
+        if request.path == "/":
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["Cache-Control"] = "no-store"
+            if "token" in request.args and response.status_code == 200:
+                response.delete_cookie(self._legacy_cookie, path="/")
+        return response
 
     def _matches(self, value) -> bool:
         return hmac.compare_digest(str(value).encode("utf-8"), self._token)
 
     def check(self):
-        from flask import redirect, request
+        from flask import request
         if request.host not in self._hosts:
             return _refused("This server only answers Skill Tree's own window.")
-        # A request without an Origin header isn't a browser page's; it still
-        # needs the cookie below. "null" (a sandboxed or file: page) is refused.
+        # A request without an Origin header still needs the token header.
+        # "null" (a sandboxed or file: page) is refused.
         origin = request.headers.get("Origin")
         if (request.method not in ("GET", "HEAD") and origin is not None
                 and origin not in self._origins):
@@ -289,12 +311,19 @@ class AccessGuard:
         if request.path == "/" and "token" in request.args:
             if not self._matches(request.args.get("token", "")):
                 return _refused("This link is out of date. Start Skill Tree again.")
-            response = redirect("/", code=303)
-            response.set_cookie(self.cookie, self._token.decode("utf-8"),
-                                httponly=True, samesite="Strict", path="/")
-            return response
-        if self._matches(request.cookies.get(self.cookie, "")):
+            # Dash renders the page; the inline bootstrap removes the query
+            # from browser history before Dash makes any data requests.
             return None
+        if request.method in ("GET", "HEAD") and (
+                request.path.startswith("/assets/")
+                or request.path.startswith("/_dash-component-suites/")
+                or request.path == "/_favicon.ico"):
+            # These are static files. No graph data is served from them.
+            return None
+        if self._matches(request.headers.get("X-Skill-Tree-Token", "")):
+            return None
+        if request.path == "/" and request.method == "GET":
+            return _SESSION_BOOTSTRAP, 200, {"Content-Type": "text/html; charset=utf-8"}
         return _refused("This page needs the link Skill Tree opened it with. If "
                         "Skill Tree restarted, use the window or tab it just "
                         "opened, or start it again.")
