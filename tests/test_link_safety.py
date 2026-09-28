@@ -201,10 +201,10 @@ def test_the_context_menu_route_relays_the_question(monkeypatch, opened):
 
 
 def _callbacks():
-    from callbacks import register_callbacks
+    from resource_link_callbacks import register_resource_link_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app)
+    register_resource_link_callbacks(app)
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")
@@ -219,8 +219,9 @@ def test_the_editor_button_asks_through_a_confirm_dialog(monkeypatch, opened):
     from dash._callback_context import context_value
     from dash._utils import AttributeDict
     monkeypatch.setattr(resources, "get_sections", lambda: [dict(MIXED, id="website")])
-    import callbacks
-    monkeypatch.setattr(callbacks, "get_sections", lambda: [dict(MIXED, id="website")])
+    import resource_link_callbacks
+    monkeypatch.setattr(resource_link_callbacks, "get_sections",
+                        lambda: [dict(MIXED, id="website")])
     found = _callbacks()
     token = context_value.set(AttributeDict(
         triggered_inputs=[{"prop_id": '{"index":"website:0","type":"resource-open"}.n_clicks',

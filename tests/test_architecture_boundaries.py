@@ -64,7 +64,7 @@ for name in (
     'app', 'app_services', 'layout', 'sidebars_layout', 'callbacks',
     'details_callbacks', 'analyze_callbacks', 'event_callbacks',
     'next_callbacks', 'settings_callbacks', 'review_hub_callbacks',
-    'sidebars_callbacks',
+    'sidebars_callbacks', 'calibration_callbacks', 'resource_link_callbacks',
 ):
     importlib.import_module(name)
 assert logging.getLogger().handlers == handlers

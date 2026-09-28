@@ -159,6 +159,8 @@ def create_app(settings=None, services=None):
     from canvases import install_client_registry
     from prerender import prerender_layout, prerendered_specs
     from callbacks import register_callbacks
+    from calibration_callbacks import register_calibration_callbacks
+    from resource_link_callbacks import register_resource_link_callbacks
     from event_callbacks import register_event_callbacks
     from details_callbacks import register_details_callbacks
     from next_callbacks import register_next_callbacks
@@ -195,7 +197,8 @@ def create_app(settings=None, services=None):
         lambda: prerender_layout(
             build_app_layout(initial_elements=[], env=settings.environment),
             app))
-    for register in (register_callbacks, register_event_callbacks,
+    for register in (register_callbacks, register_calibration_callbacks,
+                     register_resource_link_callbacks, register_event_callbacks,
                      register_details_callbacks, register_next_callbacks,
                      register_settings_callbacks, register_review_hub_callbacks,
                      register_analyze_callbacks, register_sidebars_callbacks,

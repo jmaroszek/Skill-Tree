@@ -14,7 +14,7 @@ from models import Node, expected_time_estimate, STATUS_DONE, STATUS_OPEN
 from graph_manager import GraphManager
 from node_commands import handle_save, prior_node_for_completion
 from config import ConfigManager
-from callbacks import (
+from editor_values import (
     _calibration_prepop,
     _calibration_review_queue,
     _calibration_unit_for,
