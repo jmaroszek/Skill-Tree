@@ -103,7 +103,7 @@ def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
     manager.add_edge('A', 'B', 'Needs_Hard')
     version = GraphManager._graph_version
     view = build_canvas_view(
-        manager, generate_elements, 'filter-context', None, None,
+        manager, generate_elements, 'filter-context', None,
         'components', {}, 'All', 'B', None, None)
     assert {e['data']['id'] for e in view.elements if 'source' not in e['data']} == {'A', 'B'}
     assert view.clear_focus_style == {'display': 'inline-block'}

@@ -245,7 +245,7 @@ _REFUSED_PAGE = """<!doctype html>
 class AccessGuard:
     """Only this launch's own window may use the server.
 
-    Every request passes two checks, ahead of anything Dash does:
+    Every request passes these checks, ahead of anything Dash does:
 
     - The Host header is 127.0.0.1 or localhost, on this port. A web page
       that rebinds its own domain to 127.0.0.1 still sends its domain, and
@@ -255,11 +255,17 @@ class AccessGuard:
       (HttpOnly, SameSite=Strict) and redirects to ``/`` so the token leaves
       the address bar. Other local users, and other sites' pages, don't have
       it.
+    - A request that could change something (anything but GET or HEAD) and
+      says where it comes from must come from this server's own page. A
+      browser counts every port of 127.0.0.1 as one site, so SameSite still
+      sends the cookie with a request from a page on another local port.
+      Such a request names that page in its Origin header, and fails here.
     """
 
     def __init__(self, token: str, port: int, environment: str):
         self._token = token.encode("utf-8")
         self._hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
+        self._origins = {f"http://{host}" for host in self._hosts}
         # Cookies ignore ports, so a sandbox and a production server on
         # 127.0.0.1 would overwrite each other's under one name.
         self.cookie = f"skilltree_{environment}"
@@ -273,6 +279,12 @@ class AccessGuard:
     def check(self):
         from flask import redirect, request
         if request.host not in self._hosts:
+            return _refused("This server only answers Skill Tree's own window.")
+        # A request without an Origin header isn't a browser page's; it still
+        # needs the cookie below. "null" (a sandboxed or file: page) is refused.
+        origin = request.headers.get("Origin")
+        if (request.method not in ("GET", "HEAD") and origin is not None
+                and origin not in self._origins):
             return _refused("This server only answers Skill Tree's own window.")
         if request.path == "/" and "token" in request.args:
             if not self._matches(request.args.get("token", "")):

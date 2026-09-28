@@ -2,7 +2,7 @@
 import dash
 import bridge_payloads
 from config import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
-from callback_helpers import format_traversal_ui, node_options
+from callback_helpers import node_options
 from core_response import CoreResponse
 from canvases import CANVASES
 
@@ -26,7 +26,7 @@ def canvas_wanted(active_tab, payload_stamp):
             or bool((payload_stamp or {}).get('loaded')))
 
 
-def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info):
+def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info):
     # --- Visual Generation ---
     ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'btn-editor-new', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
     if trigger_id in ui_only_triggers:
@@ -40,11 +40,6 @@ def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, activ
         f_type_list = dash.no_update
         active_stylesheet = dash.no_update
         clear_focus_style = dash.no_update
-
-        # Still format sidebar traversal UI
-        sugg_ui = dash.no_update  # Next owns recommendation rendering independently.
-        effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
-        hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
     else:
         community_method = community_method or "louvain"
@@ -80,10 +75,6 @@ def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, activ
 
         elements = generate_elements(filters, active_node_id,
                                     community_names=community_names)
-
-        sugg_ui = dash.no_update  # Next owns recommendation rendering independently.
-        effective_tapped_node = None if trigger_id in ('background-click-input', 'btn-editor-new') else tapped_node
-        hard_chains_ui, soft_chains_ui, synergies_ui, description_ui = format_traversal_ui(effective_tapped_node, active_node_id, manager)
 
         search_options = node_options(manager.get_all_nodes(include_dormant=True))
 
@@ -234,11 +225,6 @@ def build_canvas_view(manager, generate_elements, trigger_id, tapped_node, activ
 
     return CoreResponse(
         elements=elements,
-        suggestions=sugg_ui,
-        hard_chains=hard_chains_ui,
-        soft_chains=soft_chains_ui,
-        synergies=synergies_ui,
-        description=description_ui,
         community_options=community_options,
         search_options=search_options,
         filter_context_options=f_ctx_list,

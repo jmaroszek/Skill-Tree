@@ -119,35 +119,7 @@ _RATING_TEXTAREA_STYLE = {
 }
 
 _section_title_style = tokens.SECTION_TITLE_STYLE
-_formula_hint_style = {"fontSize": tokens.FS_CAP, "fontFamily": tokens.FONT_MONO,
-                       "color": tokens.TEXT_DIM, "marginBottom": "0.25rem"}
 
-# --- Info Panels ---
-
-def build_relationships_view():
-    return html.Div([
-        html.H6("Relationships", className="text-muted mb-2", style=_section_title_style),
-        html.Div([
-            html.Div([
-                html.H6("Hard Dependencies", className="text-muted mb-2", style={"fontSize": tokens.FS_LG}),
-                html.Div(id="traversal-chains-hard")
-            ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
-            html.Div([
-                html.H6("Soft Dependencies", className="text-muted mb-2", style={"fontSize": tokens.FS_LG}),
-                html.Div(id="traversal-chains-soft")
-            ], style={"marginRight": "2rem", "flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
-            html.Div([
-                html.H6("Synergies", className="text-muted mb-2", style={"fontSize": tokens.FS_LG}),
-                html.Div(id="synergies-list")
-            ], style={"flex": "0 1 auto", "minWidth": 0, "overflow": "hidden"}),
-        ], style={"display": "flex", "alignItems": "flex-start"})
-    ], style={"flex": "0 0 auto", "maxWidth": "80%", "minWidth": 0})
-
-def build_description_view():
-    return html.Div([
-        html.H6("Description", className="text-muted mb-2", style=_section_title_style),
-        html.Div(id="node-info-description", style={"color": tokens.TEXT_PRIMARY, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG})
-    ], style={"flex": "1", "marginLeft": "3rem", "minWidth": 0})
 
 # --- Next View ---
 
@@ -705,17 +677,6 @@ def build_group_delete_confirm_modal():
     ], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)
 
 
-# --- Bottom Panel (Relationships + Description) ---
-
-def build_bottom_panel():
-    return html.Div([
-        html.Div([
-            build_relationships_view(),
-            build_description_view()
-        ], className="d-flex")
-    ], className="p-3")
-
-
 # --- Floating Tooltip ---
 
 def build_hover_tooltip():
@@ -1231,14 +1192,6 @@ def build_app_layout(initial_elements, env="production"):
                             "overflow": "hidden"
                         }
                     ),
-
-                    # Hidden outputs for bottom-panel callbacks (IDs must remain in DOM)
-                    html.Div([
-                        html.Div(id="traversal-chains-hard"),
-                        html.Div(id="traversal-chains-soft"),
-                        html.Div(id="synergies-list"),
-                        html.Div(id="node-info-description"),
-                    ], style={"display": "none"})
                 ]
             ),
 

@@ -6,11 +6,6 @@ from dash import no_update
 class CoreResponse(NamedTuple):
     elements: object = no_update
     message: object = no_update
-    suggestions: object = no_update
-    hard_chains: object = no_update
-    soft_chains: object = no_update
-    synergies: object = no_update
-    description: object = no_update
     clear_disabled: object = no_update
     clear_intervals: object = no_update
     community_options: object = no_update

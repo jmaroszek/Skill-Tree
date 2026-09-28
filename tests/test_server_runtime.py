@@ -184,6 +184,36 @@ def test_localhost_is_the_same_server(guarded):
     assert _get(guarded, host=f"localhost:{PORT}").status_code == 200
 
 
+def _post(client, origin=None, host=f"127.0.0.1:{PORT}"):
+    headers = {"Host": host}
+    if origin is not None:
+        headers["Origin"] = origin
+    return client.post("/_dash-update-component", headers=headers)
+
+
+@pytest.mark.parametrize("origin", ["http://127.0.0.1:9999", "http://localhost:3000",
+                                    "null", "https://127.0.0.1:8123", "http://evil.example"])
+def test_a_change_from_another_page_is_refused_even_with_the_cookie(guarded, origin):
+    """Every port of 127.0.0.1 is one site to a browser, so SameSite=Strict
+    still sends the cookie with a request from a page on another local port."""
+    _get(guarded, "/?token=t0ken")
+    assert _post(guarded, origin).status_code == 403
+
+
+@pytest.mark.parametrize("origin", [f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}", None])
+def test_the_apps_own_page_and_non_browser_clients_get_through(guarded, origin):
+    _get(guarded, "/?token=t0ken")
+    assert _post(guarded, origin).status_code == 200
+
+
+def test_a_read_from_elsewhere_still_only_needs_the_cookie(guarded):
+    """Origin matters for requests that can change something. A read without
+    the cookie is refused as before, and the page can't see a response."""
+    _get(guarded, "/?token=t0ken")
+    headers = {"Host": f"127.0.0.1:{PORT}", "Origin": "http://127.0.0.1:9999"}
+    assert guarded.get("/", headers=headers).status_code == 200
+
+
 def test_the_real_app_is_guarded_before_dash_does_any_work(monkeypatch):
     import app as app_module
     monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")

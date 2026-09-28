@@ -1703,60 +1703,6 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     return [heading, cards_row]
 
 
-# The Nodes tab lists at most this many prerequisite chains of each kind. A
-# Goal high in the graph can sit at the end of hundreds, a line and a mounted
-# component each, and every mounted component slows the page's later updates.
-TRAVERSAL_CHAIN_LIMIT = 20
-
-
-def format_traversal_ui(tapped_node, active_node_id, manager):
-    """Build the dependency chains (hard/soft) and synergies display for the selected node.
-
-    Returns (hard_chains_ui, soft_chains_ui, synergies_ui, description).
-    """
-    empty_msg = "Select a node to see dependencies."
-    hard_ui = html.Div(className="text-muted", children=empty_msg)
-    soft_ui = html.Div(className="text-muted", children=empty_msg)
-    synergies_ui = html.Div(className="text-muted", children="Select a node to see synergies.")
-    description = ""
-
-    node_id = active_node_id or (tapped_node.get('id') if tapped_node else None)
-
-    if not node_id:
-        return hard_ui, soft_ui, synergies_ui, description
-
-    node = manager.get_node(node_id)
-    if node:
-        description = node.description.strip() if node.description else "No description available."
-    else:
-        description = ""
-
-    found = manager.prerequisite_chains(node_id, limit=TRAVERSAL_CHAIN_LIMIT)
-
-    edges = manager.get_edges()
-    synergies = sorted(
-        {e['target'] for e in edges if e['source'] == node_id and e['type'] == EDGE_HELPS}
-        | {e['source'] for e in edges if e['target'] == node_id and e['type'] == EDGE_HELPS})
-
-    def chain_list(kind):
-        items = []
-        for chain in found[kind]:
-            # Every chain ends at the node itself, which the panel is about.
-            shown = chain[:-1] if chain and chain[-1] == node_id else chain
-            if shown:
-                items.append(html.Div(" \u2192 ".join(shown), style={"overflowWrap": "break-word"}))
-        more = found['totals'][kind] - len(found[kind])
-        if more > 0:
-            items.append(html.Div(f"\u2026 and {more} more", className="text-muted small"))
-        return html.Div(items) if items else html.P("None", className="text-dark")
-
-    hard_ui, soft_ui = chain_list('Hard'), chain_list('Soft')
-
-    synergies_ui = html.Div([html.Div(s) for s in synergies]) if synergies else html.P("None", className="text-dark")
-
-    return hard_ui, soft_ui, synergies_ui, description
-
-
 # --- Link Row UI Helper ---
 
 def resource_link_values(values, ids):

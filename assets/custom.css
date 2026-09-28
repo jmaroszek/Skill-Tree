@@ -79,19 +79,6 @@ input[type=number] {
     background: var(--st-text-dim);
 }
 
-/* Resize handle between canvas and bottom panel */
-#resize-handle {
-    height: 6px;
-    cursor: ns-resize;
-    background: transparent;
-    margin: 0 25px;
-    border-top: 1px solid var(--st-border-panel);
-    transition: background 0.15s;
-}
-#resize-handle:hover {
-    background: var(--st-border-panel);
-}
-
 /* Cytoscape box-selection rectangle */
 .cytoscape-container canvas {
     cursor: crosshair;

@@ -1353,9 +1353,6 @@ def register_callbacks(app, services=None):
     # positions from drifting on save during bulk-edit freeze mode.
     @app.callback(
         [Output('elements-pending-store', 'data', allow_duplicate=True), Output('save-output', 'children'),
-         Output('suggestions-table', 'children', allow_duplicate=True),
-         Output('traversal-chains-hard', 'children'), Output('traversal-chains-soft', 'children'),
-         Output('synergies-list', 'children'), Output('node-info-description', 'children'),
          Output('clear-interval', 'disabled'), Output('clear-interval', 'n_intervals'),
          Output('filter-community', 'options'), Output('search-node', 'options'),
          Output('sidebar-editor-container', 'style'),
@@ -1815,7 +1812,7 @@ def register_callbacks(app, services=None):
         # used to open a connection per node, about 0.3 s per render.
         with database.read_snapshot():
             view = build_canvas_view(
-                manager, render_elements, trigger_id, tapped_node, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
+                manager, render_elements, trigger_id, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
 
         # Time-calibration: when an explicit single-node completion just
         # happened and the feature is enabled, open the modal to capture how

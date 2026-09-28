@@ -1076,19 +1076,6 @@ class GraphManager:
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         return graph_queries.filter_nodes(self, nodes, filters)
 
-    @database.snapshot_read
-    def prerequisite_chains(self, target_name: str, limit: Optional[int] = None) -> dict:
-        """Prerequisite chains ending at ``target_name``: up to ``limit`` of each
-        kind ('Hard', 'Soft'), plus 'totals' counting them all. See
-        graph_queries.prerequisite_chains."""
-        return graph_queries.prerequisite_chains(self, target_name, limit)
-
-    @database.snapshot_read
-    def get_prerequisite_chains_typed(self, target_name: str) -> List[tuple]:
-        """Every prerequisite chain as (chain, 'Hard'|'Soft'). A chain is 'Hard'
-        when all its edges are Needs_Hard, else 'Soft'."""
-        return graph_queries.get_prerequisite_chains_typed(self, target_name)
-
     def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":
         return graph_queries._build_nx_graph(self, allowed_names)
 
