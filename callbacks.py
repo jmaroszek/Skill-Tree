@@ -46,7 +46,7 @@ from callback_helpers import (
     spawn_local_file_picker,
     resolve_active_node_id, normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
-    snapshot_from_form_state, editor_form_values, dormancy_for_save,
+    snapshot_from_form_state, EDITOR_FORM, editor_form_values_from, dormancy_for_save,
     follow_done_status,
     compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, ALL_WEEKDAYS, habit_preview_text,
@@ -479,34 +479,10 @@ def register_callbacks(app, services=None):
          Input('details-add-choice-input', 'value')],
         [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
-         State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
-         State('node-context', 'value'), State('node-subcontext', 'value'),
-         State('node-status-done', 'value'),
-         State('node-value', 'value'), State('node-interest', 'value'),
-         State('node-difficulty', 'value'),
-         State('node-time-o', 'value'), State('node-time-m', 'value'),
-         State('node-time-p', 'value'), State('node-time-unit', 'value'),
-         State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
-         State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
-         State('edge-helps', 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'id'),
-         State('node-time-mode', 'value'),
-         State('node-priority-rank', 'value'),
-         State({'type': 'alias-input', 'index': ALL}, 'value'),
          State('pending-navigation-store', 'data'),
          State('editor-pristine-snapshot', 'data'),
-         State('node-value-mode', 'value'),
-         State('node-time-habit-mode', 'value'),
-         State('node-habit-duration', 'value'),
-         State('node-habit-duration-unit', 'value'),
-         State('node-habit-intensity-o', 'value'),
-         State('node-habit-intensity-m', 'value'),
-         State('node-habit-intensity-p', 'value'),
-         State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value'),
-         State('node-dormancy-form', 'data'),
-         State('details-selected-node-store', 'data')],
+         State('details-selected-node-store', 'data'),
+         EDITOR_FORM],
         # Nothing to populate on page load. The form's defaults and its empty
         # alias and link rows are in the layout, and every path that opens
         # the editor runs this callback, which sends the relationship options.
@@ -516,22 +492,13 @@ def register_callbacks(app, services=None):
     )
     def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice,
-                        ed_style, original_name,
-                        cur_name, cur_type, cur_desc, cur_context, cur_subctx, cur_status_done,
-                        cur_val, cur_interest, cur_diff,
-                        cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
-                        cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
-                        cur_link_values, cur_link_ids,
-                        cur_time_mode, cur_priority_rank,
-                        cur_aliases,
-                        pending_nav, pristine_snapshot,
-                        cur_value_mode,
-                        cur_time_habit_mode,
-                        cur_habit_duration, cur_habit_duration_unit,
-                        cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
-                        cur_habit_int_unit, cur_habit_days, cur_dormancy,
-                         details_selected_node):
-        """Populate the editor sidebar form fields when a node is selected, searched, or cleared."""
+                        ed_style, original_name, pending_nav, pristine_snapshot,
+                        details_selected_node, form):
+        """Populate the editor sidebar form fields when a node is selected, searched, or cleared.
+
+        `form` is what the editor holds now (callback_helpers.EDITOR_FORM),
+        checked against `pristine_snapshot` before a switch discards it.
+        """
         trigger_id = get_trigger_id()
 
         # Relationship pickers must include dormant nodes so active nodes can
@@ -569,30 +536,7 @@ def register_callbacks(app, services=None):
         ]
 
         def _has_unsaved_changes():
-            return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values(
-                name=cur_name, n_type=cur_type, desc=cur_desc,
-                context=cur_context, subctx=cur_subctx,
-                status_done=cur_status_done,
-                val=cur_val, interest=cur_interest, diff=cur_diff,
-                time_o=cur_time_o, time_m=cur_time_m, time_p=cur_time_p,
-                time_unit=cur_time_unit,
-                e_needs_h=cur_needs_h, e_needs_s=cur_needs_s,
-                e_supp_h=cur_supp_h, e_supp_s=cur_supp_s, e_helps=cur_helps,
-                resource_links=resource_link_values(cur_link_values, cur_link_ids),
-                time_mode=cur_time_mode,
-                time_habit_mode=cur_time_habit_mode,
-                habit_duration=cur_habit_duration,
-                habit_duration_unit=cur_habit_duration_unit,
-                habit_intensity_o=cur_habit_int_o,
-                habit_intensity_m=cur_habit_int_m,
-                habit_intensity_p=cur_habit_int_p,
-                habit_intensity_unit=cur_habit_int_unit,
-                habit_days=cur_habit_days,
-                value_mode=cur_value_mode,
-                priority_rank=cur_priority_rank,
-                aliases=cur_aliases,
-                dormancy=cur_dormancy,
-            ))
+            return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form))
 
         if trigger_id == 'btn-add':
             # Toolbar toggle: open/close is handled by core_engine + the
@@ -826,49 +770,11 @@ def register_callbacks(app, services=None):
          Output('aliases-store', 'data', allow_duplicate=True),
          Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
         Input('editor-save-result-store', 'data'),
-        [State('node-name', 'value'),
-         State('node-type', 'value'),
-         State('node-desc', 'value'),
-         State('node-context', 'value'), State('node-subcontext', 'value'),
-         State('node-status-done', 'value'),
-         State('node-value', 'value'), State('node-interest', 'value'),
-         State('node-difficulty', 'value'),
-         State('node-time-o', 'value'), State('node-time-m', 'value'),
-         State('node-time-p', 'value'), State('node-time-unit', 'value'),
-         State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
-         State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
-         State('edge-helps', 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'id'),
-         State('node-time-mode', 'value'),
-         State('node-priority-rank', 'value'),
-         State('node-value-mode', 'value'),
-         State('node-time-habit-mode', 'value'),
-         State('node-habit-duration', 'value'),
-         State('node-habit-duration-unit', 'value'),
-         State('node-habit-intensity-o', 'value'),
-         State('node-habit-intensity-m', 'value'),
-         State('node-habit-intensity-p', 'value'),
-         State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value'),
-         State('node-dormancy-form', 'data'),
-          State('node-original-name', 'data')],
+        [State('node-original-name', 'data'),
+         EDITOR_FORM],
         prevent_initial_call=True,
     )
-    def sync_original_name_after_save(save_result,
-                                      cur_name, cur_type, cur_desc,
-                                      cur_context, cur_subctx, cur_status_done,
-                                      cur_val, cur_interest, cur_diff,
-                                      cur_time_o, cur_time_m, cur_time_p, cur_time_unit,
-                                      cur_needs_h, cur_needs_s, cur_supp_h, cur_supp_s, cur_helps,
-                                      cur_link_values, cur_link_ids,
-                                      cur_time_mode, cur_priority_rank,
-                                      cur_value_mode,
-                                      cur_time_habit_mode,
-                                      cur_habit_duration, cur_habit_duration_unit,
-                                      cur_habit_int_o, cur_habit_int_m, cur_habit_int_p,
-                                      cur_habit_int_unit, cur_habit_days,
-                                       cur_dormancy, cur_original_name):
+    def sync_original_name_after_save(save_result, cur_original_name, form):
         # core_engine writes the result only once a save has committed, with
         # the name it saved under. This used to fire on the Save click and
         # poll the database for the form's name, which a refused save could
@@ -892,30 +798,8 @@ def register_callbacks(app, services=None):
         # overridden by their linted versions — the two values the save
         # pipeline legitimately rewrites in the form).
         linted_aliases = manager.get_aliases(linted) or ['']
-        form_values = {
-            'n_type': cur_type, 'desc': cur_desc,
-            'context': cur_context, 'subctx': cur_subctx,
-            'status_done': cur_status_done,
-            'val': cur_val, 'interest': cur_interest, 'diff': cur_diff,
-            'time_o': cur_time_o, 'time_m': cur_time_m, 'time_p': cur_time_p,
-            'time_unit': cur_time_unit,
-            'e_needs_h': cur_needs_h, 'e_needs_s': cur_needs_s,
-            'e_supp_h': cur_supp_h, 'e_supp_s': cur_supp_s, 'e_helps': cur_helps,
-            'resource_links': resource_link_values(cur_link_values, cur_link_ids),
-            'time_mode': cur_time_mode,
-            'time_habit_mode': cur_time_habit_mode,
-            'habit_duration': cur_habit_duration,
-            'habit_duration_unit': cur_habit_duration_unit,
-            'habit_intensity_o': cur_habit_int_o,
-            'habit_intensity_m': cur_habit_int_m,
-            'habit_intensity_p': cur_habit_int_p,
-            'habit_intensity_unit': cur_habit_int_unit,
-            'habit_days': cur_habit_days,
-            'value_mode': cur_value_mode,
-            'priority_rank': cur_priority_rank,
-            'dormancy': cur_dormancy,
-        }
-        snapshot = snapshot_from_form_state(form_values, linted, linted_aliases)
+        snapshot = snapshot_from_form_state(editor_form_values_from(form), linted,
+                                            linted_aliases)
         # Rewrite node-original-name only when the save changed it (a rename
         # or a new node). Everything keyed off it reloads from the database,
         # and on a save that failed that reload would throw away what the
@@ -1535,37 +1419,15 @@ def register_callbacks(app, services=None):
          # button; only its trigger_id matters, the value is unused.
          Input('btn-editor-new', 'n_clicks')],
 
-        [State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
-         State('node-context', 'value'), State('node-subcontext', 'value'), State('node-status-done', 'value'),
-         State('node-value', 'value'), State('node-interest', 'value'), State('node-difficulty', 'value'),
-         State('node-time-o', 'value'), State('node-time-m', 'value'), State('node-time-p', 'value'),
-         State('node-time-unit', 'value'),
-         State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
-         State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
-         State('edge-helps', 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'id'),
-         State('sidebar-editor-container', 'style'),
+        [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
-         State('node-time-mode', 'value'),
-         State('node-priority-rank', 'value'),
          State('details-goal-sidebar', 'style'),
          State('events-sidebar-container', 'style'),
          State('pending-navigation-store', 'data'),
-         State({'type': 'alias-input', 'index': ALL}, 'value'),
          State('editor-pristine-snapshot', 'data'),
          State('pending-undo-done-store', 'data'),
-         State('node-value-mode', 'value'),
-         State('node-time-habit-mode', 'value'),
-         State('node-habit-duration', 'value'),
-         State('node-habit-duration-unit', 'value'),
-         State('node-habit-intensity-o', 'value'),
-         State('node-habit-intensity-m', 'value'),
-         State('node-habit-intensity-p', 'value'),
-         State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value'),
          State('canvas-payload-stamp', 'data'),
-          State('node-dormancy-form', 'data')],
+         EDITOR_FORM],
         prevent_initial_call='initial_duplicate'
     )
     def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
@@ -1578,26 +1440,39 @@ def register_callbacks(app, services=None):
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
                      active_tab, _relayout,
                      btn_undo_done_confirm, btn_editor_new,
-                     name, n_type, desc, context, subctx, status_done, val, interest, diff,
-                     time_o, time_m, time_p, time_unit,
-                     e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                     link_values, link_ids,
-                     ed_style, original_name,
-                     time_mode_val, priority_rank_val,
-                     goal_sidebar_style, events_sidebar_style, pending_nav_store, alias_values,
-                     pristine_snapshot, pending_undo_done,
-                     value_mode_val,
-                     time_habit_mode_val,
-                     habit_duration, habit_duration_unit,
-                     habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                      habit_days, canvas_stamp, dormancy):
+                     ed_style, original_name, goal_sidebar_style, events_sidebar_style,
+                     pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
+                     form):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         The existing Dash wiring preserves mutation and refresh ordering. Sidebar
         decisions and canvas rendering are delegated; CoreResponse names the stable
         output contract so partial responses do not depend on numeric slots.
+        `form` is the node editor's form (callback_helpers.EDITOR_FORM).
         """
-                     
+        form = form or {}
+        # The form's fields, under the names the save below reads them by.
+        # The *_val names are the raw switches the save resolves into modes.
+        name, n_type, desc = form.get('name'), form.get('n_type'), form.get('desc')
+        context, subctx, status_done = form.get('context'), form.get('subctx'), form.get('status_done')
+        val, interest, diff = form.get('val'), form.get('interest'), form.get('diff')
+        time_o, time_m, time_p = form.get('time_o'), form.get('time_m'), form.get('time_p')
+        time_unit = form.get('time_unit')
+        e_needs_h, e_needs_s = form.get('e_needs_h'), form.get('e_needs_s')
+        e_supp_h, e_supp_s, e_helps = form.get('e_supp_h'), form.get('e_supp_s'), form.get('e_helps')
+        link_values, link_ids = form.get('link_values'), form.get('link_ids')
+        time_mode_val, time_habit_mode_val = form.get('time_mode'), form.get('time_habit_mode')
+        value_mode_val, alias_values = form.get('value_mode'), form.get('aliases')
+        habit_duration, habit_duration_unit = form.get('habit_duration'), form.get('habit_duration_unit')
+        habit_int_o, habit_int_m, habit_int_p = (form.get('habit_intensity_o'),
+                                                 form.get('habit_intensity_m'),
+                                                 form.get('habit_intensity_p'))
+        habit_int_unit, habit_days = form.get('habit_intensity_unit'), form.get('habit_days')
+        dormancy = form.get('dormancy')
+        # What the sidebar decisions read: the form, and the baseline its
+        # unsaved-changes check compares against.
+        form_state = {**form, 'pristine_snapshot': pristine_snapshot}
+
         trigger_id = get_trigger_id()
 
         # Tab-switch gate: switching to Events/Analyze doesn't need a graph
@@ -1635,35 +1510,10 @@ def register_callbacks(app, services=None):
         # window in which other callbacks could race with us.
         if (trigger_id in _EDITOR_UI_ONLY_TRIGGERS
                 and all_triggered_ids <= _EDITOR_UI_ONLY_TRIGGERS):
-            _form_state_for_close = {
-                'original_name': original_name,
-                'name': name, 'n_type': n_type, 'desc': desc,
-                'context': context, 'subctx': subctx, 'status_done': status_done,
-                'val': val, 'interest': interest, 'diff': diff,
-                'time_o': time_o, 'time_m': time_m, 'time_p': time_p,
-                'time_unit': time_unit,
-                'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
-                'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
-                'resource_links': resource_link_values(link_values, link_ids),
-                'time_mode_val': time_mode_val,
-                'time_habit_mode_val': time_habit_mode_val,
-                'habit_duration': habit_duration,
-                'habit_duration_unit': habit_duration_unit,
-                'habit_int_o': habit_int_o,
-                'habit_int_m': habit_int_m,
-                'habit_int_p': habit_int_p,
-                'habit_int_unit': habit_int_unit,
-                'habit_days': habit_days,
-                'value_mode_val': value_mode_val,
-                'priority_rank_val': priority_rank_val,
-                'alias_values': alias_values,
-                'dormancy': dormancy,
-                'pristine_snapshot': pristine_snapshot,
-            }
             ed, goal, events = _compute_sidebar_styles(
                 trigger_id, all_triggered_ids, search_val,
                 ed_style, goal_sidebar_style, events_sidebar_style,
-                pending_nav_store, _form_state_for_close,
+                pending_nav_store, form_state,
             )
             return _core_engine_editor_only_tuple(ed, goal, events)
 
@@ -1686,34 +1536,10 @@ def register_callbacks(app, services=None):
         # Editor Sidebar State — delegate to the shared helper so both the
         # short-circuit path above and the full path below compute sidebars
         # identically.
-        _form_state = {
-            'original_name': original_name,
-            'name': name, 'n_type': n_type, 'desc': desc,
-            'context': context, 'subctx': subctx, 'status_done': status_done,
-            'val': val, 'interest': interest, 'diff': diff,
-            'time_o': time_o, 'time_m': time_m, 'time_p': time_p,
-            'time_unit': time_unit,
-            'e_needs_h': e_needs_h, 'e_needs_s': e_needs_s,
-            'e_supp_h': e_supp_h, 'e_supp_s': e_supp_s, 'e_helps': e_helps,
-            'resource_links': resource_link_values(link_values, link_ids),
-            'time_mode_val': time_mode_val,
-            'time_habit_mode_val': time_habit_mode_val,
-            'habit_duration': habit_duration,
-            'habit_duration_unit': habit_duration_unit,
-            'habit_int_o': habit_int_o,
-            'habit_int_m': habit_int_m,
-            'habit_int_p': habit_int_p,
-            'habit_int_unit': habit_int_unit,
-            'habit_days': habit_days,
-            'value_mode_val': value_mode_val,
-            'priority_rank_val': priority_rank_val,
-            'alias_values': alias_values,
-            'dormancy': dormancy,
-        }
         next_ed_style, next_goal_style, next_events_sidebar_style = _compute_sidebar_styles(
             trigger_id, all_triggered_ids, search_val,
             ed_style, goal_sidebar_style, events_sidebar_style,
-            pending_nav_store, _form_state,
+            pending_nav_store, form_state,
         )
 
         # Use whichever edit trigger fired (details tab or main)
@@ -2493,49 +2319,12 @@ def register_callbacks(app, services=None):
          Input('btn-unsaved-save', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks')],
         [State('sidebar-editor-container', 'style'),
-         State('node-name', 'value'), State('node-type', 'value'), State('node-desc', 'value'),
-         State('node-context', 'value'), State('node-subcontext', 'value'),
-         State('node-status-done', 'value'),
-         State('node-value', 'value'), State('node-interest', 'value'),
-         State('node-difficulty', 'value'),
-         State('node-time-o', 'value'), State('node-time-m', 'value'),
-         State('node-time-p', 'value'), State('node-time-unit', 'value'),
-         State('edge-needs-hard', 'value'), State('edge-needs-soft', 'value'),
-         State('edge-supports-hard', 'value'), State('edge-supports-soft', 'value'),
-         State('edge-helps', 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'value'),
-         State({'type': 'resource-link', 'index': ALL}, 'id'),
-         State('node-time-mode', 'value'),
-         State('node-priority-rank', 'value'),
-         State({'type': 'alias-input', 'index': ALL}, 'value'),
-         State('node-original-name', 'data'),
          State('editor-pristine-snapshot', 'data'),
-         State('node-value-mode', 'value'),
-         State('node-time-habit-mode', 'value'),
-         State('node-habit-duration', 'value'),
-         State('node-habit-duration-unit', 'value'),
-         State('node-habit-intensity-o', 'value'),
-         State('node-habit-intensity-m', 'value'),
-         State('node-habit-intensity-p', 'value'),
-         State('node-habit-intensity-unit', 'value'),
-         State('node-habit-days', 'value'),
-          State('node-dormancy-form', 'data')],
+         EDITOR_FORM],
         prevent_initial_call=True
     )
     def toggle_unsaved_modal(_close, _add, _cancel, _save, _discard,
-                              ed_style,
-                              name, n_type, desc, context, subctx, status_done,
-                              val, interest, diff,
-                              time_o, time_m, time_p, time_unit,
-                              e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps,
-                              link_values, link_ids,
-                              time_mode_val, priority_rank_val,
-                              alias_values, original_name, pristine_snapshot,
-                              value_mode_val,
-                              time_habit_mode_val,
-                              habit_duration, habit_duration_unit,
-                              habit_int_o, habit_int_m, habit_int_p, habit_int_unit,
-                               habit_days, dormancy):
+                             ed_style, pristine_snapshot, form):
         trig = get_trigger_id()
         if trig == 'btn-add':
             # btn-add is the toolbar toggle: only its close half (editor already
@@ -2545,30 +2334,7 @@ def register_callbacks(app, services=None):
                 return False
         elif trig != 'btn-close-editor':
             return False
-        return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values(
-            name=name, n_type=n_type, desc=desc,
-            context=context, subctx=subctx,
-            status_done=status_done,
-            val=val, interest=interest, diff=diff,
-            time_o=time_o, time_m=time_m, time_p=time_p,
-            time_unit=time_unit,
-            e_needs_h=e_needs_h, e_needs_s=e_needs_s,
-            e_supp_h=e_supp_h, e_supp_s=e_supp_s, e_helps=e_helps,
-            resource_links=resource_link_values(link_values, link_ids),
-            time_mode=time_mode_val,
-            time_habit_mode=time_habit_mode_val,
-            habit_duration=habit_duration,
-            habit_duration_unit=habit_duration_unit,
-            habit_intensity_o=habit_int_o,
-            habit_intensity_m=habit_int_m,
-            habit_intensity_p=habit_int_p,
-            habit_intensity_unit=habit_int_unit,
-            habit_days=habit_days,
-            value_mode=value_mode_val,
-            priority_rank=priority_rank_val,
-            aliases=alias_values,
-            dormancy=dormancy,
-        ))
+        return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form))
 
     # --- Delete Confirmation Modal ---
     @app.callback(

@@ -4,12 +4,12 @@ Saving a new node, or renaming one, under a name another node already uses
 used to update that other node in place. The form's fields, links, aliases
 and (usually empty) relationships replaced the existing node's, silently.
 """
-import inspect
 
 import dash
 import pytest
 
 import callbacks
+from editor_forms import call
 from graph_manager import GraphManager
 from models import Node, EDGE_NEEDS_HARD
 from node_commands import conflicting_node_name
@@ -83,15 +83,14 @@ def _save(monkeypatch, trigger, **form):
     fn = _core_engine()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
-    kwargs = dict.fromkeys(inspect.signature(fn).parameters)
-    kwargs.update(n_type="Learn", desc="replacement", context="Mind",
+    values = dict(n_type="Learn", desc="replacement", context="Mind",
                   status_done=[], val=5, interest=5, diff=5,
                   time_o=1, time_m=2, time_p=4, time_unit="hours",
                   e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
-                  link_values=[], link_ids=[], alias_values=[],
+                  link_values=[], link_ids=[], aliases=[],
                   ed_style={"transform": "translateX(0px)"})
-    kwargs.update(form)
-    return callbacks.CoreResponse(*fn(**kwargs))
+    values.update(form)
+    return callbacks.CoreResponse(*call(fn, **values))
 
 
 @pytest.mark.parametrize("trigger", ["btn-save", "btn-save-close"])

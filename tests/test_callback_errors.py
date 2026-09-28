@@ -69,8 +69,8 @@ def test_an_unexpected_save_failure_is_logged_not_shown_raw(monkeypatch, caplog)
 
 
 def _save_new_node(monkeypatch):
-    import inspect
     import dash
+    from editor_forms import call
     probe = dash.Dash(__name__)
     probe.config.suppress_callback_exceptions = True
     callbacks.register_callbacks(probe)
@@ -81,10 +81,9 @@ def _save_new_node(monkeypatch):
         core_engine = core_engine.__wrapped__
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-save")
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {"btn-save"})
-    kwargs = dict.fromkeys(inspect.signature(core_engine).parameters)
-    kwargs.update(name="Fresh", n_type="Learn", desc="", context="Mind",
-                  status_done=[], val=5, interest=5, diff=5, time_o=1,
-                  time_m=2, time_p=4, time_unit="hours", link_values=[],
-                  link_ids=[], alias_values=[],
-                  ed_style={"transform": "translateX(0px)"})
-    return callbacks.CoreResponse(*core_engine(**kwargs)).message
+    response = call(core_engine, name="Fresh", n_type="Learn", desc="", context="Mind",
+                    status_done=[], val=5, interest=5, diff=5, time_o=1,
+                    time_m=2, time_p=4, time_unit="hours", link_values=[],
+                    link_ids=[], aliases=[],
+                    ed_style={"transform": "translateX(0px)"})
+    return callbacks.CoreResponse(*response).message

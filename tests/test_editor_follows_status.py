@@ -5,13 +5,12 @@ the node menu, or a cascade re-blocking a Done node, left it showing the old
 status, and the next Save wrote that back: a node marked Done from the menu
 was quietly reopened by saving an unrelated edit to it.
 """
-import inspect
-
 import dash
 import pytest
 
 import callbacks
 from callback_helpers import follow_done_status
+from editor_forms import call
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 
@@ -40,13 +39,12 @@ def _run(monkeypatch, trigger, **state):
     core_engine = _core_engine()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
-    kwargs = dict.fromkeys(inspect.signature(core_engine).parameters)
-    kwargs.update(n_type="Learn", desc="", context="Mind", status_done=[],
+    values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
-                  time_unit="hours", link_values=[], link_ids=[], alias_values=[],
+                  time_unit="hours", link_values=[], link_ids=[], aliases=[],
                   ed_style={"transform": "translateX(0px)"})
-    kwargs.update(state)
-    return callbacks.CoreResponse(*core_engine(**kwargs))
+    values.update(state)
+    return callbacks.CoreResponse(*call(core_engine, **values))
 
 
 def _editing(name, done, **snapshot):

@@ -14,7 +14,7 @@ import bridge_payloads
 import database
 
 import dash
-from dash import html
+from dash import html, State, ALL
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
@@ -1159,6 +1159,64 @@ def editor_form_values(
         'aliases': aliases,
         'dormancy': dormancy,
     }
+
+
+# The node editor's form: every field a save writes and the unsaved-changes
+# check compares. The callbacks that read the form (core_engine,
+# populate_editor, toggle_unsaved_modal, sync_original_name_after_save) take
+# it as one grouped State, and Dash hands each of them this dict with the
+# fields' values. A new field is added here once. The keys are
+# editor_form_values' names, except that the resource links arrive as the two
+# lists their pattern-matched inputs give (resource_link_values joins them).
+EDITOR_FORM = {
+    'name': State('node-name', 'value'),
+    'n_type': State('node-type', 'value'),
+    'desc': State('node-desc', 'value'),
+    'context': State('node-context', 'value'),
+    'subctx': State('node-subcontext', 'value'),
+    'status_done': State('node-status-done', 'value'),
+    'val': State('node-value', 'value'),
+    'interest': State('node-interest', 'value'),
+    'diff': State('node-difficulty', 'value'),
+    'time_o': State('node-time-o', 'value'),
+    'time_m': State('node-time-m', 'value'),
+    'time_p': State('node-time-p', 'value'),
+    'time_unit': State('node-time-unit', 'value'),
+    'e_needs_h': State('edge-needs-hard', 'value'),
+    'e_needs_s': State('edge-needs-soft', 'value'),
+    'e_supp_h': State('edge-supports-hard', 'value'),
+    'e_supp_s': State('edge-supports-soft', 'value'),
+    'e_helps': State('edge-helps', 'value'),
+    'link_values': State({'type': 'resource-link', 'index': ALL}, 'value'),
+    'link_ids': State({'type': 'resource-link', 'index': ALL}, 'id'),
+    'time_mode': State('node-time-mode', 'value'),
+    'time_habit_mode': State('node-time-habit-mode', 'value'),
+    'habit_duration': State('node-habit-duration', 'value'),
+    'habit_duration_unit': State('node-habit-duration-unit', 'value'),
+    'habit_intensity_o': State('node-habit-intensity-o', 'value'),
+    'habit_intensity_m': State('node-habit-intensity-m', 'value'),
+    'habit_intensity_p': State('node-habit-intensity-p', 'value'),
+    'habit_intensity_unit': State('node-habit-intensity-unit', 'value'),
+    'habit_days': State('node-habit-days', 'value'),
+    'value_mode': State('node-value-mode', 'value'),
+    'priority_rank': State('node-priority-rank', 'value'),
+    'aliases': State({'type': 'alias-input', 'index': ALL}, 'value'),
+    'dormancy': State('node-dormancy-form', 'data'),
+}
+
+
+def editor_form_values_from(form):
+    """The grouped EDITOR_FORM values as editor_form_values builds them.
+
+    ``form`` is the dict Dash passes for EDITOR_FORM. None, or a missing
+    field, reads as an empty field, which is how an unset component reads.
+    """
+    form = form or {}
+    fields = {key: form.get(key) for key in EDITOR_FORM
+              if key not in ('link_values', 'link_ids')}
+    return editor_form_values(
+        **fields,
+        resource_links=resource_link_values(form.get('link_values'), form.get('link_ids')))
 
 
 def is_form_dirty_vs_snapshot(snapshot, form_values):

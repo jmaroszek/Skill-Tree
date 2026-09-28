@@ -2,7 +2,7 @@
 import dash
 from config import SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED
 from callback_helpers import (should_open_editor, left_sidebar_is_open,
-                              is_form_dirty_vs_snapshot, editor_form_values)
+                              is_form_dirty_vs_snapshot, editor_form_values_from)
 import style_tokens as tokens
 
 _DEFAULT_EDITOR_SIDEBAR_STYLE = {
@@ -26,9 +26,10 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     the short-circuit path and the full core_engine path share one
     implementation.
 
-    `form_state` is a dict carrying the editor-form state used only when
-    trigger_id == 'btn-close-editor' (the unsaved-changes check). For triggers
-    that don't need it, pass an empty dict.
+    `form_state` is the editor form (callback_helpers.EDITOR_FORM's values)
+    plus its 'pristine_snapshot'. It is read for the unsaved-changes check on
+    btn-close-editor and btn-add, and for the name and type a save needs. For
+    triggers that need neither, pass an empty dict.
     """
     next_ed_style = ed_style or dict(_DEFAULT_EDITOR_SIDEBAR_STYLE)
     currently_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
@@ -66,33 +67,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
         elif trigger_id in ('btn-close-editor', 'btn-add'):
             form_has_content = is_form_dirty_vs_snapshot(
                 form_state.get('pristine_snapshot'),
-                editor_form_values(
-                    name=form_state.get('name'), n_type=form_state.get('n_type'),
-                    desc=form_state.get('desc'),
-                    context=form_state.get('context'), subctx=form_state.get('subctx'),
-                    status_done=form_state.get('status_done'),
-                    val=form_state.get('val'), interest=form_state.get('interest'),
-                    diff=form_state.get('diff'),
-                    time_o=form_state.get('time_o'), time_m=form_state.get('time_m'),
-                    time_p=form_state.get('time_p'), time_unit=form_state.get('time_unit'),
-                    e_needs_h=form_state.get('e_needs_h'), e_needs_s=form_state.get('e_needs_s'),
-                    e_supp_h=form_state.get('e_supp_h'), e_supp_s=form_state.get('e_supp_s'),
-                    e_helps=form_state.get('e_helps'),
-                    resource_links=form_state.get('resource_links'),
-                    time_mode=form_state.get('time_mode_val'),
-                    time_habit_mode=form_state.get('time_habit_mode_val'),
-                    habit_duration=form_state.get('habit_duration'),
-                    habit_duration_unit=form_state.get('habit_duration_unit'),
-                    habit_intensity_o=form_state.get('habit_int_o'),
-                    habit_intensity_m=form_state.get('habit_int_m'),
-                    habit_intensity_p=form_state.get('habit_int_p'),
-                    habit_intensity_unit=form_state.get('habit_int_unit'),
-                    habit_days=form_state.get('habit_days'),
-                    value_mode=form_state.get('value_mode_val'),
-                    priority_rank=form_state.get('priority_rank_val'),
-                    aliases=form_state.get('alias_values'),
-                    dormancy=form_state.get('dormancy'),
-                ),
+                editor_form_values_from(form_state),
             )
             if not form_has_content:
                 next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
