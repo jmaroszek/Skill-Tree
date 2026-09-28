@@ -22,7 +22,6 @@ stylesheet = [
             'width': 60,
             'height': 60,
             'text-max-width': '200px',
-            'text-overflow-wrap': 'ellipsis',
             'text-wrap': 'ellipsis',
         }
     },
