@@ -375,6 +375,7 @@ Plotly hover boxes on Analyze use one style, set in the shared layout helper: th
 ## Borders & Dividers
 
 - Panel dividers: `1px solid var(--st-border-panel)` (`tokens.BORDER_PANEL`)
+- **Resizable dividers**: `split_handle()` in `ui_kit.py`, placed between the two panels it resizes. `assets/split_handles.js` drags every handle, and the `.split-handle` rules in `theme.css` draw it, hover included. Don't wire a drag or a hover color per handle.
 - Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
 - Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars and modals

@@ -15,7 +15,8 @@ from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
 from ui_kit import (Tooltip, add_button, confirm_action, danger_action,
-                    done_color, panel_close_button, primary_action)
+                    done_color, panel_close_button, primary_action,
+                    split_handle)
 
 
 def build_events_sidebar_content():
@@ -382,18 +383,7 @@ def build_events_tab_content():
     })
 
     # Draggable handle between the event detail panel and the event graph.
-    # Wired by assets/events_resize.js; mirrors the details-tab vertical drag.
-    v_drag_handle = html.Div(
-        id="events-v-drag",
-        style={
-            "width": "6px",
-            "cursor": "col-resize",
-            "backgroundColor": "transparent",
-            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
-            "flexShrink": "0",
-            "transition": "background-color 0.15s",
-        },
-    )
+    v_drag_handle = split_handle("events-v-drag", "cols", 360)
 
     return html.Div([
         dcc.Store(id='selected-event-store', data=None),

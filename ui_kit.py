@@ -188,6 +188,19 @@ def edit_button(button_id, tooltip="Edit", placement="top", className_extra="",
                         tooltip=tooltip, placement=placement, **kwargs)
 
 
+def split_handle(handle_id, axis, min_size):
+    """The bar you drag to resize the two panels on either side of it.
+
+    It resizes its previous and next siblings, so it goes between them.
+    ``axis`` is ``"cols"`` for panels side by side and ``"rows"`` for stacked
+    ones. A drag leaves each panel at least ``min_size`` pixels.
+    ``assets/split_handles.js`` does the dragging for every handle, and the
+    ``.split-handle`` rules in ``theme.css`` draw it.
+    """
+    return html.Div(id=handle_id, className=f"split-handle split-handle-{axis}",
+                    **{"data-min-size": str(min_size)})
+
+
 # --- Semantic action buttons ------------------------------------------------
 # "Cancel" had four treatments across four modals, including one button that
 # hand-painted #6c757d -- which is exactly `color="secondary"` -- and carried a

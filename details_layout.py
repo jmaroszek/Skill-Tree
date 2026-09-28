@@ -14,7 +14,8 @@ from ui_kit import (
     nav_button,
     panel_close_button,
     progress_bar_color,
-    restore_button)
+    restore_button,
+    split_handle)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -362,17 +363,7 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     #  VERTICAL DRAG HANDLE (between left panel and canvas)               #
     # ------------------------------------------------------------------ #
-    v_drag_handle_upper = html.Div(
-        id="details-v-drag-upper",
-        style={
-            "width": "6px",
-            "cursor": "col-resize",
-            "backgroundColor": "transparent",
-            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
-            "flexShrink": "0",
-            "transition": "background-color 0.15s",
-        },
-    )
+    v_drag_handle_upper = split_handle("details-v-drag-upper", "cols", 150)
 
     # ------------------------------------------------------------------ #
     #  DEPENDENCY GRAPH  (teal area: full height, starts at tab bar)      #
@@ -447,17 +438,7 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     #  HORIZONTAL DRAG HANDLE                                             #
     # ------------------------------------------------------------------ #
-    h_drag_handle = html.Div(
-        id="details-h-drag",
-        style={
-            "height": "6px",
-            "cursor": "ns-resize",
-            "backgroundColor": "transparent",
-            "borderTop": f"1px solid {tokens.BORDER_PANEL}",
-            "flexShrink": "0",
-            "transition": "background-color 0.15s",
-        },
-    )
+    h_drag_handle = split_handle("details-h-drag", "rows", 100)
 
     # ------------------------------------------------------------------ #
     #  LOWER SECTION: Subtasks table + Simulation                         #
@@ -544,17 +525,7 @@ def build_details_tab_content():
               "flexDirection": "column", "paddingRight": "8px",
               "overflowY": "auto"})
 
-    v_drag_handle_lower = html.Div(
-        id="details-v-drag-lower",
-        style={
-            "width": "6px",
-            "cursor": "col-resize",
-            "backgroundColor": "transparent",
-            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
-            "flexShrink": "0",
-            "transition": "background-color 0.15s",
-        },
-    )
+    v_drag_handle_lower = split_handle("details-v-drag-lower", "cols", 150)
 
     sim_section = html.Div([
         dcc.Store(id="details-sim-request"),

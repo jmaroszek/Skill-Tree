@@ -341,6 +341,33 @@
     border-bottom: 2px solid var(--st-accent);
 }
 
+/* --- Split handles --- */
+/* The bar between two panels that you drag to resize them (ui_kit.split_handle,
+   assets/split_handles.js). At rest it is a panel divider. On hover it fills
+   with the divider's gray to show it can be grabbed. */
+
+.split-handle {
+    flex-shrink: 0;
+    background-color: transparent;
+    transition: background-color 0.15s;
+}
+
+.split-handle:hover {
+    background-color: var(--st-border-panel);
+}
+
+.split-handle-cols {
+    width: 6px;
+    cursor: col-resize;
+    border-left: 1px solid var(--st-border-panel);
+}
+
+.split-handle-rows {
+    height: 6px;
+    cursor: ns-resize;
+    border-top: 1px solid var(--st-border-panel);
+}
+
 /* --- Events Tab --- */
 
 .event-card {
