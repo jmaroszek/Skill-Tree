@@ -1,14 +1,20 @@
-# Skill Tree — Codex context
+# Skill Tree — agent context
+
+Shared by every coding agent: Codex reads this file directly, and `CLAUDE.md` imports it.
 
 Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges (prerequisites / synergies) is ranked by an ROI-based scoring algorithm to tell the user what to work on next. Dash + Cytoscape.js frontend, Python backend, SQLite storage.
 
 ## Must-know rules
 
-- **Always launch the app in sandbox mode**: `python app.py --sandbox` (add `--dev` for hot reload). Never run `python app.py` (production) unless the user explicitly asks.
+- **Always launch the app in sandbox mode**: `python app.py --sandbox --port 8051` (add `--dev` for hot reload). Never run `python app.py` (production) unless the user explicitly asks.
 - **Production DB (`%LOCALAPPDATA%\Skill Tree\Data\skilltree.db`)** — reads and writes are allowed when the user is asking for graph review or programmatic node/edge changes against their real data. Do **not** use it as a scratchpad: no exploratory writes, no test fixtures, no app launches against it. When in doubt about whether a write is "graph editing the user asked for" vs "experimentation", confirm first.
 - **Sandbox DB (`%LOCALAPPDATA%\Skill Tree\Data\sandbox_skilltree.db`)** is the target for any app-launch testing or experimentation.
-- **Ports:** sandbox on 8051, production on 8050.
+- **Ports:** sandbox on 8051, production on 8050 — kept distinct so the sandbox can run alongside the user's production instance.
 - **Access token:** the server answers only requests carrying its per-launch token. Use the tab it opens, or run with `--no-browser` and use the link it prints (also in `<Data>/sandbox_skilltree.instance.json`). For throwaway data, set `SKILLTREE_HOME` to an absolute folder.
+
+## Domain model
+
+The conceptual guide (how to build a good graph) is [`docs/modeling.md`](docs/modeling.md); the scoring math is [`docs/scoring.md`](docs/scoring.md). Read those before editing node/edge/scoring machinery or doing a hands-on graph review. The node type changes scoring behavior, so it isn't just a label.
 
 ## Node-type semantics
 
