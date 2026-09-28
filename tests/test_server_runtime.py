@@ -113,6 +113,7 @@ def test_the_lock_holds_across_processes_and_dies_with_its_owner(tmp_path):
     finally:
         holder.kill()       # a crash: no cleanup runs
         holder.wait(timeout=10)
+        holder.stdout.close()
     late = InstanceLock(db_path)
     assert late.acquire() is True
     late.release()
@@ -310,10 +311,10 @@ def test_the_desktop_server_handshake_end_to_end(tmp_path):
         assert info["port"] == port and info["pid"] == server.pid
 
         # A second desktop launch finds it and hands over instead of serving.
-        second = _launch(tmp_path, "--desktop", "--sandbox", token="other")
-        running = _line_starting(second, "SKILLTREE_RUNNING")
-        assert f"port={port}" in running and "token=desk-token" in running
-        assert second.wait(timeout=60) == server_runtime.EXIT_ALREADY_RUNNING
+        with _launch(tmp_path, "--desktop", "--sandbox", token="other") as second:
+            running = _line_starting(second, "SKILLTREE_RUNNING")
+            assert f"port={port}" in running and "token=desk-token" in running
+            assert second.wait(timeout=60) == server_runtime.EXIT_ALREADY_RUNNING
     finally:
         # The shell closing (or dying) closes the server's stdin.
         server.stdin.close()
@@ -322,5 +323,7 @@ def test_the_desktop_server_handshake_end_to_end(tmp_path):
         except subprocess.TimeoutExpired:
             server.kill()
             raise
+        finally:
+            server.stdout.close()
     assert code == 0
     assert not (tmp_path / "Data" / "sandbox_skilltree.instance.json").exists()

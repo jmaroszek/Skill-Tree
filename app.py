@@ -265,33 +265,40 @@ def main(argv=None):
                     database.DatabaseUnwritableError.exit_code)
         if not owned:
             sys.exit(server_runtime.hand_over(lock, options))
-        if options.restore_backup:
-            _restore_backup(options.restore_backup)
-    token = server_runtime.launch_token()
-    if not options.dev:
-        # Nothing this process starts needs it.
-        os.environ.pop(server_runtime.TOKEN_ENV, None)
+    # However this launch ends, it lets go of the database. serve() and
+    # run_dev() release the lock themselves when they stop, and release() is a
+    # no-op then, or in a reloader child, which never took it. A refusal
+    # (a failed restore, a database this build won't open) exits from here.
     try:
-        app = create_app(AppSettings(environment=options.environment,
-                                     configure_logging=False, dev=options.dev))
-    except database.DatabaseError as exc:
-        # A database this build won't open (newer, damaged, busy, read-only,
-        # or an SQLite too old for it). The file is untouched.
-        if isinstance(exc, database.DatabaseCorruptError):
-            _offer_backup(server_runtime)
+        if options.restore_backup and not reloader_child:
+            _restore_backup(options.restore_backup)
+        token = server_runtime.launch_token()
+        if not options.dev:
+            # Nothing this process starts needs it.
+            os.environ.pop(server_runtime.TOKEN_ENV, None)
+        try:
+            app = create_app(AppSettings(environment=options.environment,
+                                         configure_logging=False, dev=options.dev))
+        except database.DatabaseError as exc:
+            # A database this build won't open (newer, damaged, busy,
+            # read-only, or an SQLite too old for it). The file is untouched.
+            if isinstance(exc, database.DatabaseCorruptError):
+                _offer_backup(server_runtime)
+            _refuse(str(exc), exc.exit_code)
+
+        # The first canvas render detects communities with NetworkX, hundreds
+        # of modules that the server needn't load before it can answer.
+        # Loading them here overlaps the window opening and the page fetching
+        # its layout.
+        threading.Thread(target=importlib.import_module, args=("networkx",),
+                         name="warm-networkx", daemon=True).start()
+
+        if options.dev:
+            server_runtime.run_dev(app, options, lock, token, reloader_child)
+        else:
+            server_runtime.serve(app, options, lock, token)
+    finally:
         lock.release()
-        _refuse(str(exc), exc.exit_code)
-
-    # The first canvas render detects communities with NetworkX, hundreds of
-    # modules that the server needn't load before it can answer. Loading them
-    # here overlaps the window opening and the page fetching its layout.
-    threading.Thread(target=importlib.import_module, args=("networkx",),
-                     name="warm-networkx", daemon=True).start()
-
-    if options.dev:
-        server_runtime.run_dev(app, options, lock, token, reloader_child)
-    else:
-        server_runtime.serve(app, options, lock, token)
 
 
 def _offer_backup(server_runtime):

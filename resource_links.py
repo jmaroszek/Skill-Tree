@@ -29,6 +29,23 @@ _DOMAIN = re.compile(r"^(?:www\.)?[^/\\\s]+\.[a-z]{2,}(?:[/:?#]|$)", re.IGNORECA
 _FILE_SUFFIXES = {"txt", "md", "pdf", "png", "jpg", "jpeg", "gif", "webp",
                   "svg", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv",
                   "json", "yaml", "yml", "html", "htm", "py", "js", "zip"}
+# Files the system opens by running them: programs, scripts, installers, and
+# shortcuts that can point at either. A link to one asks first, like a link
+# that hands itself to another app. Opening a document or a folder doesn't ask.
+RUNNABLE_SUFFIXES = frozenset({
+    # Windows
+    "exe", "com", "scr", "pif", "cpl", "msc", "msi", "msp", "mst", "msix",
+    "msixbundle", "appx", "appxbundle", "appref-ms", "application", "gadget",
+    "bat", "cmd", "ps1", "psm1", "psd1", "ps1xml", "psc1", "vb", "vbs", "vbe",
+    "js", "jse", "ws", "wsf", "wsc", "wsh", "hta", "reg", "inf", "scf", "lnk",
+    "url", "chm", "settingcontent-ms", "library-ms", "diagcab", "xll",
+    # macOS
+    "app", "command", "tool", "terminal", "workflow", "action", "pkg", "mpkg",
+    # Linux
+    "desktop", "sh", "bash", "zsh", "csh", "ksh", "run", "appimage", "deb", "rpm",
+    # Any system with the interpreter installed
+    "py", "pyw", "pyz", "jar", "pl", "rb",
+})
 # What Obsidian itself opens: notes, canvases, bases, PDFs, and the image,
 # audio and video formats it embeds. Anything else in an Obsidian section
 # goes to the default app instead.
@@ -133,6 +150,27 @@ def _ask_before_network(path, confirmed):
             "connects to that computer with your sign-in. Open it?")
 
 
+def runnable_suffix(path):
+    """The suffix that makes opening ``path`` run a program, or None.
+
+    Windows drops trailing dots and spaces from a file name when it opens it,
+    so ``setup.exe.`` runs ``setup.exe``; the check sees the same name.
+    """
+    name = ntpath.basename(os.fspath(path).replace("/", "\\")).rstrip(". ")
+    suffix = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    return suffix if suffix in RUNNABLE_SUFFIXES else None
+
+
+def _ask_before_running(path, confirmed):
+    """Opening a program, script or shortcut runs it, so ask first."""
+    suffix = runnable_suffix(path)
+    if suffix and not confirmed:
+        raise NeedsConfirmation(
+            f"This link is a .{suffix} file. Opening it can run a program on "
+            "your computer. Only open it if you trust where it came from. "
+            "Open it?")
+
+
 def store_path(value, root):
     """Use portable forward-slash relative paths only when safely inside root."""
     value = value.strip()
@@ -162,8 +200,9 @@ def normalize_link(value, section):
 def resolve_target(value, section, confirmed=False):
     """Return ('web'|'path'|'uri', target); never mistake a drive for a URI.
 
-    Raises NeedsConfirmation, before touching the filesystem, for a scheme
-    outside SAFE_SCHEMES or a path on another computer, unless ``confirmed``.
+    Raises NeedsConfirmation, unless ``confirmed``, for a scheme outside
+    SAFE_SCHEMES or a path on another computer, before touching the
+    filesystem, and for a local file that opening would run as a program.
     """
     value = (value or "").strip()
     if not value:
@@ -194,11 +233,15 @@ def resolve_target(value, section, confirmed=False):
         suffix = path.rsplit(".", 1)[-1].lower() if "." in os.path.basename(path) else ""
         if suffix in OBSIDIAN_SUFFIXES and in_obsidian_vault(path):
             return "uri", "obsidian://open?path=" + urllib.parse.quote(path, safe="")
+        _ask_before_running(path, confirmed)
         return "path", path
     if absolute_path(value) or os.path.exists(value):
+        _ask_before_running(value, confirmed)
         return "path", value
     if root:
-        return "path", os.path.join(root, value.replace("/", os.sep))
+        path = os.path.join(root, value.replace("/", os.sep))
+        _ask_before_running(path, confirmed)
+        return "path", path
     suffix = value.rsplit('.', 1)[-1].lower() if '.' in value else ''
     if _DOMAIN.match(value) and suffix not in _FILE_SUFFIXES:
         return "web", "https://" + value

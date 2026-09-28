@@ -53,8 +53,8 @@ def test_every_vendored_file_the_page_needs_is_served(client):
                 continue
             needed.append(f"{folder}/{ref.split('?')[0].lstrip('./')}")
     for url in needed:
-        response = client.get(url)
-        assert response.status_code == 200 and response.data, url
+        with client.get(url) as response:
+            assert response.status_code == 200 and response.data, url
 
 
 def test_no_asset_reaches_for_a_remote_url():

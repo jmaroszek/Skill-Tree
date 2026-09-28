@@ -27,7 +27,6 @@ from config import (
     SIDEBAR_TRANSLATE_CLOSED,
     SUPPORTED_NODE_TYPES,
     sort_contexts,
-    DEFAULT_NODE_COLORS,
 )
 from events_layout import build_events_sidebar_content, delay_fields, wake_switches
 from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar

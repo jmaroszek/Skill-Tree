@@ -9,7 +9,7 @@ from config import ConfigManager
 from event_manager import EventManager
 from graph_manager import GraphManager
 from models import Event, EDGE_NEEDS_HARD as HARD, EDGE_NEEDS_SOFT as SOFT
-from test_atomic_saves import graph, node, save, sync
+from test_atomic_saves import graph, save
 
 
 def scores(manager):

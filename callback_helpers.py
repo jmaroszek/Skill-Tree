@@ -14,7 +14,7 @@ import bridge_payloads
 import database
 
 import dash
-from dash import html, dcc
+from dash import html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
@@ -25,7 +25,6 @@ from config import (
     DEFAULT_NODE_COLORS,
     DEFAULT_DUPLICATE_STOP_WORDS,
     ConfigManager,
-    badge_style,
 )
 import style_tokens as tokens
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
@@ -453,14 +452,14 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     plain_subs: list = []
     if f_subcontext and f_subcontext != "All":
         values = f_subcontext if isinstance(f_subcontext, list) else [f_subcontext]
-        for v in values:
-            if not v or not isinstance(v, str):
+        for raw in values:
+            if not raw or not isinstance(raw, str):
                 continue
             # Only strip standard ASCII whitespace — NOT all `str.isspace()`
             # chars, because the composite separator \x1f is whitespace by
             # Python's definition and would silently drop the "None" sentinel
             # (`"Body\x1f"` → `"Body"`).
-            v = v.strip(" \t\n\r\v\f")
+            v = raw.strip(" \t\n\r\v\f")
             if not v:
                 continue
             if "\x1f" in v:
@@ -712,7 +711,8 @@ def sync_time_fields(triggered, hpd, hpw, hpm, hpy):
 
 def compute_habit_time_omp(duration, duration_unit,
                            int_o, int_m, int_p, intensity_unit, days=None):
-    """Convert PERT bands on intensity into PERT bands on total hours."""
+    """Convert a lower/expected/upper intensity bracket into the same bracket
+    on total hours."""
     return (
         habit_to_hours(duration, duration_unit, int_o, intensity_unit, days),
         habit_to_hours(duration, duration_unit, int_m, intensity_unit, days),
@@ -1645,6 +1645,12 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     return [heading, cards_row]
 
 
+# The Nodes tab lists at most this many prerequisite chains of each kind. A
+# Goal high in the graph can sit at the end of hundreds, a line and a mounted
+# component each, and every mounted component slows the page's later updates.
+TRAVERSAL_CHAIN_LIMIT = 20
+
+
 def format_traversal_ui(tapped_node, active_node_id, manager):
     """Build the dependency chains (hard/soft) and synergies display for the selected node.
 
@@ -1667,25 +1673,26 @@ def format_traversal_ui(tapped_node, active_node_id, manager):
     else:
         description = ""
 
-    typed_chains = manager.get_prerequisite_chains_typed(node_id)
+    found = manager.prerequisite_chains(node_id, limit=TRAVERSAL_CHAIN_LIMIT)
 
     edges = manager.get_edges()
-    synergies = [e['target'] for e in edges if e['source'] == node_id and e['type'] == EDGE_HELPS]
-    synergies += [e['source'] for e in edges if e['target'] == node_id and e['type'] == EDGE_HELPS]
-    synergies = list(set(synergies))
+    synergies = sorted(
+        {e['target'] for e in edges if e['source'] == node_id and e['type'] == EDGE_HELPS}
+        | {e['source'] for e in edges if e['target'] == node_id and e['type'] == EDGE_HELPS})
 
-    hard_items, soft_items = [], []
-    for chain, chain_type in typed_chains:
-        display_chain = chain[:-1] if chain and chain[-1] == active_node_id else chain
-        if display_chain:
-            item = html.Div(" \u2192 ".join(display_chain), style={"overflowWrap": "break-word"})
-            if chain_type == "Hard":
-                hard_items.append(item)
-            else:
-                soft_items.append(item)
+    def chain_list(kind):
+        items = []
+        for chain in found[kind]:
+            # Every chain ends at the node itself, which the panel is about.
+            shown = chain[:-1] if chain and chain[-1] == node_id else chain
+            if shown:
+                items.append(html.Div(" \u2192 ".join(shown), style={"overflowWrap": "break-word"}))
+        more = found['totals'][kind] - len(found[kind])
+        if more > 0:
+            items.append(html.Div(f"\u2026 and {more} more", className="text-muted small"))
+        return html.Div(items) if items else html.P("None", className="text-dark")
 
-    hard_ui = html.Div(hard_items) if hard_items else html.P("None", className="text-dark")
-    soft_ui = html.Div(soft_items) if soft_items else html.P("None", className="text-dark")
+    hard_ui, soft_ui = chain_list('Hard'), chain_list('Soft')
 
     synergies_ui = html.Div([html.Div(s) for s in synergies]) if synergies else html.P("None", className="text-dark")
 

@@ -261,12 +261,11 @@ class Node:
         """True when BOTH ratings and time inherit from descendants.
 
         A pure structural conduit: contributes no own intrinsic value, no
-        own effort, and no own time to scoring. Such nodes are skipped by
-        the recommender entirely — their children, if any, are surfaced
-        instead. Cascade still flows through them (`_tv_dag` still walks
-        their H/S edges), so they can act as connective tissue without
-        ever being recommended themselves. This is the scoring-exclusion
-        gate; `is_container` is the broader user-facing label.
+        own effort, and no own time to scoring. The recommender skips such
+        a node because it has no hours of its own (`has_no_own_work`, the
+        actual gate), and surfaces its children instead. Cascade still flows
+        through it (`scoring._strongest_routes` walks its H/S edges), so it
+        can act as connective tissue without ever being recommended itself.
         """
         return self.value_mode == 'inherited' and self.time_mode == 'inherited'
 
@@ -303,7 +302,7 @@ class Node:
         d = dict(self.__dict__)
         d['resource_links'] = {key: list(values)
                                for key, values in self.resource_links.items()}
-        d['time'] = self.time  # include the derived blended PERT estimate
+        d['time'] = self.time  # include the derived expected-time estimate
         return d
 
     @classmethod

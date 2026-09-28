@@ -113,6 +113,7 @@ def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
 
 def test_scoring_caches_are_scoped_to_database_identity(monkeypatch, tmp_path, temp_database):
     import sqlite3
+    from contextlib import closing
     import database
     from graph_manager import GraphManager
     from test_atomic_saves import graph
@@ -122,9 +123,12 @@ def test_scoring_caches_are_scoped_to_database_identity(monkeypatch, tmp_path, t
     manager.get_priority_normalizer()
     first_key = manager.caches.normalizer_key
     other = str(tmp_path / 'other.db')
-    with sqlite3.connect(temp_database) as source, sqlite3.connect(other) as target:
+    # A connection's own `with` only commits; closing() also closes it.
+    with closing(sqlite3.connect(temp_database)) as source, \
+            closing(sqlite3.connect(other)) as target:
         source.backup(target)
         target.execute("UPDATE Nodes SET value=10 WHERE name='B'")
+        target.commit()
     monkeypatch.setattr(database, 'get_db_path', lambda: other)
     assert manager.get_priority_normalizer() == GraphManager().get_priority_normalizer()
     assert manager.caches.normalizer_key != first_key

@@ -7,7 +7,6 @@ from dash.development.base_component import Component
 
 import callbacks
 from callback_helpers import format_now_nodes_section, format_suggestions_table
-from config import ConfigManager
 from graph_manager import GraphManager
 from models import Node
 import style_tokens as tokens

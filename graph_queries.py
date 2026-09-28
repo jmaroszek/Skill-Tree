@@ -58,40 +58,10 @@ def get_unblocking_steps(manager, target_names, limit: int = 3,
     return steps
 
 
-def get_directly_unlocked_nodes(manager, node_name: str) -> List[str]:
-    with manager.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT target FROM Edges
-            JOIN Nodes ON Edges.target = Nodes.name
-            WHERE source=? AND Edges.type='Needs_Hard' AND Nodes.status=?
-        ''', (node_name, STATUS_BLOCKED))
-        return [row[0] for row in cursor.fetchall()]
-
-
-def get_directly_unlocked_nodes_by_type(manager, node_name: str) -> Dict[str, List[str]]:
-    """Returns nodes directly unlocked by completing this node, separated by edge type."""
-    with manager.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT target, Edges.type FROM Edges
-            JOIN Nodes ON Edges.target = Nodes.name
-            WHERE source=? AND Edges.type IN ('Needs_Hard', 'Needs_Soft')
-            AND Nodes.status IN (?, ?)
-        ''', (node_name, STATUS_BLOCKED, STATUS_OPEN))
-        hard, soft = [], []
-        for row in cursor.fetchall():
-            if row[1] == 'Needs_Hard':
-                hard.append(row[0])
-            else:
-                soft.append(row[0])
-        return {'hard': hard, 'soft': soft}
-
-
 def get_goal_subtree(manager, goal_name: str, edge_types=None) -> Set[str]:
     """Returns all node names reachable as prerequisites of a goal (BFS over specified edge types).
 
-    The goal node itmanager is excluded from the returned set.
+    The goal node itself is excluded from the returned set.
 
     For directed edge types (Needs_Hard, Needs_Soft), traversal follows
     source → target direction (source is a prerequisite of target).
@@ -304,12 +274,12 @@ def get_goal_completion(manager, goal_name: str, include_soft: bool = True,
 def get_effective_time(manager, node_name: str) -> float:
     """Returns the effective time estimate for a node.
 
-    For nodes with time_mode='manual', returns the PERT-computed time
-    from the node's own time_o/m/p values.
+    For nodes with time_mode='manual', returns the node's expected time
+    (`Node.time`, weighted from its own time_o/m/p bracket).
 
-    For nodes with time_mode='inherited', sums the PERT-computed times
-    of all incomplete nodes in the node's dependency subtree, treating
-    the node itmanager as a container with zero direct time.
+    For nodes with time_mode='inherited', sums the expected times of all
+    incomplete nodes in the node's dependency subtree, treating the node
+    itself as a container with zero direct time.
 
     Returns:
         Time in hours.
@@ -394,81 +364,117 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
     return result
 
 
-def get_prerequisite_chains(manager, target_name: str) -> List[List[str]]:
-    target_node = manager.get_node(target_name)
-    if not target_node:
-        return []
-
-    chains = []
+def _statuses(manager) -> Dict[str, str]:
+    """Every node's status by name, from the read snapshot when there is one."""
+    snapshot = database.current_snapshot()
+    if snapshot is not None:
+        return {name: row["status"] for name, row in snapshot.nodes.items()}
     with manager.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT name, status FROM Nodes")
-        status_lookup = {row[0]: row[1] for row in cursor.fetchall()}
+        return dict(conn.execute("SELECT name, status FROM Nodes"))
 
-        def dfs(current_path):
-            curr_node = current_path[-1]
-            cursor.execute("SELECT source FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')", (curr_node,))
-            prereqs = [row[0] for row in cursor.fetchall()]
 
-            if not prereqs:
-                has_incomplete = any(
-                    status_lookup.get(p, STATUS_OPEN) != STATUS_DONE
-                    for p in current_path
-                )
-                if has_incomplete:
-                    chains.append(list(reversed(current_path)))
-                return
+def prerequisite_chains(manager, target_name: str, limit: Optional[int] = None) -> dict:
+    """The prerequisite chains that end at ``target_name``, by kind.
 
-            for prereq in prereqs:
-                if prereq not in current_path:
-                    dfs(current_path + [prereq])
+    A chain runs along Needs edges from a node with no prerequisites to the
+    target, and is kept only while some node on it isn't Done. A chain with a
+    Soft edge anywhere on it is 'Soft'; any other is 'Hard'. Prerequisites
+    are followed in name order, so the chains always come in the same order.
 
-        dfs([target_name])
+    Returns ``{'Hard': [...], 'Soft': [...], 'totals': {'Hard': n, 'Soft': n}}``.
+    With ``limit``, each list stops at that many chains, while the totals
+    count them all. The number of chains multiplies with every shared
+    prerequisite (hundreds under a large Goal), so the totals are counted
+    without listing the chains, and the listing skips any branch that can't
+    add a chain still wanted.
+    """
+    if manager.get_node(target_name) is None:
+        return {'Hard': [], 'Soft': [], 'totals': {'Hard': 0, 'Soft': 0}}
+    statuses = _statuses(manager)
+    incoming: Dict[str, List[Tuple[str, bool]]] = {}
+    for edge in manager.get_edges():
+        if edge['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+            incoming.setdefault(edge['target'], []).append(
+                (edge['source'], edge['type'] == EDGE_NEEDS_SOFT))
+    for prerequisites in incoming.values():
+        prerequisites.sort()
 
-    return chains
+    def is_open(name):
+        return statuses.get(name, STATUS_OPEN) != STATUS_DONE
+
+    # counts[name][soft * 2 + open]: how many chains start at a node with no
+    # prerequisites and run to ``name``, by whether a Soft edge is on them and
+    # whether a node on them isn't Done. Filled children first, without
+    # recursion, so a deep chain can't exhaust the stack. A node already on
+    # the current path is a cycle, which the editor never allows; such a step
+    # counts nothing, as the listing below skips it.
+    counts: Dict[str, List[int]] = {}
+    on_path: Set[str] = set()
+    stack = [(target_name, False)]
+    while stack:
+        name, finished = stack.pop()
+        if name in counts:
+            continue
+        if not finished:
+            if name in on_path:
+                continue
+            on_path.add(name)
+            stack.append((name, True))
+            stack.extend((source, False) for source, _soft in incoming.get(name, ())
+                         if source not in counts and source not in on_path)
+            continue
+        on_path.discard(name)
+        here = [0, 0, 0, 0]
+        own_open = is_open(name)
+        prerequisites = incoming.get(name)
+        if not prerequisites:
+            here[int(own_open)] = 1
+        for source, soft in prerequisites or ():
+            below = counts.get(source)
+            for index, number in enumerate(below or ()):
+                if number:
+                    here[(int(soft) | index >> 1) * 2 + (index & 1 | own_open)] += number
+        counts[name] = here
+
+    totals = {'Hard': counts[target_name][1], 'Soft': counts[target_name][3]}
+    chains: Dict[str, List[List[str]]] = {'Hard': [], 'Soft': []}
+
+    def wanted(kind):
+        return limit is None or len(chains[kind]) < min(limit, totals[kind])
+
+    def adds_a_wanted_chain(below, soft, path_open):
+        return any(number and (index & 1 or path_open)
+                   and wanted('Soft' if soft or index >> 1 else 'Hard')
+                   for index, number in enumerate(below))
+
+    stack = [(target_name, (target_name,), False, is_open(target_name))]
+    while stack and (wanted('Hard') or wanted('Soft')):
+        name, path, soft, path_open = stack.pop()
+        prerequisites = incoming.get(name)
+        if not prerequisites:
+            kind = 'Soft' if soft else 'Hard'
+            if path_open and wanted(kind):
+                chains[kind].append(list(reversed(path)))
+            continue
+        # Pushed last-first, so the first by name is walked first.
+        for source, edge_soft in reversed(prerequisites):
+            below = counts.get(source)
+            if source in path or below is None:
+                continue
+            if adds_a_wanted_chain(below, soft or edge_soft, path_open):
+                stack.append((source, path + (source,), soft or edge_soft,
+                              path_open or is_open(source)))
+    return {**chains, 'totals': totals}
 
 
 def get_prerequisite_chains_typed(manager, target_name: str) -> List[tuple]:
-    """Returns prerequisite chains classified as 'Hard' or 'Soft'.
+    """Every prerequisite chain of ``target_name`` as (chain, 'Hard'|'Soft').
 
-    Each result is (chain, type_str) where type_str is 'Hard' if all edges
-    in the chain are Needs_Hard, else 'Soft'.
+    See prerequisite_chains, which the Nodes tab uses with a limit.
     """
-    target_node = manager.get_node(target_name)
-    if not target_node:
-        return []
-
-    typed_chains = []
-    with manager.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT name, status FROM Nodes")
-        status_lookup = {row[0]: row[1] for row in cursor.fetchall()}
-
-        def dfs(current_path, has_soft):
-            curr_node = current_path[-1]
-            cursor.execute(
-                "SELECT source, type FROM Edges WHERE target=? AND type IN ('Needs_Hard', 'Needs_Soft')",
-                (curr_node,))
-            prereqs = cursor.fetchall()
-
-            if not prereqs:
-                has_incomplete = any(
-                    status_lookup.get(p, STATUS_OPEN) != STATUS_DONE
-                    for p in current_path
-                )
-                if has_incomplete:
-                    chain = list(reversed(current_path))
-                    typed_chains.append((chain, "Soft" if has_soft else "Hard"))
-                return
-
-            for prereq_name, edge_type in prereqs:
-                if prereq_name not in current_path:
-                    dfs(current_path + [prereq_name],
-                        has_soft or edge_type == 'Needs_Soft')
-
-        dfs([target_name], False)
-
-    return typed_chains
+    found = prerequisite_chains(manager, target_name)
+    return ([(chain, 'Hard') for chain in found['Hard']]
+            + [(chain, 'Soft') for chain in found['Soft']])
 
 
 def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":

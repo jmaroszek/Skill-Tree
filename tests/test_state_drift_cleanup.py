@@ -11,7 +11,6 @@ FK-protected tables were not cleaned up on delete:
 Plus a regression for the unaffected rename path.
 """
 
-import sqlite3
 from typing import Any
 import pytest
 
@@ -20,7 +19,6 @@ from models import Node, Event, EDGE_NEEDS_HARD
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import ConfigManager
-from node_commands import handle_group_delete
 
 
 @pytest.fixture(autouse=True)

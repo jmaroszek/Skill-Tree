@@ -225,13 +225,15 @@ When a book, course, or article is substantial enough that you want to track and
     <em>The Resources section of the node editor.</em>
 </p>
 
-The editor has one field for each kind of resource you keep. A new graph starts with **Obsidian**, **Google Drive** and **Website**. You can rename, remove or add kinds under Settings → Resources, up to five in all. Every field takes a web URL or a local file.
+The editor has one field for each kind of resource you keep. A new graph starts with one kind, **Links**; the editor above has three. You can rename, remove or add kinds under Settings → Resources, up to five in all. Every field takes a web URL or a local file.
 
-A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. A kind can also open its notes in Obsidian instead of your default app. Obsidian's field does this out of the box, with your vault as its root folder.
+A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. A kind can also open its notes in Obsidian instead of your default app. Give that kind your vault as its root folder.
 
 For local paths, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
 
 Also, you aren't limited to one of each type — click the **+** beside a link's title to add as many as you want. Once a link is set, its field gains an open button, so you can jump straight to the resource from the editor. The same links are also reachable from a node's [context menu](#context-menu).
+
+Most links open straight away. A few ask first, because opening them does more than show you something. A program, script, installer or shortcut runs when it opens. An unfamiliar kind of link hands itself to whatever app claims it. A file on another computer makes yours connect to that computer. Links can arrive in someone else's export, so the question gives you a chance to say no.
 
 # Home Tab
 

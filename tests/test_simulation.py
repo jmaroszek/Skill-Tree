@@ -5,12 +5,11 @@ Covers quantile-matched duration sampling, single-node duration sampling, full
 task-chain simulation, chain correlation, and statistics computation.
 """
 
-import math
 import numpy as np
 import pytest
 from models import Node
 from models import expected_time_estimate
-from simulation import (Z90, duration_sample, _sample_node, simulate_task_chain,
+from simulation import (duration_sample, _sample_node, simulate_task_chain,
                         _compute_stats)
 
 
@@ -428,7 +427,7 @@ class TestChainCoherence:
 
     def test_chain_mean_equals_sum_of_node_times(self):
         nodes, edges = _chain(12, time_o=20.0, time_m=40.0, time_p=80.0)
-        result = simulate_task_chain(f"N11", nodes, edges, n_simulations=120_000,
+        result = simulate_task_chain("N11", nodes, edges, n_simulations=120_000,
                                      rng=np.random.default_rng(0))
         assert result['stats']['mean'] == pytest.approx(
             sum(n.time for n in nodes.values()), rel=0.01)

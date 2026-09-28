@@ -40,6 +40,12 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
 
+      # Unused imports and variables, undefined names (ruff.toml). It reads
+      # the source, not the platform, so one runner is enough.
+      - name: Lint
+        if: runner.os == 'Linux'
+        run: python -m ruff check .
+
       # --durations names the slowest tests: the suite is far slower on
       # Windows, and this shows where the time goes.
       - name: Python tests

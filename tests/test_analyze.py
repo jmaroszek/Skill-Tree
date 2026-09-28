@@ -4,7 +4,6 @@ Tests for the Analyze tab compute functions.
 Uses a temporary database for isolation — does not touch the production skilltree.db.
 """
 
-from datetime import date
 from typing import Any
 import pytest
 import database

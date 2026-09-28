@@ -16,7 +16,7 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
     do not need re-walking. Invalidated only when _scoring_version
     advances (a scoring-relevant node/edge mutation) or a TV-affecting
     hyperparam changes. Cost params (w_e, w_t, beta), goal_boost, and the
-    context-adjustment params (alpha, context_weights) don't affect the
+    context weights don't affect the
     cached structural maps, so they are excluded from the key.
     """
     hypers = ConfigManager.get_hyperparams()

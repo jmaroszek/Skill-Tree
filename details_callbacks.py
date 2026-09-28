@@ -5,11 +5,8 @@ Callback definitions for the Details tab.
 import bridge_payloads
 import database
 import json
-import os
 import logging
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
-import dash_bootstrap_components as dbc
-import numpy as np
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import ConfigManager, badge_style
@@ -141,7 +138,6 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
 
 def register_details_callbacks(app, services=None):
     graph_manager = services.graph if services is not None else globals()['graph_manager']
-    event_manager = services.events if services is not None else globals()['event_manager']
 
     # --- Populate node dropdown when its underlying data changes ---
     # All tab contents stay mounted, so the initial call hydrates this once;

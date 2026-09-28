@@ -17,7 +17,6 @@ import json
 from typing import NamedTuple
 
 from dash import Input, Output, dcc, html, no_update
-import dash_bootstrap_components as dbc
 
 from config import ConfigManager
 from ui_kit import Tooltip

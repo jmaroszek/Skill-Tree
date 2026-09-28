@@ -161,8 +161,8 @@ class GraphRepository:
                     VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
                 ''', data)
                 conn.commit()
-            except sqlite3.IntegrityError:
-                raise ValueError(f"Node with name '{node.name}' already exists.")
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(f"Node with name '{node.name}' already exists.") from exc
         # Links live in their own table. A new node may arrive with some (a
         # script building a node); an update never rewrites them, since the
         # editor saves them itself through save_node_links.
@@ -212,6 +212,14 @@ class GraphRepository:
             cursor.execute("UPDATE Nodes SET name=? WHERE name=?", (new_name, old_name))
             cursor.execute("UPDATE Edges SET source=? WHERE source=?", (new_name, old_name))
             cursor.execute("UPDATE Edges SET target=? WHERE target=?", (new_name, old_name))
+            # A Helps row keeps its ends in sorted order (graph_rules), and the
+            # new name can sort on the other side of its partner. SQLite reads
+            # both old values before assigning, so this swaps them.
+            reversed_helps = ("type='Helps' AND source > target "
+                              "AND (source=? OR target=?)")
+            cursor.execute(f"UPDATE OR IGNORE Edges SET source=target, target=source "
+                           f"WHERE {reversed_helps}", (new_name, new_name))
+            cursor.execute(f"DELETE FROM Edges WHERE {reversed_helps}", (new_name, new_name))
             cursor.execute("UPDATE EventTriggerNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE NodeLifecycleEvents SET node_name=? WHERE node_name=?", (new_name, old_name))

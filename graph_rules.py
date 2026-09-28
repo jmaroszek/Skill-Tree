@@ -43,6 +43,30 @@ def _canonicalize_edge(source: str, target: str, edge_type: str) -> Tuple[str, s
     return source, target
 
 
+def cyclic_nodes(prerequisite_edges) -> set:
+    """The nodes on or behind a prerequisite cycle, or an empty set if none.
+
+    ``prerequisite_edges`` are (source, target) pairs of Needs edges. Every
+    node that a topological sort can't place is in a cycle or depends on one;
+    the editor refuses any edge that would close a cycle (add_edge), so a
+    non-empty answer means the rows came from somewhere else.
+    """
+    incoming = {}
+    dependents = {}
+    for source, target in prerequisite_edges:
+        incoming.setdefault(source, 0)
+        incoming[target] = incoming.get(target, 0) + 1
+        dependents.setdefault(source, []).append(target)
+    ready = [name for name, count in incoming.items() if count == 0]
+    while ready:
+        name = ready.pop()
+        for target in dependents.get(name, ()):
+            incoming[target] -= 1
+            if incoming[target] == 0:
+                ready.append(target)
+    return {name for name, count in incoming.items() if count > 0}
+
+
 def _is_prereq_satisfied(p_node) -> bool:
     """Check if a prerequisite node is satisfied (Done)."""
     if not p_node:

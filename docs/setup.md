@@ -67,9 +67,12 @@ python app.py
 
 ```bash
 pytest
+python -m ruff check .
 ```
 
-Tests run against a temporary per-test database and never touch your sandbox or production data. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
+Tests run against a temporary per-test database and never write to your sandbox or production data. Two scoring tests read a consistent copy of those databases when they exist, and skip when they don't. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
+
+The linter checks for unused imports and variables, undefined names, and shadowed imports. `ruff.toml` names its rules, and CI runs it too.
 
 The browser journeys in `tests/e2e` start a real server and drive it in Chromium, the way a new user would. They skip unless Playwright is installed:
 

@@ -64,3 +64,20 @@ def test_a_due_date_trigger_fires_and_refreshes():
     assert isinstance(refresh, str) and refresh.startswith("event-clock-")
     assert events.get_event("Spring").status == "Triggered"
     assert GraphManager().get_node("Plant").dormant == 0
+
+def test_with_nothing_due_the_sweeps_only_read(monkeypatch):
+    """core_engine runs both sweeps on every interaction. When nothing is due
+    they only read, so another program holding the write lock (a backup or
+    sync tool) doesn't hold up the page."""
+    import sqlite3
+    import database
+    monkeypatch.setattr(database, "BUSY_TIMEOUT_S", 0.1)
+    other = sqlite3.connect(database.get_db_path())
+    other.execute("BEGIN IMMEDIATE")
+    try:
+        events = EventManager()
+        assert events.check_pending_activations() == []
+        assert events.check_scheduled_triggers() == []
+    finally:
+        other.rollback()
+        other.close()

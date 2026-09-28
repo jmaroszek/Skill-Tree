@@ -5,7 +5,6 @@ score_nodes, the gate in calculate_priority_scores, and the rolling
 perf.log writer.
 """
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
@@ -225,6 +224,6 @@ def test_log_rotation_trims():
         'rank_ms': 1.0, 'total_ms': 10.0, 'n_nodes': 67, 'n_edges': 80,
     })
 
-    line_count = sum(1 for _ in perf._LOG_PATH.open("r", encoding="utf-8"))
+    line_count = len(perf._LOG_PATH.read_text(encoding="utf-8").splitlines())
     # After trim we keep _MAX_LINES // 2 of the old lines, then write one new line.
     assert line_count <= perf._MAX_LINES // 2 + 1

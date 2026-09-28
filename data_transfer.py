@@ -14,7 +14,9 @@ from pathlib import Path
 
 import backup
 import database
+import graph_rules
 from graph_state import revisions
+from models import ALL_STATUSES, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from version import __version__
 
 logger = logging.getLogger(__name__)
@@ -85,15 +87,85 @@ def _validated_tables(bundle) -> dict:
     return tables
 
 
+def _shown(name) -> str:
+    """A name as a refusal quotes it: in quotes, and cut short if long."""
+    text = str(name)
+    return repr(text if len(text) <= 60 else text[:57] + "...")
+
+
+def _refuse(message) -> TransferRefused:
+    return TransferRefused(f"That export can't be imported. {message} Nothing was changed.")
+
+
+def _validated_graph(tables) -> dict:
+    """The tables, checked against the rules the editor enforces on every save.
+
+    Import writes rows as they are, so a hand-edited or damaged export could
+    load a graph the app could never have built: a name that can't travel
+    through menus and the canvas, prerequisites that loop, or one pair
+    related as two kinds of prerequisite. Such a graph is refused whole.
+
+    A Helps row whose ends are the wrong way round is put in order instead,
+    since a rename in the exporting app can leave one that way. Returns a
+    copy of the tables with Edges in that order and without duplicates.
+    """
+    names = set()
+    for row in tables.get("Nodes", []):
+        name = row.get("name")
+        problem = graph_rules.name_problem(name, "A node name")
+        if problem:
+            raise _refuse(f"{problem} ({_shown(name)})")
+        if row.get("status") not in ALL_STATUSES:
+            raise _refuse(f"The node {_shown(name)} has an unknown status, "
+                          f"{_shown(row.get('status'))}.")
+        names.add(name)
+    for table, column, label in (("Events", "name", "An event name"),
+                                 ("Aliases", "alias", "An alias")):
+        for row in tables.get(table, []):
+            problem = graph_rules.name_problem(row.get(column), label)
+            if problem:
+                raise _refuse(f"{problem} ({_shown(row.get(column))})")
+
+    edges, prerequisite_pairs = {}, {}
+    for row in tables.get("Edges", []):
+        source, target, kind = row.get("source"), row.get("target"), row.get("type")
+        if kind not in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS):
+            raise _refuse(f"A relationship has an unknown type, {_shown(kind)}.")
+        for end in (source, target):
+            if end not in names:
+                raise _refuse(f"A relationship names {_shown(end)}, a node "
+                              "the export doesn't include.")
+        if source == target:
+            raise _refuse(f"The node {_shown(source)} is related to itself.")
+        source, target = graph_rules._canonicalize_edge(source, target, kind)
+        edges[source, target, kind] = {**row, "source": source, "target": target}
+        if kind != EDGE_HELPS:
+            pair = frozenset((source, target))
+            if prerequisite_pairs.setdefault(pair, (source, target, kind)) != (source, target, kind):
+                first, second = sorted(pair)
+                raise _refuse(f"{_shown(first)} and {_shown(second)} are linked by "
+                              "more than one prerequisite. Only one prerequisite "
+                              "is allowed between two nodes.")
+    looped = graph_rules.cyclic_nodes(
+        (source, target) for source, target, _kind in prerequisite_pairs.values())
+    if looped:
+        listed = ", ".join(_shown(name) for name in sorted(looped)[:4])
+        more = f" and {len(looped) - 4} more" if len(looped) > 4 else ""
+        raise _refuse(f"Its prerequisites loop back on themselves, through "
+                      f"{listed}{more}. Prerequisites have to run one way.")
+    return {**tables, "Edges": list(edges.values())}
+
+
 def import_data(bundle) -> dict:
     """Load an export into this database, which must hold no graph yet.
 
     The export's settings and resource sections replace the ones a new
     database starts with, so the graph arrives as it was. Everything commits
-    in one transaction; a bad row rejects the whole import. Returns the number
-    of rows loaded per table.
+    in one transaction; a bad row rejects the whole import, and so does a
+    graph the editor couldn't have built (_validated_graph). Returns the
+    number of rows loaded per table.
     """
-    tables = _validated_tables(bundle)
+    tables = _validated_graph(_validated_tables(bundle))
     with database.get_connection() as conn:
         nodes = conn.execute("SELECT COUNT(*) FROM Nodes").fetchone()[0]
         events = conn.execute("SELECT COUNT(*) FROM Events").fetchone()[0]
@@ -208,9 +280,16 @@ def _refused_backup(path, problem):
 
 
 def _after_replacing_the_graph():
-    """Nothing in memory may describe the graph that was just replaced."""
+    """Nothing in memory may describe the graph that was just replaced.
+
+    The new graph never went through a startup either, so the startup safety
+    nets run on it: statuses from prerequisites, and dormant flags from
+    events that already woke their nodes.
+    """
+    from event_manager import EventManager
     from graph_manager import GraphManager
     manager = GraphManager()
     manager.pop_auto_done_candidates()
     manager.recompute_all_statuses()
+    EventManager().reconcile_dormant_flags()
     revisions.changed(scoring=True)

@@ -7,7 +7,8 @@ import subprocess
 import dash
 import pytest
 
-from next_callbacks import register_next_callbacks, _initial_next_view, _components_by_id
+from next_callbacks import register_next_callbacks
+from next_view import _initial_next_view, _components_by_id
 from test_atomic_saves import graph
 
 

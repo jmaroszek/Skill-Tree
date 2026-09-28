@@ -1,15 +1,17 @@
 """Opening a saved link asks first when it would start an app or reach a server (P3.7).
 
 A link is data, and since P2.4 it can arrive in someone else's export. Most
-links open at once: web pages, email, Obsidian notes, files on this computer.
-Two kinds wait for a yes, the way a browser asks before handing a link to
-another program:
+links open at once: web pages, email, Obsidian notes, documents and folders
+on this computer. Three kinds wait for a yes, the way a browser asks before
+handing a link to another program:
 
 - Any other scheme runs whatever app registered it. On Windows some of those
   handlers have been exploitable (ms-msdt, "Follina").
 - A network path (\\\\host\\share) makes Windows sign in to that host, which
   hands it the user's password hash. Merely checking that the file exists
   does it, so the question comes before any filesystem call.
+- A program, script, installer or shortcut. The system opens those by
+  running them.
 """
 import os
 
@@ -97,6 +99,66 @@ def test_a_network_root_folder_asks_too(opened, no_network_touch):
     with pytest.raises(NeedsConfirmation, match="evil.example"):
         resources.open_resource("notes/a.md", obsidian)
     assert opened == []
+
+
+@pytest.mark.parametrize("link", [
+    "C:\\Windows\\System32\\calc.exe",
+    "C:\\Users\\Public\\run-me.BAT",        # any case
+    "C:\\Users\\Public\\setup.exe.",         # Windows drops the trailing dot
+    "C:\\Users\\Public\\invoice.pdf.exe",    # the last suffix is what runs
+    "C:\\Users\\Public\\Desktop\\tool.lnk",  # a shortcut can point anywhere
+])
+def test_a_file_that_opening_would_run_asks_first(opened, link):
+    with pytest.raises(NeedsConfirmation) as asked:
+        resources.open_resource(link, MIXED)
+    assert "run a program" in str(asked.value)
+    assert opened == []
+
+
+@pytest.mark.parametrize("path, suffix", [
+    ("/Applications/Calculator.app", "app"),
+    ("/Users/me/Downloads/start.command", "command"),
+    ("/home/me/Desktop/installer.desktop", "desktop"),
+    ("/home/me/tools/deploy.sh", "sh"),
+    ("/home/me/Downloads/Tool.AppImage", "appimage"),
+    ("/home/me/notes/paper.pdf", None),
+    ("/home/me/notes", None),
+    ("C:\\notes\\archive.tar.gz", None),
+])
+def test_runnable_files_are_named_by_their_last_suffix(path, suffix):
+    assert resources.runnable_suffix(path) == suffix
+
+
+def test_a_runnable_file_opens_once_agreed(opened, tmp_path):
+    program = tmp_path / "tool.exe"
+    program.write_bytes(b"MZ")
+    with pytest.raises(NeedsConfirmation, match=r"\.exe file"):
+        resources.open_resource(str(program), MIXED)
+    resources.open_resource(str(program), MIXED, confirmed=True)
+    assert opened == [("os", str(program))]
+
+
+def test_runnable_files_under_a_root_folder_or_in_a_vault_ask_too(opened, tmp_path):
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "setup.lnk").write_bytes(b"L")
+    (tmp_path / "sync.sh").write_text("echo hi")
+    section = {**MIXED, "root_path": str(tmp_path)}
+    with pytest.raises(NeedsConfirmation, match=r"\.lnk file"):
+        resources.open_resource("tools/setup.lnk", section)
+    with pytest.raises(NeedsConfirmation, match=r"\.sh file"):
+        resources.open_resource("sync.sh", {**section, "kind": "obsidian"})
+    assert opened == []
+
+
+@pytest.mark.parametrize("name", ["paper.pdf", "notes.md", "plan.docx", "photo.JPG", "folder"])
+def test_documents_and_folders_open_without_asking(opened, tmp_path, name):
+    target = tmp_path / name
+    if "." in name:
+        target.write_text("x")
+    else:
+        target.mkdir()
+    resources.open_resource(str(target), MIXED)
+    assert opened == [("os", str(target))]
 
 
 def test_windows_drive_paths_are_not_mistaken_for_schemes(opened, tmp_path):

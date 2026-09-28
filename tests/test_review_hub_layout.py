@@ -5,7 +5,6 @@ from pathlib import Path
 from models import Node
 from review_hub_callbacks import (
     _build_history_table,
-    _next_history_sort,
     _rating_change_magnitude,
     _sort_history_nodes,
     _visible_excluded_count,

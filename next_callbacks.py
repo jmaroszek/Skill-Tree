@@ -3,15 +3,10 @@ Callback definitions for the Home tab (priority suggestions).
 """
 
 from next_view import (
-    _components_by_id,
-    _initial_next_view,
-    NextRows,
     get_suggestions as _get_suggestions,
 )
 
 import database
-from collections import namedtuple
-from copy import deepcopy
 
 from dash import Input, Output, State, ALL, ClientsideFunction
 from graph_manager import GraphManager

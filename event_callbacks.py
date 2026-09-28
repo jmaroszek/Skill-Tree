@@ -4,14 +4,13 @@ Callback definitions for the Events tab.
 
 import bridge_payloads
 import database
-import json
 import time
 import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
 from graph_manager import GraphManager
 from config import ConfigManager
-from models import Event, STATUS_BLOCKED, STATUS_DONE
+from models import Event, STATUS_DONE
 from events_layout import (build_event_card, build_dormant_nodes_table, _event_trigger_type,
                            build_triggered_divider, trigger_confirmation_body,
                            dormant_delete_confirmation_body)
@@ -811,8 +810,27 @@ def register_event_callbacks(app, services=None):
         # One button, every node. The Now pinning and the announcement live in
         # the manager now, so this path behaves exactly like the date and
         # node-completion ones.
-        result = event_manager.trigger_event_manually(
-            selected_event, pin_all_now=bool(now_toggle))
+        try:
+            result = event_manager.trigger_event_manually(
+                selected_event, pin_all_now=bool(now_toggle))
+        except ValueError as exc:
+            # Fired already (from another window, or on its date) or deleted.
+            # Close the dialog and show the event as it now stands.
+            event = event_manager.get_event(selected_event)
+            if event is None:
+                return (no_update, f"trigger-{selected_event}", no_update, no_update,
+                        no_update, no_update, str(exc), False, no_update)
+            return (
+                selected_event,
+                f"trigger-{selected_event}",
+                "Triggered", "success",
+                {"display": "none"},
+                build_dormant_nodes_table(event_manager.get_event_nodes(selected_event),
+                                          event),
+                str(exc),
+                False,
+                "",
+            )
 
         activated = result['activated']
         scheduled = result['scheduled']
@@ -1148,10 +1166,12 @@ def register_event_callbacks(app, services=None):
             return (no_update,) * _N
 
         # A node belongs to one event, and one its event already woke can't
-        # sleep again, so only nodes with no event at all are offered.
+        # sleep again, so only nodes with no event at all are offered. A
+        # finished node has nothing to wait for; the editor won't make a Done
+        # node dormant either.
         taken = event_manager.get_nodes_in_events()
         live = [n.name for n in graph_manager.get_all_nodes()
-                if not n.dormant and n.name not in taken]
+                if not n.dormant and n.name not in taken and n.status != STATUS_DONE]
         live_set = set(live)
         events = [{"label": e.name, "value": e.name}
                   for e in event_manager.get_all_events() if e.status == "Pending"]

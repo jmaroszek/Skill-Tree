@@ -142,7 +142,7 @@ def transaction():
         if snapshot is not None:
             snapshot.invalid = True
         conn = get_connection()
-        session = {"connection": conn, "failed": False, "callbacks": {}}
+        session = {"connection": conn, "failed": False, "callbacks": {}, "first": {}}
         token = _session.set(session)
         committed = False
         try:
@@ -179,11 +179,32 @@ def atomic(func):
 
 
 def on_commit(callback, key=None):
+    """Run ``callback`` once the outer transaction commits, or now outside one.
+
+    A later callback registered under the same ``key`` replaces the earlier
+    one, so a callback must not depend on when in the transaction it was
+    registered. State from before the transaction belongs in
+    first_in_transaction.
+    """
     session = _session.get()
     if session is None:
         callback()
     else:
         session["callbacks"][key if key is not None else id(callback)] = callback
+
+
+def first_in_transaction(key, value):
+    """The value first recorded under ``key`` in this transaction.
+
+    One transaction can write the same row more than once, as a compound save
+    does. A write that compares old against new should compare against the
+    row as it was before the transaction, which is what its first write saw.
+    Outside a transaction there is nothing earlier, so ``value`` comes back.
+    """
+    session = _session.get()
+    if session is None:
+        return value
+    return session["first"].setdefault(key, value)
 
 
 def in_transaction():

@@ -30,8 +30,6 @@ import database
 from graph_manager import GraphManager
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager, BADGE_PALETTE
-from scoring import build_adjacency as _scoring_build_adjacency
-import style_tokens as tokens
 
 graph_manager = GraphManager()
 logger = logging.getLogger(__name__)
@@ -627,10 +625,10 @@ def _render_context_accuracy_boxplot(rows):
     fill_c = 'rgba(79,158,217,0.22)'
 
     fig = go.Figure()
-    for ctx, ctx_rows in ordered:
-        ratios = [_ratio(r) for r in ctx_rows]
+    for context, context_rows in ordered:
+        ratios = [_ratio(r) for r in context_rows]
         fig.add_trace(go.Box(
-            x=ratios, name=ctx, orientation='h',
+            x=ratios, name=context, orientation='h',
             boxpoints='all', jitter=0.4, pointpos=0, whiskerwidth=0.5,
             # Light dots with a background-colored halo so each observation
             # reads as a distinct point on top of the box rather than
@@ -638,12 +636,12 @@ def _render_context_accuracy_boxplot(rows):
             marker=dict(color='#dee2e6', size=7, opacity=0.9,
                         line=dict(color=_BG, width=1)),
             line=dict(color=line_c, width=1.5), fillcolor=fill_c,
-            hoveron='points', customdata=[r['name'] for r in ctx_rows],
+            hoveron='points', customdata=[r['name'] for r in context_rows],
             hovertemplate=('<b>%{customdata}</b><br>'
                            '%{x:.2f}× estimate<extra></extra>'),
         ))
 
-    all_ratios = [_ratio(r) for _, ctx_rows in ordered for r in ctx_rows]
+    all_ratios = [_ratio(r) for _, context_rows in ordered for r in context_rows]
     rmin, rmax = min(all_ratios), max(all_ratios)
     ladder = (0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16)
     # Ticks inside a padded data window, *plus* the ladder steps immediately
@@ -795,10 +793,10 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
 
     q_labels = [r['label'] for r in quarter_rows]
 
-    def _tooltip(label, ctx, seg):
+    def _tooltip(label, context, seg):
         n_nodes = len(seg['nodes'])
         lines = [
-            f"<b>{label} · {ctx}</b>",
+            f"<b>{label} · {context}</b>",
             f"{fmt(seg['hours'])} across {n_nodes} node"
             f"{'s' if n_nodes != 1 else ''}",
         ]
@@ -810,19 +808,19 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
         return '<br>'.join(lines)
 
     fig = go.Figure()
-    for ctx in ctx_order:
+    for context in ctx_order:
         ys, hovers = [], []
         for r in quarter_rows:
-            seg = next((s for s in r['segments'] if s['context'] == ctx), None)
+            seg = next((s for s in r['segments'] if s['context'] == context), None)
             if seg and seg['hours'] > 0:
                 ys.append(seg['hours'])
-                hovers.append(_tooltip(r['label'], ctx, seg))
+                hovers.append(_tooltip(r['label'], context, seg))
             else:
                 ys.append(0)
                 hovers.append('')
         fig.add_trace(go.Bar(
-            x=q_labels, y=ys, name=ctx,
-            marker_color=ctx_color[ctx], marker_line=dict(color=_BG, width=1),
+            x=q_labels, y=ys, name=context,
+            marker_color=ctx_color[context], marker_line=dict(color=_BG, width=1),
             opacity=0.9, hovertext=hovers, hoverinfo='text',
         ))
 
@@ -881,32 +879,32 @@ def _render_hours_by_context(ctx_data, height=None):
     # order, so neighbouring segments always differ. A global per-subcontext
     # colour wrapped past the palette's end and put repeats side by side.
     seg_color = {}
-    for ctx in ctx_names:
+    for context in ctx_names:
         shown = [n for n in seg_order
-                 if (seg_by_ctx[ctx].get(n) or {}).get('time', 0) > 0]
+                 if (seg_by_ctx[context].get(n) or {}).get('time', 0) > 0]
         named_shown = [n for n in shown if n != '(No subcontext)']
         for k, name in enumerate(named_shown):
-            seg_color[ctx, name] = _SUBCONTEXT_PALETTE[k % len(_SUBCONTEXT_PALETTE)]
+            seg_color[context, name] = _SUBCONTEXT_PALETTE[k % len(_SUBCONTEXT_PALETTE)]
         # The slate entry reads as the neutral grey, so it can't sit last
         # before a "(No subcontext)" segment. The next entry differs from both
         # neighbours: the grey, and the entry before slate.
         if (named_shown and '(No subcontext)' in shown
-                and seg_color[ctx, named_shown[-1]] == _SLATE):
-            seg_color[ctx, named_shown[-1]] = _SUBCONTEXT_PALETTE[
+                and seg_color[context, named_shown[-1]] == _SLATE):
+            seg_color[context, named_shown[-1]] = _SUBCONTEXT_PALETTE[
                 (len(named_shown)) % len(_SUBCONTEXT_PALETTE)]
-        seg_color[ctx, '(No subcontext)'] = _NO_SUBCONTEXT_COLOR
+        seg_color[context, '(No subcontext)'] = _NO_SUBCONTEXT_COLOR
 
     fig = go.Figure()
     for seg_name in seg_order:
         xs, hovers, colors = [], [], []
-        for ctx in ctx_names:
-            s = seg_by_ctx[ctx].get(seg_name)
-            colors.append(seg_color.get((ctx, seg_name), _NO_SUBCONTEXT_COLOR))
+        for context in ctx_names:
+            s = seg_by_ctx[context].get(seg_name)
+            colors.append(seg_color.get((context, seg_name), _NO_SUBCONTEXT_COLOR))
             if s and s['time'] > 0:
                 xs.append(s['time'])
                 hovers.append(
                     f"<b>{seg_name}</b><br>"
-                    f"Context: {ctx}<br>"
+                    f"Context: {context}<br>"
                     f"Nodes: {s['count']}<br>"
                     f"Time: {fmt(s['time'])}"
                 )
@@ -942,8 +940,6 @@ def _render_hours_by_context(ctx_data, height=None):
 # ---------------------------------------------------------------------------
 
 def register_analyze_callbacks(app, services=None):
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
-
     # Arrival gate. Listening to `main-tabs.active_tab` directly meant every
     # tab switch anywhere in the app posted a request to the server just to
     # have refresh_analyze_tab answer no_update six times — a round-trip that

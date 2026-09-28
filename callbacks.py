@@ -15,7 +15,7 @@ import json
 import logging
 import time
 import database
-from sidebar_state import _compute_sidebar_styles, _DEFAULT_EDITOR_SIDEBAR_STYLE
+from sidebar_state import _compute_sidebar_styles
 from core_response import CoreResponse
 from canvas_view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
 from next_view import perf_stats_text
@@ -25,17 +25,14 @@ from typing import List, Set
 
 import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
-import dash_bootstrap_components as dbc
 
 from graph_manager import GraphManager
 from event_manager import EventManager
 from canvases import CANVASES
 from prerender import prerendered
-from config import (ConfigManager, sort_subcontexts, sort_contexts,
-                    SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED,
-                    DEFAULT_GRAPH_LAYOUT, DEFAULT_DETAILS_GRAPH_LAYOUT,
-                    DEFAULT_EVENTS_GRAPH_LAYOUT, SUPPORTED_NODE_TYPES)
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from config import (ConfigManager, sort_subcontexts, SIDEBAR_TRANSLATE_CLOSED,
+                    DEFAULT_GRAPH_LAYOUT)
+from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_DONE
 import bridge_payloads
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
@@ -44,17 +41,15 @@ from node_commands import (
 from callback_helpers import (
     get_trigger_id, get_all_triggered_ids,
     node_options, build_filters, is_filters_active,
-    format_traversal_ui,
     render_alias_rows, alias_rows_label, update_alias_rows,
     render_resource_sections, resource_link_values,
     spawn_local_file_picker,
-    should_open_editor, resolve_active_node_id, left_sidebar_is_open,
-    normalize_name_for_comparison,
+    resolve_active_node_id, normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, editor_form_values, dormancy_for_save,
     follow_done_status,
-    habit_to_hours, compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
-    habit_editor_view, parse_habit_days, ALL_WEEKDAYS, habit_preview_text,
+    compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
+    habit_editor_view, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
 )
 import style_tokens as tokens
@@ -78,9 +73,9 @@ manager = GraphManager()
 event_manager = EventManager()
 
 
-# core_engine has 28 outputs; this constant + helper let the tab-gating guard
-# return a no_update tuple of the correct arity. test_core_engine_arity verifies
-# that it stays in sync with the actual callback registration.
+# core_engine's outputs are CoreResponse's fields. This constant and the helper
+# below let the tab-gating guard return a no_update tuple of the correct arity;
+# test_core_engine_tab_gate checks it against the callback's registration.
 _CORE_ENGINE_NUM_OUTPUTS = len(CoreResponse._fields)
 
 # Tabs whose own callbacks already refresh their content; switching to them

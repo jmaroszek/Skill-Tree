@@ -10,25 +10,25 @@ Strategy:
 1. `_baseline_score_nodes` — an inline copy of score_nodes that calls
    total_value with memo=None, replicating main's behavior exactly.
 2. Randomized graph generator seeded for reproducibility. Sizes are
-   intentionally kept modest (n ≤ 25) because total_value's cycle-avoidance
-   is per-path, so dense cyclic graphs are inherently exponential in the
-   naive algorithm — the test's job is correctness verification, not stress.
+   intentionally kept modest (n ≤ 25): the test's job is correctness
+   verification, not stress.
 3. Pathological shapes: self-loops, small fully-connected cycles,
    bidirectional pairs, goal-rooted subtrees, long chains, all-Done graphs.
-4. Real-world DB tests: load the user's sandbox and production DBs and
-   verify byte-equal scores under default + custom hyperparameter profiles.
+4. Real-world DB tests: score a read-only snapshot of the user's sandbox and
+   production DBs, when they exist, and verify byte-equal scores.
 5. Mutation invariance: scoring after any mutator call must match
    a baseline run on the same post-mutation state.
 """
 
 import copy
 import random
-import shutil
+import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional
 
 import pytest
 
+import backup
 import database
 from app_paths import get_data_dir
 from config import ConfigManager
@@ -423,8 +423,18 @@ def _run_real_db_differential(monkeypatch, tmp_path, db_name: str):
     if src is None:
         pytest.skip(f"{db_name} not present")
 
+    # SQLite's backup API from a read-only connection: a consistent snapshot
+    # even while the app is saving, and the real file is never written. A
+    # plain file copy taken mid-commit could come out torn.
     target = tmp_path / "real_copy.db"
-    shutil.copy(src, target)
+    source = sqlite3.connect(backup._read_only_uri(src), uri=True,
+                             timeout=database.BUSY_TIMEOUT_S)
+    copied = sqlite3.connect(target)
+    try:
+        source.backup(copied)
+    finally:
+        source.close()
+        copied.close()
     monkeypatch.setattr(database, "get_db_path", lambda: str(target))
     # Allow init_db to run on the copy so any schema migrations (e.g. drop
     # deprecated `progress` column) apply before GraphManager reads nodes.

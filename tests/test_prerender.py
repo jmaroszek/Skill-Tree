@@ -8,7 +8,7 @@ import json
 
 import dash
 import pytest
-from dash import Input, Output, State, dcc, html, no_update
+from dash import Input, Output, dcc, html, no_update
 
 import prerender
 from prerender import prerender_layout, prerendered, prerendered_specs

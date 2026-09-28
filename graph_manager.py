@@ -190,6 +190,11 @@ class GraphManager:
                 "it belongs to."
             )
         prior = self.get_node(node.name)
+        # Completion is judged against the node as it was before this whole
+        # transaction. A compound save can write the node again after marking
+        # it Done, and that later write sees it Done already.
+        was_done = database.first_in_transaction(
+            ("was-done", node.name), prior is not None and prior.status == STATUS_DONE)
         # A node is Done only once its hard prerequisites are: that is what
         # Blocked means, and the launch repair (recompute_all_statuses) would
         # put it back to Blocked otherwise. Goals are the user's to complete.
@@ -255,7 +260,7 @@ class GraphManager:
             # on a true Open/Blocked → Done transition. Re-saving an already-
             # Done node should be a no-op for events. Lazy import to avoid
             # the event_manager ↔ graph_manager circular dependency.
-            if prior is None or prior.status != STATUS_DONE:
+            if not was_done:
                 try:
                     from event_manager import EventManager
                     EventManager().auto_trigger_by_node_completion(node.name)
@@ -549,14 +554,25 @@ class GraphManager:
 
     @database.atomic
     def remove_edge(self, source: str, target: str, edge_type: str):
-        """Removes a specific edge."""
+        """Removes a specific edge. A Helps pair may be named either way round,
+        like add_edge takes it, and a row an older rename left back to front
+        goes too."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM Edges WHERE source=? AND target=? AND type=?", (source, target, edge_type))
+            if edge_type == EDGE_HELPS:
+                cursor.execute(
+                    "DELETE FROM Edges WHERE type=? AND "
+                    "((source=? AND target=?) OR (source=? AND target=?))",
+                    (edge_type, source, target, target, source))
+            else:
+                cursor.execute("DELETE FROM Edges WHERE source=? AND target=? AND type=?",
+                               (source, target, edge_type))
+            changed = cursor.rowcount > 0
             conn.commit()
-            if edge_type == EDGE_NEEDS_HARD:
+            if changed and edge_type == EDGE_NEEDS_HARD:
                 self._update_node_state(target)
-        self._bump_version()
+        if changed:
+            self._bump_version()
 
     def get_edges(self) -> List[Dict[str, str]]:
         """Retrieves all edges."""
@@ -936,7 +952,7 @@ class GraphManager:
         do not need re-walking. Invalidated only when _scoring_version
         advances (a scoring-relevant node/edge mutation) or a TV-affecting
         hyperparam changes. Cost params (w_e, w_t, beta), goal_boost, and the
-        context-adjustment params (alpha, context_weights) don't affect the
+        context weights don't affect the
         cached structural maps, so they are excluded from the key.
         """
         return graph_scoring.calculate_priority_scores(self, now_nodes, priority_goals)
@@ -986,13 +1002,6 @@ class GraphManager:
         claimed by an earlier target is not repeated.
         """
         return graph_queries.get_unblocking_steps(self, target_names, limit, priority_goals)
-
-    def get_directly_unlocked_nodes(self, node_name: str) -> List[str]:
-        return graph_queries.get_directly_unlocked_nodes(self, node_name)
-
-    def get_directly_unlocked_nodes_by_type(self, node_name: str) -> Dict[str, List[str]]:
-        """Returns nodes directly unlocked by completing this node, separated by edge type."""
-        return graph_queries.get_directly_unlocked_nodes_by_type(self, node_name)
 
     @database.consistent_read
     def get_goal_subtree(self, goal_name: str, edge_types=None) -> Set[str]:
@@ -1052,12 +1061,12 @@ class GraphManager:
     def get_effective_time(self, node_name: str) -> float:
         """Returns the effective time estimate for a node.
 
-        For nodes with time_mode='manual', returns the PERT-computed time
-        from the node's own time_o/m/p values.
+        For nodes with time_mode='manual', returns the node's expected time
+        (`Node.time`, weighted from its own time_o/m/p bracket).
 
-        For nodes with time_mode='inherited', sums the PERT-computed times
-        of all incomplete nodes in the node's dependency subtree, treating
-        the node itself as a container with zero direct time.
+        For nodes with time_mode='inherited', sums the expected times of all
+        incomplete nodes in the node's dependency subtree, treating the node
+        itself as a container with zero direct time.
 
         Returns:
             Time in hours.
@@ -1067,15 +1076,17 @@ class GraphManager:
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         return graph_queries.filter_nodes(self, nodes, filters)
 
-    def get_prerequisite_chains(self, target_name: str) -> List[List[str]]:
-        return graph_queries.get_prerequisite_chains(self, target_name)
+    @database.snapshot_read
+    def prerequisite_chains(self, target_name: str, limit: Optional[int] = None) -> dict:
+        """Prerequisite chains ending at ``target_name``: up to ``limit`` of each
+        kind ('Hard', 'Soft'), plus 'totals' counting them all. See
+        graph_queries.prerequisite_chains."""
+        return graph_queries.prerequisite_chains(self, target_name, limit)
 
+    @database.snapshot_read
     def get_prerequisite_chains_typed(self, target_name: str) -> List[tuple]:
-        """Returns prerequisite chains classified as 'Hard' or 'Soft'.
-
-        Each result is (chain, type_str) where type_str is 'Hard' if all edges
-        in the chain are Needs_Hard, else 'Soft'.
-        """
+        """Every prerequisite chain as (chain, 'Hard'|'Soft'). A chain is 'Hard'
+        when all its edges are Needs_Hard, else 'Soft'."""
         return graph_queries.get_prerequisite_chains_typed(self, target_name)
 
     def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":
@@ -1200,9 +1211,8 @@ class GraphManager:
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            for old_val, new_val in remap.items():
-                if new_val == '__clear__':
-                    new_val = None
+            for old_val, chosen in remap.items():
+                new_val = None if chosen == '__clear__' else chosen
 
                 # Apply the remap
                 cursor.execute(f"UPDATE Nodes SET [{field}]=? WHERE [{field}]=?", (new_val, old_val))

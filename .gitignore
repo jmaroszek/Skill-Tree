@@ -6,6 +6,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.hypothesis/
+.ruff_cache/
+# Scratch folders another agent's test runs leave behind.
+.codex-test-tmp/
 # PyInstaller output (packaging/skilltree-server.spec)
 /build/
 /dist/

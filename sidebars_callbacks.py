@@ -132,8 +132,6 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
 def register_sidebars_callbacks(app, services=None):
     """Register the cross-tab sidebar callbacks: goals (toggle, new, render,
     priority, drag-reorder), filters toggle, editor fast-path."""
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
-
     # --- Goal Sidebar Toggle (CLIENTSIDE) ---
     # Handled in the browser via assets/goals_sidebar.js to eliminate the
     # server round-trip on open/close. Once the open slide finishes it bumps

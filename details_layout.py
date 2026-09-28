@@ -8,9 +8,9 @@ and Simulation tabs.
 
 import style_tokens as tokens
 from ui_kit import (
+    Tooltip,
     add_button,
     done_color,
-    info_button,
     nav_button,
     panel_close_button,
     progress_bar_color,
@@ -26,8 +26,6 @@ from config import (
 )
 from styles import stylesheet
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from ui_kit import (Tooltip, add_button, info_button, nav_button, panel_close_button,
-                    restore_button)
 
 def _freeze_indicator(indicator_id: str):
     """Snowflake overlay shown on a canvas while its freeze toggle is on.

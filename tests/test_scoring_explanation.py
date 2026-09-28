@@ -6,7 +6,6 @@ is display metadata derived from the same weights.
 """
 
 import math
-import pytest
 
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from scoring import (explain_score, total_value, build_adjacency,

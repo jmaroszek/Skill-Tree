@@ -4,3 +4,5 @@
 
 pytest==9.0.3
 hypothesis==6.168.1
+# The linter CI runs; ruff.toml says which rules.
+ruff==0.16.9

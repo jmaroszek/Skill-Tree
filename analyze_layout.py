@@ -7,7 +7,7 @@ Keeping each gear and its popover static (and co-located) is what lets the
 popover's click trigger bind reliably.
 """
 
-from dash import html, dcc
+from dash import html
 import dash_bootstrap_components as dbc
 from config import ConfigManager, LOADING_SPINNER_STYLE
 import style_tokens as tokens

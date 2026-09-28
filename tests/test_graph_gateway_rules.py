@@ -9,9 +9,10 @@
 """
 import pytest
 
+import graph_rules
 import node_commands
 from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_BLOCKED, STATUS_DONE, Node
+from models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_BLOCKED, STATUS_DONE, Node
 
 
 def _node(name, node_type="Learn", **overrides):
@@ -114,3 +115,46 @@ def test_a_new_node_whose_name_differs_only_by_case_is_refused():
     manager.add_node(_node("Grüße"))
     with pytest.raises(ValueError, match="already exists"):
         manager.add_node(_node("GRÜSSE"))
+
+# --- Helps rows keep their ends in order ------------------------------------
+
+def _helps_rows(manager):
+    return sorted((e["source"], e["target"]) for e in manager.get_edges()
+                  if e["type"] == EDGE_HELPS)
+
+
+def test_a_helps_pair_can_be_removed_either_way_round():
+    manager = GraphManager()
+    for name in ("Apple", "Banana"):
+        manager.add_node(_node(name))
+    manager.add_edge("Banana", "Apple", EDGE_HELPS)   # stored as Apple, Banana
+    manager.remove_edge("Banana", "Apple", EDGE_HELPS)
+    assert _helps_rows(manager) == []
+
+
+def test_a_rename_keeps_helps_ends_in_order():
+    """A new name can sort on the other side of its partner."""
+    manager = GraphManager()
+    for name in ("Apple", "Banana", "Cherry"):
+        manager.add_node(_node(name))
+    manager.add_edge("Apple", "Banana", EDGE_HELPS)
+    manager.add_edge("Banana", "Cherry", EDGE_HELPS)
+    manager.rename_node("Apple", "Zucchini")
+    assert _helps_rows(manager) == [("Banana", "Cherry"), ("Banana", "Zucchini")]
+    # So adding the pair again, named the other way, finds the existing row.
+    manager.add_edge("Zucchini", "Banana", EDGE_HELPS)
+    assert _helps_rows(manager) == [("Banana", "Cherry"), ("Banana", "Zucchini")]
+
+
+# --- Prerequisites run one way -----------------------------------------------
+
+@pytest.mark.parametrize("edges, looped", [
+    ([("A", "B"), ("B", "C")], set()),
+    ([("A", "B"), ("B", "C"), ("C", "A")], {"A", "B", "C"}),
+    # D waits on the loop, so a sort can't place it either.
+    ([("A", "B"), ("B", "A"), ("B", "D")], {"A", "B", "D"}),
+    ([("A", "A")], {"A"}),
+    ([], set()),
+])
+def test_cyclic_nodes_names_every_node_a_sort_cant_place(edges, looped):
+    assert graph_rules.cyclic_nodes(edges) == looped

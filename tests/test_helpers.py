@@ -4,7 +4,6 @@ Tests for callback_helpers.py serialization functions and styles.py.
 Tests pure functions that don't require a database.
 """
 
-import json
 from dash import html
 import dash
 from config import BADGE_PALETTE

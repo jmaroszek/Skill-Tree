@@ -6,14 +6,15 @@ Each node's priority is: P = eligibility * (TotalValue / PerceivedCost)
 - PerceivedCost: sub-linear combination of difficulty and time
 - Eligibility: 1 if all hard prerequisites are Done, 0 otherwise
 
-See README.md for full mathematical specification and hyperparameter profiles.
+See docs/scoring.md for the full mathematical specification and the
+hyperparameter profiles.
 """
 
 import heapq
 import math
 import time
-from collections import Counter
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from collections import Counter, deque
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_BLOCKED, STATUS_DONE
 from typing import List, Dict, Tuple, Optional, Union
 
 
@@ -100,7 +101,7 @@ def time_cost_term(t: float, w_t: float, beta: float,
 
 def perceived_cost(node: Node, w_e: float, w_t: float, beta: float,
                    time_override: float = None, effort_override: float = None) -> float:
-    """Sub-linear cost combining Difficulty and PERT time.
+    """Sub-linear cost combining Difficulty and expected time.
 
     `time_override` substitutes for `node.time` when provided (used for
     `time_mode='inherited'` containers — see _compute_priority_score).
@@ -184,7 +185,7 @@ def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset(),
     if key in memo:
         return memo[key]
     routes = {start: (1.0, 0, 'Self', None)}
-    order = _reachable_topo(start, H_out, S_out, {})
+    order = _reachable_topo(start, H_out, S_out)
     for name in order:
         if name not in routes:
             continue
@@ -380,17 +381,6 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
         row['via'] = max(row['channels'], key=row['channels'].get)
         row['depth'] = row.pop('channel_routes').get(row['via'], (0, row['depth']))[1]
     return list(rows.values())
-
-
-def _tv_dag(node_name, all_nodes, H_out, S_out, w_v, w_i, d_H, d_S,
-            memo, computing, value_exponent=1.0):
-    """Undiscounted completion-work value over unique strongest DAG routes."""
-    if node_name in computing:
-        return 0.0
-    value = math.fsum(weight * intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
-        for name, (weight, _, _, _) in _strongest_routes(node_name, H_out, S_out, d_H, d_S, memo).items()
-        if name in all_nodes)
-    return value
 
 
 def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
@@ -604,11 +594,7 @@ def score_nodes(
     d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
     cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
     value_exponent = hyperparams.get('value_exponent', 1.0)
-    w_e = hyperparams.get('w_e', 2.5)
-    w_t = hyperparams.get('w_t', 1.0)
-    beta = hyperparams.get('beta', 0.85)
     goal_boost = hyperparams.get('goal_boost', 1.5)
-    context_weights = hyperparams.get('context_weights', {}) or {}
 
     all_nodes_dict = {n.name: n for n in all_nodes}
 
@@ -759,16 +745,15 @@ def score_nodes(
     return ranked, timings
 
 
-def _reachable_topo(start: str, H_out: dict, S_out: dict, Syn: dict) -> List[str]:
-    """Topological order of H/S nodes reachable from `start` plus its Syn seeds.
+def _reachable_topo(start: str, H_out: dict, S_out: dict) -> List[str]:
+    """Topological order of the nodes `start` reaches along Hard and Soft edges.
 
-    Used by explain_score to propagate contribution weights in an order
-    that guarantees each node is processed only after all its H/S
-    predecessors — the DAG property of Hard+Soft makes this well-defined.
+    _strongest_routes relaxes routes in this order, so each node is processed
+    only after all its Hard/Soft predecessors. The DAG property of Hard+Soft
+    makes the order well defined; a cyclic portion is left out.
     """
-    seeds = {start} | (Syn.get(start, set()) - {start})
     reachable = set()
-    stack = list(seeds)
+    stack = [start]
     while stack:
         n = stack.pop()
         if n in reachable:
@@ -790,10 +775,10 @@ def _reachable_topo(start: str, H_out: dict, S_out: dict, Syn: dict) -> List[str
             if c in reachable:
                 in_degree[c] += 1
 
-    queue = [n for n in reachable if in_degree[n] == 0]
+    queue = deque(n for n in reachable if in_degree[n] == 0)
     topo = []
     while queue:
-        n = queue.pop(0)
+        n = queue.popleft()
         topo.append(n)
         for c in H_out.get(n, []):
             if c in reachable:
@@ -806,81 +791,6 @@ def _reachable_topo(start: str, H_out: dict, S_out: dict, Syn: dict) -> List[str
                 if in_degree[c] == 0:
                     queue.append(c)
     return topo
-
-
-def _contribution_weights(
-    start: str, H_out: dict, S_out: dict, Syn: dict,
-    d_H: float, d_S: float, d_Syn_pair: float,
-    all_nodes_dict: Optional[Dict] = None,
-    cross_context_mult: float = 1.0,
-) -> Dict[str, float]:
-    """Structural weights: strongest DAG route plus distinct synergy channels.
-
-    Completion-work discount is applied by _value_contributions, which supplies
-    the exact attribution used by both scoring and Explain.
-    """
-    memo = {}
-    W = {name: route[0] for name, route in _strongest_routes(start, H_out, S_out, d_H, d_S, memo).items()}
-    for partner in Syn.get(start, set()) - {start}:
-        cross = 1.0
-        if all_nodes_dict and start in all_nodes_dict and partner in all_nodes_dict:
-            a, b = all_nodes_dict[start].context, all_nodes_dict[partner].context
-            if a is not None and b is not None and a != b:
-                cross = cross_context_mult
-        for name, route in _strongest_routes(partner, H_out, S_out, d_H, d_S, memo).items():
-            W[name] = W.get(name, 0.0) + d_Syn_pair * cross * route[0]
-    return W
-
-
-def _depth_and_via(start: str, H_out: dict, S_out: dict, Syn: dict,
-                   W: Dict[str, float]) -> Tuple[Dict[str, int], Dict[str, str]]:
-    """BFS over reachable W-keys to assign shortest depth + first-hop type.
-
-    `via` categorizes the first edge taken out of `start` on the shortest
-    path to each node: one of 'Self', 'Hard', 'Soft', 'Synergy'. Ties at
-    equal depth break Hard > Soft > Synergy for display consistency.
-    """
-    reachable = set(W.keys())
-    depth: Dict[str, int] = {start: 0}
-    via: Dict[str, str] = {start: 'Self'}
-
-    # Depth-1 seeds with explicit first-hop type
-    priority = {'Hard': 3, 'Soft': 2, 'Synergy': 1, 'Self': 0}
-
-    def consider(name: str, d: int, v: str) -> None:
-        if name not in depth or d < depth[name]:
-            depth[name] = d
-            via[name] = v
-        elif d == depth[name] and priority[v] > priority.get(via[name], 0):
-            via[name] = v
-
-    for c in H_out.get(start, []):
-        if c in reachable:
-            consider(c, 1, 'Hard')
-    for c in S_out.get(start, []):
-        if c in reachable:
-            consider(c, 1, 'Soft')
-    for c in Syn.get(start, set()):
-        if c in reachable and c != start:
-            consider(c, 1, 'Synergy')
-
-    # BFS onward, propagating `via` from parent
-    queue = [n for n in depth if depth[n] == 1]
-    while queue:
-        n = queue.pop(0)
-        d_next = depth[n] + 1
-        v = via[n]
-        for edge_list in (H_out.get(n, []), S_out.get(n, [])):
-            for c in edge_list:
-                if c not in reachable:
-                    continue
-                if c not in depth or d_next < depth[c]:
-                    depth[c] = d_next
-                    via[c] = v
-                    queue.append(c)
-                elif d_next == depth[c] and priority[v] > priority.get(via[c], 0):
-                    via[c] = v
-    return depth, via
 
 
 def explain_score(

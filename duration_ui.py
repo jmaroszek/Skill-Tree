@@ -1,11 +1,9 @@
 """Shared estimate guidance and the Time Simulation forecast chart."""
-from dash import html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
 from config import ConfigManager
 from ui_kit import Tooltip, info_button
-import style_tokens as tokens
 
 _BRACKET_HINTS = {
     "Lower": "10% chance of finishing sooner than this.",

@@ -8,9 +8,7 @@ view, and is also preserved through manual/inherited toggles so the user
 can switch back to habit mode without re-typing.
 """
 
-import math
 
-import pytest
 
 from callback_helpers import (
     habit_to_hours, compute_habit_time_omp,
@@ -234,12 +232,12 @@ class TestNodePostInit:
     def test_node_time_property_unaffected_by_habit_mode(self):
         # Habit mode does NOT short-circuit Node.time — only inherited does.
         # When in habit mode, the caller has written computed time_o/m/p
-        # so the PERT blend produces the right value.
+        # so the expected-time weighting produces the right value.
         n = self._node(
             time_mode='habit',
             time_o=10.5, time_m=21.0, time_p=31.5,
         )
-        # Should be a positive number near the PERT blend, not 0.
+        # Should be a positive number near the weighted bracket, not 0.
         assert n.time > 0
 
 

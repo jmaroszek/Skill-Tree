@@ -1,20 +1,18 @@
 """
-Tests for the Skill Tree backend: Node model, PERT time, GraphManager, scoring, and config.
+Tests for the Skill Tree backend: Node model, expected time, GraphManager, scoring, and config.
 
 Uses a temporary database for isolation — does not touch the production skilltree.db.
 """
 
-import math
 from typing import Any
 import pytest
 import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_BLOCKED, STATUS_OPEN
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_OPEN
 from graph_manager import GraphManager
 from context_rules import compute_orphaned_subcontext_pairs
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS
 from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
-                     total_value, score_nodes, time_cost_term,
-                     TIME_REF_HOURS)
+                     total_value, score_nodes, TIME_REF_HOURS)
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -99,10 +97,10 @@ class TestNodeModel:
 
 
 # ============================================================================
-# PERT Time Estimation
+# Expected Time Estimation
 # ============================================================================
 
-class TestPERTTime:
+class TestExpectedTime:
     def test_all_zeros_returns_default(self):
         node = _make_node(time_o=0, time_m=0, time_p=0)
         assert node.time == 1.0
@@ -1063,75 +1061,6 @@ class TestSyncEdges:
         # None args should be treated as empty lists
         mgr.sync_edges("A", None, None, None, None, None)
         assert len(mgr.get_edges()) == 0
-
-
-# ============================================================================
-# Prerequisite Chains
-# ============================================================================
-
-class TestPrerequisiteChains:
-    def test_simple_chain(self, mgr):
-        mgr.add_node(_make_node("A", status="Open"))
-        mgr.add_node(_make_node("B", status="Open"))
-        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-        chains = mgr.get_prerequisite_chains("B")
-        assert len(chains) >= 1
-        assert any("A" in chain for chain in chains)
-
-    def test_no_prereqs_returns_empty(self, mgr):
-        mgr.add_node(_make_node("Solo", status="Open"))
-        chains = mgr.get_prerequisite_chains("Solo")
-        # A standalone Open node has no incomplete prerequisite chains
-        # The chain [Solo] itself has an incomplete node, so it may or may not be returned
-        # depending on implementation — let's just check it doesn't crash
-        assert isinstance(chains, list)
-
-    def test_branching_chain(self, mgr):
-        mgr.add_node(_make_node("A", status="Open"))
-        mgr.add_node(_make_node("B", status="Open"))
-        mgr.add_node(_make_node("C", status="Open"))
-        mgr.add_edge("A", "C", EDGE_NEEDS_HARD)
-        mgr.add_edge("B", "C", EDGE_NEEDS_HARD)
-        chains = mgr.get_prerequisite_chains("C")
-        assert len(chains) == 2
-
-    def test_all_done_chain_excluded(self, mgr):
-        mgr.add_node(_make_node("A", status="Done"))
-        mgr.add_node(_make_node("B", status="Done"))
-        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-        chains = mgr.get_prerequisite_chains("B")
-        assert len(chains) == 0
-
-    def test_nonexistent_node_returns_empty(self, mgr):
-        chains = mgr.get_prerequisite_chains("DoesNotExist")
-        assert chains == []
-
-
-# ============================================================================
-# Directly Unlocked Nodes
-# ============================================================================
-
-class TestDirectlyUnlockedNodes:
-    def test_returns_blocked_dependents(self, mgr):
-        mgr.add_node(_make_node("A", status="Open"))
-        mgr.add_node(_make_node("B", status="Open"))
-        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-        # B should be Blocked now
-        assert mgr.get_node("B").status == "Blocked"
-        unlocked = mgr.get_directly_unlocked_nodes("A")
-        assert "B" in unlocked
-
-    def test_ignores_open_dependents(self, mgr):
-        mgr.add_node(_make_node("A", status="Done"))
-        mgr.add_node(_make_node("B", status="Open"))
-        mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
-        # B is Open (A is Done), so it shouldn't be in "unlocked"
-        unlocked = mgr.get_directly_unlocked_nodes("A")
-        assert "B" not in unlocked
-
-    def test_no_dependents_returns_empty(self, mgr):
-        mgr.add_node(_make_node("Solo"))
-        assert mgr.get_directly_unlocked_nodes("Solo") == []
 
 
 # ============================================================================
@@ -2674,65 +2603,6 @@ class TestPrerequisiteChainsTyped:
 
 
 # ============================================================================
-# get_directly_unlocked_nodes_by_type
-# ============================================================================
-
-class TestDirectlyUnlockedByType:
-    """Tests for separating hard vs soft unlocks."""
-
-    def test_hard_unlock(self, mgr):
-        mgr.add_node(_make_node("Prereq", status="Open"))
-        mgr.add_node(_make_node("Dep", status="Blocked"))
-        mgr.add_edge("Prereq", "Dep", EDGE_NEEDS_HARD)
-        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
-        assert "Dep" in result['hard']
-        assert result['soft'] == []
-
-    def test_soft_unlock(self, mgr):
-        mgr.add_node(_make_node("Prereq", status="Open"))
-        mgr.add_node(_make_node("Dep", status="Open"))
-        mgr.add_edge("Prereq", "Dep", EDGE_NEEDS_SOFT)
-        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
-        assert "Dep" in result['soft']
-        assert result['hard'] == []
-
-    def test_mixed_unlocks(self, mgr):
-        mgr.add_node(_make_node("Prereq", status="Open"))
-        mgr.add_node(_make_node("HardDep", status="Blocked"))
-        mgr.add_node(_make_node("SoftDep", status="Open"))
-        mgr.add_edge("Prereq", "HardDep", EDGE_NEEDS_HARD)
-        mgr.add_edge("Prereq", "SoftDep", EDGE_NEEDS_SOFT)
-        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
-        assert "HardDep" in result['hard']
-        assert "SoftDep" in result['soft']
-
-    def test_done_nodes_excluded(self, mgr):
-        """Nodes already Done should not appear in unlocked lists. With
-        non-sticky-Done semantics, DoneDep can only stay Done while its hard
-        prereq is also Done — so the test sets that up explicitly."""
-        mgr.add_node(_make_node("Prereq", status="Done"))
-        mgr.add_node(_make_node("DoneDep", status="Done"))
-        mgr.add_edge("Prereq", "DoneDep", EDGE_NEEDS_HARD)
-        # DoneDep stays Done because Prereq is Done; the unlocked-by query
-        # filters Done out of its results.
-        result = mgr.get_directly_unlocked_nodes_by_type("Prereq")
-        assert result['hard'] == []
-        assert result['soft'] == []
-
-    def test_no_dependents_returns_empty(self, mgr):
-        mgr.add_node(_make_node("Alone"))
-        result = mgr.get_directly_unlocked_nodes_by_type("Alone")
-        assert result == {'hard': [], 'soft': []}
-
-    def test_helps_edges_not_included(self, mgr):
-        mgr.add_node(_make_node("A", status="Open"))
-        mgr.add_node(_make_node("B", status="Open"))
-        mgr.add_edge("A", "B", EDGE_HELPS)
-        result = mgr.get_directly_unlocked_nodes_by_type("A")
-        assert result == {'hard': [], 'soft': []}
-
-
-# ============================================================================
 # sync_edges without resources parameter
 # ============================================================================
 
@@ -3625,7 +3495,7 @@ class TestScoringInheritedTimeMode:
         assert c_inherited == pytest.approx(1.0 + 2.5 * 5)
 
     def test_manual_node_still_uses_full_time(self, mgr):
-        """A manual-mode node should use its full PERT time in cost calculation."""
+        """A manual-mode node should use its full expected time in cost calculation."""
         node = _make_node("Full", value=5, interest=5, time_o=10, time_m=10, time_p=10,
                           time_mode='manual')
         scored = score_nodes([node], [node], [], {})

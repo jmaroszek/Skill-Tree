@@ -1,0 +1,8 @@
+# ruff, the linter CI runs (python -m ruff check .).
+# Pyflakes rules only: unused imports and variables, undefined names, and
+# imports shadowed by other names. Formatting and style are left alone.
+target-version = "py313"
+extend-exclude = ["electron/node_modules"]
+
+[lint]
+select = ["F"]

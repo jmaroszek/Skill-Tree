@@ -16,7 +16,7 @@ import sqlite3
 from datetime import date, timedelta
 import database
 from models import Node, Event, STATUS_DONE, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
-from typing import Any, List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -181,8 +181,8 @@ class EventManager:
                 )
                 self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
                 conn.commit()
-            except sqlite3.IntegrityError:
-                raise ValueError(f"Event with name '{event.name}' already exists.")
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(f"Event with name '{event.name}' already exists.") from exc
 
         self._graph_changed(scoring=False)
 
@@ -200,8 +200,8 @@ class EventManager:
                         (event.name, event.description, event.status, event.trigger_date,
                          self._normalize_mode(event.trigger_mode), old_name)
                     )
-                except sqlite3.IntegrityError:
-                    raise ValueError(f"Event with name '{event.name}' already exists.")
+                except sqlite3.IntegrityError as exc:
+                    raise ValueError(f"Event with name '{event.name}' already exists.") from exc
                 cursor.execute(
                     "UPDATE EventNodes SET event_name=? WHERE event_name=?",
                     (event.name, old_name)
@@ -685,6 +685,10 @@ class EventManager:
           'already_awake' — nodes that were awake before it fired
           'now_intent'    — subset of 'activated' to put on Now straight away
           'now_deferred'  — subset of 'scheduled' to put on Now when they wake
+
+        Firing is latched (see models.Event): an event that isn't Pending
+        does nothing and every list comes back empty. A second firing would
+        otherwise re-date each delayed node still waiting, pushing it later.
         """
         from graph_manager import GraphManager
         gm = GraphManager()
@@ -696,6 +700,10 @@ class EventManager:
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            status = cursor.execute(
+                "SELECT status FROM Events WHERE name=?", (event_name,)).fetchone()
+            if status is None or status[0] != 'Pending':
+                return result
 
             # Mark event as triggered
             cursor.execute(
@@ -764,12 +772,30 @@ class EventManager:
 
         return result
 
-    @database.atomic
+    # What each date sweep looks for. The core engine runs both sweeps on
+    # every interaction, and nearly always nothing is due, so each checks on a
+    # plain read first. The sweep itself is a write transaction, which takes
+    # the database's write lock and waits on anything else holding it.
+    _DUE_ACTIVATIONS = ("SELECT 1 FROM EventNodes WHERE activation_date IS NOT NULL "
+                        "AND activation_date <= ? AND activated = 0 LIMIT 1")
+    _DUE_TRIGGERS = ("SELECT 1 FROM Events WHERE trigger_date IS NOT NULL "
+                     "AND trigger_date <= ? AND status = 'Pending' LIMIT 1")
+
+    def _anything_due(self, query) -> bool:
+        with self.get_connection() as conn:
+            return conn.execute(query, (date.today().isoformat(),)).fetchone() is not None
+
     def check_pending_activations(self) -> List[str]:
         """Wakes delayed nodes whose activation date has arrived.
 
         Returns list of newly activated node names.
         """
+        if not self._anything_due(self._DUE_ACTIVATIONS):
+            return []
+        return self._wake_due_nodes()
+
+    @database.atomic
+    def _wake_due_nodes(self) -> List[str]:
         from graph_manager import GraphManager
         from config import ConfigManager
         gm = GraphManager()
@@ -846,9 +872,16 @@ class EventManager:
         firing woke, not only the ones flagged "Add to Now" in advance.
 
         Returns `trigger_event`'s result plus 'now_pinned' and 'now_skipped'.
+        Raises ValueError when the event is gone or has already fired, as it
+        can have from another window or on its date, so the page can say so.
         """
         from config import ConfigManager
 
+        event = self.get_event(event_name)
+        if event is None:
+            raise ValueError(f"There is no event named '{event_name}' any more.")
+        if event.status != "Pending":
+            raise ValueError(f"'{event_name}' had already been triggered, so nothing changed.")
         result = self.trigger_event(event_name)
         candidates = (sorted(result['activated']) if pin_all_now
                       else result['now_intent'])
@@ -870,12 +903,17 @@ class EventManager:
         })
         return result
 
-    @database.atomic
     def check_scheduled_triggers(self) -> List[str]:
         """Auto-triggers events whose trigger_date has arrived.
 
         Returns list of triggered event names.
         """
+        if not self._anything_due(self._DUE_TRIGGERS):
+            return []
+        return self._fire_due_events()
+
+    @database.atomic
+    def _fire_due_events(self) -> List[str]:
         from config import ConfigManager
 
         today = date.today().isoformat()
@@ -976,7 +1014,8 @@ class EventManager:
         maximum, which puts new arrivals at the right-hand end of the row.
 
         There is no conflict to resolve here — that was the anchored override's
-        problem, and Now is a plain list.
+        problem, and Now is a plain list. A node that wakes already Done stays
+        off Now: there is nothing left to work on.
         """
         from config import ConfigManager
         from graph_manager import GraphManager
@@ -991,7 +1030,7 @@ class EventManager:
         pinned, skipped = [], []
         for name in intent_nodes:
             node = gm.get_node(name)
-            if node is None or node.dormant or node.now > 0:
+            if node is None or node.dormant or node.now > 0 or node.status == STATUS_DONE:
                 continue
             if room <= 0:
                 skipped.append(name)

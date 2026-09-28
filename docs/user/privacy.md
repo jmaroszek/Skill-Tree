@@ -29,7 +29,8 @@ Only in these cases, and never with anything from your graph:
   form and submit it yourself.
 - **Help** opens this project's documentation on GitHub, in your browser.
 - **Links you added to your nodes** open in your browser, or your other apps, when
-  you click them.
+  you click them. A link asks first when opening it would run a program, hand
+  itself to an unfamiliar app, or reach another computer.
 
 ## Removing your data
 

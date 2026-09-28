@@ -123,6 +123,82 @@ class TestExportImport:
         assert data_transfer.export_data()["tables"] == before
 
 
+def _row_like(bundle, table, index=0, **changes):
+    """A copy of one exported row with some fields changed."""
+    return {**bundle["tables"][table][index], **changes}
+
+
+class TestImportChecksTheGraph:
+    """Import holds the rows to the rules the editor checks on every save, so a
+    hand-edited or damaged export can't load a graph the app couldn't build."""
+
+    def _refused(self, monkeypatch, tmp_path, change, fragment):
+        _rich_graph()
+        bundle = data_transfer.export_data()
+        change(bundle)
+        _fresh_database(monkeypatch, tmp_path)
+        before = data_transfer.export_data()["tables"]
+        with pytest.raises(data_transfer.TransferRefused, match=fragment) as refused:
+            data_transfer.import_data(bundle)
+        assert "Nothing was changed" in str(refused.value)
+        assert data_transfer.export_data()["tables"] == before
+        # Refused before anything was written, the backup included.
+        assert backup.list_backups("before-import") == []
+
+    def _edge(self, source, target, kind):
+        return {"source": source, "target": target, "type": kind}
+
+    def test_prerequisites_that_loop_are_refused(self, monkeypatch, tmp_path):
+        # Rest -> Sleep is in the graph; these two close the loop.
+        def loop(bundle):
+            bundle["tables"]["Edges"] += [self._edge("Sleep", "Dream", EDGE_NEEDS_HARD),
+                                          self._edge("Dream", "Rest", EDGE_NEEDS_SOFT)]
+        self._refused(monkeypatch, tmp_path, loop, "loop back")
+
+    def test_two_prerequisites_between_one_pair_are_refused(self, monkeypatch, tmp_path):
+        def twice(bundle):
+            bundle["tables"]["Edges"].append(self._edge("Rest", "Sleep", EDGE_NEEDS_SOFT))
+        self._refused(monkeypatch, tmp_path, twice, "more than one prerequisite")
+
+    @pytest.mark.parametrize("edge, fragment", [
+        (("Nap", "Nap", EDGE_HELPS), "related to itself"),
+        (("Nap", "Dream", "Blocks"), "unknown type"),
+        (("Nap", "Nobody", EDGE_NEEDS_HARD), "doesn't include"),
+    ])
+    def test_an_impossible_relationship_is_refused(self, monkeypatch, tmp_path, edge, fragment):
+        def add(bundle):
+            bundle["tables"]["Edges"].append(self._edge(*edge))
+        self._refused(monkeypatch, tmp_path, add, fragment)
+
+    @pytest.mark.parametrize("table, changes, fragment", [
+        ("Nodes", {"name": "Two\nlines"}, "single line"),
+        ("Nodes", {"name": " Padded"}, "start or end with a space"),
+        ("Nodes", {"name": "x" * 201}, "201 characters"),
+        ("Nodes", {"name": "Extra", "status": "Finished"}, "unknown status"),
+        ("Events", {"name": "Tab\there"}, "single line"),
+        ("Aliases", {"alias": ""}, "required"),
+    ])
+    def test_a_name_or_status_the_editor_refuses_is_refused(self, monkeypatch, tmp_path,
+                                                            table, changes, fragment):
+        def add(bundle):
+            bundle["tables"][table].append(_row_like(bundle, table, **changes))
+        self._refused(monkeypatch, tmp_path, add, fragment)
+
+    def test_helps_rows_are_put_in_order_not_refused(self, monkeypatch, tmp_path):
+        """A rename in the exporting app can leave a Helps row back to front."""
+        _rich_graph()
+        bundle = data_transfer.export_data()
+        edges = bundle["tables"]["Edges"]
+        edges[:] = [e for e in edges if e["type"] != EDGE_HELPS]
+        edges += [self._edge("Rest", "Nap", EDGE_HELPS), self._edge("Nap", "Rest", EDGE_HELPS)]
+        _fresh_database(monkeypatch, tmp_path)
+
+        data_transfer.import_data(bundle)
+
+        helps = [e for e in GraphManager().get_edges() if e["type"] == EDGE_HELPS]
+        assert helps == [{"source": "Nap", "target": "Rest", "type": EDGE_HELPS}]
+
+
 class TestRestore:
     def test_restore_brings_back_the_backed_up_graph(self):
         manager = _rich_graph()

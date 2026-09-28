@@ -11,7 +11,7 @@ from typing import Any
 from unittest.mock import patch
 import pytest
 import database
-from models import Node, Event, EDGE_NEEDS_HARD
+from models import Node, Event
 from graph_manager import GraphManager
 from event_manager import EventManager
 from config import ConfigManager
