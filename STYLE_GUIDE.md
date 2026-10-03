@@ -42,6 +42,16 @@ naming the reason, so it stays visible rather than hiding in a list.
 
 Bootstrap DARKLY (Bootswatch 5.3.6) via `dash-bootstrap-components`.
 
+### App icon
+
+`assets/skill_tree_logo.svg` is the editable source for the app icon. Its flat,
+neutral off-white tile (`#f2f2ed`) frames a connected canopy in subdued leaf
+greens (`#27704d`, `#357e56`, `#47875f`) and a brown trunk (`#946133`). Keep the
+green variation subtle so individual nodes do not appear disconnected from
+the canopy at taskbar sizes. These brand colors are separate from UI tokens.
+Regenerate `electron/build/icon.png` and the multi-size `assets/skill_tree.ico`
+from this SVG together when changing the icon.
+
 ### The one naming trap
 
 Bootstrap has a `.text-muted` class. This guide used to define a *token* called
@@ -311,6 +321,9 @@ span with `display: contents`, which stays out of layout so the button remains
 a direct flex item of its row. A test guards this.
 
 The node editor's action tooltips also close when the editor slides offscreen.
+
+Feedback beneath the node editor's actions clears after five seconds, including
+while the editor is hidden. Each new message restarts that deadline.
 The slide can bypass the button's mouse-leave event, while Bootstrap renders
 the tooltip outside the sidebar.
 

@@ -451,6 +451,7 @@ def build_node_editor_content():
                     # Kept inside the bar so a save confirmation is visible from
                     # wherever the user was scrolled when they pressed Save.
                     html.Div(id="save-output", className="text-success fw-bold text-end mt-2"),
+                    dcc.Store(id="editor-feedback-timer-store"),
                 ], id="node-editor-actions", style={
                     "position": "sticky",
                     "bottom": "0",

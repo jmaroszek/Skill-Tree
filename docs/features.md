@@ -144,9 +144,9 @@ Value, interest, and effort are collectively called **Ratings**. Score each on a
 
 | Rating | Meaning |
 |---|---|
-| Value | How much this contributes to your broader goals |
-| Interest | How much you enjoy the work itself |
-| Effort | How hard the task is |
+| Value | How big a gain it is, and how much of your life it reaches |
+| Interest | How freely you would choose to do it |
+| Effort | How far the work stretches your abilities |
 
 <br>
 

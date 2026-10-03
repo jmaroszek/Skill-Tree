@@ -4,7 +4,7 @@
 
 Skill Tree is a task-prioritization app that models your projects as a graph, scores them by return on investment, and tells you what to work on next -- and why.
 
-**[Download Skill Tree](https://github.com/jmaroszek/Skill-Tree/releases/latest)** for Windows, macOS or Linux. It's free, runs entirely on your computer, and needs no account. See [installing](docs/user/install.md), [privacy](docs/user/privacy.md), [troubleshooting](docs/user/troubleshooting.md) and [what's new](CHANGELOG.md).
+**[Download Skill Tree](https://github.com/jmaroszek/Skill-Tree/releases/latest)** for Windows, macOS or Linux. It's free, runs entirely on your computer, and needs no account. See [installing](docs/user/install.md), [privacy](docs/user/privacy.md) and [troubleshooting](docs/user/troubleshooting.md).
 
 ## A Skill Tree for Your Life
 

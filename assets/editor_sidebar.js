@@ -24,6 +24,24 @@ window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.editor = window.dash_clientside.editor || {};
 
 (function () {
+    var feedbackTimer = null;
+
+    window.dash_clientside.editor.expire_feedback = function (message) {
+        if (feedbackTimer !== null) {
+            clearTimeout(feedbackTimer);
+            feedbackTimer = null;
+        }
+        if (message) {
+            // Run even while the sidebar is hidden. A newer message cancels
+            // this deadline so it always gets its own full reading time.
+            feedbackTimer = setTimeout(function () {
+                feedbackTimer = null;
+                window.dash_clientside.set_props("save-output", {children: ""});
+            }, 5000);
+        }
+        return window.dash_clientside.no_update;
+    };
+
     var BASE_SIDEBAR_STYLE = {
         position: "absolute",
         top: "0",

@@ -314,6 +314,14 @@ def register_sidebars_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
+    # Feedback expires in the browser, including while the editor is closed.
+    app.clientside_callback(
+        ClientsideFunction(namespace='editor', function_name='expire_feedback'),
+        Output('editor-feedback-timer-store', 'data'),
+        Input('save-output', 'children'),
+        prevent_initial_call=True,
+    )
+
     # --- Editor Sidebar Fast-Path (CLIENTSIDE) ---
     # Starts the open-editor CSS transition immediately on btn-add, in parallel
     # with core_engine's form-population work. core_engine still sets the same
