@@ -13,7 +13,7 @@ from graph_analytics import (
     _compute_reflection_drift,
     _compute_throughput,
     _compute_goal_comparison,
-    _compute_context_coverage,
+    _compute_rating_distribution,
 )
 
 import logging
@@ -27,6 +27,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from collections import defaultdict
 import database
+import ui_kit
 from graph_manager import GraphManager
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager, BADGE_PALETTE
@@ -837,103 +838,183 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
     return _card([title, _graph(fig)])
 
 
-# Categorical palette for subcontext segments. Tuned to the muted, deeper
-# register of config.BADGE_PALETTE (see STYLE_GUIDE.md) so it sits with the
-# DARKLY theme rather than reading as bright/pastel. Distinct hues, ordered
-# to alternate warm/cool so adjacent stacked segments stay legible.
+# Categorical palette for the Throughput chart's context segments. Tuned to
+# the muted, deeper register of config.BADGE_PALETTE (see STYLE_GUIDE.md) so
+# it sits with the DARKLY theme rather than reading as bright/pastel. Distinct
+# hues, ordered to alternate warm/cool so adjacent stacked segments stay
+# legible.
 _SUBCONTEXT_PALETTE = [
     '#3a6ba6', '#b06a2c', '#2f8f93', '#7e4f9c', '#4f8a52',
     '#b0a335', '#a85070', '#4a6480', '#56539c', '#3f8388',
 ]
 _NO_SUBCONTEXT_COLOR = '#495057'
-_SLATE = '#4a6480'  # the palette entry closest to the grey above
 
 
-def _render_hours_by_context(ctx_data, height=None):
-    """Single stacked horizontal bar: one bar per context, segmented by
-    subcontext. No legend \u2014 each segment's name, node count, and hours
-    surface on hover. Segment times sum to the context total, so a bar's
-    length is that context's total active time.
-    """
+_RATING_METRICS = (('value', 'Value'), ('interest', 'Interest'),
+                   ('effort', 'Effort'))
+
+
+def _heat_mix(share):
+    """How much heat colour a cell holding ``share`` of its row's nodes gets,
+    as a percentage. 40% of the row or more is full strength; the curve lifts
+    small shares so a single node still shows."""
+    return round(10 + 90 * min(1.0, share / 0.4) ** 0.85)
+
+
+# Bars shorter than this many rating points are left out: a 0.1 gap drew a
+# few-pixel speck at the tick rather than a bar. The tooltip still gives the
+# exact difference.
+_GAP_BAR_MIN = 0.25
+
+
+def _strip_left(value, width):
+    """CSS ``left`` that centres a ``width``-px mark on ``value`` (1-10) in a
+    strip of ten equal cells with 2px gaps. Cell k's centre sits at
+    (k - 0.5)(W + 2)/10 - 1px, and a fractional value lands between cells."""
+    return f"calc({value - 0.5:.3f} * (100% + 2px) / 10 - {1 + width / 2:g}px)"
+
+
+def _work_left_cell(row, area, scale):
+    """The last column: the area's remaining work as a bar and a time. Bars
+    share one scale, the largest context's share, so the biggest context
+    fills its track and a subcontext reads against it. ``scale`` is None on
+    the All nodes row, which shows its total without a bar."""
     fmt = ConfigManager.format_time_friendly
-    if not ctx_data:
-        return _card([
-            html.H6("Work Time by Context", className="text-muted mb-1"),
-            html.P("No contexts configured.", className="text-muted small"),
-        ])
+    track = []
+    if scale:
+        width = min(100.0, 100 * row['share'] / scale)
+        track = [html.Div(html.Div(className="rd-work-fill",
+                                   style={'width': f"{width:.1f}%"}),
+                          className="rd-work-track")]
+    tip = (f"{area}\n{fmt(row['time'])} of work left"
+           f"\n{row['share']:.0%} of all remaining work")
+    return html.Div(track + [html.Span(fmt(row['time']), className="rd-work-time")],
+                    className="rd-work", **{'data-tip': tip})
 
-    ctx_names = [d['context'] for d in ctx_data]
-    seg_by_ctx = {d['context']: {s['name']: s for s in d['segments']}
-                  for d in ctx_data}
 
-    # Global stack order: total time descending, "(No subcontext)" last.
-    totals = defaultdict(float)
-    for d in ctx_data:
-        for s in d['segments']:
-            totals[s['name']] += s['time']
-    named = sorted((n for n in totals if n != '(No subcontext)'),
-                   key=lambda n: totals[n], reverse=True)
-    seg_order = named + (['(No subcontext)'] if '(No subcontext)' in totals else [])
+def _rating_dist_row(row, label, kind, defs, chevron=False, element=html.Div,
+                     guide=None, work_scale=None):
+    """One grid row: the area label, then a 1-10 strip and the mean for each
+    rating. A context's row is an ``html.Summary``, so it carries a chevron;
+    a context with nothing to open keeps the chevron's space, hidden.
 
-    # Colours are assigned per bar, stepping through the palette in stack
-    # order, so neighbouring segments always differ. A global per-subcontext
-    # colour wrapped past the palette's end and put repeats side by side.
-    seg_color = {}
-    for context in ctx_names:
-        shown = [n for n in seg_order
-                 if (seg_by_ctx[context].get(n) or {}).get('time', 0) > 0]
-        named_shown = [n for n in shown if n != '(No subcontext)']
-        for k, name in enumerate(named_shown):
-            seg_color[context, name] = _SUBCONTEXT_PALETTE[k % len(_SUBCONTEXT_PALETTE)]
-        # The slate entry reads as the neutral grey, so it can't sit last
-        # before a "(No subcontext)" segment. The next entry differs from both
-        # neighbours: the grey, and the entry before slate.
-        if (named_shown and '(No subcontext)' in shown
-                and seg_color[context, named_shown[-1]] == _SLATE):
-            seg_color[context, named_shown[-1]] = _SUBCONTEXT_PALETTE[
-                (len(named_shown)) % len(_SUBCONTEXT_PALETTE)]
-        seg_color[context, '(No subcontext)'] = _NO_SUBCONTEXT_COLOR
+    Each cell carries its tooltip in ``data-tip``, which
+    assets/rating_dist.js shows on hover: the area, then a sentence
+    with the count, then the rating's definition. The sentence keeps the
+    count and the rating apart with words; "Interest 8: 8 of 32" ran two
+    unrelated numbers together. The row total is in both places on purpose.
+    The label's tells you how far to trust the row; the tooltip's gives the
+    cell its share, read far from the label.
 
-    fig = go.Figure()
-    for seg_name in seg_order:
-        xs, hovers, colors = [], [], []
-        for context in ctx_names:
-            s = seg_by_ctx[context].get(seg_name)
-            colors.append(seg_color.get((context, seg_name), _NO_SUBCONTEXT_COLOR))
-            if s and s['time'] > 0:
-                xs.append(s['time'])
-                hovers.append(
-                    f"<b>{seg_name}</b><br>"
-                    f"Context: {context}<br>"
-                    f"Nodes: {s['count']}<br>"
-                    f"Time: {fmt(s['time'])}"
-                )
+    ``guide`` is the All nodes row. Every other row draws a faint line at its
+    mean, so a row's tick reads as left or right of the whole graph by how
+    far. A threshold-based highlight flagged nearly half the means, most of
+    them deliberate calibration choices, so distance carries it instead."""
+    area = ('All nodes' if row['context'] is None
+            else row['context'] if row['subcontext'] is None
+            else f"{row['context']} > {row['subcontext']}")
+    total = row['count']
+    head = [html.Span(className="editor-chevron on-dark")] if chevron else []
+    children = [html.Div(head + [
+        html.Span(label, className="rd-name", title=label),
+        html.Span(str(row['count']), className="rd-count"),
+    ], className="rd-label")]
+    nodes_word = 'node' if total == 1 else 'nodes'
+    for i, (key, name) in enumerate(_RATING_METRICS):
+        dist = row[key]
+        cells = []
+        for x, n in enumerate(dist['counts'], start=1):
+            definition = (defs.get(x) or {}).get(key, '')
+            verb = 'has' if n == 1 else 'have'
+            tip = (f"{area}\n{n} of {total} {nodes_word} {verb} {name} {x}"
+                   f"\n{definition}")
+            cells.append(html.Div(
+                className="rd-cell has" if n else "rd-cell",
+                style={'--mix': f"{_heat_mix(n / total)}%"} if n else None,
+                **{'data-tip': tip}))
+        mean = dist['mean']
+        tip = f"{area}\nMean {name}: {mean:.1f}"
+        if guide is not None:
+            overall = guide[key]['mean']
+            cells.append(html.Div(className="rd-guide",
+                                  style={'left': _strip_left(overall, 2)}))
+            diff = mean - overall
+            # A bar from the guide to the tick: the distance, drawn. Orange
+            # above, violet below; not red/green, which read as good/bad
+            # (Effort above the mean is not good) and blur for deutans.
+            if abs(diff) >= 0.05:
+                if abs(diff) >= _GAP_BAR_MIN:
+                    cells.append(html.Div(
+                        className="rd-gap " + ("above" if diff > 0 else "below"),
+                        style={'left': _strip_left(min(mean, overall), 0),
+                               'width': f"calc({abs(diff):.3f} * (100% + 2px) / 10)"}))
+                tip += (f"\n{abs(diff):.1f} {'above' if diff > 0 else 'below'}"
+                        f" all nodes ({overall:.1f})")
             else:
-                xs.append(0)
-                hovers.append('')
-        fig.add_trace(go.Bar(
-            y=ctx_names, x=xs, orientation='h',
-            marker_color=colors, marker_line=dict(color=_BG, width=1),
-            opacity=0.9, hovertext=hovers, hoverinfo='text',
-        ))
+                tip += f"\nSame as all nodes ({overall:.1f})"
+        # The tick names itself on hover, so the description needn't.
+        cells.append(html.Div(className="rd-mean",
+                              style={'left': _strip_left(mean, 2)},
+                              **{'data-tip': tip}))
+        later = " rd-later" if i else ""
+        children.append(html.Div(cells, className="rd-strip" + later))
+        children.append(html.Div(f"{mean:.1f}", className="rd-stat"))
+    children.append(_work_left_cell(row, area, work_scale))
+    return element(children, className=f"rd-row {kind}")
 
-    tickvals, ticktext = _friendly_xticks(
-        max((d['time'] for d in ctx_data), default=0))
-    if height is None:
-        height = max(180, len(ctx_names) * 28 + 85)  # +25: the axis title
-    fig.update_layout(**_base_layout(
-        barmode='stack', height=height,
-        margin=dict(l=10, r=20, t=10, b=30),
-        yaxis=dict(automargin=True, ticklabelstandoff=8,
-                   categoryorder='array', categoryarray=ctx_names,
-                   **_label_axis(ctx_names)),
-        xaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
-                   title="Work time", automargin=True),
-    ))
-    return _card([
-        html.H6("Work Time by Context", className="text-muted mb-1"),
-        _graph(fig),
-    ])
+
+def _render_rating_distribution(dist):
+    """Where each area's open nodes fall on the 1-10 Value, Interest and
+    Effort scales. A cell's shade is its share of the row's nodes and the
+    tick is the mean. Contexts start collapsed and open into their
+    subcontexts. The native details element does the folding, so it needs
+    no callback.
+
+    It has no title of its own: it is the Contexts section's only chart, and
+    the section heading names it."""
+    if not dist['all']['count']:
+        return _card([html.P("No open rated nodes.",
+                             className="text-muted small mb-0")])
+
+    defs = {d['rating']: d for d in ConfigManager.get_ratings_definitions()}
+    header = [html.Div()]
+    for i, (_, name) in enumerate(_RATING_METRICS):
+        header.append(html.Div([
+            html.Div(name, className="rd-metric"),
+            html.Div([html.Span(str(x)) for x in range(1, 11)],
+                     className="rd-ticks"),
+        ], className="rd-later" if i else None))
+        header.append(html.Div("Mean", className="rd-colh"))
+    header.append(html.Div("Work left", className="rd-colh rd-work-head"))
+    scale = max((g['row']['share'] for g in dist['groups']), default=0)
+
+    body = [html.Div(header, className="rd-row rd-head"),
+            _rating_dist_row(dist['all'], "All nodes", "rd-all", defs)]
+    for group in dist['groups']:
+        ctx_row = group['row']
+        if group['subs']:
+            body.append(html.Details([
+                _rating_dist_row(ctx_row, ctx_row['context'], "rd-ctx", defs,
+                                 chevron=True, element=html.Summary,
+                                 guide=dist['all'], work_scale=scale),
+                *[_rating_dist_row(sub, sub['subcontext'], "rd-sub", defs,
+                                   guide=dist['all'], work_scale=scale)
+                  for sub in group['subs']],
+            ], className="rd-group"))
+        else:
+            body.append(html.Div(_rating_dist_row(
+                ctx_row, ctx_row['context'], "rd-ctx rd-leaf", defs,
+                chevron=True, guide=dist['all'], work_scale=scale),
+                className="rd-group"))
+    # assets/rating_dist.js handles all three buttons in the browser; the
+    # guide toggle remembers its state per viewer. No callbacks. The toggle
+    # goes last: it is used less than the pair that folds the rows.
+    head = html.Div([
+        ui_kit.disclosure_all_button("rating-dist-expand-all", True),
+        ui_kit.disclosure_all_button("rating-dist-collapse-all", False),
+        ui_kit.guide_toggle_button("rating-dist-guide-toggle"),
+    ], className="rd-tools d-flex gap-1")
+    return _card([html.Div([head, *body], className="rating-dist")])
 
 
 # ---------------------------------------------------------------------------
@@ -1118,7 +1199,7 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     bottlenecks = _compute_bottlenecks(nodes, hard_fwd, limits)
     goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits)
     est_accuracy = _compute_estimation_accuracy(nodes)
-    ctx_coverage = _compute_context_coverage(nodes)
+    rating_dist = _compute_rating_distribution(nodes)
     drift_rows = _compute_reflection_drift(nodes)
     throughput_rows = _compute_throughput(
         nodes,
@@ -1143,9 +1224,10 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     ]
 
     contexts_content = [
-        html.P("Where your active time is allocated. Each segment is a "
-               "subcontext.", className="text-muted small"),
-        dbc.Row(dbc.Col(_render_hours_by_context(ctx_coverage), width=6),
+        html.P("Where your active time is allocated, and how you rated it.",
+               className="text-muted small"),
+        # Full width: three ten-cell strips and a Work left bar per row.
+        dbc.Row(dbc.Col(_render_rating_distribution(rating_dist), width=12),
                 className="g-3"),
     ]
 

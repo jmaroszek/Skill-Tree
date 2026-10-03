@@ -12,8 +12,9 @@ from graph_manager import GraphManager
 from config import ConfigManager
 from analyze_callbacks import (
     _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
-    _compute_hub_score, _compute_goal_comparison, _compute_context_coverage,
+    _compute_hub_score, _compute_goal_comparison,
     _compute_throughput, _compute_reflection_drift,
+    _compute_rating_distribution,
 )
 
 
@@ -615,75 +616,142 @@ class TestGoalDensityNormalization:
 
 
 # ============================================================================
-# _compute_context_coverage
+# _compute_rating_distribution
 # ============================================================================
 
-class TestComputeContextCoverage:
-    def test_zero_count_contexts(self, mgr):
-        """Contexts configured in settings with no nodes should appear with count=0."""
-        ConfigManager.set_contexts(["Mind", "Body", "Social"])
-        nodes = [_make_node("A", context="Mind")]
-        ctx_data = _compute_context_coverage(nodes)
-        body = [d for d in ctx_data if d['context'] == 'Body']
-        assert len(body) == 1
-        assert body[0]['count'] == 0
-        assert body[0]['time'] == 0.0
-        assert body[0]['segments'] == []
+class TestComputeRatingDistribution:
+    def test_counts_and_mean(self, mgr):
+        nodes = [_make_node("A", context="Mind", value=3),
+                 _make_node("B", context="Mind", value=3),
+                 _make_node("C", context="Mind", value=9)]
+        dist = _compute_rating_distribution(nodes)
+        v = dist['all']['value']
+        assert v['counts'] == [0, 0, 2, 0, 0, 0, 0, 0, 1, 0]
+        assert v['mean'] == pytest.approx(5.0)
+        assert dist['all']['count'] == 3
 
-    def test_segments_partition_context_time(self, mgr):
-        """A context's segment times sum to its total; nodes with no
-        subcontext fall into a "(No subcontext)" segment."""
-        ConfigManager.set_contexts(["Mind"])
+    def test_skips_done_milestones_and_inherited(self, mgr):
+        nodes = [_make_node("A", context="Mind"),
+                 _make_node("B", context="Mind", status="Done"),
+                 _make_node("C", context="Mind", type="Milestone"),
+                 _make_node("D", context="Mind", value_mode="inherited")]
+        assert _compute_rating_distribution(nodes)['all']['count'] == 1
+
+    def test_effort_reads_difficulty(self, mgr):
+        dist = _compute_rating_distribution([_make_node("A", difficulty=8)])
+        assert dist['all']['effort']['counts'][7] == 1
+
+    def test_order_by_time_with_no_subcontext_and_no_context_last(self, mgr):
+        nodes = [
+            _make_node("A", context="Mind", subcontext=None, time_m=500),
+            _make_node("B", context="Mind", subcontext="Logic", time_m=1),
+            _make_node("C", context="Mind", subcontext="Memory", time_m=50),
+            _make_node("D", context="Body", subcontext="Strength", time_m=900),
+            _make_node("E", context=None, time_m=5000),
+        ]
+        groups = _compute_rating_distribution(nodes)['groups']
+        assert [g['row']['context'] for g in groups] == ['Body', 'Mind', 'No Context']
+        mind = groups[1]
+        assert mind['row']['subcontext'] is None
+        assert mind['row']['count'] == 3
+        assert [s['subcontext'] for s in mind['subs']] == [
+            'Memory', 'Logic', 'No subcontext']
+
+    def test_work_left_counts_every_open_node(self, mgr):
+        """Time matches Work Time by Context: Milestones and inherited nodes
+        add their time though they carry no ratings; Done nodes don't."""
         nodes = [
             _make_node("A", context="Mind", subcontext="Logic"),
-            _make_node("B", context="Mind", subcontext="Logic"),
-            _make_node("C", context="Mind", subcontext=None),
+            _make_node("B", context="Mind", subcontext="Logic",
+                       value_mode="inherited"),
+            _make_node("C", context="Mind", subcontext="Logic", status="Done"),
+            _make_node("D", context="Body"),
         ]
-        ctx_data = _compute_context_coverage(nodes)
-        mind = next(d for d in ctx_data if d['context'] == 'Mind')
-        seg_names = {s['name'] for s in mind['segments']}
-        assert seg_names == {"Logic", "(No subcontext)"}
-        assert sum(s['time'] for s in mind['segments']) == pytest.approx(mind['time'])
-        assert sum(s['count'] for s in mind['segments']) == mind['count']
-        logic = next(s for s in mind['segments'] if s['name'] == 'Logic')
-        assert logic['count'] == 2
+        dist = _compute_rating_distribution(nodes)
+        per = nodes[0].time
+        mind = next(g for g in dist['groups'] if g['row']['context'] == 'Mind')
+        assert mind['row']['count'] == 1
+        assert mind['row']['time'] == pytest.approx(2 * per)
+        assert mind['row']['share'] == pytest.approx(2 / 3)
+        assert dist['all']['time'] == pytest.approx(3 * per)
 
-    def test_sorted_by_time(self, mgr):
-        ConfigManager.set_contexts(["Mind", "Body"])
-        nodes = [
-            _make_node("A", context="Mind", time_m=100),
-            _make_node("B", context="Body", time_m=1),
-        ]
-        ctx_data = _compute_context_coverage(nodes)
-        # Body has less time, should come first (sorted ascending)
-        assert ctx_data[0]['context'] == 'Body'
+    def test_lone_no_subcontext_gets_no_child_rows(self, mgr):
+        dist = _compute_rating_distribution(
+            [_make_node("A", context="Mind", subcontext=None)])
+        assert dist['groups'][0]['subs'] == []
 
-    def test_no_context_bucket(self, mgr):
-        ConfigManager.set_contexts(["Mind"])
-        nodes = [_make_node("A", context=None)]
-        ctx_data = _compute_context_coverage(nodes)
-        no_ctx = [d for d in ctx_data if d['context'] == 'No Context']
-        assert len(no_ctx) == 1
 
-    def test_weight_included_from_settings(self, mgr):
-        """Each ctx_data row includes its context's weight (default 1.0)."""
-        ConfigManager.set_contexts(["Mind", "Body"])
-        ConfigManager.set_context_weights({"Mind": 2.5})
-        nodes = [
-            _make_node("A", context="Mind"),
-            _make_node("B", context="Body"),
-        ]
-        ctx_data = _compute_context_coverage(nodes)
-        by_ctx = {d['context']: d for d in ctx_data}
-        assert by_ctx['Mind']['weight'] == 2.5
-        assert by_ctx['Body']['weight'] == 1.0
+class TestRenderRatingDistribution:
+    def test_contexts_fold_and_cells_carry_definitions(self, mgr):
+        from dash import html
+        from analyze_callbacks import _render_rating_distribution
+        nodes = [_make_node("A", context="Mind", subcontext="Logic", value=4),
+                 _make_node("B", context="Mind", subcontext="Memory", value=6)]
+        card = _render_rating_distribution(_compute_rating_distribution(nodes))
 
-    def test_no_context_bucket_gets_default_weight(self, mgr):
-        ConfigManager.set_contexts(["Mind"])
-        nodes = [_make_node("A", context=None)]
-        ctx_data = _compute_context_coverage(nodes)
-        no_ctx = next(d for d in ctx_data if d['context'] == 'No Context')
-        assert no_ctx['weight'] == 1.0
+        def walk(c):
+            yield c
+            kids = getattr(c, 'children', None)
+            for k in (kids if isinstance(kids, list) else [kids]):
+                if hasattr(k, 'to_plotly_json'):
+                    yield from walk(k)
+        parts = list(walk(card))
+        details = [p for p in parts if isinstance(p, html.Details)]
+        assert len(details) == 1 and not getattr(details[0], 'open', None)
+        tips = [getattr(p, 'data-tip') for p in parts
+                if 'rd-cell' in (getattr(p, 'className', '') or '')]
+        # All nodes, Mind, Logic, Memory: four rows of 3 x 10 cells.
+        assert len(tips) == 4 * 30
+        definition = ConfigManager.get_ratings_definitions()[3]['value']
+        assert f"Mind > Logic\n1 of 1 node has Value 4\n{definition}" in tips
+        assert "All nodes\n0 of 2 nodes have Value 1\n" in tips[0]
+
+    @staticmethod
+    def _parts(nodes):
+        from analyze_callbacks import _render_rating_distribution
+        card = _render_rating_distribution(_compute_rating_distribution(nodes))
+
+        def walk(c):
+            yield c
+            kids = getattr(c, 'children', None)
+            for k in (kids if isinstance(kids, list) else [kids]):
+                if hasattr(k, 'to_plotly_json'):
+                    yield from walk(k)
+        return list(walk(card))
+
+    @staticmethod
+    def _gaps(parts):
+        return sorted(p.className for p in parts
+                      if (getattr(p, 'className', None) or '').startswith('rd-gap'))
+
+    def test_guide_marks_all_nodes_mean_outside_the_top_row(self, mgr):
+        parts = self._parts([_make_node("A", context="Mind", value=2),
+                             _make_node("B", context="Body", value=8)])
+        guides = [p for p in parts if getattr(p, 'className', None) == 'rd-guide']
+        # Mind and Body rows, three ratings each; none in All nodes.
+        assert len(guides) == 6
+        means = [getattr(p, 'data-tip') for p in parts
+                 if getattr(p, 'className', None) == 'rd-mean']
+        assert means[0] == "All nodes\nMean Value: 5.0"
+        assert "Mind\nMean Value: 2.0\n3.0 below all nodes (5.0)" in means
+        # Interest and Effort match the graph, so only Value draws a gap:
+        # Mind below, Body above.
+        assert self._gaps(parts) == ['rd-gap above', 'rd-gap below']
+        assert "Body\nMean Interest: 5.0\nSame as all nodes (5.0)" in means
+
+    def test_gap_bars_skip_tiny_gaps(self, mgr):
+        # Mind 5.0 and Body 5.25 around an overall 5.2: both under the cutoff.
+        nodes = [_make_node("A", context="Mind", value=5),
+                 _make_node("B", context="Body", value=5),
+                 _make_node("C", context="Body", value=5),
+                 _make_node("D", context="Body", value=6),
+                 _make_node("E", context="Body", value=5)]
+        assert self._gaps(self._parts(nodes)) == []
+
+    def test_empty_graph_message(self, mgr):
+        from analyze_callbacks import _render_rating_distribution
+        card = _render_rating_distribution(_compute_rating_distribution([]))
+        assert "No open rated nodes." in str(card)
 
 
 # ============================================================================
@@ -885,58 +953,3 @@ class TestAnalyzeRefreshGate:
         out = refresh('analyze-active-store', 'tab-analyze', None)
         assert out[-3:-1] == (False, True)
         assert out[-1] is None
-
-
-class TestHoursByContextColors:
-    """Neighbouring segments in a bar must never share a colour, however many
-    subcontexts the graph holds."""
-
-    @staticmethod
-    def _bar_colors(ctx_data):
-        from dash import dcc
-        from analyze_callbacks import _render_hours_by_context
-
-        card = _render_hours_by_context(ctx_data)
-
-        def find(c):
-            if isinstance(c, dcc.Graph):
-                return c
-            kids = getattr(c, 'children', None)
-            for k in (kids if isinstance(kids, list) else [kids]):
-                if k is not None and hasattr(k, 'to_plotly_json'):
-                    found = find(k)
-                    if found is not None:
-                        return found
-        fig = find(card).figure
-        bars = {}
-        for trace in fig.data:
-            for ctx, x, color in zip(trace.y, trace.x, trace.marker.color):
-                if x > 0:
-                    bars.setdefault(ctx, []).append(color)
-        return bars
-
-    def test_adjacent_segments_differ(self):
-        from analyze_callbacks import _NO_SUBCONTEXT_COLOR, _SLATE
-        # Subcontexts shared across contexts, in different sizes, so the
-        # global stack order leaves gaps in each bar.
-        ctx_data = []
-        for c in range(4):
-            segs = [{'name': f'S{i}', 'time': 100 - i, 'count': 1}
-                    for i in range(25) if (i + c) % (c + 1) == 0]
-            segs.append({'name': '(No subcontext)', 'time': 5, 'count': 1})
-            ctx_data.append({'context': f'C{c}', 'time': sum(s['time'] for s in segs),
-                             'segments': segs})
-        # S0 and S10 sit ten apart in the global order; a colour per
-        # subcontext gave both the first palette entry, side by side here.
-        ctx_data.append({'context': 'Wrap', 'time': 20, 'segments': [
-            {'name': 'S0', 'time': 10, 'count': 1},
-            {'name': 'S10', 'time': 10, 'count': 1}]})
-        ctx_data.append({'context': 'Eight', 'time': 45, 'segments':
-                         [{'name': f'E{i}', 'time': 5, 'count': 1} for i in range(8)]
-                         + [{'name': '(No subcontext)', 'time': 5, 'count': 1}]})
-        for ctx, colors in self._bar_colors(ctx_data).items():
-            for a, b in zip(colors, colors[1:]):
-                assert a != b, ctx
-                assert not (a == _SLATE and b == _NO_SUBCONTEXT_COLOR), ctx
-
-

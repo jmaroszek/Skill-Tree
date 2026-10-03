@@ -874,13 +874,15 @@ This section displays two visualizations side-by-side. The order of the goals is
 
 This section lives on the Plan subtab.
 
-**Work Time by Context**. One horizontal bar per context, with each segment representing a subcontext. Hover a segment for its name, node count, and estimated work time.
+One chart shows how you rated the open work in each area, and how much of it is left. Each row has three strips, one each for Value, Interest and Effort. Each strip has ten cells, one per rating from 1 to 10. A darker cell holds more of that area's nodes, and the white tick marks the mean.
 
-<p align="center">
-  <img src="../images/analyze-hours-by-context.png">
-  <br>
-  <em> The context distribution of someone who loves science </em>
-</p>
+The top row covers every open node. Contexts start folded; click one to open its subcontexts, or use the buttons in the corner to open or close them all. Hover a cell for its node count and what that rating means, or the tick for the exact mean. Milestones and nodes that inherit their ratings are left out, since their own ratings don't count toward scoring.
+
+The last corner button compares each area with the whole graph. It draws a dashed line down each rating at the mean of all nodes. A bar joins that line to each row's tick: orange when the area sits above the whole graph, violet when below. Its length is the distance. Gaps under a quarter point get no bar. The comparison starts off each time you open the app. Hover any tick for the exact difference.
+
+The last column, Work left, shows each area's remaining work as a bar and a time. The bars share one scale, so the largest context fills its bar. This column counts every open node, Milestones and inherited nodes included, since they are still work to do.
+
+Use it to check that your ratings mean the same thing everywhere. For example, if one context's Value sits two points above the others, either that area really matters more, or those ratings drifted.
 
 ## Time Estimation Accuracy
 
@@ -930,7 +932,7 @@ The gear icon by the title opens three controls: **Granularity** (months, quarte
 
 The chart shows at most 24 bars. If your range holds more, it keeps the latest 24 and says so. Switch to a coarser granularity or narrow the dates to see earlier ones.
 
-Where Work Time by Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
+Where the Work left column under Contexts shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
 
 ## Graph Structure
 

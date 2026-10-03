@@ -421,56 +421,73 @@ def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
     return goal_rows, overlap_rows, total_goal_count
 
 
-def _compute_context_coverage(nodes):
-    """Per-context active-node count and time, with a subcontext breakdown.
+_RATING_KEYS = (('value', 'value'), ('interest', 'interest'),
+                ('effort', 'difficulty'))
 
-    Each ctx_data row carries a ``segments`` list partitioning that context's
-    active nodes by subcontext; nodes with no subcontext form a
-    ``"(No subcontext)"`` segment. Segment times sum exactly to the row's
-    ``time``, so a stacked bar of the segments matches the context total.
+
+def _compute_rating_distribution(nodes):
+    """How the open nodes' Value, Interest and Effort ratings spread from 1
+    to 10, for the whole graph, each context and each subcontext.
+
+    Milestones and nodes in inherited ratings mode are left out, since their
+    stored ratings don't score. Contexts run in descending open time,
+    matching the Work left column, with nodes that have no context in a last
+    "No Context" group. Within a context, subcontexts run the same way and
+    "No subcontext" closes the group. A context whose nodes all lack a
+    subcontext gets no subcontext rows, since its one row would repeat the
+    context's. Contexts without a rated node are skipped.
+
+    Returns ``{'all': row, 'groups': [{'row': row, 'subs': [row, ...]}]}``.
+    A row is ``{'context', 'subcontext', 'count'}`` plus, per rating key,
+    ``{'counts': [n at 1, ..., n at 10], 'mean'}``. ``subcontext`` is None on
+    a context's own row, and both are None on the whole-graph row.
+
+    Each row also carries ``time``, the area's remaining work, and ``share``,
+    that time over the whole graph's. Time counts every open node, Milestones
+    and inherited nodes included, since they are still work to do; the
+    ratings leave those out.
     """
-    configured_contexts = ConfigManager.get_contexts()
-    weights = ConfigManager.get_context_weights()
-    active = [n for n in nodes if n.status != STATUS_DONE]
+    rated = [n for n in nodes
+             if n.status != STATUS_DONE and n.type != 'Milestone'
+             and n.value_mode != 'inherited']
+    groups = defaultdict(lambda: defaultdict(list))
+    for n in rated:
+        groups[n.context or 'No Context'][n.subcontext or 'No subcontext'].append(n)
+    hours = defaultdict(float)
+    for n in nodes:
+        if n.status != STATUS_DONE:
+            ctx = n.context or 'No Context'
+            hours[ctx] += n.time
+            hours[ctx, n.subcontext or 'No subcontext'] += n.time
+    total_hours = sum(v for k, v in hours.items() if isinstance(k, str))
 
-    ctx_counts = defaultdict(lambda: {
-        'count': 0, 'time': 0.0,
-        'segments': defaultdict(lambda: {'count': 0, 'time': 0.0}),
-    })
-    for n in active:
-        ctx = n.context or 'No Context'
-        d = ctx_counts[ctx]
-        d['count'] += 1
-        d['time'] += n.time
-        seg = n.subcontext or '(No subcontext)'
-        d['segments'][seg]['count'] += 1
-        d['segments'][seg]['time'] += n.time
+    def _row(ctx, sub, members):
+        time = (total_hours if ctx is None
+                else hours[ctx] if sub is None else hours[ctx, sub])
+        row = {'context': ctx, 'subcontext': sub, 'count': len(members),
+               'time': time, 'share': time / total_hours if total_hours else 0.0}
+        for key, attr in _RATING_KEYS:
+            ratings = [min(10, max(1, int(getattr(n, attr)))) for n in members]
+            counts = [0] * 10
+            for r in ratings:
+                counts[r - 1] += 1
+            row[key] = {'counts': counts,
+                        'mean': sum(ratings) / len(ratings) if ratings else None}
+        return row
 
-    def _row(ctx, weight):
-        d = ctx_counts.get(ctx)
-        if d is None:
-            return {'context': ctx, 'count': 0, 'time': 0.0,
-                    'weight': weight, 'segments': []}
-        # Named subcontexts (largest time first), then "(No subcontext)".
-        named = sorted(
-            (kv for kv in d['segments'].items() if kv[0] != '(No subcontext)'),
-            key=lambda kv: kv[1]['time'], reverse=True)
-        ordered = list(named)
-        rest = d['segments'].get('(No subcontext)')
-        if rest is not None:
-            ordered.append(('(No subcontext)', rest))
-        return {
-            'context': ctx,
-            'count': d['count'],
-            'time': d['time'],
-            'weight': weight,
-            'segments': [{'name': name, 'count': s['count'], 'time': s['time']}
-                         for name, s in ordered],
-        }
+    contexts = sorted((c for c in groups if c != 'No Context'),
+                      key=lambda c: -hours[c])
+    if 'No Context' in groups:
+        contexts.append('No Context')
 
-    ctx_data = [_row(ctx, float(weights.get(ctx, 1.0)))
-                for ctx in configured_contexts]
-    if 'No Context' in ctx_counts:
-        ctx_data.append(_row('No Context', 1.0))
-    ctx_data.sort(key=lambda r: r['time'])
-    return ctx_data
+    result = {'all': _row(None, None, rated), 'groups': []}
+    for ctx in contexts:
+        subs = groups[ctx]
+        group = {'row': _row(ctx, None, [n for m in subs.values() for n in m]),
+                 'subs': []}
+        if list(subs) != ['No subcontext']:
+            ordered = sorted(subs, key=lambda s: (s == 'No subcontext',
+                                                  -hours[ctx, s]))
+            group['subs'] = [_row(ctx, s, subs[s]) for s in ordered]
+        result['groups'].append(group)
+    return result

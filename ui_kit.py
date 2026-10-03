@@ -202,6 +202,25 @@ def step_button(button_id, icon, tooltip, **kwargs):
                         tooltip=tooltip, **kwargs)
 
 
+def disclosure_all_button(button_id, expand, **kwargs):
+    """Expand all or Collapse all for a list of folding rows, such as the
+    Analyze tab's Ratings by Context. Same quiet ghost as the stepper, so a
+    pair sits in a card corner without competing with its title."""
+    icon, label = (("arrows-expand", "Expand all") if expand
+                   else ("arrows-collapse", "Collapse all"))
+    return _icon_button(button_id, icon, label, "step-btn disclosure-btn",
+                        tooltip=label, **kwargs)
+
+
+def guide_toggle_button(button_id, label="Show the mean of all nodes", **kwargs):
+    """Toggles a chart's reference line, such as the dashed mean of all nodes in
+    Ratings by Context. dbc.Button rejects ``aria-*`` props, so the script
+    that owns the toggle sets ``aria-pressed``; the pressed style keys off
+    the root class it maintains."""
+    return _icon_button(button_id, "align-center", label,
+                        "step-btn guide-toggle-btn", tooltip=label, **kwargs)
+
+
 def edit_button(button_id, tooltip="Edit", placement="top", className_extra="",
                 **kwargs):
     """The pencil that opens an editor for the thing beside it.
