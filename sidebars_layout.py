@@ -14,7 +14,7 @@ Per-tab filter sidebars (e.g. the Details tab's mini-graph filter at
 `details-filters-sidebar`) live with their owning tab module, not here.
 """
 
-from duration_ui import DURATION_UNITS, bracket_label, estimate_guidance, unit_select
+from duration_ui import DURATION_UNITS, bracket_label, time_estimates_heading, unit_select
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 from config import (
@@ -303,10 +303,7 @@ def build_node_editor_content():
                 # --- Section: Time Estimates ---
                 html.Div(id="section-time-estimates", children=[
                     html.Hr(className="my-2"),
-                    html.Div([
-                        html.H5("Time Estimates", className="mb-0"),
-                        estimate_guidance("node"),
-                    ], className="d-flex align-items-center mt-2 mb-2"),
+                    time_estimates_heading("node"),
                     html.Div([
                         dbc.Checklist(
                             options=[{"label": "Inherit", "value": "inherited"}],
@@ -352,7 +349,7 @@ def build_node_editor_content():
                     html.Div(id="section-time-habit", style={"display": "none"}, children=[
                         dbc.Row([
                             dbc.Col([
-                                dbc.Label("Duration", className="mb-0"),
+                                dbc.Label("Calendar duration", className="mb-0"),
                                 dbc.Input(id="node-habit-duration", type="number", min=0),
                             ], width=7),
                             dbc.Col([

@@ -1,9 +1,10 @@
 """Shared estimate guidance and the Time Simulation forecast chart."""
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
+from dash import html
 
 from config import ConfigManager
-from ui_kit import Tooltip, info_button
+from ui_kit import Tooltip
 
 _BRACKET_HINTS = {
     "Lower": "10% chance of finishing sooner than this.",
@@ -20,17 +21,79 @@ def bracket_label(kind, label_id, className="small text-muted mb-0"):
     ]
 
 
-def estimate_guidance(id_prefix):
-    """Info icon explaining how a bracket (or a lone Expected value) becomes a mean."""
-    info_id = f"{id_prefix}-time-info"
-    # A bare <i> is not focusable, so this one help affordance was unreachable
-    # by keyboard while the other four were buttons. ui_kit.info_button gives
-    # them all the same element and the same hit target.
-    return info_button(
-        info_id,
-        "With only Expected filled in, that number is used directly as the mean. "
-        "With a bracket, the mean work hours are calculated from all supplied values.",
-        placement="right")
+def _compact_hours(hours):
+    """Hours for prose: 20, 2.9, 1,040."""
+    return f"{hours:,.1f}".rstrip("0").rstrip(".")
+
+
+def work_time_units_line(time_settings=None):
+    """What each unit is worth in hours, read from the user's Settings.
+
+    "1 d = 2.9 h, 1 w = 20 h, 1 m = 80 h, 1 y = 1,040 h". `time_settings` is only
+    for tests; the app passes nothing and gets the live values.
+    """
+    if time_settings is None:
+        per_unit = {unit: ConfigManager.get_time_multiplier(unit)
+                    for unit in ("days", "weeks", "months", "years")}
+    else:
+        week = time_settings.get("hours_per_week", 40)
+        month = time_settings.get("hours_per_month", 160)
+        per_unit = {"days": week / ConfigManager.DAYS_PER_WEEK, "weeks": week,
+                    "months": month, "years": ConfigManager.HOURS_PER_YEAR_MULT * month}
+    return ", ".join(f"1 {unit[0]} = {_compact_hours(hours)} h"
+                     for unit, hours in per_unit.items())
+
+
+_BRACKET_EXPLAINER = (
+    "With only Expected filled in, that number is used directly as the mean. "
+    "With a bracket, the mean work hours are calculated from all supplied values.")
+
+
+def work_time_tooltip(kind="estimate", time_settings=None):
+    """Body of the hover tooltip that says what a time here means.
+
+    ``kind`` is ``"estimate"`` (the editor's work-time bracket), ``"habit"``
+    (the editor's habit section, which mixes calendar and work time) or
+    ``"actual"`` (the Reflection modal's captured time). Each is a few short
+    lines, one idea apiece.
+    """
+    if kind == "habit":
+        lines = [
+            "Duration is calendar time: how long the routine runs.",
+            "Minutes per session is work time.",
+            "Total hours are sessions × minutes. Scoring and the simulation "
+            "use that total.",
+        ]
+    else:
+        intro = ("Work time is hours of focused effort, not calendar time."
+                 if kind == "estimate" else
+                 "Enter work time: only the hours you spent working on it, "
+                 "not how long it stayed open.")
+        lines = [
+            intro,
+            f"Your Settings set what each unit is worth: "
+            f"{work_time_units_line(time_settings)}. "
+            "A day is a seventh of a week.",
+        ]
+        if kind == "estimate":
+            lines.append(_BRACKET_EXPLAINER)
+    return html.Div([html.Div(line, className="mb-1 text-start") for line in lines])
+
+
+def time_estimates_heading(id_prefix, kind="estimate"):
+    """The "Work Time Estimates" heading, with its explainer on hover.
+
+    A hover on the heading, not an (i) button: the text only explains, and the
+    app keeps (i) for the controls that open a reference. Tooltip id is
+    ``{id_prefix}-time-heading-tooltip`` so a callback can swap the text when
+    the editor changes mode or Settings change the hour rates.
+    """
+    heading_id = f"{id_prefix}-time-heading"
+    return html.Div([
+        html.H5("Work Time Estimates", id=heading_id, className="mb-0"),
+        Tooltip(work_time_tooltip(kind), target=heading_id, placement="right",
+                id=f"{heading_id}-tooltip"),
+    ], className="d-flex align-items-center mt-2 mb-2")
 
 
 # --- Unit selects -----------------------------------------------------------
@@ -123,7 +186,8 @@ def format_duration_days(days, zero="None") -> str:
     return f"{count} {unit[:-1] if count == 1 else unit}"
 
 
-_UNIT_TITLES = {"y": "Years", "m": "Months", "w": "Weeks", "d": "Days", "h": "Hours"}
+_UNIT_TITLES = {"y": "Work years", "m": "Work months", "w": "Work weeks",
+                "d": "Work days", "h": "Work hours"}
 
 # literal: Plotly shape colours -- read as computed values, not CSS.
 _PERCENTILE_LINES = (("P10", "p10", "#198754"),  # literal: Plotly

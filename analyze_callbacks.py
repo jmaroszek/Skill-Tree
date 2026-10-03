@@ -339,7 +339,7 @@ def _render_bottleneck_chart(data, height=None):
 
     fig = _hbar_chart(labels, values, colors=_RANK_BAR,
                       hover_texts=[_hover(d) for d in data],
-                      x_title="Hours of work unlocked", friendly_x=True,
+                      x_title="Work time unlocked", friendly_x=True,
                       height=height, label_len=_STRUCTURE_LABEL_LEN)
     return _card([title, _graph(fig)])
 
@@ -576,8 +576,8 @@ def _render_estimation_accuracy(rows):
         height=420, showlegend=True,
         margin=dict(l=50, r=20, t=10, b=45),
         legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
-        xaxis=dict(title="Estimated", **axis),
-        yaxis=dict(title="Actual", **axis),
+        xaxis=dict(title="Estimated work time", **axis),
+        yaxis=dict(title="Actual work time", **axis),
     ))
     return _card([
         title,
@@ -769,7 +769,7 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
     fmt = ConfigManager.format_time_friendly
     title_word = {'month': 'Month', 'quarter': 'Quarter',
                   'year': 'Year'}.get(granularity, 'Quarter')
-    title = html.H6(f"Hours Completed by {title_word}",
+    title = html.H6(f"Work Time Completed by {title_word}",
                     className="text-muted mb-1")
     if not quarter_rows or all(not r['segments'] for r in quarter_rows):
         return _card([title, html.P(
@@ -832,7 +832,7 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
         xaxis=dict(automargin=True, categoryorder='array',
                    categoryarray=q_labels),
         yaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
-                   automargin=True),
+                   automargin=True, title="Work time"),
     ))
     return _card([title, _graph(fig)])
 
@@ -858,7 +858,7 @@ def _render_hours_by_context(ctx_data, height=None):
     fmt = ConfigManager.format_time_friendly
     if not ctx_data:
         return _card([
-            html.H6("Hours by Context", className="text-muted mb-1"),
+            html.H6("Work Time by Context", className="text-muted mb-1"),
             html.P("No contexts configured.", className="text-muted small"),
         ])
 
@@ -920,17 +920,18 @@ def _render_hours_by_context(ctx_data, height=None):
     tickvals, ticktext = _friendly_xticks(
         max((d['time'] for d in ctx_data), default=0))
     if height is None:
-        height = max(180, len(ctx_names) * 28 + 60)
+        height = max(180, len(ctx_names) * 28 + 85)  # +25: the axis title
     fig.update_layout(**_base_layout(
         barmode='stack', height=height,
         margin=dict(l=10, r=20, t=10, b=30),
         yaxis=dict(automargin=True, ticklabelstandoff=8,
                    categoryorder='array', categoryarray=ctx_names,
                    **_label_axis(ctx_names)),
-        xaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext),
+        xaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
+                   title="Work time", automargin=True),
     ))
     return _card([
-        html.H6("Hours by Context", className="text-muted mb-1"),
+        html.H6("Work Time by Context", className="text-muted mb-1"),
         _graph(fig),
     ])
 
