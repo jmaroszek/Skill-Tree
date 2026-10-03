@@ -260,12 +260,12 @@ targeting it, in a `display: contents` wrapper so it lays out as its two parts. 
 `.hover-hint` class, which shows the help cursor (a pointer with a question
 mark), so it reads as explainable before it is hovered. Give each label a unique
 id. The node editor's hover copy lives in `_EDITOR_HINTS` in
-`sidebars_layout.py`. For a switch, point the `Tooltip` at the switch's wrapper
-`Div`.
-Keep tooltips short: the long explanation belongs in `docs/`. Anything a
+`sidebars_layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
 tooltip enumerates is a bullet list (`ui_kit.bullet_hint(intro, *items)`), not
-a run-on sentence. Any control whose tooltip only explains, including a switch
-or table cell, takes the `hover-hint` class too. Buttons keep the pointer.
+a run-on sentence. Any label, heading or table cell whose tooltip only explains takes the
+`hover-hint` class too. Explain a group of switches on their section heading, not
+per switch. A single switch gets `hover-hint-label`, which puts the help cursor
+on its label text only. Buttons and switches themselves keep the pointer.
 
 Axis titles and chart headings say "work time" where the axis holds times, since
 the tick letters (1w, 2m) are the productive hours from Settings and not calendar

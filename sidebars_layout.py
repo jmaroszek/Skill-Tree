@@ -66,9 +66,15 @@ _EDITOR_HINTS = {
         "Goal: an area you are developing.",
         "Learn: a topic to understand."),
     "context": "The broad area. The subcontext narrows it.",
-    "now": "Put this node on your Now list.",
-    "done": "Mark this node finished.",
-    "dormant": "Put this node to sleep until an event wakes it.",
+    "status": bullet_hint(
+        "Where this node stands:",
+        "Now: on your Now list.",
+        "Done: finished.",
+        "Dormant: asleep until an event wakes it."),
+    "filter_status": bullet_hint(
+        "Which nodes the canvas shows:",
+        "Show Done: include finished nodes.",
+        "Show Dormant: include sleeping nodes."),
     "event": "The event that wakes this node.",
     "wake": bullet_hint(
         "When the event fires:",
@@ -226,30 +232,28 @@ def build_node_editor_content():
                 # `!important` and would beat the inline `display: none`.
                 html.Div(id="section-done-time", children=[
                     html.Hr(className="my-2"),
-                    html.H5("Status", className="mt-2 mb-1"),
+                    hover_label("Status", "node-status-heading", _EDITOR_HINTS["status"],
+                                component=html.H5, placement="right", className="mt-2 mb-1"),
                     html.Div([
                         html.Div(dbc.Checklist(
                             options=[{"label": "Now", "value": "now"}],
                             value=[],
                             id="node-now",
                             switch=True,
-                        ), id="node-now-wrapper", className="hover-hint"),
+                        ), id="node-now-wrapper"),
                         html.Div(dbc.Checklist(
                             options=[{"label": STATUS_DONE, "value": STATUS_DONE}],
                             value=[],
                             id="node-status-done",
                             switch=True,
-                        ), id="node-status-done-wrapper", className="hover-hint"),
+                        ), id="node-status-done-wrapper"),
                         html.Div(dbc.Checklist(
                             options=[{"label": "Dormant", "value": "dormant"}],
                             value=[],
                             id="node-dormant",
                             switch=True,
-                        ), id="node-dormant-wrapper", className="hover-hint"),
+                        ), id="node-dormant-wrapper"),
                     ], className="d-flex justify-content-start gap-3 mt-2"),
-                    Tooltip(_EDITOR_HINTS["now"], target="node-now-wrapper", placement="top"),
-                    Tooltip(_EDITOR_HINTS["done"], target="node-status-done-wrapper", placement="top"),
-                    Tooltip(_EDITOR_HINTS["dormant"], target="node-dormant-wrapper", placement="top"),
                     html.Div(id="node-dormant-wake-warning",
                              className="small text-warning mt-1",
                              style={"display": "none"}),
@@ -320,7 +324,7 @@ def build_node_editor_content():
                         value=[],
                         id="node-value-mode",
                         switch=True,
-                        className="mb-0 hover-hint",
+                        className="mb-0 hover-hint-label",
                     ),
                 ], className="d-flex align-items-center mt-2 mb-2"),
                 Tooltip(
@@ -358,7 +362,7 @@ def build_node_editor_content():
                             value=[],
                             id="node-time-mode",
                             switch=True,
-                            className="mb-0 hover-hint",
+                            className="mb-0 hover-hint-label",
                         ),
                         Tooltip(
                             _EDITOR_HINTS["time_inherit"],
@@ -370,7 +374,7 @@ def build_node_editor_content():
                                 value=[],
                                 id="node-time-habit-mode",
                                 switch=True,
-                                className="mb-0 hover-hint",
+                                className="mb-0 hover-hint-label",
                             ),
                             Tooltip(
                                 _EDITOR_HINTS["habit"],
@@ -693,21 +697,20 @@ def build_filters_content():
 
         html.Hr(className="my-3"),
 
-        html.H5("Status", className="mt-2 mb-1"),
+        hover_label("Status", "filter-status-heading", _EDITOR_HINTS["filter_status"],
+                    component=html.H5, placement="left", className="mt-2 mb-1"),
         html.Div([
             dbc.Checklist(
                 options=[{"label": "Show Done", "value": "show_done"}],
                 value=[],
                 id="filter-done",
                 switch=True,
-                className="hover-hint",
             ),
             dbc.Checklist(
                 options=[{"label": "Show Dormant", "value": "show_dormant"}],
                 value=[],
                 id="filter-dormant",
                 switch=True,
-                className="hover-hint",
             ),
         ], className="d-flex gap-3 flex-wrap"),
 
@@ -724,15 +727,6 @@ def build_filters_content():
 
         dbc.Label("Community", className="mt-3"),
         dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
-
-        Tooltip(
-            "Show Done nodes on the canvas.",
-            target="filter-done", placement="top",
-        ),
-        Tooltip(
-            "Show dormant nodes on the canvas.",
-            target="filter-dormant", placement="top",
-        ),
 
         html.Hr(className="my-3"),
         # Filters decide what the canvas shows; layout physics live in the
