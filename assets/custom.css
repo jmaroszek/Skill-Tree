@@ -211,3 +211,8 @@ body:has(#editor-obsidian-resources[style*="display: none"]) .resource-dot-obsid
 body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
     display: none;
 }
+
+/* A label or heading whose hover tooltip explains it: pointer with a question mark. */
+.hover-hint {
+    cursor: help;
+}

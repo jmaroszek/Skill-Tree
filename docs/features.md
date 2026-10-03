@@ -176,7 +176,7 @@ In order to standardize the rating process, there is a table that describes what
 ## Time
 Time estimation is the most valuable thing in project management to get right — and the hardest. [Time.md](time.md) walks through Skill Tree's approach to solving this difficult problem. For now, the short version: you can estimate a project's duration with one, two, or three inputs. And the more you provide, the better the result.
 
-Every time in the app is work time. It counts hours of focused effort, not days on the calendar. The letters mean hours, days, weeks, months, and years of work. In Settings you choose how many productive hours make up each one. By default a week is 20 hours, so "2w" means 40 hours of work. Hover the **Work Time Estimates** heading in the node editor to see the rates you have set.
+Every time in the app is work time. It counts hours of focused effort, not days on the calendar. The letters mean hours, days, weeks, months, and years of work. In Settings you choose how many productive hours make up each one. By default a week is 20 hours, so "2w" means 40 hours of work. Hover the **Time Estimates** heading in the node editor to see the rates you have set.
 
 | Inputs | Values | Time Estimation Method |
 |---|---|---|
