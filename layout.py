@@ -587,7 +587,7 @@ def build_time_calibration_modal():
                 # d-inline-block: the hover target is the words, not the whole
                 # row, so the tooltip opens beside them instead of off-screen.
                 html.H6("Actual work time", id="time-calibration-heading",
-                        className="mb-2 d-inline-block"),
+                        className="mb-2 d-inline-block hover-hint"),
                 Tooltip(work_time_tooltip("actual"),
                         target="time-calibration-heading", placement="bottom",
                         id="time-calibration-heading-tooltip"),

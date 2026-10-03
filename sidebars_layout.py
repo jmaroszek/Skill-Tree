@@ -34,7 +34,7 @@ from context_picker import build_multi_context_picker, build_single_context_pick
 from models import STATUS_DONE
 import style_tokens as tokens
 from ui_kit import (Tooltip, add_button, cancel_action, confirm_action, danger_action,
-                     done_color, hover_label, info_button, panel_close_button,
+                     bullet_hint, done_color, hover_label, info_button, panel_close_button,
                      primary_action)
 
 # Node types have distinct product behavior and are not user-extensible.
@@ -54,57 +54,44 @@ WEEKDAY_OPTIONS = [
 ]
 
 
-# Hover copy for the editor's labels. One idea per sentence. Edge direction is
-# easy to get backwards: A --Needs--> B means A unlocks B.
+# Hover copy for the editor's labels: short, with the long form in docs/. Anything
+# that enumerates is a bullet list. Edge direction is easy to get backwards:
+# A --Needs--> B means A unlocks B.
 _EDITOR_HINTS = {
-    "type": (
-        "What kind of thing this node is. It changes how the node is scored. "
-        "Resource: external material to take in, like a book or course. "
-        "Action: a practice or experiment with a definite end. "
-        "Milestone: a measurable single achievement, like a weight or a time. "
-        "Goal: an area or capacity you are developing, made of things you track separately. "
-        "Learn: a topic you want to understand, when none of the above fit."
-    ),
-    "context": (
-        "The broad area of life this node belongs to. "
-        "The subcontext narrows it. "
-        "Leave the subcontext empty for a node that spans the whole area."
-    ),
-    "status": (
-        "Where this node stands. "
-        "Now puts it on your Now list, the work you are doing at the moment. "
-        "Done means it is finished. "
-        "Dormant puts it to sleep until an event wakes it. "
-        "A node with an unfinished Hard prerequisite is Blocked automatically."
-    ),
-    "now": "Put this node on your Now list, the work you are doing at the moment.",
-    "done": "Mark this node finished. Finishing it unlocks what it leads to.",
-    "dormant": "Put this node to sleep. It stays out of the way until an event wakes it.",
-    "event": "The event that wakes this node. The node stays asleep until it fires.",
-    "wake": "What happens when the event fires. Delay waits a while longer first. Add to Now puts the node on your Now list.",
-    "relationships": (
-        "How this node connects to others. "
-        "Needs and Supports are the same links seen from the two ends. "
-        "Helps is a different kind of link."
-    ),
-    "needs": (
-        "The prerequisites of this node. They come before it and unlock it. "
-        "Hard: this node is Blocked until the prerequisite is Done. "
-        "Soft: the prerequisite makes this node easier or better, but you can start without it. "
-        "Hard passes more value along the link than Soft."
-    ),
-    "supports": (
-        "What this node unlocks. It comes before them. "
-        "Hard: those nodes are Blocked until this one is Done. "
-        "Soft: this node makes those nodes easier or better, but does not block them. "
-        "Hard passes more value along the link than Soft."
-    ),
-    "helps": (
-        "Nodes that reinforce each other. "
-        "Doing both is worth more than the two done alone. "
-        "The link works both ways and does not block anything. "
-        "It is not a weaker Soft: Soft is about order, Helps is about mutual boost."
-    ),
+    "type": bullet_hint(
+        "How the node is scored:",
+        "Resource: a book, course or notes.",
+        "Action: a practice with a definite end.",
+        "Milestone: a measurable one-time achievement.",
+        "Goal: an area you are developing.",
+        "Learn: a topic to understand."),
+    "context": "The broad area. The subcontext narrows it.",
+    "now": "Put this node on your Now list.",
+    "done": "Mark this node finished.",
+    "dormant": "Put this node to sleep until an event wakes it.",
+    "event": "The event that wakes this node.",
+    "wake": bullet_hint(
+        "When the event fires:",
+        "Delay: wait longer before waking.",
+        "Add to Now: put the node on your Now list."),
+    "relationships": "Needs and Supports are the same links seen from opposite ends.",
+    "needs": bullet_hint(
+        "Prerequisites. They come first and unlock this node.",
+        "Hard: blocks this node until done.",
+        "Soft: helps, but does not block."),
+    "supports": bullet_hint(
+        "What this node unlocks.",
+        "Hard: blocks them until this is done.",
+        "Soft: helps them, but does not block."),
+    "helps": "Mutual boost: doing both is worth more than the sum. Does not block, and is not a weaker Soft.",
+    "ratings_inherit": "Take ratings from the nodes inside this one.",
+    "time_inherit": "Take time from the nodes inside this one.",
+    "habit": "A routine spread over weeks. Enter a duration and minutes per session.",
+    "community": bullet_hint(
+        "How nodes are grouped:",
+        "Clusters: densely connected groups.",
+        "Islands: groups with no edges to the rest.",
+        "Orphans: nodes with no edges at all."),
 }
 
 
@@ -239,9 +226,7 @@ def build_node_editor_content():
                 # `!important` and would beat the inline `display: none`.
                 html.Div(id="section-done-time", children=[
                     html.Hr(className="my-2"),
-                    hover_label("Status", "node-status-heading", _EDITOR_HINTS["status"],
-                                 component=html.H5, placement="right",
-                                 className="mt-2 mb-1"),
+                    html.H5("Status", className="mt-2 mb-1"),
                     html.Div([
                         html.Div(dbc.Checklist(
                             options=[{"label": "Now", "value": "now"}],
@@ -335,11 +320,11 @@ def build_node_editor_content():
                         value=[],
                         id="node-value-mode",
                         switch=True,
-                        className="mb-0",
+                        className="mb-0 hover-hint",
                     ),
                 ], className="d-flex align-items-center mt-2 mb-2"),
                 Tooltip(
-                    "Take value, interest and effort from the nodes inside this one. Use it for a container with no ratings of its own.",
+                    _EDITOR_HINTS["ratings_inherit"],
                     target="node-value-mode", placement="left",
                 ),
                 # Locked-on notice for Milestones (mirrors the time-mode warning).
@@ -373,10 +358,10 @@ def build_node_editor_content():
                             value=[],
                             id="node-time-mode",
                             switch=True,
-                            className="mb-0",
+                            className="mb-0 hover-hint",
                         ),
                         Tooltip(
-                            "Take this node's time from the nodes inside it. Use it for a container whose only work is finishing them.",
+                            _EDITOR_HINTS["time_inherit"],
                             target="node-time-mode", placement="left",
                         ),
                         html.Div([
@@ -385,10 +370,10 @@ def build_node_editor_content():
                                 value=[],
                                 id="node-time-habit-mode",
                                 switch=True,
-                                className="mb-0",
+                                className="mb-0 hover-hint",
                             ),
                             Tooltip(
-                                "Distributed-cadence project (e.g., 30 min/day for 6 weeks). Enter a duration and per-period intensity; total hours are computed and used for scoring.",
+                                _EDITOR_HINTS["habit"],
                                 target="node-time-habit-mode", placement="left",
                             ),
                         ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
@@ -715,19 +700,22 @@ def build_filters_content():
                 value=[],
                 id="filter-done",
                 switch=True,
+                className="hover-hint",
             ),
             dbc.Checklist(
                 options=[{"label": "Show Dormant", "value": "show_dormant"}],
                 value=[],
                 id="filter-dormant",
                 switch=True,
+                className="hover-hint",
             ),
         ], className="d-flex gap-3 flex-wrap"),
 
         html.Hr(className="my-3"),
 
         html.H5("Communities", className="mt-2 mb-1"),
-        dbc.Label("Detection Method", className="mt-2"),
+        hover_label("Detection Method", "community-method-label",
+                    _EDITOR_HINTS["community"], className="mt-2"),
         dbc.Select(id="community-method", options=[
             {"label": "Clusters", "value": "louvain"},
             {"label": "Islands", "value": "components"},
@@ -738,12 +726,11 @@ def build_filters_content():
         dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
 
         Tooltip(
-            "Show Done nodes on the canvas. Off = hide them.",
+            "Show Done nodes on the canvas.",
             target="filter-done", placement="top",
         ),
         Tooltip(
-            "Show dormant (event-deferred) nodes on the canvas. Off = hide them. "
-            "The events tab graph always shows them regardless.",
+            "Show dormant nodes on the canvas.",
             target="filter-dormant", placement="top",
         ),
 

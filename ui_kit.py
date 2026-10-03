@@ -55,6 +55,17 @@ def Tooltip(children, target, **kwargs):
     return dbc.Tooltip(children, target=target, **kwargs)
 
 
+def bullet_hint(intro, *items):
+    """Tooltip body: a short intro line, then one bullet per item.
+
+    Anything a tooltip enumerates is a bullet list, never a run-on sentence.
+    """
+    return html.Div([
+        html.Div(intro, className="text-start"),
+        html.Ul([html.Li(item) for item in items], className="ps-3 mb-0 text-start"),
+    ])
+
+
 def hover_label(text, label_id, hint, component=dbc.Label, placement="top", **kwargs):
     """A label or heading with its explainer on hover, in a ``display: contents`` wrapper.
 

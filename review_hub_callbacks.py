@@ -287,7 +287,7 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
                     node.reflect_value, node.reflect_interest,
                     node.reflect_difficulty,
                     node.value, node.interest, node.difficulty),
-                    id=ratings_id, tabIndex=0, className="review-history-rating"),
+                    id=ratings_id, tabIndex=0, className="review-history-rating hover-hint"),
                 Tooltip(f"Estimated V/I/E: {estimated_ratings} · "
                         f"Actual V/I/E: {actual_ratings}",
                         target=ratings_id, trigger="hover focus"),

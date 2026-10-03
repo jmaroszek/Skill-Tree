@@ -44,9 +44,6 @@ def work_time_unit_items(time_settings=None):
             for unit, hours in per_unit.items()]
 
 
-_BRACKET_EXPLAINER = "With only Expected filled in, that number is used directly as the mean."
-
-
 def work_time_tooltip(kind="estimate", time_settings=None):
     """Body of the hover tooltip that says what a time here means.
 
@@ -69,10 +66,7 @@ def work_time_tooltip(kind="estimate", time_settings=None):
                  "not how long it stayed open.")
         units = html.Ul([html.Li(item) for item in work_time_unit_items(time_settings)],
                         className="ps-3 mb-1 text-start")
-        lines = [intro, "Your Settings set what each unit is worth:", units,
-                 "A day is a seventh of a week."]
-        if kind == "estimate":
-            lines.append(_BRACKET_EXPLAINER)
+        lines = [intro, "Your Settings set what each unit is worth:", units]
     return html.Div([html.Div(line, className="mb-1 text-start") if isinstance(line, str)
                      else line for line in lines])
 

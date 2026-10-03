@@ -45,12 +45,12 @@ class TestUnitsLine:
 
 
 class TestTooltipText:
-    def test_estimate_says_work_time_quotes_the_rates_and_explains_the_mean(self):
+    def test_estimate_says_work_time_and_quotes_the_rates(self):
         text = _text(work_time_tooltip("estimate", DEFAULT_RATES))
         assert "not calendar time" in text
         assert "1 w = 20 h" in text
-        assert "only Expected filled in" in text
-        assert "calculated from all supplied values" not in text
+        assert "Expected" not in text
+        assert "seventh" not in text
 
     def test_habit_separates_calendar_duration_from_work_minutes(self):
         text = _text(work_time_tooltip("habit"))
