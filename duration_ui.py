@@ -29,7 +29,7 @@ def _compact_hours(hours):
 def work_time_unit_items(time_settings=None):
     """What each unit is worth in hours, read from the user's Settings.
 
-    One string per unit: "1 d = 2.9 h (day)". `time_settings` is only for
+    One string per unit: "1 day = 2.9 hours". `time_settings` is only for
     tests; the app passes nothing and gets the live values.
     """
     if time_settings is None:
@@ -40,7 +40,7 @@ def work_time_unit_items(time_settings=None):
         month = time_settings.get("hours_per_month", 160)
         per_unit = {"days": week / ConfigManager.DAYS_PER_WEEK, "weeks": week,
                     "months": month, "years": ConfigManager.HOURS_PER_YEAR_MULT * month}
-    return [f"1 {unit[0]} = {_compact_hours(hours)} h ({unit[:-1]})"
+    return [f"1 {unit[:-1]} = {_compact_hours(hours)} {'hour' if hours == 1 else 'hours'}"
             for unit, hours in per_unit.items()]
 
 

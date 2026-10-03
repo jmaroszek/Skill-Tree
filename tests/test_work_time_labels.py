@@ -27,28 +27,28 @@ def _text(component):
 class TestUnitsLine:
     def test_default_rates_read_in_hours(self):
         assert (work_time_unit_items(DEFAULT_RATES)
-                == ["1 d = 2.9 h (day)", "1 w = 20 h (week)", "1 m = 80 h (month)",
-                    "1 y = 1,040 h (year)"])
+                == ["1 day = 2.9 hours", "1 week = 20 hours", "1 month = 80 hours",
+                    "1 year = 1,040 hours"])
 
     def test_a_tuned_rate_flows_through(self):
         items = work_time_unit_items({"hours_per_week": 35, "hours_per_month": 140})
-        assert items == ["1 d = 5 h (day)", "1 w = 35 h (week)", "1 m = 140 h (month)",
-                         "1 y = 1,820 h (year)"]
+        assert items == ["1 day = 5 hours", "1 week = 35 hours", "1 month = 140 hours",
+                         "1 year = 1,820 hours"]
 
     def test_the_app_reads_the_saved_settings(self, temp_database):
         settings = dict(ConfigManager.get_time_settings())
         settings.update(hours_per_week=10, hours_per_month=40)
         ConfigManager.set_time_settings(settings)
         assert (work_time_unit_items()
-                == ["1 d = 1.4 h (day)", "1 w = 10 h (week)", "1 m = 40 h (month)",
-                    "1 y = 520 h (year)"])
+                == ["1 day = 1.4 hours", "1 week = 10 hours", "1 month = 40 hours",
+                    "1 year = 520 hours"])
 
 
 class TestTooltipText:
     def test_estimate_says_work_time_and_quotes_the_rates(self):
         text = _text(work_time_tooltip("estimate", DEFAULT_RATES))
         assert "not calendar time" in text
-        assert "1 w = 20 h" in text
+        assert "1 week = 20 hours" in text
         assert "Expected" not in text
         assert "seventh" not in text
 
@@ -56,12 +56,12 @@ class TestTooltipText:
         text = _text(work_time_tooltip("habit"))
         assert "Duration is calendar time" in text
         assert "Minutes per session is work time" in text
-        assert "1 w =" not in text
+        assert "1 week =" not in text
 
     def test_actual_asks_for_work_time_and_not_the_bracket_mean(self):
         text = _text(work_time_tooltip("actual", DEFAULT_RATES))
         assert "Enter work time" in text
-        assert "1 w = 20 h" in text
+        assert "1 week = 20 hours" in text
         assert "Expected" not in text
 
 

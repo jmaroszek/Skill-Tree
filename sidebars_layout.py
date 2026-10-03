@@ -68,7 +68,7 @@ _EDITOR_HINTS = {
     "context": "The broad area. The subcontext narrows it.",
     "status": bullet_hint(
         "Where this node stands:",
-        "Now: on your Now list.",
+        "Now: something you want to do now.",
         "Done: finished.",
         "Dormant: asleep until an event wakes it."),
     "filter_status": bullet_hint(
@@ -89,7 +89,8 @@ _EDITOR_HINTS = {
         "What this node unlocks.",
         "Hard: blocks them until this is done.",
         "Soft: helps them, but does not block."),
-    "helps": "Mutual boost: doing both is worth more than the sum. Does not block, and is not a weaker Soft.",
+    "helps": "Mutual boost: doing both is worth more than the sum. Does not block.",
+    "resources": "External material that helps with this project. Add more types in Settings.",
     "ratings_inherit": "Take ratings from the nodes inside this one.",
     "time_inherit": "Take time from the nodes inside this one.",
     "habit": "A routine spread over weeks. Enter a duration and minutes per session.",
@@ -464,7 +465,8 @@ def build_node_editor_content():
                 dcc.Store(id='edge-resources', data=[]),
 
                 html.Hr(className="my-2"),
-                html.H5("Resources", className="mt-2 mb-1"),
+                hover_label("Resources", "node-resources-heading", _EDITOR_HINTS["resources"],
+                            component=html.H5, placement="right", className="mt-2 mb-1"),
 
                 # The loaded node's links by section id. The rows below are
                 # rendered from it and read back through their pattern ids.
