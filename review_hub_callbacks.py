@@ -176,6 +176,18 @@ def _visible_excluded_count(trigger, current, total):
     return min(wanted, total)
 
 
+# Hover text for the history columns whose heading alone is ambiguous. The time
+# columns say "work time" because a day or a week here is the productive hours
+# set in Settings, not a stretch of the calendar.
+_HEADING_HINTS = {
+    "estimated": "Your estimate, in work time: hours of focused effort.",
+    "actual": "The work time you recorded when you reflected on this node.",
+    "delta_time": "Actual minus estimated work time. Positive means it took "
+                  "longer than estimated.",
+    "delta_ratings": "Value / Interest / Effort. Sorted by total absolute change.",
+}
+
+
 def _history_sort_heading(key, sort):
     active = (sort or {}).get("key") == key
     direction = (sort or {}).get("direction", "asc")
@@ -193,17 +205,14 @@ def _history_sort_heading(key, sort):
     button = dbc.Button(children,
                         id={"type": "hub-history-sort-column", "index": key},
                         color="link", className="review-history-sort-btn")
-    heading = html.Th(button,
-                      className=f"review-history-heading review-history-heading-{key}",
-                      **{"aria-sort": aria_sort})
-    if key == "delta_ratings":
+    heading_class = f"review-history-heading review-history-heading-{key}"
+    hint = _HEADING_HINTS.get(key)
+    if hint:
         return html.Th([button, Tooltip(
-            "Value / Interest / Effort. Sorted by total absolute change.",
-            target={"type": "hub-history-sort-column", "index": key},
+            hint, target={"type": "hub-history-sort-column", "index": key},
             trigger="hover focus",
-        )], className="review-history-heading review-history-heading-delta_ratings",
-            **{"aria-sort": aria_sort})
-    return heading
+        )], className=heading_class, **{"aria-sort": aria_sort})
+    return html.Th(button, className=heading_class, **{"aria-sort": aria_sort})
 
 
 def _node_has_actuals(node):

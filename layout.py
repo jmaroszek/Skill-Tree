@@ -29,7 +29,7 @@ from context_picker import build_context_picker_support
 from list_toolbar import SORT_MENUS, sort_menu_items
 import style_tokens as tokens
 from styles import stylesheet
-from duration_ui import unit_select
+from duration_ui import unit_select, work_time_tooltip
 from resource_links import MAX_SECTIONS
 import about
 from ui_kit import (Tooltip, cancel_action, edit_button, info_button,
@@ -584,7 +584,13 @@ def build_time_calibration_modal():
             # Active rating form — hidden on the completion screen.
             html.Div(id="time-calibration-active", children=[
                 html.Div(id="time-calibration-reference", className="text-muted small mb-3"),
-                html.H6("How long did it actually take?", className="mb-2"),
+                # d-inline-block: the hover target is the words, not the whole
+                # row, so the tooltip opens beside them instead of off-screen.
+                html.H6("Actual work time", id="time-calibration-heading",
+                        className="mb-2 d-inline-block"),
+                Tooltip(work_time_tooltip("actual"),
+                        target="time-calibration-heading", placement="bottom",
+                        id="time-calibration-heading-tooltip"),
                 dbc.Row([
                     dbc.Col([
                         dbc.Label("Lower Bound"),

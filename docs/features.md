@@ -150,6 +150,8 @@ In order to standardize the rating process, there is a table that describes what
 ## Time
 Time estimation is the most valuable thing in project management to get right — and the hardest. [Time.md](time.md) walks through Skill Tree's approach to solving this difficult problem. For now, the short version: you can estimate a project's duration with one, two, or three inputs. And the more you provide, the better the result.
 
+Every time in the app is work time. It counts hours of focused effort, not days on the calendar. The letters mean hours, days, weeks, months, and years of work. In Settings you choose how many productive hours make up each one. By default a week is 20 hours, so "2w" means 40 hours of work. Hover the **Work Time Estimates** heading in the node editor to see the rates you have set.
+
 | Inputs | Values | Time Estimation Method |
 |---|---|---|
 | One | Expected duration | **Identity.** The app uses your estimate as-is. Skip this option when you can. The methods below are almost always better. |
@@ -159,6 +161,8 @@ Time estimation is the most valuable thing in project management to get right �
 ### Habits
 
 The methods above assume total time is all that matters. For a book, it is — three one-hour sessions and one three-hour session land in the same place. Habits are different. "Run three times a week for eight weeks" doesn't translate cleanly into total hours, and the translation hides a more natural way to think about habits: in terms of intensity, frequency, and duration.
+
+The duration here is calendar time, because it is how long the routine runs, so the editor labels it **Calendar duration**. The minutes per session are work time. The total comes out in work hours.
 
 <p align="center">
   <img src="../images/node-editor-time-section.png" alt="Node editor time section" width="350" style="vertical-align: middle; margin: 0 20px;">
@@ -844,7 +848,7 @@ This section displays two visualizations side-by-side. The order of the goals is
 
 This section lives on the Plan subtab.
 
-**Hours by Context**. One horizontal bar per context, with each segment representing a subcontext. Hover a segment for its name, node count, and estimated time.
+**Work Time by Context**. One horizontal bar per context, with each segment representing a subcontext. Hover a segment for its name, node count, and estimated work time.
 
 <p align="center">
   <img src="../images/analyze-hours-by-context.png">
@@ -882,7 +886,7 @@ A context needs at least four reflected nodes to get a row. Averages over fewer 
 
 ## Throughput
 
-The Throughput chart shows hours of completed work per calendar bucket, stacked by context. 
+The Throughput chart shows work time completed per calendar bucket, stacked by context. The buckets are real months, quarters, or years. The bars are work time. 
 
 <p align="center">
   <img src="../images/analyze-throughput-bars.png">
@@ -900,7 +904,7 @@ The gear icon by the title opens three controls: **Granularity** (months, quarte
 
 The chart shows at most 24 bars. If your range holds more, it keeps the latest 24 and says so. Switch to a coarser granularity or narrow the dates to see earlier ones.
 
-Where Hours by Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
+Where Work Time by Context shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
 
 ## Graph Structure
 

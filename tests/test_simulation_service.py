@@ -207,7 +207,7 @@ def test_chart_draws_everything_in_the_unit_that_fits_the_median():
     centers = [2000 + 60 * (i + 0.5) for i in range(20)]
     fig = simulation_figure(_summary([1] * 20, centers, 60.0, 2080, 2600, 3120), HOURS)
 
-    assert fig.layout.xaxis.title.text == 'Years'
+    assert fig.layout.xaxis.title.text == 'Work years'
     assert fig.data[0].x[0] == pytest.approx(2030 / 1040)
     assert fig.data[0].width == pytest.approx(60 / 1040)
     assert [a.text for a in fig.layout.annotations] == [
@@ -222,13 +222,13 @@ def test_chart_draws_everything_in_the_unit_that_fits_the_median():
 def test_short_chains_stay_in_hours():
     fig = simulation_figure(_summary([5, 5], [10.0, 14.0], 4.0, 9.0, 12.0, 15.0),
                             SHORT_DAYS)
-    assert fig.layout.xaxis.title.text == 'Hours'
+    assert fig.layout.xaxis.title.text == 'Work hours'
 
 
 def test_day_scale_chains_read_in_days():
     # A day is 20h/7 here, so a 12h median is 4.2 days.
     fig = simulation_figure(_summary([5, 5], [10.0, 14.0], 4.0, 9.0, 12.0, 15.0), HOURS)
-    assert fig.layout.xaxis.title.text == 'Days'
+    assert fig.layout.xaxis.title.text == 'Work days'
 
 
 def test_details_chart_is_read_by_hovering_a_bar_not_zooming():

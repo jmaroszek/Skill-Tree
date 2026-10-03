@@ -276,12 +276,12 @@ class TestCalibrationModalText:
         node = _make_node("Estimated", time_o=0, time_m=80, time_p=0)
         _, prompt = _calibration_modal_text(node)
         assert "You estimated" in prompt
-        assert "How long did it actually take?" in prompt
+        assert "How much work time did it actually take?" in prompt
 
     def test_prompt_without_estimate_is_plain(self):
         node = _make_node("Container", type="Goal", time_mode="inherited")
         _, prompt = _calibration_modal_text(node)
-        assert prompt == "How long did it actually take?"
+        assert prompt == "How much work time did it actually take?"
 
 
 class TestCalibrationPrepopulation:

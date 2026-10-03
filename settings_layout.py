@@ -197,7 +197,10 @@ def _build_editing_tab():
             html.H5("Time Estimates", className="mt-2 mb-1"),
             dbc.Row([
                 dbc.Col([
-                    html.Small("Productive hours available.", className="text-muted d-block mb-2"),
+                    html.Small("Productive hours that make up a day, week, month, "
+                               "and year. Every time estimate in the app counts "
+                               "work time in these units.",
+                               className="text-muted d-block mb-2"),
                     dbc.Label("Hours per Day"),
                     dbc.Input(id="setting-hpd", type="number", min=0.01, step="any",
                               className="mb-2", style={"width": "128px"}),

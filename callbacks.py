@@ -50,6 +50,7 @@ from callback_helpers import (
 )
 import style_tokens as tokens
 from ui_kit import (progress_bar_color)
+from duration_ui import work_time_tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -913,6 +914,23 @@ def register_callbacks(app, services=None):
         Input('node-type', 'value'),
         prevent_initial_call=True,
     )
+
+    # --- Work-time tooltips: habit wording, and live hour rates ---
+    # The layout builds these once per page load. The editor heading's text
+    # depends on the Habit switch, and both tooltips quote the hour rates, which
+    # Settings can change. Settings saves close the modal, so its is_open covers
+    # both the open and the close.
+    @app.callback(
+        Output('node-time-heading-tooltip', 'children'),
+        Output('time-calibration-heading-tooltip', 'children'),
+        Input('node-time-habit-mode', 'value'),
+        Input('settings-modal', 'is_open'),
+        prevent_initial_call=True,
+    )
+    def refresh_work_time_tooltips(habit_mode_val, _settings_open):
+        habit = bool(habit_mode_val and 'habit' in habit_mode_val)
+        return (work_time_tooltip("habit" if habit else "estimate"),
+                work_time_tooltip("actual"))
 
     # --- Live total-hours preview for habit mode ---
     @app.callback(

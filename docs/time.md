@@ -2,6 +2,18 @@
 
 This document explains how Skill Tree turns a time estimate into a single number, $t(n)$. The estimate can be one, two, or three numbers; the app always returns one. That single number feeds node priority scoring, Goal ranking, and the project-duration simulation. It is also the "expected time" shown throughout the app.
 
+# Work Time, Not Calendar Time
+
+Every time in the app is work time. It counts hours of focused effort. It does not count days on the calendar.
+
+The letters you see mean this: `h` is an hour, `d` a day, `w` a week, `m` a month, and `y` a year. A week is not seven days of the calendar. It is the number of productive hours you set for a week in Settings. The same goes for a day, a month, and a year.
+
+With the default settings, a week is 20 hours, a month is 80, and a year is 1,040. A day is a seventh of a week, so it comes to about 2.9 hours. A project estimated at "2w" is 40 hours of work. It takes two calendar weeks only if you really do 20 hours of it each week.
+
+Change those hours in Settings and every time in the app changes with them. The stored estimates are hours, so nothing is lost.
+
+Some places do use the calendar. Habit durations, event delays, and the buckets on the Throughput chart count real days, weeks, and months. The editor labels the habit field "Calendar duration" for that reason.
+
 # What the Three Numbers Mean
 
 The node editor asks for three figures: **Lower**, **Expected**, and **Upper**. Everything downstream depends on what those words are taken to mean, so it is worth settling before any formula appears.
@@ -146,13 +158,13 @@ The geometric mean is worth a note, because it is tempting to stop there and rep
 
 ## The Reflection Feature
 
-After you finish a project, the reflection feature lets you record how long it actually took. The [features guide](features.md) covers how to enter it. What matters here is that the recorded time runs through the same rule as the estimate, so the before-and-after numbers stay directly comparable.
+After you finish a project, the reflection feature lets you record how much work time it actually took. Count the hours you spent working on it, not how long it stayed open. The [features guide](features.md) covers how to enter it. What matters here is that the recorded time runs through the same rule as the estimate, so the before-and-after numbers stay directly comparable.
 
 Reflections can eventually support calibration, described in [Shared Estimating Error](#shared-estimating-error). Enough grouped outcomes and original forecasts will be needed before using them to change the model.
 
 # Habit Estimates
 
-Some work is not a single sitting. It is a small effort repeated over weeks. For these, a lump-sum hours estimate is awkward to give. Habit mode lets you describe the cadence instead — a duration, a per-session amount, and the days you will do it — and works out the total for you. The [features guide](features.md) shows the full setup.
+Some work is not a single sitting. It is a small effort repeated over weeks. For these, a lump-sum hours estimate is awkward to give. Habit mode lets you describe the cadence instead — a duration, a per-session amount, and the days you will do it — and works out the total for you. The duration is calendar time, because it is how long the routine runs. The per-session amount is work time. The total comes out in work hours. The [features guide](features.md) shows the full setup.
 
 The point for this document is that nothing downstream changes. Habit mode is a more natural way to *arrive at* the number, not a different way of treating it. The per-session amount still takes the same lower, expected, and upper bracket. The cadence only multiplies it into a total. That total then runs through the same rule, the same score, and the same simulation as a hand-entered estimate.
 
@@ -226,7 +238,7 @@ Sampling accumulates into one trial array in chunks instead of retaining an arra
 
 Two omissions are worth flagging, since they bound how the output should be read:
 
-- **Calendar time.** The simulator outputs total *work* hours. Translating that into "weeks until done" depends on how many hours per week you actually put in, which you control in the Time subtab of Settings.
+- **Calendar time.** The simulator outputs total *work* time, and the chart's axis says so ("Work weeks", for example). Translating that into "weeks until done" depends on how many hours per week you actually put in. The hours per week in Settings are a plan, so the real number can differ.
 - **Parallel work.** The simulator assumes one person doing one thing at a time. It is not modeling a team that can run several projects at once.
 
 Correlation between tasks used to belong on this list. It no longer does, and [Shared Estimating Error](#shared-estimating-error) is why.

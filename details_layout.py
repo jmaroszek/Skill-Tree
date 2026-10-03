@@ -1204,7 +1204,13 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.Th("Value"),
             html.Th("Interest"),
             html.Th("Effort"),
-            html.Th("Time"),
+            html.Th([
+                html.Span("Time", id="details-subtasks-time-heading"),
+                Tooltip("Work time: hours of focused effort, not calendar time. "
+                        "Settings set how many hours a day, week, month, and "
+                        "year hold.",
+                        target="details-subtasks-time-heading", placement="top"),
+            ]),
             html.Th(""),
         ])),
         html.Tbody(rows),

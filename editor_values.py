@@ -9,10 +9,10 @@ def _calibration_modal_text(node):
     est = getattr(node, 'time', 0) or 0
     if est > 0:
         prompt = (f"You estimated this project would take "
-                  f"{ConfigManager.format_time_friendly(est)}. "
-                  f"How long did it actually take?")
+                  f"{ConfigManager.format_time_friendly(est)} of work time. "
+                  f"How much work time did it actually take?")
     else:
-        prompt = "How long did it actually take?"
+        prompt = "How much work time did it actually take?"
     return node.name, prompt
 
 

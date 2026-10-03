@@ -218,10 +218,20 @@ token only inside an inline style dict where a class cannot go.
 Duration inputs share `duration_ui.bracket_label` to attach the percentile
 reading (10% chance of finishing sooner / a 50/50 estimate / 10% chance of
 taking longer) as a hover tooltip on the Lower/Expected/Upper word itself,
-rather than as inline paragraph text. `duration_ui.estimate_guidance` renders
-the small (i) info icon next to the "Time Estimates" header explaining the
-Expected-only exception, following the same info-icon + tooltip pattern used
-for "Ratings".
+rather than as inline paragraph text. `duration_ui.time_estimates_heading`
+puts a hover tooltip on the "Work Time Estimates" heading itself. It says that
+times are work time and quotes the hour rates from Settings, and it explains
+the Expected-only exception. Habit mode swaps in text that separates the
+calendar duration from the work-time minutes. The text is live:
+`work_time_tooltip` reads the saved rates, and a callback refreshes it when the
+Habit switch or Settings change. Use an (i) button only for a control that opens
+a reference, such as "Ratings". A tooltip that only explains goes on the label.
+
+Axis titles and chart headings say "work time" where the axis holds times, since
+the tick letters (1w, 2m) are the productive hours from Settings and not calendar
+spans. A chart whose axis uses one unit names it ("Work weeks"). A chart whose
+ticks mix units says "Work time". Calendar axes, such as the Throughput buckets,
+stay calendar.
 | Context | Pattern | Usage |
 |---------|---------|-------|
 | Top-level settings label | `dbc.Label("Name", className="fw-bold mt-2")` | Section-level fields in Settings |

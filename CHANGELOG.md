@@ -5,6 +5,17 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- Times now say they are work time. The node editor's heading reads Work Time
+  Estimates, and hovering it shows what the letters mean with the hour rates from
+  your Settings. In Habit mode the same hover separates the calendar duration
+  from the minutes of work. The Habit duration field is labeled Calendar duration.
+- The Time Simulation axis reads Work weeks, Work days, and so on. The Analyze
+  charts that show time say Work time, and the estimate-versus-actual chart
+  reads Estimated work time and Actual work time.
+- The Reflection prompt asks how much work time a node took, with a hover that
+  explains what to count. Hovering the Time column on Details and the time
+  columns in the review history explains them too. Settings now explains what
+  its productive hours do.
 - The local server keeps its launch key in the tab instead of a cookie shared
   with other services on the same computer. Reopen the app's link after a restart.
 - Imported exports can no longer redirect later backups to another folder;
