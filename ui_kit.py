@@ -45,6 +45,9 @@ def Tooltip(children, target, **kwargs):
 
     Icon buttons still name themselves for assistive technology through their
     visually-hidden label, so nothing is lost by dropping the focus trigger.
+    ``assets/keyboard_navigation.js`` forwards deliberate Tab focus through
+    the hover events, keeping help available without reopening it on automatic
+    focus restoration.
     ``trigger`` and ``delay`` can still be overridden per call.
     """
     kwargs.setdefault("trigger", "hover")
@@ -119,8 +122,7 @@ def add_button(button_id, tooltip, placement="right", large=False, label=None, *
     dbc.Button rejects ``aria-label``, so it goes in a visually-hidden span.
     """
     size_class = "adder-btn-lg" if large else ""
-    children = "+" if label is None else [
-        "+", html.Span(label, className="visually-hidden")]
+    children = ["+", html.Span(label or tooltip or "Add", className="visually-hidden")]
     button = dbc.Button(
         children,
         id=button_id,
@@ -198,7 +200,10 @@ def split_handle(handle_id, axis, min_size):
     ``.split-handle`` rules in ``theme.css`` draw it.
     """
     return html.Div(id=handle_id, className=f"split-handle split-handle-{axis}",
-                    **{"data-min-size": str(min_size)})
+                    role="separator", tabIndex=0,
+                    **{"data-min-size": str(min_size),
+                       "aria-label": "Resize panels",
+                       "aria-orientation": "vertical" if axis == "cols" else "horizontal"})
 
 
 # --- Semantic action buttons ------------------------------------------------

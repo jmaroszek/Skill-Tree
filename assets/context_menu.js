@@ -327,10 +327,10 @@
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Delete' && e.key !== 'Backspace') return;
             if (!_mainCy) return;
-            var activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-            if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
-                return;
-            }
+            // A selection can outlive its tab. Delete belongs only to the
+            // focused Nodes canvas, never a form, modal or another tab.
+            if (document.activeElement !== document.getElementById(MAIN_CANVAS.cytoscapeId) ||
+                    document.querySelector('.modal.show')) return;
             var selected = _mainCy.$('node:selected');
             if (selected.length === 0) return;
             e.preventDefault();
@@ -342,7 +342,10 @@
 
         // --- Ctrl+S to save (settings tab or node editor) ---
         document.addEventListener('keydown', function (e) {
+            if (e.defaultPrevented) return;
             if (!((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's')) return;
+            var editor = document.getElementById('sidebar-editor-container');
+            if (document.querySelector('.modal.show') || !editor || editor.inert) return;
             e.preventDefault();
             var settingsModal = document.getElementById('settings-modal');
             var settingsOpen = settingsModal && (

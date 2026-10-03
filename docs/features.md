@@ -1,6 +1,32 @@
 # Features
 This document walks through the features of Skill Tree, and how they are controlled in the app. This is easily the longest document in the tutorial, but that is only because it lays the foundational knowledge for everything to come, and there are so many cool things to cover.
 
+# Using the keyboard
+
+Use **Tab / Shift+Tab** to move through controls, and **Enter / Space** to
+activate buttons and cards. A visible outline marks keyboard focus. The tab
+bar also supports **Left / Right** and **Home / End**. Closed sidebars are
+skipped; **Escape** inside a sidebar closes it through the usual draft checks.
+Use **Ctrl+S** (**Cmd+S** on macOS) to save an open node editor or Settings.
+
+On a Home row, Now card, goal card or event card, **Shift+F10** (or the
+keyboard's Menu key) opens its actions. Use **Up / Down**, **Home / End**,
+and **Enter / Space** in menus. **Right / Left** enters or leaves a submenu;
+**Escape** closes the menu and returns focus.
+
+Tab to a graph and use **arrow keys** to browse visible nodes alphabetically.
+**Home / End** goes to the first or last node, **Enter** selects it, and
+**Shift+Enter** adds it to the selection. **Shift+F10** opens its actions.
+**+ / −** zooms and **0** fits the graph. The focused graph displays the
+current node's name and status. On the Nodes graph, **Delete** asks to delete
+the selection.
+
+Use **Alt+arrow keys** on a Now card or a reorder handle to move it within
+its list. This works for manually ordered goals, events, contexts and
+subcontexts. Tab to a panel divider and use **Left / Right** or **Up / Down**
+to resize it; **Shift** takes larger steps and **Home / End** moves to its
+limit.
+
 # Node Editor
 The Node Editor is where you create projects and update existing ones. It is a single scrollable sidebar — too tall to show neatly here — so we'll walk through it in sections, going from top to bottom. 
 

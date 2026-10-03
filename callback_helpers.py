@@ -1561,6 +1561,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             [rank_col, name_col, bar_col, meta_col],
             id={"type": "suggestion-row", "index": s.name},
             className="suggestion-bar-row",
+            role="button", tabIndex=0,
             style=row_style,
             **{
                 "data-description": (s.description or "").strip(),
@@ -1686,6 +1687,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             [accent_bar, card_body],
             id={"type": "now-row", "index": n.name},
             className="now-card",
+            role="button", tabIndex=0,
             style=card_style,
             **{
                 **node_menu_attributes(n),

@@ -47,8 +47,13 @@
             if (popup.style.display === 'flex') {
                 popup.style.display = 'none';
             } else {
+                popup._keyboardOpener = e.currentTarget;
                 resetPopupGeometry(popup);
                 popup.style.display = 'flex';
+                if (e.detail === 0) {
+                    var close = popup.querySelector('.panel-close-btn');
+                    if (close) close.focus({preventScroll: true});
+                }
             }
         };
     }
@@ -70,7 +75,10 @@
             var closeBtn = document.getElementById(cfg.closeId);
             if (closeBtn) {
                 closeBtn.addEventListener('click', function () {
-                    if (popup) popup.style.display = 'none';
+                    if (popup) {
+                        popup.style.display = 'none';
+                        if (popup._keyboardOpener) popup._keyboardOpener.focus({preventScroll: true});
+                    }
                 });
                 attached[closeKey] = true;
             }
@@ -123,4 +131,15 @@
     var obs = new MutationObserver(wireAll);
     obs.observe(document.body, { childList: true, subtree: true });
     wireAll();
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape' || e.defaultPrevented) return;
+        var cfg = POPUPS.find(function (cfg) {
+            var popup = document.getElementById(cfg.popupId);
+            return popup && popup.style.display === 'flex' && popup.contains(e.target);
+        });
+        if (!cfg) return;
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById(cfg.closeId).click();
+    }, true);
 })();

@@ -177,6 +177,23 @@ ever changes the fill, so status and type stay readable underneath.
 
 ## Typography
 
+### Keyboard interaction
+
+Every action must be reachable through Tab and activate with Enter or Space.
+Use native buttons where possible; custom clickable rows expose `role="button"`
+and `tabIndex=0`, with activation in `assets/keyboard_navigation.js`. Keep a
+visible `:focus-visible` ring, including on ghost icons. Sliding sidebars are
+inert while closed and return keyboard focus to their opener when dismissed.
+Their Escape action uses the existing close button, including its draft guard.
+Hover tooltips also open on deliberate Tab focus and close on blur; automatic
+focus restoration does not reopen them.
+
+Floating menus use arrow keys, Home/End, Enter/Space, and Escape with focus
+restoration. Right/Left enters/leaves a submenu. Cards expose Shift+F10 for
+their context menu; sortable handles expose Alt+arrow reordering. All canvases
+share keyboard node navigation through the canvas registry and lifecycle hook.
+Dividers are focusable separators and resize with their axis's arrow keys.
+
 ### Heading hierarchy
 | Level | Element | Class | Usage |
 |-------|---------|-------|-------|

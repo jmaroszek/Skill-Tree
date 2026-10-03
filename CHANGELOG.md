@@ -5,6 +5,9 @@ What changes in each release, newest first. Download releases from the
 
 ## Unreleased
 
+- Keyboard navigation now reaches tabs, graph nodes, cards and context menus.
+  Closed sidebars stay out of the Tab order; cards can be reordered and panel
+  dividers resized with keys. Keyboard focus stays visible across the app.
 - The local server keeps its launch key in the tab instead of a cookie shared
   with other services on the same computer. Reopen the app's link after a restart.
 - Imported exports can no longer redirect later backups to another folder;

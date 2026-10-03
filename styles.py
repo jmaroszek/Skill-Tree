@@ -69,6 +69,14 @@ stylesheet = [
         }
     },
     {
+        'selector': 'node.keyboard-current',
+        'style': {
+            'border-width': 5,
+            'border-color': '#ffffff',
+            'border-style': 'dotted',
+        },
+    },
+    {
         'selector': 'edge',
         'style': {
             'curve-style': 'bezier',

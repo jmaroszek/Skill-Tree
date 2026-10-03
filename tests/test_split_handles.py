@@ -89,6 +89,10 @@ function handle(axis, first, second, minSize, parent = container()) {
         previousElementSibling: first,
         nextElementSibling: second,
         parentElement: parent,
+        dataset: {minSize: String(minSize)},
+        attributes: {},
+        setAttribute(name, value) { el.attributes[name] = String(value); },
+        matches: selector => selector === '.split-handle',
         classList: {contains: name => name === 'split-handle' || name === 'split-handle-' + axis},
         getAttribute: name => (name === 'data-min-size' ? String(minSize) : null),
         closest: selector => (selector === '.split-handle' ? el : null),
@@ -181,4 +185,28 @@ assert.equal(drag, null);
 
 press(handle('cols', panel(400, 0), null, 150), 500, 0);
 assert.equal(drag, null);
+''')
+
+
+def test_keyboard_resizing_uses_the_axis_and_clamps_at_the_minimum():
+    _run(r'''
+const first = panel(400, 0), second = panel(600, 0);
+const divider = handle('cols', first, second, 150);
+function key(key, shiftKey=false) {
+    const event = {target: divider, key, shiftKey, prevented: false,
+        preventDefault() { event.prevented = true; }};
+    listeners.keydown(event);
+    return event;
+}
+assert.ok(key('ArrowRight').prevented);
+assert.deepEqual([first.style.width, second.style.width], ['410px', '590px']);
+key('ArrowLeft', true);
+assert.deepEqual([first.style.width, second.style.width], ['350px', '650px']);
+key('Home');
+assert.deepEqual([first.style.width, second.style.width], ['150px', '850px']);
+key('End');
+assert.deepEqual([first.style.width, second.style.width], ['850px', '150px']);
+assert.equal(key('ArrowDown').prevented, false);
+assert.equal(divider.attributes['aria-valuenow'], '40');
+assert.equal(divider.attributes['aria-valuetext'], '400 pixels');
 ''')

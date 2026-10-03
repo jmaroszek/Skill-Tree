@@ -891,7 +891,8 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
                 html.Span(
                     _goal_corner_badge(str(priority_rank), "PriorityRank"),
                     className="goal-rank-trigger",
-                    **{"data-goal-name": name},
+                    role="button", tabIndex=0,
+                    **{"data-goal-name": name, "aria-label": f"Set priority for {name}"},
                 ) if priority_rank is not None else None,
                 corner_badge,
             ], className="d-flex align-items-center ms-2 gap-1"),
@@ -913,6 +914,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     return html.Div(children, id={"type": "goal-card", "index": name},
        className="mb-2 goal-card rounded",
+       role="button", tabIndex=0,
        **{"data-goal-name": name, **(menu_attributes or {})},
        style={
            "border": border_style,
@@ -1162,6 +1164,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                     node.name,
                     title=f"{node.name} — open in Details",
                     className="details-subtask-name-link",
+                    role="button", tabIndex=0,
                     style={"cursor": "pointer"},
                 ),
                 id={"type": "details-subtask-name", "index": node.name},
@@ -1285,6 +1288,7 @@ def build_milestone_tile(milestone_node, completion: dict):
         children,
         id={"type": "details-milestone-tile", "index": milestone_node.name},
         n_clicks=0,
+        role="button", tabIndex=0,
         style={
             "flex": "0 0 280px",
             "padding": "10px 12px",

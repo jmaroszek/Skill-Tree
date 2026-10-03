@@ -77,7 +77,9 @@ def test_alias_add_button_sits_beside_name_label():
     # the one ui_kit.add_button standardised on. It is the one affordance that
     # is not a Bootstrap Icon, deliberately: the no-Unicode-glyph rule is about
     # symbols like "x" and the restore arrow that have a real icon equivalent.
-    assert button.children == "+"
+    assert button.children[0] == "+"
+    assert button.children[1].className == "visually-hidden"
+    assert button.children[1].children == "Add alias"
     assert "adder-btn" in button.className
     assert button_parent is not None
 

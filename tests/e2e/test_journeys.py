@@ -33,7 +33,10 @@ def _dropdown_pick(page, dropdown, option):
         except PlaywrightTimeout:
             page.keyboard.press("Escape")
             continue
-        page.keyboard.press("Escape")
+        # A single-select closes itself. Escape after that belongs to its
+        # containing sidebar, so only dismiss a dropdown that is still open.
+        if page.get_attribute(dropdown, "aria-expanded") == "true":
+            page.keyboard.press("Escape")
         _idle(page)
         return
     raise AssertionError(f"{option!r} never became choosable in {dropdown}")
@@ -90,6 +93,7 @@ def _new_node(page, name, node_type="Learn", needs_hard=(), expected_hours="2"):
     page.wait_for_function(
         "document.querySelector('#save-output').innerText.includes('Added node')",
         timeout=15000)
+    _idle(page)
 
 
 def _open_in_editor(page, name):
@@ -321,6 +325,7 @@ def test_a_sleeping_node_wakes_with_its_event(page, server):
     assert server.query("SELECT event_name, node_name FROM EventNodes") == [
         ("Trip Booked", "Pack Bags")]
 
+    _idle(page)
     page.keyboard.press("Escape")
     page.click("a.nav-link:has-text('Events')")
     page.click("[id*='\"type\":\"event-card\"']")

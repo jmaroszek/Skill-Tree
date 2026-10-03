@@ -295,7 +295,8 @@ def _build_contexts_tab():
             # --- Context definitions ---
             html.H5("Definitions", className="mt-2 mb-1"),
             html.Small(
-                "Drag to reorder. Priority scales a context's tasks in the "
+                "Drag to reorder, or focus a handle and use Alt + arrow keys. "
+                "Priority scales a context's tasks in the "
                 "rankings: 1 is normal, 2 doubles, 0.5 halves.",
                 className="text-muted d-block mb-2"),
 

@@ -949,7 +949,8 @@ def _menu_item(label, item_id, danger=False, icon=None):
         html.I(className=f"bi bi-{icon} ctx-menu-icon", **{"aria-hidden": "true"}),
         html.Span(label, className="ctx-menu-label"),
     ]
-    return html.Div(children, id=item_id, className=class_name)
+    return html.Div(children, id=item_id, className=class_name,
+                    role="menuitem", tabIndex=-1)
 
 
 def _menu_divider(divider_id=None):
@@ -966,6 +967,7 @@ def _menu_heading(text):
 
 def _floating_menu(menu_id, children):
     return html.Div(children, id=menu_id, className="ctx-menu",
+                    role="menu",
                     style={"display": "none"})
 
 
@@ -1095,6 +1097,8 @@ def build_app_layout(initial_elements, env="production"):
             ],
             id="ctx-menu-priority",
             className="ctx-menu-item ctx-menu-submenu-parent",
+            role="menuitem", tabIndex=-1,
+            **{"aria-haspopup": "menu", "aria-expanded": "false"},
         ),
         _menu_divider(),
         _menu_item("Add to Now", "ctx-menu-toggle-now", icon="play-circle"),
@@ -1155,11 +1159,17 @@ def build_app_layout(initial_elements, env="production"):
     main_tabs = html.Div([
         # LEFT: Node Editor + Goals + Events (open left-side sidebars)
         html.Div([
-            dbc.Button(html.I(className="bi bi-node-plus"), id="btn-add", color="secondary", size="sm", className="me-2"),
+            dbc.Button([html.I(className="bi bi-node-plus", **{"aria-hidden": "true"}),
+                        html.Span("Node editor", className="visually-hidden")],
+                       id="btn-add", color="secondary", size="sm", className="me-2"),
             Tooltip("Node editor", target="btn-add", placement="bottom"),
-            dbc.Button(html.I(className="bi bi-star"), id="btn-goals-toggle", color="secondary", size="sm", className="me-2"),
+            dbc.Button([html.I(className="bi bi-star", **{"aria-hidden": "true"}),
+                        html.Span("Goals", className="visually-hidden")],
+                       id="btn-goals-toggle", color="secondary", size="sm", className="me-2"),
             Tooltip("Goals", target="btn-goals-toggle", placement="bottom"),
-            dbc.Button(html.I(className="bi bi-calendar-event"), id="btn-events-sidebar-toggle", color="secondary", size="sm"),
+            dbc.Button([html.I(className="bi bi-calendar-event", **{"aria-hidden": "true"}),
+                        html.Span("Events", className="visually-hidden")],
+                       id="btn-events-sidebar-toggle", color="secondary", size="sm"),
             Tooltip("Events", target="btn-events-sidebar-toggle", placement="bottom"),
         ], className="d-flex align-items-center ps-3",
            style={"flex": "0 0 auto"}),
@@ -1185,13 +1195,18 @@ def build_app_layout(initial_elements, env="production"):
         html.Div([
             dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm",
                        className="me-2", style={"display": "none"}),
-            dbc.Button(html.I(className="bi bi-funnel"), id="btn-filters-toggle", color="secondary", size="sm"),
+            dbc.Button([html.I(className="bi bi-funnel", **{"aria-hidden": "true"}),
+                        html.Span("Filters", className="visually-hidden")],
+                       id="btn-filters-toggle", color="secondary", size="sm"),
             Tooltip("Filters", target="btn-filters-toggle", placement="bottom"),
-            dbc.Button(html.I(className="bi bi-journal-text"), id="btn-calibration-review",
+            dbc.Button([html.I(className="bi bi-journal-text", **{"aria-hidden": "true"}),
+                        html.Span("Reflection", className="visually-hidden")], id="btn-calibration-review",
                        color="secondary", size="sm", className="ms-2",
                        style={"display": "none"}),
             Tooltip("Reflection", target="btn-calibration-review", placement="bottom"),
-            dbc.Button(html.I(className="bi bi-gear"), id="btn-settings-toggle", color="secondary", size="sm", className="ms-2"),
+            dbc.Button([html.I(className="bi bi-gear", **{"aria-hidden": "true"}),
+                        html.Span("Settings", className="visually-hidden")],
+                       id="btn-settings-toggle", color="secondary", size="sm", className="ms-2"),
             Tooltip("Settings", target="btn-settings-toggle", placement="bottom"),
             # Opens in the browser (Electron hands new windows to the system).
             dbc.Button([html.I(className="bi bi-question-circle", **{"aria-hidden": "true"}),

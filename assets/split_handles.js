@@ -24,6 +24,24 @@
         return Math.max(min, Math.min(max, value));
     }
 
+    function describeHandle(handle) {
+        var first = handle.previousElementSibling;
+        var second = handle.nextElementSibling;
+        if (!first || !second) return;
+        var rows = handle.classList.contains('split-handle-rows');
+        var size = rows ? first.offsetHeight : first.offsetWidth;
+        var total = size + (rows ? second.offsetHeight : second.offsetWidth);
+        if (!total) return;
+        handle.setAttribute('aria-valuemin', '0');
+        handle.setAttribute('aria-valuemax', '100');
+        handle.setAttribute('aria-valuenow', Math.round(100 * size / total));
+        handle.setAttribute('aria-valuetext', Math.round(size) + ' pixels');
+    }
+    window.SkillTree.describeSplitHandle = describeHandle;
+    document.addEventListener('focusin', function (e) {
+        if (e.target.matches && e.target.matches('.split-handle')) describeHandle(e.target);
+    });
+
     function sizeColumns(first, second, startX, minSize) {
         var startFirst = first.offsetWidth;
         var total = startFirst + second.offsetWidth;
@@ -88,7 +106,28 @@
             onMove: rows
                 ? sizeRows(first, second, e.clientY, minSize)
                 : sizeColumns(first, second, e.clientX, minSize),
-            onEnd: function () { resizeCanvasesIn(handle.parentElement); },
+            onEnd: function () { resizeCanvasesIn(handle.parentElement); describeHandle(handle); },
         });
+    });
+
+    document.addEventListener('keydown', function (e) {
+        var handle = e.target;
+        if (!handle.matches || !handle.matches('.split-handle')) return;
+        var rows = handle.classList.contains('split-handle-rows');
+        var backward = rows ? 'ArrowUp' : 'ArrowLeft';
+        var forward = rows ? 'ArrowDown' : 'ArrowRight';
+        if (![backward, forward, 'Home', 'End'].includes(e.key)) return;
+        var first = handle.previousElementSibling;
+        var second = handle.nextElementSibling;
+        if (!first || !second) return;
+        e.preventDefault();
+        var min = parseFloat(handle.dataset.minSize) || 0;
+        var delta = (e.shiftKey ? 50 : 10) * (e.key === backward ? -1 : 1);
+        if (e.key === 'Home') delta = -100000;
+        if (e.key === 'End') delta = 100000;
+        if (rows) sizeRows(first, second, 0, min)({clientY: delta});
+        else sizeColumns(first, second, 0, min)({clientX: delta});
+        resizeCanvasesIn(handle.parentElement);
+        describeHandle(handle);
     });
 })();
