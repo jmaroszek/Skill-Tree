@@ -59,7 +59,7 @@ WEEKDAY_OPTIONS = [
 # A --Needs--> B means A unlocks B.
 _EDITOR_HINTS = {
     "type": bullet_hint(
-        "How the node is scored:",
+        "What kind of node this is:",
         "Resource: a book, course or notes.",
         "Action: a practice with a definite end.",
         "Milestone: a measurable one-time achievement.",
