@@ -322,6 +322,10 @@
     background-color: transparent;
     border-bottom: 1px solid var(--st-border-panel);
 }
+/* With drag-zoom off, Plotly gives the plot area a pointing hand, which
+   promises a click that does nothing. These charts are read by hovering, so
+   they keep the plain arrow. */
+#analyze-tab-content .js-plotly-plot .nsewdrag.cursor-pointer { cursor: default; }
 
 /* --- Analyze: Ratings by Context ------------------------------------------
    An HTML grid, not Plotly, because contexts fold into their subcontexts

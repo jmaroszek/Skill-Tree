@@ -874,6 +874,11 @@ by hovering, so it turns off drag-zoom and uses `closest` hover. That hover
 answers only over a bar and adds no exact axis value. Its axis, lines and
 tooltips share one natural time unit rather than raw hours.
 
+Analyze charts follow the same rule. `_graph` in `analyze_callbacks.py` turns
+drag-zoom off by default, so the cursor stays a plain arrow. Only a chart
+whose points crowd together opts back in with `zoom=True`: today, the two
+Time Estimation Accuracy charts.
+
 ## Scrollbars
 
 **Preference: no visible scrollbars anywhere in the app.** Elements may still scroll — the scrollbar chrome should just be invisible.

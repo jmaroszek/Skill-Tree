@@ -92,13 +92,22 @@ _RANK_BAR = '#3a6ba6'
 _CHART_CFG = {"displayModeBar": False}
 
 
-def _graph(fig):
+def _graph(fig, zoom=False):
     """A Graph that re-measures its width when the Analyze tab opens.
 
     The tab usually renders while hidden, where Plotly falls back to a 700 px
     width, and a non-responsive graph keeps it. A responsive one sizes itself
     to its container instead, height included, so the container carries the
-    figure's height."""
+    figure's height.
+
+    Drag-to-zoom is off unless ``zoom`` is set. On bars and the heatmap it
+    only crops, and the crosshair cursor and a stray drag got in the way of
+    hovering. The Time Estimation Accuracy charts keep it: their points crowd
+    together at the low end of a log axis."""
+    if not zoom:
+        fig.update_layout(dragmode=False)
+        fig.update_xaxes(fixedrange=True)
+        fig.update_yaxes(fixedrange=True)
     extra = {'style': {'height': f'{fig.layout.height}px'}} if fig.layout.height else {}
     return dcc.Graph(figure=fig, config=_CHART_CFG, responsive=True, **extra)
 
@@ -582,7 +591,7 @@ def _render_estimation_accuracy(rows):
     ))
     return _card([
         title,
-        _graph(fig),
+        _graph(fig, zoom=True),
     ])
 
 
@@ -684,7 +693,7 @@ def _render_context_accuracy_boxplot(rows):
 
     # No footnote for contexts below the minimum: it made this card taller
     # than the scatter beside it.
-    return _card([title, _graph(fig)])
+    return _card([title, _graph(fig, zoom=True)])
 
 
 _DRIFT_UNDER = '#c0392b'  # overrated going in: the reflection came in lower
@@ -742,7 +751,7 @@ def _render_reflection_drift_chart(rows):
             ticktext=[f'−{rng}', '0', f'+{rng}'],
             zeroline=True, zerolinecolor='#6c757d', zerolinewidth=1,
             showline=True, linecolor='#6c757d', linewidth=1, mirror=True,
-            fixedrange=True, row=1, col=col)
+            row=1, col=col)
 
     fig.update_layout(**_base_layout(
         height=max(180, len(contexts) * 30 + 90),
@@ -750,7 +759,7 @@ def _render_reflection_drift_chart(rows):
         bargap=0.3,
     ))
     # Plotly draws category rows bottom-up: reverse so most-reflected leads.
-    fig.update_yaxes(automargin=True, ticklabelstandoff=8, fixedrange=True,
+    fig.update_yaxes(automargin=True, ticklabelstandoff=8,
                      categoryorder='array', categoryarray=contexts[::-1],
                      tickmode='array', tickvals=contexts, ticktext=labels)
     fig.update_annotations(font=dict(size=12, color=_TEXT))
