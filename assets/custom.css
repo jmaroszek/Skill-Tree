@@ -213,6 +213,9 @@ body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
 }
 
 /* A label or heading whose hover tooltip explains it: pointer with a question mark. */
-.hover-hint {
-    cursor: help;
+/* The descendants are included because a switch's input and label set their own
+   pointer cursor, which would otherwise win over the wrapper's. */
+.hover-hint,
+.hover-hint * {
+    cursor: help !important;
 }
