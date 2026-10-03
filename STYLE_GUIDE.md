@@ -246,13 +246,22 @@ Duration inputs share `duration_ui.bracket_label` to attach the percentile
 reading (10% chance of finishing sooner / a 50/50 estimate / 10% chance of
 taking longer) as a hover tooltip on the Lower/Expected/Upper word itself,
 rather than as inline paragraph text. `duration_ui.time_estimates_heading`
-puts a hover tooltip on the "Work Time Estimates" heading itself. It says that
+puts a hover tooltip on the "Time Estimates" heading itself. It says that
 times are work time and quotes the hour rates from Settings, and it explains
 the Expected-only exception. Habit mode swaps in text that separates the
 calendar duration from the work-time minutes. The text is live:
 `work_time_tooltip` reads the saved rates, and a callback refreshes it when the
 Habit switch or Settings change. Use an (i) button only for a control that opens
 a reference, such as "Ratings". A tooltip that only explains goes on the label.
+
+`ui_kit.hover_label(text, label_id, hint, component=dbc.Label, placement="top")`
+builds that pair: the label (or `component=html.H5` heading) plus a `Tooltip`
+targeting it, in a `display: contents` wrapper so it lays out as its two parts. Every such label gets the
+`.hover-hint` class, which shows the help cursor (a pointer with a question
+mark), so it reads as explainable before it is hovered. Give each label a unique
+id. The node editor's hover copy lives in `_EDITOR_HINTS` in
+`sidebars_layout.py`. For a switch, point the `Tooltip` at the switch's wrapper
+`Div`.
 
 Axis titles and chart headings say "work time" where the axis holds times, since
 the tick letters (1w, 2m) are the productive hours from Settings and not calendar

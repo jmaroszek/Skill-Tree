@@ -34,7 +34,7 @@ from context_picker import build_multi_context_picker, build_single_context_pick
 from models import STATUS_DONE
 import style_tokens as tokens
 from ui_kit import (Tooltip, add_button, cancel_action, confirm_action, danger_action,
-                     done_color, info_button, panel_close_button,
+                     done_color, hover_label, info_button, panel_close_button,
                      primary_action)
 
 # Node types have distinct product behavior and are not user-extensible.
@@ -52,6 +52,60 @@ WEEKDAY_OPTIONS = [
     {"label": "T", "value": 3}, {"label": "F", "value": 4},
     {"label": "S", "value": 5},
 ]
+
+
+# Hover copy for the editor's labels. One idea per sentence. Edge direction is
+# easy to get backwards: A --Needs--> B means A unlocks B.
+_EDITOR_HINTS = {
+    "type": (
+        "What kind of thing this node is. It changes how the node is scored. "
+        "Resource: external material to take in, like a book or course. "
+        "Action: a practice or experiment with a definite end. "
+        "Milestone: a measurable single achievement, like a weight or a time. "
+        "Goal: an area or capacity you are developing, made of things you track separately. "
+        "Learn: a topic you want to understand, when none of the above fit."
+    ),
+    "context": (
+        "The broad area of life this node belongs to. "
+        "The subcontext narrows it. "
+        "Leave the subcontext empty for a node that spans the whole area."
+    ),
+    "status": (
+        "Where this node stands. "
+        "Now puts it on your Now list, the work you are doing at the moment. "
+        "Done means it is finished. "
+        "Dormant puts it to sleep until an event wakes it. "
+        "A node with an unfinished Hard prerequisite is Blocked automatically."
+    ),
+    "now": "Put this node on your Now list, the work you are doing at the moment.",
+    "done": "Mark this node finished. Finishing it unlocks what it leads to.",
+    "dormant": "Put this node to sleep. It stays out of the way until an event wakes it.",
+    "event": "The event that wakes this node. The node stays asleep until it fires.",
+    "wake": "What happens when the event fires. Delay waits a while longer first. Add to Now puts the node on your Now list.",
+    "relationships": (
+        "How this node connects to others. "
+        "Needs and Supports are the same links seen from the two ends. "
+        "Helps is a different kind of link."
+    ),
+    "needs": (
+        "The prerequisites of this node. They come before it and unlock it. "
+        "Hard: this node is Blocked until the prerequisite is Done. "
+        "Soft: the prerequisite makes this node easier or better, but you can start without it. "
+        "Hard passes more value along the link than Soft."
+    ),
+    "supports": (
+        "What this node unlocks. It comes before them. "
+        "Hard: those nodes are Blocked until this one is Done. "
+        "Soft: this node makes those nodes easier or better, but does not block them. "
+        "Hard passes more value along the link than Soft."
+    ),
+    "helps": (
+        "Nodes that reinforce each other. "
+        "Doing both is worth more than the two done alone. "
+        "The link works both ways and does not block anything. "
+        "It is not a weaker Soft: Soft is about order, Helps is about mutual boost."
+    ),
+}
 
 
 # The four editor action buttons share one padding; it was written out
@@ -130,7 +184,8 @@ def build_node_editor_content():
                 dcc.Store(id='aliases-store', data=['']),
                 dcc.Store(id='editor-pristine-snapshot', data=None),
 
-                dbc.Label("Type", className="mt-2"),
+                hover_label("Type", "node-type-label", _EDITOR_HINTS["type"],
+                             className="mt-2"),
                 dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in NODE_TYPES],
                            placeholder="Choose node type..."),
 
@@ -138,7 +193,8 @@ def build_node_editor_content():
                 dbc.Textarea(id="node-desc", placeholder="Describe your project...",
                              style={"height": "120px", "resize": "vertical"}),
 
-                dbc.Label("Context", className="mt-2"),
+                hover_label("Context", "node-context-label", _EDITOR_HINTS["context"],
+                             className="mt-2"),
                 build_single_context_picker(
                     "node-context-picker",
                     "node-context",
@@ -183,39 +239,46 @@ def build_node_editor_content():
                 # `!important` and would beat the inline `display: none`.
                 html.Div(id="section-done-time", children=[
                     html.Hr(className="my-2"),
-                    html.H5("Status", className="mt-2 mb-1"),
+                    hover_label("Status", "node-status-heading", _EDITOR_HINTS["status"],
+                                 component=html.H5, placement="right",
+                                 className="mt-2 mb-1"),
                     html.Div([
                         html.Div(dbc.Checklist(
                             options=[{"label": "Now", "value": "now"}],
                             value=[],
                             id="node-now",
                             switch=True,
-                        ), id="node-now-wrapper"),
+                        ), id="node-now-wrapper", className="hover-hint"),
                         html.Div(dbc.Checklist(
                             options=[{"label": STATUS_DONE, "value": STATUS_DONE}],
                             value=[],
                             id="node-status-done",
                             switch=True,
-                        ), id="node-status-done-wrapper"),
+                        ), id="node-status-done-wrapper", className="hover-hint"),
                         html.Div(dbc.Checklist(
                             options=[{"label": "Dormant", "value": "dormant"}],
                             value=[],
                             id="node-dormant",
                             switch=True,
-                        ), id="node-dormant-wrapper"),
+                        ), id="node-dormant-wrapper", className="hover-hint"),
                     ], className="d-flex justify-content-start gap-3 mt-2"),
+                    Tooltip(_EDITOR_HINTS["now"], target="node-now-wrapper", placement="top"),
+                    Tooltip(_EDITOR_HINTS["done"], target="node-status-done-wrapper", placement="top"),
+                    Tooltip(_EDITOR_HINTS["dormant"], target="node-dormant-wrapper", placement="top"),
                     html.Div(id="node-dormant-wake-warning",
                              className="small text-warning mt-1",
                              style={"display": "none"}),
                     html.Div(id="node-dormant-section", style={"display": "none"}, children=[
-                        dbc.Label("Event", className="mt-2 mb-1"),
+                        hover_label("Event", "node-dormant-event-label", _EDITOR_HINTS["event"],
+                                     className="mt-2 mb-1"),
                         dbc.Select(id="node-dormant-event", options=[], value=None,
                                    placeholder="Choose an event..."),
                         dbc.Input(id="node-dormant-event-name", type="text",
                                   placeholder="Name the new event...",
                                   className="mt-1", style={"display": "none"}),
                         html.Div(id="node-dormant-settings", style={"display": "none"}, children=[
-                            dbc.Label("Wake settings", className="mt-2 mb-1"),
+                            hover_label("Wake settings", "node-dormant-settings-label",
+                                         _EDITOR_HINTS["wake"], className="mt-2 mb-1"),
                             # A fired event gave the node a date instead of a
                             # delay. Shown only while it stays in that event.
                             html.Div(id="node-dormant-wake-date-wrapper",
@@ -276,7 +339,7 @@ def build_node_editor_content():
                     ),
                 ], className="d-flex align-items-center mt-2 mb-2"),
                 Tooltip(
-                    "Treat this node as a pure container: value, interest, and effort all come from its children via the cascade.",
+                    "Take value, interest and effort from the nodes inside this one. Use it for a container with no ratings of its own.",
                     target="node-value-mode", placement="left",
                 ),
                 # Locked-on notice for Milestones (mirrors the time-mode warning).
@@ -313,7 +376,7 @@ def build_node_editor_content():
                             className="mb-0",
                         ),
                         Tooltip(
-                            "Treat this node's time as the sum of its children's. Use for containers whose only work is completing the children.",
+                            "Take this node's time from the nodes inside it. Use it for a container whose only work is finishing them.",
                             target="node-time-mode", placement="left",
                         ),
                         html.Div([
@@ -388,20 +451,25 @@ def build_node_editor_content():
                 ]),
 
                 html.Hr(className="my-2"),
-                html.H5("Relationships", className="mt-2 mb-1"),
-                dbc.Label("Needs", className="mt-2"),
+                hover_label("Relationships", "node-relationships-heading",
+                             _EDITOR_HINTS["relationships"], component=html.H5,
+                             placement="right", className="mt-2 mb-1"),
+                hover_label("Needs", "node-needs-label", _EDITOR_HINTS["needs"],
+                             className="mt-2"),
                 html.Div([
                     dcc.Dropdown(id="edge-needs-hard", multi=True, placeholder="Hard..."),
                     dcc.Dropdown(id="edge-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
                 ], className="text-dark"),
 
-                dbc.Label("Supports", className="mt-2"),
+                hover_label("Supports", "node-supports-label", _EDITOR_HINTS["supports"],
+                             className="mt-2"),
                 html.Div([
                     dcc.Dropdown(id="edge-supports-hard", multi=True, placeholder="Hard..."),
                     dcc.Dropdown(id="edge-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
                 ], className="text-dark"),
 
-                dbc.Label("Helps", className="mt-2"),
+                hover_label("Helps", "node-helps-label", _EDITOR_HINTS["helps"],
+                             className="mt-2"),
                 html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
 
                 dcc.Store(id='edge-resources', data=[]),

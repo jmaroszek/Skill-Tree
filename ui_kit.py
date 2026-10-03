@@ -55,6 +55,21 @@ def Tooltip(children, target, **kwargs):
     return dbc.Tooltip(children, target=target, **kwargs)
 
 
+def hover_label(text, label_id, hint, component=dbc.Label, placement="top", **kwargs):
+    """A label or heading with its explainer on hover, in a ``display: contents`` wrapper.
+
+    The tooltip targets the element itself, not an (i) button: the text only
+    explains, and (i) is kept for controls that open a reference. ``label_id`` must be unique in the layout.
+    Pass ``component=html.H5`` for a section heading. The ``hover-hint`` class
+    gives it the help cursor (pointer with a question mark).
+    """
+    kwargs["className"] = f"{kwargs.get('className', '')} hover-hint".strip()
+    return html.Div([
+        component(text, id=label_id, **kwargs),
+        Tooltip(hint, target=label_id, placement=placement),
+    ], style={"display": "contents"})
+
+
 def _icon_button(button_id, icon, label, class_name, tooltip=None,
                  placement="top", **kwargs):
     """A ghost icon button with a visually-hidden label and optional tooltip.

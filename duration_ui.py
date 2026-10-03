@@ -16,7 +16,7 @@ _BRACKET_HINTS = {
 def bracket_label(kind, label_id, className="small text-muted mb-0"):
     """A Lower/Expected/Upper input label with a hover tooltip on the word itself."""
     return [
-        dbc.Label(kind, id=label_id, className=className),
+        dbc.Label(kind, id=label_id, className=f"{className} hover-hint"),
         Tooltip(_BRACKET_HINTS[kind], target=label_id, placement="top"),
     ]
 
@@ -26,11 +26,11 @@ def _compact_hours(hours):
     return f"{hours:,.1f}".rstrip("0").rstrip(".")
 
 
-def work_time_units_line(time_settings=None):
+def work_time_unit_items(time_settings=None):
     """What each unit is worth in hours, read from the user's Settings.
 
-    "1 d = 2.9 h, 1 w = 20 h, 1 m = 80 h, 1 y = 1,040 h". `time_settings` is only
-    for tests; the app passes nothing and gets the live values.
+    One string per unit: "1 d = 2.9 h (day)". `time_settings` is only for
+    tests; the app passes nothing and gets the live values.
     """
     if time_settings is None:
         per_unit = {unit: ConfigManager.get_time_multiplier(unit)
@@ -40,13 +40,11 @@ def work_time_units_line(time_settings=None):
         month = time_settings.get("hours_per_month", 160)
         per_unit = {"days": week / ConfigManager.DAYS_PER_WEEK, "weeks": week,
                     "months": month, "years": ConfigManager.HOURS_PER_YEAR_MULT * month}
-    return ", ".join(f"1 {unit[0]} = {_compact_hours(hours)} h"
-                     for unit, hours in per_unit.items())
+    return [f"1 {unit[0]} = {_compact_hours(hours)} h ({unit[:-1]})"
+            for unit, hours in per_unit.items()]
 
 
-_BRACKET_EXPLAINER = (
-    "With only Expected filled in, that number is used directly as the mean. "
-    "With a bracket, the mean work hours are calculated from all supplied values.")
+_BRACKET_EXPLAINER = "With only Expected filled in, that number is used directly as the mean."
 
 
 def work_time_tooltip(kind="estimate", time_settings=None):
@@ -69,19 +67,18 @@ def work_time_tooltip(kind="estimate", time_settings=None):
                  if kind == "estimate" else
                  "Enter work time: only the hours you spent working on it, "
                  "not how long it stayed open.")
-        lines = [
-            intro,
-            f"Your Settings set what each unit is worth: "
-            f"{work_time_units_line(time_settings)}. "
-            "A day is a seventh of a week.",
-        ]
+        units = html.Ul([html.Li(item) for item in work_time_unit_items(time_settings)],
+                        className="ps-3 mb-1 text-start")
+        lines = [intro, "Your Settings set what each unit is worth:", units,
+                 "A day is a seventh of a week."]
         if kind == "estimate":
             lines.append(_BRACKET_EXPLAINER)
-    return html.Div([html.Div(line, className="mb-1 text-start") for line in lines])
+    return html.Div([html.Div(line, className="mb-1 text-start") if isinstance(line, str)
+                     else line for line in lines])
 
 
 def time_estimates_heading(id_prefix, kind="estimate"):
-    """The "Work Time Estimates" heading, with its explainer on hover.
+    """The "Time Estimates" heading, with its explainer on hover.
 
     A hover on the heading, not an (i) button: the text only explains, and the
     app keeps (i) for the controls that open a reference. Tooltip id is
@@ -90,7 +87,7 @@ def time_estimates_heading(id_prefix, kind="estimate"):
     """
     heading_id = f"{id_prefix}-time-heading"
     return html.Div([
-        html.H5("Work Time Estimates", id=heading_id, className="mb-0"),
+        html.H5("Time Estimates", id=heading_id, className="mb-0 hover-hint"),
         Tooltip(work_time_tooltip(kind), target=heading_id, placement="right",
                 id=f"{heading_id}-tooltip"),
     ], className="d-flex align-items-center mt-2 mb-2")

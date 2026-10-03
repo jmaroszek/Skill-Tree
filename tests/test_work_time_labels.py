@@ -7,7 +7,7 @@ tooltip text, which quotes the live hour rates, and the heading that carries it.
 
 import duration_ui
 from config import ConfigManager
-from duration_ui import time_estimates_heading, work_time_tooltip, work_time_units_line
+from duration_ui import time_estimates_heading, work_time_tooltip, work_time_unit_items
 
 DEFAULT_RATES = {"hours_per_week": 20, "hours_per_month": 80}
 
@@ -26,19 +26,22 @@ def _text(component):
 
 class TestUnitsLine:
     def test_default_rates_read_in_hours(self):
-        assert (work_time_units_line(DEFAULT_RATES)
-                == "1 d = 2.9 h, 1 w = 20 h, 1 m = 80 h, 1 y = 1,040 h")
+        assert (work_time_unit_items(DEFAULT_RATES)
+                == ["1 d = 2.9 h (day)", "1 w = 20 h (week)", "1 m = 80 h (month)",
+                    "1 y = 1,040 h (year)"])
 
     def test_a_tuned_rate_flows_through(self):
-        line = work_time_units_line({"hours_per_week": 35, "hours_per_month": 140})
-        assert line == "1 d = 5 h, 1 w = 35 h, 1 m = 140 h, 1 y = 1,820 h"
+        items = work_time_unit_items({"hours_per_week": 35, "hours_per_month": 140})
+        assert items == ["1 d = 5 h (day)", "1 w = 35 h (week)", "1 m = 140 h (month)",
+                         "1 y = 1,820 h (year)"]
 
     def test_the_app_reads_the_saved_settings(self, temp_database):
         settings = dict(ConfigManager.get_time_settings())
         settings.update(hours_per_week=10, hours_per_month=40)
         ConfigManager.set_time_settings(settings)
-        assert (work_time_units_line()
-                == "1 d = 1.4 h, 1 w = 10 h, 1 m = 40 h, 1 y = 520 h")
+        assert (work_time_unit_items()
+                == ["1 d = 1.4 h (day)", "1 w = 10 h (week)", "1 m = 40 h (month)",
+                    "1 y = 520 h (year)"])
 
 
 class TestTooltipText:
@@ -47,6 +50,7 @@ class TestTooltipText:
         assert "not calendar time" in text
         assert "1 w = 20 h" in text
         assert "only Expected filled in" in text
+        assert "calculated from all supplied values" not in text
 
     def test_habit_separates_calendar_duration_from_work_minutes(self):
         text = _text(work_time_tooltip("habit"))
@@ -62,10 +66,10 @@ class TestTooltipText:
 
 
 class TestHeading:
-    def test_the_heading_names_work_time_and_carries_a_hover_not_an_info_button(self):
+    def test_the_heading_carries_a_hover_not_an_info_button(self):
         heading = time_estimates_heading("node")
         title, tooltip = heading.children
-        assert title.children == "Work Time Estimates"
+        assert title.children == "Time Estimates"
         assert tooltip.target == title.id == "node-time-heading"
         assert tooltip.id == "node-time-heading-tooltip"
         assert "info-btn" not in _text(heading)
