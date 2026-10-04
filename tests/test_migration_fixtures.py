@@ -39,17 +39,37 @@ def _snapshot(path):
     }
 
 
-@pytest.fixture(params=FIXTURES, ids=lambda p: p.stem)
-def upgraded(request, tmp_path, monkeypatch):
-    """(original snapshot, path) after opening a copy with the current code."""
+def _version(path):
+    return int(path.stem.split("_v")[1])
+
+
+def _upgrade(source, tmp_path, monkeypatch):
     copy = tmp_path / "Data" / "skilltree.db"
     copy.parent.mkdir()
-    shutil.copy(request.param, copy)
+    shutil.copy(source, copy)
     before = _snapshot(copy)
     monkeypatch.setattr(database, "get_db_path", lambda: str(copy))
     database._initialized = False
     database.init_db()
     return before, copy
+
+
+@pytest.fixture(params=FIXTURES, ids=lambda p: p.stem)
+def upgraded(request, tmp_path, monkeypatch):
+    """(original snapshot, path) after opening a copy with the current code."""
+    return _upgrade(request.param, tmp_path, monkeypatch)
+
+
+# Versions before 11 kept a node's links in three Nodes columns, which the
+# upgrade moves into sections. Later ones were born with sections.
+@pytest.fixture(params=[p for p in FIXTURES if _version(p) < 11], ids=lambda p: p.stem)
+def upgraded_with_link_columns(request, tmp_path, monkeypatch):
+    return _upgrade(request.param, tmp_path, monkeypatch)
+
+
+@pytest.fixture(params=[p for p in FIXTURES if _version(p) >= 11], ids=lambda p: p.stem)
+def upgraded_with_sections(request, tmp_path, monkeypatch):
+    return _upgrade(request.param, tmp_path, monkeypatch)
 
 
 def test_there_is_a_fixture_for_every_older_version():
@@ -80,14 +100,31 @@ def test_the_original_is_backed_up_first(upgraded):
         conn.close()
 
 
-def test_links_move_into_resource_sections(upgraded):
-    _before, path = upgraded
+def test_links_move_into_resource_sections(upgraded_with_link_columns):
+    _before, path = upgraded_with_link_columns
     links = _rows(path, "SELECT node_name, section_id, target FROM NodeResourceLinks")
     assert ("Sleep hygiene", "obsidian", "Notes/Sleep hygiene.md") in links
     assert ("Sleep hygiene", "website", "https://example.com/sleep") in links
     assert ("Blackout curtains", "drive", "Shopping/curtains.pdf") in links
     columns = {row[1] for row in _rows(path, "PRAGMA table_info(Nodes)")}
     assert not columns & {"obsidian_path", "google_drive_path", "website"}
+
+
+def test_links_in_sections_stay_put(upgraded_with_sections):
+    _before, path = upgraded_with_sections
+    links = _rows(path, "SELECT node_name, section_id, target FROM NodeResourceLinks")
+    assert ("Sleep hygiene", "website", "https://example.com/sleep") in links
+
+
+def test_history_starts_recording(upgraded):
+    """v12: the ledger of nodes added and deleted, with the date its coverage
+    began, and the ranking columns on Now starts."""
+    _before, path = upgraded
+    assert _rows(path, "SELECT COUNT(*) FROM NodeLedger") == {(0,)}
+    marker = _rows(path, "SELECT value FROM Settings WHERE key='node_ledger_started_at'")
+    assert len(marker) == 1
+    columns = {row[1] for row in _rows(path, "PRAGMA table_info(NodeLifecycleEvents)")}
+    assert {"rank", "ranked_of"} <= columns
 
 
 def test_the_upgraded_graph_works(upgraded):

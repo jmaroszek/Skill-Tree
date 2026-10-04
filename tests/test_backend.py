@@ -357,7 +357,7 @@ class TestLifecycleEvents:
         monkeypatch.setattr(graph_manager, "_utc_now_ts", lambda: next(remaining))
 
     def test_repeated_now_cycles_and_completion_are_lossless(self, mgr, monkeypatch):
-        self._pin_times(monkeypatch, 100, 200, 300, 400)
+        self._pin_times(monkeypatch, 50, 100, 200, 300, 400)
         mgr.add_node(_make_node("A"))
 
         node = mgr.get_node("A")
@@ -392,7 +392,7 @@ class TestLifecycleEvents:
         assert {e["source"] for e in events} == {"live"}
 
     def test_completion_reopen_and_recompletion_are_all_retained(self, mgr, monkeypatch):
-        self._pin_times(monkeypatch, 100, 200, 300)
+        self._pin_times(monkeypatch, 50, 100, 200, 300)
         mgr.add_node(_make_node("A"))
 
         node = mgr.get_node("A")
@@ -410,7 +410,7 @@ class TestLifecycleEvents:
         ]
 
     def test_rename_preserves_history_and_delete_cascades_it(self, mgr, monkeypatch):
-        self._pin_times(monkeypatch, 100)
+        self._pin_times(monkeypatch, 50, 100, 150)
         mgr.add_node(_make_node("Old"))
         node = mgr.get_node("Old")
         node.now = 1
@@ -456,7 +456,73 @@ class TestLifecycleEvents:
             "event_type": "now_started",
             "occurred_at": 123456,
             "source": "migration_snapshot",
+            "rank": None,
+            "ranked_of": None,
         }]
+
+    def test_entering_now_records_the_node_s_place_in_the_ranking(self, mgr):
+        mgr.add_node(_make_node("Top", value=10, interest=10))
+        mgr.add_node(_make_node("Second", value=2, interest=2))
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode="inherited"))
+        for name in ("Second", "Goal"):
+            node = mgr.get_node(name)
+            node.now = 1
+            mgr.update_node(node)
+        second, = mgr.get_node_lifecycle_events("Second")
+        assert (second["rank"], second["ranked_of"]) == (2, 2)
+        # A Goal is never ranked; the ranking it left still had one node.
+        goal, = mgr.get_node_lifecycle_events("Goal")
+        assert (goal["rank"], goal["ranked_of"]) == (None, 1)
+
+    def test_only_now_starts_carry_a_rank(self, mgr):
+        mgr.add_node(_make_node("A"))
+        node = mgr.get_node("A")
+        node.now = 1
+        mgr.update_node(node)
+        node = mgr.get_node("A")
+        node.status = STATUS_DONE
+        mgr.update_node(node)
+        events = {e["event_type"]: e for e in mgr.get_node_lifecycle_events("A")}
+        assert events["now_started"]["rank"] == 1
+        assert events["completed"]["rank"] is None
+        assert events["now_stopped"]["rank"] is None
+
+
+class TestNodeLedger:
+    """Work entering and leaving the graph, kept after the node is gone."""
+
+    def test_adding_records_the_estimate_it_arrived_with(self, mgr):
+        mgr.add_node(_make_node("A", context="Mind", time_o=3, time_m=3, time_p=3))
+        row, = mgr.get_node_ledger()
+        assert (row["node_name"], row["event_type"], row["node_type"],
+                row["context"], row["status"]) == ("A", "created", "Learn", "Mind",
+                                                   STATUS_OPEN)
+        assert row["hours"] == pytest.approx(3)
+
+    def test_deleting_keeps_the_history(self, mgr):
+        mgr.add_node(_make_node("A"))
+        node = mgr.get_node("A")
+        node.status = STATUS_DONE
+        mgr.update_node(node)
+        mgr.delete_node("A")
+        assert [(r["event_type"], r["status"]) for r in mgr.get_node_ledger("A")] == [
+            ("created", STATUS_OPEN), ("deleted", STATUS_DONE)]
+
+    def test_rename_moves_only_the_live_node_s_rows(self, mgr):
+        mgr.add_node(_make_node("A"))
+        mgr.delete_node("A")
+        mgr.add_node(_make_node("A"))
+        mgr.rename_node("A", "B")
+        assert [r["event_type"] for r in mgr.get_node_ledger("A")] == [
+            "created", "deleted"]
+        assert [r["event_type"] for r in mgr.get_node_ledger("B")] == ["created"]
+
+    def test_a_new_database_marks_when_coverage_began(self, mgr):
+        with database.get_connection() as conn:
+            marker = conn.execute(
+                "SELECT value FROM Settings WHERE key='node_ledger_started_at'"
+            ).fetchone()
+        assert marker is not None and int(marker[0]) > 0
 
 
 # ============================================================================

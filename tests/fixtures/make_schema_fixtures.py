@@ -32,6 +32,7 @@ VERSIONS = {
     8: "c41e543",
     9: "5157ca3",
     10: "50d10be",
+    11: "0f523c1",
 }
 
 FILL = r'''
@@ -54,8 +55,11 @@ def node(name, node_type="Learn", **extra):
 
 m = GraphManager()
 m.add_node(node("Sleep", "Goal", context="Body"))
+# Before v11, links lived in Nodes columns; from v11, in named sections, a
+# new database starting with Obsidian, Google Drive and Website.
 m.add_node(node("Sleep hygiene", context="Body", subcontext="Rhythms",
-                obsidian_path="Notes/Sleep hygiene.md", website="https://example.com/sleep"))
+                obsidian_path="Notes/Sleep hygiene.md", website="https://example.com/sleep",
+                resource_links={"website": ["https://example.com/sleep"]}))
 m.add_node(node("Blackout curtains", "Action", context="Body",
                 google_drive_path="Shopping/curtains.pdf"))
 m.add_node(node("Why We Sleep", "Resource", context="Body"))

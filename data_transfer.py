@@ -25,7 +25,8 @@ EXPORT_FORMAT = "skill-tree-export"
 EXPORT_VERSION = 1
 # Parents before children, so the rows satisfy their foreign keys in order.
 TABLES = ("Settings", "ResourceSections", "Nodes", "Aliases", "NodeResourceLinks",
-          "Edges", "Events", "EventTriggerNodes", "EventNodes", "NodeLifecycleEvents")
+          "Edges", "Events", "EventTriggerNodes", "EventNodes", "NodeLifecycleEvents",
+          "NodeLedger")
 
 
 class TransferRefused(ValueError):

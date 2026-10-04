@@ -15,7 +15,7 @@ import database
 import graph_queries
 import graph_scoring
 import graph_rules
-from graph_repository import GraphRepository
+from graph_repository import GraphRepository, record_ledger
 from graph_state import GraphCaches, CacheValue, RevisionValue, revisions
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from config import ConfigManager
@@ -178,7 +178,7 @@ class GraphManager:
                 f"'{node.name}' must have a context: choose the area of life "
                 "it belongs to."
             )
-        self._repository.insert_node(node)
+        self._repository.insert_node(node, _utc_now_ts)
         self._bump_version()
 
     @database.atomic
@@ -238,7 +238,10 @@ class GraphManager:
                 lifecycle_event_types.append('completed')
             if prior.now == 0 and node.now > 0:
                 lifecycle_event_types.append('now_started')
-        self._repository.write_node(node, lifecycle_event_types, _utc_now_ts)
+        # Read before the write, so the ranking is the one the node left.
+        now_rank = (self._recommendation_rank(node.name)
+                    if 'now_started' in lifecycle_event_types else (None, None))
+        self._repository.write_node(node, lifecycle_event_types, _utc_now_ts, now_rank)
         self._update_dependent_nodes_state(node.name)
         # Skip scoring-cache invalidation if only cosmetic fields changed.
         # _update_dependent_nodes_state may have touched other nodes' status
@@ -342,6 +345,9 @@ class GraphManager:
 
         Cleans up references that aren't FK-cascaded:
           - `NodeLifecycleEvents` rows ARE FK-cascaded with their node.
+          - `NodeLedger` gains a 'deleted' row and keeps the node's earlier
+            ones: it has no foreign key, so work that left the graph stays
+            on record.
           - `EventTriggerNodes` rows ARE FK-cascaded, so deleting a node
             narrows every trigger set that watched it. An event that still
             has other triggers keeps working with one fewer condition; an
@@ -369,6 +375,9 @@ class GraphManager:
                 (node_name,),
             )
             affected_events = [row[0] for row in cursor.fetchall()]
+            doomed = self.get_node(node_name)
+            if doomed is not None:
+                record_ledger(cursor, doomed, 'deleted', _utc_now_ts())
             cursor.execute("DELETE FROM Edges WHERE source=? OR target=?", (node_name, node_name))
             cursor.execute("DELETE FROM Nodes WHERE name=?", (node_name,))
             demoted: List[str] = []
@@ -413,6 +422,32 @@ class GraphManager:
     def get_node_lifecycle_events(self, node_name: str) -> List[dict]:
         """Return one node's lifecycle boundaries in stable occurrence order."""
         return self._repository.get_node_lifecycle_events(node_name)
+
+    def get_node_ledger(self, node_name: Optional[str] = None) -> List[dict]:
+        """Nodes added to and deleted from the graph, oldest first."""
+        return self._repository.get_node_ledger(node_name)
+
+    def _recommendation_rank(self, node_name: str):
+        """(rank, ranked_of): ``node_name``'s place in the recommendation
+        ranking, 1 at the top, and how many nodes it ranks. The ranking is
+        the Next tab's without its filters: every node not in Now that
+        scores at or above zero. rank is None for a node it leaves out.
+
+        Recorded when a node enters Now, to tell later whether picks follow
+        the recommendations. It is a side record, so a scoring failure
+        records nothing rather than blocking the save."""
+        try:
+            scored = self.calculate_priority_scores(
+                [n for n in self.get_all_nodes() if not n.now],
+                priority_goals=ConfigManager.get_priority_goals())
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Couldn't rank %s as it entered Now", node_name)
+            return None, None
+        ranked = [n.name for n in scored if getattr(n, 'priority_score', -1) >= 0]
+        rank = ranked.index(node_name) + 1 if node_name in ranked else None
+        return rank, len(ranked)
 
     def get_aliases(self, node_name: str) -> list:
         """Return all aliases for a node."""

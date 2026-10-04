@@ -7,6 +7,16 @@ from models import Node
 from resource_links import save_node_links
 
 
+def record_ledger(cursor, node, event_type, occurred_at):
+    """Append a NodeLedger row: ``node`` was 'created' or 'deleted', with the
+    estimate and status it had then."""
+    cursor.execute(
+        "INSERT INTO NodeLedger (node_name, event_type, occurred_at, node_type, "
+        "context, hours, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (node.name, event_type, occurred_at, node.type, node.context,
+         node.time, node.status))
+
+
 class GraphRepository:
     def __init__(self, connection_factory):
         self.get_connection = connection_factory
@@ -67,10 +77,24 @@ class GraphRepository:
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT id, node_name, event_type, occurred_at, source "
+                "SELECT id, node_name, event_type, occurred_at, source, rank, ranked_of "
                 "FROM NodeLifecycleEvents WHERE node_name=? "
                 "ORDER BY occurred_at, id",
                 (node_name,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
+    def get_node_ledger(self, node_name: Optional[str] = None) -> List[dict]:
+        """Nodes added to and deleted from the graph, oldest first; one
+        name's rows when ``node_name`` is given."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            where, args = ("WHERE node_name=? ", (node_name,)) if node_name else ("", ())
+            rows = conn.execute(
+                "SELECT id, node_name, event_type, occurred_at, node_type, context, "
+                f"hours, status FROM NodeLedger {where}ORDER BY occurred_at, id",
+                args,
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -164,7 +188,7 @@ class GraphRepository:
             return [dict(row) for row in cursor.fetchall()]
 
 
-    def insert_node(self, node):
+    def insert_node(self, node, clock):
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -175,6 +199,7 @@ class GraphRepository:
                     INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, habit_days, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty)
                     VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty)
                 ''', data)
+                record_ledger(cursor, node, 'created', clock())
                 conn.commit()
             except sqlite3.IntegrityError as exc:
                 raise ValueError(f"Node with name '{node.name}' already exists.") from exc
@@ -185,7 +210,10 @@ class GraphRepository:
             save_node_links(node.name, node.resource_links)
 
 
-    def write_node(self, node, lifecycle_event_types, clock):
+    def write_node(self, node, lifecycle_event_types, clock, now_rank=(None, None)):
+        """Save ``node`` and append its lifecycle events. ``now_rank`` is
+        (rank, ranked_of) for a now_started event: where the node stood in
+        the recommendation ranking as it entered Now."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             data = node.to_dict()
@@ -213,9 +241,10 @@ class GraphRepository:
                 occurred_at = clock()
                 cursor.executemany(
                     "INSERT INTO NodeLifecycleEvents "
-                    "(node_name, event_type, occurred_at, source) "
-                    "VALUES (?, ?, ?, 'live')",
-                    [(node.name, event_type, occurred_at)
+                    "(node_name, event_type, occurred_at, source, rank, ranked_of) "
+                    "VALUES (?, ?, ?, 'live', ?, ?)",
+                    [(node.name, event_type, occurred_at,
+                      *(now_rank if event_type == 'now_started' else (None, None)))
                      for event_type in lifecycle_event_types],
                 )
             conn.commit()
@@ -238,5 +267,12 @@ class GraphRepository:
             cursor.execute("UPDATE EventTriggerNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE EventNodes SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE NodeLifecycleEvents SET node_name=? WHERE node_name=?", (new_name, old_name))
+            # Only this node's ledger rows: an earlier node of the same name
+            # that was deleted keeps its own.
+            cursor.execute(
+                "UPDATE NodeLedger SET node_name=? WHERE node_name=? AND id > "
+                "COALESCE((SELECT MAX(id) FROM NodeLedger "
+                "WHERE node_name=? AND event_type='deleted'), 0)",
+                (new_name, old_name, old_name))
             cursor.execute("UPDATE Aliases SET node_name=? WHERE node_name=?", (new_name, old_name))
             cursor.execute("UPDATE NodeResourceLinks SET node_name=? WHERE node_name=?", (new_name, old_name))

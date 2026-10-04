@@ -260,7 +260,7 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 def _utc_now_ts() -> int:
@@ -465,6 +465,22 @@ def _migrate(cursor, from_version: int) -> None:
             cursor.execute("ALTER TABLE ResourceSections DROP COLUMN enabled")
         cursor.execute("DELETE FROM Settings WHERE key IN "
                        "('OBSIDIAN_ENABLED', 'OBSIDIAN_VAULT', 'GDRIVE_ENABLED', 'GDRIVE_ROOT_PATH')")
+
+    # --- v12: history to answer two questions later. Does work enter the
+    # graph faster than it leaves? NodeLedger (created by _create_tables)
+    # records each node added and deleted from now on, with its estimate; the
+    # marker says when that coverage began, since nodes already here have no
+    # creation date to give. Do you follow the recommendations? A Now start
+    # records the node's place in the ranking, in two new columns.
+    if from_version < 12:
+        cursor.execute(
+            "INSERT OR IGNORE INTO Settings (key, value) VALUES (?, ?)",
+            ("node_ledger_started_at", str(_utc_now_ts())),
+        )
+        for column in ("rank", "ranked_of"):
+            if not _has_column(cursor, "NodeLifecycleEvents", column):
+                cursor.execute(
+                    f"ALTER TABLE NodeLifecycleEvents ADD COLUMN {column} INTEGER")
 
 
 # The three link columns Nodes carried before v11, and the sections v10 made
@@ -805,12 +821,39 @@ def _create_tables(cursor):
             occurred_at INTEGER NOT NULL,
             source TEXT NOT NULL DEFAULT 'live'
                 CHECK(source IN ('live', 'migration_snapshot')),
+            -- On a now_started row: the node's place in the recommendation
+            -- ranking just before it entered Now (1 = top), and how many
+            -- nodes were ranked. rank is NULL when the node wasn't ranked
+            -- (Blocked, a Goal), and both are NULL on older rows.
+            rank INTEGER,
+            ranked_of INTEGER,
             FOREIGN KEY (node_name) REFERENCES Nodes(name) ON DELETE CASCADE
         )
     ''')
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_node_lifecycle_events_node_time "
         "ON NodeLifecycleEvents(node_name, occurred_at, id)"
+    )
+    # Nodes entering and leaving the graph, with the estimate each carried.
+    # No foreign key: a deleted node's rows must outlive it. hours is the
+    # node's own expected time (0 for one whose time comes from its
+    # children) and status what it was at that moment, so deleting finished
+    # work can be told from dropping planned work.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS NodeLedger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_name TEXT NOT NULL,
+            event_type TEXT NOT NULL CHECK(event_type IN ('created', 'deleted')),
+            occurred_at INTEGER NOT NULL,
+            node_type TEXT NOT NULL,
+            context TEXT,
+            hours REAL NOT NULL,
+            status TEXT NOT NULL
+        )
+    ''')
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_node_ledger_time "
+        "ON NodeLedger(occurred_at, id)"
     )
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Aliases (
