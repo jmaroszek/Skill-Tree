@@ -509,9 +509,10 @@ score against the visible list, since the number would then describe the list
 rather than the node.
 
 Keep these rows at their standard card size even when the panel is short. The
-scrolling `.details-empty-state` uses a subtle lower-edge fade to communicate
-that more results continue below the viewport, and the suggestions container
-keeps enough bottom padding for the final card to finish above that fade.
+list holds at most eight cards: three Priority Goals and five others. The
+default window and section split are sized so all eight show without
+scrolling. A shorter panel scrolls the list, and the scroll fade (see
+Scrollbars) shows that more cards sit below.
 
 ## Inputs
 
@@ -890,6 +891,8 @@ This is enforced globally in `assets/custom.css` via a `*` selector:
 ```
 
 Do **not** add per-element scrollbar-hiding rules — the global rule covers everything. If a new scrollable container appears with a visible scrollbar, check that the global rule hasn't been overridden locally.
+
+**Scroll fade.** With no scrollbar, a panel whose content often overflows needs another cue that more sits below. Add `scroll-fade-bottom` (in `assets/theme.css`) to the scroller itself. Its lower 24px fades while there is more to scroll to, and the fade is gone once the end is in view. A panel that fits shows no fade. It is driven by the element's own scroll position in CSS, so it needs no script. Today the Details Subtasks table and the Details suggestions list use it. Put it on a panel that scrolls often, not on every `overflow: auto` box.
 
 ## Z-Index Scale
 

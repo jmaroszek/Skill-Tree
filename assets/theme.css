@@ -1011,20 +1011,38 @@ body:has(.keyboard-graph:focus-visible) .keyboard-feedback {
     flex: 0 0 auto;
 }
 
-/* Preserve the standard suggestion-card density. The lower fade makes
-   hidden-scrollbar overflow intentional; bottom padding on the results list
-   lets the final card finish cleanly above it after scrolling. */
-.details-empty-state {
+/* --- Scroll fade --- */
+/* Scrollbars are hidden app-wide, so a scrolling panel needs another cue that
+   more sits below. Add .scroll-fade-bottom to the scroller itself. Its lower
+   24px fades while there is more to scroll to, and the fade is gone once the
+   end is in view. The size is driven by the element's own scroll position, so
+   no script is involved. A panel that does not overflow has no scroll
+   timeline, so the animation never applies and the registered initial value
+   of 0 leaves it unfaded. */
+@property --scroll-fade-size {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
+
+@keyframes scroll-fade-out {
+    from { --scroll-fade-size: 24px; }
+    to   { --scroll-fade-size: 0px; }
+}
+
+.scroll-fade-bottom {
+    animation: scroll-fade-out linear both;
+    animation-timeline: scroll(self block);
+    /* Hold the full fade until the last 24px of scrolling, then ramp it off. */
+    animation-range: calc(100% - 24px) 100%;
     -webkit-mask-image: linear-gradient(
         to bottom,
-        #000 0,
-        #000 calc(100% - 24px),
+        #000 calc(100% - var(--scroll-fade-size)),
         transparent 100%
     );
     mask-image: linear-gradient(
         to bottom,
-        #000 0,
-        #000 calc(100% - 24px),
+        #000 calc(100% - var(--scroll-fade-size)),
         transparent 100%
     );
 }

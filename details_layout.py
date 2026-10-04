@@ -235,17 +235,15 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     empty_state = html.Div(
         id="details-empty",
-        className="details-empty-state",
+        className="details-empty-state scroll-fade-bottom",
         children=[
             html.Div([
-                html.H6("Suggestions", className="text-muted mb-1",
+                html.H6("Suggestions", className="text-muted mb-0",
                         style={"fontWeight": "300", "letterSpacing": "1px"}),
-                html.P("Click one, or search above.",
-                       className="text-muted small"),
-            ], style={"textAlign": "center", "marginTop": "24px",
+            ], style={"textAlign": "center", "marginTop": "15px",
                       "marginBottom": tokens.SPACE_BLOCK}),
             html.Div(id="details-suggestions-container",
-                     style={"padding": "0 12px 24px"}),
+                     style={"padding": "0 12px 12px"}),
         ],
         style={"flex": "1", "overflowY": "auto"},
     )
@@ -433,7 +431,7 @@ def build_details_tab_content():
         v_drag_handle_upper,
         dep_graph,
     ], id="details-upper-section",
-       style={"display": "flex", "flex": "1.6", "minHeight": "0"})
+       style={"display": "flex", "flex": "1.618", "minHeight": "0"})
 
     # ------------------------------------------------------------------ #
     #  HORIZONTAL DRAG HANDLE                                             #
@@ -520,7 +518,7 @@ def build_details_tab_content():
         html.Div(build_no_selection_subtasks(),
                  id="details-subtasks-table-container",
                  style={"overflowY": "visible", "flex": "none"}),
-    ], id="details-subtasks-section",
+    ], id="details-subtasks-section", className="scroll-fade-bottom",
        style={"flex": "1", "minWidth": "300px", "display": "flex",
               "flexDirection": "column", "paddingRight": "8px",
               "overflowY": "auto"})
@@ -801,11 +799,13 @@ def build_details_suggestions(goal_rows, explore_rows, filters_active=False):
     sections = []
 
     def _section(title, rows):
+        # A later list sits a little further from the one above it than the
+        # first list does from the title.
         return html.Div([
             html.H6(title, className="text-muted mb-2",
                     style={"fontSize": tokens.FS_CAP, "fontWeight": "500",
                            "letterSpacing": "1px", "textTransform": "uppercase",
-                           "marginTop": "12px"}),
+                           "marginTop": "20px" if sections else "12px"}),
             html.Div(rows),
         ])
 
