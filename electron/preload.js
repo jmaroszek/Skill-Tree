@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('skillTreeDesktop', {
   pickFile: options => ipcRenderer.invoke('skilltree:pick-file', options),
   // The window buttons are drawn by the OS, so the page asks the shell to dim
   // them while a modal is open (assets/window_chrome.js).
-  setModalOpen: open => ipcRenderer.invoke('skilltree:modal-open', !!open),
+  setModalOpen: open => ipcRenderer.send('skilltree:modal-open', !!open),
   // Settings > About's update controls (about_callbacks.py).
   updates: {
     getAutoCheck: () => ipcRenderer.invoke('skilltree:updates-get'),

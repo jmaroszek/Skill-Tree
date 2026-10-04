@@ -69,11 +69,12 @@ test('each platform gets its own window chrome', () => {
 });
 
 test('a modal dims the window buttons like the rest of the page', () => {
-  assert.deepEqual(titleBarOverlay(false), windowChrome('win32').titleBarOverlay);
-  const dimmed = titleBarOverlay(true);
+  assert.deepEqual(titleBarOverlay(0), windowChrome('win32').titleBarOverlay);
+  const dimmed = titleBarOverlay(1);
   assert.equal(dimmed.color, '#0d0f11');
   assert.equal(dimmed.symbolColor, '#6f7173');
   assert.equal(dimmed.height, 40);
+  assert.equal(titleBarOverlay(0.5).color, '#141619');   // halfway through the fade
 });
 
 test('only the app itself may load in the window', () => {

@@ -20,7 +20,8 @@ const {
   appUrl, exitMessage, newToken, restorePrompt, startServer, stopServer,
 } = require('./server_process');
 const {
-  isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome,
+  BACKDROP_FADE_MS, isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay,
+  windowChrome,
 } = require('./shell');
 const {
   checkNow, latestRelease, readPreferences, updateMode, writePreferences,
@@ -155,13 +156,32 @@ function registerUpdateSettings() {
 
 // Windows draws its window buttons above the page, out of reach of a modal's
 // backdrop, so the page reports modals here and the overlay is repainted to
-// match. macOS keeps its traffic lights, and Linux its native frame.
+// match, stepping through the backdrop's fade. macOS keeps its traffic lights,
+// and Linux its native frame. The page sends and doesn't wait for an answer.
+let dimLevel = 0;
+let dimTimer = null;
+
+function fadeOverlayTo(target) {
+  clearInterval(dimTimer);
+  const from = dimLevel;
+  const start = Date.now();
+  const step = () => {
+    if (!mainWindow) return clearInterval(dimTimer);
+    const t = Math.min(1, (Date.now() - start) / BACKDROP_FADE_MS);
+    dimLevel = from + (target - from) * t;
+    mainWindow.setTitleBarOverlay(titleBarOverlay(dimLevel));
+    if (t === 1) clearInterval(dimTimer);
+  };
+  step();
+  dimTimer = setInterval(step, 16);
+}
+
 function registerModalDimming() {
-  ipcMain.handle('skilltree:modal-open', (event, open) => {
+  ipcMain.on('skilltree:modal-open', (event, open) => {
     const url = event.senderFrame && event.senderFrame.url;
-    if (!isAppUrl(url, server && server.port)) throw new Error('Not the Skill Tree page.');
+    if (!isAppUrl(url, server && server.port)) return;
     if (process.platform !== 'win32' || !mainWindow) return;
-    mainWindow.setTitleBarOverlay(titleBarOverlay(!!open));
+    fadeOverlayTo(open ? 1 : 0);
   });
 }
 
