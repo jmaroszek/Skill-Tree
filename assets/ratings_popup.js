@@ -27,10 +27,16 @@
             closeId: 'btn-reflection-ratings-close',
             editId: 'btn-reflection-ratings-edit',
             triggerIds: ['btn-reflection-ratings-info'],
+            modalId: 'modal-time-calibration',
         },
     ];
 
-    var attached = {};
+    POPUPS.forEach(function (cfg) {
+        window.SkillTree.keyboardFocus.register({id: cfg.popupId,
+            triggerId: cfg.triggerIds[0], closeId: cfg.closeId, initial: '#' + cfg.closeId,
+            modalId: cfg.modalId,
+            hideWhenClosed: true, isOpen: function (el) { return el.style.display === 'flex'; }});
+    });
 
     function resetPopupGeometry(p) {
         p.style.width = DEFAULT_WIDTH;
@@ -47,52 +53,37 @@
             if (popup.style.display === 'flex') {
                 popup.style.display = 'none';
             } else {
-                popup._keyboardOpener = e.currentTarget;
                 resetPopupGeometry(popup);
                 popup.style.display = 'flex';
-                if (e.detail === 0) {
-                    var close = popup.querySelector('.panel-close-btn');
-                    if (close) close.focus({preventScroll: true});
-                }
             }
         };
     }
 
     function tryAttachTrigger(id, popupId) {
-        if (attached[id]) return;
         var btn = document.getElementById(id);
-        if (!btn) return;
+        if (!btn || btn.__ratingsWired) return;
         btn.addEventListener('click', makeTriggerHandler(popupId));
-        attached[id] = true;
+        btn.__ratingsWired = true;
     }
 
     function attachShared(cfg) {
         var popup = document.getElementById(cfg.popupId);
         var header = document.getElementById(cfg.headerId);
 
-        var closeKey = '__close_' + cfg.closeId;
-        if (!attached[closeKey]) {
-            var closeBtn = document.getElementById(cfg.closeId);
-            if (closeBtn) {
-                closeBtn.addEventListener('click', function () {
-                    if (popup) {
-                        popup.style.display = 'none';
-                        if (popup._keyboardOpener) popup._keyboardOpener.focus({preventScroll: true});
-                    }
-                });
-                attached[closeKey] = true;
-            }
+        var closeBtn = document.getElementById(cfg.closeId);
+        if (closeBtn && !closeBtn.__ratingsWired) {
+            closeBtn.addEventListener('click', function () {
+                if (popup) popup.style.display = 'none';
+            });
+            closeBtn.__ratingsWired = true;
         }
 
-        var editKey = '__edit_' + cfg.editId;
-        if (!attached[editKey]) {
-            var editBtn = document.getElementById(cfg.editId);
-            if (editBtn) {
-                editBtn.addEventListener('click', function () {
-                    if (popup) popup.style.display = 'none';
-                });
-                attached[editKey] = true;
-            }
+        var editBtn = document.getElementById(cfg.editId);
+        if (editBtn && !editBtn.__ratingsWired) {
+            editBtn.addEventListener('click', function () {
+                if (popup) popup.style.display = 'none';
+            });
+            editBtn.__ratingsWired = true;
         }
 
         if (!popup || !header || header.__dragWired) return;
@@ -131,15 +122,4 @@
     var obs = new MutationObserver(wireAll);
     obs.observe(document.body, { childList: true, subtree: true });
     wireAll();
-    document.addEventListener('keydown', function (e) {
-        if (e.key !== 'Escape' || e.defaultPrevented) return;
-        var cfg = POPUPS.find(function (cfg) {
-            var popup = document.getElementById(cfg.popupId);
-            return popup && popup.style.display === 'flex' && popup.contains(e.target);
-        });
-        if (!cfg) return;
-        e.preventDefault();
-        e.stopPropagation();
-        document.getElementById(cfg.closeId).click();
-    }, true);
 })();

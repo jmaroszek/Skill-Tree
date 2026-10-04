@@ -3,12 +3,14 @@
 // panel's toggle button so Dash's existing toggle callback keeps its State
 // in sync with the DOM.
 (function () {
-    const PANELS = [
-        ['graph-settings-panel', 'btn-graph-settings'],
-        ['details-graph-settings-panel', 'btn-details-graph-settings'],
-        ['events-graph-settings-panel', 'btn-events-graph-settings'],
-        ['popover-hp-profile-info', 'btn-hp-profile-info'],
-    ];
+    const PANELS = window.SkillTree.canvases.map(function (canvas) {
+        return [canvas.settingsPanelId, canvas.settingsToggleId];
+    }).concat([['popover-hp-profile-info', 'btn-hp-profile-info']]);
+    window.SkillTree.keyboardFocus.register({id: 'popover-hp-profile-info',
+        modalId: 'settings-modal',
+        triggerId: 'btn-hp-profile-info', isOpen: function (el) {
+            return window.SkillTree.keyboardFocus.visible(el);
+        }, dismiss: function () { document.getElementById('btn-hp-profile-info').click(); }});
 
     function handleOutsideClick(e) {
         for (const [panelId, btnId] of PANELS) {

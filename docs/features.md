@@ -5,21 +5,33 @@ This document walks through the features of Skill Tree, and how they are control
 
 Use **Tab / Shift+Tab** to move through controls, and **Enter / Space** to
 activate buttons and cards. A visible outline marks keyboard focus. The tab
-bar also supports **Left / Right** and **Home / End**. Closed sidebars are
-skipped; **Escape** inside a sidebar closes it through the usual draft checks.
-Use **Ctrl+S** (**Cmd+S** on macOS) to save an open node editor or Settings.
+bar supports **Left / Right** and **Home / End** to choose a tab, then
+**Enter / Space** to open it. Cards in a list share one Tab stop; use arrows
+or **Home / End** to browse them. Tab reaches the current card's controls or
+moves on to the next group. Closed sidebars are skipped. Opening one with the
+keyboard moves focus to search or the last field used; **Tab / Shift+Tab**
+stays inside it until **Escape** or Close, including the usual draft checks.
+After opening a panel with the mouse, Tab from its opener enters the panel.
+Floating panels, modals and fullscreen follow the same focus boundary. Escape
+closes the innermost menu or panel first and returns focus to its opener.
+Use **Ctrl+S** (**Cmd+S** on macOS) to save the focused node editor, event
+editor, or Settings. Field explanations appear on deliberate Tab focus.
+**F1** opens a local shortcut reference.
 
 On a Home row, Now card, goal card or event card, **Shift+F10** (or the
 keyboard's Menu key) opens its actions. Use **Up / Down**, **Home / End**,
 and **Enter / Space** in menus. **Right / Left** enters or leaves a submenu;
 **Escape** closes the menu and returns focus.
 
-Tab to a graph and use **arrow keys** to browse visible nodes alphabetically.
-**Home / End** goes to the first or last node, **Enter** selects it, and
+Tab to a graph and use **arrow keys** to move toward nodes in that direction.
+**Page Up / Down** browses all visible nodes by name. **Home / End** goes to
+the first or last node by name, **Enter** selects it, and
 **Shift+Enter** adds it to the selection. **Shift+F10** opens its actions.
 **+ / −** zooms and **0** fits the graph. The focused graph displays the
-current node's name and status. On the Nodes graph, **Delete** asks to delete
-the selection.
+current node's name and status, plus the selected nodes. A blue halo marks
+focus; white borders mark selection. Moving focus pans only when the node
+would be offscreen. **Escape** clears focus and selection before leaving
+fullscreen. On the Nodes graph, **Delete** asks to delete the selection.
 
 Use **Alt+arrow keys** on a Now card or a reorder handle to move it within
 its list. This works for manually ordered goals, events, contexts and

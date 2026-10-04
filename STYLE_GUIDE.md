@@ -189,19 +189,34 @@ ever changes the fill, so status and type stay readable underneath.
 
 ### Keyboard interaction
 
-Every action must be reachable through Tab and activate with Enter or Space.
+Every action must be reachable through Tab and group arrow navigation, and
+activate with Enter or Space. Tabs and card lists use one Tab stop per group;
+arrows and Home/End move focus within the group. Tabs activate on Enter/Space.
 Use native buttons where possible; custom clickable rows expose `role="button"`
 and `tabIndex=0`, with activation in `assets/keyboard_navigation.js`. Keep a
 visible `:focus-visible` ring, including on ghost icons. Sliding sidebars are
 inert while closed and return keyboard focus to their opener when dismissed.
-Their Escape action uses the existing close button, including its draft guard.
+Keyboard-opened sidebars start at search or the last field used. After a mouse
+opens a panel, Tab from its opener enters it; Escape can dismiss it immediately.
+Tab/Shift+Tab wrap within open sidebars, floating panels, modals and fullscreen.
+Escape dismisses the innermost layer through its existing close button,
+including draft checks.
+Use `SkillTree.keyboardFocus` for these boundaries and focus restoration;
+its vertical scrolling keeps fields above the node editor's sticky footer.
 Hover tooltips also open on deliberate Tab focus and close on blur; automatic
-focus restoration does not reopen them.
+focus restoration does not reopen them. `hover_label` descriptions belong to
+their following fields and appear when those fields receive deliberate Tab focus.
 
 Floating menus use arrow keys, Home/End, Enter/Space, and Escape with focus
 restoration. Right/Left enters/leaves a submenu. Cards expose Shift+F10 for
 their context menu; sortable handles expose Alt+arrow reordering. All canvases
 share keyboard node navigation through the canvas registry and lifecycle hook.
+Graph arrows follow rendered positions; Page Up/Down and Home/End traverse
+nodes by name. The blue focus halo and white selection borders remain distinct.
+Escape clears graph focus and selection before leaving fullscreen. F1 opens
+the explicit local shortcut reference; shortcut
+help is also shown while cards, reorder handles or graphs have keyboard focus.
+Plain Ctrl/Cmd+S saves only the focused node/event editor or Settings.
 Dividers are focusable separators and resize with their axis's arrow keys.
 
 ### Heading hierarchy

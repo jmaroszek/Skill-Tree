@@ -71,9 +71,11 @@ stylesheet = [
     {
         'selector': 'node.keyboard-current',
         'style': {
-            'border-width': 5,
-            'border-color': '#ffffff',
-            'border-style': 'dotted',
+            # Focus sits outside the node; the white selection border remains
+            # independently visible when focus moves to another node.
+            'overlay-color': '#0dcaf0',
+            'overlay-opacity': 0.22,
+            'overlay-padding': 10,
         },
     },
     {

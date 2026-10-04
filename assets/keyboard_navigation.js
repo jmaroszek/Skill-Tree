@@ -5,19 +5,15 @@
 (function () {
     'use strict';
     var ST = window.SkillTree;
-    var panels = [
-        ['sidebar-editor-container', 'btn-add', 'btn-close-editor'],
-        ['details-goal-sidebar', 'btn-goals-toggle', 'btn-details-goals-close'],
-        ['events-sidebar-container', 'btn-events-sidebar-toggle', 'btn-events-sidebar-close'],
-        ['sidebar-filters-container', 'btn-filters-toggle', 'btn-close-filters'],
-    ];
-    var keyboard = false;
+    var F = ST.keyboardFocus;
     var pendingFocus = null;
     var lastFocused = null;
+    var pendingDestination = null;
     var tooltipFocusIntent = false;
     var custom = '.suggestion-bar-row, .now-card, .goal-card, .event-card, .goal-rank-trigger, .details-subtask-name-link, [id*="details-milestone-tile"]';
     var reorderHandles = '.goal-drag-handle, .event-drag-handle, .ctx-drag-handle:not(.ctx-drag-disabled), .ctx-chip-grip';
-    var graphHelp = 'Arrow keys: browse nodes. Home/End: first/last. Enter: select. Shift+Enter: add to selection. Shift+F10: actions. +/−: zoom. 0: fit.';
+    var listItems = '.suggestion-bar-row, .now-card, .goal-card, .event-card';
+    var graphHelp = 'Arrows: move toward a node. Page Up/Down: browse by name. Home/End: first/last. Enter: select. Shift+Enter: add. Escape: clear selection. Shift+F10: actions. +/−: zoom. 0: fit.';
     var feedback;
 
     function announce(message) {
@@ -32,35 +28,16 @@
     }
 
     function sync() {
-        // Bootstrap's anchor tabs have no href and otherwise fall out of the
-        // browser's tab order. Native button tabs already handle activation.
-        document.querySelectorAll('.nav-tabs a.nav-link').forEach(function (tab) {
-            tab.tabIndex = tab.classList.contains('disabled') ? -1 : 0;
-        });
-        panels.forEach(function (cfg) {
-            var panel = document.getElementById(cfg[0]);
-            if (!panel) return;
-            var open = cfg[0] === 'sidebar-filters-container'
-                ? panel.style.right === '0px' : panel.style.transform === 'translateX(0px)';
-            var previous = panel._keyboardOpen;
-            if (previous === open) return;
-            panel._keyboardOpen = open;
-            panel.inert = !open;
-            panel.setAttribute('aria-hidden', String(!open));
-            var toggle = document.getElementById(cfg[1]);
-            if (toggle) {
-                toggle.setAttribute('aria-expanded', String(open));
-                toggle.setAttribute('aria-controls', cfg[0]);
-            }
-            if (open && previous === false && keyboard && !document.querySelector('.modal.show')) {
-                panel._keyboardOpener = document.activeElement;
-                var first = panel.querySelector('button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), [tabindex="0"]');
-                if (first) first.focus({preventScroll: true});
-            } else if (!open && panel.contains(document.activeElement)) {
-                var opener = panel._keyboardOpener;
-                if (!opener || !opener.isConnected || opener.closest('[inert]')) opener = toggle;
-                if (opener) opener.focus({preventScroll: true});
-            }
+        document.querySelectorAll('.nav-tabs').forEach(function (bar) {
+            var tabs = Array.from(bar.querySelectorAll('.nav-link:not(.disabled)'));
+            var active = tabs.includes(document.activeElement) ? document.activeElement
+                : tabs.find(function (t) { return t.classList.contains('active'); }) || tabs[0];
+            bar.setAttribute('role', 'tablist');
+            bar.querySelectorAll('.nav-link').forEach(function (t) {
+                t.tabIndex = t === active ? 0 : -1;
+                t.setAttribute('role', 'tab');
+                t.setAttribute('aria-selected', String(t.classList.contains('active')));
+            });
         });
         document.querySelectorAll(reorderHandles).forEach(function (handle) {
             if (handle.tabIndex === 0) return;
@@ -69,6 +46,22 @@
             handle.setAttribute('aria-label', 'Reorder with Alt + arrow keys');
             handle.title = 'Alt + arrow keys to reorder';
         });
+        var groups = new Set();
+        document.querySelectorAll(listItems).forEach(function (row) { groups.add(row.parentElement); });
+        groups.forEach(function (group) {
+            var rows = listRows(group);
+            var active = rows.find(function (r) { return r.contains(document.activeElement); }) ||
+                rows.find(function (r) { return rowName(r) === group._keyboardRow; }) || rows[0];
+            if (active) group._keyboardRow = rowName(active);
+            rows.forEach(function (row) {
+                row.tabIndex = row === active ? 0 : -1;
+                row.setAttribute('aria-describedby', 'keyboard-list-help');
+                row.querySelectorAll(reorderHandles + ', .goal-rank-trigger').forEach(function (item) {
+                    item.tabIndex = row === active ? 0 : -1;
+                });
+            });
+        });
+        associateHints();
         if (ST.describeSplitHandle) document.querySelectorAll('.split-handle').forEach(function (handle) {
             if (!handle.hasAttribute('aria-valuenow')) ST.describeSplitHandle(handle);
         });
@@ -77,20 +70,68 @@
             var row = Array.from(candidates).find(function (el) {
                 return el.getAttribute(pendingFocus.attribute) === pendingFocus.name;
             });
-            if (row && row !== pendingFocus.original) {
+            if (row && (row !== pendingFocus.original || document.activeElement === document.body)) {
                 var target = pendingFocus.handle ? row.querySelector(pendingFocus.handle) : row;
-                if (target) target.focus({preventScroll: true});
-                pendingFocus = null;
+                // React may move the existing keyed card instead of replacing
+                // it. That move also blurs its handle, so recover both cases.
+                if (target && F.focus(target)) pendingFocus = null;
             } else if (Date.now() > pendingFocus.deadline) pendingFocus = null;
         }
-        if (keyboard && lastFocused && !lastFocused.isConnected && document.activeElement === document.body &&
+        if (F.isKeyboard() && lastFocused && !lastFocused.isConnected && document.activeElement === document.body &&
                 !document.querySelector('.modal.show')) {
             var replacement = lastFocused.id && document.getElementById(lastFocused.id);
             var name = lastFocused.getAttribute('data-node-menu');
             if (!replacement && name) replacement = Array.from(document.querySelectorAll('[data-node-menu]'))
                 .find(function (el) { return el.getAttribute('data-node-menu') === name && el.getClientRects().length; });
-            if (replacement) replacement.focus({preventScroll: true});
+            if (replacement) F.focus(replacement);
         }
+        if (pendingDestination) {
+            var dest = pendingDestination;
+            var field = document.querySelector(dest.selector);
+            var panel = document.getElementById(dest.panel);
+            var ready = F.visible(field) && (!dest.name || (dest.event ? field.value === dest.name
+                : document.getElementById('details-node-name')?.textContent === dest.name));
+            if (ready && panel && panel.inert && !document.querySelector('.modal.show')) {
+                F.focus(field); pendingDestination = null;
+            } else if (Date.now() > dest.deadline) pendingDestination = null;
+        }
+    }
+
+    function rowName(row) {
+        return row.getAttribute('data-node-menu') || row.getAttribute('data-event-name');
+    }
+
+    function listRows(group) {
+        return Array.from(group.children).filter(function (row) { return row.matches(listItems); });
+    }
+
+    function associateHints() {
+        // A label's following field/group inherits its description, without
+        // adding a stop for the heading itself. Sections can cover many fields.
+        document.querySelectorAll('.keyboard-hint-label').forEach(function (wrapper) {
+            var label = wrapper.querySelector('.hover-hint');
+            if (!label) return;
+            var sibling = wrapper.nextElementSibling;
+            while (sibling) {
+                var nextLabel = sibling.querySelector('.hover-hint');
+                if (nextLabel && (label.tagName === 'LABEL' || nextLabel.tagName === 'H5')) break;
+                var fields = sibling.matches('input, select, textarea, button') ? [sibling]
+                    : Array.from(sibling.querySelectorAll('input:not([type=hidden]), select, textarea, button'));
+                fields.forEach(function (field) {
+                    var ids = (field.getAttribute('data-keyboard-labels') || '').split(' ').filter(Boolean);
+                    if (!ids.includes(label.id)) ids.push(label.id);
+                    field.setAttribute('data-keyboard-labels', ids.join(' '));
+                    var descriptions = new Set((field.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
+                    descriptions.add(wrapper.getAttribute('data-keyboard-hint'));
+                    field.setAttribute('aria-describedby', Array.from(descriptions).join(' '));
+                });
+                // Plain field labels end at the next field/heading; section
+                // headings extend through their contents until another heading.
+                if (fields.length && label.tagName === 'LABEL') break;
+                if (sibling.querySelector('h5') || sibling.tagName === 'H5' || sibling.tagName === 'LABEL') break;
+                sibling = sibling.nextElementSibling;
+            }
+        });
     }
 
     // Use the same persistence inputs as pointer dragging, including the
@@ -122,12 +163,12 @@
         pendingFocus = {selector: selector, attribute: attribute, name: row.getAttribute(attribute),
             original: row, handle: handle, deadline: Date.now() + 5000};
         ST.setInputValue(document.getElementById(input), JSON.stringify(order));
-        target.focus({preventScroll: true});
+        F.focus(target);
         announce('Moved to position ' + (siblings.indexOf(other) + 1));
         return true;
     }
 
-    document.addEventListener('pointerdown', function () { keyboard = false; pendingFocus = null; }, true);
+    document.addEventListener('pointerdown', function () { pendingFocus = null; }, true);
     // Keep hover-only tooltips available on deliberate Tab navigation without
     // reopening them when a mouse-opened modal restores focus to its button.
     document.addEventListener('keydown', function (e) {
@@ -136,19 +177,35 @@
     }, true);
     document.addEventListener('focusin', function (e) {
         lastFocused = e.target;
-        if (tooltipFocusIntent && e.target.matches('button, a, [tabindex="0"]') &&
+        sync();
+        var deliberateTab = tooltipFocusIntent || F.isTabbing();
+        if (deliberateTab && e.target.hasAttribute('data-keyboard-labels')) {
+            e.target._keyboardHintLabels = e.target.getAttribute('data-keyboard-labels').split(' ')
+                .map(function (id) { return document.getElementById(id); }).filter(Boolean);
+            e.target._keyboardHintLabels.forEach(function (label) {
+                label.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+            });
+        }
+        if (F.isKeyboard() && e.target.matches(listItems + ', ' + reorderHandles)) {
+            announce(e.target.matches(listItems) ? 'Arrows: browse this list. Enter: open. Shift+F10: actions.'
+                : 'Alt + arrow keys: reorder this item.');
+        }
+        if (deliberateTab && e.target.matches('button, a, [tabindex="0"]') &&
                 !e.target.closest('.ctx-menu') && !e.target.matches('.keyboard-graph')) {
             e.target._keyboardTooltip = true;
             e.target.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
         }
     });
     document.addEventListener('focusout', function (e) {
+        (e.target._keyboardHintLabels || []).forEach(function (label) {
+            label.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
+        });
+        e.target._keyboardHintLabels = null;
         if (!e.target._keyboardTooltip) return;
         e.target._keyboardTooltip = false;
         e.target.dispatchEvent(new MouseEvent('mouseout', {bubbles: true, relatedTarget: e.relatedTarget}));
     });
     document.addEventListener('keydown', function (e) {
-        keyboard = true;
         if (e.defaultPrevented || e.isComposing) return;
         var target = e.target;
         if (!target.matches) return;
@@ -158,7 +215,8 @@
                 var tabs = Array.from(target.closest('.nav-tabs').querySelectorAll('.nav-link:not(.disabled)'));
                 var i = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
                     : (tabs.indexOf(target) + (e.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length;
-                tabs[i].focus(); tabs[i].click(); return;
+                tabs.forEach(function (t) { t.tabIndex = -1; });
+                tabs[i].tabIndex = 0; F.focus(tabs[i]); return;
             }
             if (target.tagName === 'A' && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault(); target.click(); return;
@@ -168,6 +226,14 @@
             if (reorder(target, ['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 1)) {
                 e.preventDefault(); return;
             }
+        }
+        var row = target.closest(listItems);
+        if (row && !e.altKey && !e.ctrlKey && !e.metaKey &&
+                ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+            var rows = listRows(row.parentElement);
+            var index = e.key === 'Home' ? 0 : e.key === 'End' ? rows.length - 1
+                : (rows.indexOf(row) + (['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 1) + rows.length) % rows.length;
+            e.preventDefault(); F.focus(rows[index]); return;
         }
         if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) &&
                 target.matches('[data-node-menu], .event-card')) {
@@ -180,15 +246,18 @@
         if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey && target.matches(custom)) {
             e.preventDefault(); target.click(); return;
         }
-        if (e.key === 'Escape' && !document.querySelector('.modal.show, .ctx-menu[style*="display: block"]')) {
-            var cfg = panels.find(function (p) {
-                var panel = document.getElementById(p[0]);
-                return panel && panel.contains(target) && !panel.inert;
-            });
-            if (cfg) {
-                e.preventDefault(); document.getElementById(cfg[2]).click();
-            }
-        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (e.detail !== 0 || !F.isKeyboard()) return;
+        var row = e.target.closest('.goal-card, .event-card');
+        if (row && e.target.closest('.goal-drag-handle, .goal-rank-trigger, .event-drag-handle')) return;
+        var event = row?.matches('.event-card') || e.target.closest('#btn-new-event');
+        if (!row && !event) return;
+        var panel = event ? 'events-sidebar-container' : 'details-goal-sidebar';
+        pendingDestination = {panel: panel, selector: event ? '#event-name' : '#details-node-select',
+            name: row && rowName(row), event: event, deadline: Date.now() + 10000};
+        document.getElementById(event ? 'btn-events-sidebar-close' : 'btn-details-goals-close').click();
     });
 
     ST.canvases.forEach(function (canvas) {
@@ -204,7 +273,7 @@
             if (el._keyboardBound) return;
             el._keyboardBound = true;
             el.addEventListener('focus', function () {
-                if (keyboard) announce(graphHelp);
+                if (F.isKeyboard()) announce(graphHelp);
             });
             el.addEventListener('keydown', function (e) {
                 if (e.target !== el || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -214,23 +283,50 @@
                     .sort(function (a, b) { return a.id().localeCompare(b.id()); });
                 var node = nodes.find(function (n) { return n.id() === cursor; });
                 if (!node) node = nodes.find(function (n) { return n.selected(); }) || nodes[0];
-                if (['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'].includes(e.key)) {
+                if (['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) {
                     e.preventDefault();
                     if (!nodes.length) { announce('Graph is empty'); return; }
                     var i = nodes.indexOf(node);
                     if (e.key === 'Home') i = 0;
                     else if (e.key === 'End') i = nodes.length - 1;
-                    else if (cursor !== null) i = (i + (['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 1) + nodes.length) % nodes.length;
+                    else if (e.key === 'PageUp' || e.key === 'PageDown') {
+                        if (cursor !== null) i = (i + (e.key === 'PageUp' ? -1 : 1) + nodes.length) % nodes.length;
+                    } else if (cursor !== null || node.selected()) {
+                        var position = node.renderedPosition();
+                        var axis = ['ArrowLeft', 'ArrowRight'].includes(e.key) ? 'x' : 'y';
+                        var otherAxis = axis === 'x' ? 'y' : 'x';
+                        var direction = ['ArrowLeft', 'ArrowUp'].includes(e.key) ? -1 : 1;
+                        var next = nodes.filter(function (candidate) {
+                            return (candidate.renderedPosition()[axis] - position[axis]) * direction > 1;
+                        }).sort(function (a, b) {
+                            function cost(candidate) {
+                                var p = candidate.renderedPosition();
+                                var along = Math.abs(p[axis] - position[axis]);
+                                var across = Math.abs(p[otherAxis] - position[otherAxis]);
+                                return Math.hypot(along, across) + across * 2;
+                            }
+                            return cost(a) - cost(b) || a.id().localeCompare(b.id());
+                        })[0];
+                        if (next) i = nodes.indexOf(next);
+                    }
                     node = nodes[i]; cursor = node.id();
                     cy.nodes('.keyboard-current').removeClass('keyboard-current');
                     node.addClass('keyboard-current');
-                    cy.center(node);
-                    announce(node.id() + '. ' + node.data('type') + ', ' + node.data('status') + '. ' + (i + 1) + ' of ' + nodes.length);
+                    revealNode(cy, node, el);
+                    announceNode(cy, node, i, nodes.length);
                 } else if ((e.key === 'Enter' || e.key === ' ') && node) {
                     e.preventDefault(); cursor = node.id();
                     if (!e.shiftKey) cy.$('node:selected').unselect();
                     node.select(); node.emit('tap');
-                    announce('Selected ' + node.id());
+                    cy.nodes('.keyboard-current').removeClass('keyboard-current');
+                    node.addClass('keyboard-current');
+                    announceNode(cy, node, nodes.indexOf(node), nodes.length);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault(); e.stopPropagation();
+                    cursor = null;
+                    cy.$('node:selected').unselect();
+                    cy.nodes('.keyboard-current').removeClass('keyboard-current');
+                    announce('Graph selection cleared. ' + graphHelp);
                 } else if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && node) {
                     e.preventDefault();
                     var pos = node.renderedPosition(), rect = el.getBoundingClientRect();
@@ -246,11 +342,34 @@
         });
     });
 
+    function revealNode(cy, node, el) {
+        var box = node.renderedBoundingBox({includeLabels: false});
+        var pan = cy.pan(), dx = 0, dy = 0;
+        if (box.x1 < 32) dx = 32 - box.x1;
+        else if (box.x2 > el.clientWidth - 64) dx = el.clientWidth - 64 - box.x2;
+        if (box.y1 < 32) dy = 32 - box.y1;
+        else if (box.y2 > el.clientHeight - 60) dy = el.clientHeight - 60 - box.y2;
+        if (dx || dy) cy.pan({x: pan.x + dx, y: pan.y + dy});
+    }
+
+    function announceNode(cy, node, index, count) {
+        var selected = cy.$('node:selected').map(function (n) { return n.id(); });
+        var summary = selected.slice(0, 3).join(', ');
+        if (selected.length > 3) summary += ', and ' + (selected.length - 3) + ' more';
+        announce('Focus: ' + node.id() + '. ' + node.data('type') + ', ' + node.data('status') +
+            '. ' + (index + 1) + ' of ' + count + '. Selected: ' + (summary || 'none') +
+            '. Enter selects the focused node.');
+    }
+
     function start() {
+        var help = document.createElement('span');
+        help.id = 'keyboard-list-help';
+        help.className = 'visually-hidden';
+        help.textContent = 'Arrow keys browse this list. Home and End go to its ends. Enter opens an item. Shift+F10 opens actions.';
+        document.body.appendChild(help);
         sync();
-        new MutationObserver(function (records) {
-            if (records.some(function (r) { return r.type === 'childList' || panels.some(function (p) { return p[0] === r.target.id; }); })) sync();
-        }).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style']});
+        new MutationObserver(sync).observe(document.body, {childList: true, subtree: true,
+            attributes: true, attributeFilter: ['style', 'class']});
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
     else start();

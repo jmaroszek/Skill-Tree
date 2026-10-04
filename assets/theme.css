@@ -651,7 +651,10 @@ a:focus-visible,
     clip-path: inset(50%);
 }
 
-body:has(.keyboard-graph:focus-visible) .keyboard-feedback {
+body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
+    .goal-card:focus-visible, .event-card:focus-visible, .suggestion-bar-row:focus-visible,
+    .goal-drag-handle:focus-visible, .event-drag-handle:focus-visible,
+    .ctx-drag-handle:focus-visible, .ctx-chip-grip:focus-visible) .keyboard-feedback {
     bottom: 12px;
     left: 50%;
     transform: translateX(-50%);
@@ -668,6 +671,23 @@ body:has(.keyboard-graph:focus-visible) .keyboard-feedback {
     pointer-events: none;
     z-index: 10002;
 }
+
+.keyboard-help {
+    width: min(760px, 90vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    color: var(--st-text-primary);
+    background: var(--st-bg-panel);
+    border: 1px solid var(--st-border-panel);
+    border-radius: var(--st-radius);
+    padding: 24px;
+}
+
+.keyboard-help::backdrop { background: rgba(0, 0, 0, 0.6); }
+.keyboard-help table { width: 100%; margin: 16px 0; }
+.keyboard-help th, .keyboard-help td { padding: 8px; vertical-align: top; }
+.keyboard-help th { width: 35%; font-weight: 500; }
+.keyboard-help tr + tr { border-top: 1px solid var(--st-border-panel); }
 
 .ctx-menu-item-danger {
     color: var(--st-danger);

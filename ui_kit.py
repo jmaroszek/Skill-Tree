@@ -75,10 +75,24 @@ def hover_label(text, label_id, hint, component=dbc.Label, placement="top", **kw
     gives it the help cursor (pointer with a question mark).
     """
     kwargs["className"] = f"{kwargs.get('className', '')} hover-hint".strip()
+    hint_id = f"{label_id}-hint"
     return html.Div([
         component(text, id=label_id, **kwargs),
         Tooltip(hint, target=label_id, placement=placement),
-    ], style={"display": "contents"})
+        html.Span(_hint_text(hint), id=hint_id, className="visually-hidden"),
+    ], className="keyboard-hint-label", style={"display": "contents"},
+        **{"data-keyboard-hint": hint_id})
+
+
+def _hint_text(value):
+    """Plain text for a field's persistent accessible description."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return " ".join(_hint_text(child) for child in value)
+    if hasattr(value, "children"):
+        return _hint_text(value.children)
+    return str(value)
 
 
 def _icon_button(button_id, icon, label, class_name, tooltip=None,

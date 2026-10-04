@@ -127,10 +127,7 @@ function _initCtxSortable() {
     });
 }
 
-/* ---------- Enter commits a field ---------- */
-// A name or priority field has no form to submit, so Enter would otherwise do
-// nothing. It leaves the field instead, which is what finishing a name means.
-// The value already reached Dash on each keystroke, so blurring loses nothing.
+/* ---------- Enter finishes a field without losing the keyboard position ---------- */
 // Delegated from document because the rows remount on every structural edit.
 document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || e.isComposing) return;
@@ -138,7 +135,8 @@ document.addEventListener('keydown', function (e) {
     if (!field || !field.matches ||
         !field.matches('.ctx-row-name, .ctx-chip-input, .ctx-row-weight')) return;
     e.preventDefault();
-    field.blur();
+    // Values already reach Dash on each keystroke. Retaining focus keeps the
+    // next Tab beside the field instead of restarting at the modal header.
 });
 
 /* ---------- Re-bind after every render ---------- */

@@ -894,6 +894,11 @@
         if (event.key === 'Escape' && activeInstance) {
             event.preventDefault();
             closePicker(activeInstance, true);
+        } else if (event.key === 'Tab' && activeInstance) {
+            // Tab leaves this transient picker through its trigger. The
+            // containing sidebar then advances within its focus boundary.
+            closePicker(activeInstance, true);
+            win.SkillTree.keyboardFocus.tab(event);
         }
     });
 

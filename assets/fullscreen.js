@@ -132,12 +132,8 @@
             refit();
         });
 
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && container.classList.contains('canvas-fullscreen')) {
-                container.classList.remove('canvas-fullscreen');
-                refit();
-            }
-        });
+        // keyboardFocus owns Escape and Tab so a menu above this canvas can
+        // close without also exiting fullscreen on the same key press.
     }
 
     function initAll() {

@@ -340,26 +340,6 @@
             requestGroupDelete(names);
         });
 
-        // --- Ctrl+S to save (settings tab or node editor) ---
-        document.addEventListener('keydown', function (e) {
-            if (e.defaultPrevented) return;
-            if (!((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's')) return;
-            var editor = document.getElementById('sidebar-editor-container');
-            if (document.querySelector('.modal.show') || !editor || editor.inert) return;
-            e.preventDefault();
-            var settingsModal = document.getElementById('settings-modal');
-            var settingsOpen = settingsModal && (
-                settingsModal.classList.contains('show') ||
-                settingsModal.getAttribute('aria-modal') === 'true' ||
-                settingsModal.style.display === 'block'
-            );
-            if (settingsOpen) {
-                _clickDashBtn('btn-settings-save');
-            } else {
-                _clickDashBtn('btn-save');
-            }
-        });
-
         // Prevent browser context menu on the main cytoscape container (once).
         if (cyWrapper) {
             cyWrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });

@@ -181,6 +181,7 @@
         } else if (evt.key === 'Escape' || evt.key === 'Tab') {
             if (evt.key === 'Escape') evt.preventDefault();
             hideAll();
+            if (evt.key === 'Tab') window.SkillTree.keyboardFocus.tab(evt);
         } else {
             return;
         }
