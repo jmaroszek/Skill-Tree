@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, windowChrome,
+  isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome,
 } = require('./shell');
 
 const none = () => false;
@@ -66,6 +66,14 @@ test('each platform gets its own window chrome', () => {
   assert.equal(mac.titleBarStyle, 'hiddenInset');
   assert.equal(mac.titleBarOverlay, true);   // exposes env(titlebar-area-x)
   assert.deepEqual(windowChrome('linux'), {});   // the native frame
+});
+
+test('a modal dims the window buttons like the rest of the page', () => {
+  assert.deepEqual(titleBarOverlay(false), windowChrome('win32').titleBarOverlay);
+  const dimmed = titleBarOverlay(true);
+  assert.equal(dimmed.color, '#0d0f11');
+  assert.equal(dimmed.symbolColor, '#6f7173');
+  assert.equal(dimmed.height, 40);
 });
 
 test('only the app itself may load in the window', () => {

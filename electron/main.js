@@ -20,7 +20,7 @@ const {
   appUrl, exitMessage, newToken, restorePrompt, startServer, stopServer,
 } = require('./server_process');
 const {
-  isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, windowChrome,
+  isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome,
 } = require('./shell');
 const {
   checkNow, latestRelease, readPreferences, updateMode, writePreferences,
@@ -38,6 +38,7 @@ let mainWindow = null;
 let quitting = false;
 registerResourceDialog(ipcMain, dialog, () => mainWindow, () => server && server.port);
 registerUpdateSettings();
+registerModalDimming();
 
 app.setAppUserModelId('com.skilltree.app');
 // Separate Electron profile per environment so a sandbox window and a
@@ -149,6 +150,18 @@ function registerUpdateSettings() {
       current: app.getVersion(), fetchJson: fetchReleaseJson,
       autoUpdater: mode === 'install' ? require('electron-updater').autoUpdater : null,
     });
+  });
+}
+
+// Windows draws its window buttons above the page, out of reach of a modal's
+// backdrop, so the page reports modals here and the overlay is repainted to
+// match. macOS keeps its traffic lights, and Linux its native frame.
+function registerModalDimming() {
+  ipcMain.handle('skilltree:modal-open', (event, open) => {
+    const url = event.senderFrame && event.senderFrame.url;
+    if (!isAppUrl(url, server && server.port)) throw new Error('Not the Skill Tree page.');
+    if (process.platform !== 'win32' || !mainWindow) return;
+    mainWindow.setTitleBarOverlay(titleBarOverlay(!!open));
   });
 }
 

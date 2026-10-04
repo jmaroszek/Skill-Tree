@@ -33,6 +33,25 @@ function serverCommand({ isPackaged, platform, resourcesPath, repo, env, exists,
   return { command, args, cwd: repo };
 }
 
+// The OS draws the window buttons above the page, so a modal's backdrop can't
+// dim them. The page reports when a modal is open (assets/window_chrome.js)
+// and the shell repaints the overlay as the backdrop would: black at
+// Bootstrap's backdrop opacity over the toolbar's colors.
+const OVERLAY = { color: '#1a1d21', symbolColor: '#dee2e6', height: 40 };
+const BACKDROP_OPACITY = 0.5;
+
+function dimHex(hex) {
+  const channels = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  return '#' + channels
+    .map(c => Math.round(c * (1 - BACKDROP_OPACITY)).toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function titleBarOverlay(dimmed) {
+  if (!dimmed) return { ...OVERLAY };
+  return { ...OVERLAY, color: dimHex(OVERLAY.color), symbolColor: dimHex(OVERLAY.symbolColor) };
+}
+
 // The title bar. On Windows and macOS the app's toolbar is the title bar, with
 // the OS's own window buttons drawn over it: on the right on Windows, as
 // traffic lights on the left on macOS. titleBarOverlay exposes their area to
@@ -41,10 +60,7 @@ function serverCommand({ isPackaged, platform, resourcesPath, repo, env, exists,
 // native frame.
 function windowChrome(platform) {
   if (platform === 'win32') {
-    return {
-      titleBarStyle: 'hidden',
-      titleBarOverlay: { color: '#1a1d21', symbolColor: '#dee2e6', height: 40 },
-    };
+    return { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(false) };
   }
   if (platform === 'darwin') {
     return { titleBarStyle: 'hiddenInset', titleBarOverlay: true };
@@ -107,4 +123,4 @@ function macMenuTemplate(appName) {
   ];
 }
 
-module.exports = { isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, windowChrome };
+module.exports = { isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome };
