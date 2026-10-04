@@ -7,13 +7,14 @@ from graph_analytics import (
     _build_adjacency,
     _compute_overview,
     _compute_bottlenecks,
-    _compute_hub_score,
     _compute_estimation_accuracy,
     _REFLECTION_MIN_N,
     _compute_reflection_drift,
     _compute_throughput,
-    _compute_goal_comparison,
+    _compute_goal_progress,
     _compute_rating_distribution,
+    _RECENT_DAYS,
+    _TYPE_ORDER,
 )
 
 import logging
@@ -30,7 +31,8 @@ import database
 import ui_kit
 from graph_manager import GraphManager
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from config import ConfigManager, BADGE_PALETTE
+from config import ConfigManager, BADGE_PALETTE, badge_style
+import style_tokens as tokens
 
 graph_manager = GraphManager()
 logger = logging.getLogger(__name__)
@@ -86,9 +88,13 @@ _BG = '#1a1d21'
 _CARD_BG = '#2b3035'
 _BORDER = '#495057'
 _TEXT = '#dee2e6'  # --st-text-primary
-# One fill for ranked single-series bars (Bottleneck, Hub). Taken from the
-# muted register of the subcontext palette below.
+# The Bottlenecks bar: the work a node unlocks, in a fill taken from the
+# muted register of the subcontext palette below, after a gray stub for the
+# node's own time. Gray, because cost is context for the bar, not the bar.
 _RANK_BAR = '#3a6ba6'
+_OWN_COST_BAR = '#868e96'
+# The capacity line on Throughput: --st-text-soft, dashed like the 1x guides.
+_CAPACITY_LINE = '#adb5bd'
 _CHART_CFG = {"displayModeBar": False}
 
 
@@ -139,25 +145,6 @@ def _card(children):
         "borderRadius": "6px",
         "padding": "12px 16px",
     })
-
-
-def _integer_dtick(max_val):
-    """Pick a nice integer tick step aiming for ~5-8 ticks on an axis."""
-    if max_val <= 5:
-        return 1
-    if max_val <= 10:
-        return 2
-    if max_val <= 25:
-        return 5
-    if max_val <= 50:
-        return 10
-    if max_val <= 100:
-        return 20
-    if max_val <= 250:
-        return 50
-    if max_val <= 500:
-        return 100
-    return max(1, round(max_val / 6))
 
 
 def _friendly_xticks(max_val: float) -> tuple[list, list]:
@@ -231,56 +218,6 @@ def _log_time_ticks(min_val: float, max_val: float) -> tuple[list, list]:
         k += 1
 
 
-def _hbar_chart(names, values, colors=None, hover_texts=None, x_title=None,
-                height=None, integer_x=False, friendly_x=False, label_len=25):
-    """Create a standard horizontal bar chart figure.
-
-    integer_x: force integer-only x-axis ticks (for counts, not hours).
-    friendly_x: when the x values are hours, render ticks via
-        ConfigManager.format_time_friendly (e.g. "1y", "2m") instead of raw
-        hour counts. Mutually exclusive with integer_x.
-    """
-    if not names:
-        return None
-    color = colors if colors else '#0d6efd'
-    # Reverse so largest is at top (Plotly draws bottom-up)
-    names = list(reversed(names))
-    values = list(reversed(values))
-    if isinstance(color, list):
-        color = list(reversed(color))
-    if hover_texts:
-        hover_texts = list(reversed(hover_texts))
-
-    if height is None:
-        height = max(180, len(names) * 28 + 60)
-
-    fig = go.Figure(go.Bar(
-        y=names, x=values, orientation='h',
-        marker_color=color, opacity=0.9,
-        hovertext=hover_texts,
-        hoverinfo='text' if hover_texts else 'x+y',
-    ))
-    xaxis = dict(title=x_title) if x_title else {}
-    if integer_x and values:
-        xaxis['tickmode'] = 'linear'
-        xaxis['tick0'] = 0
-        xaxis['dtick'] = _integer_dtick(max(values))
-        xaxis['tickformat'] = 'd'
-    elif friendly_x and values:
-        tickvals, ticktext = _friendly_xticks(max(values))
-        xaxis['tickmode'] = 'array'
-        xaxis['tickvals'] = tickvals
-        xaxis['ticktext'] = ticktext
-    fig.update_layout(**_base_layout(
-        height=height,
-        margin=dict(l=10, r=20, t=10, b=30),
-        yaxis=dict(automargin=True, ticklabelstandoff=8,
-                   **_label_axis(names, label_len)),
-        xaxis=xaxis,
-    ))
-    return fig
-
-
 # ---------------------------------------------------------------------------
 # Render functions
 # ---------------------------------------------------------------------------
@@ -317,9 +254,9 @@ def _render_overview(metrics):
     }, className="mb-3")
 
 
-# Structure-chart labels have room for most node names; 25 characters cut
+# Bottleneck labels have room for most node names; 25 characters cut
 # "Mind Illuminated Theory - 1" and "- 2" to the same label.
-_STRUCTURE_LABEL_LEN = 40
+_BOTTLENECK_LABEL_LEN = 40
 
 
 def _bottleneck_label(names):
@@ -330,205 +267,112 @@ def _bottleneck_label(names):
     return f"{names[0]} + {len(names) - 1} more"
 
 
-def _render_bottleneck_chart(data, height=None):
-    title = html.H6("Bottlenecks", className="text-muted mb-1")
+def _render_bottleneck_chart(data):
+    """Open nodes ranked by the unfinished work they gate. Each bar starts
+    with a gray stub for the node's own time, so a cheap gate and an
+    expensive one with the same reach read differently. The section header
+    names the chart, so the card has no title of its own."""
     if not data:
-        return _card([title, html.P("No open node gates any unfinished work.",
-                                    className="text-muted small")])
+        return _card([html.P("No open node gates any unfinished work.",
+                             className="text-muted small mb-0")])
 
     fmt = ConfigManager.format_time_friendly
     labels = [_bottleneck_label(d['names']) for d in data]
-    values = [d['hours'] for d in data]
 
     def _hover(d):
         nodes = f"{d['count']} node{'s' if d['count'] != 1 else ''}"
         if len(d['names']) == 1:
-            return f"<b>{d['names'][0]}</b><br>Unlocks {fmt(d['hours'])} across {nodes}"
+            return (f"<b>{d['names'][0]}</b><br>Takes {fmt(d['own_hours'])}"
+                    f"<br>Unlocks {fmt(d['hours'])} across {nodes}")
         return ("<br>".join(f"<b>{n}</b>" for n in d['names'])
+                + f"<br>Take {fmt(d['own_hours'])} together"
                 + f"<br>Each unlocks the same {nodes} ({fmt(d['hours'])})")
 
-    fig = _hbar_chart(labels, values, colors=_RANK_BAR,
-                      hover_texts=[_hover(d) for d in data],
-                      x_title="Work time unlocked", friendly_x=True,
-                      height=height, label_len=_STRUCTURE_LABEL_LEN)
-    return _card([title, _graph(fig)])
-
-
-def _render_hub_chart(data, height=None):
-    """Companion to the bottleneck chart. Bottleneck asks 'what unlocks the
-    most downstream?'; Hub asks 'what is most integrated into the user's
-    thinking?'. Same horizontal-bar treatment so the comparison reads as
-    intentional."""
-    title = html.H6("Hubs", className="text-muted mb-1")
-    if not data:
-        return _card([title, html.P(
-            "No hub nodes found — nodes need edges flowing in AND out to "
-            "qualify.", className="text-muted small")])
-
-    names = [d['name'] for d in data]
-    values = [round(d['score'], 2) for d in data]
-    hover = [
-        f"<b>{d['name']}</b><br>"
-        f"{d['in_count']} in · {d['out_count']} out · "
-        f"{d['helps_count']} {'synergy' if d['helps_count'] == 1 else 'synergies'}<br>"
-        f"{d['type']}"
-        for d in data
-    ]
-
-    fig = _hbar_chart(names, values, colors=_RANK_BAR, hover_texts=hover,
-                      x_title="Hub score", height=height,
-                      label_len=_STRUCTURE_LABEL_LEN)
-    return _card([title, _graph(fig)])
-
-
-def _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered):
-    fmt = ConfigManager.format_time_friendly
-
-    if not goal_rows:
-        return _card(html.P("No goals defined.", className="text-muted small"))
-
-    sections_left = []
-    sections_right = []
-
-    # --- Shared y-axis order (used by both charts) ---
-    # goal_rows is in ROI order (highest priority first); both charts place
-    # the highest-priority goal at the top.
-    y_order = [g['name'] for g in goal_rows]
-    n_goals = len(y_order)
-    shared_height = max(300, n_goals * 32 + 80)
-    shared_margin = dict(l=10, r=20, t=30, b=30)
-
-    # --- Completion bar chart (stacked: done + remaining) ---
-    sorted_goals = list(reversed(goal_rows))  # reversed for Plotly bottom-up drawing
-    bar_names = [g['name'] for g in sorted_goals]
-    done_pcts = [g['pct'] for g in sorted_goals]
-    remaining_pcts = [100 - g['pct'] for g in sorted_goals]
-    hover_done = [
-        f"<b>{g['name']}</b><br>"
-        f"Done: {g['done']} / {g['total']} hard ({g['pct']}%)<br>"
-        f"Remaining: {fmt(g['remaining'])}<br>"
-        f"Blocked: {g['blocked']}"
-        + (f"<br>Priority #{g['priority_rank']}" if g['priority_rank'] else "")
-        for g in sorted_goals
-    ]
-    hover_remaining = [
-        f"<b>{g['name']}</b><br>Remaining: {100 - g['pct']}%"
-        for g in sorted_goals
-    ]
+    # Plotly draws category rows bottom-up: reverse so the biggest leads.
+    rows = list(reversed(data))
+    names = list(reversed(labels))
+    hover = [_hover(d) for d in rows]
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        y=bar_names, x=done_pcts, orientation='h',
-        marker_color='#198754', opacity=0.9, name=STATUS_DONE,
-        hovertext=hover_done, hoverinfo='text',
-    ))
-    # Faint remaining track: keeps a common 100% baseline and a hover target
-    # for zero-progress goals (whose Done segment is zero-width).
+        y=names, x=[d['own_hours'] for d in rows], orientation='h',
+        name="Own time", marker_color=_OWN_COST_BAR, opacity=0.9,
+        hovertext=hover, hoverinfo='text'))
     fig.add_trace(go.Bar(
-        y=bar_names, x=remaining_pcts, orientation='h',
-        marker_color='#495057', opacity=0.15, name='Remaining',
-        hovertext=hover_remaining, hoverinfo='text',
-    ))
+        y=names, x=[d['hours'] for d in rows], orientation='h',
+        name="Unlocks", marker_color=_RANK_BAR, opacity=0.9,
+        hovertext=hover, hoverinfo='text'))
+    tickvals, ticktext = _friendly_xticks(max(d['own_hours'] + d['hours'] for d in data))
     fig.update_layout(**_base_layout(
-        barmode='stack', height=shared_height,
-        margin=shared_margin,
+        barmode='stack',
+        height=max(180, len(data) * 28 + 60) + 24,
+        margin=dict(l=10, r=20, t=10, b=30),
+        showlegend=True,
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0,
+                    traceorder='normal'),
         yaxis=dict(automargin=True, ticklabelstandoff=8,
-                   categoryorder='array', categoryarray=bar_names,
-                   **_label_axis(bar_names)),
-        xaxis=dict(title="Completion %", range=[0, 100], showgrid=False),
+                   **_label_axis(names, _BOTTLENECK_LABEL_LEN)),
+        xaxis=dict(title="Work time", tickmode='array',
+                   tickvals=tickvals, ticktext=ticktext),
     ))
-    sections_left.append(html.H6("Completion", className="text-muted mb-1"))
-    sections_left.append(html.Small(
-        "Hard prerequisites only",
-        className="text-muted d-block mb-2",
-        style={"fontSize": "0.75rem"},
-    ))
-    sections_left.append(_graph(fig))
+    return _card([_graph(fig)])
 
-    # --- Shared Prerequisites Heatmap ---
-    if overlap_rows and len(goal_names_ordered) > 1:
-        gnames = goal_names_ordered
-        n = len(gnames)
-        idx = {name: i for i, name in enumerate(gnames)}
-        # Build symmetric matrix
-        matrix = [[0] * n for _ in range(n)]
-        for o in overlap_rows:
-            i, j = idx.get(o['goal_a']), idx.get(o['goal_b'])
-            if i is not None and j is not None:
-                matrix[i][j] = o['shared']
-                matrix[j][i] = o['shared']
 
-        hover_matrix = [['' for _ in range(n)] for _ in range(n)]
-        for i in range(n):
-            for j in range(n):
-                if i == j:
-                    hover_matrix[i][j] = f"<b>{gnames[i]}</b>"
-                else:
-                    hover_matrix[i][j] = (
-                        f"<b>{gnames[i]}</b> & <b>{gnames[j]}</b><br>"
-                        f"Shared: {matrix[i][j]} nodes"
-                    )
+def _progress_label(row):
+    """A Goals row's percent. Only a Goal whose every node is Done reads
+    100%; one whose last open node holds no hours of its own reads 99.9%."""
+    if row['pct'] == 100:
+        return "100%"
+    return _share_label(min(row['share'], 0.999))
 
-        # Use y_order (ROI order) for BOTH axes so the diagonal aligns
-        # top-left to bottom-right; mask the upper-right triangle since the
-        # matrix is symmetric. Plotly renders None cells as transparent.
-        ordered_matrix = []
-        ordered_hover = []
-        for i, name_i in enumerate(y_order):
-            src_i = idx.get(name_i)
-            row, hover_row = [], []
-            for j, name_j in enumerate(y_order):
-                src_j = idx.get(name_j)
-                if src_i is None or src_j is None or i < j:
-                    row.append(None)
-                    hover_row.append('')
-                else:
-                    row.append(matrix[src_i][src_j])
-                    hover_row.append(hover_matrix[src_i][src_j])
-            ordered_matrix.append(row)
-            ordered_hover.append(hover_row)
 
-        hm_fig = go.Figure(go.Heatmap(
-            z=ordered_matrix, x=y_order, y=y_order,
-            colorscale=[[0, _BG], [0.25, '#162d50'], [0.5, '#1a5276'], [0.75, '#2185d0'], [1, '#54b8ff']],
-            hovertext=ordered_hover, hoverinfo='text',
-            showscale=False,
-        ))
-        hm_fig.update_layout(**_base_layout(
-            height=shared_height,
-            margin=shared_margin,
-            xaxis=dict(automargin=True, tickangle=-45, side='bottom',
-                       showgrid=False, zeroline=False,
-                       categoryorder='array', categoryarray=y_order,
-                       **_label_axis(y_order)),
-            yaxis=dict(automargin=True, ticklabelstandoff=8,
-                       showgrid=False, zeroline=False,
-                       autorange='reversed',
-                       categoryorder='array', categoryarray=y_order,
-                       **_label_axis(y_order)),
-        ))
+def _render_goal_progress(rows):
+    """One row per top Goal: a bar of the share of its estimated work that is
+    Done, the brighter part finished in the last six months, then the
+    percent. HTML rather than Plotly, like the Contexts table, so each name
+    sits on its bar's line and the priority badge can follow the name."""
+    if not rows:
+        return _card(html.P("No goals defined.", className="text-muted small mb-0"))
 
-        sections_right.append(html.H6("Shared Prerequisites", className="text-muted mb-1"))
-        sections_right.append(html.Small(
-            "Hard + soft prerequisites",
-            className="text-muted d-block mb-2",
-            style={"fontSize": "0.75rem"},
-        ))
-        sections_right.append(_graph(hm_fig))
-
-    # If no overlap data, show a message in the right column
-    if not sections_right:
-        sections_right.append(html.H6("Shared Prerequisites", className="text-muted mb-1"))
-        sections_right.append(html.Small(
-            "Hard + soft prerequisites",
-            className="text-muted d-block mb-2",
-            style={"fontSize": "0.75rem"},
-        ))
-        sections_right.append(html.P("No shared prerequisites between goals.", className="text-muted small"))
-
-    return dbc.Row([
-        dbc.Col(_card(sections_left), width=6),
-        dbc.Col(_card(sections_right), width=6),
-    ], className="g-3")
+    fmt = ConfigManager.format_time_friendly
+    months = round(_RECENT_DAYS / 30.4)
+    body = []
+    for r in rows:
+        total = r['total_time']
+        if total > 0:
+            recent = r['recent_time'] / total
+            earlier = r['done_time'] / total - recent
+        else:
+            recent, earlier = 0.0, r['share']
+        segments = [html.Div(className=cls, style={'width': f"max({100 * w:.2f}%, 2px)"})
+                    for cls, w in (("gp-earlier", earlier), ("gp-recent", recent))
+                    if w > 0]
+        if total <= 0:
+            done_line = f"{r['done']} of {r['total']} nodes done"
+        elif r['done_time'] > 0:
+            done_line = f"{fmt(r['done_time'])} of {fmt(total)} done"
+        else:
+            done_line = f"None of its {fmt(total)} done yet"
+        n = r['recent_count']
+        recent_line = (f"{fmt(r['recent_time'])} of it in the last {months} months, "
+                       f"across {n} node{'s' if n != 1 else ''}"
+                       if r['recent_time'] else
+                       f"Nothing finished in the last {months} months")
+        name = [html.Span(r['name'], className="gp-name-text", title=r['name'])]
+        if r['priority_rank']:
+            name.append(html.Span(str(r['priority_rank']), className="badge gp-rank",
+                                  title=f"Priority {r['priority_rank']}",
+                                  style=badge_style("PriorityRank", font_size=tokens.FS_XS)))
+        body.append(html.Div([
+            html.Div(name, className="gp-name"),
+            html.Div(html.Div(segments, className="gp-track"), className="gp-bar",
+                     **{'data-tip': f"{r['name']}\n{done_line}\n{recent_line}"}),
+            html.Div(_progress_label(r), className="gp-pct"),
+        ], className="gp-row"))
+    legend = html.Div([
+        html.Span([html.I(className="gp-swatch gp-earlier"), "Done earlier"]),
+        html.Span([html.I(className="gp-swatch gp-recent"), f"Last {months} months"]),
+    ], className="gp-legend")
+    return _card([html.Div([legend, html.Div(body)], className="goal-progress")])
 
 
 def _render_estimation_accuracy(rows):
@@ -772,10 +616,16 @@ def _render_reflection_drift_chart(rows):
 _THROUGHPUT_MAX_BARS = 24
 
 
-def _render_throughput_chart(quarter_rows, granularity='quarter'):
+def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
     """Stacked vertical bar of hours completed per calendar bucket
-    (month/quarter/year), segmented by context. No legend — context name
-    plus a top-N list of completed nodes (with hours) is revealed via hover."""
+    (month/quarter/year), segmented by context or by node type, under a
+    dashed step line for capacity. Contexts get no legend: their name and a
+    top-N list of completed nodes (with hours) come up on hover. Node types
+    have one, in the badge colors, since there are only a few.
+
+    The x axis is numeric, with the bucket labels as ticks, so the capacity
+    steps can run edge to edge of each bar's slot rather than stopping at
+    its centre."""
     fmt = ConfigManager.format_time_friendly
     title_word = {'month': 'Month', 'quarter': 'Quarter',
                   'year': 'Year'}.get(granularity, 'Quarter')
@@ -786,27 +636,41 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
             "No nodes with a completion date yet. Mark nodes Done to "
             "populate this chart.", className="text-muted small")])
 
-    # Stable per-context colour, ordered by total throughput so the largest
-    # context gets the first palette colour and the stacking order is
-    # consistent across bars.
-    total_per_ctx = defaultdict(float)
+    total_per_key = defaultdict(float)
     for r in quarter_rows:
-        for s in r['segments']:
-            total_per_ctx[s['context']] += s['hours']
-    ctx_order = sorted(total_per_ctx.keys(),
-                       key=lambda c: total_per_ctx[c], reverse=True)
-    ctx_color = {
-        c: (_NO_SUBCONTEXT_COLOR if c == 'No Context'
-            else _SUBCONTEXT_PALETTE[i % len(_SUBCONTEXT_PALETTE)])
-        for i, c in enumerate(ctx_order)
-    }
+        for seg in r['segments']:
+            total_per_key[seg['key']] += seg['hours']
+    # A Done Milestone holds no hours, and would only add an empty legend entry.
+    total_per_key = {k: h for k, h in total_per_key.items() if h > 0}
+    if by == 'type':
+        keys = sorted(total_per_key, key=lambda t: (_TYPE_ORDER.index(t)
+                                                    if t in _TYPE_ORDER else 99))
+        color = {t: BADGE_PALETTE.get(t, (_NO_SUBCONTEXT_COLOR,))[0] for t in keys}
+    else:
+        # Stable per-context colour, ordered by total throughput so the
+        # largest context gets the first palette colour and the stacking
+        # order is consistent across bars.
+        keys = sorted(total_per_key, key=lambda c: total_per_key[c], reverse=True)
+        color = {
+            c: (_NO_SUBCONTEXT_COLOR if c == 'No Context'
+                else _SUBCONTEXT_PALETTE[i % len(_SUBCONTEXT_PALETTE)])
+            for i, c in enumerate(keys)
+        }
 
-    q_labels = [r['label'] for r in quarter_rows]
+    labels = [r['label'] for r in quarter_rows]
+    xs = list(range(len(quarter_rows)))
 
-    def _tooltip(label, context, seg):
+    def _against_capacity(r):
+        cap = r['capacity']
+        if not cap:
+            return f"{fmt(r['total_hours'])} done"
+        return (f"{fmt(r['total_hours'])} done of {fmt(cap)} capacity "
+                f"({r['total_hours'] / cap:.0%})")
+
+    def _tooltip(r, key, seg):
         n_nodes = len(seg['nodes'])
         lines = [
-            f"<b>{label} · {context}</b>",
+            f"<b>{r['label']} · {key}</b>",
             f"{fmt(seg['hours'])} across {n_nodes} node"
             f"{'s' if n_nodes != 1 else ''}",
         ]
@@ -815,32 +679,55 @@ def _render_throughput_chart(quarter_rows, granularity='quarter'):
             lines.append(f"  • {nm} ({fmt(h)})")
         if n_nodes > 5:
             lines.append(f"  … and {n_nodes - 5} more")
+        lines.append(_against_capacity(r))
         return '<br>'.join(lines)
 
     fig = go.Figure()
-    for context in ctx_order:
+    for key in keys:
         ys, hovers = [], []
         for r in quarter_rows:
-            seg = next((s for s in r['segments'] if s['context'] == context), None)
+            seg = next((s for s in r['segments'] if s['key'] == key), None)
             if seg and seg['hours'] > 0:
                 ys.append(seg['hours'])
-                hovers.append(_tooltip(r['label'], context, seg))
+                hovers.append(_tooltip(r, key, seg))
             else:
                 ys.append(0)
                 hovers.append('')
         fig.add_trace(go.Bar(
-            x=q_labels, y=ys, name=context,
-            marker_color=ctx_color[context], marker_line=dict(color=_BG, width=1),
+            x=xs, y=ys, name=key,
+            marker_color=color[key], marker_line=dict(color=_BG, width=1),
             opacity=0.9, hovertext=hovers, hoverinfo='text',
         ))
 
-    max_total = max((r['total_hours'] for r in quarter_rows), default=0)
-    tickvals, ticktext = _friendly_xticks(max_total)
+    # Capacity steps: flat across each bucket's slot, stepping at the edges.
+    step_x, step_y = [], []
+    for x, r in zip(xs, quarter_rows):
+        step_x += [x - 0.5, x + 0.5]
+        step_y += [r['capacity'], r['capacity']]
+    fig.add_trace(go.Scatter(
+        x=step_x, y=step_y, mode='lines', name="Capacity",
+        line=dict(color=_CAPACITY_LINE, dash='dash', width=1.5),
+        hoverinfo='skip', showlegend=False,
+    ))
+    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
+    fig.add_annotation(
+        x=xs[-1] + 0.5, y=quarter_rows[-1]['capacity'], xref='x', yref='y',
+        text=f"Capacity<br>{per_week:g}h a week", showarrow=False,
+        xanchor='left', yanchor='middle', align='left',
+        font=dict(size=11, color=_CAPACITY_LINE))
+
+    top = max(max(r['total_hours'] for r in quarter_rows),
+              max(r['capacity'] for r in quarter_rows))
+    tickvals, ticktext = _friendly_xticks(top)
     fig.update_layout(**_base_layout(
-        barmode='stack', height=360,
-        margin=dict(l=10, r=20, t=10, b=40),
-        xaxis=dict(automargin=True, categoryorder='array',
-                   categoryarray=q_labels),
+        barmode='stack', height=360 + (24 if by == 'type' else 0),
+        margin=dict(l=10, r=80, t=10, b=40),
+        showlegend=by == 'type',
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0,
+                    traceorder='normal'),
+        xaxis=dict(automargin=True, tickmode='array', tickvals=xs,
+                   ticktext=labels, range=[-0.5, len(xs) - 0.5],
+                   showgrid=False, zeroline=False),
         yaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
                    automargin=True, title="Work time"),
     ))
@@ -883,22 +770,57 @@ def _strip_left(value, width):
     return f"calc({value - 0.5:.3f} * (100% + 2px) / 10 - {1 + width / 2:g}px)"
 
 
+def _share_label(share):
+    """A share as a percent. Below 1% and just short of 100% keep a decimal,
+    so a sliver never reads 0% and a near-whole never reads 100%."""
+    v = 100 * share
+    if 0 < v < 1 or 99.5 <= v < 100:
+        return f"{min(max(v, 0.1), 99.9):.1f}%"
+    return f"{v:.0f}%"
+
+
+def _type_split(time_by_type):
+    """'Learn 54% · Resource 42% · Action 4%', in the stacking order."""
+    total = sum(time_by_type.values())
+    if not total:
+        return ""
+    return " · ".join(f"{t} {_share_label(time_by_type[t] / total)}"
+                      for t in _TYPE_ORDER if time_by_type.get(t))
+
+
 def _work_left_cell(row, area, scale):
     """The last column: the area's remaining work as a bar and a time. Bars
     share one scale, the largest context's share, so the biggest context
-    fills its track and a subcontext reads against it. ``scale`` is None on
-    the All nodes row, which shows its total without a bar."""
+    fills its track and a subcontext reads against it. The bar is split by
+    node type in the badge colors. ``scale`` is None on the All nodes row,
+    which shows its total without a bar.
+
+    The tooltip leaves out the total, which ends the bar already. It gives
+    the area's share of all remaining work, the exact type mix and the
+    median node time; the row's count, at its start, is the median's
+    sample, less any node whose time comes from its children."""
     fmt = ConfigManager.format_time_friendly
+    by_type = row.get('time_by_type') or {}
     track = []
     if scale:
         width = min(100.0, 100 * row['share'] / scale)
-        track = [html.Div(html.Div(className="rd-work-fill",
-                                   style={'width': f"{width:.1f}%"}),
-                          className="rd-work-track")]
-    tip = (f"{area}\n{fmt(row['time'])} of work left"
-           f"\n{row['share']:.0%} of all remaining work")
+        segments = [
+            html.Div(className="rd-work-seg", style={
+                'width': f"max({width * by_type[t] / row['time']:.2f}%, 2px)",
+                'backgroundColor': BADGE_PALETTE.get(t, (_NO_SUBCONTEXT_COLOR,))[0],
+            })
+            for t in _TYPE_ORDER if by_type.get(t) and row['time']
+        ]
+        track = [html.Div(segments, className="rd-work-track")]
+    lines = [area]
+    if scale:
+        lines.append(f"{_share_label(row['share'])} of all remaining work")
+    lines.append(_type_split(by_type))
+    if row.get('median_time'):
+        lines.append(f"Median node time: {fmt(row['median_time'])}")
     return html.Div(track + [html.Span(fmt(row['time']), className="rd-work-time")],
-                    className="rd-work", **{'data-tip': tip})
+                    className="rd-work",
+                    **{'data-tip': "\n".join(line for line in lines if line)})
 
 
 def _rating_dist_row(row, label, kind, defs, chevron=False, element=html.Div,
@@ -1054,18 +976,20 @@ def register_analyze_callbacks(app, services=None):
     # Subtabs show and hide their panes in the browser. Every pane renders
     # together, so a switch needs no server round-trip;
     # assets/analyze_first_paint.js sizes a pane's charts as it appears.
+    # An unknown tab, such as the Structure tab a browser may still remember,
+    # shows Plan.
     app.clientside_callback(
         """
         function(active) {
-            return ['analyze-plan', 'analyze-history', 'analyze-structure']
-                .map(function (id) {
-                    return {display: id === (active || 'analyze-plan') ? 'block' : 'none'};
-                });
+            var panes = ['analyze-plan', 'analyze-history'];
+            var shown = panes.indexOf(active) >= 0 ? active : 'analyze-plan';
+            return panes.map(function (id) {
+                return {display: id === shown ? 'block' : 'none'};
+            });
         }
         """,
         Output("analyze-pane-plan", "style"),
         Output("analyze-pane-history", "style"),
-        Output("analyze-pane-structure", "style"),
         Input("analyze-subtabs", "active_tab"),
     )
 
@@ -1081,7 +1005,7 @@ def register_analyze_callbacks(app, services=None):
         Output("analyze-time-content", "children"),
         Output("analyze-drift-content", "children"),
         Output("analyze-throughput-content", "children"),
-        Output("analyze-graph-content", "children"),
+        Output("analyze-bottlenecks-content", "children"),
         Output("analyze-sections", "hidden"),
         Output("analyze-loading-cover", "hidden"),
         Output("analyze-rendered-store", "data"),
@@ -1092,6 +1016,7 @@ def register_analyze_callbacks(app, services=None):
         Input("setting-analyze-throughput-granularity", "value"),
         Input("setting-analyze-throughput-start", "value"),
         Input("setting-analyze-throughput-end", "value"),
+        Input("setting-analyze-throughput-color", "value"),
         # save-output is the global "something was saved" channel. Reflection
         # edits via the hub modal don't regenerate Cytoscape elements, so
         # graph-version-store doesn't bump and the usual graph-change signal
@@ -1105,8 +1030,8 @@ def register_analyze_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def refresh_analyze_tab(_arrived, _prewarm, bottlenecks, goals,
-                            thru_gran, thru_start, thru_end, _save_output,
-                            active_tab, rendered_signature):
+                            thru_gran, thru_start, thru_end, thru_color,
+                            _save_output, active_tab, rendered_signature):
         skip = (no_update,) * 10
         fired = set(ctx.triggered_prop_ids)
         # A dcc.Store whose data starts as None reports a change with no
@@ -1127,7 +1052,8 @@ def register_analyze_callbacks(app, services=None):
 
         try:
             sections = _render_sections_once(
-                signature, (bottlenecks, goals, thru_gran, thru_start, thru_end),
+                signature,
+                (bottlenecks, goals, thru_gran, thru_start, thru_end, thru_color),
                 reuse)
         except Exception:
             # Never strand the tab behind its cover. Leaving the signature
@@ -1175,11 +1101,11 @@ def _analyze_signature():
 
 
 def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
-                             thru_end):
-    """The seven section bodies of the Analyze tab, in output order: the
-    overview strip; Goals and Contexts (Plan); Time Estimation Accuracy,
-    Rating Accuracy and Throughput (History); Graph Structure
-    (Structure)."""
+                             thru_end, thru_color):
+    """The seven section bodies of the Analyze tab, in the callback's output
+    order: the overview strip; Goals and Contexts (Plan); Time Estimation
+    Accuracy, Rating Accuracy and Throughput (History); then Bottlenecks,
+    which sits beside Goals on Plan."""
     # Persist any limit changes made via the gear popovers before rendering.
     al = ConfigManager.get_analyze_limits()
     if bottlenecks is not None:
@@ -1188,6 +1114,8 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
         al['goals'] = int(goals)
     if thru_gran in ('month', 'quarter', 'year'):
         al['throughput_granularity'] = thru_gran
+    if thru_color in ('context', 'type'):
+        al['throughput_color'] = thru_color
     # Empty-string date inputs persist as None (auto-extent).
     al['throughput_start'] = thru_start or None
     al['throughput_end'] = thru_end or None
@@ -1200,36 +1128,42 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
         empty = html.P("No nodes in the graph yet.", className="text-muted small")
         return empty, "", "", "", "", "", ""
 
-    hard_fwd, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
+    hard_fwd, hard_rev, _, _, _ = _build_adjacency(edges)
 
     # Compute all sections
     limits = _get_limits()
     overview = _compute_overview(nodes, edges)
     bottlenecks = _compute_bottlenecks(nodes, hard_fwd, limits)
-    goal_rows, overlap_rows, total_goal_count = _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits)
+    goal_rows, total_goal_count = _compute_goal_progress(nodes, edges, hard_rev, limits)
     est_accuracy = _compute_estimation_accuracy(nodes)
     rating_dist = _compute_rating_distribution(nodes)
     drift_rows = _compute_reflection_drift(nodes)
+    color_by = al.get('throughput_color', 'context')
     throughput_rows = _compute_throughput(
         nodes,
         granularity=al.get('throughput_granularity', 'quarter'),
         start_date=al.get('throughput_start'),
         end_date=al.get('throughput_end'),
+        by=color_by,
     )
-    hub_data = _compute_hub_score(nodes, edges, limits)
-
-    # Goal names for heatmap axis ordering
-    goal_names_ordered = [g['name'] for g in goal_rows]
 
     overview_content = _render_overview(overview)
 
     goals_content = [
         html.P(
-            f"Top {len(goal_rows)} of {total_goal_count} goals, ranked by scoring algorithm."
+            f"Top {len(goal_rows)} of {total_goal_count} goals, ranked by scoring "
+            "algorithm. Progress is the share of estimated work done."
             if total_goal_count > len(goal_rows)
-            else "Side-by-side progress and overlap for all goals.",
+            else "Every goal, ranked by scoring algorithm. Progress is the "
+                 "share of estimated work done.",
             className="text-muted small"),
-        _render_goal_comparison(goal_rows, overlap_rows, goal_names_ordered),
+        _render_goal_progress(goal_rows),
+    ]
+
+    bottlenecks_content = [
+        html.P("Open nodes that gate the most unfinished work. The gray stub "
+               "is the node's own time.", className="text-muted small"),
+        _render_bottleneck_chart(bottlenecks),
     ]
 
     contexts_content = [
@@ -1265,9 +1199,12 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     gran = al.get('throughput_granularity', 'quarter')
     gran_label = {'month': 'month', 'quarter': 'quarter',
                   'year': 'year'}[gran]
+    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
+    stacked = "node type" if color_by == 'type' else "context"
     throughput_note = (f"Hours of completed work per calendar {gran_label}, "
-                       "stacked by context. Hover a segment for the node "
-                       "list.")
+                       f"stacked by {stacked}. Hover a segment for the node "
+                       f"list. The dashed line is your capacity, {per_week:g} "
+                       "hours a week.")
     if len(throughput_rows) > _THROUGHPUT_MAX_BARS:
         throughput_rows = throughput_rows[-_THROUGHPUT_MAX_BARS:]
         wider = {'month': 'quarters', 'quarter': 'years'}.get(gran)
@@ -1278,27 +1215,10 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     throughput_content = [
         html.P(throughput_note, className="text-muted small"),
         dbc.Row(dbc.Col(_render_throughput_chart(throughput_rows,
-                                                 granularity=gran), width=6),
+                                                 granularity=gran,
+                                                 by=color_by), width=6),
                 className="g-3"),
     ]
 
-    # Bottleneck and Hub share the gear's "nodes shown" limit and render
-    # at the same height (max of the two list lengths) so the row reads
-    # as a paired comparison.
-    gs_count = max(len(bottlenecks), len(hub_data), 1)
-    gs_height = max(180, gs_count * 28 + 60)
-    graph_content = [
-        html.P("Bottlenecks: open nodes that gate the most unfinished work. "
-               "Hubs: nodes with the most flow passing through them, where "
-               "many prerequisites feed in and many dependents flow out.",
-               className="text-muted small"),
-        dbc.Row([
-            dbc.Col(_render_bottleneck_chart(bottlenecks,
-                                             height=gs_height), width=6),
-            dbc.Col(_render_hub_chart(hub_data,
-                                      height=gs_height), width=6),
-        ], className="g-3"),
-    ]
-
     return (overview_content, goals_content, contexts_content, time_content,
-            drift_content, throughput_content, graph_content)
+            drift_content, throughput_content, bottlenecks_content)

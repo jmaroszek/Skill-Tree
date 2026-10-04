@@ -1,13 +1,14 @@
 /**
  * Behaviour for the Analyze tab's Ratings by Context grid: its hover
  * tooltip, the Expand all / Collapse all buttons in its corner, and the
- * toggle for the dashed guide at the mean of all nodes.
+ * toggle for the dashed guide at the mean of all nodes. The Goals rows'
+ * bars share the tooltip.
  *
  * The grid holds about 1,500 cells, so one delegated listener moves a single
  * floating box between them rather than giving each cell its own tooltip.
  * A cell's text is in data-tip, as three lines: the area, the count at that
- * rating, and the rating's definition. A mean tick and the work-left cell
- * use the same first-line-bold layout.
+ * rating, and the rating's definition. A mean tick, the work-left cell and
+ * a Goal's bar use the same first-line-bold layout.
  *
  * The guide toggle is a class on <html>, so it applies before the grid
  * renders and survives every re-render. It starts off on every load and
@@ -42,12 +43,15 @@
         tip.style.top = Math.max(8, top) + 'px';
     }
 
-    function fill(text) {
+    // The first line is the area, in bold. A rating cell's or mean tick's
+    // third line is a definition or a comparison, set soft. The Work left
+    // and Goals tooltips are data on every line.
+    function fill(text, softThird) {
         var lines = text.split('\n');
-        var classes = ['rd-tip-head', '', 'rd-tip-def'];
         tip.replaceChildren.apply(tip, lines.filter(Boolean).map(function (line, i) {
             var d = document.createElement('div');
-            if (classes[i]) d.className = classes[i];
+            if (i === 0) d.className = 'rd-tip-head';
+            else if (i === 2 && softThird) d.className = 'rd-tip-def';
             d.textContent = line;
             return d;
         }));
@@ -55,7 +59,8 @@
 
     var current = null;
     document.addEventListener('pointermove', function (e) {
-        var cell = e.target.closest && e.target.closest('.rating-dist .rd-cell, .rating-dist .rd-mean, .rating-dist .rd-work');
+        var cell = e.target.closest && e.target.closest(
+            '.rating-dist .rd-cell, .rating-dist .rd-mean, .rating-dist .rd-work, .goal-progress .gp-bar');
         if (!cell) {
             if (current) { tip.hidden = true; current = null; }
             return;
@@ -63,7 +68,8 @@
         ensureTip();
         if (cell !== current) {
             current = cell;
-            fill(cell.getAttribute('data-tip') || '');
+            fill(cell.getAttribute('data-tip') || '',
+                 cell.matches('.rd-cell, .rd-mean'));
             tip.hidden = false;
         }
         position(e.clientX, e.clientY);

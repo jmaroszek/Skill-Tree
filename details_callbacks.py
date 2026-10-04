@@ -394,8 +394,8 @@ def register_details_callbacks(app, services=None):
                 remaining = ConfigManager.format_time_friendly(
                     completion["remaining_time"])
                 # Milestone count: walk the same hard-subtree the completion
-                # walked, count Milestones in it. Filter-independent (matches
-                # the existing "X/Y hard subtasks" stat which is also total).
+                # walked, count Milestones in it. Filter-independent, like
+                # the percent beside it.
                 hard_view = graph_manager.get_dependency_view(
                     node_name, include_soft=False, include_synergies=False,
                     max_depth=max_depth)
@@ -409,10 +409,10 @@ def register_details_callbacks(app, services=None):
                         if child.status == STATUS_DONE:
                             ms_done += 1
                 ms_label = "milestone" if ms_total == 1 else "milestones"
-                parts = []
+                # The bar and its percent weigh each node by its estimate.
+                parts = [f"{completion['pct']}% done"]
                 if ms_total > 0:
                     parts.append(f"{ms_done}/{ms_total} {ms_label}")
-                parts.append(f"{completion['done']}/{completion['total']} hard subtasks")
                 parts.append(f"{remaining} remaining")
                 #   (nbsp) sits next to the regular space so it doesn't
                 # collapse — gives a visibly wider gap on each side of the

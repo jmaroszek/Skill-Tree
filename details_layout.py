@@ -838,7 +838,6 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     border_style = f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}"
 
     pct = completion.get("pct", 0)
-    done = completion.get("done", 0)
     total = completion.get("total", 0)
     formatted_time = ConfigManager.format_time_friendly(completion.get("remaining_time", 0))
 
@@ -902,11 +901,12 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
         ], className="d-flex align-items-center justify-content-between mb-0"),
     ]
 
-    # Stats line. No percentage: the done/total count already shows progress,
-    # and the remaining time carries the sense of size.
+    # Stats line: progress as the share of estimated work done, so a Goal
+    # with one big topic left doesn't look nearly finished; the remaining
+    # time carries the sense of size.
     if total > 0:
         _sep = "\u00a0\u00a0\u00b7\u00a0\u00a0"
-        stats_text = f"{done}/{total} hard subtasks{_sep}{formatted_time}"
+        stats_text = f"{pct}% done{_sep}{formatted_time} left"
     else:
         stats_text = "No subtasks yet"
 

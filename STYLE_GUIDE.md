@@ -452,6 +452,10 @@ An Analyze chart takes half the width (`dbc.Col(width=6)`) unless it has a real 
 
 Plotly hover boxes on Analyze use one style, set in the shared layout helper: the raised card background, the panel border and primary text. By default Plotly fills each box with its mark's colour, which made a Goal-yellow bar's tooltip a loud mustard block.
 
+A chart whose rows need to line up with HTML labels, such as the Contexts table and the Goals rows, is built in HTML rather than Plotly. Its tooltip is the floating `.rd-tip` box moved by `assets/rating_dist.js`, with the text in a `data-tip` attribute: the area in bold on the first line, then data. Only a rating cell's or mean tick's third line, a definition or comparison, is set soft.
+
+When a bar is split by node type, the segments take the type's `BADGE_PALETTE` colour and stack in one order: Learn, Resource, Action. The Contexts table's Work left bar and Throughput coloured by node type both follow it, so the same colour means the same type on every Analyze chart.
+
 ## Borders & Dividers
 
 - Panel dividers: `1px solid var(--st-border-panel)` (`tokens.BORDER_PANEL`)

@@ -228,6 +228,42 @@ def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
     }
 
 
+def summarize_completion(nodes: List[Node]) -> dict:
+    """How far along a set of nodes is, weighted by estimated work.
+
+    ``share`` is the Done nodes' estimated hours over everyone's, so a Goal
+    with one big topic left reads as mostly unfinished however many small
+    nodes it has ticked off. A set with no estimated hours at all, such as
+    Milestones over containers, falls back to the share of nodes.
+
+    ``pct`` is ``share`` as a whole percent, held to 1-99 until every node
+    is Done, so 100 still means finished and started work never reads 0.
+    ``total`` and ``done`` stay counts of nodes.
+    """
+    total = len(nodes)
+    done_nodes = [n for n in nodes if n.status == STATUS_DONE]
+    done = len(done_nodes)
+    blocked = sum(1 for n in nodes if n.status == STATUS_BLOCKED)
+    total_time = sum(n.time for n in nodes)
+    done_time = sum(n.time for n in done_nodes)
+    remaining_time = sum(n.time for n in nodes if n.status != STATUS_DONE)
+    if total_time > 0:
+        share = done_time / total_time
+    else:
+        share = done / total if total else 0.0
+    if total and done == total:
+        pct = 100
+    elif share > 0:
+        pct = min(99, max(1, round(share * 100)))
+    else:
+        pct = 0
+    # A goal is considered blocked if ALL of its remaining subtasks are blocked
+    is_blocked = (done + blocked == total) and (blocked > 0)
+    return {"total": total, "done": done, "pct": pct, "share": share,
+            "total_time": total_time, "done_time": done_time,
+            "remaining_time": round(remaining_time, 1), "is_blocked": is_blocked}
+
+
 def get_goal_completion(manager, goal_name: str, include_soft: bool = True,
                         include_transitive: bool = True,
                         max_depth: int | None = None) -> dict:
@@ -237,7 +273,8 @@ def get_goal_completion(manager, goal_name: str, include_soft: bool = True,
         include_soft: If False, only traverse hard-need edges.
         include_transitive: If False, only count direct children of the goal.
 
-    Returns dict with: total, done, pct, remaining_time
+    Returns `summarize_completion`'s dict: progress by estimated hours, with
+    node counts beside it.
     """
     edge_types = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) if include_soft else (EDGE_NEEDS_HARD,)
     if max_depth and max_depth > 0:
@@ -254,21 +291,8 @@ def get_goal_completion(manager, goal_name: str, include_soft: bool = True,
         direct = {e['source'] for e in manager.get_edges()
                   if e['target'] == goal_name and e['type'] in edge_types}
         subtree = subtree & direct
-    if not subtree:
-        return {"total": 0, "done": 0, "pct": 0, "remaining_time": 0.0}
-
     nodes = [manager.get_node(name) for name in subtree]
-    nodes = [n for n in nodes if n is not None]
-    total = len(nodes)
-    done = sum(1 for n in nodes if n.status == STATUS_DONE)
-    blocked = sum(1 for n in nodes if n.status == STATUS_BLOCKED)
-    remaining_time = sum(n.time for n in nodes if n.status != STATUS_DONE)
-    pct = round(done / total * 100) if total > 0 else 0
-
-    # A goal is considered blocked if ALL of its remaining subtasks are blocked
-    is_blocked = (done + blocked == total) and (blocked > 0)
-
-    return {"total": total, "done": done, "pct": pct, "remaining_time": round(remaining_time, 1), "is_blocked": is_blocked}
+    return summarize_completion([n for n in nodes if n is not None])
 
 
 def get_effective_time(manager, node_name: str) -> float:

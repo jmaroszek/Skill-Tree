@@ -4,6 +4,7 @@ Tests for the Analyze tab compute functions.
 Uses a temporary database for isolation — does not touch the production skilltree.db.
 """
 
+from datetime import date
 from typing import Any
 import pytest
 import database
@@ -12,7 +13,7 @@ from graph_manager import GraphManager
 from config import ConfigManager
 from analyze_callbacks import (
     _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
-    _compute_hub_score, _compute_goal_comparison,
+    _compute_goal_progress,
     _compute_throughput, _compute_reflection_drift,
     _compute_rating_distribution,
 )
@@ -50,6 +51,21 @@ def _make_node(name: str = "TestNode", **overrides: Any) -> Node:
     )
     defaults.update(overrides)
     return Node(**defaults)
+
+
+def _walk(component):
+    """Every Dash component in a rendered tree, the root first."""
+    yield component
+    kids = getattr(component, 'children', None)
+    for kid in (kids if isinstance(kids, (list, tuple)) else [kids]):
+        if hasattr(kid, 'to_plotly_json'):
+            yield from _walk(kid)
+
+
+def _figure(card):
+    """The Plotly figure in a rendered Analyze card."""
+    from dash import dcc
+    return next(c for c in _walk(card) if isinstance(c, dcc.Graph)).figure
 
 
 def _setup_graph(mgr, nodes, edges=None):
@@ -138,6 +154,7 @@ class TestComputeBottlenecks:
         assert [r['names'] for r in result] == [['A'], ['B']]
         assert result[0]['count'] == 2
         assert result[0]['hours'] == pytest.approx(nodes[1].time + nodes[2].time)
+        assert result[0]['own_hours'] == pytest.approx(nodes[0].time)
 
     def test_blocked_nodes_are_left_out(self):
         """B's gated work already sits inside A's row."""
@@ -162,6 +179,21 @@ class TestComputeBottlenecks:
         hard_fwd, *_ = _build_adjacency(self._edges(("A", "C"), ("B", "C")))
         result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
         assert [r['names'] for r in result] == [['A', 'B']]
+        # Both stand in the way of C, so the row costs both.
+        assert result[0]['own_hours'] == pytest.approx(nodes[0].time + nodes[1].time)
+
+    def test_chart_draws_own_time_before_what_is_unlocked(self):
+        from analyze_callbacks import _render_bottleneck_chart
+        nodes = [_make_node("A", status="Open", time_o=5, time_m=5, time_p=5),
+                 _make_node("B", status="Blocked", time_o=40, time_m=40, time_p=40)]
+        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B")))
+        fig = _figure(_render_bottleneck_chart(
+            _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})))
+        own, unlocked = fig.data
+        assert (own.name, list(own.x)) == ("Own time", [pytest.approx(5)])
+        assert (unlocked.name, list(unlocked.x)) == ("Unlocks", [pytest.approx(40)])
+        assert fig.layout.barmode == 'stack'
+        assert f"Takes {ConfigManager.format_time_friendly(5)}" in own.hovertext[0]
 
     def test_done_nodes_excluded(self):
         nodes = [
@@ -181,123 +213,88 @@ class TestComputeBottlenecks:
 
 
 # ============================================================================
-# _compute_hub_score
+# _compute_goal_progress
 # ============================================================================
 
-class TestComputeHubScore:
-    def test_goals_are_not_ranked(self):
-        """A Goal's incoming edges are its members, not concepts feeding it."""
-        nodes = [_make_node("L1"), _make_node("L2"), _make_node("L3"),
-                 _make_node("G", type="Goal"), _make_node("Umbrella", type="Goal")]
-        edges = [{'source': s, 'target': t, 'type': EDGE_NEEDS_HARD}
-                 for s, t in [("L1", "G"), ("L2", "G"), ("G", "Umbrella"),
-                              ("L3", "L1"), ("L1", "L2")]]
-        names = [r['name'] for r in _compute_hub_score(nodes, edges, {'bottlenecks': 25})]
-        assert "G" not in names
-        assert "L1" in names
-
-    def test_resource_inputs_do_not_count(self):
-        nodes = [_make_node("R", type="Resource"), _make_node("A", type="Action"),
-                 _make_node("T"), _make_node("Next")]
-        edges = [{'source': s, 'target': t, 'type': EDGE_NEEDS_SOFT}
-                 for s, t in [("R", "T"), ("A", "T"), ("T", "Next")]]
-        row = next(r for r in _compute_hub_score(nodes, edges, {'bottlenecks': 25})
-                   if r['name'] == "T")
-        assert (row['in_count'], row['out_count']) == (1, 1)
-
-
-# ============================================================================
-# _compute_goal_comparison
-# ============================================================================
-
-class TestComputeGoalComparison:
-    def test_basic_goal_stats(self, mgr):
-        _setup_graph(mgr, [
-            _make_node("Goal1", type="Goal"),
-            _make_node("Task1", status="Done"),
-            _make_node("Task2", status="Open"),
-        ], [
-            ("Task1", "Goal1", EDGE_NEEDS_HARD),
-            ("Task2", "Goal1", EDGE_NEEDS_HARD),
-        ])
+class TestComputeGoalProgress:
+    @staticmethod
+    def _rows(mgr, limit=25, today=None):
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
-        goal_rows, overlap_rows, total = _compute_goal_comparison(
-            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
+        _, hard_rev, _, _, _ = _build_adjacency(edges)
+        return _compute_goal_progress(nodes, edges, hard_rev, {'goals': limit},
+                                      today=today)
+
+    def test_progress_weighs_each_node_by_its_estimate(self, mgr):
+        """One small Done node of four: half the nodes, a fifth of the work."""
+        _setup_graph(mgr, [
+            _make_node("Goal1", type="Goal", time_mode='inherited'),
+            _make_node("Small", status="Done", time_o=10, time_m=10, time_p=10),
+            _make_node("Big", status="Open", time_o=40, time_m=40, time_p=40),
+        ], [
+            ("Small", "Goal1", EDGE_NEEDS_HARD),
+            ("Big", "Goal1", EDGE_NEEDS_HARD),
+        ])
+        rows, total = self._rows(mgr)
         assert total == 1
-        assert goal_rows[0]['done'] == 1
-        assert goal_rows[0]['total'] == 2
-        assert goal_rows[0]['pct'] == 50
+        row = rows[0]
+        assert (row['done'], row['total']) == (1, 2)
+        assert row['share'] == pytest.approx(0.2)
+        assert row['pct'] == 20
+        assert (row['done_time'], row['total_time']) == (pytest.approx(10), pytest.approx(50))
 
     def test_respects_goal_limit(self, mgr):
         goals = [_make_node(f"Goal{i}", type="Goal", value=i) for i in range(10)]
         _setup_graph(mgr, goals)
-        nodes = mgr.get_all_nodes()
-        edges = mgr.get_edges()
-        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
-        goal_rows, _, total = _compute_goal_comparison(
-            nodes, edges, hard_rev, prereq_rev, {'goals': 3})
+        rows, total = self._rows(mgr, limit=3)
         assert total == 10
-        assert len(goal_rows) == 3
+        assert len(rows) == 3
 
-    def test_overlap_computed(self, mgr):
+    def test_soft_prerequisites_are_not_progress(self, mgr):
         _setup_graph(mgr, [
-            _make_node("GoalA", type="Goal"),
-            _make_node("GoalB", type="Goal"),
-            _make_node("Shared", status="Open"),
+            _make_node("Goal1", type="Goal", time_mode='inherited'),
+            _make_node("Hard", status="Open"),
+            _make_node("Soft", status="Done"),
         ], [
-            ("Shared", "GoalA", EDGE_NEEDS_HARD),
-            ("Shared", "GoalB", EDGE_NEEDS_HARD),
+            ("Hard", "Goal1", EDGE_NEEDS_HARD),
+            ("Soft", "Goal1", EDGE_NEEDS_SOFT),
         ])
-        nodes = mgr.get_all_nodes()
-        edges = mgr.get_edges()
-        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
-        _, overlap_rows, _ = _compute_goal_comparison(
-            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
-        assert len(overlap_rows) == 1
-        assert overlap_rows[0]['shared'] == 1
+        row = self._rows(mgr)[0][0]
+        assert (row['done'], row['total'], row['pct']) == (0, 1, 0)
 
-    def test_overlap_includes_soft_prereqs(self, mgr):
-        """Shared overlap should count nodes connected by Needs_Soft, not just Needs_Hard."""
+    def test_recent_work_is_the_last_six_months(self, mgr):
         _setup_graph(mgr, [
-            _make_node("GoalA", type="Goal"),
-            _make_node("GoalB", type="Goal"),
-            _make_node("HardShared", status="Open"),
-            _make_node("SoftShared", status="Open"),
-        ], [
-            ("HardShared", "GoalA", EDGE_NEEDS_HARD),
-            ("HardShared", "GoalB", EDGE_NEEDS_HARD),
-            ("SoftShared", "GoalA", EDGE_NEEDS_SOFT),
-            ("SoftShared", "GoalB", EDGE_NEEDS_SOFT),
-        ])
-        nodes = mgr.get_all_nodes()
-        edges = mgr.get_edges()
-        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
-        goal_rows, overlap_rows, _ = _compute_goal_comparison(
-            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
-        # Overlap counts both hard- and soft-shared prereqs
-        assert overlap_rows[0]['shared'] == 2
-        # But completion stats stay hard-only: each goal's total is just HardShared
-        for row in goal_rows:
-            assert row['total'] == 1
+            _make_node("Goal1", type="Goal", time_mode='inherited'),
+            _make_node("Old", status="Done", done_date="2025-01-10", time_o=10, time_m=10, time_p=10),
+            _make_node("New", status="Done", done_date="2026-05-01", time_o=30, time_m=30, time_p=30),
+            _make_node("Left", status="Open", time_o=60, time_m=60, time_p=60),
+        ], [(name, "Goal1", EDGE_NEEDS_HARD) for name in ("Old", "New", "Left")])
+        row = self._rows(mgr, today=date(2026, 6, 1))[0][0]
+        assert row['recent_time'] == pytest.approx(30)
+        assert row['recent_count'] == 1
+        assert row['share'] == pytest.approx(0.4)
 
-    def test_overlap_excludes_helps_edges(self, mgr):
-        """Helps (synergy) edges should not contribute to shared overlap."""
+    def test_rows_put_the_priority_badge_after_the_name(self, mgr):
+        from dash import html
+        from analyze_callbacks import _render_goal_progress
         _setup_graph(mgr, [
-            _make_node("GoalA", type="Goal"),
-            _make_node("GoalB", type="Goal"),
-            _make_node("HelpsBoth", status="Open"),
-        ], [
-            ("HelpsBoth", "GoalA", EDGE_HELPS),
-            ("HelpsBoth", "GoalB", EDGE_HELPS),
-        ])
-        nodes = mgr.get_all_nodes()
-        edges = mgr.get_edges()
-        _, hard_rev, prereq_rev, _, _ = _build_adjacency(edges)
-        _, overlap_rows, _ = _compute_goal_comparison(
-            nodes, edges, hard_rev, prereq_rev, {'goals': 25})
-        assert overlap_rows == []
+            _make_node("Goal1", type="Goal", time_mode='inherited'),
+            _make_node("Done1", status="Done", done_date="2026-05-01", time_o=1, time_m=1, time_p=1),
+            _make_node("Open1", status="Open", time_o=299, time_m=299, time_p=299),
+        ], [("Done1", "Goal1", EDGE_NEEDS_HARD), ("Open1", "Goal1", EDGE_NEEDS_HARD)])
+        ConfigManager.set_priority_goals(["Goal1"])
+        rows, _ = self._rows(mgr, today=date(2026, 6, 1))
+        parts = list(_walk(_render_goal_progress(rows)))
+        name = next(p for p in parts if getattr(p, 'className', None) == 'gp-name')
+        assert [getattr(c, 'className', None) for c in name.children] == [
+            'gp-name-text', 'badge gp-rank']
+        pct = next(p for p in parts if getattr(p, 'className', None) == 'gp-pct')
+        assert pct.children == "0.3%"   # started, so not 0%
+        bar = next(p for p in parts if getattr(p, 'className', None) == 'gp-bar')
+        fmt = ConfigManager.format_time_friendly
+        assert getattr(bar, 'data-tip').splitlines() == [
+            "Goal1", f"{fmt(1)} of {fmt(300)} done",
+            f"{fmt(1)} of it in the last 6 months, across 1 node"]
 
     def test_ranks_by_prereq_subtree_value(self, mgr):
         """With cost held equal, a goal with a higher-value Hard-prereq
@@ -675,6 +672,21 @@ class TestComputeRatingDistribution:
         assert mind['row']['share'] == pytest.approx(2 / 3)
         assert dist['all']['time'] == pytest.approx(3 * per)
 
+    def test_work_left_splits_by_type_with_a_median(self, mgr):
+        nodes = [
+            _make_node("L", context="Mind", time_o=30, time_m=30, time_p=30),
+            _make_node("R", context="Mind", type="Resource", time_o=10, time_m=10, time_p=10),
+            _make_node("A", context="Mind", type="Action", time_o=20, time_m=20, time_p=20),
+            _make_node("C", context="Mind", time_mode="inherited"),
+        ]
+        row = _compute_rating_distribution(nodes)['groups'][0]['row']
+        assert row['time_by_type'] == {
+            'Learn': pytest.approx(30), 'Resource': pytest.approx(10),
+            'Action': pytest.approx(20)}
+        # The container counts in the row but holds no time of its own.
+        assert row['count'] == 4
+        assert row['median_time'] == pytest.approx(20)
+
     def test_lone_no_subcontext_gets_no_child_rows(self, mgr):
         dist = _compute_rating_distribution(
             [_make_node("A", context="Mind", subcontext=None)])
@@ -747,6 +759,19 @@ class TestRenderRatingDistribution:
                  _make_node("D", context="Body", value=6),
                  _make_node("E", context="Body", value=5)]
         assert self._gaps(self._parts(nodes)) == []
+
+    def test_work_left_tooltip_gives_share_mix_and_median(self, mgr):
+        parts = self._parts([
+            _make_node("L", context="Mind", time_o=30, time_m=30, time_p=30),
+            _make_node("A", context="Mind", type="Action", time_o=10, time_m=10, time_p=10),
+            _make_node("B", context="Body", time_o=40, time_m=40, time_p=40),
+        ])
+        tips = [getattr(p, 'data-tip') for p in parts
+                if getattr(p, 'className', None) == 'rd-work']
+        assert tips[0] == "All nodes\nLearn 88% · Action 12%\nMedian node time: 1.5w"
+        assert "Mind\n50% of all remaining work\nLearn 75% · Action 25%\nMedian node time: 1w" in tips
+        segs = [p for p in parts if getattr(p, 'className', None) == 'rd-work-seg']
+        assert len(segs) == 3   # Mind's two, Body's one
 
     def test_empty_graph_message(self, mgr):
         from analyze_callbacks import _render_rating_distribution
@@ -825,6 +850,57 @@ class TestThroughputStatusGate:
         assert _compute_throughput(nodes) == []
 
 
+class TestThroughputCapacity:
+    """Each bucket carries the hours a week from the time settings, spread
+    over its days, and the chart runs to today so quiet months show."""
+
+    @staticmethod
+    def _per_day():
+        return ConfigManager.get_time_settings()['hours_per_week'] / 7
+
+    def test_runs_to_today_with_the_current_month_prorated(self):
+        nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
+        rows = _compute_throughput(nodes, granularity='month',
+                                   today=date(2026, 3, 10))
+        assert [r['label'] for r in rows] == ['Jan 2026', 'Feb 2026', 'Mar 2026']
+        assert [r['capacity'] for r in rows] == [
+            pytest.approx(31 * self._per_day()), pytest.approx(28 * self._per_day()),
+            pytest.approx(10 * self._per_day())]
+        assert rows[1]['segments'] == []
+
+    def test_dates_trim_the_buckets_they_fall_in(self):
+        nodes = [_make_node("A", status="Done", done_date="2026-02-15")]
+        rows = _compute_throughput(nodes, granularity='quarter',
+                                   start_date="2026-02-01", end_date="2026-02-20",
+                                   today=date(2026, 9, 1))
+        assert [r['label'] for r in rows] == ['2026 Q1']
+        assert rows[0]['capacity'] == pytest.approx(20 * self._per_day())
+
+    def test_segments_by_type_stack_in_type_order(self):
+        nodes = [_make_node("A", type="Action", status="Done", done_date="2026-01-15"),
+                 _make_node("L", status="Done", done_date="2026-01-20"),
+                 _make_node("R", type="Resource", status="Done", done_date="2026-01-21")]
+        rows = _compute_throughput(nodes, granularity='month', by='type',
+                                   today=date(2026, 1, 31))
+        assert [s['key'] for s in rows[0]['segments']] == ['Learn', 'Resource', 'Action']
+
+    def test_chart_draws_a_capacity_step_across_each_slot(self):
+        from analyze_callbacks import _render_throughput_chart
+        nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
+        rows = _compute_throughput(nodes, granularity='month', today=date(2026, 2, 14))
+        fig = _figure(_render_throughput_chart(rows, granularity='month'))
+        line = next(t for t in fig.data if t.type == 'scatter')
+        assert list(line.x) == [-0.5, 0.5, 0.5, 1.5]
+        assert list(line.y) == [pytest.approx(31 * self._per_day())] * 2 + [
+            pytest.approx(14 * self._per_day())] * 2
+        assert not fig.layout.showlegend   # contexts name themselves on hover
+        fig = _figure(_render_throughput_chart(
+            _compute_throughput(nodes, granularity='month', by='type',
+                                today=date(2026, 2, 14)),
+            granularity='month', by='type'))
+        assert fig.layout.showlegend
+
+
 class TestReflectionDriftStatusGate:
     """reflect_* columns persist across un-Done, so the drift chart must
     only count currently-Done reflected nodes."""
@@ -859,7 +935,7 @@ class TestAnalyzeRefreshGate:
     """Arrivals and the hover prewarm must skip a render that is still
     current, redo one the graph outran, and ignore the stores' mount."""
 
-    ARGS = (25, 75, 'quarter', '', '', None)
+    ARGS = (25, 75, 'quarter', '', '', 'context', None)
     PROPS = {'analyze-active-store': 'data', 'analyze-prewarm-store': 'data',
              'save-output': 'children'}
 

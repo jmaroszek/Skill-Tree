@@ -264,7 +264,9 @@ Dormant is a form field of the one node editor, saved with Save.
 
 Marking a node Done (or changing a hard prereq) calls `update_node`, which detects the status change and seeds `_cascade_update_states`. That walk goes **forward along `Needs_Hard` out-edges**: each dependent recomputes to Blocked (any incomplete hard prereq) or Open. Goals whose hard children just became all-Done are collected via `_collect_auto_done_candidates` and surfaced through `pop_auto_done_candidates` for the auto-done prompt. `recompute_all_statuses` is the same logic run globally — the startup safety-net.
 
-`Nodes.start_date` and `Nodes.done_date` remain latest-state snapshots for the existing UI and reports. `NodeLifecycleEvents` is the append-only history: `update_node` records crossings into and out of Now plus completion and reopen transitions as UTC Unix seconds. Positive-to-positive Now changes are ordering only and produce no event. The v7 migration records when complete coverage began and gives nodes already in Now a `migration_snapshot` start at that boundary; it does not invent earlier cycles. Rename updates the event owner in the same deferred-FK transaction, and node deletion cascades its history.
+`Nodes.start_date` and `Nodes.done_date` remain latest-state snapshots for the existing UI and reports. `NodeLifecycleEvents` is the append-only history: `update_node` records crossings into and out of Now plus completion and reopen transitions as UTC Unix seconds. Positive-to-positive Now changes are ordering only and produce no event. The v7 migration records when complete coverage began and gives nodes already in Now a `migration_snapshot` start at that boundary; it does not invent earlier cycles. Rename updates the event owner in the same deferred-FK transaction, and node deletion cascades its history. A `now_started` row also carries `rank` and `ranked_of`: the node's place in the unfiltered Next ranking just before it entered Now, and how many nodes that ranking held (`GraphManager._recommendation_rank`, read before the write). `rank` is NULL for a node the ranking leaves out, such as a Goal.
+
+`NodeLedger` records each node added (`insert_node`) and deleted (`delete_node`), with its type, context, status and own estimate at that moment. It has no foreign key, so a deleted node's rows outlive it; a rename moves only the rows written since the name's last deletion. The v12 migration stores `node_ledger_started_at`, since nodes created earlier have no creation record. Together with the completions above, it is the raw material for asking whether work enters the graph faster than it leaves, and whether Now picks follow the recommendations. Nothing reads it yet.
 
 ### 5. Scoring → Next ranking
 
@@ -549,7 +551,7 @@ signature in `analyze-rendered-store`: the graph version, the context list, and
 the date. An arrival that finds the signature current makes no recompute. Until
 the first render, the sections sit hidden behind a spinner. Its charts are
 responsive graphs with pinned heights, so charts drawn while hidden re-measure
-their width when the tab opens. The three Analyze subtabs render together, and a
+their width when the tab opens. The two Analyze subtabs render together, and a
 switch only shows and hides their panes. `assets/analyze_first_paint.js` treats
 a pane being shown like the tab opening, and sizes its charts before they paint. Details dropdown options are hydrated initially and refreshed
 from graph/version stores, so opening Details does not resend an unchanged

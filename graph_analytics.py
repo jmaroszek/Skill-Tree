@@ -1,7 +1,10 @@
 """Graph analytics data preparation; rendering belongs to the Analyze view."""
 import math
+import statistics
 from collections import defaultdict
+from datetime import date, timedelta
 from config import ConfigManager
+from graph_queries import summarize_completion
 from models import (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN,
                     STATUS_BLOCKED, STATUS_DONE)
 from goal_ranking import _rank_goals
@@ -59,7 +62,8 @@ _CONCEPT_TYPES = ('Learn', 'Action')
 
 
 def _compute_bottlenecks(nodes, hard_fwd, limits):
-    """Rank Open work nodes by the hours of unfinished work they gate.
+    """Rank Open work nodes by the hours of unfinished work they gate, with
+    each row's own estimated time beside it.
 
     Walks forward through hard edges from each Open node and sums the time of
     the work it reaches, stepping through Goals and Milestones without counting
@@ -95,6 +99,9 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
             'names': names,
             'hours': sum(node_map[w].time for w in work),
             'count': len(work),
+            # What clearing the gate costs. Nodes that share a row gate the
+            # same work side by side, so all of them stand in its way.
+            'own_hours': sum(node_map[name].time for name in names),
         })
     results.sort(key=lambda r: (-r['hours'], -r['count'], r['names'][0].casefold()))
     return results[:limits.get('bottlenecks', 15)]
@@ -115,8 +122,9 @@ def hub_scores(nodes, edges):
     both directions — concepts that absorb prereqs AND feed dependents.
     The Helps term gives synergy partners half-weight credit on top.
 
-    Each value is a row with the score components for the chart tooltip.
-    Nodes scoring 0 are left out."""
+    The community labels use it to name a cluster after its most central
+    nodes. Each value is a row with the score components. Nodes scoring 0
+    are left out."""
     node_map = {n.name: n for n in nodes}
     candidates = {n.name for n in nodes
                   if n.status != STATUS_DONE and n.type not in _CONTAINER_TYPES}
@@ -153,15 +161,6 @@ def hub_scores(nodes, edges):
             'status': n.status,
         }
     return results
-
-
-def _compute_hub_score(nodes, edges, limits):
-    """The Hubs chart: the top N nodes by `hub_scores`, capped by
-    ``limits['bottlenecks']`` since the Graph Structure section's gear
-    controls both charts, sorted by score descending."""
-    results = list(hub_scores(nodes, edges).values())
-    results.sort(key=lambda r: (-r['score'], r['name'].casefold()))
-    return results[:limits.get('bottlenecks', 15)]
 
 
 def _compute_estimation_accuracy(nodes):
@@ -238,22 +237,49 @@ def _compute_reflection_drift(nodes):
     return results
 
 
+# The order a Throughput chart colored by node type stacks its segments,
+# bottom up: study, reading, then practice.
+_TYPE_ORDER = ('Learn', 'Resource', 'Action', 'Goal', 'Milestone')
+
+
+def _bucket_span(key, granularity):
+    """The first and last day of a calendar bucket."""
+    if granularity == 'year':
+        first, after = date(key[0], 1, 1), date(key[0] + 1, 1, 1)
+    elif granularity == 'month':
+        y, m = key
+        first = date(y, m, 1)
+        after = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1)
+    else:
+        y, q = key
+        first = date(y, 3 * q - 2, 1)
+        after = date(y + 1, 1, 1) if q == 4 else date(y, 3 * q + 1, 1)
+    return first, after - timedelta(days=1)
+
+
 def _compute_throughput(nodes, granularity='quarter',
-                        start_date=None, end_date=None):
+                        start_date=None, end_date=None, by='context',
+                        today=None):
     """Bucket currently-Done nodes with ``done_date`` into calendar buckets,
-    segmented by context. The status gate matters because ``done_date`` can
-    linger on a node that was completed and later reverted to Open (older
-    reverts predate the auto-clear on un-Done); requiring status Done keeps
-    such a node out of the timeline. ``granularity`` is 'month' | 'quarter' |
-    'year'; empty
-    buckets between min and max are still emitted so the timeline reads
-    continuously. ``start_date`` / ``end_date`` are ISO strings that
-    optionally clip the range; None means "auto" (use the available data's
-    natural extent). Per-node hours use captured actual time when present,
-    otherwise the forecast estimate; each segment carries its ``nodes``
-    list (``(name, hours)`` tuples, hours-descending) for tooltips."""
+    segmented by context, or by node type when ``by`` is 'type'. The status
+    gate matters because ``done_date`` can linger on a node that was
+    completed and later reverted to Open (older reverts predate the
+    auto-clear on un-Done); requiring status Done keeps such a node out of
+    the timeline. ``granularity`` is 'month' | 'quarter' | 'year'.
+    ``start_date`` / ``end_date`` are ISO strings that optionally clip the
+    range; None means "auto". Per-node hours use captured actual time when
+    present, otherwise the forecast estimate; each segment carries its
+    ``nodes`` list (``(name, hours)`` tuples, hours-descending) for tooltips.
+
+    Each bucket also carries ``capacity``: the time settings' hours a week,
+    spread over the bucket's days. Empty buckets between the first completion
+    and today (or the end date) are still emitted, so a quiet month shows as
+    an empty bar under the capacity line rather than dropping off the end.
+    The bucket under way counts only the days so far, and a start or end
+    date trims the capacity of the bucket it falls in."""
     if granularity not in ('month', 'quarter', 'year'):
         granularity = 'quarter'
+    today = today or date.today()
     _hours = _completed_hours
 
     def _bucket_key(y, m):
@@ -281,6 +307,12 @@ def _compute_throughput(nodes, granularity='quarter',
         y, q = key
         return (y + 1, 1) if q == 4 else (y, q + 1)
 
+    def _parse(iso):
+        try:
+            return date.fromisoformat(iso) if iso else None
+        except ValueError:
+            return None
+
     buckets = defaultdict(lambda: defaultdict(list))
     for n in nodes:
         if n.status != STATUS_DONE:
@@ -296,14 +328,19 @@ def _compute_throughput(nodes, granularity='quarter',
             continue
         if end_date and n.done_date > end_date:
             continue
-        ctx = n.context or 'No Context'
-        buckets[_bucket_key(y, m)][ctx].append((n.name, _hours(n)))
+        group = n.type if by == 'type' else (n.context or 'No Context')
+        buckets[_bucket_key(y, m)][group].append((n.name, _hours(n)))
 
     if not buckets:
         return []
 
+    first_day = _parse(start_date)
+    last_day = min(d for d in (_parse(end_date), today) if d is not None)
     keys_sorted = sorted(buckets.keys())
-    cur, last = keys_sorted[0], keys_sorted[-1]
+    cur = keys_sorted[0]
+    if first_day is not None:
+        cur = min(cur, _bucket_key(first_day.year, first_day.month))
+    last = max(keys_sorted[-1], _bucket_key(last_day.year, last_day.month))
     full_keys = []
     # Every bucket is emitted. The chart shows only the latest few, so
     # capping here would drop the recent end of a long range.
@@ -311,22 +348,33 @@ def _compute_throughput(nodes, granularity='quarter',
         full_keys.append(cur)
         cur = _next_key(cur)
 
+    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
     rows = []
     for k in full_keys:
-        ctxs = buckets.get(k, {})
+        groups = buckets.get(k, {})
         segments = []
-        for ctx, items in ctxs.items():
+        for group, items in groups.items():
             items.sort(key=lambda x: x[1], reverse=True)
             segments.append({
-                'context': ctx,
+                'key': group,
                 'hours': sum(h for _, h in items),
                 'nodes': items,
             })
-        segments.sort(key=lambda s: s['hours'], reverse=True)
+        if by == 'type':
+            segments.sort(key=lambda s: (_TYPE_ORDER.index(s['key'])
+                                         if s['key'] in _TYPE_ORDER else 99))
+        else:
+            segments.sort(key=lambda s: s['hours'], reverse=True)
+        span_first, span_last = _bucket_span(k, granularity)
+        if first_day is not None:
+            span_first = max(span_first, first_day)
+        span_last = min(span_last, last_day)
+        days = max(0, (span_last - span_first).days + 1)
         rows.append({
             'label': _bucket_label(k),
             'segments': segments,
             'total_hours': sum(s['hours'] for s in segments),
+            'capacity': per_week * days / 7,
         })
     return rows
 
@@ -346,85 +394,58 @@ _MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 
-def _compute_goal_comparison(nodes, edges, hard_rev, prereq_rev, limits):
-    """Compute goal stats and pairwise overlap using in-memory adjacency.
+# How far back the Completion rows' brighter "recent" segment reaches.
+_RECENT_DAYS = 182
+
+
+def _walk_back(name, adjacency):
+    """Everything upstream of ``name`` through a reverse adjacency map."""
+    visited = set()
+    queue = list(adjacency.get(name, []))
+    while queue:
+        current = queue.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        queue.extend(p for p in adjacency.get(current, []) if p not in visited)
+    return visited
+
+
+def _compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
+    """The Completion rows: the top Goals and how far along each one is.
 
     Ranks goals via _rank_goals (average worth of the work left in the hard
-    subtree, boosted by priority rank and context weight), then caps to the top
-    N to keep visualizations readable. Progress is computed over hard
-    prerequisites only (those gate completion); pairwise overlap is computed
-    over hard + soft prerequisites (the full body of prep work shared between
-    goals).
+    subtree, boosted by priority rank and context weight), then caps to the
+    top N. Progress is `summarize_completion` over the hard subtree, the
+    prerequisites that gate the Goal: the share of its estimated hours that
+    are Done. ``recent_time`` is the part of that finished in the last six
+    months, so a stalled Goal reads differently from a moving one.
+
+    Returns ``(rows, total_goal_count)``, rows in ranked order.
     """
     all_goals = [n for n in nodes if n.type == 'Goal']
     node_map = {n.name: n for n in nodes}
     priority_goals = ConfigManager.get_priority_goals()
     hp = ConfigManager.get_hyperparams()
-
-    # Rank and cap
     ranked = _rank_goals(all_goals, nodes, edges, priority_goals, hp)
-    goals = ranked[:limits.get('goals', 20)]
-    total_goal_count = len(all_goals)
+    cutoff = ((today or date.today()) - timedelta(days=_RECENT_DAYS)).isoformat()
 
-    def _walk_back(goal_name, adjacency):
-        """BFS backward through the given reverse adjacency map."""
-        visited = set()
-        queue = list(adjacency.get(goal_name, []))
-        while queue:
-            current = queue.pop()
-            if current in visited:
-                continue
-            visited.add(current)
-            for prev_node in adjacency.get(current, []):
-                if prev_node not in visited:
-                    queue.append(prev_node)
-        return visited
-
-    goal_rows = []
-    prereq_subtrees = {}
-    for g in goals:
-        # Hard subtree drives completion stats (hard prereqs gate the goal).
-        hard_subtree = _walk_back(g.name, hard_rev)
-        sub_nodes = [node_map[name] for name in hard_subtree if name in node_map]
-        total = len(sub_nodes)
-        done = sum(1 for n in sub_nodes if n.status == STATUS_DONE)
-        blocked = sum(1 for n in sub_nodes if n.status == STATUS_BLOCKED)
-        remaining = sum(n.time for n in sub_nodes if n.status != STATUS_DONE)
-        pct = round(done / total * 100) if total else 0
-        priority_rank = (priority_goals.index(g.name) + 1) if g.name in priority_goals else None
-        goal_rows.append({
+    rows = []
+    for g in ranked[:limits.get('goals', 20)]:
+        members = [node_map[name] for name in _walk_back(g.name, hard_rev)
+                   if name in node_map]
+        recent = [n for n in members
+                  if n.status == STATUS_DONE and n.time > 0
+                  and n.done_date and n.done_date >= cutoff]
+        rows.append({
             'name': g.name,
-            'pct': pct,
-            'done': done,
-            'total': total,
-            'remaining': remaining,
-            'blocked': blocked,
-            'priority_rank': priority_rank,
+            'priority_rank': (priority_goals.index(g.name) + 1
+                              if g.name in priority_goals else None),
+            **summarize_completion(members),
+            'recent_time': sum(n.time for n in recent),
+            'recent_count': len(recent),
         })
-        # Hard + soft subtree drives shared-prerequisite overlap.
-        prereq_subtrees[g.name] = _walk_back(g.name, prereq_rev)
-    # goal_rows stays in _rank_goals order (highest priority first) — both
-    # the completion chart and the overlap heatmap render in that order.
-
-    # Pairwise overlap (only among top goals) — uses combined hard + soft prereqs
-    overlap_rows = []
-    goal_names = [g.name for g in goals]
-    for i in range(len(goal_names)):
-        for j in range(i + 1, len(goal_names)):
-            a, b = goal_names[i], goal_names[j]
-            sa, sb = prereq_subtrees.get(a, set()), prereq_subtrees.get(b, set())
-            shared = sa & sb
-            union = sa | sb
-            if shared:
-                overlap_rows.append({
-                    'goal_a': a,
-                    'goal_b': b,
-                    'shared': len(shared),
-                    'jaccard': round(len(shared) / len(union) * 100) if union else 0,
-                })
-    overlap_rows.sort(key=lambda r: r['shared'], reverse=True)
-
-    return goal_rows, overlap_rows, total_goal_count
+    return rows, len(all_goals)
 
 
 _RATING_KEYS = (('value', 'value'), ('interest', 'interest'),
@@ -451,7 +472,10 @@ def _compute_rating_distribution(nodes):
     Each row also carries ``time``, the area's remaining work, and ``share``,
     that time over the whole graph's. Time counts every open node, Milestones
     and inherited nodes included, since they are still work to do; the
-    ratings leave those out.
+    ratings leave those out. ``time_by_type`` splits ``time`` by node type.
+    ``median_time`` is the median estimate of the nodes the row counts,
+    less those whose time comes from their children (they hold none of
+    their own), or None when there are none.
     """
     rated = [n for n in nodes
              if n.status != STATUS_DONE and n.type != 'Milestone'
@@ -460,18 +484,23 @@ def _compute_rating_distribution(nodes):
     for n in rated:
         groups[n.context or 'No Context'][n.subcontext or 'No subcontext'].append(n)
     hours = defaultdict(float)
+    by_type = defaultdict(lambda: defaultdict(float))
     for n in nodes:
         if n.status != STATUS_DONE:
             ctx = n.context or 'No Context'
-            hours[ctx] += n.time
-            hours[ctx, n.subcontext or 'No subcontext'] += n.time
-    total_hours = sum(v for k, v in hours.items() if isinstance(k, str))
+            for area in (None, ctx, (ctx, n.subcontext or 'No subcontext')):
+                hours[area] += n.time
+                by_type[area][n.type] += n.time
+    total_hours = hours[None]
 
     def _row(ctx, sub, members):
-        time = (total_hours if ctx is None
-                else hours[ctx] if sub is None else hours[ctx, sub])
+        area = None if ctx is None else ctx if sub is None else (ctx, sub)
+        time = hours[area]
+        sizes = [n.time for n in members if n.time > 0]
         row = {'context': ctx, 'subcontext': sub, 'count': len(members),
-               'time': time, 'share': time / total_hours if total_hours else 0.0}
+               'time': time, 'share': time / total_hours if total_hours else 0.0,
+               'time_by_type': {t: h for t, h in by_type[area].items() if h > 0},
+               'median_time': statistics.median(sizes) if sizes else None}
         for key, attr in _RATING_KEYS:
             ratings = [min(10, max(1, int(getattr(n, attr)))) for n in members]
             counts = [0] * 10

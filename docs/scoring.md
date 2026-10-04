@@ -311,7 +311,7 @@ Goal density has its own exponent, alpha_goal: Sage 0.20, Explorer 0.50, Compoun
 Why count only Goals? A heavily decomposed area produces both more leaves *and* more Goals. If Goals shared the leaf bucket count, a Goal in that area would be penalized for the leaves it happens to sit next to. Counting only Goals isolates the relevant question: "how crowded is the sidebar within this corner of the graph?"
 
 > [!NOTE] Note
-> The Goals sidebar, the Analyze tab's Completion chart and the Details suggestions all rank Goals by the priority ranking explained here. Wherever a Goal shows a 0-100 priority, 100 is the top score among unfinished Goals. A Goal is unfinished until it is Done or every hard prerequisite beneath it is. Searches and filters never move that base.
+> The Goals sidebar, the Analyze tab's Goals chart and the Details suggestions all rank Goals by the priority ranking explained here. Wherever a Goal shows a 0-100 priority, 100 is the top score among unfinished Goals. A Goal is unfinished until it is Done or every hard prerequisite beneath it is. Searches and filters never move that base.
 
 ## Why an Average
 

@@ -369,7 +369,6 @@ def register_callbacks(app, services=None):
         if node_type in ('Goal', 'Milestone'):
             completion = manager.get_goal_completion(node_id, include_soft=False)
             total = completion.get('total', 0)
-            done = completion.get('done', 0)
             pct = completion.get('pct', 0)
             remaining = completion.get('remaining_time', 0)
 
@@ -379,7 +378,7 @@ def register_callbacks(app, services=None):
                 bar_color = progress_bar_color(pct)
                 lines += [
                     html.Hr(style={"margin": "6px 0", "borderColor": tokens.BORDER_PANEL}),
-                    html.Div([html.Strong("Progress: "), f"{done}/{total} hard subtasks ({pct}%)"]),
+                    html.Div([html.Strong("Progress: "), f"{pct}% of the estimated work"]),
                     html.Div(
                         html.Div(style={
                             "width": f"{pct}%", "height": "6px",

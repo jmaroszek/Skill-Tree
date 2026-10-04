@@ -599,7 +599,7 @@ The top-left panel summarizes the selected node. Most of it is self-explanatory,
 
 **Badges** appear under the node's name. Every node carries at least two — its **status** and **type**, which you can see in the screenshot above, but nodes connected to a [Priority Goal](#setting-priority-goals) carry more:
 
-- **Top-level Goals** get a rank badge (Priority 1, 2, or 3) and a progress bar below their description tracking completion.
+- **Top-level Goals** get a rank badge (Priority 1, 2, or 3) and a progress bar below their description tracking completion. Progress is the share of the Goal's estimated hours that are done, so one large topic still to go keeps the bar short however many small nodes are finished.
 - **Goal dependents** get badges like `Hard 1` or `Soft 2`. The number is which Priority Goal the node feeds; Hard / Soft is whether it does so through a hard or soft chain. `Soft 2` reads as "this node contributes, via a soft path, to your second Priority Goal."
 
 The rest of the panel — node stats and three action buttons — reuses functions introduced elsewhere.
@@ -850,7 +850,7 @@ This is your "Don't ask again" archive. Nodes here are quietly bypassed during y
 
 # Analyze Tab
 
-The Analyze tab gives you a bird's eye view of your entire network. It helps you understand how you want to spend your time, and how you actually spend it. It also helps you track progress on goals, and uncover structural characteristics of your graph.
+The Analyze tab gives you a bird's eye view of your entire network. It helps you understand how you want to spend your time, and how you actually spend it. It also helps you track progress on goals, and find the work that unlocks the most.
 
 ## The Overview Strip
 The overview strip shows key facts about your graph.
@@ -861,28 +861,27 @@ The overview strip shows key facts about your graph.
   <em>Sandbox overview strip</em>
 </p>
 
-Below the strip, the charts are split across three subtabs:
+Below the strip, the charts are split across two subtabs:
 
 | Subtab | What it shows |
 |---|---|
-| **Plan** | Your unfinished work: Goal progress, shared prerequisites, and hours by context. It is complete from your first day. |
+| **Plan** | Your unfinished work: Goal progress, bottlenecks, and hours by context. It is complete from your first day. |
 | **History** | Your finished work: estimate accuracy, rating accuracy, and throughput. It fills in as you complete and reflect on nodes. |
-| **Structure** | The shape of your graph: bottlenecks and hubs. |
 
 The app remembers the last subtab you opened.
 
-## Goals
-This section displays two visualizations side-by-side. The order of the goals is not arbitrary; they are ranked using the same algorithm as the [Goal Sidebar](#goals-sidebar). A gear icon next to the section title lets you control how many goals are displayed.
+## Goals and Bottlenecks
+The Plan subtab opens with two charts side by side. Each has a gear icon by its title that sets how many rows it shows.
 
 <p align="center">
   <img src="../images/analyze-goals.png">
   <br>
-  <em> Goal Visualizations </em>
+  <em> Goals (left) and Bottlenecks (right) </em>
 </p>
 
-**Completion** (left) shows each Goal's progress. Only hard prereqs are considered (not soft or synergies). As with every chart on the Analyze Tab, there is a helpful tooltip that shows up when you mouse over a graph element.
+**Goals** shows how far along your top Goals are. They are ranked using the same algorithm as the [Goal Sidebar](#goals-sidebar). Each bar is the share of the Goal's estimated hours that are done, so a Goal with one large topic left reads as mostly unfinished, however many small nodes it has ticked off. Only hard prerequisites count, not soft ones or synergies, because they decide whether a Goal is complete. The brighter part of a bar is work finished in the last six months, so a Goal that has stalled shows only the darker green. A Priority Goal's rank badge follows its name. As with every chart on the Analyze Tab, a tooltip shows up when you mouse over it: here, the hours done and what you finished recently.
 
-**Shared Prerequisites** (right) is a heatmap over those same Goals, counting their shared hard and soft prerequisites. Bright cells mean two Goals draw from the same body of work — a sign they share foundational skills. You might want to work on these tasks to "double dip," or you could merge them if you think they are similar enough.
+**Bottlenecks** ranks open nodes by the hours of unfinished work they gate through hard edges. Goals and Milestones are not work, so they don't count toward the total. Blocked nodes are left out. The work a blocked node gates is already inside the bar of an open node upstream. When several open nodes gate exactly the same work, they share one bar. Each bar starts with a gray stub for the node's own estimated time, so a quick gate and a costly one with the same reach look different. A large bottleneck may not be the highest-ROI item by itself. But clearing it changes the frontier: whole new chains become eligible, and the Home Tab has more candidates to choose from.
 
 ## Contexts
 
@@ -894,7 +893,7 @@ The top row covers every open node. Contexts start folded; click one to open its
 
 The last corner button compares each area with the whole graph. It draws a dashed line down each rating at the mean of all nodes. A bar joins that line to each row's tick: orange when the area sits above the whole graph, violet when below. Its length is the distance. Gaps under a quarter point get no bar. The comparison starts off each time you open the app. Hover any tick for the exact difference.
 
-The last column, Work left, shows each area's remaining work as a bar and a time. The bars share one scale, so the largest context fills its bar. This column counts every open node, Milestones and inherited nodes included, since they are still work to do.
+The last column, Work left, shows each area's remaining work as a bar and a time. The bars share one scale, so the largest context fills its bar. This column counts every open node, Milestones and inherited nodes included, since they are still work to do. Each bar is split by node type, in the type colors: Learn, Resource, then Action. Hover it for the area's share of all remaining work, the exact mix of types, and its median node time. The median leaves out nodes whose time comes from their children, since they hold none of their own.
 
 Use it to check that your ratings mean the same thing everywhere. For example, if one context's Value sits two points above the others, either that area really matters more, or those ratings drifted.
 
@@ -928,7 +927,9 @@ A context needs at least four reflected nodes to get a row. Averages over fewer 
 
 ## Throughput
 
-The Throughput chart shows work time completed per calendar bucket, stacked by context. The buckets are real months, quarters, or years. The bars are work time. 
+The Throughput chart shows work time completed per calendar bucket, stacked by context. The buckets are real months, quarters, or years. The bars are work time.
+
+The dashed line is your capacity: the hours a week from your [time settings](#settings), spread over each bucket's days. The chart runs to the current month, quarter, or year, so a quiet stretch shows up as empty bars under the line. The bucket under way counts only the days so far.
 
 <p align="center">
   <img src="../images/analyze-throughput-bars.png">
@@ -936,7 +937,7 @@ The Throughput chart shows work time completed per calendar bucket, stacked by c
 <em> The Throughput chart on sandbox data (I am not actually doing 2 years of work in one month). </em>
 </p>
 
-The gear icon by the title opens three controls: **Granularity** (months, quarters, or years) and **Start / End date** to clip the range. The defaults — quarterly buckets covering the full range of your time with Skill Tree -- work for most uses. Use the gear when you want to zoom in.
+The gear icon by the title opens four controls: **Granularity** (months, quarters, or years), **Color by** (context or node type), and **Start / End date** to clip the range. The defaults — quarterly buckets by context, covering the full range of your time with Skill Tree -- work for most uses. Use the gear when you want to zoom in. Color by node type shows what kind of work you finish: study, reading, or practice.
 
 <p align="center">
   <img src="../images/analyze-throughput-gear.png" width=200>
@@ -947,23 +948,6 @@ The gear icon by the title opens three controls: **Granularity** (months, quarte
 The chart shows at most 24 bars. If your range holds more, it keeps the latest 24 and says so. Switch to a coarser granularity or narrow the dates to see earlier ones.
 
 Where the Work left column under Contexts shows your *intent* (active time you plan to spend per context), Throughput shows your *execution* (time you actually delivered, and where). Big mismatches between the two are usually the most interesting finding.
-
-## Graph Structure
-
-The Structure subtab answers two questions about the shape of your network. A gear icon by the title sets how many nodes each chart shows.
-
-**Bottlenecks** ranks open nodes by the hours of unfinished work they gate through hard edges. Goals and Milestones are not work, so they don't count toward the total. Blocked nodes are left out. The work a blocked node gates is already inside the bar of an open node upstream. When several open nodes gate exactly the same work, they share one bar. A large bottleneck may not be the highest-ROI item by itself. But clearing it changes the frontier: whole new chains become eligible, and the Home Tab has more candidates to choose from.
-
-**Hubs** ranks the nodes with the most flow passing through them. A hub has many prerequisites feeding in *and* many dependents flowing out. Only Learn and Action prerequisites count as inputs. A Resource linked to a topic is reading material, not a concept feeding into it. Goals are left out, because the edges into a Goal are its members. The score is the geometric mean of a node's inputs and outputs, plus half a point for each synergy partner. A node with no inputs or no outputs gets no credit from the first part. So the chart surfaces the connective concepts that tie your graph together.
-
-<p align="center">
-  <img src="../images/analyze-graph-structure.png">
-<br>
-<em> Graph Structure</em>
-</p>
-
-Where Bottlenecks asks *what unlocks the most?*, Hubs asks *what is most central to my understanding?*
-
 
 # Settings
 

@@ -443,18 +443,70 @@
 .rd-guides-on .btn.guide-toggle-btn { --bs-btn-color: var(--st-text-primary); }
 
 /* Work left: the area's share of remaining work, on one scale set by the
-   largest context, with the time beside it. */
+   largest context, with the time beside it. The bar is split by node type,
+   each segment in its badge colour (set inline), with a 1px gap between. */
 .rd-work, .rd-work-head { margin-left: 1.5rem; }
 .rd-work { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .rd-work-track {
     flex: 1;
+    display: flex;
+    gap: 1px;
     height: 6px;
     border-radius: 3px;
     background-color: var(--st-bg-raised);
     overflow: hidden;
 }
-.rd-work-fill { height: 100%; border-radius: 3px; background-color: var(--st-text-soft); }
+.rd-work-seg { flex: none; height: 100%; }
+.rd-work-seg:last-child { border-radius: 0 3px 3px 0; }
 .rd-work-time { flex: none; min-width: 2.5rem; margin-left: auto; text-align: right; color: var(--st-text-soft); }
+
+/* --- Analyze: Goals ---------------------------------------------------------
+   One row per top Goal: name (its priority badge after it, so the names
+   line up), a bar of the share of its estimated work that is Done, and the
+   percent. Done in the last six months is a brighter step of the Done green,
+   so a stalled Goal shows only the darker one. HTML rather than Plotly, like
+   the Contexts table, and the same tooltip. */
+.goal-progress {
+    --gp-done: #148a68;    /* BADGE_PALETTE Done */
+    --gp-recent: #3fd19b;
+    font-size: var(--st-fs-cap);
+    font-variant-numeric: tabular-nums;
+}
+.gp-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.9fr) minmax(6rem, 1.6fr) 3rem;
+    column-gap: 12px;
+    align-items: center;
+    padding: 3px 4px;
+    border-radius: var(--st-radius-sm);
+}
+.gp-row:hover { background-color: var(--st-bg-panel); }
+.gp-name { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; font-size: var(--st-fs-base); }
+.gp-name-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.gp-rank { flex: none; }
+.gp-bar { padding-block: 4px; }
+.gp-track {
+    display: flex;
+    gap: 1px;
+    height: 10px;
+    border-radius: 3px;
+    background-color: var(--st-bg-raised);
+    overflow: hidden;
+}
+.gp-earlier, .gp-recent { flex: none; height: 100%; }
+.gp-earlier { background-color: var(--gp-done); }
+.gp-recent { background-color: var(--gp-recent); }
+.gp-pct { text-align: right; color: var(--st-text-soft); }
+.gp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-bottom: 6px;
+    font-size: var(--st-fs-cap);
+    color: var(--st-text-soft);
+}
+.gp-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.gp-swatch { display: inline-block; width: 12px; height: 10px; border-radius: 2px; }
 
 /* The one floating tooltip assets/rating_dist_tooltip.js moves between
    cells. Same surface as the node hover tooltip. */

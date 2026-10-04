@@ -74,26 +74,26 @@ def build_analyze_tab_content():
 
 
 def _analyze_sections():
-    """Overview strip, then three subtabs. Plan reads the unfinished graph,
+    """Overview strip, then two subtabs. Plan reads the unfinished graph,
     so it is complete from day one. History reads Done nodes and their
-    reflections, so it fills in over time. Structure is graph shape. Every
-    pane renders together; a subtab switch only shows and hides them."""
+    reflections, so it fills in over time. Every pane renders together; a
+    subtab switch only shows and hides them."""
     al = ConfigManager.get_analyze_limits()
     return html.Div([
         html.Div(id="analyze-overview-content"),
         dbc.Tabs(
+            # A new persistence value forgets the tab a browser remembered
+            # under the old one, which may be the retired Structure tab.
             id="analyze-subtabs", active_tab="analyze-plan",
-            persistence=True, persistence_type="local",
+            persistence="plan-history", persistence_type="local",
             children=[
                 dbc.Tab(label="Plan", tab_id="analyze-plan"),
                 dbc.Tab(label="History", tab_id="analyze-history"),
-                dbc.Tab(label="Structure", tab_id="analyze-structure"),
             ],
             className="analyze-subtabs mb-3",
         ),
         _pane("analyze-pane-plan", _plan_sections(al), shown=True),
         _pane("analyze-pane-history", _history_sections(al)),
-        _pane("analyze-pane-structure", _structure_sections(al)),
     ], className="px-4 pt-3 pb-4")
 
 
@@ -105,11 +105,24 @@ def _pane(pane_id, sections, shown=False):
 
 
 def _plan_sections(al):
+    """Goals and Bottlenecks side by side, each with its own gear, both
+    answering what to work on; then the Contexts table, full width."""
     return [
-        _gear_header("Goals", "btn-analyze-goals-limit", "popover-analyze-goals",
-                     "Goals shown", "setting-analyze-goals",
-                     5, 200, al.get('goals', 20)),
-        html.Div(id="analyze-goals-content"),
+        dbc.Row([
+            dbc.Col([
+                _gear_header("Goals", "btn-analyze-goals-limit",
+                             "popover-analyze-goals", "Goals shown",
+                             "setting-analyze-goals", 5, 200, al.get('goals', 20)),
+                html.Div(id="analyze-goals-content"),
+            ], width=6),
+            dbc.Col([
+                _gear_header("Bottlenecks", "btn-analyze-bottlenecks-limit",
+                             "popover-analyze-bottlenecks", "Nodes shown",
+                             "setting-analyze-bottlenecks", 5, 100,
+                             al.get('bottlenecks', 15)),
+                html.Div(id="analyze-bottlenecks-content"),
+            ], width=6),
+        ], className="g-3"),
         html.Hr(className="my-3"),
 
         _plain_header("Contexts"),
@@ -141,6 +154,15 @@ def _history_sections(al):
                     size='sm', className="mb-2",
                     style={'width': '140px'},
                 ),
+                dbc.Label("Color by", className="mb-1 d-block"),
+                dbc.Select(
+                    id="setting-analyze-throughput-color",
+                    options=[{'label': 'Context', 'value': 'context'},
+                             {'label': 'Node type', 'value': 'type'}],
+                    value=al.get('throughput_color', 'context'),
+                    size='sm', className="mb-2",
+                    style={'width': '140px'},
+                ),
                 dbc.Label("Start date", className="mb-1 d-block"),
                 dbc.Input(id="setting-analyze-throughput-start", type='date',
                           debounce=True, size='sm',
@@ -155,13 +177,4 @@ def _history_sections(al):
             popover_style={'maxWidth': '200px', 'minWidth': '180px'},
         ),
         html.Div(id="analyze-throughput-content"),
-    ]
-
-
-def _structure_sections(al):
-    return [
-        _gear_header("Graph Structure", "btn-analyze-bottlenecks-limit",
-                     "popover-analyze-bottlenecks", "Nodes shown",
-                     "setting-analyze-bottlenecks", 5, 100, al.get('bottlenecks', 15)),
-        html.Div(id="analyze-graph-content"),
     ]
