@@ -199,7 +199,6 @@
             el.tabIndex = 0;
             el.setAttribute('role', 'group');
             el.setAttribute('aria-label', 'Graph. ' + graphHelp);
-            el.title = graphHelp;
             // DOM listeners belong to the wrapper once; fetch the current cy
             // at use time so a Dash remount does not retain the old instance.
             if (el._keyboardBound) return;
