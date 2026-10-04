@@ -16,6 +16,7 @@
         'filter-value',
         'filter-interest',
         'filter-time',
+        'filter-time-min',
         'filter-difficulty',
         'filter-node-type',
         'filter-dormant',
@@ -44,7 +45,7 @@
         request: function (node, soft, helps, depth, context, subcontext, done,
                            value, interest, time, difficulty, types, dormant,
                            hideBlocked, timeUnit, version, settings,
-                           settledToken, activeTab, freezeOn) {
+                           settledToken, activeTab, timeMin, freezeOn) {
             var activeNode = activeTab === 'tab-details' ? node : null;
             var triggered = triggeredIds();
             var layoutChanged = triggered.some(function (id) {
@@ -86,7 +87,7 @@
                 context: context, subcontext: subcontext, done: done,
                 value: value, interest: interest, time: time,
                 difficulty: difficulty, types: types, dormant: dormant,
-                hideBlocked: hideBlocked, timeUnit: timeUnit
+                hideBlocked: hideBlocked, timeUnit: timeUnit, timeMin: timeMin
             };
         },
         render: function (result, request) {

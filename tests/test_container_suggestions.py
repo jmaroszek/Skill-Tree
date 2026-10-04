@@ -195,7 +195,7 @@ def test_sidebar_and_details_show_the_same_number_whatever_is_hidden():
 
     def details(context):
         return _component_ids_and_badges(render_details(
-            0, 0, context, [], [], 1, 1, None, "hours", 10, [], [], ""))
+            0, 0, context, [], [], 1, 1, None, "hours", 10, [], [], "", None))
 
     everything = sidebar(None)
     assert everything["Alpha"] == "100"

@@ -640,12 +640,6 @@ def build_events_sidebar():
 
 
 # --- Filters sidebar (right) ---
-def _rating_range_label(text, range_id, margin):
-    """A rating slider's label, with a slot that shows its range once narrowed."""
-    return dbc.Label([text, html.Span(id=range_id, className="text-muted ms-2")],
-                     className=margin)
-
-
 def build_filters_content():
     # Filters are session state, never saved state. Every control below opens
     # at the value "Clear Filters" resets it to, so a restart always shows the
@@ -683,26 +677,31 @@ def build_filters_content():
 
         html.H5("Ratings", className="mt-2 mb-1"),
         # Each rating is a two-handle range, [low, high]. Both ends at the
-        # rails (1 and 10) means no filter. The label shows the range only
-        # once it narrows (see the filter-range-labels clientside callback).
-        _rating_range_label("Value", "filter-value-range", "mt-2"),
+        # rails (1 and 10) means no filter.
+        dbc.Label("Value", className="mt-2"),
         dcc.RangeSlider(min=1, max=10, step=1, value=[1, 10], id="filter-value",
                         marks={i: str(i) for i in range(1, 11)}),
 
-        _rating_range_label("Interest", "filter-interest-range", "mt-2"),
+        dbc.Label("Interest", className="mt-2"),
         dcc.RangeSlider(min=1, max=10, step=1, value=[1, 10], id="filter-interest",
                         marks={i: str(i) for i in range(1, 11)}),
 
-        _rating_range_label("Effort", "filter-difficulty-range", "mt-3"),
+        dbc.Label("Effort", className="mt-3"),
         dcc.RangeSlider(min=1, max=10, step=1, value=[1, 10], id="filter-difficulty",
                         marks={i: str(i) for i in range(1, 11)}),
 
-        dbc.Label("Max Time", className="mt-2"),
+        # A time range in one unit. Either end may be left empty; a minimum
+        # above the maximum is flagged and filters nothing (see the
+        # clientside callback beside clear_filters).
+        dbc.Label("Time", className="mt-2"),
         html.Div([
+            dbc.Input(id="filter-time-min", type="number", min=0,
+                      value=None, placeholder="No min", size="sm",
+                      className="flex-grow-1", style={"minWidth": 0}),
+            html.Span("–", className="text-muted align-self-center"),
             dbc.Input(id="filter-time", type="number", min=0.1,
-                      value=None,
-                      placeholder="No limit", size="sm",
-                      className="flex-grow-1"),
+                      value=None, placeholder="No max", size="sm",
+                      className="flex-grow-1", style={"minWidth": 0}),
             unit_select("filter-time-unit", value="hours", compact=True),
         ], className="d-flex gap-2"),
 

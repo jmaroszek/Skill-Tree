@@ -285,6 +285,7 @@ def register_callbacks(app, services=None):
         Output('filter-value', 'value'),
         Output('filter-interest', 'value'),
         Output('filter-difficulty', 'value'),
+        Output('filter-time-min', 'value'),
         Output('filter-time', 'value'),
         Output('filter-time-unit', 'value'),
         Output('filter-done', 'value', allow_duplicate=True),
@@ -294,26 +295,23 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def clear_filters(_clear_clicks, _focus_clicks):
-        return [], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, 'hours', [], []
+        return [], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, None, 'hours', [], []
 
-    # Narrowed rating ranges show beside their label ("Value 1-3"); a full
-    # range shows nothing, since it filters nothing.
+    # A minimum above the maximum matches nothing, so build_filters ignores
+    # the time range then; outline both fields so that is not silent.
     app.clientside_callback(
         """
-        function(value, interest, difficulty) {
-            return [value, interest, difficulty].map(function (range) {
-                if (!range || (range[0] === 1 && range[1] === 10)) { return ''; }
-                return range[0] === range[1] ? String(range[0])
-                                              : range[0] + '\\u2013' + range[1];
-            });
+        function(low, high) {
+            var crossed = low !== null && low !== undefined && low !== ''
+                && high !== null && high !== undefined && high !== ''
+                && Number(low) > Number(high);
+            return [crossed, crossed];
         }
         """,
-        Output('filter-value-range', 'children'),
-        Output('filter-interest-range', 'children'),
-        Output('filter-difficulty-range', 'children'),
-        Input('filter-value', 'value'),
-        Input('filter-interest', 'value'),
-        Input('filter-difficulty', 'value'),
+        Output('filter-time-min', 'invalid'),
+        Output('filter-time', 'invalid'),
+        Input('filter-time-min', 'value'),
+        Input('filter-time', 'value'),
     )
 
     # Clientside reset of filter-subcontext.value on Clear Filters / Focus.
@@ -1448,7 +1446,9 @@ def register_callbacks(app, services=None):
          # Appended at the end of the Inputs so existing positional indices
          # (used by core_engine tests) stay stable. The toolbar "+" new-node
          # button; only its trigger_id matters, the value is unused.
-         Input('btn-editor-new', 'n_clicks')],
+         Input('btn-editor-new', 'n_clicks'),
+         # Also appended at the end of the Inputs: the Time range's minimum.
+         Input('filter-time-min', 'value')],
 
         [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
@@ -1470,7 +1470,7 @@ def register_callbacks(app, services=None):
                      focus_goal,
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
                      active_tab, _relayout,
-                     btn_undo_done_confirm, btn_editor_new,
+                     btn_undo_done_confirm, btn_editor_new, f_time_min,
                      ed_style, original_name, goal_sidebar_style, events_sidebar_style,
                      pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
                      form):
@@ -1562,7 +1562,8 @@ def register_callbacks(app, services=None):
         _event_mgr.check_pending_activations()
         _event_mgr.check_scheduled_triggers()
 
-        filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant)
+        filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant,
+                                f_time_min=f_time_min)
 
         # Editor Sidebar State — delegate to the shared helper so both the
         # short-circuit path above and the full path below compute sidebars
@@ -2153,19 +2154,21 @@ def register_callbacks(app, services=None):
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
+        Input('filter-time-min', 'value'),
         prevent_initial_call=True,
     )
     @prerendered
     def update_canvas_node_count(stamp, f_type, f_ctx, f_sub,
                                  f_comm, f_comm_method, f_val, f_int,
-                                 f_diff, f_time, f_time_unit):
+                                 f_diff, f_time, f_time_unit, f_time_min):
         n = (stamp or {}).get('nodes') or 0
         text = f"{n} node{'s' if n != 1 else ''}"
         if is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
                 community=f_comm,
                 community_method=f_comm_method, value=f_val,
-                interest=f_int, difficulty=f_diff, time=f_time):
+                interest=f_int, difficulty=f_diff, time=f_time,
+                time_min=f_time_min):
             return f"{text} · filtered"
         return text
 
@@ -2181,17 +2184,19 @@ def register_callbacks(app, services=None):
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
+        Input('filter-time-min', 'value'),
         prevent_initial_call=True,
     )
     @prerendered
     def update_next_filter_indicator(f_type, f_ctx, f_sub, f_comm,
                                      f_comm_method, f_val, f_int, f_diff,
-                                     f_time, f_time_unit):
+                                     f_time, f_time_unit, f_time_min):
         if is_filters_active(
                 node_type=f_type, context=f_ctx, subcontext=f_sub,
                 community=f_comm,
                 community_method=f_comm_method, value=f_val,
-                interest=f_int, difficulty=f_diff, time=f_time):
+                interest=f_int, difficulty=f_diff, time=f_time,
+                time_min=f_time_min):
             return "filtered"
         return ""
 

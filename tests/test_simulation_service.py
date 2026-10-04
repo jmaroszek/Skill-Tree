@@ -127,11 +127,11 @@ function request(name, triggerId, settledRoot = null, frozen = false) {
     window.dash_clientside.callback_context.triggered = triggerId ? [{
         prop_id: `${triggerId}.data`
     }] : [];
-    const args = Array(20).fill(null);
+    const args = Array(21).fill(null);
     args[0] = name;
     args[17] = settledRoot ? JSON.stringify({root: settledRoot}) : '';
     args[18] = 'tab-details';
-    args[19] = frozen;
+    args[20] = frozen;
     return ui.request(...args);
 }
 const waitingA = request('A', 'details-selected-node-store');

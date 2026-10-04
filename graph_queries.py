@@ -344,6 +344,9 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
             high = int(filters[f'max_{key}'])
             result = [n for n in result if getattr(n, key) <= high]
 
+    if 'min_time' in filters:
+        result = [n for n in result if getattr(n, 'time', 1.0) >= float(filters['min_time'])]
+
     if 'max_time' in filters:
         result = [n for n in result if getattr(n, 'time', 1.0) <= float(filters['max_time'])]
 

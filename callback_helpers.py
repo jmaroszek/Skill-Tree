@@ -422,7 +422,7 @@ def build_edge_element(edge):
 
 def build_filters(f_context, f_subcontext, f_done, f_value=None, f_interest=None,
                   f_time=None, f_difficulty=None, f_node_types=None,
-                  f_time_unit="hours", f_show_dormant=None):
+                  f_time_unit="hours", f_show_dormant=None, f_time_min=None):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
 
@@ -505,13 +505,38 @@ def build_filters(f_context, f_subcontext, f_done, f_value=None, f_interest=None
             filters[f'min_{key}'] = low
         if high < RATING_MAX:
             filters[f'max_{key}'] = high
-    if f_time is not None and f_time != "" and f_time != 0:
+    low, high = time_range(f_time_min, f_time)
+    if low is not None or high is not None:
         try:
             multiplier = ConfigManager.get_time_multiplier(f_time_unit or "hours")
-            filters['max_time'] = float(f_time) * multiplier
+            if low is not None:
+                filters['min_time'] = low * multiplier
+            if high is not None:
+                filters['max_time'] = high * multiplier
         except (ValueError, TypeError) as e:
-            logger.warning("Invalid max_time filter (%r, unit=%r): %s", f_time, f_time_unit, e)
+            logger.warning("Invalid time filter (%r-%r, unit=%r): %s",
+                           f_time_min, f_time, f_time_unit, e)
     return filters
+
+
+def time_range(f_time_min, f_time):
+    """The Time fields as ``(low, high)`` floats in the field's own unit.
+
+    An empty, zero or unreadable end is None, meaning no bound. A minimum above
+    the maximum matches nothing, so it filters nothing instead: both come back
+    None, and the sidebar outlines the two fields.
+    """
+    def read(raw):
+        try:
+            number = float(raw)
+        except (TypeError, ValueError):
+            return None
+        return number if number > 0 else None
+
+    low, high = read(f_time_min), read(f_time)
+    if low is not None and high is not None and low > high:
+        return None, None
+    return low, high
 
 
 RATING_MIN, RATING_MAX = 1, 10
@@ -598,7 +623,7 @@ def select_explore_goals(ranked_goals, nodes, edges, count=5,
 def is_filters_active(*, node_type=None, context=None, subcontext=None,
                       community=None, community_method=None,
                       value=None, interest=None, difficulty=None,
-                      time=None):
+                      time=None, time_min=None):
     """Returns True if any sidebar filter is hiding nodes from the user.
 
     Defaults match the "Clear Filters" reset state in
@@ -626,7 +651,7 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
     for pair in (value, interest, difficulty):
         if pair is not None and rating_range(pair) != (RATING_MIN, RATING_MAX):
             return True
-    if time:
+    if time_range(time_min, time) != (None, None):
         return True
     return False
 

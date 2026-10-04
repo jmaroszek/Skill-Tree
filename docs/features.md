@@ -504,7 +504,7 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 | Value | Keep only nodes rated within a range. Drag either handle: raise the left one to hide low-rated nodes, or lower the right one to find nodes worth reconsidering. |
 | Interest | The same two-handle range, for how much a node interests you. |
 | Effort | The same two-handle range, for how difficult a node is. |
-| Max Time | Hide anything longer than a time limit, using your preferred units |
+| Time | Keep only nodes within a time range, in your preferred units. Fill in either end or both: a minimum finds the big projects, a maximum finds the quick wins. |
 | Done Toggle | Show or hide complete nodes. Hidden by default. |
 | Dormant Toggle | Show or hide dormant nodes. Hidden by default. |
 | Communities | Narrow the graph to an algorithmically-detected cluster of related nodes. See [Communities](#communities) below. |

@@ -109,6 +109,24 @@ class TestBuildFilters:
                                f_interest=None, f_difficulty=[1, 10])
         assert result == {}
 
+    def test_min_time(self):
+        result = build_filters("All", "All", ["show_done"], f_time_min=2)
+        assert result == {"min_time": 2.0}
+
+    def test_time_band_converts_both_ends_with_the_unit(self):
+        result = build_filters("All", "All", ["show_done"], f_time_min=1, f_time=2,
+                               f_time_unit="days")
+        hours_per_day = result["max_time"] / 2
+        assert result == {"min_time": hours_per_day, "max_time": 2 * hours_per_day}
+
+    def test_min_time_above_max_time_filters_nothing(self):
+        result = build_filters("All", "All", ["show_done"], f_time_min=10, f_time=2)
+        assert result == {}
+
+    def test_zero_or_blank_min_time_filters_nothing(self):
+        for blank in (None, "", 0):
+            assert build_filters("All", "All", ["show_done"], f_time_min=blank) == {}
+
     def test_invalid_time_ignored(self):
         result = build_filters("All", "All", ["show_done"], f_time="abc")
         assert "max_time" not in result
@@ -224,6 +242,14 @@ class TestIsFiltersActive:
 
     def test_min_difficulty_active(self):
         assert is_filters_active(difficulty=[2, 10]) is True
+
+    def test_min_time_active(self):
+        assert is_filters_active(time_min=2) is True
+
+    def test_crossed_time_range_is_not_active(self):
+        # build_filters ignores a minimum above the maximum, so nothing is
+        # hidden and the "filtered" marker must stay off.
+        assert is_filters_active(time_min=10, time=2) is False
 
     def test_max_time_active(self):
         assert is_filters_active(time=20) is True

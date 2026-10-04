@@ -339,7 +339,7 @@ def test_empty_suggestion_callback_keeps_priorities_pinned_and_filters_explore()
 
     def render(context):
         return callback(
-            0, 0, context, [], [], 1, 1, None, "hours", 10, [], [], ""
+            0, 0, context, [], [], 1, 1, None, "hours", 10, [], [], "", None
         )
 
     assert suggestion_names(render([])) == {"Priority", "Explore"}
@@ -453,7 +453,7 @@ def test_subtasks_table_waits_for_current_layout(monkeypatch):
     args = [
         "Current", "", 0, 0,
         ["include"], [], 6,
-        None, None, [], 1, 1, None, "All", [], [], [], False,
+        None, None, [], 1, 1, None, "All", [], [], [], None, False,
     ]
 
     monkeypatch.setattr(
@@ -499,7 +499,7 @@ def test_frozen_selection_renders_without_waiting_for_layout(monkeypatch):
     result = callback(
         "Current", "", 0, 0,
         ["include"], [], 6,
-        None, None, [], 1, 1, None, "All", [], [], [], True,
+        None, None, [], 1, 1, None, "All", [], [], [], None, True,
     )
 
     assert "Child" in str(result)

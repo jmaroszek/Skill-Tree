@@ -35,7 +35,8 @@ def _initial_next_view(template, sidebars):
         value('filter-context'), value('filter-subcontext'), value('filter-done'),
         value('filter-value'), value('filter-interest'), value('filter-time'),
         value('filter-difficulty'), value('filter-node-type'),
-        f_time_unit=value('filter-time-unit'), f_show_dormant=value('filter-dormant'))
+        f_time_unit=value('filter-time-unit'), f_show_dormant=value('filter-dormant'),
+        f_time_min=value('filter-time-min'))
     parts = _components_by_id(view)
     count = ConfigManager.get_next_table_rows()
     parts['suggestion-count-store'].data = count

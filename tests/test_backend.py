@@ -1114,6 +1114,18 @@ class TestFiltering:
         result = mgr.filter_nodes(nodes, {"max_interest": 4, "min_difficulty": 5})
         assert [n.name for n in result] == ["A"]
 
+    def test_filter_by_min_time(self, mgr):
+        nodes = [_make_node("A", time_o=1, time_m=1, time_p=1), _make_node("B", time_o=100, time_m=100, time_p=100)]
+        result = mgr.filter_nodes(nodes, {"min_time": 10})
+        assert [n.name for n in result] == ["B"]
+
+    def test_filter_by_time_band(self, mgr):
+        nodes = [_make_node("A", time_o=1, time_m=1, time_p=1),
+                 _make_node("B", time_o=20, time_m=20, time_p=20),
+                 _make_node("C", time_o=100, time_m=100, time_p=100)]
+        result = mgr.filter_nodes(nodes, {"min_time": 10, "max_time": 50})
+        assert [n.name for n in result] == ["B"]
+
     def test_filter_by_max_time(self, mgr):
         nodes = [_make_node("A", time_o=1, time_m=1, time_p=1), _make_node("B", time_o=100, time_m=100, time_p=100)]
         result = mgr.filter_nodes(nodes, {"max_time": 10})
