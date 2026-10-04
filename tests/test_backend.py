@@ -1238,7 +1238,7 @@ class TestCommunityNaming:
         mgr.add_node(_make_node("Solo Node", context="Body"))
         assert mgr.name_community({"Solo Node"}) == "Solo Node"
 
-    def test_list_communities_ranks_and_folds_small_clusters(self, mgr):
+    def test_list_communities_ranks_and_skips_small_clusters(self, mgr):
         for goal, ctx, value in (("Low", "Mind", 1), ("High", "Body", 10)):
             mgr.add_node(_make_node(goal, type="Goal", context=ctx))
             for i in range(3):
@@ -1246,9 +1246,8 @@ class TestCommunityNaming:
                 mgr.add_node(_make_node(leaf, context=ctx, value=value))
                 mgr.add_edge(leaf, goal, EDGE_NEEDS_HARD)
         mgr.add_node(_make_node("Loner"))
-        listing = mgr.list_communities(method="components")
-        assert [label for label, _ in listing.listed] == ["Body: High", "Mind: Low"]
-        assert listing.other == {"Loner"}
+        rows = mgr.list_communities(method="components")
+        assert [label for label, _ in rows] == ["Body: High", "Mind: Low"]
 
 
 # ============================================================================

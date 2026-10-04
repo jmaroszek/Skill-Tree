@@ -1,7 +1,6 @@
 """Community filter labels and ranking (community_labels)."""
 from types import SimpleNamespace
 
-import community_labels
 from community_labels import MAX_LISTED, build_listing, label_communities
 
 
@@ -157,34 +156,35 @@ class TestSmallAndEdgeCases:
         assert labels == ["Mind: G1", "Mind: G2"]
 
 
+def _labels_of(rows):
+    return [label for label, _ in rows]
+
+
 class TestListing:
     def test_ranked_by_summed_priority_not_size(self):
         big, small = {"a", "b", "c", "d"}, {"x", "y", "z"}
         priority = {"a": 1, "b": 1, "c": 1, "d": 1, "x": 5, "y": 5, "z": -1}
-        listing = build_listing([big, small], ["Big", "Small"], priority)
-        assert [label for label, _ in listing.listed] == ["Small", "Big"]
+        rows = build_listing([big, small], ["Big", "Small"], priority)
+        assert _labels_of(rows) == ["Small", "Big"]
 
-    def test_tiny_clusters_and_overflow_fold_into_other(self):
+    def test_tiny_clusters_and_overflow_are_left_out(self):
         clusters = [{f"c{i}a", f"c{i}b", f"c{i}c"} for i in range(MAX_LISTED + 2)]
         clusters += [{"solo"}, {"p1", "p2"}]
         labels = [f"L{i}" for i in range(len(clusters))]
-        priority = {x: 1.0 for c in clusters for x in c}
-        listing = build_listing(clusters, labels, priority)
-        assert len(listing.listed) == MAX_LISTED
-        assert listing.other_clusters == 4
-        assert {"solo", "p1", "p2"} <= listing.other
+        # Lower-numbered clusters matter more, so the last two overflow.
+        priority = {x: float(-i) + 100 for i, c in enumerate(clusters) for x in c}
+        rows = build_listing(clusters, labels, priority)
+        assert _labels_of(rows) == labels[:MAX_LISTED]
 
     def test_orphan_mode_lists_single_nodes(self):
-        clusters = [{"a"}, {"b"}]
-        listing = build_listing(clusters, ["a", "b"], {"b": 2.0},
-                                fold_small=False)
-        assert [label for label, _ in listing.listed] == ["b", "a"]
-        assert not listing.other
+        rows = build_listing([{"a"}, {"b"}], ["a", "b"], {"b": 2.0},
+                             skip_small=False)
+        assert _labels_of(rows) == ["b", "a"]
 
     def test_ties_fall_back_to_size_then_label(self):
-        listing = build_listing([{"a", "b", "c"}, {"d", "e", "f", "g"}],
-                                ["Zed", "Alpha"], {})
-        assert [label for label, _ in listing.listed] == ["Alpha", "Zed"]
+        rows = build_listing([{"a", "b", "c"}, {"d", "e", "f", "g"}],
+                             ["Zed", "Alpha"], {})
+        assert _labels_of(rows) == ["Alpha", "Zed"]
 
 
 class TestCanvasOptions:
@@ -207,19 +207,18 @@ class TestCanvasOptions:
         manager.add_edge('B', 'Hub', 'Needs_Hard')
         return manager
 
-    def test_options_are_keyed_by_label_and_end_with_other(self, temp_database):
+    def test_options_are_keyed_by_label_without_a_catch_all(self, temp_database):
         options = self._view(self._graph(), 'All').community_options
         assert options[0] == {"label": "All", "value": "All"}
+        assert len(options) == 2
         assert options[1]["value"] == options[1]["label"].rsplit(" (", 1)[0]
         assert options[1]["label"].endswith("(3 nodes)")
-        assert options[-1] == {"label": "Other clusters (1 node)",
-                               "value": community_labels.OTHER_VALUE}
 
-    def test_selecting_a_row_or_other_narrows_the_canvas(self, temp_database):
+    def test_selecting_a_row_narrows_the_canvas(self, temp_database):
         manager = self._graph()
         label = self._view(manager, 'All').community_options[1]["value"]
         assert self._shown(self._view(manager, label)) == {'Hub', 'A', 'B'}
-        assert self._shown(self._view(manager, community_labels.OTHER_VALUE)) == {'Loner'}
+        assert self._shown(self._view(manager, 'All')) == {'Hub', 'A', 'B', 'Loner'}
 
     def test_a_stale_selection_shows_everything(self, temp_database):
         manager = self._graph()
@@ -229,3 +228,10 @@ class TestCanvasOptions:
         view = self._view(self._graph(), 'All', method="orphans")
         assert self._shown(view) == {'Loner'}
         assert view.community_options[1] == {"label": "Loner (1 node)", "value": "Loner"}
+
+    def test_orphans_all_includes_orphans_past_the_cap(self, temp_database):
+        from test_atomic_saves import graph
+        names = [f"Orphan {i:02}" for i in range(MAX_LISTED + 5)]
+        view = self._view(graph(*names), 'All', method="orphans")
+        assert len(view.community_options) == MAX_LISTED + 1
+        assert self._shown(view) == set(names)

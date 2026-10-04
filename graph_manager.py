@@ -1269,8 +1269,8 @@ class GraphManager:
 
     @database.consistent_read
     def list_communities(self, method: str = "louvain", filters: Optional[Dict] = None):
-        """The Community filter's rows, labelled, ranked and capped. Returns a
-        `community_labels.CommunityListing`."""
+        """The Community filter's rows, labelled, ranked and capped, as
+        (label, members) pairs."""
         return graph_queries.list_communities(self, method, filters)
 
     @database.consistent_read

@@ -400,7 +400,7 @@ def _labels(manager, communities, nodes) -> List[str]:
 def list_communities(manager, method: str = "louvain",
                      filters: Optional[Dict] = None):
     """The Community filter's rows: each community labelled, ranked by the
-    summed priority of its members, capped, and the rest folded into Other."""
+    summed priority of its members, and capped."""
     import community_labels
     communities = detect_communities(manager, method, filters)
     nodes = manager.get_all_nodes(include_dormant=True)
@@ -411,7 +411,7 @@ def list_communities(manager, method: str = "louvain",
         members, priority_goals=ConfigManager.get_priority_goals())
     priority = {n.name: n.priority_score for n in scored}
     return community_labels.build_listing(
-        communities, labels, priority, fold_small=method != "orphans")
+        communities, labels, priority, skip_small=method != "orphans")
 
 
 def detect_communities(manager, method: str = "components", filters: Optional[Dict] = None) -> List[Set[str]]:

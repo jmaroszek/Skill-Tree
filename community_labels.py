@@ -8,8 +8,7 @@ Pure functions over plain data, so they test without a database.
 `graph_queries.list_communities` gathers the inputs.
 """
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 
@@ -28,21 +27,13 @@ MAX_LABEL_CHARS = 50
 # A further hub must reach at least this share of the cluster that the
 # earlier hubs don't.
 MIN_NEW_REACH = 0.1
-# The Community list shows this many clusters at most. The rest, and every
-# cluster too small to be worth a row, share one "Other" entry.
-MAX_LISTED = 15
+# The Community list shows this many clusters at most, and none under
+# MIN_LISTED_SIZE. Unlisted clusters still show under "All"; grouping them in
+# one row would put unrelated clusters on the canvas together. On a real
+# graph, 1-2 node clusters are most of what a narrow filter produces, and the
+# unfiltered graph has 17 clusters of three or more.
+MAX_LISTED = 20
 MIN_LISTED_SIZE = 3
-OTHER_VALUE = "__other__"
-
-
-@dataclass
-class CommunityListing:
-    """What the Community filter offers: ``listed`` holds (label, members)
-    pairs, most important first; ``other`` holds every member folded into
-    the Other entry."""
-    listed: List[tuple] = field(default_factory=list)
-    other: Set[str] = field(default_factory=set)
-    other_clusters: int = 0
 
 
 def _top(counter):
@@ -193,26 +184,20 @@ def label_communities(communities, nodes_by_name: Dict, edges,
     return labels
 
 
-def build_listing(communities, labels, priority, fold_small=True) -> CommunityListing:
-    """Rank the communities and split them into listed rows and Other.
+def build_listing(communities, labels, priority,
+                  skip_small=True) -> List[Tuple[str, Set[str]]]:
+    """The Community filter's rows as (label, members), most important first.
 
     Importance is the summed priority score of a cluster's members: how much
     of the user's recommended work lives there. Clusters under
-    MIN_LISTED_SIZE fold into Other when ``fold_small`` is set; Orphans mode
+    MIN_LISTED_SIZE are left out when ``skip_small`` is set; Orphans mode
     clears it, since every orphan is a cluster of one.
     """
     def importance(i):
         return sum(max(0.0, priority.get(x, 0.0)) for x in communities[i])
 
-    order = sorted(range(len(communities)),
-                   key=lambda i: (-importance(i), -len(communities[i]),
-                                  labels[i].casefold()))
-    listing = CommunityListing()
-    for i in order:
-        small = fold_small and len(communities[i]) < MIN_LISTED_SIZE
-        if not small and len(listing.listed) < MAX_LISTED:
-            listing.listed.append((labels[i], set(communities[i])))
-        else:
-            listing.other |= communities[i]
-            listing.other_clusters += 1
-    return listing
+    candidates = [i for i in range(len(communities))
+                  if not (skip_small and len(communities[i]) < MIN_LISTED_SIZE)]
+    candidates.sort(key=lambda i: (-importance(i), -len(communities[i]),
+                                   labels[i].casefold()))
+    return [(labels[i], set(communities[i])) for i in candidates[:MAX_LISTED]]

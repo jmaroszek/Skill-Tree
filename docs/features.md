@@ -533,7 +533,7 @@ The Communities section algorithmically groups related nodes together. Three det
 
 Pick a detection method, then a specific community from the list. Each name says what the community is built around. It names up to three hub nodes, usually the Goals the community leads into. When one context holds most of the community, the name starts with it, as in "Health: Exercise + Rhythms." A community that spans areas shows only its hubs, as in "Creativity + Literature + Frontend Development." A community of one or two nodes is named after them.
 
-The list is ordered by importance: the summed priority of each community's nodes. It shows the top 15. Everything below them, and every community of one or two nodes, shares a single "Other" entry. So a filter that shatters the graph into hundreds of pieces still gives a short list.
+The list is ordered by importance: the summed priority of each community's nodes. It shows the top 20. Communities of one or two nodes aren't listed, except in Orphans mode. So a filter that shatters the graph into hundreds of pieces still gives a short list. Communities that aren't listed still appear under "All."
 
 Here is an example. The algorithm identified a cluster of physics nodes, and as you can see, it also pulled in many chemistry nodes. That is because chemistry is closely related to atomic physics. You will be amazed at how often Skill Tree can find connections between areas that only have one joint edge, but are conceptually related. 
 
