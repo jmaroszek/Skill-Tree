@@ -100,8 +100,8 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
     return results[:limits.get('bottlenecks', 15)]
 
 
-def _compute_hub_score(nodes, edges, limits):
-    """For each unfinished work node, compute its hub score —
+def hub_scores(nodes, edges):
+    """Every unfinished work node's hub score, keyed by name —
     ``sqrt(in_count * out_count) + 0.5 * helps_count`` over Hard + Soft
     prereq edges, with Helps edges counted as symmetric synergy partners.
 
@@ -115,9 +115,8 @@ def _compute_hub_score(nodes, edges, limits):
     both directions — concepts that absorb prereqs AND feed dependents.
     The Helps term gives synergy partners half-weight credit on top.
 
-    Returns the top N (capped by ``limits['bottlenecks']``, since the
-    Graph Structure section's gear controls both charts) sorted by score
-    descending, with the score components for the tooltip."""
+    Each value is a row with the score components for the chart tooltip.
+    Nodes scoring 0 are left out."""
     node_map = {n.name: n for n in nodes}
     candidates = {n.name for n in nodes
                   if n.status != STATUS_DONE and n.type not in _CONTAINER_TYPES}
@@ -136,7 +135,7 @@ def _compute_hub_score(nodes, edges, limits):
             helps_ct[s] += 1
             helps_ct[t] += 1
 
-    results = []
+    results = {}
     for name in candidates:
         i, o = in_ct[name], out_ct[name]
         h = helps_ct[name]
@@ -144,7 +143,7 @@ def _compute_hub_score(nodes, edges, limits):
         if score <= 0:
             continue
         n = node_map[name]
-        results.append({
+        results[name] = {
             'name': name,
             'score': score,
             'in_count': i,
@@ -152,8 +151,15 @@ def _compute_hub_score(nodes, edges, limits):
             'helps_count': h,
             'type': n.type,
             'status': n.status,
-        })
+        }
+    return results
 
+
+def _compute_hub_score(nodes, edges, limits):
+    """The Hubs chart: the top N nodes by `hub_scores`, capped by
+    ``limits['bottlenecks']`` since the Graph Structure section's gear
+    controls both charts, sorted by score descending."""
+    results = list(hub_scores(nodes, edges).values())
     results.sort(key=lambda r: (-r['score'], r['name'].casefold()))
     return results[:limits.get('bottlenecks', 15)]
 

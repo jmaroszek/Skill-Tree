@@ -1227,39 +1227,28 @@ class TestCommunityNaming:
     def test_nonexistent_nodes(self, mgr):
         assert mgr.name_community({"DoesNotExist"}) == "Unknown"
 
-    def test_dominant_context(self, mgr):
-        mgr.add_node(_make_node("A", context="Mind"))
-        mgr.add_node(_make_node("B", context="Mind"))
-        mgr.add_node(_make_node("C", context="Body"))
-        name = mgr.name_community({"A", "B", "C"})
-        assert name == "Mind"  # 2/3 >= 50%
+    def test_names_a_cluster_after_its_goal(self, mgr):
+        mgr.add_node(_make_node("Sleep", type="Goal", context="Body"))
+        for name in ("A", "B", "C"):
+            mgr.add_node(_make_node(name, context="Body"))
+            mgr.add_edge(name, "Sleep", EDGE_NEEDS_HARD)
+        assert mgr.name_community({"Sleep", "A", "B", "C"}) == "Body: Sleep"
 
-    def test_dominant_context_with_subcontext(self, mgr):
-        mgr.add_node(_make_node("A", context="Mind", subcontext="Logic"))
-        mgr.add_node(_make_node("B", context="Mind", subcontext="Logic"))
-        name = mgr.name_community({"A", "B"})
-        assert name == "Mind > Logic"
-
-    def test_type_fallback(self, mgr):
-        # No dominant context — all different contexts
-        mgr.add_node(_make_node("A", context="Mind", type="Goal"))
-        mgr.add_node(_make_node("B", context="Body", type="Goal"))
-        mgr.add_node(_make_node("C", context="Spirit", type="Goal"))
-        name = mgr.name_community({"A", "B", "C"})
-        assert name == "Goals"  # 100% Goal type
-
-    def test_word_fallback(self, mgr):
-        # No dominant context or type
-        mgr.add_node(_make_node("Python Basics", context="Mind", type="Learn"))
-        mgr.add_node(_make_node("Python Advanced", context="Body", type="Goal"))
-        mgr.add_node(_make_node("Rust Intro", context="Spirit", type="Action"))
-        name = mgr.name_community({"Python Basics", "Python Advanced", "Rust Intro"})
-        assert name == "Python"  # "python" appears twice
-
-    def test_single_node_uses_context(self, mgr):
+    def test_single_node_uses_its_name(self, mgr):
         mgr.add_node(_make_node("Solo Node", context="Body"))
-        name = mgr.name_community({"Solo Node"})
-        assert name == "Body"
+        assert mgr.name_community({"Solo Node"}) == "Solo Node"
+
+    def test_list_communities_ranks_and_folds_small_clusters(self, mgr):
+        for goal, ctx, value in (("Low", "Mind", 1), ("High", "Body", 10)):
+            mgr.add_node(_make_node(goal, type="Goal", context=ctx))
+            for i in range(3):
+                leaf = f"{goal}{i}"
+                mgr.add_node(_make_node(leaf, context=ctx, value=value))
+                mgr.add_edge(leaf, goal, EDGE_NEEDS_HARD)
+        mgr.add_node(_make_node("Loner"))
+        listing = mgr.list_communities(method="components")
+        assert [label for label, _ in listing.listed] == ["Body: High", "Mind: Low"]
+        assert listing.other == {"Loner"}
 
 
 # ============================================================================

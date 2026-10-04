@@ -1261,16 +1261,17 @@ class GraphManager:
         if field == 'type':
             self.recompute_all_statuses()
 
+    @database.consistent_read
     def name_community(self, community: Set[str]) -> str:
-        """Generate a descriptive name for a community based on member node attributes.
-
-        Strategy (in priority order):
-        1. If a dominant context covers >=50% of nodes, use it.
-           - If a subcontext also dominates within that context, append it.
-        2. Otherwise, if a dominant node type covers >=60%, use it as the label.
-        3. Otherwise, find the most frequent meaningful word across node names.
-        """
+        """A community's label: an optional context prefix, then up to three
+        hub nodes. See `community_labels`."""
         return graph_queries.name_community(self, community)
+
+    @database.consistent_read
+    def list_communities(self, method: str = "louvain", filters: Optional[Dict] = None):
+        """The Community filter's rows, labelled, ranked and capped. Returns a
+        `community_labels.CommunityListing`."""
+        return graph_queries.list_communities(self, method, filters)
 
     @database.consistent_read
     def detect_communities(self, method: str = "components", filters: Optional[Dict] = None) -> List[Set[str]]:

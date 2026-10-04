@@ -531,9 +531,11 @@ The Communities section algorithmically groups related nodes together. Three det
 | Clusters | Densely connected groups. Useful for spotting cross-context clusters that don't fit your mental taxonomy. |
 | Orphans | Nodes with no edges at all. Almost always a missing link, or a candidate for deletion. |
 
-Pick a detection method, then a specific community from the list. Community names auto-generate from the most common context in the group — slightly more descriptive than "Community 1, 2, 3," but you'll still need to click it to see what nodes are members of the community.
+Pick a detection method, then a specific community from the list. Each name says what the community is built around. It names up to three hub nodes, usually the Goals the community leads into. When one context holds most of the community, the name starts with it, as in "Health: Exercise + Rhythms." A community that spans areas shows only its hubs, as in "Creativity + Literature + Frontend Development." A community of one or two nodes is named after them.
 
-Here is an example. The algorithm identified a cluster named "STEM > Physics," and as you can see, it grabbed a bunch of physics nodes, but also pulled in many chemistry nodes. That is because chemistry is closely related to atomic physics. You will be amazed at how often Skill Tree can find connections between areas that only have one joint edge, but are conceptually related. 
+The list is ordered by importance: the summed priority of each community's nodes. It shows the top 15. Everything below them, and every community of one or two nodes, shares a single "Other" entry. So a filter that shatters the graph into hundreds of pieces still gives a short list.
+
+Here is an example. The algorithm identified a cluster of physics nodes, and as you can see, it also pulled in many chemistry nodes. That is because chemistry is closely related to atomic physics. You will be amazed at how often Skill Tree can find connections between areas that only have one joint edge, but are conceptually related. 
 
 <p align="center">
   <img src="../images/filters-community.png">

@@ -383,65 +383,35 @@ def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None) -> "nx.Gr
 
 
 def name_community(manager, community: Set[str]) -> str:
-    """Generate a descriptive name for a community based on member node attributes.
+    """One community's label. See `community_labels` for the rules."""
+    return _labels(manager, [community],
+                   manager.get_all_nodes(include_dormant=True))[0]
 
-    Strategy (in priority order):
-    1. If a dominant context covers >=50% of nodes, use it.
-       - If a subcontext also dominates within that context, append it.
-    2. Otherwise, if a dominant node type covers >=60%, use it as the label.
-    3. Otherwise, find the most frequent meaningful word across node names.
-    """
-    if not community:
-        return "Empty"
 
-    nodes = [manager.get_node(name) for name in community]
-    nodes = [n for n in nodes if n is not None]
-    if not nodes:
-        return "Unknown"
+def _labels(manager, communities, nodes) -> List[str]:
+    import community_labels
+    from graph_analytics import hub_scores
+    edges = manager.get_edges()
+    hubs = {name: row['score'] for name, row in hub_scores(nodes, edges).items()}
+    return community_labels.label_communities(
+        communities, {n.name: n for n in nodes}, edges, hubs)
 
-    from collections import Counter
 
-    # --- Strategy 1: Dominant context ---
-    contexts = [n.context for n in nodes if n.context]
-    if contexts:
-        ctx_counts = Counter(contexts)
-        top_ctx, top_count = ctx_counts.most_common(1)[0]
-        if top_count / len(nodes) >= 0.5:
-            # Check for dominant subcontext within this context
-            subcontexts = [n.subcontext for n in nodes if n.context == top_ctx and n.subcontext]
-            if subcontexts:
-                sub_counts = Counter(subcontexts)
-                top_sub, sub_count = sub_counts.most_common(1)[0]
-                if sub_count / top_count >= 0.5:
-                    return f"{top_ctx} > {top_sub}"
-            return top_ctx
-
-    # --- Strategy 2: Dominant type ---
-    types = [n.type for n in nodes if n.type]
-    if types:
-        type_counts = Counter(types)
-        top_type, type_count = type_counts.most_common(1)[0]
-        if type_count / len(nodes) >= 0.6:
-            return f"{top_type}s"
-
-    # --- Strategy 3: Common words in node names ---
-    stop_words = {
-        'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'for', 'with',
-        'on', 'at', 'by', 'is', 'it', 'as', 'be', 'do', 'how', 'my',
-        'i', 'me', 'up', 'so', 'no', 'not', 'but', 'get', 'set', '&',
-        '-', '1', '2', '3', '4', '5',
-    }
-    all_words: list[str] = []
-    for n in nodes:
-        words = n.name.lower().replace('-', ' ').replace('_', ' ').split()
-        all_words.extend(w for w in words if len(w) > 2 and w not in stop_words)
-    if all_words:
-        word_counts = Counter(all_words)
-        top_word, _ = word_counts.most_common(1)[0]
-        return top_word.title()
-
-    # Final fallback
-    return "Mixed"
+def list_communities(manager, method: str = "louvain",
+                     filters: Optional[Dict] = None):
+    """The Community filter's rows: each community labelled, ranked by the
+    summed priority of its members, capped, and the rest folded into Other."""
+    import community_labels
+    communities = detect_communities(manager, method, filters)
+    nodes = manager.get_all_nodes(include_dormant=True)
+    labels = _labels(manager, communities, nodes)
+    by_name = {n.name: n for n in nodes}
+    members = [by_name[x] for c in communities for x in c if x in by_name]
+    scored = manager.calculate_priority_scores(
+        members, priority_goals=ConfigManager.get_priority_goals())
+    priority = {n.name: n.priority_score for n in scored}
+    return community_labels.build_listing(
+        communities, labels, priority, fold_small=method != "orphans")
 
 
 def detect_communities(manager, method: str = "components", filters: Optional[Dict] = None) -> List[Set[str]]:

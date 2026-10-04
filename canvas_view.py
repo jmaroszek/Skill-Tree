@@ -5,6 +5,7 @@ from config import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
 from callback_helpers import node_options
 from core_response import CoreResponse
 from canvases import CANVASES
+from community_labels import OTHER_VALUE
 
 _NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
 
@@ -12,6 +13,10 @@ _NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
 # until that canvas loads. It still marks a render, which is what the graph
 # version bridge, the startup cover and the Goals prewarm listen for.
 CANVAS_DEFERRED = {'deferred': True}
+
+
+def _node_count(members):
+    return "1 node" if len(members) == 1 else f"{len(members)} nodes"
 
 
 def canvas_wanted(active_tab, payload_stamp):
@@ -43,35 +48,28 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
 
     else:
         community_method = community_method or "louvain"
-        communities = manager.detect_communities(method=community_method, filters=filters)
+        listing = manager.list_communities(method=community_method, filters=filters)
+        # A row's value is its label, not its position: ranks move whenever a
+        # score does, and a selection should stay on the same cluster.
         community_options = [{"label": "All", "value": "All"}]
-        name_counts: dict[str, int] = {}
-        for i, comm in enumerate(communities):
-            base_name = manager.name_community(comm)
-            name_counts[base_name] = name_counts.get(base_name, 0) + 1
-            if name_counts[base_name] > 1:
-                label = f"{base_name} #{name_counts[base_name]} ({len(comm)} nodes)"
-            else:
-                label = f"{base_name} ({len(comm)} nodes)"
-            community_options.append({"label": label, "value": str(i)})
-        # Fix labels retroactively when the first occurrence also needs a number
-        for key, count in name_counts.items():
-            if count > 1:
-                for opt in community_options:
-                    if opt["label"].startswith(f"{key} (") and opt["value"] != "All":
-                        opt["label"] = opt["label"].replace(f"{key} (", f"{key} #1 (", 1)
-                        break
+        members_by_value = {}
+        for label, members in listing.listed:
+            community_options.append({"label": f"{label} ({_node_count(members)})",
+                                      "value": label})
+            members_by_value[label] = members
+        if listing.other:
+            noun = "orphans" if community_method == "orphans" else "clusters"
+            community_options.append({
+                "label": f"Other {noun} ({_node_count(listing.other)})",
+                "value": OTHER_VALUE})
+            members_by_value[OTHER_VALUE] = listing.other
 
         community_names = None
         if f_community and f_community != "All":
-            try:
-                idx = int(f_community)
-                if 0 <= idx < len(communities):
-                    community_names = communities[idx]
-            except (ValueError, IndexError): pass
-        elif community_method == "orphans" and communities:
+            community_names = members_by_value.get(f_community)
+        elif community_method == "orphans" and members_by_value:
             # "All" in orphans mode still means "only orphan nodes", not every node
-            community_names = set().union(*communities)
+            community_names = set().union(*members_by_value.values())
 
         elements = generate_elements(filters, active_node_id,
                                     community_names=community_names)
