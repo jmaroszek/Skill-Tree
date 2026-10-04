@@ -41,7 +41,7 @@ def test_initial_next_is_populated_and_reads_the_sidebar_controls():
     # First paint reads the live sidebar components, not stored filter state —
     # the sidebar always opens unfiltered, so set the control directly.
     sidebars = build_all_sidebars()
-    _components_by_id(sidebars)['filter-value'].value = 4
+    _components_by_id(sidebars)['filter-value'].value = [4, 10]
     view = _initial_next_view(next_view, sidebars)
     table = _components_by_id(view)['suggestions-table']
     from plotly.utils import PlotlyJSONEncoder

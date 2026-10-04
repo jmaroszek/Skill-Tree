@@ -64,9 +64,9 @@ def test_filters_open_on_the_whole_graph_every_session():
     assert "Memory" not in _text(content)
 
     assert _by_id(content, "filter-node-type").value == []
-    assert _by_id(content, "filter-value").value == 1
-    assert _by_id(content, "filter-interest").value == 1
-    assert _by_id(content, "filter-difficulty").value == 10
+    assert _by_id(content, "filter-value").value == [1, 10]
+    assert _by_id(content, "filter-interest").value == [1, 10]
+    assert _by_id(content, "filter-difficulty").value == [1, 10]
     assert _by_id(content, "filter-time").value is None
     assert _by_id(content, "filter-time-unit").value == "hours"
     assert _by_id(content, "filter-done").value == []
@@ -91,7 +91,7 @@ def test_filter_defaults_match_the_clear_filters_reset():
          "filter-community", "filter-value", "filter-interest",
          "filter-difficulty", "filter-time", "filter-time-unit",
          "filter-done", "filter-dormant"],
-        ([], [], 'louvain', 'All', 1, 1, 10, None, 'hours', [], []),
+        ([], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, 'hours', [], []),
     ))
     for component_id, cleared in reset.items():
         assert _by_id(content, component_id).value == cleared, component_id

@@ -77,11 +77,11 @@ class TestBuildFilters:
         assert result == {}
 
     def test_min_value(self):
-        result = build_filters("All", "All", ["show_done"], f_value=5)
+        result = build_filters("All", "All", ["show_done"], f_value=[5, 10])
         assert result == {"min_value": 5}
 
     def test_min_interest(self):
-        result = build_filters("All", "All", ["show_done"], f_interest=3)
+        result = build_filters("All", "All", ["show_done"], f_interest=[3, 10])
         assert result == {"min_interest": 3}
 
     def test_max_time(self):
@@ -89,8 +89,25 @@ class TestBuildFilters:
         assert result == {"max_time": 10.0}
 
     def test_max_difficulty(self):
-        result = build_filters("All", "All", ["show_done"], f_difficulty="7")
+        result = build_filters("All", "All", ["show_done"], f_difficulty=[1, 7])
         assert result == {"max_difficulty": 7}
+
+    def test_max_value_upper_bound(self):
+        result = build_filters("All", "All", ["show_done"], f_value=[1, 3])
+        assert result == {"max_value": 3}
+
+    def test_value_band_sets_both_bounds(self):
+        result = build_filters("All", "All", ["show_done"], f_value=[4, 6])
+        assert result == {"min_value": 4, "max_value": 6}
+
+    def test_min_difficulty_lower_bound(self):
+        result = build_filters("All", "All", ["show_done"], f_difficulty=[5, 10])
+        assert result == {"min_difficulty": 5}
+
+    def test_full_or_missing_rating_range_filters_nothing(self):
+        result = build_filters("All", "All", ["show_done"], f_value=[1, 10],
+                               f_interest=None, f_difficulty=[1, 10])
+        assert result == {}
 
     def test_invalid_time_ignored(self):
         result = build_filters("All", "All", ["show_done"], f_time="abc")
@@ -156,7 +173,7 @@ class TestIsFiltersActive:
         assert is_filters_active(
             node_type=[], context=[], subcontext=[],
             community="All", community_method="components",
-            value=1, interest=1, difficulty=10, time=None,
+            value=[1, 10], interest=[1, 10], difficulty=[1, 10], time=None,
         ) is False
 
     def test_no_args_inactive(self):
@@ -188,19 +205,25 @@ class TestIsFiltersActive:
         assert is_filters_active(community_method="components") is False
 
     def test_min_value_active(self):
-        assert is_filters_active(value=2) is True
+        assert is_filters_active(value=[2, 10]) is True
 
     def test_min_value_at_floor_inactive(self):
-        assert is_filters_active(value=1) is False
+        assert is_filters_active(value=[1, 10]) is False
 
     def test_min_interest_active(self):
-        assert is_filters_active(interest=5) is True
+        assert is_filters_active(interest=[5, 10]) is True
 
     def test_max_difficulty_active(self):
-        assert is_filters_active(difficulty=7) is True
+        assert is_filters_active(difficulty=[1, 7]) is True
 
     def test_max_difficulty_at_ceiling_inactive(self):
-        assert is_filters_active(difficulty=10) is False
+        assert is_filters_active(difficulty=[1, 10]) is False
+
+    def test_max_value_active(self):
+        assert is_filters_active(value=[1, 3]) is True
+
+    def test_min_difficulty_active(self):
+        assert is_filters_active(difficulty=[2, 10]) is True
 
     def test_max_time_active(self):
         assert is_filters_active(time=20) is True

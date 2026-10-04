@@ -420,8 +420,8 @@ def build_edge_element(edge):
     }
 
 
-def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
-                  f_time=None, f_difficulty="All", f_node_types=None,
+def build_filters(f_context, f_subcontext, f_done, f_value=None, f_interest=None,
+                  f_time=None, f_difficulty=None, f_node_types=None,
                   f_time_unit="hours", f_show_dormant=None):
     """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
     filters = {}
@@ -498,21 +498,36 @@ def build_filters(f_context, f_subcontext, f_done, f_value=1, f_interest=1,
     # (empty list, or any legacy value) = hide done. Default is hidden.
     if not (f_done and "show_done" in f_done):
         filters['hide_done'] = True
-    if f_value and f_value > 1:
-        filters['min_value'] = f_value
-    if f_interest and f_interest > 1:
-        filters['min_interest'] = f_interest
+    for key, pair in (('value', f_value), ('interest', f_interest),
+                      ('difficulty', f_difficulty)):
+        low, high = rating_range(pair)
+        if low > RATING_MIN:
+            filters[f'min_{key}'] = low
+        if high < RATING_MAX:
+            filters[f'max_{key}'] = high
     if f_time is not None and f_time != "" and f_time != 0:
         try:
             multiplier = ConfigManager.get_time_multiplier(f_time_unit or "hours")
             filters['max_time'] = float(f_time) * multiplier
         except (ValueError, TypeError) as e:
             logger.warning("Invalid max_time filter (%r, unit=%r): %s", f_time, f_time_unit, e)
-    if f_difficulty and f_difficulty != "All":
-        try: filters['max_difficulty'] = int(f_difficulty)
-        except (ValueError, TypeError) as e:
-            logger.warning("Invalid max_difficulty filter (%r): %s", f_difficulty, e)
     return filters
+
+
+RATING_MIN, RATING_MAX = 1, 10
+
+
+def rating_range(pair):
+    """A rating slider's ``[low, high]`` value as two ints, clamped to 1-10.
+
+    Anything that is not a usable pair (None before the page loads, a stray
+    scalar) reads as the full range, which filters nothing.
+    """
+    try:
+        low, high = (int(v) for v in pair)
+    except (TypeError, ValueError):
+        return RATING_MIN, RATING_MAX
+    return max(RATING_MIN, min(low, high)), min(RATING_MAX, max(low, high))
 
 
 def select_explore_goals(ranked_goals, nodes, edges, count=5,
@@ -608,12 +623,9 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
         return True
     if community_method == "orphans":
         return True
-    if value is not None and value > 1:
-        return True
-    if interest is not None and interest > 1:
-        return True
-    if difficulty is not None and difficulty < 10:
-        return True
+    for pair in (value, interest, difficulty):
+        if pair is not None and rating_range(pair) != (RATING_MIN, RATING_MAX):
+            return True
     if time:
         return True
     return False

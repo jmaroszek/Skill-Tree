@@ -294,7 +294,27 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def clear_filters(_clear_clicks, _focus_clicks):
-        return [], [], 'louvain', 'All', 1, 1, 10, None, 'hours', [], []
+        return [], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, 'hours', [], []
+
+    # Narrowed rating ranges show beside their label ("Value 1-3"); a full
+    # range shows nothing, since it filters nothing.
+    app.clientside_callback(
+        """
+        function(value, interest, difficulty) {
+            return [value, interest, difficulty].map(function (range) {
+                if (!range || (range[0] === 1 && range[1] === 10)) { return ''; }
+                return range[0] === range[1] ? String(range[0])
+                                              : range[0] + '\\u2013' + range[1];
+            });
+        }
+        """,
+        Output('filter-value-range', 'children'),
+        Output('filter-interest-range', 'children'),
+        Output('filter-difficulty-range', 'children'),
+        Input('filter-value', 'value'),
+        Input('filter-interest', 'value'),
+        Input('filter-difficulty', 'value'),
+    )
 
     # Clientside reset of filter-subcontext.value on Clear Filters / Focus.
     # Server-side reset would put a callback Output on this prop, which Dash

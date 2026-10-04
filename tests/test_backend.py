@@ -1098,6 +1098,22 @@ class TestFiltering:
         assert len(result) == 1
         assert result[0].name == "B"
 
+    def test_filter_by_max_value(self, mgr):
+        nodes = [_make_node("A", value=3), _make_node("B", value=8)]
+        result = mgr.filter_nodes(nodes, {"max_value": 3})
+        assert [n.name for n in result] == ["A"]
+
+    def test_filter_by_value_band(self, mgr):
+        nodes = [_make_node("A", value=2), _make_node("B", value=5), _make_node("C", value=9)]
+        result = mgr.filter_nodes(nodes, {"min_value": 4, "max_value": 6})
+        assert [n.name for n in result] == ["B"]
+
+    def test_filter_by_max_interest_and_min_difficulty(self, mgr):
+        nodes = [_make_node("A", interest=2, difficulty=8), _make_node("B", interest=9, difficulty=8),
+                 _make_node("C", interest=2, difficulty=3)]
+        result = mgr.filter_nodes(nodes, {"max_interest": 4, "min_difficulty": 5})
+        assert [n.name for n in result] == ["A"]
+
     def test_filter_by_max_time(self, mgr):
         nodes = [_make_node("A", time_o=1, time_m=1, time_p=1), _make_node("B", time_o=100, time_m=100, time_p=100)]
         result = mgr.filter_nodes(nodes, {"max_time": 10})

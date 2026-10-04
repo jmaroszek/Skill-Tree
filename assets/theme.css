@@ -1314,7 +1314,7 @@ body:has(.keyboard-graph:focus-visible) .keyboard-feedback {
 }
 
 /* --- Marked sliders: hide Dash's companion number input --- */
-/* dcc.Slider renders an editable number box (.dash-range-slider-input) next to
+/* dcc.Slider and dcc.RangeSlider render editable number boxes (.dash-range-slider-input) next to
    the track. On these marked sliders the value is already legible from the
    axis marks below, so the box is redundant clutter; hide it and let the track
    use the full width. */

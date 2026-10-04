@@ -336,17 +336,16 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
             else:
                 result = [n for n in result if n.subcontext == sub]
 
-    if 'min_value' in filters:
-        result = [n for n in result if n.value >= int(filters['min_value'])]
-
-    if 'min_interest' in filters:
-        result = [n for n in result if n.interest >= int(filters['min_interest'])]
+    for key in ('value', 'interest', 'difficulty'):
+        if f'min_{key}' in filters:
+            low = int(filters[f'min_{key}'])
+            result = [n for n in result if getattr(n, key) >= low]
+        if f'max_{key}' in filters:
+            high = int(filters[f'max_{key}'])
+            result = [n for n in result if getattr(n, key) <= high]
 
     if 'max_time' in filters:
         result = [n for n in result if getattr(n, 'time', 1.0) <= float(filters['max_time'])]
-
-    if 'max_difficulty' in filters:
-        result = [n for n in result if n.difficulty <= int(filters['max_difficulty'])]
 
     if 'node_types' in filters:
         result = [n for n in result if n.type in filters['node_types']]

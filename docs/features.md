@@ -501,9 +501,9 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 | Context | Restrict the app to one or more life areas. |
 | Subcontext | Narrow those contexts to more specific domains. |
 | Node Type | Show only certain node types (e.g. learns + resources). |
-| Min Value | Hide anything rated below a threshold. |
-| Min Interest | Hide anything rated below a threshold. |
-| Max Effort | Hide anything more difficult than a threshold. |
+| Value | Keep only nodes rated within a range. Drag either handle: raise the left one to hide low-rated nodes, or lower the right one to find nodes worth reconsidering. |
+| Interest | The same two-handle range, for how much a node interests you. |
+| Effort | The same two-handle range, for how difficult a node is. |
 | Max Time | Hide anything longer than a time limit, using your preferred units |
 | Done Toggle | Show or hide complete nodes. Hidden by default. |
 | Dormant Toggle | Show or hide dormant nodes. Hidden by default. |
