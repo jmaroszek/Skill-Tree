@@ -195,12 +195,12 @@ def _build_editing_tab():
             # months, or years, so they sit with the new-node defaults.
             html.Hr(className="my-3"),
             html.H5("Time Estimates", className="mt-2 mb-1"),
+            html.Small("Productive hours that make up a day, week, month, "
+                       "and year. Every time estimate in the app counts "
+                       "work time in these units.",
+                       className="text-muted d-block mb-2"),
             dbc.Row([
                 dbc.Col([
-                    html.Small("Productive hours that make up a day, week, month, "
-                               "and year. Every time estimate in the app counts "
-                               "work time in these units.",
-                               className="text-muted d-block mb-2"),
                     dbc.Label("Hours per Day"),
                     dbc.Input(id="setting-hpd", type="number", min=0.01, step="any",
                               className="mb-2", style={"width": "128px"}),
@@ -215,9 +215,13 @@ def _build_editing_tab():
                               style={"width": "128px"}),
                 ], width="auto"),
                 dbc.Col(style={"borderLeft": "1px solid #444", "paddingLeft": "1.5rem"}, children=[
-                    html.Small("Pre-filled values when creating new nodes.", className="text-muted d-block mb-2"),
                     dbc.Label("Default Unit"),
-                    unit_select("setting-default-time-unit", className="mb-2"),
+                    html.Div([
+                        unit_select("setting-default-time-unit",
+                                    style={"width": "128px", "flex": "none"}),
+                        html.Small("Pre-filled values when creating new nodes.",
+                                   className="text-muted"),
+                    ], className="d-flex align-items-center gap-3 mb-2"),
                     html.Div([
                         html.Div([
                             *bracket_label("Lower", "setting-default-time-o-label", className=None),
