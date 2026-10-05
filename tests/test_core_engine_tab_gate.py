@@ -285,3 +285,15 @@ def test_returning_to_a_loaded_canvas_sends_nothing(monkeypatch):
     out = _render(monkeypatch, "main-tabs", "tab-canvas",
                   stamp={"loaded": True, "nodes": 3})
     assert all(value is dash.no_update for value in out)
+
+
+@pytest.mark.parametrize("trigger", sorted(callbacks._FILTER_TRIGGERS))
+def test_a_filter_change_sends_only_the_view(monkeypatch, trigger):
+    """A filter starts the Nodes layout. The save message, the modals, the
+    option lists and the stylesheet each woke callbacks inside it."""
+    out = _render(monkeypatch, trigger, "tab-canvas")
+    assert isinstance(out.elements, list)
+    assert isinstance(out.community_options, list)
+    for field in out._fields:
+        if field not in ("elements", "community_options"):
+            assert getattr(out, field) is dash.no_update, field

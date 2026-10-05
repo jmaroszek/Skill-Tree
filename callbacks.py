@@ -16,7 +16,6 @@ import database
 from sidebar_state import _compute_sidebar_styles
 from core_response import CoreResponse
 from canvas_view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
-from next_view import perf_stats_text
 
 from typing import List, Set
 
@@ -97,6 +96,15 @@ _EDITOR_UI_ONLY_TRIGGERS = frozenset({
     # unsaved-changes guard as btn-close-editor, which needs the short-circuit
     # path's pristine_snapshot — so route it here too.
     'btn-add',
+})
+
+# The filter sidebar's controls. They choose which nodes the canvas shows and
+# nothing else.
+_FILTER_TRIGGERS = frozenset({
+    'filter-context', 'filter-subcontext', 'filter-done', 'filter-dormant',
+    'filter-community', 'community-method', 'filter-value', 'filter-interest',
+    'filter-time', 'filter-time-unit', 'filter-difficulty', 'filter-node-type',
+    'filter-time-min',
 })
 
 # Output slot indices within the core_engine output tuple. Kept here so the
@@ -1885,6 +1893,15 @@ def register_callbacks(app, services=None):
                 events_style=next_events_sidebar_style,
             )
 
+        if all_triggered_ids <= _FILTER_TRIGGERS:
+            # A filter only narrows the view. The search list, the option
+            # lists and the stylesheet are what they were, no message or
+            # modal can result, and the reset outputs below would each wake
+            # their listeners: the save message alone woke six callbacks,
+            # all landing inside the layout this filter change starts.
+            return CoreResponse(elements=view.elements,
+                                community_options=view.community_options)
+
         # The editor may be showing a node whose status just changed from
         # the node menu or a cascade; its Done switch follows.
         editor_done = editor_snapshot = no_update
@@ -2128,50 +2145,11 @@ def register_callbacks(app, services=None):
         if n > 0: return "", True
         return dash.no_update, dash.no_update
 
+    # Whether any filter narrows the Nodes canvas, for its count and for
+    # Next's indicator. It writes only when the answer changes: a filter
+    # change starts the Nodes layout, and each write would land inside it.
     @app.callback(
-        Output('next-perf-stats', 'children', allow_duplicate=True),
-        Input('suggestions-table', 'children'),
-        State('main-tabs', 'active_tab'),
-        prevent_initial_call=True,
-    )
-    def update_next_perf_stats(_sugg_children, active_tab):
-        if active_tab != 'tab-next':
-            return dash.no_update
-        text = perf_stats_text()
-        return text if text else dash.no_update
-
-    @app.callback(
-        Output('canvas-node-count', 'children'),
-        Input('canvas-payload-stamp', 'data'),
-        Input('filter-node-type', 'value'),
-        Input('filter-context', 'value'),
-        Input('filter-subcontext', 'value'),
-        Input('filter-community', 'value'),
-        Input('community-method', 'value'),
-        Input('filter-value', 'value'),
-        Input('filter-interest', 'value'),
-        Input('filter-difficulty', 'value'),
-        Input('filter-time', 'value'),
-        Input('filter-time-unit', 'value'),
-        Input('filter-time-min', 'value'),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def update_canvas_node_count(stamp, f_type, f_ctx, f_sub,
-                                 f_comm, f_comm_method, f_val, f_int,
-                                 f_diff, f_time, f_time_unit, f_time_min):
-        n = (stamp or {}).get('nodes') or 0
-        text = f"{n} node{'s' if n != 1 else ''}"
-        if is_filters_active(
-                node_type=f_type, context=f_ctx, subcontext=f_sub,
-                community=f_comm,
-                community_method=f_comm_method, value=f_val,
-                interest=f_int, difficulty=f_diff, time=f_time,
-                time_min=f_time_min):
-            return f"{text} · filtered"
-        return text
-
-    @app.callback(
+        Output('canvas-filters-active-store', 'data'),
         Output('next-filter-indicator', 'children'),
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
@@ -2184,20 +2162,38 @@ def register_callbacks(app, services=None):
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
         Input('filter-time-min', 'value'),
+        State('canvas-filters-active-store', 'data'),
         prevent_initial_call=True,
     )
     @prerendered
-    def update_next_filter_indicator(f_type, f_ctx, f_sub, f_comm,
+    def update_canvas_filters_active(f_type, f_ctx, f_sub, f_comm,
                                      f_comm_method, f_val, f_int, f_diff,
-                                     f_time, f_time_unit, f_time_min):
-        if is_filters_active(
-                node_type=f_type, context=f_ctx, subcontext=f_sub,
-                community=f_comm,
-                community_method=f_comm_method, value=f_val,
-                interest=f_int, difficulty=f_diff, time=f_time,
-                time_min=f_time_min):
-            return "filtered"
-        return ""
+                                     f_time, f_time_unit, f_time_min, current):
+        active = is_filters_active(
+            node_type=f_type, context=f_ctx, subcontext=f_sub,
+            community=f_comm,
+            community_method=f_comm_method, value=f_val,
+            interest=f_int, difficulty=f_diff, time=f_time,
+            time_min=f_time_min)
+        if active == bool(current):
+            return no_update, no_update
+        return active, "filtered" if active else ""
+
+    # The count is read in the browser from the payload's stamp, as Details
+    # counts its own.
+    app.clientside_callback(
+        """
+        function(stamp, filtered) {
+            var n = (stamp && stamp.nodes) || 0;
+            var text = n + (n === 1 ? ' node' : ' nodes');
+            return filtered ? text + ' · filtered' : text;
+        }
+        """,
+        Output('canvas-node-count', 'children'),
+        Input('canvas-payload-stamp', 'data'),
+        Input('canvas-filters-active-store', 'data'),
+        prevent_initial_call=True,
+    )
 
     @app.callback(
         Output('focus-goal-store', 'data', allow_duplicate=True),
@@ -2404,25 +2400,47 @@ def register_callbacks(app, services=None):
         """Wire the three freeze clientside callbacks for one canvas."""
         js_canvas = repr(canvas_id)  # JS-safe quoted string literal
 
-        # Bypass: pending-store -> cytoscape.elements.
+        # Bypass: pending-store -> cytoscape.elements. A hidden canvas's
+        # payload waits for its tab (assets/hidden_canvas_payloads.js).
         app.clientside_callback(
             """
-            function(pending) {
+            function(pending, activeTab) {
+                var st = window.SkillTree || {};
+                var noUpdate = window.dash_clientside.no_update;
+                function frozen(elements) {
+                    if (st.isFrozen && st.isFrozen(__CANVAS__) && st.applyDelta) {
+                        st.applyDelta(__CANVAS__, elements);
+                        return true;
+                    }
+                    return false;
+                }
+                var fired = (window.dash_clientside.callback_context.triggered || [])
+                    .map(function (t) { return t.prop_id; });
+                if (fired.indexOf(__PENDING__ + '.data') === -1) {
+                    // The tab changed. What this canvas was holding lands
+                    // once the tab has painted.
+                    if (st.showHeldPayload) {
+                        st.showHeldPayload(__CANVAS__, activeTab, function (elements) {
+                            if (!frozen(elements)) {
+                                window.dash_clientside.set_props(__CYTOSCAPE__, {elements: elements});
+                            }
+                        });
+                    }
+                    return noUpdate;
+                }
                 // Anything but a list is a render with no elements to apply,
                 // such as the Nodes canvas's deferred marker.
-                if (!Array.isArray(pending)) {
-                    return window.dash_clientside.no_update;
+                if (!Array.isArray(pending)) return noUpdate;
+                if (st.holdHiddenPayload && st.holdHiddenPayload(__CANVAS__, pending, activeTab)) {
+                    return noUpdate;
                 }
-                var st = window.SkillTree;
-                if (st && st.isFrozen && st.isFrozen(__CANVAS__) && st.applyDelta) {
-                    st.applyDelta(__CANVAS__, pending);
-                    return window.dash_clientside.no_update;
-                }
-                return pending;
+                return frozen(pending) ? noUpdate : pending;
             }
-            """.replace('__CANVAS__', js_canvas),
+            """.replace('__CANVAS__', js_canvas).replace('__PENDING__', repr(pending_id))
+               .replace('__CYTOSCAPE__', repr(cytoscape_id)),
             Output(cytoscape_id, 'elements'),
             Input(pending_id, 'data'),
+            Input('main-tabs', 'active_tab'),
             prevent_initial_call=True,
         )
 

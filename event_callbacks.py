@@ -1444,13 +1444,25 @@ def register_event_callbacks(app, services=None):
         return f"{tap_data['id']}|{int(time.time())}"
 
     # --- Events Tab: Node Count Canvas Overlay ---
-    @app.callback(
+    # Counted in the browser from the payload on its way to Cytoscape, as on
+    # Details. Reading the canvas's elements sent the whole graph to the
+    # server twice per selection: once for the payload and once for
+    # dash-cytoscape's positional echo.
+    app.clientside_callback(
+        """
+        function(pending) {
+            if (!Array.isArray(pending)) return window.dash_clientside.no_update;
+            var n = 0;
+            for (var i = 0; i < pending.length; i++) {
+                var data = pending[i] && pending[i].data;
+                if (data && data.source === undefined) n += 1;
+            }
+            return n + (n === 1 ? ' node' : ' nodes');
+        }
+        """,
         Output('events-canvas-node-count', 'children'),
-        Input('events-detail-graph', 'elements'),
+        Input('events-elements-pending-store', 'data'),
     )
-    def update_events_node_count(elements):
-        n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
-        return f"{n} node{'s' if n != 1 else ''}"
 
     # --- Events Graph Layout: Toggle Panel ---
     @app.callback(

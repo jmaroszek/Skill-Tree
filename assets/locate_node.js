@@ -61,6 +61,15 @@
     }
 
     window.SkillTree.canvasHasNode = function (canvasId, nodeName) {
+        // A hidden canvas may hold a newer graph than the one it shows. It
+        // is the graph Locate will find once the tab opens.
+        var held = window.SkillTree.heldPayload && window.SkillTree.heldPayload(canvasId);
+        if (held) {
+            return Boolean(nodeName) && held.some(function (element) {
+                var data = element && element.data;
+                return data && data.source == null && data.id === nodeName;
+            });
+        }
         var cy = getCyInstance(canvasId);
         if (!cy || !nodeName) return false;
         var node = cy.getElementById(nodeName);
@@ -180,6 +189,16 @@
         firstPaintWaits = firstPaintWaits || 0;
         var paint = window.SkillTree.canvasFirstPaintDone;
         if (isMainCanvas(canvasId) && typeof paint === 'function' && !paint()
+                && firstPaintWaits < FIRST_PAINT_WAIT_TRIES) {
+            setTimeout(function () {
+                tryLocate(nodeName, canvasId, attempt, firstPaintWaits + 1);
+            }, 100);
+            return;
+        }
+        // A graph held while the tab was hidden lands when it opens, and its
+        // layout moves the node. Pulse where the node settles.
+        var pending = window.SkillTree.canvasPayloadPending;
+        if (typeof pending === 'function' && pending(canvasId)
                 && firstPaintWaits < FIRST_PAINT_WAIT_TRIES) {
             setTimeout(function () {
                 tryLocate(nodeName, canvasId, attempt, firstPaintWaits + 1);

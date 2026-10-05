@@ -5,7 +5,8 @@ Cytoscape component. Behavior every canvas shares loops over this list instead
 of naming the canvases again. In Python that is the hover tooltip, the freeze
 wiring and the layout requests. In assets/ it is the tooltip binding, freeze,
 fullscreen, scroll zoom, right-click pan, the node context menu, the Now pulse,
-the layout requests and framing a layout that ran on a hidden tab.
+the layout requests, framing a layout that ran on a hidden tab, and holding a
+hidden canvas's payload until its tab opens.
 """
 
 import json

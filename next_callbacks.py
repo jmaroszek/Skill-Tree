@@ -4,11 +4,12 @@ Callback definitions for the Home tab (priority suggestions).
 
 from next_view import (
     get_suggestions as _get_suggestions,
+    perf_stats_text,
 )
 
 import database
 
-from dash import Input, Output, State, ALL, ClientsideFunction
+from dash import Input, Output, State, ALL, ClientsideFunction, no_update
 from graph_manager import GraphManager
 from config import ConfigManager
 from callback_helpers import get_trigger_id, format_now_nodes_section, format_suggestions_table, build_filters
@@ -67,8 +68,13 @@ def register_next_callbacks(app, services=None):
     # it, because the table feeds selected-suggestion-store, one of the core
     # engine's States, and so the whole startup waited on a copy of what was
     # already on screen.
+    # The scoring-time caption rides along. Its timings are recorded once
+    # per process, by a scoring pass such as this one, so it is written only
+    # when it changes. A callback of its own answered every table rebuild,
+    # inside whatever animation the filter change had started.
     @app.callback(
         Output('suggestions-table', 'children'),
+        Output('next-perf-stats', 'children'),
         Input('graph-version-store', 'data'),
         Input('suggestion-count-store', 'data'),
         Input('filter-context', 'value'), Input('filter-subcontext', 'value'),
@@ -78,18 +84,21 @@ def register_next_callbacks(app, services=None):
         Input('filter-node-type', 'value'), Input('filter-dormant', 'value'),
         Input('settings-save-status', 'children'),
         Input('filter-time-min', 'value'),
+        State('next-perf-stats', 'children'),
         prevent_initial_call=True,
     )
     @database.snapshot_read
     def populate_suggestions(_version, count, context, subcontext, done, value,
                              interest, time, time_unit, difficulty, types, dormant, _settings,
-                             time_min):
+                             time_min, perf_caption):
         filters = build_filters(context, subcontext, done, value, interest, time,
                                 difficulty, types, f_time_unit=time_unit,
                                 f_show_dormant=dormant, f_time_min=time_min)
         next_rows = get_suggestions(filters, count=count or 10)
-        return format_suggestions_table(next_rows.rows, manager,
-                                        pinned_steps=next_rows.pinned_steps)
+        caption = perf_stats_text()
+        return (format_suggestions_table(next_rows.rows, manager,
+                                         pinned_steps=next_rows.pinned_steps),
+                caption if caption and caption != perf_caption else no_update)
 
     # --- Now Section: populate now-nodes-table ---
     # Listens to graph-version-store so the section refreshes whenever any

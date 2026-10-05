@@ -199,7 +199,7 @@ This is the path almost every edit takes. Get it wrong and the canvas either doe
 1. A callback (node editor in [sidebars_callbacks.py](../sidebars_callbacks.py), node ops in [callbacks.py](../callbacks.py), …) calls a `GraphManager` **mutator** (`add_node`, `update_node`, `add_edge`, `sync_edges`, …).
 2. The mutator writes SQLite, runs the status cascade if the change is status-affecting, and calls `_bump_version(scoring=…)`.
 3. The callback returns `generate_elements(filters, active_node_id, …)` to **`elements-pending-store`** (with `allow_duplicate`) — *not* to the Cytoscape `elements` prop.
-4. A clientside callback (`freeze_positions.js`) consumes the pending elements and **diffs them into the live graph in place** — adding/removing/updating individual elements and preserving existing node positions, seeding new nodes near their neighbors. Replacing the whole `elements` list instead would trigger a full fcose relayout and the graph would jump on every edit. *This indirection is why you can't simply `Output('cytoscape-graph', 'elements')`.*
+4. A clientside callback (`freeze_positions.js`) consumes the pending elements (a hidden canvas holds them until its tab opens; see Hidden canvases) and **diffs them into the live graph in place** — adding/removing/updating individual elements and preserving existing node positions, seeding new nodes near their neighbors. Replacing the whole `elements` list instead would trigger a full fcose relayout and the graph would jump on every edit. *This indirection is why you can't simply `Output('cytoscape-graph', 'elements')`.*
 5. The same pending payload is stamped by a clientside bridge into `canvas-payload-stamp`: whether the canvas has loaded, its node count, and when. The stamp fires `sync_graph_version`, which bumps `graph-version-store` only if `manager._graph_version` advanced — gating downstream recomputation to real mutations. Server callbacks listen to the stamp, not to the elements, which as an Input would send the whole canvas back to the server on every render.
 
 Until the Nodes canvas loads on its first visit, the core engine writes a deferred marker (`canvas_view.CANVAS_DEFERRED`) in place of the elements. The freeze bridge skips anything that isn't a list, and the stamp still fires, so the graph version stays current. See Nodes-tab first paint.
@@ -491,8 +491,8 @@ only adds a second randomized pass that reshuffles the graph again.
 So the canvas is held behind an opaque cover instead. It also loads on its
 first visit, not at startup: `canvas_view.canvas_wanted` sends the elements
 when the Nodes tab is open or the canvas has loaded, and a deferred marker
-otherwise. After that first load every render keeps it current in the
-background, and returning to the tab needs no render at all. A first visit
+otherwise. After that first load, a render while the tab is hidden is held in
+the browser and laid out when the tab opens (see Hidden canvases). A first visit
 takes about 1.4 s on the sandbox, behind the cover's caption. Locate from
 another tab navigates to an unloaded canvas and waits for its first paint
 before pulsing the node. `assets/canvas_first_paint.js` lifts it once the graph is both
@@ -631,7 +631,46 @@ it is assigned.
 Selecting an event does not emit a data refresh. A clientside ALL callback
 updates card styles without remounting the list or rebuilding search
 suggestions and trigger-node options alongside the animation. Actual event
-mutations still emit the shared refresh.
+mutations still emit the shared refresh. The Events node count is counted in
+the browser from the payload, as on Details.
+
+### Nodes filter changes
+
+A filter change starts the Nodes layout, and the same rules apply there.
+
+- `core_engine` returns only the elements and the community options when the
+  filters are all that fired. The other outputs stay as they were. Its reset
+  outputs used to go out too, and the empty save message alone woke six
+  callbacks, among them Analyze and time calibration.
+- One server callback reports whether any filter is active, for the Nodes
+  count and Next's indicator. It writes only when that answer changes. The
+  count itself is read in the browser from `canvas-payload-stamp`.
+- Next's scoring-time caption rides on the table's own callback, which writes
+  it only when it changes.
+
+### Hidden canvases
+
+The filters are shared, so a filter change re-renders every canvas. A hidden
+canvas used to lay its payload out at once. A Nodes filter change laid out the
+hidden Details graph inside the Nodes animation. Once Nodes had loaded, a
+filter change on Details laid out all of Nodes first. That was about 0.8 s of
+blocked page before the Details graph could start moving.
+
+Now the pending-store bridge hands a hidden canvas's payload to
+`assets/hidden_canvas_payloads.js`. It keeps only the newest one. A payload
+that arrives while the canvas is shown drops it. When the tab opens, the held
+payload lands once the canvas has a size and a frame has painted it. Applied
+with the tab switch, a large layout ran before the browser drew the new tab,
+so the click seemed to do nothing for a second. Now the tab appears with the
+previous graph, and the user watches it move to the new one.
+
+On the sandbox, returning to Nodes after widening Health to every context
+paints the tab at about 150 ms. The 567-node layout then blocks the page for
+about 0.65 s before it tweens. Returning after a small change animates at
+once.
+
+Locate reads the held payload. It decides whether a node is on a canvas from
+the held graph, and it waits for that graph to settle before pulsing.
 
 ## Layout requests
 
@@ -659,8 +698,8 @@ Every layout asks Cytoscape to fit the graph, and Cytoscape fits against the
 canvas size it has cached. That cache lags a revealed tab by 100 ms, and at 0x0
 the fit does nothing. So a context menu's View Details, which opens the Details
 tab and selects the node in one step, could draw the graph in the canvas's
-top-left corner. Explain Priority does the same from another tab, since Details
-lays out a selection while hidden. `assets/canvas_fit.js` refreshes the cached
+top-left corner. A payload held for a hidden canvas waits for a size, but
+other layout requests can still reach one. `assets/canvas_fit.js` refreshes the cached
 size before every layout. A layout that still finds no size owes its fit, and
 pays it when the canvas gets a size and the layout has stopped. Nothing else
 moves the viewport, so returning to a tab keeps its pan and zoom.

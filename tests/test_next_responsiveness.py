@@ -115,7 +115,7 @@ def test_home_tables_are_not_rebuilt_on_page_load():
     app = dash.Dash(__name__)
     register_next_callbacks(app)
     for output in ("suggestions-table.children", "now-nodes-table.children"):
-        spec = next(c for c in app._callback_list if c["output"] == output)
+        spec = next(c for c in app._callback_list if output in c["output"])
         assert spec["prevent_initial_call"] is True, output
 
 

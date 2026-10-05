@@ -1442,6 +1442,9 @@ def build_app_layout(initial_elements, env="production"):
         # canvas has loaded, its node count, and when. Server callbacks listen
         # to it instead of the canvas's elements. See callbacks.py.
         dcc.Store(id='canvas-payload-stamp', data=None),
+        # Whether a filter narrows the Nodes canvas. Its count overlay and
+        # Next's indicator read it.
+        dcc.Store(id='canvas-filters-active-store', data=False),
         # Bumped by a clientside filter only when the user opens the Analyze
         # tab. refresh_analyze_tab listens to this instead of main-tabs
         # directly, so switching to any other tab makes no request at all.

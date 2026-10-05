@@ -79,7 +79,8 @@ def test_every_canvas_gets_the_freeze_wiring():
     for canvas in CANVASES:
         forward = next(c for c in callbacks
                        if c['output'] == f'{canvas.cytoscape_id}.elements')
-        assert [i['id'] for i in forward['inputs']] == [canvas.pending_store_id]
+        # The active tab releases a payload held while the canvas was hidden.
+        assert [i['id'] for i in forward['inputs']] == [canvas.pending_store_id, 'main-tabs']
         sync = next(c for c in callbacks
                     if c['output'] == f'{canvas.freeze_store_id}.data')
         assert [i['id'] for i in sync['inputs']] == [canvas.control_id('freeze-rerender')]
