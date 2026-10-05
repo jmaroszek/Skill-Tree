@@ -238,9 +238,9 @@
         isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
     register({id: 'sidebar-filters-container', triggerId: 'btn-filters-toggle', closeId: 'btn-close-filters',
         initial: '.context-picker-trigger', hideWhenClosed: true,
-        isOpen: function (el) { return el.style.right === '0px'; }});
+        isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
     register({id: 'details-filters-sidebar', closeId: 'btn-details-filters-close', hideWhenClosed: true,
-        isOpen: function (el) { return el.style.right === '0px'; }});
+        isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
     ST.canvases.forEach(function (canvas) {
         register({id: canvas.settingsPanelId, triggerId: canvas.settingsToggleId,
             closeId: canvas.settingsCloseId, initial: 'input', hideWhenClosed: true,

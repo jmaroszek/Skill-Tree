@@ -204,3 +204,58 @@ recommendations, Done/undo cascades, Now completion and event activation. The
 graph-creation journey initially reported `net::ERR_NO_BUFFER_SPACE` after its
 functional assertions passed; isolated reruns passed on both the starting and
 updated source. The other three journeys passed on their first run.
+
+## Animation and graph motion (2026-10-04)
+
+Measured in headless Chrome 154.0.8037.97 at 1400 × 900, with the same
+synthetic graph and source snapshots from before and after the animation
+changes. Both snapshots include the recommendation optimizations above.
+The database has 1,000 nodes and 1,771 edges; the Nodes view shows 831 nodes,
+including eight Now nodes. The Details view is Goal 1: Cooking, with 89 nodes.
+Each server ran in sandbox mode with an isolated `SKILLTREE_HOME`.
+
+The table uses fourfold CPU slowdown to expose contention. Each observation
+window is 1.4 seconds. Values are medians across five Filters openings and
+three programmatic pans (100 px horizontally, 20 px vertically, over one second).
+
+| Interaction | Before p95 frame gap | After p95 frame gap | Gaps over 33.4 ms, before → after | Long-task time, before → after |
+|---|---:|---:|---:|---:|
+| Filters over the Nodes graph | 192.2 ms | 18.5 ms | 10 → 3 | 1,236 → 134 ms |
+| Pan the settled Details graph | 36.0 ms | 18.2 ms | 13 → 1 | 108 → 54 ms |
+
+Frame gaps are a `requestAnimationFrame` heartbeat on the main thread, not a
+measurement of compositor presentation or a guarantee for another device.
+Long tasks here are tasks starting within the observation window. CSS slides
+can keep moving even during a main-thread gap. The remaining pan long task
+occurs when reporting the settled viewport after movement finishes.
+
+The old Now pulse animated border widths inside Cytoscape. Eight pulsing nodes
+caused 112 full-graph redraws over four seconds on the otherwise idle Nodes
+canvas; with CPU slowdown, redraws became repeated 120–150 ms long tasks.
+The SVG pulse leaves that drawing cached. A four-second check of the updated
+canvas recorded zero Cytoscape redraws at normal speed and at fourfold slowdown.
+
+The Cytoscape React facade coalesces viewport metadata instead of dispatching
+a Dash store update on almost every pan/zoom frame. Filters now slides with
+the same transform approach as the left sidebars. Now outlines follow node
+movement, pan and zoom while preserving node fills, labels and selection.
+
+At normal CPU speed, the updated sidebar and settled-pan tests had p95 frame
+gaps around 18 ms and no recorded long tasks. Details' initial selection still
+has loading stalls: one normal-speed six-second trace recorded six long tasks,
+a worst gap of 174 ms, and one graph layout. Under CPU slowdown, its callback
+and React work can still interrupt the opening layout. The improvements above
+do not eliminate that loading bottleneck.
+
+`tools/animation_bench.py` retains the sandbox benchmark, raw frame intervals,
+layout/transition events, request counts, timeline totals and a Details CPU
+profile. Use `--app-root` for another source checkout, `--rate` for CPU
+slowdown, `--repeats` for sample count and `--output` for JSON results.
+`PLAYWRIGHT_CHROMIUM` can point at an installed Chrome.
+
+Browser regression checks cover all ten configurable shapes, outline alignment
+after pan/zoom, selection color, Locate cleanup, hidden tabs, reduced motion,
+Now removal, viewport-report coalescing, immediate node events and unmount
+cleanup. Existing checks also passed for sidebar keyboard containment and
+fullscreen graph controls.
+

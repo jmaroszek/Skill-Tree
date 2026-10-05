@@ -217,6 +217,22 @@ flowchart TD
 
 All three canvases build their elements with `build_node_element` and `build_edge_element` in [callback_helpers.py](../callback_helpers.py). So a node gets the same fill color, shape, classes (`trigger`, `dormant`, `now`) and data fields on every canvas. The hover tooltip, context menu, stylesheet and Now pulse all read that payload, whichever canvas raised them. A canvas passes only what is its own: its selection state, Events' "attached to this event" dormant flag, or Details' view-root marker. The data fields are the list `CANVAS_NODE_FIELDS`, which names each field's reader. Elements used to carry every `Node` field so that no canvas could miss one, but nothing read most of them, and a test now checks the list covers the tooltip and the context menu. `canvas_node_styles` reads the colors, shapes and trigger names together, so no canvas can paint without one.
 
+`assets/now_pulse.js` draws the ambient Now outline in an SVG beneath each
+canvas's drawing layers. Its CSS opacity cycle leaves Cytoscape's drawing
+cached. Render events update the outline positions and viewport transform;
+a 250 ms scan reconciles classes, styles, visibility and replaced instances.
+The layer supports all ten shapes offered by Settings, suspends on hidden tabs,
+and yields to Locate and dormant styling. It never starts or stops a Cytoscape
+animation, so layout completion and Locate's cleanup remain independent.
+
+`assets/00_cytoscape_extent.js` wraps the public React Cytoscape component's
+`setProps` relay before Dash mounts it. The library's read-only `extent` reports
+otherwise dispatch a page-wide store update on nearly every pan/zoom frame.
+The facade reports the latest extent after 150 ms without another report;
+every other prop, including node/edge events and element updates, is immediate.
+No app callback currently consumes extent, and Cytoscape continues rendering
+its live viewport throughout. Pending reports are canceled on unmount.
+
 ### 3. Right-click → editor (the JS-Dash bridge)
 
 1. `context_menu.js` shows the node menu on right-click and stashes `_currentNodeData`. On a canvas the data is the Cytoscape node's; on a Next row, Now card or goal card it comes from the `node_menu_attributes` data attributes. `menus.js` positions and closes it, as it does every floating menu.

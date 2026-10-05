@@ -23,7 +23,6 @@ from config import (
     LOCATE_TOAST_CLEAR_INTERVAL_MS,
     LOADING_SPINNER_STYLE,
     SIDEBAR_WIDTH_PX,
-    SIDEBAR_WIDTH_NEG_PX,
     SIDEBAR_TRANSLATE_CLOSED,
     SUPPORTED_NODE_TYPES,
     sort_contexts,
@@ -757,14 +756,16 @@ def build_filters_sidebar():
         style={
             "position": "absolute",
             "top": "0",
-            "right": SIDEBAR_WIDTH_NEG_PX,
+            "right": "0px",
+            "transform": "translateX(100%)",
             "width": SIDEBAR_WIDTH_PX,
             "height": "100%",
             "zIndex": 100,
             "overflowX": "hidden",
             "overflowY": "auto",
             "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
-            "transition": "right 0.3s ease",
+            "transition": "transform 0.3s ease",
+            "willChange": "transform",
             "backgroundColor": tokens.BG_PANEL
         }
     )

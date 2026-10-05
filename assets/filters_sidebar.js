@@ -13,14 +13,16 @@ window.dash_clientside.filters = window.dash_clientside.filters || {};
     var BASE_SIDEBAR_STYLE = {
         position: "absolute",
         top: "0",
-        right: "-350px",
+        right: "0px",
+        transform: "translateX(100%)",
         width: "350px",
         height: "100%",
         zIndex: 100,
         overflowX: "hidden",
         overflowY: "auto",
         borderLeft: "1px solid #495057",
-        transition: "right 0.3s ease",
+        transition: "transform 0.3s ease",
+        willChange: "transform",
         backgroundColor: "#212529"
     };
 
@@ -41,11 +43,17 @@ window.dash_clientside.filters = window.dash_clientside.filters || {};
         if (!trigger) return NO;
 
         var style = Object.assign({}, BASE_SIDEBAR_STYLE, currentStyle || {});
+        var open = currentStyle && (currentStyle.transform
+            ? currentStyle.transform === "translateX(0px)" : currentStyle.right === "0px");
+        // A refreshed asset can receive the older server's right-based style.
+        style.right = BASE_SIDEBAR_STYLE.right;
+        style.transition = BASE_SIDEBAR_STYLE.transition;
+        style.willChange = BASE_SIDEBAR_STYLE.willChange;
 
         if (trigger === "btn-filters-toggle") {
-            style.right = (style.right || "-350px") === "0px" ? "-350px" : "0px";
+            style.transform = open ? "translateX(100%)" : "translateX(0px)";
         } else if (trigger === "btn-close-filters") {
-            style.right = "-350px";
+            style.transform = "translateX(100%)";
         } else {
             return NO;
         }

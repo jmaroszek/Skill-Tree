@@ -426,7 +426,19 @@ command and disappears once the node is awake.
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
 
-The left sidebars (editor, Goals, Events) slide with `transform: translateX(...)` and `willChange: transform`, not by animating `left`. The browser runs a transform animation off the main thread, so the slide stays smooth while the page is busy. Rebuilding a sidebar's list waits until the slide finishes. On the Events tab, the content glides aside with the sidebar. Its style comes back in the same callback return as the sidebar's, so both animations start on the same frame.
+All sidebars slide with `transform: translateX(...)` and `willChange: transform`.
+The left panels translate left when closed; Filters stays anchored at `right: 0`
+and translates right by its own width. The browser can run the slide off the
+main thread while the page is busy. Rebuilding a sidebar's list waits until the
+slide finishes. On the Events tab, the content glides aside with the sidebar.
+Its style comes back in the same callback return as the sidebar's, so both
+animations start on the same frame.
+
+Now nodes keep a solid border in the configured Now color. Their outer edge
+breathes on a two-second cycle in a transparent SVG beneath the graph's drawing
+layers, so labels and selection remain clear. The pulse follows pan, zoom and
+node movement without redrawing the whole graph while idle. It pauses on hidden
+tabs, yields to Locate, and stays static for reduced-motion preferences.
 
 Only the Events tab does this. Everywhere else a sidebar slides over the content and covers it. Events earns the exception because its sidebar and its panel are two halves of one task: you pick an event from the list and read its detail beside it. The other sidebars are transient tools over a workspace, and pushing that workspace aside costs more than it gives. It animates `width`, which is main-thread layout on every frame, and it moves the content: on the Nodes canvas the pan does not change, so the whole graph shifts right by the sidebar's width and loses its right edge — possibly including the node the editor just opened. Covering a predictable left strip is less disorienting, and the canvas can pan out from under it. Before adding a tab to the glide, be sure its content is cheap to reflow and that seeing it beside the panel is worth the shift.
 
