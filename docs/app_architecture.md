@@ -732,11 +732,14 @@ No cross-linked view there has a seed flatter than ones fCoSE drew in two
 dimensions in the sandbox. The earlier cutoff of 24 nodes sent small
 cross-linked views to CoSE, and it would have left a chain of 25 to fCoSE.
 
-Past 600 nodes, a view lays out at fCoSE's `default` quality rather than
+Past 500 nodes, a view lays out at fCoSE's `default` quality rather than
 `proof`. Proof cools slowly, and its cost grows with about the square of the
 node count. Nodes re-runs its layout on every add or remove, and each run
 blocks the page. In the 1,000-node benchmark ([performance.md](performance.md))
-proof took 7.4 s at 831 nodes; default took 2.2 s. A `cy.layout` hook applies
+proof took 7.4 s at 831 nodes; default took 2.2 s. On the sandbox's 567-node
+graph, default took 0.31 s against proof's 0.72 s and crossed about 10% more
+edges. A graph that large reads as one cluster either way, so speed wins.
+Smaller views, such as a filtered Nodes canvas, keep proof. A `cy.layout` hook applies
 the rule, so it holds whatever asked for the layout: the cold start, an
 auto-refresh, a Settle, or a control change.
 

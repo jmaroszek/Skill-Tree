@@ -139,10 +139,10 @@ square of the node count: 0.5 s at 226 nodes, 1.7 s at 403, 3.7 s at 637 and
 7.4 s at 831. Nodes re-runs the layout on every node added or removed, so
 every edit that changed the graph froze the page that long. Capping the
 iteration count did nothing, since fCoSE treats it as a suggestion; `default`
-quality cut the cost to a third. Past 600 nodes every canvas now lays out at
+quality cut the cost to a third. Past 500 nodes every canvas now lays out at
 `default` ([app_architecture.md](app_architecture.md), Layout requests).
-Smaller graphs keep `proof`, which is how the author's 567-node graph still
-lays out.
+Smaller graphs keep `proof`. The cutoff was 600 at first. It moved to 500 so
+the sandbox's 567-node graph also gets the faster layout.
 
 CI's first `perf` run (run 36286069199, after the change), in seconds:
 

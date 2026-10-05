@@ -475,17 +475,17 @@ assert.equal(cy.runs[3].randomize, true);
 def test_large_views_lay_out_at_default_quality():
     """fCoSE's 'proof' quality costs roughly the square of the node count, and
     Nodes re-runs its layout on every node added or removed: 7.4 s at 831
-    nodes in the P6.6 benchmark, blocking the page each time. Above 600 nodes
+    nodes in the P6.6 benchmark, blocking the page each time. Above 500 nodes
     a canvas uses 'default', about three times faster."""
     _run(r'''
 const main = canvas('main');
-const big = fakeCy(601);
+const big = fakeCy(501);
 cyReady['#' + main.cytoscapeId](big);
 big.layout({name: 'fcose', quality: 'proof', randomize: false});
 assert.equal(big.runs[0].quality, 'default');
 assert.equal(big.runs[0].randomize, false);
 
-const small = fakeCy(600);
+const small = fakeCy(500);
 cyReady['#' + main.cytoscapeId](small);
 small.layout({name: 'fcose', quality: 'proof'});
 assert.equal(small.runs[0].quality, 'proof');

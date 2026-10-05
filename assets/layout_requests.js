@@ -26,7 +26,7 @@
     // (docs/performance.md) proof took 1.7 s at 403 nodes and 7.4 s at 831;
     // 'default' took 2.4 s at 831. Past this many nodes a view lays out at
     // 'default', whatever asked for the layout.
-    var LARGE_VIEW_NODES = 600;
+    var LARGE_VIEW_NODES = 500;
 
     // Views without cross-links, trees or forests of them, use force-only
     // CoSE. fCoSE seeds positions from the top two eigenvectors of the view's

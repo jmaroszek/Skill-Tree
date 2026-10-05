@@ -56,7 +56,7 @@ requirement.
 **Un-marking a node asks me first.** Nodes after it that are already Done would
 become Blocked again, since they need it. The question lists them.
 
-**Large graphs.** Past about 600 nodes on the canvas, the layout switches to a
+**Large graphs.** Past about 500 nodes on the canvas, the layout switches to a
 faster mode, so adding or removing nodes doesn't stall the window. Hiding Done
 nodes, or filtering by context, keeps the canvas quick at any size.
 
