@@ -213,6 +213,13 @@
         if (!state) return;
         var prev = state.frozen;
         state.frozen = Boolean(active);
+        // A Settle allowance belongs only to the current frozen interval.
+        // In particular, a Settle before Freeze must not let an edit's
+        // auto-refresh layout move the graph after Freeze is enabled.
+        if (state.frozen !== prev) {
+            state.allowNextLayout = false;
+            state.bypassFreeze = false;
+        }
         var cy = getCy(state);
         if (!cy) return;
         bindGuards(state, cy);
@@ -269,7 +276,7 @@
 
     window.SkillTree.allowOneLayout = function (canvasId) {
         var state = registry[canvasId];
-        if (state) state.allowNextLayout = true;
+        if (state && state.frozen) state.allowNextLayout = true;
     };
 
     function pickInitialPosition(state, nodeId, neighborIdsById) {
