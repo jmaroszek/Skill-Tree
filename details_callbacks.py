@@ -1323,6 +1323,11 @@ def register_details_callbacks(app, services=None):
         if not is_open or not node_name:
             return (no_update, no_update, no_update, no_update, no_update,
                     no_update)
+        return _build_explain_content(node_name)
+
+    @database.snapshot_read
+    def _build_explain_content(node_name):
+        # Explanation and both ranking pools reuse one set of normalized rows.
         all_nodes = graph_manager.get_all_nodes()
         priority_goals = ConfigManager.get_priority_goals()
         hypers = ConfigManager.get_hyperparams()

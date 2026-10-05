@@ -1,5 +1,36 @@
 # Performance checks
 
+## Analyze and Explain reads (2026-10-05)
+
+Measured in the local Windows `skill-tree` Python environment, using an isolated
+copy of the 774-node sandbox (739 active nodes, 1,126 edges) and the seeded
+1,000-node synthetic graph (985 active nodes, 1,771 edges). Figures are warm
+server medians over 15 calls; SQL tracing and profiling ran separately.
+
+| Operation | Before | After |
+|---|---:|---:|
+| Analyze full render, sandbox | 483 ms | 148 ms |
+| Analyze full render, synthetic | 214 ms | 94 ms |
+| Explain an open Learn, sandbox | 71 ms | 35 ms |
+| Explain an open Learn, synthetic | 92 ms | 46 ms |
+
+Analyze now opens one read snapshot after persisting its display settings.
+Formatting every duration reuses the snapshot's settings instead of querying
+SQLite again. Total connections per sandbox render fell from 776 to 3 (limits
+read, limits write, bulk snapshot). Explain shares graph rows and settings across
+its explanation and ranking passes, reducing connections from 22 to 1. Closing
+Explain still returns without reading the database. Neither path retains a
+settings snapshot between requests.
+
+In headless Chrome against a sandbox server with an isolated `SKILLTREE_HOME`,
+three throughput-color changes took 496–565 ms per callback request before and
+187–221 ms after. These include HTTP response handling, not browser paint.
+All seven Analyze sections still refresh together. No JavaScript errors were
+captured. Serialized before/after outputs matched for 45 sampled cases across
+the two graphs, including both throughput color modes and explanations across
+node types and statuses. Regression tests check bounded database reads, refreshed
+settings and node values, and the closed-modal fast path.
+
 Source benchmarks on 2026-09-07 used temporary synthetic SQLite databases and
 the local `skill-tree` Python environment. No production data was used. These are
 function timings, not end-to-end browser latency or a promise for other graphs.

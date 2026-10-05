@@ -1088,6 +1088,12 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     al['throughput_end'] = thru_end or None
     ConfigManager.set_analyze_limits(al)
 
+    return _build_analyze_sections(al)
+
+
+@database.snapshot_read
+def _build_analyze_sections(al):
+    """Share graph and formatting settings after the limit write has committed."""
     nodes = graph_manager.get_all_nodes(include_dormant=False)
     edges = graph_manager.get_edges()
 

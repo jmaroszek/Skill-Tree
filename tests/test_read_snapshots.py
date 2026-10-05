@@ -172,3 +172,78 @@ def test_snapshot_scope_is_released_after_exception():
         with database.read_snapshot():
             raise ValueError("render failed")
     assert database.current_snapshot() is None
+
+
+def _trace_connections(monkeypatch):
+    opened, statements = [], []
+    original = sqlite3.connect
+
+    def traced(*args, **kwargs):
+        conn = original(*args, **kwargs)
+        opened.append(conn)
+        conn.set_trace_callback(statements.append)
+        return conn
+
+    monkeypatch.setattr(sqlite3, 'connect', traced)
+    return opened, statements
+
+
+@pytest.mark.parametrize('count', [1, 25])
+def test_analyze_render_bounds_reads_and_refreshes_settings(monkeypatch, count):
+    import analyze_callbacks
+    from dash._utils import to_json
+
+    graph(*(f'N{i}' for i in range(count)))
+    opened, statements = _trace_connections(monkeypatch)
+    first = to_json(analyze_callbacks._render_analyze_sections(
+        3, 4, 'quarter', None, None, 'context'))
+    # One limits read, one limits write, then one bulk read for every chart.
+    assert len(opened) == 3
+    assert sum('SELECT key, value FROM Settings' in s for s in statements) == 1
+    assert database.current_snapshot() is None
+
+    ConfigManager.set_time_settings({'hours_per_week': 1, 'hours_per_month': 4})
+    opened.clear()
+    statements.clear()
+    second = to_json(analyze_callbacks._render_analyze_sections(
+        3, 4, 'quarter', None, None, 'context'))
+    assert len(opened) == 3
+    assert sum('SELECT key, value FROM Settings' in s for s in statements) == 1
+    assert first != second
+    analyze_callbacks._render_analyze_sections(
+        7, 8, 'month', None, None, 'type')
+    assert ConfigManager.get_analyze_limits()['bottlenecks'] == 7
+    assert database.current_snapshot() is None
+
+
+def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch):
+    import dash
+    import details_callbacks
+    from dash._utils import to_json
+    from types import SimpleNamespace
+
+    manager = graph('A', 'B')
+    manager.add_edge('A', 'B', HARD)
+    app = dash.Dash(__name__)
+    details_callbacks.register_details_callbacks(app)
+    spec = next(v for k, v in app.callback_map.items()
+                if 'details-explain-title.children' in k)
+    callback = spec['callback'].__wrapped__
+    monkeypatch.setattr(details_callbacks, 'ctx', SimpleNamespace(
+        triggered_id='modal-details-explain'))
+    opened, statements = _trace_connections(monkeypatch)
+    assert callback(False, None, 'A') == (dash.no_update,) * 6
+    assert not opened
+    first = to_json(callback(True, None, 'A'))
+    assert len(opened) == 1
+    assert sum('SELECT * FROM Nodes' in s for s in statements) == 1
+    assert database.current_snapshot() is None
+
+    changed = manager.get_node('B')
+    changed.value = 9
+    manager.update_node(changed)
+    opened.clear()
+    second = to_json(callback(True, None, 'A'))
+    assert len(opened) == 1
+    assert first != second
+    assert database.current_snapshot() is None
