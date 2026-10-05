@@ -176,6 +176,9 @@ input[type=number] {
     border: 1px solid var(--st-border-panel);
     border-radius: var(--st-radius);
     padding: 0.6rem 0.75rem;
+    /* Holds the report's height (six small lines: the Data line wraps) while it
+       loads, so the blocks below don't jump when the text arrives. */
+    min-height: calc(6 * 1.5 * 0.875rem + 1.2rem + 2px);
 }
 
 /* Event drag-and-drop styles */

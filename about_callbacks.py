@@ -73,14 +73,25 @@ def register_about_callbacks(app, services=None):
 
     # --- Updates: the desktop shell's, through preload.js's bridge. In a
     # browser there's no bridge and the block stays hidden. ---
+    # Two callbacks, so the block appears with the tab instead of waiting on the
+    # shell's answer for the switch.
+    app.clientside_callback(
+        """function(activeTab) {
+            const bridge = window.skillTreeDesktop && window.skillTreeDesktop.updates;
+            if (activeTab !== 'tab-about' || !bridge) { return window.dash_clientside.no_update; }
+            return {display: 'block'};
+        }""",
+        Output("about-updates", "style"),
+        Input("settings-modal-tabs", "active_tab"),
+        prevent_initial_call=True,
+    )
+
     app.clientside_callback(
         """async function(activeTab) {
             const bridge = window.skillTreeDesktop && window.skillTreeDesktop.updates;
-            const none = window.dash_clientside.no_update;
-            if (activeTab !== 'tab-about' || !bridge) { return [none, none]; }
-            return [{display: 'block'}, await bridge.getAutoCheck()];
+            if (activeTab !== 'tab-about' || !bridge) { return window.dash_clientside.no_update; }
+            return await bridge.getAutoCheck();
         }""",
-        Output("about-updates", "style"),
         Output("about-update-auto", "value"),
         Input("settings-modal-tabs", "active_tab"),
         prevent_initial_call=True,
