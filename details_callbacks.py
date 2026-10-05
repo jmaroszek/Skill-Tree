@@ -22,7 +22,7 @@ from prerender import prerendered
 from callback_helpers import (build_filters,
                               is_filters_active, select_explore_goals,
                               build_explain_summary, build_explain_chart,
-                              format_value_rank,
+                              format_value_rank, format_priority_rank,
                               get_trigger_id,
                               build_node_element, build_edge_element,
                               canvas_node_styles)
@@ -1271,14 +1271,24 @@ def register_details_callbacks(app, services=None):
                 n_tasks = breakdown['cost']['n_tasks']
                 subtitle = (format_value_rank(tv / n_tasks, peers, "goals")
                             if n_tasks else "")
+            elif not breakdown['eligible']:
+                reason = breakdown.get('block_reason')
+                subtitle = f"Not ranked: {reason}" if reason else "Not ranked"
             else:
-                peer_nodes = graph_manager.calculate_priority_scores(
-                    all_nodes, priority_goals=priority_goals,
+                # The Next tab's pool: eligible nodes outside Now. A Now node
+                # joins that pool for the count, so it reads as where it
+                # would sit, and every other node's rank matches Home.
+                pool = [n for n in all_nodes
+                        if not n.now or n.name == node_name]
+                scored_pool = graph_manager.calculate_priority_scores(
+                    pool, priority_goals=priority_goals,
                 )
-                peers = [getattr(n, 'total_value', None) for n in peer_nodes
-                         if n.type not in ('Goal', 'Milestone')
-                         and n.status != STATUS_DONE]
-                subtitle = format_value_rank(tv, peers, "projects")
+                names = [n.name for n in scored_pool
+                         if getattr(n, 'priority_score', -1) >= 0]
+                if node_name in names:
+                    subtitle = format_priority_rank(
+                        names.index(node_name) + 1, len(names),
+                        in_now=bool(node and node.now))
 
         contributors = breakdown['contributors'] if breakdown else []
         # The chart's hover restates each contributor's ratings, which the

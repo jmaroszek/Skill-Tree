@@ -15,7 +15,7 @@ from callback_helpers import (
     snapshot_from_form_state, build_explain_summary,
     resolve_time_mode, resolve_value_mode,
     editor_form_values, ALL_WEEKDAYS,
-    format_value_rank, _ordinal, _contributor_hover,
+    format_value_rank, format_priority_rank, _ordinal, _contributor_hover,
     alias_rows_label, update_alias_rows, sync_time_fields,
 )
 from styles import stylesheet, mini_stylesheet
@@ -1079,6 +1079,15 @@ class TestFormatValueRank:
     def test_ignores_missing_peer_values(self):
         """A peer with no computed total value must not skew the count."""
         assert format_value_rank(10.0, [10.0, 5.0, None, None]) == "Ranks 1st of 2 projects"
+
+
+class TestFormatPriorityRank:
+    def test_ordinary_node(self):
+        assert format_priority_rank(3, 41) == "Ranks 3rd of 41 projects"
+
+    def test_now_node_reads_as_hypothetical(self):
+        assert format_priority_rank(3, 41, in_now=True) == \
+            "Would rank 3rd of 41 projects if it weren't in Now"
 
 
 class TestOrdinal:

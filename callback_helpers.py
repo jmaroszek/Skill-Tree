@@ -2227,6 +2227,17 @@ def format_value_rank(total_value, peer_values, noun="projects"):
     return f"Ranks {_ordinal(rank)} of {len(peers)} {noun}"
 
 
+def format_priority_rank(position, total, in_now=False):
+    """A node's place in the Next ranking, as the Home tab orders it.
+
+    `position` is 1-based among `total` ranked nodes. Home never lists a Now
+    node, so for one the position is where it would sit if it weren't in Now.
+    """
+    if in_now:
+        return f"Would rank {_ordinal(position)} of {total} projects if it weren't in Now"
+    return f"Ranks {_ordinal(position)} of {total} projects"
+
+
 def build_explain_chart(contributors, top_n: int = 10):
     """Plotly figure for the Top Contributors bar chart.
 
