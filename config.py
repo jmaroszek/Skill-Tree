@@ -339,7 +339,7 @@ DEFAULT_EVENTS_GRAPH_LAYOUT = {
 
 DEFAULT_ANALYZE_LIMITS = {
     'bottlenecks': 15,
-    'goals': 20,
+    'goals': 15,
     'throughput_granularity': 'quarter',  # 'month' | 'quarter' | 'year'
     'throughput_color': 'context',  # 'context' | 'type': what stacks the bars
     'throughput_start': None,  # ISO date string; None = earliest done_date

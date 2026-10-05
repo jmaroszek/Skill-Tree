@@ -431,7 +431,7 @@ def _compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
     cutoff = ((today or date.today()) - timedelta(days=_RECENT_DAYS)).isoformat()
 
     rows = []
-    for g in ranked[:limits.get('goals', 20)]:
+    for g in ranked[:limits.get('goals', 15)]:
         members = [node_map[name] for name in _walk_back(g.name, hard_rev)
                    if name in node_map]
         recent = [n for n in members

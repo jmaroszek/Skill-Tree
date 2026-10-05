@@ -187,13 +187,19 @@ class TestComputeBottlenecks:
         nodes = [_make_node("A", status="Open", time_o=5, time_m=5, time_p=5),
                  _make_node("B", status="Blocked", time_o=40, time_m=40, time_p=40)]
         hard_fwd, *_ = _build_adjacency(self._edges(("A", "B")))
-        fig = _figure(_render_bottleneck_chart(
-            _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})))
-        own, unlocked = fig.data
-        assert (own.name, list(own.x)) == ("Own time", [pytest.approx(5)])
-        assert (unlocked.name, list(unlocked.x)) == ("Unlocks", [pytest.approx(40)])
-        assert fig.layout.barmode == 'stack'
-        assert f"Takes {ConfigManager.format_time_friendly(5)}" in own.hovertext[0]
+        parts = list(_walk(_render_bottleneck_chart(
+            _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25}))))
+        track = next(p for p in parts if getattr(p, 'className', None) == "gp-track")
+        assert [s.className for s in track.children] == ["bn-own", "bn-unlocks"]
+        # The widest row fills the track; the stub is its share of that.
+        widths = [float(s.style['width'].split('(')[1].split('%')[0]) for s in track.children]
+        assert widths == [pytest.approx(100 * 5 / 45, abs=0.01),
+                          pytest.approx(100 * 40 / 45, abs=0.01)]
+        fmt = ConfigManager.format_time_friendly
+        tip = next(p for p in parts if getattr(p, 'className', None) == "gp-bar")
+        assert f"Takes {fmt(5)}" in getattr(tip, 'data-tip')
+        value = next(p for p in parts if getattr(p, 'className', None) == "gp-pct")
+        assert value.children == fmt(40)
 
     def test_done_nodes_excluded(self):
         nodes = [

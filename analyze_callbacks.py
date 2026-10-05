@@ -47,21 +47,6 @@ def _trunc(name, max_len=25):
     return name if len(name) <= max_len else name[:max_len - 1] + '\u2026'
 
 
-def _label_axis(full_names, max_len=25):
-    """Axis-dict fragment that displays truncated labels for full categorical names.
-
-    Plotly treats duplicate categorical axis values as a single category and overlays
-    their bars; passing full (unique) names as the axis values and using tickvals /
-    ticktext to override the displayed labels keeps each entry distinct while still
-    showing a truncated label.
-    """
-    return dict(
-        tickmode='array',
-        tickvals=list(full_names),
-        ticktext=[_trunc(n, max_len) for n in full_names],
-    )
-
-
 # ---------------------------------------------------------------------------
 # Adjacency helpers
 # ---------------------------------------------------------------------------
@@ -88,11 +73,6 @@ _BG = '#1a1d21'
 _CARD_BG = '#2b3035'
 _BORDER = '#495057'
 _TEXT = '#dee2e6'  # --st-text-primary
-# The Bottlenecks bar: the work a node unlocks, in a fill taken from the
-# muted register of the subcontext palette below, after a gray stub for the
-# node's own time. Gray, because cost is context for the bar, not the bar.
-_RANK_BAR = '#3a6ba6'
-_OWN_COST_BAR = '#868e96'
 # The capacity line on Throughput: --st-text-soft, dashed like the 1x guides.
 _CAPACITY_LINE = '#adb5bd'
 _CHART_CFG = {"displayModeBar": False}
@@ -254,11 +234,6 @@ def _render_overview(metrics):
     }, className="mb-3")
 
 
-# Bottleneck labels have room for most node names; 25 characters cut
-# "Mind Illuminated Theory - 1" and "- 2" to the same label.
-_BOTTLENECK_LABEL_LEN = 40
-
-
 def _bottleneck_label(names):
     if len(names) == 1:
         return names[0]
@@ -270,51 +245,43 @@ def _bottleneck_label(names):
 def _render_bottleneck_chart(data):
     """Open nodes ranked by the unfinished work they gate. Each bar starts
     with a gray stub for the node's own time, so a cheap gate and an
-    expensive one with the same reach read differently. The section header
+    expensive one with the same reach read differently. The number at the
+    end is the work unlocked. Built from the same rows as the Goals chart,
+    so the two share their type, spacing and tooltip. The section header
     names the chart, so the card has no title of its own."""
     if not data:
         return _card([html.P("No open node gates any unfinished work.",
                              className="text-muted small mb-0")])
 
     fmt = ConfigManager.format_time_friendly
-    labels = [_bottleneck_label(d['names']) for d in data]
-
-    def _hover(d):
+    widest = max(d['own_hours'] + d['hours'] for d in data) or 1
+    body = []
+    for d in data:
         nodes = f"{d['count']} node{'s' if d['count'] != 1 else ''}"
         if len(d['names']) == 1:
-            return (f"<b>{d['names'][0]}</b><br>Takes {fmt(d['own_hours'])}"
-                    f"<br>Unlocks {fmt(d['hours'])} across {nodes}")
-        return ("<br>".join(f"<b>{n}</b>" for n in d['names'])
-                + f"<br>Take {fmt(d['own_hours'])} together"
-                + f"<br>Each unlocks the same {nodes} ({fmt(d['hours'])})")
-
-    # Plotly draws category rows bottom-up: reverse so the biggest leads.
-    rows = list(reversed(data))
-    names = list(reversed(labels))
-    hover = [_hover(d) for d in rows]
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        y=names, x=[d['own_hours'] for d in rows], orientation='h',
-        name="Own time", marker_color=_OWN_COST_BAR, opacity=0.9,
-        hovertext=hover, hoverinfo='text'))
-    fig.add_trace(go.Bar(
-        y=names, x=[d['hours'] for d in rows], orientation='h',
-        name="Unlocks", marker_color=_RANK_BAR, opacity=0.9,
-        hovertext=hover, hoverinfo='text'))
-    tickvals, ticktext = _friendly_xticks(max(d['own_hours'] + d['hours'] for d in data))
-    fig.update_layout(**_base_layout(
-        barmode='stack',
-        height=max(180, len(data) * 28 + 60) + 24,
-        margin=dict(l=10, r=20, t=10, b=30),
-        showlegend=True,
-        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0,
-                    traceorder='normal'),
-        yaxis=dict(automargin=True, ticklabelstandoff=8,
-                   **_label_axis(names, _BOTTLENECK_LABEL_LEN)),
-        xaxis=dict(title="Work time", tickmode='array',
-                   tickvals=tickvals, ticktext=ticktext),
-    ))
-    return _card([_graph(fig)])
+            tip = (f"{d['names'][0]}\nTakes {fmt(d['own_hours'])}"
+                   f"\nUnlocks {fmt(d['hours'])} across {nodes}")
+        else:
+            tip = ("\n".join(d['names'])
+                   + f"\nTake {fmt(d['own_hours'])} together"
+                   + f"\nEach unlocks the same {nodes} ({fmt(d['hours'])})")
+        segments = [html.Div(className=cls, style={'width': f"max({100 * h / widest:.2f}%, 2px)"})
+                    for cls, h in (("bn-own", d['own_hours']), ("bn-unlocks", d['hours']))
+                    if h > 0]
+        label = _bottleneck_label(d['names'])
+        body.append(html.Div([
+            html.Div(html.Span(label, className="gp-name-text", title=" + ".join(d['names'])),
+                     className="gp-name"),
+            html.Div(html.Div(segments, className="gp-track"), className="gp-bar",
+                     **{'data-tip': tip}),
+            html.Div(fmt(d['hours']), className="gp-pct"),
+        ], className="gp-row"))
+    legend = html.Div([
+        html.Span([html.I(className="gp-swatch bn-own"), "Own time"]),
+        html.Span([html.I(className="gp-swatch bn-unlocks"), "Work unlocked"]),
+    ], className="gp-legend")
+    return _card([html.Div([legend, html.Div(body)],
+                           className="goal-progress bottlenecks")])
 
 
 def _progress_label(row):

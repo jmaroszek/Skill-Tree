@@ -474,7 +474,7 @@
 }
 .gp-row {
     display: grid;
-    grid-template-columns: minmax(7rem, 0.9fr) minmax(6rem, 1.6fr) 3rem;
+    grid-template-columns: minmax(7rem, 0.9fr) minmax(6rem, 1.6fr) 3.5rem;
     column-gap: 12px;
     align-items: center;
     padding: 3px 4px;
@@ -496,6 +496,16 @@
 .gp-earlier, .gp-recent { flex: none; height: 100%; }
 .gp-earlier { background-color: var(--gp-done); }
 .gp-recent { background-color: var(--gp-recent); }
+/* Bottlenecks reuses the rows above. The work a node unlocks is the bar, in
+   the muted blue of the subcontext palette. Its own time is a gray stub in
+   front: cost is context for the bar, not the bar. */
+.bottlenecks {
+    --bn-own: #868e96;
+    --bn-unlocks: #3a6ba6;
+}
+.bn-own, .bn-unlocks { flex: none; height: 100%; }
+.bn-own { background-color: var(--bn-own); }
+.bn-unlocks { background-color: var(--bn-unlocks); }
 .gp-pct { text-align: right; color: var(--st-text-soft); }
 .gp-legend {
     display: flex;

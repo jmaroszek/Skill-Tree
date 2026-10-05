@@ -112,7 +112,7 @@ def _plan_sections(al):
             dbc.Col([
                 _gear_header("Goals", "btn-analyze-goals-limit",
                              "popover-analyze-goals", "Goals shown",
-                             "setting-analyze-goals", 5, 200, al.get('goals', 20)),
+                             "setting-analyze-goals", 5, 200, al.get('goals', 15)),
                 html.Div(id="analyze-goals-content"),
             ], width=6),
             dbc.Col([
