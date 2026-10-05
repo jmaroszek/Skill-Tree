@@ -4,6 +4,7 @@ import pytest
 pytest.importorskip("playwright.sync_api")
 from test_journeys import _welcome, _idle, _open_in_editor  # noqa: E402
 from test_keyboard import _tab_to, _seed  # noqa: E402
+from test_journeys import _new_node, _close_editor  # noqa: E402
 
 
 def _activate_tab(page, name):
@@ -61,7 +62,8 @@ def test_editor_focus_scrolls_above_sticky_footer_and_field_help(page):
     _idle(page)
     _tab_to(page, "#node-type")
     assert "node-type-label-hint" in page.get_attribute("#node-type", "aria-describedby")
-    page.wait_for_selector(".tooltip.show", state="visible")
+    page.wait_for_timeout(600)
+    assert page.locator(".tooltip.show").count() == 0
     _tab_to(page, "#edge-helps")
     assert page.locator("#sidebar-editor-container").evaluate("el => el.scrollTop") > 0
     assert page.evaluate("""() => {
@@ -142,6 +144,8 @@ def test_manual_tab_activation_and_closed_details_filters(page):
     page.keyboard.press("Enter")
     _idle(page)
     assert page.locator("#details-filters-sidebar").evaluate("el => el.inert")
+    page.wait_for_function("document.activeElement.id === 'details-node-select'")
+    page.focus("#main-tabs .nav-link.active")
     page.keyboard.press("ArrowRight")
     assert page.evaluate("document.activeElement.textContent.trim()") == "Events"
     assert page.locator("#events-sidebar-container").evaluate("el => el.inert")
@@ -179,7 +183,7 @@ def test_graph_layout_and_fullscreen_escape_owns_one_layer(page):
         })""")
     _tab_to(page, "#cytoscape-graph")
     page.keyboard.press("Home")
-    page.keyboard.press("Shift+F10")
+    page.keyboard.press("Alt+Enter")
     page.wait_for_function("document.activeElement.id === 'ctx-menu-edit'")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement.id") == "cytoscape-graph"
@@ -260,7 +264,7 @@ def test_context_enter_retains_focus_and_help_dialog_returns_it(page):
     _tab_to(page, ".ctx-row-name")
     page.keyboard.press("Enter")
     assert page.evaluate("document.activeElement.matches('.ctx-row-name')")
-    page.keyboard.press("F1")
+    page.keyboard.press("Control+/")
     page.wait_for_selector("dialog.keyboard-help[open]", state="visible")
     assert page.locator("dialog.keyboard-help").evaluate("el => el.scrollTop") == 0
     assert page.evaluate("document.activeElement.id") == "keyboard-help-title"
@@ -322,4 +326,85 @@ def test_profile_reference_escape_keeps_settings_open(page):
     page.wait_for_selector("#popover-hp-profile-info", state="hidden")
     assert page.evaluate("document.activeElement.id") == "btn-hp-profile-info"
     assert page.is_visible("#settings-modal")
+    assert page.console_errors == []
+
+
+def test_open_dropdown_escape_keeps_panel_and_value(page):
+    _welcome(page)
+    _tab_to(page, "#btn-add")
+    page.keyboard.press("Enter")
+    _idle(page)
+    _tab_to(page, "#node-type")
+    page.keyboard.press("Space")
+    page.wait_for_function("document.getElementById('node-type').matches(':open')")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Escape")
+    page.wait_for_function("!document.getElementById('node-type').matches(':open')")
+    assert page.input_value("#node-type") == ""
+    assert not page.locator("#sidebar-editor-container").evaluate("el => el.inert")
+    page.keyboard.press("Escape")
+    page.wait_for_function("document.getElementById('sidebar-editor-container').inert")
+    assert page.console_errors == []
+
+
+def test_enter_on_a_tab_moves_into_it(page):
+    _seed(page)
+    # Events last: its sidebar holds focus until Escape, like any open panel.
+    for name, focused in [("Nodes", "#cytoscape-graph"), ("Details", "#details-node-select"),
+                          ("Home", ".suggestion-bar-row"), ("Events", "#events-search-input")]:
+        _activate_tab(page, name)
+        page.wait_for_function("s => document.activeElement.matches(s)", arg=focused)
+    assert page.console_errors == []
+
+
+def test_home_tab_order_skips_stepper_and_arrows_cross_lists(page):
+    _seed(page)
+    _new_node(page, "Gamma", "Learn")
+    _close_editor(page)
+    _idle(page)
+    for name in ("Alpha", "Beta"):
+        page.click(f'.suggestion-bar-row[data-node-menu="{name}"]', button="right")
+        page.click("#ctx-menu-toggle-now")
+        _idle(page)
+    _activate_tab(page, "Home")
+    page.wait_for_function("document.activeElement.matches('.now-card')")
+    first = page.evaluate("document.activeElement.getAttribute('data-node-menu')")
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.matches('.now-card')")
+    second = page.evaluate("document.activeElement.getAttribute('data-node-menu')")
+    assert second != first
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.matches('.suggestion-bar-row')")
+    page.keyboard.press("ArrowUp")
+    assert page.evaluate("document.activeElement.getAttribute('data-node-menu')") == second
+    page.keyboard.press("ArrowDown")
+    assert page.evaluate("document.activeElement.matches('.suggestion-bar-row')")
+    assert page.console_errors == []
+
+
+def test_sidebar_search_and_list_join_by_arrows(page):
+    _seed(page)
+    _tab_to(page, "#btn-goals-toggle")
+    page.keyboard.press("Enter")
+    page.wait_for_function("document.activeElement.id === 'details-goal-search'")
+    page.wait_for_selector("#details-goal-sidebar .goal-card[tabindex='0']")
+    page.keyboard.press("ArrowDown")
+    assert page.evaluate("document.activeElement.matches('.goal-card')")
+    page.keyboard.press("ArrowUp")
+    assert page.evaluate("document.activeElement.id") == "details-goal-search"
+    _tab_to(page, "#btn-goals-sidebar-new")
+    assert page.evaluate("getComputedStyle(document.activeElement).outlineStyle") == "solid"
+    assert page.console_errors == []
+
+
+def test_analyze_gear_opens_into_its_field(page):
+    _seed(page)
+    _activate_tab(page, "Analyze")
+    page.wait_for_selector("#btn-analyze-goals-limit", state="visible")
+    _tab_to(page, "#btn-analyze-goals-limit")
+    page.keyboard.press("Enter")
+    page.wait_for_function("document.activeElement.id === 'setting-analyze-goals'")
+    page.keyboard.press("Escape")
+    page.wait_for_function("document.activeElement.id === 'btn-analyze-goals-limit'")
+    page.wait_for_selector("#popover-analyze-goals", state="detached")
     assert page.console_errors == []

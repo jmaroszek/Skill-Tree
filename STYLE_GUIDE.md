@@ -203,17 +203,20 @@ Escape dismisses the innermost layer through its existing close button,
 including draft checks.
 Use `SkillTree.keyboardFocus` for these boundaries and focus restoration;
 its vertical scrolling keeps fields above the node editor's sticky footer.
-Hover tooltips also open on deliberate Tab focus and close on blur; automatic
-focus restoration does not reopen them. `hover_label` descriptions belong to
-their following fields and appear when those fields receive deliberate Tab focus.
+Tooltips are hover-only: keyboard focus never opens one. `hover_label`
+descriptions reach their following fields as `aria-describedby` instead.
+Escape on an open base-select dropdown closes only the dropdown.
+Fields mark focus with `--st-field-focus-border` and `--st-field-focus-ring`;
+every other keyboard target, `.btn` ghosts included, gets the accent outline.
 
 Floating menus use arrow keys, Home/End, Enter/Space, and Escape with focus
-restoration. Right/Left enters/leaves a submenu. Cards expose Shift+F10 for
-their context menu; sortable handles expose Alt+arrow reordering. All canvases
+restoration. Right/Left enters/leaves a submenu. Cards expose Alt+Enter for
+their context menu (the Menu key and Shift+F10 also work); sortable handles
+expose Alt+arrow reordering. All canvases
 share keyboard node navigation through the canvas registry and lifecycle hook.
 Graph arrows follow rendered positions; Page Up/Down and Home/End traverse
 nodes by name. The blue focus halo and white selection borders remain distinct.
-Escape clears graph focus and selection before leaving fullscreen. F1 opens
+Escape clears graph focus and selection before leaving fullscreen. Ctrl+/ (Cmd+/) opens
 the explicit local shortcut reference; shortcut
 help is also shown while cards, reorder handles or graphs have keyboard focus.
 Plain Ctrl/Cmd+S saves only the focused node/event editor or Settings.

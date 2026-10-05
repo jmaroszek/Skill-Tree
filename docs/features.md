@@ -15,10 +15,18 @@ After opening a panel with the mouse, Tab from its opener enters the panel.
 Floating panels, modals and fullscreen follow the same focus boundary. Escape
 closes the innermost menu or panel first and returns focus to its opener.
 Use **Ctrl+S** (**Cmd+S** on macOS) to save the focused node editor, event
-editor, or Settings. Field explanations appear on deliberate Tab focus.
-**F1** opens a local shortcut reference.
+editor, or Settings. Tooltips open on mouse hover only, never on keyboard
+focus. Escape on an open dropdown closes it without changing its value; the
+next Escape closes the panel. **Enter** on a main tab moves straight into it:
+the first Now card, the Nodes graph, the Details search, the Events search, or
+Analyze's Plan tab. In the Goals and Events sidebars, **Down** from the search
+box enters the list and **Up** from the top of the list returns to it. On
+Home, **Tab** moves between the Now cards, **Down** drops to the Next list,
+and **Up** from its first row returns to the Now card you left. Enter on an
+Analyze gear opens its settings with focus in the first field.
+**Ctrl+/** (**Cmd+/** on macOS) opens a local shortcut reference.
 
-On a Home row, Now card, goal card or event card, **Shift+F10** (or the
+On a Home row, Now card, goal card or event card, **Alt+Enter** (or the
 keyboard's Menu key) opens its actions. Use **Up / Down**, **Home / End**,
 and **Enter / Space** in menus. **Right / Left** enters or leaves a submenu;
 **Escape** closes the menu and returns focus.
@@ -26,7 +34,7 @@ and **Enter / Space** in menus. **Right / Left** enters or leaves a submenu;
 Tab to a graph and use **arrow keys** to move toward nodes in that direction.
 **Page Up / Down** browses all visible nodes by name. **Home / End** goes to
 the first or last node by name, **Enter** selects it, and
-**Shift+Enter** adds it to the selection. **Shift+F10** opens its actions.
+**Shift+Enter** adds it to the selection. **Alt+Enter** opens its actions.
 **+ / −** zooms and **0** fits the graph. The focused graph displays the
 current node's name and status, plus the selected nodes. A blue halo marks
 focus; white borders mark selection. Moving focus pans only when the node

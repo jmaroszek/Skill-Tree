@@ -9,11 +9,18 @@
     var pendingFocus = null;
     var lastFocused = null;
     var pendingDestination = null;
-    var tooltipFocusIntent = false;
+    var pendingTabEntry = null;
     var custom = '.suggestion-bar-row, .now-card, .goal-card, .event-card, .goal-rank-trigger, .details-subtask-name-link, [id*="details-milestone-tile"]';
     var reorderHandles = '.goal-drag-handle, .event-drag-handle, .ctx-drag-handle:not(.ctx-drag-disabled), .ctx-chip-grip';
     var listItems = '.suggestion-bar-row, .now-card, .goal-card, .event-card';
-    var graphHelp = 'Arrows: move toward a node. Page Up/Down: browse by name. Home/End: first/last. Enter: select. Shift+Enter: add. Escape: clear selection. Shift+F10: actions. +/−: zoom. 0: fit.';
+    // Lists you browse with the arrow keys from a search box above them.
+    var searchLists = {'details-goal-search': 'details-goal-sidebar', 'events-search-input': 'events-sidebar-container'};
+    // Enter on a main tab lands on that tab's first useful control.
+    var tabEntry = {Home: '.now-card, .suggestion-bar-row', Nodes: '#cytoscape-graph',
+        Details: '#details-node-select', Events: '#events-search-input',
+        Analyze: '.analyze-subtabs .nav-link.active'};
+    var lastNowCard = null;
+    var graphHelp = 'Arrows: move toward a node. Page Up/Down: browse by name. Home/End: first/last. Enter: select. Shift+Enter: add. Escape: clear selection. Alt+Enter: actions. +/−: zoom. 0: fit.';
     var feedback;
 
     function announce(message) {
@@ -54,13 +61,18 @@
                 rows.find(function (r) { return rowName(r) === group._keyboardRow; }) || rows[0];
             if (active) group._keyboardRow = rowName(active);
             rows.forEach(function (row) {
-                row.tabIndex = row === active ? 0 : -1;
+                // The few Now cards are each a Tab stop. Longer lists keep one
+                // stop, so Tab leaves them in a single keypress.
+                row.tabIndex = row === active || row.matches('.now-card') ? 0 : -1;
                 row.setAttribute('aria-describedby', 'keyboard-list-help');
                 row.querySelectorAll(reorderHandles + ', .goal-rank-trigger').forEach(function (item) {
                     item.tabIndex = row === active ? 0 : -1;
                 });
             });
         });
+        // Changing how many suggestions show is rare. Leave the stepper to the
+        // mouse so Tab goes from the Now cards straight to the Next list.
+        document.querySelectorAll('#btn-sugg-minus, #btn-sugg-plus').forEach(function (b) { b.tabIndex = -1; });
         associateHints();
         if (ST.describeSplitHandle) document.querySelectorAll('.split-handle').forEach(function (handle) {
             if (!handle.hasAttribute('aria-valuenow')) ST.describeSplitHandle(handle);
@@ -85,6 +97,11 @@
                 .find(function (el) { return el.getAttribute('data-node-menu') === name && el.getClientRects().length; });
             if (replacement) F.focus(replacement);
         }
+        if (pendingTabEntry) {
+            var entry = Array.from(document.querySelectorAll(pendingTabEntry.selector)).find(F.visible);
+            if (entry && !document.querySelector('.modal.show') && F.focus(entry)) pendingTabEntry = null;
+            else if (Date.now() > pendingTabEntry.deadline) pendingTabEntry = null;
+        }
         if (pendingDestination) {
             var dest = pendingDestination;
             var field = document.querySelector(dest.selector);
@@ -105,9 +122,38 @@
         return Array.from(group.children).filter(function (row) { return row.matches(listItems); });
     }
 
+    // Alt+Enter opens a card's or node's actions. The Menu key and Shift+F10
+    // are the platform's own context-menu keys, so they keep working.
+    function isActionsKey(e) {
+        return (e.altKey && e.key === 'Enter' && !e.ctrlKey && !e.metaKey) ||
+            e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10');
+    }
+
+    // Arrow keys that leave a list for its neighbour: Down from a Now card to
+    // the Next list and Up back to that card; Up from the top of a sidebar
+    // list to its search box.
+    function crossList(row, rows, key) {
+        if (row.matches('.now-card')) {
+            return key === 'ArrowDown' ? document.querySelector('.suggestion-bar-row[tabindex="0"]') : null;
+        }
+        if (key !== 'ArrowUp' || rows.indexOf(row) !== 0) return null;
+        if (row.matches('.suggestion-bar-row')) {
+            var now = Array.from(document.querySelectorAll('.now-card'));
+            return now.find(function (card) { return rowName(card) === lastNowCard; }) || now[0] || null;
+        }
+        var search = Object.keys(searchLists).find(function (id) {
+            var panel = document.getElementById(searchLists[id]);
+            return panel && panel.contains(row);
+        });
+        // Only the first list under the search box; later groups keep wrapping.
+        var top = search && document.getElementById(searchLists[search]).querySelector(listItems);
+        return top && top.parentElement === row.parentElement ? document.getElementById(search) : null;
+    }
+
     function associateHints() {
-        // A label's following field/group inherits its description, without
-        // adding a stop for the heading itself. Sections can cover many fields.
+        // A label's following field/group inherits its description for screen
+        // readers, without adding a stop for the heading itself. Sections can
+        // cover many fields. The visible tooltip stays hover-only.
         document.querySelectorAll('.keyboard-hint-label').forEach(function (wrapper) {
             var label = wrapper.querySelector('.hover-hint');
             if (!label) return;
@@ -118,9 +164,6 @@
                 var fields = sibling.matches('input, select, textarea, button') ? [sibling]
                     : Array.from(sibling.querySelectorAll('input:not([type=hidden]), select, textarea, button'));
                 fields.forEach(function (field) {
-                    var ids = (field.getAttribute('data-keyboard-labels') || '').split(' ').filter(Boolean);
-                    if (!ids.includes(label.id)) ids.push(label.id);
-                    field.setAttribute('data-keyboard-labels', ids.join(' '));
                     var descriptions = new Set((field.getAttribute('aria-describedby') || '').split(' ').filter(Boolean));
                     descriptions.add(wrapper.getAttribute('data-keyboard-hint'));
                     field.setAttribute('aria-describedby', Array.from(descriptions).join(' '));
@@ -168,42 +211,16 @@
         return true;
     }
 
-    document.addEventListener('pointerdown', function () { pendingFocus = null; }, true);
-    // Keep hover-only tooltips available on deliberate Tab navigation without
-    // reopening them when a mouse-opened modal restores focus to its button.
-    document.addEventListener('keydown', function (e) {
-        tooltipFocusIntent = e.key === 'Tab';
-        setTimeout(function () { tooltipFocusIntent = false; }, 0);
-    }, true);
+    document.addEventListener('pointerdown', function () { pendingFocus = null; pendingTabEntry = null; }, true);
+    // Tooltips open on mouse hover only, never on keyboard focus.
     document.addEventListener('focusin', function (e) {
         lastFocused = e.target;
+        if (e.target.matches('.now-card')) lastNowCard = rowName(e.target);
         sync();
-        var deliberateTab = tooltipFocusIntent || F.isTabbing();
-        if (deliberateTab && e.target.hasAttribute('data-keyboard-labels')) {
-            e.target._keyboardHintLabels = e.target.getAttribute('data-keyboard-labels').split(' ')
-                .map(function (id) { return document.getElementById(id); }).filter(Boolean);
-            e.target._keyboardHintLabels.forEach(function (label) {
-                label.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
-            });
-        }
         if (F.isKeyboard() && e.target.matches(listItems + ', ' + reorderHandles)) {
-            announce(e.target.matches(listItems) ? 'Arrows: browse this list. Enter: open. Shift+F10: actions.'
+            announce(e.target.matches(listItems) ? 'Arrows: browse this list. Enter: open. Alt+Enter: actions.'
                 : 'Alt + arrow keys: reorder this item.');
         }
-        if (deliberateTab && e.target.matches('button, a, [tabindex="0"]') &&
-                !e.target.closest('.ctx-menu') && !e.target.matches('.keyboard-graph')) {
-            e.target._keyboardTooltip = true;
-            e.target.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
-        }
-    });
-    document.addEventListener('focusout', function (e) {
-        (e.target._keyboardHintLabels || []).forEach(function (label) {
-            label.dispatchEvent(new MouseEvent('mouseout', {bubbles: true}));
-        });
-        e.target._keyboardHintLabels = null;
-        if (!e.target._keyboardTooltip) return;
-        e.target._keyboardTooltip = false;
-        e.target.dispatchEvent(new MouseEvent('mouseout', {bubbles: true, relatedTarget: e.relatedTarget}));
     });
     document.addEventListener('keydown', function (e) {
         if (e.defaultPrevented || e.isComposing) return;
@@ -219,8 +236,20 @@
                 tabs[i].tabIndex = 0; F.focus(tabs[i]); return;
             }
             if (target.tagName === 'A' && (e.key === 'Enter' || e.key === ' ')) {
-                e.preventDefault(); target.click(); return;
+                e.preventDefault(); target.click();
+                var selector = target.closest('#main-tabs') && tabEntry[target.textContent.trim()];
+                if (selector) {
+                    pendingTabEntry = {selector: selector, deadline: Date.now() + 10000};
+                    sync();
+                }
+                return;
             }
+        }
+        if (searchLists[target.id] && e.key === 'ArrowDown' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            var first = document.getElementById(searchLists[target.id]).querySelector(listItems.split(', ')
+                .map(function (item) { return item + '[tabindex="0"]'; }).join(', '));
+            if (first) { e.preventDefault(); F.focus(first); }
+            return;
         }
         if (e.altKey && ['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(e.key)) {
             if (reorder(target, ['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 1)) {
@@ -231,12 +260,13 @@
         if (row && !e.altKey && !e.ctrlKey && !e.metaKey &&
                 ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
             var rows = listRows(row.parentElement);
+            var bridge = crossList(row, rows, e.key);
+            if (bridge) { e.preventDefault(); F.focus(bridge); return; }
             var index = e.key === 'Home' ? 0 : e.key === 'End' ? rows.length - 1
                 : (rows.indexOf(row) + (['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 1) + rows.length) % rows.length;
             e.preventDefault(); F.focus(rows[index]); return;
         }
-        if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) &&
-                target.matches('[data-node-menu], .event-card')) {
+        if (isActionsKey(e) && target.matches('[data-node-menu], .event-card')) {
             e.preventDefault();
             var rect = target.getBoundingClientRect();
             target.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true,
@@ -276,7 +306,7 @@
                 if (F.isKeyboard()) announce(graphHelp);
             });
             el.addEventListener('keydown', function (e) {
-                if (e.target !== el || e.altKey || e.ctrlKey || e.metaKey) return;
+                if (e.target !== el || e.ctrlKey || e.metaKey || (e.altKey && !isActionsKey(e))) return;
                 var cy = ST.getCy(el);
                 if (!cy) return;
                 var nodes = cy.nodes().filter(function (n) { return n.visible(); }).toArray()
@@ -314,7 +344,7 @@
                     node.addClass('keyboard-current');
                     revealNode(cy, node, el);
                     announceNode(cy, node, i, nodes.length);
-                } else if ((e.key === 'Enter' || e.key === ' ') && node) {
+                } else if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && node) {
                     e.preventDefault(); cursor = node.id();
                     if (!e.shiftKey) cy.$('node:selected').unselect();
                     node.select(); node.emit('tap');
@@ -327,7 +357,7 @@
                     cy.$('node:selected').unselect();
                     cy.nodes('.keyboard-current').removeClass('keyboard-current');
                     announce('Graph selection cleared. ' + graphHelp);
-                } else if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && node) {
+                } else if (isActionsKey(e) && node) {
                     e.preventDefault();
                     var pos = node.renderedPosition(), rect = el.getBoundingClientRect();
                     node.emit({type: 'cxttap', originalEvent: {preventDefault: function () {},
@@ -365,7 +395,7 @@
         var help = document.createElement('span');
         help.id = 'keyboard-list-help';
         help.className = 'visually-hidden';
-        help.textContent = 'Arrow keys browse this list. Home and End go to its ends. Enter opens an item. Shift+F10 opens actions.';
+        help.textContent = 'Arrow keys browse this list. Home and End go to its ends. Enter opens an item. Alt+Enter opens actions.';
         document.body.appendChild(help);
         sync();
         new MutationObserver(sync).observe(document.body, {childList: true, subtree: true,

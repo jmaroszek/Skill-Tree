@@ -58,6 +58,15 @@
         else focus(el);
     }
 
+    // A base-select <select> draws its menu in the page, so Escape reaches the
+    // page while the menu is open. Focus is then on one of its options.
+    function openSelect(target) {
+        var select = target.closest && target.closest('select');
+        if (!select) return false;
+        if (target !== select) return true;
+        try { return select.matches(':open'); } catch (err) { return false; }
+    }
+
     function register(cfg) {
         layers.push(Object.assign({open: false, root: null, order: 0, engaged: false}, cfg));
     }
@@ -241,6 +250,15 @@
         isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
     register({id: 'details-filters-sidebar', closeId: 'btn-details-filters-close', hideWhenClosed: true,
         isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
+    // Analyze's gear popovers render at the end of the page, out of Tab reach
+    // from their gear. Opening one from the keyboard moves focus into it.
+    [['popover-analyze-goals', 'btn-analyze-goals-limit'],
+     ['popover-analyze-bottlenecks', 'btn-analyze-bottlenecks-limit'],
+     ['popover-analyze-throughput', 'btn-analyze-throughput-gear']].forEach(function (pair) {
+        register({id: pair[0], triggerId: pair[1], initial: 'input, select',
+            isOpen: function (el) { return el.classList.contains('show'); },
+            dismiss: function () { document.getElementById(pair[1]).click(); }});
+    });
     ST.canvases.forEach(function (canvas) {
         register({id: canvas.settingsPanelId, triggerId: canvas.settingsToggleId,
             closeId: canvas.settingsCloseId, initial: 'input', hideWhenClosed: true,
@@ -279,7 +297,7 @@
         if (e.target.closest('.ctx-menu, .context-picker-panel, .context-picker-submenu') ||
                 document.querySelector('.context-picker-panel') ||
                 document.querySelector('[aria-haspopup="listbox"][aria-expanded="true"], [role="combobox"][aria-expanded="true"]') ||
-                e.target.closest('.Select.is-open')) return;
+                e.target.closest('.Select.is-open') || openSelect(e.target)) return;
         // Graph selection is the innermost layer, before fullscreen itself.
         if (e.target.matches('.keyboard-graph')) {
             var cy = ST.getCy(e.target);

@@ -88,7 +88,6 @@ def test_review_history_summary_keeps_full_names_and_rating_comparison_accessibl
         "Name", "Est Time", "Actual", "Δ Time", "Δ Ratings"]
     assert headings[4].to_plotly_json()["props"]["aria-sort"] == "descending"
     assert cells[0].children[0].children == node.name
-    assert cells[0].children[0].tabIndex == 0
     assert cells[0].children[1].children == node.name
     assert cells[4].children[0].children == "+1/+2/−1"
     assert "Estimated V/I/E: 5/5/5" in cells[4].children[1].children

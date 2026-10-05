@@ -45,9 +45,8 @@ def Tooltip(children, target, **kwargs):
 
     Icon buttons still name themselves for assistive technology through their
     visually-hidden label, so nothing is lost by dropping the focus trigger.
-    ``assets/keyboard_navigation.js`` forwards deliberate Tab focus through
-    the hover events, keeping help available without reopening it on automatic
-    focus restoration.
+    Keyboard focus never opens a tooltip: a field's hint reaches screen readers
+    as its description instead (see ``hover_label``).
     ``trigger`` and ``delay`` can still be overridden per call.
     """
     kwargs.setdefault("trigger", "hover")

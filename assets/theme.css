@@ -692,13 +692,27 @@
 }
 
 /* Every keyboard target gets the same visible ring, including ghost buttons
-   whose Bootstrap focus shadow is deliberately muted. */
+   whose Bootstrap focus shadow is deliberately muted. `.btn` is listed
+   because Bootstrap's `.btn:focus-visible { outline: 0 }` outranks `button`. */
 button:focus-visible,
 a:focus-visible,
 [tabindex="0"]:focus-visible,
+.btn:focus-visible,
 .ctx-menu-item:focus-visible {
     outline: 2px solid var(--st-accent);
     outline-offset: -2px;
+}
+
+/* Fields are light on a dark page, where DARKLY's pale focus border all but
+   vanishes. A bright border and solid ring mark the current field. */
+.form-control:focus,
+.form-select:focus,
+.dash-dropdown:focus-visible,
+.context-picker-trigger:focus-visible,
+.editor-field-group:focus-within {
+    border-color: var(--st-field-focus-border);
+    box-shadow: var(--st-field-focus-ring);
+    outline: none;
 }
 
 .ctx-menu-item:focus-visible {
@@ -1183,12 +1197,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     white-space: nowrap;
 }
 
-.review-history-name:focus-visible,
-.review-history-rating:focus-visible {
-    outline: 2px solid var(--bs-primary);
-    outline-offset: 2px;
-}
-
 .review-history-sort-btn.btn-link {
     padding: 0;
     color: inherit;
@@ -1396,10 +1404,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     border-radius: 0.375rem;
     background-color: #fff;
     overflow: hidden;
-}
-.editor-field-group:focus-within {
-    border-color: var(--st-field-focus-border);
-    box-shadow: 0 0 0 0.25rem rgba(55, 90, 127, .25);
 }
 .editor-field-group .form-control {
     border: none;

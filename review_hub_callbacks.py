@@ -210,7 +210,6 @@ def _history_sort_heading(key, sort):
     if hint:
         return html.Th([button, Tooltip(
             hint, target={"type": "hub-history-sort-column", "index": key},
-            trigger="hover focus",
         )], className=heading_class, **{"aria-sort": aria_sort})
     return html.Th(button, className=heading_class, **{"aria-sort": aria_sort})
 
@@ -274,9 +273,8 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
         ], className="review-history-actions")
         rows.append(html.Tr([
             html.Td([
-                html.Span(node.name, id=name_id, tabIndex=0,
-                          className="review-history-name"),
-                Tooltip(node.name, target=name_id, trigger="hover focus"),
+                html.Span(node.name, id=name_id, className="review-history-name"),
+                Tooltip(node.name, target=name_id),
             ], className="review-history-name-cell", style=_CELL_PRIMARY),
             html.Td(_fmt_hours(est_hours) if est_hours > 0 else _DASH,
                     style=_CELL_MUTED),
@@ -287,10 +285,10 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
                     node.reflect_value, node.reflect_interest,
                     node.reflect_difficulty,
                     node.value, node.interest, node.difficulty),
-                    id=ratings_id, tabIndex=0, className="review-history-rating hover-hint"),
+                    id=ratings_id, className="review-history-rating hover-hint"),
                 Tooltip(f"Estimated V/I/E: {estimated_ratings} · "
                         f"Actual V/I/E: {actual_ratings}",
-                        target=ratings_id, trigger="hover focus"),
+                        target=ratings_id),
             ], style=_CELL_MUTED),
             html.Td(edit_action,
                     style={"verticalAlign": "middle", "width": "32px"}),

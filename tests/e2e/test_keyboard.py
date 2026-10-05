@@ -19,14 +19,15 @@ def _tab_to(page, selector, limit=160):
 
 
 def _card_to(page, selector):
-    """Enter a card group through Tab, then use its roving arrow order."""
+    """Enter a card group through Tab, then use its arrow order. Right stays
+    within the group; Down leaves the Now cards for the Next list."""
     kind = selector.split("[", 1)[0].split(" ", 1)[0]
     _tab_to(page, kind)
     count = page.locator(kind).count()
     for _ in range(count):
         if page.evaluate("s => document.activeElement.matches(s)", selector):
             return
-        page.keyboard.press("ArrowDown")
+        page.keyboard.press("ArrowRight")
     raise AssertionError(f"{selector} never reached through card arrows")
 
 
@@ -40,7 +41,7 @@ def _seed(page):
 
 
 def _menu_action(page, item_id):
-    page.keyboard.press("Shift+F10")
+    page.keyboard.press("Alt+Enter")
     page.wait_for_function("document.activeElement.classList.contains('ctx-menu-item')")
     for _ in range(20):
         if page.evaluate("document.activeElement.id") == item_id:
@@ -58,7 +59,7 @@ def test_keyboard_home_actions_sidebar_and_save(page, server):
     _card_to(page, row)
     assert page.locator(row).evaluate("el => getComputedStyle(el).outlineStyle") == "solid"
     page.keyboard.press("Enter")
-    page.keyboard.press("Shift+F10")
+    page.keyboard.press("Alt+Enter")
     page.wait_for_function("document.activeElement.id === 'ctx-menu-edit'")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowDown")
@@ -69,7 +70,7 @@ def test_keyboard_home_actions_sidebar_and_save(page, server):
     assert server.query("SELECT now FROM Nodes WHERE name='Alpha'")[0][0] > 0
     _idle(page)
     _card_to(page, '.now-card[data-node-menu="Alpha"]')
-    page.keyboard.press("Shift+F10")
+    page.keyboard.press("Alt+Enter")
     page.keyboard.press("Enter")
     page.wait_for_function("!document.getElementById('sidebar-editor-container').inert")
     _idle(page)
@@ -105,7 +106,7 @@ def test_keyboard_graph_selection_menu_and_scoped_delete(page):
     page.keyboard.press("PageDown")
     page.keyboard.press("Shift+Enter")
     assert page.evaluate("window.SkillTree.getCy(document.getElementById('cytoscape-graph')).$('node:selected').length") == 2
-    page.keyboard.press("Shift+F10")
+    page.keyboard.press("Alt+Enter")
     page.wait_for_function("document.activeElement.id === 'ctx-menu-edit'")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement.id") == "cytoscape-graph"
@@ -130,7 +131,7 @@ def test_keyboard_goal_submenu_and_panel_resize(page, server):
     page.wait_for_function("!document.getElementById('details-goal-sidebar').inert")
     _idle(page)
     _card_to(page, '.goal-card[data-goal-name="Goal"]')
-    page.keyboard.press("Shift+F10")
+    page.keyboard.press("Alt+Enter")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowDown")
@@ -245,7 +246,8 @@ def test_keyboard_create_node_and_preserve_draft_guard(page, server):
     _idle(page)
     assert server.query("SELECT name, context FROM Nodes") == [("Keyboard Node", "Mind")]
     _tab_to(page, "#btn-ratings-info")
-    page.wait_for_selector('.tooltip.show', state="visible")
+    page.wait_for_timeout(600)
+    assert page.locator(".tooltip.show").count() == 0
     page.keyboard.press("Enter")
     assert page.evaluate("document.activeElement.id") == "btn-ratings-close"
     page.keyboard.press("Escape")
@@ -301,7 +303,7 @@ def test_keyboard_events_create_select_menu_and_reorder(page, server):
     _tab_to(page, "#btn-events-sidebar-toggle")
     page.keyboard.press("Enter")
     _card_to(page, f'.event-card[data-event-name="{last}"]')
-    page.keyboard.press("Shift+F10")
+    page.keyboard.press("Alt+Enter")
     page.wait_for_function("document.activeElement.id === 'event-ctx-edit'")
     page.keyboard.press("End")
     assert page.evaluate("document.activeElement.id") == "event-ctx-delete"

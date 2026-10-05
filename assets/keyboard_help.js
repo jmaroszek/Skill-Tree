@@ -5,11 +5,14 @@
     var shortcuts = [
         ['Tab / Shift+Tab', 'Move through controls. Open panels keep focus until Escape or Close.'],
         ['Enter / Space', 'Activate a button or card.'],
-        ['Left / Right, Home / End on tabs', 'Choose a tab; Enter or Space opens it.'],
+        ['Left / Right, Home / End on tabs', 'Choose a tab; Enter or Space opens it and moves into it.'],
         ['Arrows, Home / End on cards', 'Browse a list. Tab leaves the list or reaches the current card’s controls.'],
-        ['Escape', 'Dismiss the innermost menu or panel and return focus. Draft checks still apply.'],
+        ['Tab on Now cards', 'Move between Now cards. Down goes to the Next list; Up from its top comes back.'],
+        ['Down in a sidebar search', 'Move into the list below. Up from the list’s top returns to the search.'],
+        ['Escape', 'Dismiss the innermost menu or panel and return focus. An open dropdown closes without changing its value. Draft checks still apply.'],
         ['Ctrl+S / Cmd+S', 'Save the focused node editor, event editor, or Settings.'],
-        ['Shift+F10 / Menu key', 'Open actions for a card or graph node.'],
+        ['Ctrl+/ / Cmd+/', 'Show this list of keyboard controls.'],
+        ['Alt+Enter / Menu key', 'Open actions for a card or graph node.'],
         ['Arrows, Home / End in menus', 'Choose an action. Right / Left enters or leaves a submenu.'],
         ['Alt+arrows', 'Reorder a Now card or a goal, event, context, or subcontext reorder handle.'],
         ['Arrows on a graph', 'Move toward a node in that direction. Page Up / Down browses all nodes by name.'],
@@ -67,7 +70,8 @@
             }
             return;
         }
-        if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // Ctrl+/ (Cmd+/ on macOS) rather than a function key.
+        if (e.key === '/' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
             e.preventDefault(); e.stopImmediatePropagation(); open();
         }
     }, true);
