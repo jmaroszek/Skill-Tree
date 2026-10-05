@@ -554,6 +554,21 @@ def build_node_editor_sidebar():
 
 
 # --- Goals sidebar (left) ---
+def goal_list_cover():
+    """What the Goals list shows while the sidebar is closed or still building.
+
+    The cards are only mounted while the sidebar is open. Dash re-checks every
+    mounted component on each store update, so a list of hidden cards slowed
+    every interaction elsewhere, the Details graph's opening animation most
+    of all.
+    """
+    return html.Div([
+        dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
+        html.Div("Preparing your goals…", className="canvas-cover-label"),
+    ], className="loading-cover", role="status",
+        **{"aria-live": "polite"})  # type: ignore[reportArgumentType]
+
+
 def build_goals_sidebar():
     """Container Div for the goals overlay (left, closed initially)."""
     return html.Div(
@@ -575,16 +590,10 @@ def build_goals_sidebar():
                 GOALS_SORT,
             ),
 
-            # The list is first built in the background once the app is idle,
-            # or on the sidebar's first open if that comes sooner. Later opens
-            # show the previous list until the new one arrives, so only this
-            # first wait needs a spinner.
+            # The list is built once the open slide finishes and cleared once
+            # the close slide does, so the sidebar slides in over this cover.
             html.Div(
-                html.Div([
-                    dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
-                    html.Div("Preparing your goals…", className="canvas-cover-label"),
-                ], className="loading-cover", role="status",
-                    **{"aria-live": "polite"}),  # type: ignore[reportArgumentType]
+                goal_list_cover(),
                 id="details-goal-list-container",
                 style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
         ],

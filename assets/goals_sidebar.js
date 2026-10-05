@@ -5,6 +5,7 @@
  * open/close. Mirrors the events_sidebar.js pattern: on open, closes
  * peer left-side sidebars (editor, events) via the sidebar mutex, and
  * bumps goals-ui-refresh-trigger so render_goal_list rebuilds the card list.
+ * A finished close bumps it too, and the closed sidebar drops its cards.
  *
  * The sidebar slides with `transform`, which the browser animates off the
  * main thread. The refresh waits until the slide is done, so the rebuilt
@@ -101,6 +102,21 @@ window.dash_clientside.goals = window.dash_clientside.goals || {};
 
         return [style, nextEditor, nextEvents];
     };
+
+    // Once a close slide finishes, swap the cards for the loading cover.
+    // Dash re-checks every mounted component on each store update, so a
+    // hidden list slows everything else, the Details graph's opening
+    // animation most of all. The toggle is not the only thing that closes
+    // the sidebar (the editor and Events slide it shut), so this listens for
+    // the slide rather than the click. A close reversed mid-slide cancels its
+    // transition, and no transitionend arrives.
+    document.addEventListener('transitionend', function (evt) {
+        var sidebar = evt.target;
+        if (!sidebar || sidebar.id !== 'details-goal-sidebar') return;
+        if (evt.propertyName !== 'transform') return;
+        if (sidebar.style.transform !== CLOSED) return;
+        window.dash_clientside.set_props("goals-ui-refresh-trigger", { data: Date.now() });
+    }, true);
 })();
 
 /**

@@ -172,6 +172,34 @@ assert.equal(frozen.waitingForLayout, false);
 
 assert.equal(ui.render(result, request(null, 'details-selected-node-store'))[1].display, 'none');
 assert(latest.sequence > old.sequence);
+
+// The server hears a node-less request only while it may have work to
+// cancel. A selection's waiting request lands inside its layout animation.
+function pair(name, triggerId, settledRoot = null) {
+    window.dash_clientside.callback_context.triggered = [{prop_id: `${triggerId}.data`}];
+    const args = Array(21).fill(null);
+    args[0] = name;
+    args[17] = settledRoot ? JSON.stringify({root: settledRoot}) : '';
+    args[18] = 'tab-details';
+    return ui.requestAndForward(...args);
+}
+let [chart, server] = pair('D', 'details-selected-node-store');
+assert.equal(chart.waitingForLayout, true);
+assert.equal(server, 'NO');
+[chart, server] = pair('D', 'details-simulation-settled-trigger-input', 'D');
+assert.equal(server.node, 'D');
+// D is still running: the next selection's waiting request cancels it.
+[chart, server] = pair('E', 'details-selected-node-store', 'D');
+assert.equal(server.node, null);
+assert.equal(server.sequence, chart.sequence);
+// One cancel is enough.
+[chart, server] = pair('F', 'details-selected-node-store', 'D');
+assert.equal(server, 'NO');
+// Once a result arrives there is nothing left to cancel.
+const [gChart] = [pair('G', 'details-simulation-settled-trigger-input', 'G')[0]];
+ui.render({...gChart, figure: 'G'}, gChart);
+[chart, server] = pair('H', 'details-selected-node-store', 'G');
+assert.equal(server, 'NO');
 '''
     result = subprocess.run([node_binary, '-e', script, str(asset)],
                             capture_output=True, text=True, timeout=10)

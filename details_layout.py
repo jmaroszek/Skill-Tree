@@ -527,6 +527,7 @@ def build_details_tab_content():
 
     sim_section = html.Div([
         dcc.Store(id="details-sim-request"),
+        dcc.Store(id="details-sim-server-request"),
         dcc.Store(id="details-sim-result"),
         html.Small(id="details-sim-status", className="text-muted d-block mb-1",
                    style={"fontSize": tokens.FS_BASE}, **{"aria-live": "polite"}),
@@ -620,6 +621,10 @@ def build_details_tab_content():
             # for the usual sub-second wait, a quiet caption is less visually
             # noisy than flashing a spinner.
             dcc.Store(id="details-explain-ready-node"),
+            # The selection, as the modal sees it: written only while the modal
+            # is open, so a selection made with it closed asks the server
+            # nothing.
+            dcc.Store(id="details-explain-node"),
             html.Div([
                 html.Div(
                     "Preparing explanation…",
@@ -682,12 +687,10 @@ def build_details_tab_content():
         dcc.Store(id='details-selected-node-store', data=None),
         dcc.Store(id='details-refresh-trigger', data=0),
         # UI-only refresh for the goals sidebar list. Bumped by goals_sidebar.js
-        # once the open slide finishes so render_goal_list re-runs — but NOT an
-        # input to core_engine, so opening doesn't wait on a graph regen.
+        # once an open or close slide finishes, so render_goal_list builds or
+        # clears the list — but NOT an input to core_engine, so opening
+        # doesn't wait on a graph regen.
         dcc.Store(id='goals-ui-refresh-trigger', data=0),
-        # Set once, when the browser first goes idle after startup, to build
-        # the Goals list in the background (sidebars_callbacks.py).
-        dcc.Store(id='goals-prewarm-store', data=None),
         dcc.Store(id='details-goal-order-store', data=ConfigManager.get_goal_order() or None),
         dcc.Store(id='details-nav-history', data=[]),
         dcc.Store(id='details-nav-index', data=-1),
@@ -851,13 +854,6 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     # status badge uses centralized BADGE_PALETTE (constructed inline below)
 
-    # Hidden up/down buttons (kept for Dash pattern-matching callback registration)
-    _hidden = {"display": "none"}
-    hidden_buttons = html.Div([
-        dbc.Button("", id={"type": "goal-up", "index": name}, style=_hidden),
-        dbc.Button("", id={"type": "goal-down", "index": name}, style=_hidden),
-    ])
-
     # Drag handle (visible only for non-priority, manual-sort goals)
     drag_handle = html.Span(
         html.I(className="bi bi-list"), className="goal-drag-handle",
@@ -880,7 +876,6 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
         corner_badge = None
 
     children: List[Any] = [
-        hidden_buttons,
         html.Div([
             html.Div([
                 drag_handle,

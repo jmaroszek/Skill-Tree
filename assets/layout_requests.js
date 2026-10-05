@@ -399,6 +399,25 @@
         return settleUnchanged(canvasFor('details'), pending, frozen, root);
     };
 
+    /**
+     * The registered callback: send settleUnchanged's token with set_props.
+     *
+     * Declaring the trigger input as this callback's Output made Time
+     * Simulation's request wait on every Details payload. Dash holds a
+     * callback while an upstream callback could still change one of its
+     * inputs, so the request ran in the same cycle as the layout, and its
+     * Dash work landed in the opening animation's first frames. Written with
+     * set_props, the request goes out as soon as the selection changes,
+     * while the server is still building the graph.
+     */
+    api.releaseUnchanged = function (pending, frozen, root) {
+        var token = settleUnchanged(canvasFor('details'), pending, frozen, root);
+        if (token !== window.dash_clientside.no_update) {
+            window.dash_clientside.set_props(
+                'details-simulation-settled-trigger-input', {value: token});
+        }
+    };
+
     // The view a canvas's layout on screen was built for.
     // details_deferred_subtasks.js scopes its releases to it.
     SkillTree.layoutRoot = function (key) {

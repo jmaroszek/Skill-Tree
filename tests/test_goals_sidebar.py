@@ -39,7 +39,8 @@ global.window = {
         set_props: (id, props) => setProps.push([id, props]),
     }
 };
-global.document = {addEventListener: () => {}};
+const listeners = {};
+global.document = {addEventListener: (type, fn) => { listeners[type] = fn; }};
 // Timers run only when the test says the slide has finished.
 let timers = [];
 global.setTimeout = fn => { timers.push(fn); return fn; };
@@ -87,6 +88,19 @@ assert.deepEqual(setProps, []);
 trigger('btn-goals-toggle');
 result = toggle(3, 1, open, closed, closed, 5);
 assert.equal(result[0].transform, 'translateX(-350px)');
+
+// A finished close slide, whoever closed it, asks for the list to clear.
+const slideEnd = (id, property, transform) => listeners.transitionend(
+    {target: {id: id, style: {transform: transform}}, propertyName: property});
+slideEnd('details-goal-sidebar', 'transform', 'translateX(-350px)');
+assert.equal(setProps.length, 1);
+assert.equal(setProps[0][0], 'goals-ui-refresh-trigger');
+setProps.length = 0;
+// An open slide, another element's slide, or another property doesn't.
+slideEnd('details-goal-sidebar', 'transform', 'translateX(0px)');
+slideEnd('events-sidebar-container', 'transform', 'translateX(-350px)');
+slideEnd('details-goal-sidebar', 'opacity', 'translateX(-350px)');
+assert.deepEqual(setProps, []);
 '''
     result = subprocess.run(
         [node, "-e", script, str(ASSET)],
@@ -129,7 +143,7 @@ def test_goal_list_shows_a_spinner_until_its_first_render():
     assert isinstance(cover.children[0], dbc.Spinner)
 
 
-def _render_goal_list(trigger, sidebar_style, prewarm=1):
+def _render_goal_list(trigger, sidebar_style):
     """Run render_goal_list as Dash would for a single triggering input."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
@@ -142,7 +156,7 @@ def _render_goal_list(trigger, sidebar_style, prewarm=1):
 
     def run():
         context_value.set(AttributeDict(triggered_inputs=[{"prop_id": trigger, "value": 1}]))
-        return render("tab-next", None, None, None, None, "priority", None, prewarm, None,
+        return render("tab-next", None, None, None, None, "priority", None, None,
                       sidebar_style)
     return copy_context().run(run)
 
@@ -171,39 +185,25 @@ def test_goal_list_builds_from_one_database_snapshot(monkeypatch):
     assert len(built) == 1
 
 
-def test_closed_goal_list_builds_only_for_the_background_prewarm():
+def test_closed_goal_list_never_builds_and_clears_after_its_slide():
+    """Hidden cards cost every Dash store update, so a closed sidebar holds
+    only the cover: graph changes leave it alone, and a finished close slide
+    swaps the cards out for it."""
     _add_goals("Alpha")
     closed = {"transform": SIDEBAR_TRANSLATE_CLOSED}
     assert _render_goal_list("graph-version-store.data", closed) is dash.no_update
-    cards = _render_goal_list("goals-prewarm-store.data", closed)
-    assert len(cards) == 1
+    cover = _render_goal_list("goals-ui-refresh-trigger.data", closed)
+    assert cover.className == "loading-cover"
 
 
-def test_the_prewarm_stores_mount_is_not_a_prewarm():
-    """A dcc.Store whose data starts as None reports itself changed when it
-    mounts, with no value. That built this ~130 KB list on page load, while
-    the core engine was still computing, and the real prewarm built it again
-    a second later."""
-    _add_goals("Alpha")
-    closed = {"transform": SIDEBAR_TRANSLATE_CLOSED}
-    assert _render_goal_list("goals-prewarm-store.data", closed,
-                             prewarm=None) is dash.no_update
-
-
-def test_the_goals_prewarm_starts_with_the_core_payload():
-    """The startup cover waits for this render. Waiting for the canvas
-    ingest and then for idle put it after most of a second of browser work
-    it could have overlapped on the server."""
+def test_nothing_builds_the_goal_list_at_startup():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     sidebars_callbacks.register_sidebars_callbacks(app)
-
-    prewarm = next(c for c in app._callback_list
-                   if c["output"] == "goals-prewarm-store.data")
-    assert [i["id"] for i in prewarm["inputs"]] == ["elements-pending-store"]
-    name = prewarm["clientside_function"]["function_name"]
-    source = next(s for s in app._inline_scripts if name in s)
-    assert "requestIdleCallback" not in source
+    render = next(c for c in app._callback_list
+                  if c["output"] == "details-goal-list-container.children")
+    assert "elements-pending-store" not in [i["id"] for i in render["inputs"]]
+    assert all("goals-prewarm-store" not in c["output"] for c in app._callback_list)
 
 
 def test_analyze_does_not_render_at_startup():

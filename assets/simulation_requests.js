@@ -1,9 +1,33 @@
-/* Match simulation results to the current browser selection, not arrival order. */
+/* Match simulation results to the current browser selection, not arrival order.
+ *
+ * Every request goes to the chart (details-sim-request). Only requests the
+ * server has work in goes to it (details-sim-server-request): one that names
+ * a node, or a node-less one while an earlier simulation may still be
+ * running, which it cancels. A selection sends a node-less request while its
+ * layout animates. With nothing to cancel, its round trip did nothing but
+ * compete with the animation for frames.
+ */
 (function () {
     var session = window.crypto.randomUUID();
     var sequence = 0;
     var displayed = -1;
     var pendingNode = null;
+    // The sequence of the newest node request the server hasn't answered.
+    // A cancelled one is never answered, so this stays set until a
+    // forwarded request supersedes it.
+    var inFlight = null;
+
+    function forward(request) {
+        var no = window.dash_clientside.no_update;
+        if (!request || request === no) return no;
+        if (request.node) {
+            inFlight = request.sequence;
+            return request;
+        }
+        if (inFlight === null) return no;
+        inFlight = null;
+        return request;
+    }
 
     var layoutInputs = new Set([
         'details-selected-node-store',
@@ -90,6 +114,12 @@
                 hideBlocked: hideBlocked, timeUnit: timeUnit, timeMin: timeMin
             };
         },
+        // The registered callback: the chart's request, and the server's.
+        requestAndForward: function () {
+            var request = window.dash_clientside.skillTreeSimulation.request
+                .apply(null, arguments);
+            return [request, forward(request)];
+        },
         render: function (result, request) {
             var no = window.dash_clientside.no_update;
             var hidden = {display: 'none'};
@@ -107,6 +137,7 @@
                 return [no, hidden, hidden, 'Calculating…'];
             }
             displayed = request.sequence;
+            if (inFlight !== null && result.sequence >= inFlight) inFlight = null;
             if (result.error) return [no, hidden, hidden, result.error];
             return [result.figure, result.resultsStyle, result.emptyStyle, result.caption];
         }

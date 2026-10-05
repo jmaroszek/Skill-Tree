@@ -228,10 +228,17 @@ animation, so layout completion and Locate's cleanup remain independent.
 `assets/00_cytoscape_extent.js` wraps the public React Cytoscape component's
 `setProps` relay before Dash mounts it. The library's read-only `extent` reports
 otherwise dispatch a page-wide store update on nearly every pan/zoom frame.
-The facade reports the latest extent after 150 ms without another report;
-every other prop, including node/edge events and element updates, is immediate.
+The facade reports the latest extent after 150 ms without another report.
 No app callback currently consumes extent, and Cytoscape continues rendering
 its live viewport throughout. Pending reports are canceled on unmount.
+
+The library also writes its live elements, now carrying positions, back to
+Dash 100 ms after nodes are added or removed. That lands inside the layout
+those nodes started. The facade holds that echo while the canvas has a layout
+running and relays the latest one when the last layout stops. A 4 s deadline
+relays it if a stop never arrives. It counts layouts from mount, so the first
+layout's echo is held too. Every other prop, node and edge events included, is
+immediate.
 
 ### 3. Right-click → editor (the JS-Dash bridge)
 
@@ -409,9 +416,11 @@ Everything the cover waits for adds to the wait, so startup work changed:
   up the core engine. It feeds `selected-suggestion-store`, a State of the core
   engine, and Dash won't dispatch a callback while a pending callback can still
   reach one of its Inputs.
-- The Goals prewarm starts when the core payload lands, not after the canvas
-  ingest and an idle wait. It stays: it costs about 0.17 s, and without it the
-  first open of the Goals sidebar would slide in over a spinner.
+- The Goals list isn't built at startup. It builds once the sidebar's open
+  slide finishes, behind a spinner the first time, and is cleared once the
+  close slide finishes. A prewarmed list kept hundreds of components mounted
+  while hidden, and every store update re-checked them. That made every
+  update dearer, on every tab.
 
 Two costs weren't Dash's. Dash loads a core-js 2 polyfill that replaces the
 browser's `trim`, `parseFloat` and `parseInt` with versions 13 to 60 times
@@ -563,19 +572,53 @@ Cytoscape layout lifecycle, ignores superseded layout generations, and writes
 the settled root to `details-layout-settled-trigger-input` after a short quiet
 window. Only then does the table callback render its rows; a stale root is
 rejected server-side. Existing filter and graph refresh inputs still update an
-already-visible table immediately. When the canvas is frozen, no layout runs,
-so selection renders the table immediately instead of waiting for an event that
-cannot occur.
+already-visible table immediately. The selection is only a State of the table
+callback. The browser swaps in the "Loading subtasks…" placeholder when the
+dropdown value changes, before the graph starts moving. When the canvas is
+frozen, no layout runs, so a clientside callback sends the settle signal as
+soon as the selection lands.
 
 That placeholder makes `details-selected-node-store` load-bearing. Dash re-fires
 dependent callbacks on any write, including one whose value is unchanged. Most
 of the selection callback's Inputs are refresh signals, so it holds the store
 slot at `no_update` unless the selection actually moved. Without that guard a
-plain graph refresh looks like a fresh selection, and the table falls back to
-its placeholder with no root transition left to release it. The same rule
+plain graph refresh looks like a fresh selection, and the simulation goes back
+to waiting with no root transition left to release it. The same rule
 applies wherever a deferred render is keyed off a store: write the store only
 when its value changes. `handle_edit_trigger` in `callbacks.py` guards
 `main-tabs.active_tab` for the same reason.
+
+### The Details opening animation
+
+A Details selection starts a one-second layout. Every Dash store update during
+it costs a few milliseconds, because each mounted component re-checks the
+store. Each callback costs about ten of those updates. So the selection keeps
+callbacks out of that second:
+
+- The graph's request goes out with the selection's, keyed on the dropdown
+  value, rather than after the selection callback returns.
+- Navigation history, graph taps and suggestion clicks are clientside
+  callbacks.
+- The node count is counted in the browser from the graph payload. A server
+  callback reports only whether any filter is active, and only when the
+  filters change.
+- The Explain modal's inputs come from `details-explain-node`, which is
+  written only while the modal is open.
+- Node-less simulation cancellations reach the server only while a
+  calculation may still be running.
+- Some releases are sent with `set_props` instead of a declared Output. Dash
+  holds a callback while a pending callback could still change one of its
+  Inputs. A declared Output made every selection's graph callback wait behind
+  one.
+
+`assets/00_dash_noop_dispatch.js` removes the rest of the noise. Dash's
+requested-callbacks observer runs asynchronously. After a burst of callbacks,
+its queued runs find nothing to do, but each still dispatches a
+`Callbacks.Aggregate` whose entries are all null. The reducer leaves state
+unchanged, yet every component re-checks the store. About ten of those landed
+in the graph's first frames. The asset drops exactly that action. Dash assigns
+`window.store` after assets load, so the asset wraps the store's `dispatch` as
+it is assigned.
 
 Selecting an event does not emit a data refresh. A clientside ALL callback
 updates card styles without remounting the list or rebuilding search
@@ -690,8 +733,8 @@ change can send back the selected subtree's nodes and edges unchanged, such as
 a context with no nodes in it, and the layout request skips that payload like
 the echo. So `settleUnchanged()` in `assets/layout_requests.js` runs on the
 same payload, before the request records it, and applies the same signature
-check. When no
-layout will run, it sends the settled token itself. It does nothing on a frozen
+check. When no layout will run, `releaseUnchanged()` sends the settled token
+itself, through `set_props`. It does nothing on a frozen
 canvas, which already bypasses the gate, or on a replacement Cytoscape
 instance, which will lay the payload out. It also defers while
 `detailsLayoutSettling()` reports an earlier layout still running, because that

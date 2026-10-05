@@ -1413,6 +1413,8 @@ def build_app_layout(initial_elements, env="production"):
         # Events tabs each have their own pending store + freeze store.
         dcc.Store(id='elements-pending-store', data=None),
         dcc.Store(id='details-elements-pending-store', data=None),
+        # Whether a filter narrows the Details subtree, for its node-count overlay.
+        dcc.Store(id='details-filters-active-store', data=False),
         dcc.Store(id='events-elements-pending-store', data=None),
         dcc.Store(id='details-freeze-rerender-store', data=False),
         dcc.Store(id='events-freeze-rerender-store', data=False),

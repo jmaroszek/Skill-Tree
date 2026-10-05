@@ -18,6 +18,7 @@ from graph_manager import GraphManager
 from config import ConfigManager, SIDEBAR_TRANSLATE_CLOSED
 from models import STATUS_DONE
 from details_layout import build_goal_card
+from sidebars_layout import goal_list_cover
 from callback_helpers import node_menu_attributes, left_sidebar_is_open
 
 graph_manager = GraphManager()
@@ -171,38 +172,15 @@ def register_sidebars_callbacks(app, services=None):
         ed_style["transform"] = "translateX(0px)"
         return goal_style, "Goal", ed_style
 
-    # --- Background Goal List Build ---
-    # Once the core engine's first payload has landed, build the Goals list
-    # once so the first open finds it ready instead of behind its spinner.
-    # Mirrors the Analyze prewarm, including starting without waiting for the
-    # browser to go idle. Later changes don't rebuild it in the background;
-    # opening the sidebar does that.
-    app.clientside_callback(
-        """
-        function(elements, prewarmed) {
-            // A render arrives as elements, or as a deferred marker while the
-            // Nodes canvas hasn't loaded. Either is the core payload landing.
-            if (prewarmed || !elements) {
-                return window.dash_clientside.no_update;
-            }
-            return Date.now();
-        }
-        """,
-        Output("goals-prewarm-store", "data"),
-        Input("elements-pending-store", "data"),
-        State("goals-prewarm-store", "data"),
-        prevent_initial_call=True,
-    )
-
     # --- Populate Goal Sidebar ---
-    # Only renders while the sidebar is actually open, plus the one background
-    # build above. The result is ~130 KB of component JSON, and it used to run
-    # on every tab switch and every graph mutation whether or not anyone could
-    # see it. Skipping it while closed is safe because the only thing that
-    # opens the sidebar is `goals.toggle_sidebar` in assets/goals_sidebar.js,
-    # which bumps goals-ui-refresh-trigger once the slide finishes — so the
-    # list is always rebuilt on the way open. Until then the sidebar shows the
-    # list from its last build. Every other writer of this style only closes it.
+    # The cards exist only while the sidebar is open. The result is ~130 KB of
+    # component JSON, and Dash re-checks every mounted component on each store
+    # update, so a hidden list slowed every interaction elsewhere: the Details
+    # graph's opening animation stuttered behind it. assets/goals_sidebar.js
+    # bumps goals-ui-refresh-trigger when a slide finishes. After an open
+    # that builds the list; after a close it swaps the list for the cover, so
+    # the next open slides in over a spinner. Nothing else builds the list
+    # while the sidebar is closed.
     @app.callback(
         Output("details-goal-list-container", "children"),
         Input("main-tabs", "active_tab"),
@@ -212,22 +190,17 @@ def register_sidebars_callbacks(app, services=None):
         Input("details-goal-search", "value"),
         Input("details-goal-sort", "data"),
         Input("details-goal-order-store", "data"),
-        Input("goals-prewarm-store", "data"),
         State("details-selected-node-store", "data"),
         State("details-goal-sidebar", "style"),
         # The sidebar starts closed, so a page-load call has nothing to do.
         prevent_initial_call=True,
     )
-    def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val, sort_mode, _order_changed, _prewarm, selected_node, goal_sidebar_style):
+    def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val,
+                         sort_mode, _order_changed, selected_node, goal_sidebar_style):
         if not left_sidebar_is_open(goal_sidebar_style):
-            # The prewarm writes a timestamp. The store also reports a change
-            # with no value when it mounts, because a dcc.Store whose data
-            # starts as None does that, and that used to build the list a
-            # second time, while the core engine was still computing.
-            prewarming = ("goals-prewarm-store.data" in ctx.triggered_prop_ids
-                          and bool(_prewarm))
-            if not prewarming:
-                return no_update
+            if "goals-ui-refresh-trigger.data" in ctx.triggered_prop_ids:
+                return goal_list_cover()
+            return no_update
         # One snapshot for the whole build. Without it, each goal's completion
         # walk re-reads the database, which was ~90% of the build time.
         with database.read_snapshot():

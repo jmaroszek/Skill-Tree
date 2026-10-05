@@ -247,6 +247,31 @@ a worst gap of 174 ms, and one graph layout. Under CPU slowdown, its callback
 and React work can still interrupt the opening layout. The improvements above
 do not eliminate that loading bottleneck.
 
+### Details opening animation
+
+The Details opening animation had grown choppier since 2026-09-13. Nothing had
+undone that day's fixes. Each Dash store update had grown dearer, from 1.9 ms
+to 2.3–3 ms, because more components were mounted. The largest addition was
+the prewarmed Goals list. And more callbacks answered inside the layout's first
+frames. The fixes are in Details responsiveness in
+[app_architecture.md](app_architecture.md).
+
+The check clicks a suggestion on the sandbox data in headless Chrome. It times
+the gaps between Cytoscape renders from layout start to layout stop. A long gap
+is a visible stall in the tween. Runs alternated with a server on the
+2026-09-13 commit, because this machine's speed drifts.
+
+| Measure | 2026-09-13 | Now |
+| --- | --- | --- |
+| Worst render gap (median of runs) | ~45 ms | ~10 ms |
+| Worst render gap (any run) | 52–58 ms | 25–31 ms |
+| First render after layout start | 16–18 ms | 4–6 ms |
+| Click to layout start | 221–246 ms | 210–239 ms |
+
+The simulation still runs after the layout settles. The ratings popups add
+about 200 mounted components. Removing them would save about 7% per store
+update, so they stay.
+
 `tools/animation_bench.py` retains the sandbox benchmark, raw frame intervals,
 layout/transition events, request counts, timeline totals and a Details CPU
 profile. Use `--app-root` for another source checkout, `--rate` for CPU

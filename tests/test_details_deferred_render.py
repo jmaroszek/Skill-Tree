@@ -250,7 +250,7 @@ def test_priority_rank_badges_share_the_orange_rank_color():
     assert getattr(row, "aria-label") == "View Sleep. Priority 2, Health"
 
     card = build_goal_card("Sleep", "Open", {"total": 0}, 0, priority_rank=2)
-    rank_trigger = card.children[1].children[1].children[0]
+    rank_trigger = card.children[0].children[1].children[0]
     assert rank_trigger.children.style["backgroundColor"] == "#f39c12"
 
 
@@ -263,7 +263,7 @@ def test_explore_suggestion_shows_the_goal_score_like_the_sidebar_card():
     assert getattr(row, "aria-label") == "View Sleep. Priority score 54, Health"
 
     card = build_goal_card("Sleep", "Open", {"total": 0}, 0, corner_text="54")
-    sidebar_badge = card.children[1].children[1].children[1]
+    sidebar_badge = card.children[0].children[1].children[1]
     assert badge.style == sidebar_badge.style
 
 
@@ -445,27 +445,31 @@ def test_selection_callback_no_longer_serializes_subtasks_table():
 def test_subtasks_table_waits_for_current_layout(monkeypatch):
     app = _app_with(register_details_callbacks)
     spec = _spec_for_output(app, "details-subtasks-table-container.children")
-    assert _input_ids(spec) >= {
-        "details-selected-node-store",
-        "details-layout-settled-trigger-input",
-    }
+    assert "details-layout-settled-trigger-input" in _input_ids(spec)
+    # A selection alone asks the server nothing: its answer used to land in
+    # the opening animation. The browser swaps in the placeholder instead.
+    assert "details-selected-node-store" not in _input_ids(spec)
+    assert "details-selected-node-store" in _state_ids(spec)
     callback = _raw_callback(spec)
     args = [
-        "Current", "", 0, 0,
+        "", 0, 0,
         ["include"], [], 6,
-        None, None, [], 1, 1, None, "All", [], [], [], None, False,
+        None, None, [], 1, 1, None, "All", [], [], [], None, "Current",
     ]
-
-    monkeypatch.setattr(
-        details_callbacks, "get_trigger_id",
-        lambda: "details-selected-node-store")
-    loading = callback(*args)
-    assert loading.children == "Loading subtasks…"
+    placeholder = next(
+        c for c in app._callback_list
+        if c.get("clientside_function")
+        and "details-explain-node.data" in c["output"])
+    assert [i["id"] for i in placeholder["inputs"]] == ["details-node-select"]
+    source = next(s for s in app._inline_scripts
+                  if placeholder["clientside_function"]["function_name"] in s)
+    assert "set_props('details-subtasks-table-container'" in source
+    assert "Loading subtasks…" in source
 
     monkeypatch.setattr(
         details_callbacks, "get_trigger_id",
         lambda: "details-layout-settled-trigger-input")
-    args[1] = '{"root":"Superseded","settledAt":1}'
+    args[0] = '{"root":"Superseded","settledAt":1}'
     assert callback(*args) is dash.no_update
 
 
@@ -491,15 +495,26 @@ def test_frozen_selection_renders_without_waiting_for_layout(monkeypatch):
     manager.add_edge("Child", "Current", EDGE_NEEDS_HARD)
 
     app = _app_with(register_details_callbacks)
+    # A frozen canvas runs no layout, so the browser sends the settle signal
+    # once the selection lands.
+    release = next(
+        c for c in app._callback_list
+        if c.get("clientside_function")
+        and [i["id"] for i in c["inputs"]] == ["details-selected-node-store"]
+        and [s["id"] for s in c["state"]] == ["details-freeze-rerender-store"])
+    source = next(s for s in app._inline_scripts
+                  if release["clientside_function"]["function_name"] in s)
+    assert "details-layout-settled-trigger-input" in source
+
     callback = _raw_callback(_spec_for_output(
         app, "details-subtasks-table-container.children"))
     monkeypatch.setattr(
         details_callbacks, "get_trigger_id",
-        lambda: "details-selected-node-store")
+        lambda: "details-layout-settled-trigger-input")
     result = callback(
-        "Current", "", 0, 0,
+        '{"root":"Current","settledAt":1}', 0, 0,
         ["include"], [], 6,
-        None, None, [], 1, 1, None, "All", [], [], [], None, True,
+        None, None, [], 1, 1, None, "All", [], [], [], None, "Current",
     )
 
     assert "Child" in str(result)
@@ -576,15 +591,15 @@ def test_explain_chart_waits_for_the_selected_nodes_contributors():
         "iv": 4.0,
     }
 
-    waiting = callback(10, [contributor], None, True, "Current")
+    waiting = callback(10, [contributor], None, True, "Current", "Current")
     assert waiting[0] is dash.no_update
     assert waiting[1] == {"display": "none"}
     assert waiting[3] == "Preparing explanation…"
 
-    stale = callback(10, [contributor], "Previous", True, "Current")
+    stale = callback(10, [contributor], "Previous", True, "Current", "Current")
     assert stale[1] == {"display": "none"}
 
-    ready = callback(10, [contributor], "Current", True, "Current")
+    ready = callback(10, [contributor], "Current", True, "Current", "Current")
     assert len(ready[0].data) == 1
     assert ready[1] == {}
     assert ready[2] == {"display": "none"}

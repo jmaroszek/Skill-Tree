@@ -149,7 +149,7 @@ def _component_ids_and_badges(component):
         if isinstance(card_id, dict) and card_id.get("type") in (
                 "goal-card", "details-suggestion-item"):
             if card_id["type"] == "goal-card":
-                corner = current.children[1].children[1].children[1]
+                corner = current.children[0].children[1].children[1]
             else:
                 corner = current.children[1] if len(current.children) > 1 else None
             found[card_id["index"]] = corner.children if corner is not None else None
@@ -190,7 +190,7 @@ def test_sidebar_and_details_show_the_same_number_whatever_is_hidden():
 
     def sidebar(search):
         return _component_ids_and_badges(render_sidebar(
-            "tab-details", None, None, None, search, "priority", None, None, None,
+            "tab-details", None, None, None, search, "priority", None, None,
             {"transform": "translateX(0px)"}))
 
     def details(context):

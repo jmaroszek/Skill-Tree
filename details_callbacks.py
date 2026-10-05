@@ -33,6 +33,12 @@ graph_manager = GraphManager()
 event_manager = EventManager()
 
 
+# The node panel's style while a node is selected. The browser applies it as
+# soon as the selection changes; select_detail_node restates it.
+DETAILS_CONTENT_SHOWN = {"display": "flex", "flexDirection": "column", "flex": "1",
+                         "padding": "0 18px", "overflowY": "auto"}
+
+
 def _normalize_max_depth(value):
     """Map the Details slider's ``All`` sentinel to an uncapped traversal."""
     return None if value in (None, 0, 6) else int(value)
@@ -156,7 +162,34 @@ def register_details_callbacks(app, services=None):
                 for n in sorted(nodes, key=lambda n: n.name)]
 
     # --- Navigation History: push new entries, handle back/forward ---
-    @app.callback(
+    # In the browser: it is pure bookkeeping, and as a server callback it was
+    # one more request queued behind every selection while the graph waited.
+    app.clientside_callback(
+        """
+        function(selected, backClicks, fwdClicks, history, navIndex) {
+            var context = window.dash_clientside.callback_context;
+            var trigger = context && context.triggered_id;
+            history = (history || []).slice();
+            navIndex = navIndex === null || navIndex === undefined ? -1 : Number(navIndex);
+            if (trigger === 'btn-details-nav-back') {
+                if (navIndex > 0) navIndex -= 1;
+            } else if (trigger === 'btn-details-nav-forward') {
+                if (navIndex < history.length - 1) navIndex += 1;
+            } else if (trigger === 'details-selected-node-store' && selected) {
+                // Only push a new node, not a back/forward replay.
+                if (navIndex < 0 || (navIndex < history.length &&
+                                     history[navIndex] !== selected)) {
+                    history = history.slice(0, navIndex + 1);
+                    history.push(selected);
+                    navIndex = history.length - 1;
+                } else if (!history.length) {
+                    history.push(selected);
+                    navIndex = 0;
+                }
+            }
+            return [history, navIndex, navIndex <= 0, navIndex >= history.length - 1];
+        }
+        """,
         Output("details-nav-history", "data"),
         Output("details-nav-index", "data"),
         Output("btn-details-nav-back", "disabled"),
@@ -168,35 +201,6 @@ def register_details_callbacks(app, services=None):
         State("details-nav-index", "data"),
         prevent_initial_call=True,
     )
-    def manage_nav_history(selected_node, back_clicks, fwd_clicks,
-                           history, nav_index):
-        trigger = ctx.triggered_id
-        history = list(history or [])
-        nav_index = int(nav_index) if nav_index is not None else -1
-
-        if trigger == "btn-details-nav-back":
-            if nav_index > 0:
-                nav_index -= 1
-        elif trigger == "btn-details-nav-forward":
-            if nav_index < len(history) - 1:
-                nav_index += 1
-        elif trigger == "details-selected-node-store":
-            if selected_node:
-                # Only push if it's a new node (not a back/forward replay)
-                if nav_index < 0 or (nav_index < len(history) and
-                                     history[nav_index] != selected_node):
-                    # Truncate forward history and push
-                    history = history[:nav_index + 1]
-                    history.append(selected_node)
-                    nav_index = len(history) - 1
-                elif not history:
-                    history.append(selected_node)
-                    nav_index = 0
-
-        back_disabled = nav_index <= 0
-        fwd_disabled = nav_index >= len(history) - 1
-
-        return history, nav_index, back_disabled, fwd_disabled
 
     # --- Back/Forward button clicks → update dropdown selection ---
     @app.callback(
@@ -441,8 +445,7 @@ def register_details_callbacks(app, services=None):
 
         return (
             {"display": "none"},
-            {"display": "flex", "flexDirection": "column", "flex": "1",
-             "padding": "0 18px", "overflowY": "auto"},
+            DETAILS_CONTENT_SHOWN,
             _selection_output(node_name),
             node.name,
             badges,
@@ -462,13 +465,18 @@ def register_details_callbacks(app, services=None):
 
     # --- Subtasks table: selection placeholder, then render after layout ---
     # The full table is the largest remaining Details response. Keep it out of
-    # the initial animation window: selection clears the stale table cheaply,
-    # and details_deferred_subtasks.js requests the real rows only after the
+    # the initial animation window: the browser swaps in a placeholder when the
+    # selection changes (see the panel callback above), and
+    # details_deferred_subtasks.js requests the real rows only after the
     # newest Cytoscape layout has stopped. Filter/refresh changes on an already
     # rendered node remain immediate.
+    #
+    # The selection is a State. As an Input it made a request on every
+    # selection whose answer landed in the opening animation, and the only
+    # selection it had to act on is a frozen canvas's, which runs no layout.
+    # The callback below sends that canvas's settle signal itself.
     @app.callback(
         Output("details-subtasks-table-container", "children"),
-        Input("details-selected-node-store", "data"),
         Input("details-layout-settled-trigger-input", "value"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
@@ -486,27 +494,20 @@ def register_details_callbacks(app, services=None):
         Input("filter-dormant", "value"),
         Input("details-hide-blocked", "value"),
         Input("filter-time-min", "value"),
-        State("details-freeze-rerender-store", "data"),
+        State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     @database.snapshot_read
-    def render_details_subtasks(selected_node, settled_token, _refresh,
-                                _version,
+    def render_details_subtasks(settled_token, _refresh, _version,
                                 include_soft_val, include_synergies_val,
                                 max_depth_val, f_context, f_subcontext,
                                 f_done, f_value, f_interest, f_time,
                                 f_difficulty, f_node_types, f_show_dormant,
-                                hide_blocked_val, f_time_min, freeze_on):
+                                hide_blocked_val, f_time_min, selected_node):
         if not selected_node:
             return build_no_selection_subtasks()
 
         trigger = get_trigger_id()
-        if trigger == "details-selected-node-store" and not freeze_on:
-            return html.Div(
-                "Loading subtasks…",
-                className="text-muted text-center py-3",
-                role="status")
-
         if trigger == "details-layout-settled-trigger-input":
             try:
                 settled_root = json.loads(settled_token or "{}").get("root")
@@ -537,6 +538,22 @@ def register_details_callbacks(app, services=None):
             non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
             parent_name=selected_node, include_soft=include_soft,
             include_synergies=include_synergies)
+
+    # A frozen canvas starts no layout, so nothing would release a new
+    # selection's table. Send the settle signal once the selection lands.
+    app.clientside_callback(
+        """
+        function(node, frozen) {
+            if (!node || !frozen) return;
+            window.dash_clientside.set_props('details-layout-settled-trigger-input', {
+                value: JSON.stringify({root: node, settledAt: Date.now()})
+            });
+        }
+        """,
+        Input("details-selected-node-store", "data"),
+        State("details-freeze-rerender-store", "data"),
+        prevent_initial_call=True,
+    )
 
     # --- Toggle milestone filters ---
     @app.callback(
@@ -653,9 +670,13 @@ def register_details_callbacks(app, services=None):
     # Outputs to details-elements-pending-store; a clientside callback in
     # callbacks.py applies freeze bypass (direct cy mutation during freeze)
     # or forwards to details-mini-graph.elements normally.
+    # It reads the dropdown, not details-selected-node-store, so its request
+    # goes out with select_detail_node's instead of after that callback's
+    # 24 outputs have been applied. The graph is the opening animation's
+    # critical path; the panel can fill in around it.
     @app.callback(
         Output("details-elements-pending-store", "data"),
-        Input("details-selected-node-store", "data"),
+        Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
         Input("graph-version-store", "data"),
         Input("details-include-soft-needs", "value"),
@@ -683,6 +704,10 @@ def register_details_callbacks(app, services=None):
                              f_show_dormant, hide_blocked_val, f_time_min):
         if not selected_node:
             return []
+        # select_detail_node keeps the previous view for a name that no
+        # longer exists, so this keeps its graph too.
+        if not graph_manager.get_node(selected_node):
+            return no_update
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types, f_show_dormant=f_show_dormant,
@@ -697,28 +722,35 @@ def register_details_callbacks(app, services=None):
                                          and "show" in show_cross_links_val))
 
     # --- Clicking a node in the dep graph → select it ---
-    @app.callback(
+    # In the browser: a server round trip here only delayed the graph's
+    # opening animation by one more request.
+    app.clientside_callback(
+        """
+        function(tapData, activeTab) {
+            if (activeTab !== 'tab-details' || !tapData || tapData.id == null) {
+                return window.dash_clientside.no_update;
+            }
+            return tapData.id;
+        }
+        """,
         Output("details-node-select", "value", allow_duplicate=True),
         Input("details-mini-graph", "tapNodeData"),
         State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
-    def dep_graph_node_click(tap_data, active_tab):
-        if active_tab != "tab-details":
-            return no_update
-        if not tap_data:
-            return no_update
-        return tap_data.get("id", no_update)
 
     # Browser-generated sequence numbers let both the worker and the chart
     # discard superseded selections, even if responses arrive out of order.
-    # Layout-affecting changes first send a node-less request, which cancels
-    # older work without starting another simulation. The selected node is
+    # Layout-affecting changes first send a node-less request, which shows
+    # "Calculating…" and, while an earlier simulation may still be running,
+    # cancels it on the server without starting another. The selected node is
     # released only after the newest Cytoscape layout settles. Frozen canvases
     # bypass the gate because they intentionally produce no layout events.
     app.clientside_callback(
-        ClientsideFunction(namespace="skillTreeSimulation", function_name="request"),
+        ClientsideFunction(namespace="skillTreeSimulation",
+                           function_name="requestAndForward"),
         Output("details-sim-request", "data"),
+        Output("details-sim-server-request", "data"),
         Input("details-selected-node-store", "data"),
         Input("details-include-soft-needs", "value"),
         Input("details-include-synergies", "value"),
@@ -737,7 +769,7 @@ def register_details_callbacks(app, services=None):
     )
 
     @app.callback(Output("details-sim-result", "data"),
-                  Input("details-sim-request", "data"), prevent_initial_call=True)
+                  Input("details-sim-server-request", "data"), prevent_initial_call=True)
     def run_details_simulation(request):
         if not request:
             return no_update
@@ -991,21 +1023,22 @@ def register_details_callbacks(app, services=None):
             goal_rows, explore_rows, filters_active=filters_active)
 
     # --- Suggestion Click → Select that node in Details ---
-    @app.callback(
+    # In the browser, for the same reason as a graph tap.
+    app.clientside_callback(
+        """
+        function(clicks, activeTab) {
+            var no = window.dash_clientside.no_update;
+            if (activeTab !== 'tab-details' || !(clicks || []).some(Boolean)) return no;
+            var context = window.dash_clientside.callback_context;
+            var triggered = context && context.triggered_id;
+            return triggered && triggered.index != null ? triggered.index : no;
+        }
+        """,
         Output("details-node-select", "value", allow_duplicate=True),
         Input({"type": "details-suggestion-item", "index": ALL}, "n_clicks"),
         State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
-    def select_suggested_node(n_clicks_list, active_tab):
-        if active_tab != "tab-details":
-            return no_update
-        if not any(n_clicks_list):
-            return no_update
-        triggered = ctx.triggered_id
-        if not triggered:
-            return no_update
-        return triggered["index"]
 
     # --- Explain modal: the arithmetic is a disclosure, closed by default ---
     @app.callback(
@@ -1141,8 +1174,7 @@ def register_details_callbacks(app, services=None):
     # actually affect the subtree being rendered here. Show Done is not among
     # them — see is_filters_active on why a reveal is not a filter.
     @app.callback(
-        Output('details-canvas-node-count', 'children'),
-        Input('details-mini-graph', 'elements'),
+        Output('details-filters-active-store', 'data'),
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
         Input('filter-subcontext', 'value'),
@@ -1152,18 +1184,38 @@ def register_details_callbacks(app, services=None):
         Input('filter-time', 'value'),
         Input('details-max-depth', 'value'),
         Input('filter-time-min', 'value'),
+        prevent_initial_call=True,
     )
-    def update_details_node_count(elements, f_type, f_ctx, f_sub, f_val,
-                                  f_int, f_diff, f_time, max_depth_val,
-                                  f_time_min):
-        n = sum(1 for el in (elements or []) if 'source' not in el.get('data', {}))
-        text = f"{n} node{'s' if n != 1 else ''}"
-        if _normalize_max_depth(max_depth_val) is not None or is_filters_active(
-                node_type=f_type, context=f_ctx, subcontext=f_sub,
-                value=f_val, interest=f_int, difficulty=f_diff,
-                time=f_time, time_min=f_time_min):
-            return f"{text} · filtered"
-        return text
+    @prerendered
+    def update_details_filters_active(f_type, f_ctx, f_sub, f_val, f_int,
+                                      f_diff, f_time, max_depth_val, f_time_min):
+        return bool(_normalize_max_depth(max_depth_val) is not None or is_filters_active(
+            node_type=f_type, context=f_ctx, subcontext=f_sub,
+            value=f_val, interest=f_int, difficulty=f_diff,
+            time=f_time, time_min=f_time_min))
+
+    # The count itself is read in the browser from the payload on its way to
+    # Cytoscape. Reading it from the canvas's elements sent the whole graph to
+    # the server twice per selection, once for the payload and once for
+    # dash-cytoscape's positional echo, both inside the opening animation.
+    app.clientside_callback(
+        """
+        function(pending, filtered) {
+            if (!Array.isArray(pending)) return window.dash_clientside.no_update;
+            var n = 0;
+            for (var i = 0; i < pending.length; i++) {
+                var data = pending[i] && pending[i].data;
+                if (data && data.source === undefined) n += 1;
+            }
+            var text = n + (n === 1 ? ' node' : ' nodes');
+            return filtered ? text + ' · filtered' : text;
+        }
+        """,
+        Output('details-canvas-node-count', 'children'),
+        Input('details-elements-pending-store', 'data'),
+        Input('details-filters-active-store', 'data'),
+        prevent_initial_call=True,
+    )
 
     # --- Details Graph Layout: layout requests ---
     # Registered with every canvas's in callbacks.py; built by
@@ -1173,10 +1225,11 @@ def register_details_callbacks(app, services=None):
     # that leaves this subtree's nodes and edges as they were (a context with
     # no nodes here) starts no layout, so that wait would never end. This
     # sends the settle signal itself whenever a payload will not be laid out.
+    # It writes with set_props rather than an Output, so the simulation's
+    # request doesn't wait on this payload; see releaseUnchanged.
     app.clientside_callback(
         ClientsideFunction(
-            namespace="skillTreeLayout", function_name="settleUnchanged"),
-        Output('details-simulation-settled-trigger-input', 'value'),
+            namespace="skillTreeLayout", function_name="releaseUnchanged"),
         Input('details-elements-pending-store', 'data'),
         State('details-freeze-rerender-store', 'data'),
         State('details-selected-node-store', 'data'),
@@ -1194,6 +1247,59 @@ def register_details_callbacks(app, services=None):
     def toggle_explain_modal(_open_clicks, _close_clicks, is_open):
         return not is_open
 
+    # Both Explain callbacks run only while the modal is open. They used to
+    # take the selection directly and return nothing while closed, which
+    # still made two server round trips on every selection, just as the
+    # Details graph started its opening animation.
+    #
+    # The same browser callback reveals the panel as soon as there is a
+    # selection. The graph's payload can now arrive before
+    # select_detail_node's answer, and a layout run in the hidden panel
+    # would animate at a zero size.
+    #
+    # It also replaces the previous subtasks table with its placeholder, so
+    # that unmount happens while the graph's request is out, not in the
+    # layout's first frames. The swap waits a task so the requests leave
+    # first. render_details_subtasks fills the table once the layout
+    # settles. A frozen canvas runs no layout, so the server renders its
+    # table at once, and a selection that didn't move keeps its table:
+    # nothing would settle to replace the placeholder.
+    app.clientside_callback(
+        """
+        function(node, isOpen, current, frozen, options) {
+            var no = window.dash_clientside.no_update;
+            var known = (options || []).some(function (option) {
+                return option && option.value === node;
+            });
+            if (node && known && node !== current && !frozen) {
+                setTimeout(function () {
+                    window.dash_clientside.set_props('details-subtasks-table-container', {
+                        children: {
+                            namespace: 'dash_html_components', type: 'Div',
+                            props: {children: 'Loading subtasks…', role: 'status',
+                                    className: 'text-muted text-center py-3'}
+                        }
+                    });
+                }, 0);
+            }
+            return [
+                node ? {display: 'none'} : {display: 'block'},
+                node ? __SHOWN__ : {display: 'none'},
+                isOpen ? node : no
+            ];
+        }
+        """.replace("__SHOWN__", json.dumps(DETAILS_CONTENT_SHOWN)),
+        Output("details-empty", "style", allow_duplicate=True),
+        Output("details-content", "style", allow_duplicate=True),
+        Output("details-explain-node", "data"),
+        Input("details-node-select", "value"),
+        State("modal-details-explain", "is_open"),
+        State("details-selected-node-store", "data"),
+        State("details-freeze-rerender-store", "data"),
+        State("details-node-select", "options"),
+        prevent_initial_call=True,
+    )
+
     @app.callback(
         [Output("details-explain-title", "children"),
          Output("details-explain-subtitle", "children"),
@@ -1201,11 +1307,12 @@ def register_details_callbacks(app, services=None):
          Output("details-explain-contrib-store", "data"),
          Output("details-explain-count", "value"),
          Output("details-explain-ready-node", "data")],
-        [Input("modal-details-explain", "is_open"),
-         Input("details-node-select", "value")],
+        Input("modal-details-explain", "is_open"),
+        Input("details-explain-node", "data"),
+        State("details-node-select", "value"),
         prevent_initial_call=True,
     )
-    def populate_explain_modal(is_open, node_name):
+    def populate_explain_modal(is_open, _explain_node, node_name):
         if not is_open or not node_name:
             return (no_update, no_update, no_update, no_update, no_update,
                     no_update)
@@ -1313,11 +1420,12 @@ def register_details_callbacks(app, services=None):
          Input("details-explain-contrib-store", "data"),
          Input("details-explain-ready-node", "data"),
          Input("modal-details-explain", "is_open"),
-         Input("details-node-select", "value")],
+         Input("details-explain-node", "data")],
+        State("details-node-select", "value"),
         prevent_initial_call=True,
     )
     def update_explain_chart(count, contributors, ready_node, is_open,
-                             selected_node):
+                             _explain_node, selected_node):
         placeholder_style = {
             "minHeight": "260px",
             "fontSize": tokens.FS_BASE,
