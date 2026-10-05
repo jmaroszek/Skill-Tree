@@ -443,6 +443,10 @@ def test_selection_callback_no_longer_serializes_subtasks_table():
 
 
 def test_subtasks_table_waits_for_current_layout(monkeypatch):
+    GraphManager().add_node(Node(
+        name="Current", type="Learn", description="", value=5,
+        time_o=1, time_m=2, time_p=3, interest=5, difficulty=5,
+        status="Open", context="Mind"))
     app = _app_with(register_details_callbacks)
     spec = _spec_for_output(app, "details-subtasks-table-container.children")
     assert "details-layout-settled-trigger-input" in _input_ids(spec)
@@ -465,12 +469,20 @@ def test_subtasks_table_waits_for_current_layout(monkeypatch):
                   if placeholder["clientside_function"]["function_name"] in s)
     assert "set_props('details-subtasks-table-container'" in source
     assert "Loading subtasks…" in source
+    # A cleared selection gets the no-selection message there too.
+    assert "Select a node to see subtasks." in source
 
     monkeypatch.setattr(
         details_callbacks, "get_trigger_id",
         lambda: "details-layout-settled-trigger-input")
     args[0] = '{"root":"Superseded","settledAt":1}'
     assert callback(*args) is dash.no_update
+
+    # A deleted node's late refresh doesn't claim it has no subtasks.
+    monkeypatch.setattr(details_callbacks, "get_trigger_id",
+                        lambda: "graph-version-store")
+    args[-1] = "Deleted"
+    assert callback(*args).children == "Select a node to see subtasks."
 
 
 def test_simulation_waits_for_its_layout_signal_unless_frozen():

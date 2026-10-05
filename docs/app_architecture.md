@@ -235,9 +235,14 @@ its live viewport throughout. Pending reports are canceled on unmount.
 The library also writes its live elements, now carrying positions, back to
 Dash 100 ms after nodes are added or removed. That lands inside the layout
 those nodes started. The facade holds that echo while the canvas has a layout
-running and relays the latest one when the last layout stops. A 4 s deadline
+running and relays the latest one when the last layout stops. It goes out with
+the positions the nodes have then. The held report still carries the
+positions from early in the layout, and relaying those would pull every node
+back to them. A 4 s deadline
 relays it if a stop never arrives. It counts layouts from mount, so the first
-layout's echo is held too. Every other prop, node and edge events included, is
+layout's echo is held too. New elements from Dash discard a held echo.
+Relaying it then would put the previous graph back, and the new graph sends
+its own. Every other prop, node and edge events included, is
 immediate.
 
 ### 3. Right-click → editor (the JS-Dash bridge)

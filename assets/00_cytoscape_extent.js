@@ -47,6 +47,23 @@
         return cy._skillTreeRunningLayouts;
     }
 
+    // A held echo carries the positions from when it was taken, early in the
+    // layout. Relaying those would move every node back there, so it goes
+    // out with the positions the nodes have now.
+    function withLivePositions(cy, elements) {
+        if (!cy || !Array.isArray(elements)) return elements;
+        return elements.map(function (element) {
+            var data = element && element.data;
+            if (!data || data.source !== undefined || element.position === undefined) {
+                return element;
+            }
+            var node = cy.getElementById(data.id);
+            if (!node || !node.length) return element;
+            var position = node.position();
+            return Object.assign({}, element, {position: {x: position.x, y: position.y}});
+        });
+    }
+
     function liveCy(id) {
         var getCy = window.SkillTree && window.SkillTree.getCy;
         return id && getCy ? getCy(document.getElementById(id)) : null;
@@ -60,7 +77,15 @@
         var timer = React.useRef(null);
         var pending = React.useRef(null);
         var held = React.useRef(null);
+        var queued = React.useRef(false);
         var mounted = React.useRef(true);
+        // New elements from Dash make a held echo stale: relaying it would
+        // put the previous graph back. The new graph's own echo replaces it.
+        var lastElements = React.useRef(props.elements);
+        if (props.elements !== lastElements.current) {
+            lastElements.current = props.elements;
+            held.current = null;
+        }
         var relay = React.useCallback(function (changes) {
             if (!mounted.current) return;
             var immediate = Object.assign({}, changes);
@@ -77,14 +102,21 @@
                 var cy = liveCy(id.current);
                 var layouts = cy ? runningLayouts(cy) : null;
                 if (layouts && layouts.count) {
-                    var first = held.current === null;
                     held.current = {elements: changes.elements};
-                    if (first) {
+                    if (!queued.current) {
+                        queued.current = true;
+                        // Runs once: from the last layoutstop or the deadline.
+                        var flushed = false;
                         var flush = function () {
+                            if (flushed) return;
+                            flushed = true;
                             clearTimeout(deadline);
+                            queued.current = false;
                             var latest = held.current;
                             held.current = null;
-                            if (latest && mounted.current) send.current(latest);
+                            if (!latest || !mounted.current) return;
+                            send.current({elements: withLivePositions(
+                                liveCy(id.current), latest.elements)});
                         };
                         var deadline = setTimeout(flush, ELEMENTS_DEADLINE_MS);
                         layouts.waiting.push(flush);

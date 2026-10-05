@@ -96,3 +96,47 @@ def test_element_echo_waits_for_the_running_layout(page):
     assert result == {"during": 0, "tap": True, "after": 1,
                       "ids": ["a", "b", "c"], "idle": 1}
     assert page.console_errors == []
+
+
+def test_new_elements_discard_a_held_echo(page):
+    _welcome(page)
+    _idle(page)
+    page.evaluate("""() => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const probe = window.staleProbe = {changes: [], root: ReactDOM.createRoot(host)};
+        probe.props = elements => ({
+            id: 'stale-echo-probe', style: {width: '200px', height: '200px'},
+            elements, layout: {name: 'preset', fit: false}, autoRefreshLayout: false,
+            setProps: changes => probe.changes.push(changes)
+        });
+        probe.root.render(React.createElement(dash_cytoscape.Cytoscape,
+            probe.props([{data: {id: 'a'}, position: {x: 0, y: 0}}])));
+    }""")
+    page.wait_for_function("SkillTree.getCy(document.getElementById('stale-echo-probe')) !== null")
+    page.wait_for_timeout(400)
+    result = page.evaluate("""async () => {
+        const probe = staleProbe;
+        const cy = SkillTree.getCy(document.getElementById('stale-echo-probe'));
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        probe.changes = [];
+        // Dash hands the canvas a graph. Its echo is held while its layout runs.
+        probe.root.render(React.createElement(dash_cytoscape.Cytoscape,
+            probe.props([{data: {id: 'a'}, position: {x: 0, y: 0}}, {data: {id: 'old'}}])));
+        await wait(0);
+        cy.layout({name: 'grid', animate: true, animationDuration: 500}).run();
+        // The next graph arrives just before that layout stops, and before
+        // its own echo is due.
+        await wait(420);
+        probe.root.render(React.createElement(dash_cytoscape.Cytoscape,
+            probe.props([{data: {id: 'new'}, position: {x: 0, y: 0}}])));
+        await new Promise(resolve => cy.one('layoutstop', resolve));
+        await wait(250);
+        const relayed = probe.changes.filter(x => 'elements' in x)
+            .map(x => x.elements.map(e => e.data.id).sort().join(','));
+        probe.root.unmount();
+        return relayed;
+    }""")
+    # The stale graph is never relayed; the current one still is.
+    assert result == ["new"], result
+    assert page.console_errors == []

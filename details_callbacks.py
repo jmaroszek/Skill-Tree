@@ -296,9 +296,9 @@ def register_details_callbacks(app, services=None):
                            f_time_min, current_selection):
         # Dash re-fires every dependent callback when an Output is written,
         # even with an unchanged value. Writing the same node name back on a
-        # refresh would make render_details_subtasks see a fresh selection and
-        # swap the table for its "Loading subtasks…" placeholder — which then
-        # waits for a layout settle that a same-root refresh never produces.
+        # refresh would look like a fresh selection: the simulation would go
+        # back to waiting for a layout settle that a same-root refresh never
+        # produces.
         def _selection_output(value):
             return no_update if value == current_selection else value
 
@@ -504,7 +504,9 @@ def register_details_callbacks(app, services=None):
                                 f_done, f_value, f_interest, f_time,
                                 f_difficulty, f_node_types, f_show_dormant,
                                 hide_blocked_val, f_time_min, selected_node):
-        if not selected_node:
+        # A deleted node has no table. Its refresh can land after the
+        # selection clears.
+        if not selected_node or not graph_manager.get_node(selected_node):
             return build_no_selection_subtasks()
 
         trigger = get_trigger_id()
@@ -1263,7 +1265,9 @@ def register_details_callbacks(app, services=None):
     # first. render_details_subtasks fills the table once the layout
     # settles. A frozen canvas runs no layout, so the server renders its
     # table at once, and a selection that didn't move keeps its table:
-    # nothing would settle to replace the placeholder.
+    # nothing would settle to replace the placeholder. A cleared selection
+    # gets the no-selection message, as before the table stopped listening
+    # to the selection.
     app.clientside_callback(
         """
         function(node, isOpen, current, frozen, options) {
@@ -1271,14 +1275,17 @@ def register_details_callbacks(app, services=None):
             var known = (options || []).some(function (option) {
                 return option && option.value === node;
             });
-            if (node && known && node !== current && !frozen) {
+            var props = null;
+            if (!node) {
+                props = {children: 'Select a node to see subtasks.'};
+            } else if (known && node !== current && !frozen) {
+                props = {children: 'Loading subtasks…', role: 'status'};
+            }
+            if (props) {
+                props.className = 'text-muted text-center py-3';
                 setTimeout(function () {
                     window.dash_clientside.set_props('details-subtasks-table-container', {
-                        children: {
-                            namespace: 'dash_html_components', type: 'Div',
-                            props: {children: 'Loading subtasks…', role: 'status',
-                                    className: 'text-muted text-center py-3'}
-                        }
+                        children: {namespace: 'dash_html_components', type: 'Div', props: props}
                     });
                 }, 0);
             }
